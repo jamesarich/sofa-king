@@ -2,6 +2,10 @@ package dev.jamesrich.sofaking.ui.player
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +52,12 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.ui.PopIn
+import dev.jamesrich.sofaking.ui.PopOut
+import dev.jamesrich.sofaking.ui.RiseIn
+import dev.jamesrich.sofaking.ui.SinkOut
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
+import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import android.util.Log
@@ -463,27 +472,51 @@ fun PlayerScreen(
                 Modifier.align(Alignment.TopStart).padding(horizontal = 48.dp, vertical = 27.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (buffering && failure == null) StatusPill(stringResource(R.string.tuning))
-                if (paused && failure == null) StatusPill(stringResource(R.string.player_paused))
-                captionToast?.let { StatusPill(stringResource(it.outcome.labelRes()), MaterialTheme.typography.titleLarge) }
+                AnimatedVisibility(rememberSettled(buffering && failure == null), enter = PopIn, exit = PopOut) {
+                    StatusPill(stringResource(R.string.tuning), busy = true)
+                }
+                AnimatedVisibility(paused && failure == null, enter = PopIn, exit = PopOut) {
+                    StatusPill(stringResource(R.string.player_paused))
+                }
+                AnimatedContent(
+                    targetState = captionToast,
+                    transitionSpec = { PopIn togetherWith PopOut },
+                    label = "captionToast",
+                ) { toast ->
+                    if (toast != null) StatusPill(stringResource(toast.outcome.labelRes()), MaterialTheme.typography.titleLarge)
+                }
             }
             failure?.let { FailureCard(it.code) }
             val pendingDigits = entry.digits
             val noticeText = notice?.let { stringResource(R.string.no_channel_number, it.digits) }
-            if (pendingDigits.isNotEmpty() || noticeText != null) {
-                DigitsBadge(pendingDigits.ifEmpty { noticeText.orEmpty() })
+            // Keyed on presence, so each typed digit updates the badge in place instead of popping it again.
+            AnimatedContent(
+                targetState = pendingDigits.ifEmpty { noticeText.orEmpty() },
+                modifier = Modifier.align(Alignment.TopEnd),
+                transitionSpec = { PopIn togetherWith PopOut },
+                contentKey = { it.isNotEmpty() },
+                label = "digits",
+            ) { text ->
+                if (text.isNotEmpty()) DigitsBadge(text)
             }
-            if (miniGuideOpen) {
-                MiniGuide(
-                    lineup = lineup,
-                    channels = currentChannels,
-                    currentIndex = index,
-                    previousIndex = previousIndex,
-                    now = now,
-                    onTune = { target -> zapTo(target) },
-                )
-            } else if (overlayVisible) {
-                InfoOverlay(lineup = lineup, channel = channel, now = now, captionsOn = captionsOn, captionAdvanceMs = channelAdvance)
+            // The channel list arrives on a spring but leaves at once: while it animated out it would still
+            // hold focus, and a quick second Back or Down would land in the list instead of the player.
+            AnimatedVisibility(miniGuideOpen, enter = RiseIn, exit = ExitTransition.None) {
+                Box(Modifier.fillMaxSize()) {
+                    MiniGuide(
+                        lineup = lineup,
+                        channels = currentChannels,
+                        currentIndex = index,
+                        previousIndex = previousIndex,
+                        now = now,
+                        onTune = { target -> zapTo(target) },
+                    )
+                }
+            }
+            AnimatedVisibility(overlayVisible && !miniGuideOpen, enter = RiseIn, exit = SinkOut) {
+                Box(Modifier.fillMaxSize()) {
+                    InfoOverlay(lineup = lineup, channel = channel, now = now, captionsOn = captionsOn, captionAdvanceMs = channelAdvance)
+                }
             }
         }
     }

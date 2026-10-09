@@ -41,7 +41,7 @@ internal fun LogoMark(size: Dp, modifier: Modifier = Modifier) {
 
 /**
  * A full-screen state with the brand on it: loading, a failed load, an empty profile. [detail] is the
- * technical reason in a quieter color; [hint] tells the viewer what to do about it.
+ * technical reason in a quieter color; [hint] tells the viewer what to do about it; [loading] adds the loader.
  */
 @Composable
 fun MessageScreen(
@@ -49,6 +49,7 @@ fun MessageScreen(
     detail: String? = null,
     hint: String? = null,
     onRetry: (() -> Unit)? = null,
+    loading: Boolean = false,
 ) {
     Box(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp), contentAlignment = Alignment.Center) {
         Column(
@@ -59,6 +60,7 @@ fun MessageScreen(
             LogoMark(96.dp)
             Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
+            if (loading) SofaLoader(56.dp)
             Text(message, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
             if (detail != null) {
                 Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)

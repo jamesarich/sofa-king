@@ -3,6 +3,7 @@
 package dev.jamesrich.sofaking.ui.preview
 
 import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,7 +41,11 @@ import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.ui.PopIn
+import dev.jamesrich.sofaking.ui.PopOut
+import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.player.LiveVideo
 import dev.jamesrich.sofaking.ui.player.recoverIfBehindLive
 import dev.jamesrich.sofaking.ui.range
@@ -190,17 +195,22 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
         // One surface for the life of the preview; the card covers it from a reset until the next first frame.
         LiveVideo(player, Modifier.fillMaxSize()) { PreviewCard(channel, failed) }
         if (failed) PreviewCard(channel, failed = true)
-        if (buffering) {
-            Text(
-                stringResource(R.string.tuning),
-                style = MaterialTheme.typography.labelLarge,
-                color = SofaDusk,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(8.dp)
+        AnimatedVisibility(
+            rememberSettled(buffering && !failed),
+            modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+            enter = PopIn,
+            exit = PopOut,
+        ) {
+            Row(
+                Modifier
                     .background(SofaOverlayScrim, RoundedCornerShape(8.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
-            )
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                SofaLoader(16.dp)
+                Text(stringResource(R.string.tuning), style = MaterialTheme.typography.labelLarge, color = SofaDusk)
+            }
         }
     }
 }

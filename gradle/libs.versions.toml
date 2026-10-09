@@ -8,6 +8,7 @@ activity-compose = "1.14.0-alpha03"
 lifecycle = "2.12.0-alpha04"
 core-ktx = "1.19.1"
 media3 = "1.11.1"
+graphics-shapes = "1.1.0"
 coil = "3.6.3"
 datastore = "1.3.0-alpha11"
 junit = "4.13.2"
@@ -24,6 +25,7 @@ compose-foundation = { module = "androidx.compose.foundation:foundation" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 tv-material = { module = "androidx.tv:tv-material", version.ref = "tv-material" }
+graphics-shapes = { module = "androidx.graphics:graphics-shapes", version.ref = "graphics-shapes" }
 media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "media3" }
 media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }

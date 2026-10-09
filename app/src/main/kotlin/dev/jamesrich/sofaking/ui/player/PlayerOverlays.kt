@@ -27,6 +27,7 @@ import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.range
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
@@ -46,29 +47,30 @@ internal fun CaptionToggleOutcome.labelRes(): Int = when (this) {
     CaptionToggleOutcome.NO_CAPTIONS_ON_CHANNEL -> R.string.captions_unavailable
 }
 
-/** A short status over the video, announced to screen readers; stack several in a Column. */
+/** A short status over the video, announced to screen readers; stack several in a Column. [busy] leads with the loader. */
 @Composable
-internal fun StatusPill(text: String, style: TextStyle = MaterialTheme.typography.titleMedium) {
-    Text(
-        text,
-        style = style,
-        color = SofaDusk,
-        modifier = Modifier
+internal fun StatusPill(text: String, style: TextStyle = MaterialTheme.typography.titleMedium, busy: Boolean = false) {
+    Row(
+        Modifier
             .background(SofaOverlayScrim, OverlayShape)
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .semantics { liveRegion = LiveRegionMode.Polite },
-    )
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (busy) SofaLoader(22.dp)
+        Text(text, style = style, color = SofaDusk)
+    }
 }
 
-/** Typed channel digits, or the miss notice for them, top right. */
+/** Typed channel digits, or the miss notice for them; the caller places it top right. */
 @Composable
-internal fun BoxScope.DigitsBadge(text: String) {
+internal fun DigitsBadge(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.displayMedium,
         color = SofaDusk,
         modifier = Modifier
-            .align(Alignment.TopEnd)
             .padding(horizontal = 48.dp, vertical = 27.dp)
             .background(SofaOverlayScrim, OverlayShape)
             .padding(horizontal = 16.dp)

@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,9 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.MessageScreen
+import dev.jamesrich.sofaking.ui.PopIn
+import dev.jamesrich.sofaking.ui.PopOut
+import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
@@ -57,6 +61,7 @@ private sealed interface Screen {
 private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val loading by vm.loading.collectAsStateWithLifecycle()
     var screen by rememberSaveable(stateSaver = ScreenSaver) { mutableStateOf<Screen>(Screen.Guide) }
     val guideState = rememberSaveableStateHolder()
     val lineup = (state as? LineupState.Ready)?.lineup
@@ -94,11 +99,11 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
         // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
         Screen.Guide -> guideState.SaveableStateProvider("guide") {
             Column {
-                Header(onSettings = { screen = Screen.Settings }, onRefresh = vm::refresh)
+                Header(refreshing = loading && state is LineupState.Ready, onSettings = { screen = Screen.Settings }, onRefresh = vm::refresh)
                 // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
                 val s = state
                 when {
-                    s is LineupState.Loading || settings == null -> MessageScreen(stringResource(R.string.loading))
+                    s is LineupState.Loading || settings == null -> MessageScreen(stringResource(R.string.loading), loading = true)
                     s is LineupState.Failed -> MessageScreen(
                         message = stringResource(R.string.load_failed),
                         detail = s.message,
@@ -141,7 +146,7 @@ private fun GuideOrEmpty(
 
 /** App bar above the guide, inside the overscan margins; the mark sits within the buttons' height so no grid row is lost. */
 @Composable
-private fun Header(onSettings: () -> Unit, onRefresh: () -> Unit) {
+private fun Header(refreshing: Boolean, onSettings: () -> Unit, onRefresh: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 27.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -149,6 +154,21 @@ private fun Header(onSettings: () -> Unit, onRefresh: () -> Unit) {
     ) {
         LogoMark(40.dp)
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+        // The lineup on screen stays usable while it refreshes; the loader only says new data is on its way.
+        AnimatedVisibility(
+            visible = refreshing,
+            enter = PopIn,
+            exit = PopOut,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SofaLoader(28.dp)
+                Text(
+                    stringResource(R.string.refreshing),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         Button(onClick = onRefresh) { Text(stringResource(R.string.refresh)) }
         Button(onClick = onSettings) { Text(stringResource(R.string.settings)) }
     }

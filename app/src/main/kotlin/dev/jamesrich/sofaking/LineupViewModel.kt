@@ -16,8 +16,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -45,6 +47,11 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val reloads = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    private val _loading = MutableStateFlow(false)
+
+    /** True while the playlist and guide are being fetched, including a background or manual refresh. */
+    val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     private val cacheFile = File(application.filesDir, "lineup-cache.bin")
 
@@ -75,6 +82,7 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
             while (true) {
                 if (last == null) emit(LineupState.Loading)
                 // Cancellation (a server change or refresh while loading) must propagate, not read as a failure.
+                _loading.value = true
                 val result = try {
                     val started = TimeSource.Monotonic.markNow()
                     val channels = repository.loadChannels()
@@ -89,6 +97,9 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
                     throw e
                 } catch (e: Exception) {
                     Result.failure(e)
+                } finally {
+                    // Also on cancellation, or a refresh or server change mid-load leaves the loader spinning.
+                    _loading.value = false
                 }
                 result.onSuccess {
                     last = it

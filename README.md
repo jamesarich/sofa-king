@@ -13,7 +13,7 @@ _Live TV, right where you left it._
 - Full-screen player: Up and Down zap, OK shows the info bar and Down from there opens a channel list with the last channel on top, long-press OK returns to the last channel.
 - Closed captions with per-channel timing to offset live-captioning delay.
 - Media keys and system media controls: next/previous channel, play and pause.
-- The last lineup shows the moment the app opens; the lineup and guide refresh every 3 hours, or on demand from Refresh.
+- The last lineup shows the moment the app opens; the lineup and guide refresh every 3 hours, or on demand from Refresh, with "Refreshing…" in the header while they load.
 - Channels appear first, then the guide fills in behind them.
 - Dispatcharr URL and channel profile are set in Settings and stored on the device.
 

@@ -11,7 +11,4 @@
     <string name="guide_cell_none">%1$s, %2$s</string>
     <string name="guide_favorite">Favorite</string>
     <string name="guide_toggle_favorite">Toggle favorite</string>
-    <string name="settings_section_server">Server</string>
-    <string name="settings_section_captions">Captions</string>
-    <string name="settings_section_about">About</string>
 </resources>

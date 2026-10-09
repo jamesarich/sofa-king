@@ -45,8 +45,8 @@ class DataStoreSettingsStore(
     }
 
     override suspend fun setServer(serverUrl: String, profile: String) {
-        val server = serverUrl.trim().trimEnd('/')
-        val channelProfile = profile.trim()
+        val server = ServerAddress.normalizeUrl(serverUrl) ?: serverUrl.trim().trimEnd('/')
+        val channelProfile = ServerAddress.normalizeProfile(profile) ?: profile.trim()
         dataStore.edit { prefs ->
             prefs[SERVER_URL] = server
             prefs[PROFILE] = channelProfile

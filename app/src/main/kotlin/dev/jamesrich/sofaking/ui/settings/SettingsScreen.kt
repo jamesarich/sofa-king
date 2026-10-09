@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
@@ -21,9 +22,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
@@ -34,9 +39,13 @@ import dev.jamesrich.sofaking.BuildConfig
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.data.ServerAddress
+import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+
+private val FIELD_WIDTH = 640.dp
 
 @Composable
 fun SettingsScreen(
@@ -58,6 +67,11 @@ fun SettingsScreen(
     var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
     val serverFocus = remember { FocusRequester() }
     val profileFocus = remember { FocusRequester() }
+    // Save only takes an address Dispatcharr's endpoints can be appended to; the fields say what is missing.
+    val validUrl = ServerAddress.normalizeUrl(serverUrl)
+    val validProfile = ServerAddress.normalizeProfile(profile)
+    val canSave = validUrl != null && validProfile != null
+    val save = { if (validUrl != null && validProfile != null) onSave(validUrl, validProfile) }
 
     BackHandler { onBack() }
     LaunchedEffect(Unit) { requestFocusWhenAttached(serverFocus) }
@@ -70,7 +84,10 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text("Settings", style = MaterialTheme.typography.headlineMedium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                LogoMark(40.dp)
+                Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
+            }
         }
         // Above the fields: always on screen, and one Up from the URL field, with the keyboard closed.
         item {
@@ -78,43 +95,40 @@ fun SettingsScreen(
                 modifier = Modifier.focusGroup(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Button(onClick = { onSave(serverUrl, profile) }) {
-                    Text("Save & reload")
+                Button(onClick = save, enabled = canSave) {
+                    Text(stringResource(R.string.settings_save))
                 }
                 Button(onClick = onBack) {
-                    Text("Back")
+                    Text(stringResource(R.string.settings_back))
                 }
             }
         }
         item { SectionHeader(stringResource(R.string.settings_section_server)) }
         item {
             SettingField(
-                label = "Server URL",
+                label = stringResource(R.string.settings_server_url),
                 value = serverUrl,
                 onValueChange = { serverUrl = it },
+                problem = stringResource(R.string.settings_server_url_invalid).takeIf { validUrl == null },
                 focusRequester = serverFocus,
                 imeAction = ImeAction.Next,
-                onAction = { profileFocus.requestFocus() },
+                onAction = { profileFocus.requestFocus(FocusDirection.Enter) },
             )
         }
         item {
             SettingField(
-                label = "Channel profile",
+                label = stringResource(R.string.settings_profile),
                 value = profile,
                 onValueChange = { profile = it },
+                problem = stringResource(R.string.settings_profile_invalid).takeIf { validProfile == null },
                 focusRequester = profileFocus,
                 imeAction = ImeAction.Done,
-                onAction = { onSave(serverUrl, profile) },
+                onAction = save,
             )
         }
         item { SectionHeader(stringResource(R.string.settings_section_captions)) }
         item {
-            Row(
-                modifier = Modifier.focusGroup(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(stringResource(R.string.captions_setting), style = MaterialTheme.typography.titleSmall)
+            SettingRow(label = stringResource(R.string.captions_setting)) {
                 Switch(
                     checked = captionsOn,
                     onCheckedChange = {
@@ -125,12 +139,7 @@ fun SettingsScreen(
             }
         }
         item {
-            Row(
-                modifier = Modifier.focusGroup(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(stringResource(R.string.caption_smooth), style = MaterialTheme.typography.titleSmall)
+            SettingRow(label = stringResource(R.string.caption_smooth)) {
                 Switch(
                     checked = smoothCaptions,
                     onCheckedChange = {
@@ -140,14 +149,9 @@ fun SettingsScreen(
                 )
             }
         }
-        item { Text(stringResource(R.string.caption_smooth_help), style = MaterialTheme.typography.bodySmall) }
+        item { HelpText(stringResource(R.string.caption_smooth_help)) }
         item {
-            Row(
-                modifier = Modifier.focusGroup(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(stringResource(R.string.caption_style), style = MaterialTheme.typography.titleSmall)
+            SettingRow(label = stringResource(R.string.caption_style)) {
                 Button(
                     onClick = {
                         captionStyle = if (captionStyle == CaptionStyle.SYSTEM) {
@@ -167,18 +171,16 @@ fun SettingsScreen(
             }
         }
         item {
-            Row(
-                modifier = Modifier.focusGroup(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(stringResource(R.string.caption_timing), style = MaterialTheme.typography.titleSmall)
+            val lessLabel = stringResource(R.string.settings_caption_timing_less)
+            val moreLabel = stringResource(R.string.settings_caption_timing_more)
+            SettingRow(label = stringResource(R.string.caption_timing)) {
                 Button(
                     onClick = {
                         captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = -1)
                         onCaptionAdvanceChanged(captionAdvance)
                     },
                     enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE_MS.first,
+                    modifier = Modifier.semantics { contentDescription = lessLabel },
                 ) { Text("−") }
                 Text(
                     stringResource(R.string.caption_timing_value, CaptionPolicy.advanceLabel(captionAdvance)),
@@ -190,23 +192,55 @@ fun SettingsScreen(
                         onCaptionAdvanceChanged(captionAdvance)
                     },
                     enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE_MS.last,
+                    modifier = Modifier.semantics { contentDescription = moreLabel },
                 ) { Text("+") }
             }
         }
-        item { Text(stringResource(R.string.caption_timing_help), style = MaterialTheme.typography.bodySmall) }
+        item { HelpText(stringResource(R.string.caption_timing_help)) }
         item { SectionHeader(stringResource(R.string.settings_section_about)) }
         item {
-            Text(
-                "$channelCount channels loaded, version ${BuildConfig.VERSION_NAME}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                LogoMark(64.dp)
+                Column {
+                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        pluralStringResource(R.plurals.settings_channels_loaded, channelCount, channelCount),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun SectionHeader(title: String) {
-    Text(title, style = MaterialTheme.typography.titleLarge)
+    Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+}
+
+@Composable
+private fun HelpText(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(FIELD_WIDTH))
+}
+
+/** A label with its control(s) beside it; one focus group so Left/Right stay inside the row. */
+@Composable
+private fun SettingRow(label: String, controls: @Composable () -> Unit) {
+    Row(
+        modifier = Modifier.focusGroup(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.titleSmall)
+        controls()
+    }
 }
 
 @Composable
@@ -214,6 +248,7 @@ private fun SettingField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
+    problem: String?,
     focusRequester: FocusRequester,
     imeAction: ImeAction,
     onAction: () -> Unit,
@@ -227,7 +262,7 @@ private fun SettingField(
         snapshotFlow { state.text.toString() }.collect(onValueChange)
     }
 
-    Column {
+    Column(Modifier.width(FIELD_WIDTH)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         TvTextField(
             state = state,
@@ -236,5 +271,8 @@ private fun SettingField(
             onAction = onAction,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
+        if (problem != null) {
+            Text(problem, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
+        }
     }
 }

@@ -37,7 +37,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import android.content.Context
+import android.net.Uri
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -154,7 +156,18 @@ fun PlayerScreen(
     fun load(channel: Channel) {
         // Reset the renderers so the next stream's decoder rescales instead of reusing the old surface size.
         player.stop()
-        player.setMediaItem(MediaItem.fromUri(channel.streamUrl))
+        player.setMediaItem(
+            MediaItem.Builder()
+                .setUri(channel.streamUrl)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(channel.name)
+                        .setArtworkUri(channel.logo?.let(Uri::parse))
+                        .setIsPlayable(true)
+                        .build(),
+                )
+                .build(),
+        )
         player.prepare()
     }
 

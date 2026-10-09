@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">Sofa King</string>
-    <string name="loading">Loading channels…</string>
+    <string name="tagline">Live TV, right where you left it.</string>
+    <string name="loading">Settling in, loading channels…</string>
     <string name="load_failed">Couldn\'t reach Dispatcharr: %1$s</string>
     <string name="retry">Retry</string>
     <string name="no_listing">No listing</string>

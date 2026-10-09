@@ -25,18 +25,18 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import androidx.tv.material3.darkColorScheme
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.PlayerScreen
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
+import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
+            SofaKingTheme {
                 Surface(Modifier) { SofaKingApp() }
             }
         }

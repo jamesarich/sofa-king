@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- TV banner, 320x180dp: plum backdrop with the crown-on-sofa mark centered. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
             <size android:width="320dp" android:height="180dp" />
             <gradient
                 android:angle="315"
-                android:endColor="#FF1B1B3A"
-                android:startColor="#FF6A3DE8" />
+                android:endColor="#FF14111F"
+                android:startColor="#FF2A2440" />
         </shape>
     </item>
+    <item
+        android:drawable="@drawable/banner_logo"
+        android:gravity="center"
+        android:width="144dp"
+        android:height="144dp" />
 </layer-list>

@@ -1,11 +1,21 @@
 # Sofa King
 
-Android TV / Google TV live-TV client for a self-hosted [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr) server.
+Live TV for the living room. Sofa King is an Android TV and Google TV app that plays the channels from your own [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr) server, with a TV guide and a full-screen player you drive with the remote.
 
-- Guide grid with category and favorites filters; long-press a programme to star its channel.
-- Full-screen player: Up/Down or Channel keys zap, digits jump to a channel number, Previous/Last returns to the last channel, OK/Left/Right toggle the info overlay, Back returns to the guide.
-- Lineup and guide reload every 3 hours, or from Refresh.
-- Settings: Dispatcharr URL and channel profile, stored on the device.
+_Live TV, right where you left it._
+
+## Features
+
+- Guide grid with All and Favorites filters, plus category filters from your channel groups.
+- Long-press a programme to star its channel.
+- Full-screen player: Up and Down or the Channel keys zap, digits jump to a channel number, Previous or Last returns to the last channel, and OK, Left, Right or Info show the info overlay.
+- Lineup and guide refresh every 3 hours, or on demand from Refresh.
+- Channels appear first, then the guide fills in behind them.
+- Dispatcharr URL and channel profile are set in Settings and stored on the device.
+
+## Screenshots
+
+_Screenshots to come._
 
 ## Build and install
 
@@ -15,6 +25,60 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Default server and profile come from `-PdispatcharrUrl=` and `-PdispatcharrProfile=` (defaults `http://192.168.1.3:9191`, `livingroom`).
+The default server and profile come from Gradle properties:
 
-On a Google TV: Settings > System > About, press the Android TV OS build seven times, then Developer options > Wireless debugging > Pair device with pairing code, `adb pair <ip:port> <code>`, `adb connect <ip:port>`.
+```
+./gradlew :app:assembleDebug -PdispatcharrUrl=http://192.168.1.3:9191 -PdispatcharrProfile=livingroom
+```
+
+Both values can also be changed on the TV from Settings.
+
+### Enabling ADB on a Google TV
+
+1. Open Settings > System > About and press Android TV OS build seven times to enable developer options.
+2. Open Settings > System > Developer options and turn on Wireless debugging.
+3. Choose Pair device with pairing code, then run `adb pair <ip:port> <code>` and `adb connect <ip:port>` from your computer.
+4. Run the `adb install` command above.
+
+## Remote controls
+
+| Key | Guide | Player |
+| --- | --- | --- |
+| D-pad Up / Down | Move focus | Next / previous channel |
+| Channel Up / Channel Down | Move focus | Next / previous channel |
+| D-pad Left / Right | Move focus | Toggle the info overlay |
+| OK / Enter | Play the channel | Toggle the info overlay, or tune a typed number |
+| Digits 0-9 (and numpad) | | Type a channel number, then OK to tune |
+| Previous / Last channel | | Return to the last channel watched |
+| Info | | Toggle the info overlay |
+| Long-press OK on a programme | Star or unstar its channel | |
+| Back | Exit the app | Return to the guide |
+
+## Dispatcharr setup
+
+Sofa King reads two endpoints from Dispatcharr.
+
+- **Server URL.** The base address of your Dispatcharr, including the port, for example `http://192.168.1.3:9191`. The TV must be on the same network as the server. Plain HTTP on the LAN is allowed.
+- **Channel profile.** The name of the Dispatcharr channel profile that holds the channels you want on the TV. The app fetches `/output/m3u/<profile>` for the lineup and `/output/epg/<profile>?days=1` for the guide. Only channels in that profile appear.
+
+The guide matches programmes to channels by channel number, so the profile's channels need EPG data assigned in Dispatcharr. Channels without programmes show "No listing".
+
+Streams play through Dispatcharr's `/proxy/ts/stream/` path, so the TV only needs to reach the Dispatcharr server.
+
+## Troubleshooting
+
+- **"Couldn't reach Dispatcharr".** Check the server URL in Settings, confirm the TV and server are on the same network, and open the URL in a browser on another device on that network. Refresh retries the load.
+- **"No channels in this profile".** The profile name does not match a profile in Dispatcharr, or the profile has no channels. Check the spelling in Settings.
+- **"No listing" on a channel.** Dispatcharr has no programme data for that channel. Assign an EPG source to the channel in Dispatcharr.
+- **"Can't play this channel".** The stream is not reachable through Dispatcharr. Check that the channel plays in Dispatcharr, then try another channel.
+- **The first guide load is slow.** A full guide for about 750 channels takes around 10 seconds on a Chromecast with Google TV. Channels appear first, and the guide fills in behind them.
+- **Playback starts a moment after tuning.** Streams can start mid-GOP, so the first frames may take a second to decode.
+
+## Development
+
+- [`CLAUDE.md`](./CLAUDE.md) holds the rules the code follows, including focus, overscan and playback constraints.
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) describes the packages, the data flow and the threading model.
+
+## License
+
+Sofa King is free software under the GNU General Public License v3.0. See [`LICENSE`](./LICENSE).

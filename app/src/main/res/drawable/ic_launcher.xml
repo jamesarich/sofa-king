@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher icon: the crown-on-sofa mark centered on the plum background. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF14111F"
+        android:pathData="M0,0 L108,0 L108,108 L0,108 Z" />
+    <group
+        android:scaleX="0.7"
+        android:scaleY="0.7"
+        android:translateX="12"
+        android:translateY="12">
+        <path
+            android:fillColor="#FFB3A1EA"
+            android:pathData="M22,46 Q22,40 28,40 L92,40 Q98,40 98,46 L98,70 L22,70 Z" />
+        <path
+            android:fillColor="#FFC9B8FF"
+            android:pathData="M10,62 Q10,58 14,58 L106,58 Q110,58 110,62 L110,92 L10,92 Z" />
+        <path
+            android:fillColor="#FFC9B8FF"
+            android:pathData="M6,58 Q6,52 12,52 L20,52 L20,96 L6,96 Z" />
+        <path
+            android:fillColor="#FFC9B8FF"
+            android:pathData="M100,52 L108,52 Q114,52 114,58 L114,96 L100,96 Z" />
+        <path
+            android:fillColor="#FF9C8AD4"
+            android:pathData="M20,72 L100,72 L100,75 L20,75 Z" />
+        <path
+            android:fillColor="#FF9C8AD4"
+            android:pathData="M14,96 L14,104 L20,104 L20,96 Z" />
+        <path
+            android:fillColor="#FF9C8AD4"
+            android:pathData="M100,96 L100,104 L106,104 L106,96 Z" />
+        <path
+            android:fillColor="#FFFFB547"
+            android:pathData="M36,46 L36,30 L48,38 L60,20 L72,38 L84,30 L84,46 Z" />
+        <path
+            android:fillColor="#FFE0902A"
+            android:pathData="M36,40 L84,40 L84,46 L36,46 Z" />
+        <path
+            android:fillColor="#FF14111F"
+            android:pathData="M60,42 L62,44 L60,46 L58,44 Z" />
+    </group>
+</vector>

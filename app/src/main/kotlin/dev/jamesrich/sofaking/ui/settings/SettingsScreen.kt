@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -29,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
@@ -64,77 +66,100 @@ fun SettingsScreen(
     BackHandler { onBack() }
     LaunchedEffect(Unit) { serverFocus.requestFocus() }
 
-    Column(
+    LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 48.dp, vertical = 27.dp)
-            .focusGroup(),
+            .focusRestorer(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium)
-        SettingField(
-            label = "Server URL",
-            value = serverUrl,
-            onValueChange = { serverUrl = it },
-            focusRequester = serverFocus,
-            imeAction = ImeAction.Next,
-            onAction = { profileFocus.requestFocus() },
-        )
-        SettingField(
-            label = "Channel profile",
-            value = profile,
-            onValueChange = { profile = it },
-            focusRequester = profileFocus,
-            imeAction = ImeAction.Done,
-            onAction = { onSave(serverUrl, profile) },
-        )
-        Text(
-            "$channelCount channels loaded, version ${BuildConfig.VERSION_NAME}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Row(
-            modifier = Modifier.focusGroup(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(stringResource(R.string.captions_setting), style = MaterialTheme.typography.titleSmall)
-            Switch(
-                checked = captionsOn,
-                onCheckedChange = {
-                    captionsOn = it
-                    onCaptionsChanged(it)
-                },
+        item {
+            Text("Settings", style = MaterialTheme.typography.headlineMedium)
+        }
+        // Above the fields: always on screen, and one Up from the URL field, with the keyboard closed.
+        item {
+            Row(
+                modifier = Modifier.focusGroup(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Button(onClick = { onSave(serverUrl, profile) }) {
+                    Text("Save & reload")
+                }
+                Button(onClick = onBack) {
+                    Text("Back")
+                }
+            }
+        }
+        item { SectionHeader(stringResource(R.string.settings_section_server)) }
+        item {
+            SettingField(
+                label = "Server URL",
+                value = serverUrl,
+                onValueChange = { serverUrl = it },
+                focusRequester = serverFocus,
+                imeAction = ImeAction.Next,
+                onAction = { profileFocus.requestFocus() },
             )
         }
-        Row(
-            modifier = Modifier.focusGroup(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(stringResource(R.string.caption_timing), style = MaterialTheme.typography.titleSmall)
-            Button(
-                onClick = { captionAdvance = (captionAdvance - 1).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE); onCaptionAdvanceChanged(captionAdvance) },
-                enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE.first,
-            ) { Text("−") }
-            Text(stringResource(R.string.caption_timing_value, captionAdvance), style = MaterialTheme.typography.bodyLarge)
-            Button(
-                onClick = { captionAdvance = (captionAdvance + 1).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE); onCaptionAdvanceChanged(captionAdvance) },
-                enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE.last,
-            ) { Text("+") }
+        item {
+            SettingField(
+                label = "Channel profile",
+                value = profile,
+                onValueChange = { profile = it },
+                focusRequester = profileFocus,
+                imeAction = ImeAction.Done,
+                onAction = { onSave(serverUrl, profile) },
+            )
         }
-        Text(stringResource(R.string.caption_timing_help), style = MaterialTheme.typography.bodySmall)
-        Row(
-            modifier = Modifier.focusGroup(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Button(onClick = { onSave(serverUrl, profile) }) {
-                Text("Save & reload")
+        item { SectionHeader(stringResource(R.string.settings_section_captions)) }
+        item {
+            Row(
+                modifier = Modifier.focusGroup(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(stringResource(R.string.captions_setting), style = MaterialTheme.typography.titleSmall)
+                Switch(
+                    checked = captionsOn,
+                    onCheckedChange = {
+                        captionsOn = it
+                        onCaptionsChanged(it)
+                    },
+                )
             }
-            Button(onClick = onBack) {
-                Text("Back")
+        }
+        item {
+            Row(
+                modifier = Modifier.focusGroup(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(stringResource(R.string.caption_timing), style = MaterialTheme.typography.titleSmall)
+                Button(
+                    onClick = { captionAdvance = (captionAdvance - 1).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE); onCaptionAdvanceChanged(captionAdvance) },
+                    enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE.first,
+                ) { Text("−") }
+                Text(stringResource(R.string.caption_timing_value, captionAdvance), style = MaterialTheme.typography.bodyLarge)
+                Button(
+                    onClick = { captionAdvance = (captionAdvance + 1).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE); onCaptionAdvanceChanged(captionAdvance) },
+                    enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE.last,
+                ) { Text("+") }
             }
+        }
+        item { Text(stringResource(R.string.caption_timing_help), style = MaterialTheme.typography.bodySmall) }
+        item { SectionHeader(stringResource(R.string.settings_section_about)) }
+        item {
+            Text(
+                "$channelCount channels loaded, version ${BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(title, style = MaterialTheme.typography.titleLarge)
 }
 
 @Composable

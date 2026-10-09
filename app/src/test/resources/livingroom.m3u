@@ -1,0 +1,41 @@
+#EXTM3U x-tvg-url="http://192.168.1.3:9191/output/epg/livingroom" url-tvg="http://192.168.1.3:9191/output/epg/livingroom"
+#EXTINF:-1 tvg-id="5" tvg-name="WOI ABC 5 Des Moines" tvg-logo="" tvg-chno="5" group-title="Local News",WOI ABC 5 Des Moines
+http://192.168.1.3:9191/proxy/ts/stream/228e18ba-3f42-4c33-9095-22a3205dbe61
+#EXTINF:-1 tvg-id="8" tvg-name="Very Iowa by KCCI" tvg-logo="" tvg-chno="8" group-title="Local News",Very Iowa by KCCI
+http://192.168.1.3:9191/proxy/ts/stream/154bfb55-319c-4ce8-b4e3-e2815e5a40c3
+#EXTINF:-1 tvg-id="10" tvg-name="Local Now Des Moines" tvg-logo="" tvg-chno="10" group-title="Local News",Local Now Des Moines
+http://192.168.1.3:9191/proxy/ts/stream/f7f8f332-1eea-4c96-9b41-1aab9ce96b2f
+#EXTINF:-1 tvg-id="108" tvg-name="Bloomberg TV" tvg-logo="http://192.168.1.3:9191/api/channels/logos/2241/cache/" tvg-chno="108" group-title="US: News",Bloomberg TV
+http://192.168.1.3:9191/proxy/ts/stream/0580edf9-072b-4abb-b664-ad07890df8e9
+#EXTINF:-1 tvg-id="112" tvg-name="Cheddar News" tvg-logo="http://192.168.1.3:9191/api/channels/logos/3279/cache/" tvg-chno="112" group-title="US: News",Cheddar News
+http://192.168.1.3:9191/proxy/ts/stream/fac38bcf-d776-403e-8665-448540960824
+#EXTINF:-1 tvg-id="133" tvg-name="Scripps News" tvg-logo="http://192.168.1.3:9191/api/channels/logos/2689/cache/" tvg-chno="133" group-title="US: News",Scripps News
+http://192.168.1.3:9191/proxy/ts/stream/bc72256b-8f8a-40ae-b4d3-14fc118f6b00
+#EXTINF:-1 tvg-id="134" tvg-name="The First" tvg-logo="http://192.168.1.3:9191/api/channels/logos/3749/cache/" tvg-chno="134" group-title="US: News",The First
+http://192.168.1.3:9191/proxy/ts/stream/dc155aff-fa60-46d6-9235-86cba0ac2f43
+#EXTINF:-1 tvg-id="137" tvg-name="WeatherNation" tvg-logo="http://192.168.1.3:9191/api/channels/logos/4365/cache/" tvg-chno="137" group-title="US: News",WeatherNation
+http://192.168.1.3:9191/proxy/ts/stream/aa94512e-f3ab-4842-af3e-47b81967a451
+#EXTINF:-1 tvg-id="138" tvg-name="Yahoo Finance" tvg-logo="http://192.168.1.3:9191/api/channels/logos/3755/cache/" tvg-chno="138" group-title="US: News",Yahoo Finance
+http://192.168.1.3:9191/proxy/ts/stream/16828bde-b49e-4943-a4ca-601791f0f684
+#EXTINF:-1 tvg-id="208" tvg-name="beIN SPORTS XTRA" tvg-logo="http://192.168.1.3:9191/api/channels/logos/2815/cache/" tvg-chno="208" group-title="US: Sports",beIN SPORTS XTRA
+http://192.168.1.3:9191/proxy/ts/stream/ce43adee-8de5-4aa5-9aaa-59a5c6934373
+#EXTINF:-1 tvg-id="209" tvg-name="Big 12" tvg-logo="http://192.168.1.3:9191/api/channels/logos/5950/cache/" tvg-chno="209" group-title="US: Sports",Big 12
+http://192.168.1.3:9191/proxy/ts/stream/e0d7d4b5-c6f5-4ac3-bf11-fdc291a465fa
+#EXTINF:-1 tvg-id="211" tvg-name="Billiard TV" tvg-logo="http://192.168.1.3:9191/api/channels/logos/3973/cache/" tvg-chno="211" group-title="US: Sports",Billiard TV
+http://192.168.1.3:9191/proxy/ts/stream/4a612a38-6d9a-4cda-87cf-2b21cfb3a586
+#EXTINF:-1 tvg-id="213" tvg-name="DAZN Ringside" tvg-logo="http://192.168.1.3:9191/api/channels/logos/2788/cache/" tvg-chno="213" group-title="US: Sports",DAZN Ringside
+http://192.168.1.3:9191/proxy/ts/stream/d6ed421c-dcff-4b3d-a04b-d582005b1895
+#EXTINF:-1 tvg-id="216" tvg-name="DraftKings" tvg-logo="http://192.168.1.3:9191/api/channels/logos/3977/cache/" tvg-chno="216" group-title="US: Sports",DraftKings
+http://192.168.1.3:9191/proxy/ts/stream/befa9141-121c-4bfb-a4b8-f993417119b4
+#EXTINF:-1 tvg-id="221" tvg-name="ESPN8: The Ocho" tvg-logo="http://192.168.1.3:9191/api/channels/logos/3978/cache/" tvg-chno="221" group-title="US: Sports",ESPN8: The Ocho
+http://192.168.1.3:9191/proxy/ts/stream/39d3734e-b653-4343-a486-39d620ffafa5
+#EXTINF:-1 tvg-id="225" tvg-name="Fight Network" tvg-logo="http://192.168.1.3:9191/api/channels/logos/1533/cache/" tvg-chno="225" group-title="US: Sports",Fight Network
+http://192.168.1.3:9191/proxy/ts/stream/33531e29-4d51-4cf5-b57d-9f2d94ecb820
+#EXTINF:-1 tvg-id="226" tvg-name="FOX Sports" tvg-logo="http://192.168.1.3:9191/api/channels/logos/3980/cache/" tvg-chno="226" group-title="US: Sports",FOX Sports
+http://192.168.1.3:9191/proxy/ts/stream/944b949e-c412-45bd-bf94-b0ce06e57698
+#EXTINF:-1 tvg-id="232" tvg-name="GOLF Channel" tvg-logo="http://192.168.1.3:9191/api/channels/logos/5978/cache/" tvg-chno="232" group-title="US: Sports",GOLF Channel
+http://192.168.1.3:9191/proxy/ts/stream/7fec2d52-7555-45a8-895e-492d0b2b3cae
+#EXTINF:-1 tvg-id="233" tvg-name="GolfPass" tvg-logo="http://192.168.1.3:9191/api/channels/logos/6546/cache/" tvg-chno="233" group-title="US: Sports",GolfPass
+http://192.168.1.3:9191/proxy/ts/stream/15aae9a9-5930-4d6e-b39e-68655cc4289e
+#EXTINF:-1 tvg-id="243" tvg-name="NBC Sports Now" tvg-logo="http://192.168.1.3:9191/api/channels/logos/3989/cache/" tvg-chno="243" group-title="US: Sports",NBC Sports Now
+http://192.168.1.3:9191/proxy/ts/stream/eb57cc63-7616-49d3-a569-3b051e66b036

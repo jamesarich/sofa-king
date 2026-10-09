@@ -48,25 +48,34 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
 
     private val cacheFile = File(application.filesDir, "lineup-cache.bin")
 
+    /** The last lineup loaded, with the server key it came from; read and written only inside [state]'s transform. */
+    private var lastGood: Pair<String, Lineup>? = null
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: StateFlow<LineupState> = combine(
         store.settings.map { it.serverUrl to it.profile }.distinctUntilChanged(),
         reloads.onStart { emit(Unit) },
     ) { server, _ -> server }
         .transformLatest { (url, profile) ->
+            val key = "$url\n$profile"
             val repository = DispatcharrRepository(url, profile)
-            val cache = LineupCache(cacheFile, key = "$url\n$profile")
-            var last: Lineup? = null
-            // The last good lineup for this server shows at once; the network refresh replaces it below.
-            val cacheStarted = TimeSource.Monotonic.markNow()
-            cache.read()?.let { cached ->
-                Log.i(TAG, "cache: ${cached.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}")
-                last = cached
-                emit(LineupState.Ready(cached))
+            val cache = LineupCache(cacheFile, key)
+            // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
+            // so the last good lineup shows at once and the network load replaces it below.
+            var last: Lineup? = lastGood?.takeIf { it.first == key }?.second
+            if (last == null) {
+                val cacheStarted = TimeSource.Monotonic.markNow()
+                cache.read()?.let { cached ->
+                    Log.i(TAG, "cache: ${cached.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}")
+                    last = cached
+                    lastGood = key to cached
+                    emit(LineupState.Ready(cached))
+                }
             }
             while (true) {
                 if (last == null) emit(LineupState.Loading)
-                val result = runCatching {
+                // Cancellation (a server change or refresh while loading) must propagate, not read as a failure.
+                val result = try {
                     val started = TimeSource.Monotonic.markNow()
                     val channels = repository.loadChannels()
                     Log.i(TAG, "lineup: ${channels.size} channels in ${started.elapsedNow()}")
@@ -75,10 +84,15 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
                     if (last?.channels != channels) emit(LineupState.Ready(Lineup(channels, last?.guide.orEmpty())))
                     val guide = repository.loadGuide(channels)
                     Log.i(TAG, "guide: ${guide.values.sumOf { it.size }} programmes for ${guide.size} channels in ${started.elapsedNow()}")
-                    Lineup(channels, guide)
+                    Result.success(Lineup(channels, guide))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Result.failure(e)
                 }
                 result.onSuccess {
                     last = it
+                    lastGood = key to it
                     emit(LineupState.Ready(it))
                     // A cache write failure must not fail the load or delay the next refresh.
                     try {

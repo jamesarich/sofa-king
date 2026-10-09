@@ -2,9 +2,11 @@ package dev.jamesrich.sofaking.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -14,14 +16,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import java.io.IOException
 
 class DataStoreSettingsStore(
     private val dataStore: DataStore<Preferences>,
     private val defaults: AppSettings,
 ) : SettingsStore {
 
-    override val settings: Flow<AppSettings> = dataStore.data.map { prefs ->
+    // An unreadable file reads as defaults rather than failing the flow, which would take the whole app down.
+    override val settings: Flow<AppSettings> = dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { prefs ->
         AppSettings(
             serverUrl = prefs[SERVER_URL] ?: defaults.serverUrl,
             profile = prefs[PROFILE] ?: defaults.profile,
@@ -119,11 +126,12 @@ class DataStoreSettingsStore(
         private val lock = Any()
         private var sharedDataStore: DataStore<Preferences>? = null
 
-        /** One DataStore per process: creating two for the same file throws. */
+        /** One DataStore per process: creating two for the same file throws. A corrupt file is replaced with defaults. */
         fun create(context: Context, defaults: AppSettings): DataStoreSettingsStore {
             val appContext = context.applicationContext
             val store = synchronized(lock) {
                 sharedDataStore ?: PreferenceDataStoreFactory.create(
+                    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
                     scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
                 ) { appContext.preferencesDataStoreFile("settings") }.also { sharedDataStore = it }
             }

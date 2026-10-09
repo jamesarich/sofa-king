@@ -20,13 +20,15 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +43,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -54,9 +57,9 @@ import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
+import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -70,31 +73,59 @@ internal sealed interface GuideFilter {
     data class Group(val name: String) : GuideFilter
 }
 
+private val GuideFilterSaver = Saver<GuideFilter, String>(
+    save = {
+        when (it) {
+            GuideFilter.All -> "all"
+            GuideFilter.Favorites -> "favorites"
+            is GuideFilter.Group -> "group:${it.name}"
+        }
+    },
+    restore = {
+        when {
+            it == "favorites" -> GuideFilter.Favorites
+            it.startsWith("group:") -> GuideFilter.Group(it.removePrefix("group:"))
+            else -> GuideFilter.All
+        }
+    },
+)
+
 /** Asks the row for [guideId] to focus the cell covering window [minute]. [nonce] keeps each request distinct. */
 internal data class GuideJump(val guideId: String, val minute: Long, val nonce: Int)
 
 /** The cell most recently focused in the grid, shown by the preview pane. */
 private data class FocusedCell(val channel: Channel, val cell: GuideCell)
 
+/**
+ * The guide grid. Filter, search, time cursor, scroll and the focused channel are saveable, so a trip to the
+ * player and back lands where the user left; [initialChannelId] (the last channel watched) is where a fresh
+ * guide starts.
+ */
 @Composable
 fun GuideScreen(
     lineup: Lineup,
     favorites: Set<String>,
+    initialChannelId: String?,
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // The window is fixed for the life of the screen so the grid does not jump every half hour.
-    val windowStart = remember { GuideTimeline.windowStart(Instant.now()) }
+    val now by rememberMinuteNow()
+    // The window holds while now is inside it, so the grid does not jump every half hour; it rolls over
+    // once the clock leaves it (a TV left on the guide for a day), along with the time cursor.
+    var windowStartSecond by rememberSaveable { mutableLongStateOf(GuideTimeline.windowStart(now).epochSecond) }
+    val windowStart = remember(windowStartSecond) { Instant.ofEpochSecond(windowStartSecond) }
     val windowEnd = remember(windowStart) { GuideTimeline.windowEnd(windowStart) }
-    val now by produceState(Instant.now()) {
-        while (true) {
-            value = Instant.now()
-            delay(NOW_REFRESH_MS)
-        }
-    }
     val nowMinute = GuideTimeline.offsetMinutes(windowStart, now).takeIf { now >= windowStart && now < windowEnd }
     val nowClamped = GuideTimeline.offsetMinutes(windowStart, now)
+    var cursor by rememberSaveable { mutableLongStateOf(nowClamped) }
+    LaunchedEffect(now) {
+        val next = GuideTimeline.windowStartFor(windowStart, now)
+        if (next != windowStart) {
+            windowStartSecond = next.epochSecond
+            cursor = GuideTimeline.offsetMinutes(next, now)
+        }
+    }
     val zone = remember { ZoneId.systemDefault() }
     val timeFormat = rememberTimeFormatter()
     val dayFormat = remember {
@@ -102,17 +133,16 @@ fun GuideScreen(
     }
     val todayLabel = stringResource(R.string.guide_today)
     val rangeFormat = stringResource(R.string.guide_range)
-    val favoriteLabel = stringResource(R.string.guide_favorite)
 
     val filters = remember(lineup) {
         listOf<GuideFilter>(GuideFilter.All, GuideFilter.Favorites) +
             lineup.channels.map { it.group }.distinct().map { GuideFilter.Group(it) }
     }
-    var filter by remember { mutableStateOf<GuideFilter>(GuideFilter.All) }
+    var filter by rememberSaveable(stateSaver = GuideFilterSaver) { mutableStateOf<GuideFilter>(GuideFilter.All) }
     val activeFilter = filter.takeIf { it in filters } ?: GuideFilter.All
 
     val searchState = rememberTextFieldState()
-    var searchOpen by remember { mutableStateOf(false) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     val query = if (searchOpen) searchState.text.toString() else ""
     val searchNow = now.takeIf { query.isNotBlank() }
     val visible = remember(lineup, favorites, activeFilter, query, searchNow) {
@@ -141,11 +171,13 @@ fun GuideScreen(
     val focusManager = LocalFocusManager.current
     val density = LocalDensity.current
     val minutePx = with(density) { MINUTE_WIDTH.toPx() }
+    val minStickyTextPx = with(density) { MIN_STICKY_TEXT.toPx() }
     val marginPx = minutePx * FOCUS_MARGIN_MINUTES
     val viewport = remember { mutableIntStateOf(0) }
-    var focused by remember { mutableStateOf<FocusedCell?>(null) }
-    // The time the user is looking at; Now moves it, focus keeps it while the cell still covers it.
-    var cursor by remember { mutableLongStateOf(nowClamped) }
+    // Read only by the preview band, so a focus move recomposes the band and not the whole grid.
+    val focusedState = remember { mutableStateOf<FocusedCell?>(null) }
+    var focused by focusedState
+    var lastFocusedGuideId by rememberSaveable { mutableStateOf<String?>(null) }
     var jump by remember { mutableStateOf<GuideJump?>(null) }
     var jumpCount by remember { mutableIntStateOf(0) }
     var pendingRow by remember { mutableStateOf<Int?>(null) }
@@ -156,10 +188,6 @@ fun GuideScreen(
     val initialFocus = remember { FocusRequester() }
     var initialFocusDone by remember { mutableStateOf(false) }
     var returnToSearchChip by remember { mutableStateOf(false) }
-    LaunchedEffect(visible.isNotEmpty()) {
-        // The first row may need a few frames to attach before its cell can take focus.
-        if (!initialFocusDone && visible.isNotEmpty() && requestFocusWhenAttached(initialFocus)) initialFocusDone = true
-    }
 
     // Scrolls the timeline so [minute] is inside the visible strip, leaving a half hour of room on the left.
     // Kept after focus leaves so the preview holds the last programme while focus is on the chips.
@@ -172,6 +200,7 @@ fun GuideScreen(
     }
     val onCellFocused: (Channel, GuideCell) -> Unit = { channel, cell ->
         focused = FocusedCell(channel, cell)
+        lastFocusedGuideId = channel.guideId
         pendingRow = null
         if (cursor !in cell.startMinute until cell.endMinute) cursor = cell.startMinute
         revealMinute(cursor)
@@ -181,6 +210,21 @@ fun GuideScreen(
         jumpCount += 1
         jump = GuideJump(guideId, minute, jumpCount)
         revealMinute(minute)
+    }
+
+    LaunchedEffect(visible.isNotEmpty()) {
+        if (initialFocusDone || visible.isEmpty()) return@LaunchedEffect
+        initialFocusDone = true
+        // Back from the player, or a cold start, lands on the channel last focused or watched; else the first row.
+        val wanted = lastFocusedGuideId ?: initialChannelId
+        val row = wanted?.let { id -> visible.indexOfFirst { it.guideId == id } } ?: -1
+        if (row >= 0) {
+            if (listState.layoutInfo.visibleItemsInfo.none { it.index == row }) listState.scrollToItem(row)
+            requestJump(visible[row].guideId, cursor)
+        } else {
+            // The first row may need a few frames to attach before its cell can take focus.
+            requestFocusWhenAttached(initialFocus)
+        }
     }
 
     // Up and Down land on the cell under the time cursor. Default focus search treats any cell overlapping a
@@ -239,6 +283,26 @@ fun GuideScreen(
         }
     }
 
+    val resources = LocalContext.current.resources
+    val noListing = stringResource(R.string.no_listing)
+    val favoriteLabel = stringResource(R.string.guide_favorite)
+    val toggleFavoriteLabel = stringResource(R.string.guide_toggle_favorite)
+    val env = remember(resources, timeFormat, noListing, favoriteLabel, toggleFavoriteLabel, minutePx, minStickyTextPx, scrollState, onCellFocused, onPlay, onToggleFavorite) {
+        GuideRowEnv(
+            resources = resources,
+            timeFormat = timeFormat,
+            noListing = noListing,
+            favoriteLabel = favoriteLabel,
+            toggleFavoriteLabel = toggleFavoriteLabel,
+            minutePx = minutePx,
+            minStickyTextPx = minStickyTextPx,
+            scrollState = scrollState,
+            onCellFocused = onCellFocused,
+            onPlay = onPlay,
+            onToggleFavorite = onToggleFavorite,
+        )
+    }
+
     val chips: @Composable (Modifier) -> Unit = { chipModifier ->
         FilterChipRow(
             filters = filters,
@@ -264,25 +328,7 @@ fun GuideScreen(
 
     Column(modifier = modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp)) {
         if (PREVIEW_ENABLED) {
-            // Chips and search or details sit beside the preview in one band, so the grid keeps four rows on a 1080p TV.
-            Row(Modifier.fillMaxWidth().height(PREVIEW_BAND_HEIGHT), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                Column(Modifier.weight(1f).fillMaxHeight()) {
-                    chips(Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    if (searchOpen) {
-                        searchBar(Modifier.fillMaxWidth())
-                    } else {
-                        PreviewDetails(
-                            channel = focused?.channel,
-                            programme = focused?.cell?.programme,
-                            live = focused?.cell?.programme?.let { isAiring(it, now) } == true,
-                            now = now,
-                            modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds(),
-                        )
-                    }
-                }
-                PreviewVideo(channel = focused?.channel)
-            }
+            PreviewBand(focused = focusedState, now = now, searchOpen = searchOpen, chips = chips, searchBar = searchBar)
         } else {
             chips(Modifier.fillMaxWidth())
             if (searchOpen) {
@@ -343,23 +389,46 @@ fun GuideScreen(
                         channel = channel,
                         programmes = lineup.guide[channel.guideId].orEmpty(),
                         isFavorite = channel.guideId in favorites,
-                        favoriteLabel = favoriteLabel,
                         windowStart = windowStart,
                         windowEnd = windowEnd,
-                        now = now,
                         nowMinute = nowMinute,
-                        minutePx = minutePx,
-                        timeFormat = timeFormat,
-                        scrollState = scrollState,
+                        env = env,
                         initialFocus = initialFocus.takeIf { index == 0 },
                         jump = jump?.takeIf { it.guideId == channel.guideId },
                         onJumpHandled = { jump = null },
-                        onCellFocused = onCellFocused,
-                        onPlay = onPlay,
-                        onToggleFavorite = onToggleFavorite,
                     )
                 }
             }
         }
+    }
+}
+
+/** Chips and search or details beside the preview in one band, so the grid keeps four rows on a 1080p TV. */
+@Composable
+private fun PreviewBand(
+    focused: State<FocusedCell?>,
+    now: Instant,
+    searchOpen: Boolean,
+    chips: @Composable (Modifier) -> Unit,
+    searchBar: @Composable (Modifier) -> Unit,
+) {
+    val cell = focused.value
+    Row(Modifier.fillMaxWidth().height(PREVIEW_BAND_HEIGHT), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            chips(Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            if (searchOpen) {
+                searchBar(Modifier.fillMaxWidth())
+            } else {
+                PreviewDetails(
+                    channel = cell?.channel,
+                    programme = cell?.cell?.programme,
+                    live = cell?.cell?.programme?.let { isAiring(it, now) } == true,
+                    now = now,
+                    modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds(),
+                )
+            }
+        }
+        PreviewVideo(channel = cell?.channel)
     }
 }

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
+import androidx.compose.runtime.Immutable
 import dev.jamesrich.sofaking.data.Programme
 import java.time.Duration
 import java.time.Instant
@@ -9,12 +10,16 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** A span of one guide row, in whole minutes from the window start. [programme] is null for a gap. */
+@Immutable
 internal data class GuideCell(
     val programme: Programme?,
     val startMinute: Long,
     val endMinute: Long,
 ) {
     val minutes: Long get() = endMinute - startMinute
+
+    /** True when [minute] (null for "outside the window") falls inside this cell. */
+    fun covers(minute: Long?): Boolean = minute != null && minute >= startMinute && minute < endMinute
 }
 
 internal object GuideTimeline {
@@ -28,6 +33,13 @@ internal object GuideTimeline {
     }
 
     fun windowEnd(windowStart: Instant): Instant = windowStart.plusSeconds(WINDOW_MINUTES * 60)
+
+    /**
+     * The window to show at [now] given the [current] one: the same window while [now] is inside it, so the
+     * grid never shifts under the user, and a fresh one once the clock has left it either way.
+     */
+    fun windowStartFor(current: Instant, now: Instant): Instant =
+        if (now >= current && now < windowEnd(current)) current else windowStart(now)
 
     /** Whole minutes from [windowStart] to [instant], clamped to 0..[WINDOW_MINUTES]. */
     fun offsetMinutes(windowStart: Instant, instant: Instant): Long =

@@ -72,6 +72,38 @@ class GuideTimelineTest {
         assertEquals(Instant.parse("2026-10-10T10:00:00Z"), GuideTimeline.windowEnd(base))
     }
 
+    // windowStartFor
+
+    @Test
+    fun `the window is kept while now is inside it`() {
+        assertEquals(base, GuideTimeline.windowStartFor(base, base))
+        assertEquals(base, GuideTimeline.windowStartFor(base, at(90)))
+        assertEquals(base, GuideTimeline.windowStartFor(base, at(1440).minusSeconds(1)))
+    }
+
+    @Test
+    fun `a new window starts once now has run past the end`() {
+        assertEquals(Instant.parse("2026-10-10T10:00:00Z"), GuideTimeline.windowStartFor(base, at(1440)))
+        assertEquals(Instant.parse("2026-10-10T11:30:00Z"), GuideTimeline.windowStartFor(base, at(1440 + 95)))
+    }
+
+    @Test
+    fun `a clock set back before the window also starts a new one`() {
+        assertEquals(Instant.parse("2026-10-09T09:30:00Z"), GuideTimeline.windowStartFor(base, at(-20)))
+    }
+
+    // GuideCell.covers
+
+    @Test
+    fun `a cell covers its start minute and not its end minute`() {
+        val cell = GuideCell(null, 60, 120)
+        assertTrue(cell.covers(60))
+        assertTrue(cell.covers(119))
+        assertEquals(false, cell.covers(120))
+        assertEquals(false, cell.covers(59))
+        assertEquals(false, cell.covers(null))
+    }
+
     // offsetMinutes
 
     @Test

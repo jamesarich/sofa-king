@@ -1,7 +1,10 @@
 package dev.jamesrich.sofaking.data
 
+import androidx.compose.runtime.Immutable
 import java.time.Instant
 
+/** Models are immutable values; the annotation lets Compose skip rows and cells whose inputs are equal. */
+@Immutable
 data class Channel(
     /** Matches the XMLTV `channel` id; Dispatcharr uses the channel number. */
     val guideId: String,
@@ -12,6 +15,7 @@ data class Channel(
     val streamUrl: String,
 )
 
+@Immutable
 data class Programme(
     val channelId: String,
     val start: Instant,
@@ -21,6 +25,7 @@ data class Programme(
     val description: String?,
 )
 
+@Immutable
 data class Lineup(
     val channels: List<Channel>,
     /** Programmes per [Channel.guideId], sorted by start. */

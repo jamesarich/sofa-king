@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +57,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     var screen by rememberSaveable(stateSaver = ScreenSaver) { mutableStateOf<Screen>(Screen.Guide) }
+    val guideState = rememberSaveableStateHolder()
     val lineup = (state as? LineupState.Ready)?.lineup
 
     when (val current = screen) {
@@ -88,30 +90,41 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
         } else {
             LaunchedEffect(Unit) { screen = Screen.Guide }
         }
-        Screen.Guide -> Column {
-            Header(onSettings = { screen = Screen.Settings }, onRefresh = vm::refresh)
-            when (val s = state) {
-                LineupState.Loading -> MessageScreen(stringResource(R.string.loading))
-                is LineupState.Failed -> MessageScreen(stringResource(R.string.load_failed, s.message), onRetry = vm::refresh)
-                is LineupState.Ready -> GuideOrEmpty(
-                    lineup = s.lineup,
-                    favorites = settings?.favorites.orEmpty(),
-                    onPlay = { screen = Screen.Player(it) },
-                    onToggleFavorite = vm::toggleFavorite,
-                )
+        // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
+        Screen.Guide -> guideState.SaveableStateProvider("guide") {
+            Column {
+                Header(onSettings = { screen = Screen.Settings }, onRefresh = vm::refresh)
+                when (val s = state) {
+                    LineupState.Loading -> MessageScreen(stringResource(R.string.loading))
+                    is LineupState.Failed -> MessageScreen(stringResource(R.string.load_failed, s.message), onRetry = vm::refresh)
+                    is LineupState.Ready -> GuideOrEmpty(
+                        lineup = s.lineup,
+                        favorites = settings?.favorites.orEmpty(),
+                        lastChannel = settings?.lastChannel,
+                        onPlay = { screen = Screen.Player(it) },
+                        onToggleFavorite = vm::toggleFavorite,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun GuideOrEmpty(lineup: Lineup, favorites: Set<String>, onPlay: (String) -> Unit, onToggleFavorite: (String) -> Unit) {
+private fun GuideOrEmpty(
+    lineup: Lineup,
+    favorites: Set<String>,
+    lastChannel: String?,
+    onPlay: (String) -> Unit,
+    onToggleFavorite: (String) -> Unit,
+) {
     if (lineup.channels.isEmpty()) {
         MessageScreen(stringResource(R.string.no_channels))
     } else {
         GuideScreen(
             lineup = lineup,
             favorites = favorites,
+            initialChannelId = lastChannel,
             onPlay = { onPlay(it.guideId) },
             onToggleFavorite = { onToggleFavorite(it.guideId) },
         )

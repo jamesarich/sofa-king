@@ -10,6 +10,5 @@ internal val ROW_HEIGHT = 56.dp
 internal val HEADER_HEIGHT = 32.dp
 internal val MIN_STICKY_TEXT = 48.dp
 internal const val FOCUS_MARGIN_MINUTES = 30L
-internal const val NOW_REFRESH_MS = 60_000L
 
 internal fun nowOffset(minute: Long): Dp = MINUTE_WIDTH * minute.toFloat()

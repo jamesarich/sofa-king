@@ -2,9 +2,8 @@
 
 package dev.jamesrich.sofaking.ui.guide
 
+import android.content.res.Resources
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,17 +14,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -47,31 +47,40 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
+/** Everything a row's cells need that is the same for every cell on screen; one instance per guide, so cells skip. */
+@Immutable
+internal class GuideRowEnv(
+    val resources: Resources,
+    val timeFormat: DateTimeFormatter,
+    val noListing: String,
+    val favoriteLabel: String,
+    val toggleFavoriteLabel: String,
+    val minutePx: Float,
+    val minStickyTextPx: Float,
+    val scrollState: ScrollState,
+    val onCellFocused: (Channel, GuideCell) -> Unit,
+    val onPlay: (Channel) -> Unit,
+    val onToggleFavorite: (Channel) -> Unit,
+)
+
 @Composable
 internal fun ChannelRow(
     channel: Channel,
     programmes: List<Programme>,
     isFavorite: Boolean,
-    favoriteLabel: String,
     windowStart: Instant,
     windowEnd: Instant,
-    now: Instant,
     nowMinute: Long?,
-    minutePx: Float,
-    timeFormat: DateTimeFormatter,
-    scrollState: ScrollState,
+    env: GuideRowEnv,
     initialFocus: FocusRequester?,
     jump: GuideJump?,
     onJumpHandled: () -> Unit,
-    onCellFocused: (Channel, GuideCell) -> Unit,
-    onPlay: (Channel) -> Unit,
-    onToggleFavorite: (Channel) -> Unit,
 ) {
     val cells = remember(programmes, windowStart, windowEnd) {
         GuideTimeline.cellsFor(programmes, windowStart, windowEnd)
     }
     val initialIndex = if (initialFocus == null) -1 else {
-        cells.indexOfFirst { cell -> cell.programme?.let { isAiring(it, now) } == true }.coerceAtLeast(0)
+        cells.indexOfFirst { it.programme != null && it.covers(nowMinute) }.coerceAtLeast(0)
     }
     val cellFocus = remember(cells) { List(cells.size) { FocusRequester() } }
 
@@ -94,23 +103,18 @@ internal fun ChannelRow(
                 overflow = TextOverflow.Ellipsis,
             )
             if (isFavorite) {
-                Text("★", modifier = Modifier.semantics { contentDescription = favoriteLabel })
+                Text("★", modifier = Modifier.semantics { contentDescription = env.favoriteLabel })
             }
         }
-        TimelineStrip(scrollState = scrollState, nowMinute = nowMinute, modifier = Modifier.weight(1f)) {
+        TimelineStrip(scrollState = env.scrollState, nowMinute = nowMinute, modifier = Modifier.weight(1f)) {
             Row(Modifier.fillMaxHeight()) {
                 cells.forEachIndexed { index, cell ->
                     GuideCellItem(
                         channel = channel,
                         cell = cell,
-                        airing = cell.programme?.let { isAiring(it, now) } == true,
-                        timeFormat = timeFormat,
-                        minutePx = minutePx,
-                        scrollState = scrollState,
+                        airing = cell.programme != null && cell.covers(nowMinute),
+                        env = env,
                         focusRequester = if (initialFocus != null && index == initialIndex) initialFocus else cellFocus[index],
-                        onFocused = onCellFocused,
-                        onPlay = onPlay,
-                        onToggleFavorite = onToggleFavorite,
                         modifier = Modifier.width(MINUTE_WIDTH * cell.minutes.toFloat()).fillMaxHeight(),
                     )
                 }
@@ -124,57 +128,34 @@ private fun GuideCellItem(
     channel: Channel,
     cell: GuideCell,
     airing: Boolean,
-    timeFormat: DateTimeFormatter,
-    minutePx: Float,
-    scrollState: ScrollState,
+    env: GuideRowEnv,
     focusRequester: FocusRequester,
-    onFocused: (Channel, GuideCell) -> Unit,
-    onPlay: (Channel) -> Unit,
-    onToggleFavorite: (Channel) -> Unit,
     modifier: Modifier,
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val focused by interactionSource.collectIsFocusedAsState()
+    var focused by remember { mutableStateOf(false) }
     val programme = cell.programme
     val colors = MaterialTheme.colorScheme
-    val minTextPx = with(LocalDensity.current) { MIN_STICKY_TEXT.toPx() }
-    val cellStartPx = cell.startMinute * minutePx
-    val noListing = stringResource(R.string.no_listing)
-    val toggleLabel = stringResource(R.string.guide_toggle_favorite)
-    val description = when {
-        programme == null -> stringResource(R.string.guide_cell_none, channel.name, noListing)
-        airing -> stringResource(
-            R.string.guide_cell_airing,
-            channel.name,
-            programme.title,
-            timeFormat.format(programme.start),
-            timeFormat.format(programme.stop),
-        )
-        else -> stringResource(
-            R.string.guide_cell_later,
-            channel.name,
-            programme.title,
-            timeFormat.format(programme.start),
-            timeFormat.format(programme.stop),
-        )
-    }
+    val cellStartPx = cell.startMinute * env.minutePx
     Surface(
-        onClick = { onPlay(channel) },
-        onLongClick = { onToggleFavorite(channel) },
+        onClick = { env.onPlay(channel) },
+        onLongClick = { env.onToggleFavorite(channel) },
         modifier = modifier
             .padding(horizontal = 1.dp, vertical = 2.dp)
             .focusRequester(focusRequester)
-            .onFocusChanged { if (it.hasFocus) onFocused(channel, cell) }
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.hasFocus) env.onCellFocused(channel, cell)
+            }
             .semantics(mergeDescendants = true) {
-                contentDescription = description
+                // Built only when the semantics tree is read, so a grid of hundreds of cells formats nothing for sighted use.
+                contentDescription = cellDescription(env, channel, programme, airing)
                 customActions = listOf(
-                    CustomAccessibilityAction(toggleLabel) {
-                        onToggleFavorite(channel)
+                    CustomAccessibilityAction(env.toggleFavoriteLabel) {
+                        env.onToggleFavorite(channel)
                         true
                     },
                 )
             },
-        interactionSource = interactionSource,
         // No focus scale: a cell that starts before the visible edge would grow past the pinned column and clip its text.
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
@@ -187,19 +168,19 @@ private fun GuideCellItem(
         Column(
             Modifier
                 .fillMaxSize()
-                .stickyStart(scrollState, cellStartPx, minTextPx)
+                .stickyStart(env.scrollState, cellStartPx, env.minStickyTextPx)
                 .padding(horizontal = 8.dp, vertical = 2.dp),
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                programme?.title ?: noListing,
+                programme?.title ?: env.noListing,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (focused && programme != null) {
                 Text(
-                    timeFormat.range(programme.start, programme.stop),
+                    env.timeFormat.range(programme.start, programme.stop),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall,
@@ -207,6 +188,17 @@ private fun GuideCellItem(
             }
         }
     }
+}
+
+private fun cellDescription(env: GuideRowEnv, channel: Channel, programme: Programme?, airing: Boolean): String = when {
+    programme == null -> env.resources.getString(R.string.guide_cell_none, channel.name, env.noListing)
+    else -> env.resources.getString(
+        if (airing) R.string.guide_cell_airing else R.string.guide_cell_later,
+        channel.name,
+        programme.title,
+        env.timeFormat.format(programme.start),
+        env.timeFormat.format(programme.stop),
+    )
 }
 
 /**

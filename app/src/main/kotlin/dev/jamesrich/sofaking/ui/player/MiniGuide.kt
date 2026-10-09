@@ -37,6 +37,7 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.formatNumber
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import java.time.Instant
 
 /**
@@ -57,7 +58,7 @@ internal fun BoxScope.MiniGuide(
     // Two rows above the focused one, so it sits near the middle of the panel rather than the top edge.
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (focusRow - 2).coerceAtLeast(0))
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(Unit) { requestFocusWhenAttached(focusRequester) }
 
     Box(
         Modifier

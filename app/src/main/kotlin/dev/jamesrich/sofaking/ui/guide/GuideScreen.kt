@@ -28,7 +28,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -158,16 +157,8 @@ fun GuideScreen(
     var initialFocusDone by remember { mutableStateOf(false) }
     var returnToSearchChip by remember { mutableStateOf(false) }
     LaunchedEffect(visible.isNotEmpty()) {
-        if (!initialFocusDone && visible.isNotEmpty()) {
-            // The first row may need a few frames to attach; requestFocus throws until it has.
-            repeat(10) {
-                withFrameNanos { }
-                if (runCatching { initialFocus.requestFocus() }.isSuccess) {
-                    initialFocusDone = true
-                    return@LaunchedEffect
-                }
-            }
-        }
+        // The first row may need a few frames to attach before its cell can take focus.
+        if (!initialFocusDone && visible.isNotEmpty() && requestFocusWhenAttached(initialFocus)) initialFocusDone = true
     }
 
     // Scrolls the timeline so [minute] is inside the visible strip, leaving a half hour of room on the left.

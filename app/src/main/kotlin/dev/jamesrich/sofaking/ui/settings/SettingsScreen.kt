@@ -36,6 +36,7 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 
 @Composable
 fun SettingsScreen(
@@ -59,7 +60,7 @@ fun SettingsScreen(
     val profileFocus = remember { FocusRequester() }
 
     BackHandler { onBack() }
-    LaunchedEffect(Unit) { serverFocus.requestFocus() }
+    LaunchedEffect(Unit) { requestFocusWhenAttached(serverFocus) }
 
     LazyColumn(
         modifier = modifier

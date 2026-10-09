@@ -53,6 +53,7 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import android.util.Log
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -98,6 +99,9 @@ fun PlayerScreen(
     val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(LocalConfiguration.current.screenHeightDp)
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, (channels.size - 1).coerceAtLeast(0))) }
     var previousIndex by remember { mutableStateOf<Int?>(null) }
+    // What load() last tuned and what was watched before it, so a refreshed lineup can be followed by identity.
+    var tuned by remember { mutableStateOf<Channel?>(null) }
+    var previousChannel by remember { mutableStateOf<Channel?>(null) }
     var entry by remember { mutableStateOf(ChannelNumberEntry()) }
     var notice by remember { mutableStateOf<Notice?>(null) }
     var overlayVisible by remember { mutableStateOf(true) }
@@ -111,16 +115,19 @@ fun PlayerScreen(
     // Bumped on every key while the mini-guide is open, so its idle timer restarts.
     var miniGuideActivity by remember { mutableIntStateOf(0) }
     var paused by remember { mutableStateOf(false) }
-    var wasPlayingAtStop by remember { mutableStateOf(false) }
     val centerGesture = remember { CenterKeyGesture() }
+    val now by rememberMinuteNow()
 
     val captionSync = remember { CaptionSync() }
     // Each channel's captioner runs a different distance behind; adjustments show before the store round-trips.
     var advanceOverrides by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     val currentChannel = currentChannels.getOrNull(index)
     val channelAdvance = currentChannel?.let { advanceOverrides[it.guideId] ?: captionAdvanceFor(it) } ?: 0
-    captionSync.advanceUs = if (captionsOn) channelAdvance * 1_000L else 0L
-    captionSync.smoothingEnabled = smoothCaptions
+    val captionLead = if (captionsOn) channelAdvance * 1_000L else 0L
+    SideEffect {
+        captionSync.advanceUs = captionLead
+        captionSync.smoothingEnabled = smoothCaptions
+    }
 
     // One player for the whole session; zapping swaps the media item instead of rebuilding the pipeline.
     val player = remember { buildLivePlayer(context, captionSync, captionsOn = captionsEnabled) }
@@ -184,6 +191,7 @@ fun PlayerScreen(
         failure = null
         if (target != index) {
             previousIndex = index
+            previousChannel = currentChannels.getOrNull(index)
             index = target
         }
         overlayVisible = true
@@ -221,10 +229,21 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(index) {
-        val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
-        load(channel)
-        currentOnChannelChanged(channel)
+    // The lineup refreshes every few hours and may reorder or grow; the tuned channel keeps its stream and
+    // its row follows it. A channel that vanished stays playing on the nearest row.
+    LaunchedEffect(channels) {
+        val current = tuned ?: return@LaunchedEffect
+        index = indexAfterRefresh(channels, current) ?: index.coerceIn(0, (channels.size - 1).coerceAtLeast(0))
+        previousIndex = previousChannel?.let { indexAfterRefresh(channels, it) }
+    }
+
+    LaunchedEffect(index, currentChannel?.streamUrl) {
+        val channel = currentChannel ?: return@LaunchedEffect
+        val before = tuned
+        tuned = channel
+        // The same stream after a refresh keeps playing; the same stream under a different number is still a change of channel.
+        if (before?.streamUrl != channel.streamUrl) load(channel)
+        if (before?.guideId != channel.guideId) currentOnChannelChanged(channel)
     }
 
     // Moves the session's programme title on when the show changes; the stream is not touched.
@@ -236,15 +255,15 @@ fun PlayerScreen(
         }
     }
 
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
-        wasPlayingAtStop = wrapper.playWhenReady
-        wrapper.pause()
-    }
+    // Stopped, not paused: the TV's one hardware decoder and the Dispatcharr stream go free while another
+    // app is in front. The media item and playWhenReady survive, so prepare() resumes at the live edge, or
+    // stays paused if the user had paused.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.stop() }
 
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (wasPlayingAtStop) {
-            wasPlayingAtStop = false
-            wrapper.resumeAtLive()
+        if (player.mediaItemCount > 0 && player.playbackState == Player.STATE_IDLE) {
+            captionSync.effectiveUs = captionSync.advanceUs
+            player.prepare()
         }
     }
 
@@ -254,8 +273,14 @@ fun PlayerScreen(
         miniGuideOpen = false
     }
 
-    // Keeps the caption look-ahead inside what's downloaded; see CaptionSync.nextEffectiveUs.
-    LaunchedEffect(player) {
+    // Keeps the caption look-ahead inside what's downloaded; see CaptionSync.nextEffectiveUs. Nothing runs
+    // while captions are off or the channel has no advance.
+    val captionLeadActive = captionLead > 0L
+    LaunchedEffect(player, captionLeadActive) {
+        if (!captionLeadActive) {
+            captionSync.effectiveUs = 0L
+            return@LaunchedEffect
+        }
         var tick = 0
         while (true) {
             delay(250)
@@ -266,7 +291,7 @@ fun PlayerScreen(
                 advanceUs = captionSync.advanceUs,
                 bufferedUs = player.totalBufferedDuration * 1_000L,
             )
-            if (++tick % 8 == 0 && captionSync.advanceUs > 0) {
+            if (++tick % 8 == 0) {
                 Log.d(TAG, "captions: buffered=${player.totalBufferedDuration}ms lead=${captionSync.effectiveUs / 1000}ms of ${captionSync.advanceUs / 1000}ms")
             }
         }
@@ -418,6 +443,8 @@ fun PlayerScreen(
             .focusable()
             .onPreviewKeyEvent { event -> handleKeyEvent(event) },
     ) {
+        // Remembers the style already applied, so recompositions don't restyle the subtitles.
+        val appliedStyle = remember { arrayOfNulls<CaptionStyle>(1) }
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
@@ -428,14 +455,12 @@ fun PlayerScreen(
             },
             update = { view ->
                 view.keepScreenOn = playing
-                // The tag remembers the style already applied, so recompositions don't restyle the subtitles.
-                view.subtitleView?.let { subtitles ->
-                    if (view.tag != captionStyle) {
-                        applyCaptionAppearance(subtitles, captionStyle, captionBottomFraction)
-                        view.tag = captionStyle
-                    }
+                if (appliedStyle[0] != captionStyle) {
+                    view.subtitleView?.let { applyCaptionAppearance(it, captionStyle, captionBottomFraction) }
+                    appliedStyle[0] = captionStyle
                 }
             },
+            onRelease = { view -> view.player = null },
         )
 
         val channel = currentChannels.getOrNull(index)
@@ -512,11 +537,11 @@ fun PlayerScreen(
                     channels = currentChannels,
                     currentIndex = index,
                     previousIndex = previousIndex,
-                    now = Instant.now(),
+                    now = now,
                     onTune = { target -> zapTo(target) },
                 )
             } else if (overlayVisible) {
-                InfoOverlay(lineup = lineup, channel = channel, now = Instant.now(), captionsOn = captionsOn, captionAdvanceMs = channelAdvance)
+                InfoOverlay(lineup = lineup, channel = channel, now = now, captionsOn = captionsOn, captionAdvanceMs = channelAdvance)
             }
         }
     }

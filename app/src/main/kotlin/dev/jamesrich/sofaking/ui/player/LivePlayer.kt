@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui.player
 
 import android.content.Context
 import androidx.annotation.OptIn
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -26,6 +27,8 @@ internal fun buildLivePlayer(context: Context, captions: CaptionSync?, captionsO
         extractors.setTsSubtitleFormats(captionFormats())
         ExoPlayer.Builder(context, CaptionSyncRenderersFactory(context, captions))
             .setLoadControl(CaptionSyncLoadControl(captions))
+            // The audible player yields to Assistant and other apps the way the MediaSession promises.
+            .setAudioAttributes(AudioAttributes.DEFAULT, true)
     }
     return builder
         .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))

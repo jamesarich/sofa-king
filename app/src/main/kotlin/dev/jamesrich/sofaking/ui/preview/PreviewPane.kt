@@ -4,6 +4,7 @@ package dev.jamesrich.sofaking.ui.preview
 
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -190,18 +191,19 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
     }
 
     Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).background(Color.Black)) {
-        if (playing) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = {
-                    PlayerView(it).apply {
-                        useController = false
-                        this.player = player
-                    }
-                },
-            )
-        } else {
-            Column(Modifier.align(Alignment.Center).padding(12.dp)) {
+        // One view for the life of the preview: swapping it per buffering gap would re-attach the decoder's surface each time.
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = {
+                PlayerView(it).apply {
+                    useController = false
+                    this.player = player
+                }
+            },
+            onRelease = { view -> view.player = null },
+        )
+        if (!playing) {
+            Column(Modifier.fillMaxSize().background(Color.Black).padding(12.dp), verticalArrangement = Arrangement.Center) {
                 if (channel == null) {
                     Text(
                         stringResource(R.string.preview_hint),

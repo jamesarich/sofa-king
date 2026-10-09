@@ -58,13 +58,6 @@ internal class LivePlayerWrapper(private val live: ExoPlayer) : ForwardingPlayer
         super.pause()
     }
 
-    /** Jumps to the live edge and plays, whatever the pause length. Used when the app returns to the foreground. */
-    fun resumeAtLive() {
-        live.seekToDefaultPosition()
-        pausedAtMs = null
-        super.play()
-    }
-
     override fun getMediaMetadata(): MediaMetadata = nowPlaying
 
     /**

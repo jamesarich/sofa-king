@@ -65,16 +65,8 @@ private const val DIGIT_COMMIT_MS = 1_500L
 private const val NOT_FOUND_MS = 2_000L
 private const val RETRY_MS = 3_000L
 
-// Not yet in strings.xml; move them there with the next resource change.
-private object PlayerStrings {
-    const val TUNING = "Tuning…"
-    const val CANT_PLAY = "Can't play this channel"
-    const val NO_CHANNELS = "No channels in this lineup"
-    fun noChannel(digits: String) = "No channel $digits"
-}
-
-/** Digit-entry notice; compared by identity so a repeated miss restarts its timer. */
-private class Notice(val text: String)
+/** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
+private class Notice(val digits: String)
 
 /** A playback error that is not behind-live-window; [retriesUsed] is 0 until the one automatic retry. */
 private data class Failure(val code: String, val retriesUsed: Int)
@@ -103,19 +95,6 @@ private fun Key.digitValue(): Int? = when (this) {
     Key.Eight, Key.NumPad8 -> 8
     Key.Nine, Key.NumPad9 -> 9
     else -> null
-}
-
-/** Deprecated: lineup-only callers play `lineup.channels` and get no channel callbacks. */
-@Deprecated("use the channels overload")
-@Composable
-fun PlayerScreen(lineup: Lineup, startIndex: Int, onExit: () -> Unit) {
-    PlayerScreen(
-        lineup = lineup,
-        channels = lineup.channels,
-        startIndex = startIndex,
-        onExit = onExit,
-        onChannelChanged = {},
-    )
 }
 
 @OptIn(UnstableApi::class)
@@ -196,7 +175,7 @@ fun PlayerScreen(
             zapTo(target)
         } else {
             entry = ChannelNumberEntry()
-            notice = Notice(PlayerStrings.noChannel(pending.digits))
+            notice = Notice(pending.digits)
         }
     }
 
@@ -283,11 +262,11 @@ fun PlayerScreen(
 
         val channel = currentChannels.getOrNull(index)
         if (channel == null) {
-            Text(PlayerStrings.NO_CHANNELS, style = MaterialTheme.typography.titleLarge, color = Color.White, modifier = Modifier.align(Alignment.Center))
+            Text(stringResource(R.string.no_channels), style = MaterialTheme.typography.titleLarge, color = Color.White, modifier = Modifier.align(Alignment.Center))
         } else {
             if (buffering && failure == null) {
                 Text(
-                    PlayerStrings.TUNING,
+                    stringResource(R.string.tuning),
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White,
                     modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 48.dp, vertical = 27.dp),
@@ -300,12 +279,12 @@ fun PlayerScreen(
                         .background(Color(0xCC000000))
                         .padding(24.dp),
                 ) {
-                    Text(PlayerStrings.CANT_PLAY, style = MaterialTheme.typography.headlineSmall, color = Color.White)
+                    Text(stringResource(R.string.cant_play), style = MaterialTheme.typography.headlineSmall, color = Color.White)
                     Text(f.code, style = MaterialTheme.typography.bodyMedium, color = Color.LightGray)
                 }
             }
             val pendingDigits = entry.digits
-            val noticeText = notice?.text
+            val noticeText = notice?.let { stringResource(R.string.no_channel_number, it.digits) }
             if (pendingDigits.isNotEmpty() || noticeText != null) {
                 Text(
                     pendingDigits.ifEmpty { noticeText.orEmpty() },

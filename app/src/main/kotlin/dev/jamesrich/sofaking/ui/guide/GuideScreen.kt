@@ -1,24 +1,6 @@
-@file:OptIn(ExperimentalTvMaterial3Api::class)
-
 package dev.jamesrich.sofaking.ui.guide
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.background
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.BringIntoViewSpec
-import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,28 +10,16 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.KeyboardActionHandler
-import androidx.compose.foundation.text.input.TextFieldDecorator
-import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableIntState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -64,39 +34,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.customActions
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Border
-import androidx.tv.material3.ClickableSurfaceDefaults
-import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.FilterChip
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.data.Programme
-import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -104,15 +63,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
-
-private val PIN_WIDTH = 240.dp
-private val MINUTE_WIDTH = 6.dp
-// 1080p TV budget (540dp tall): app header ~90 + band 144 + 8 + header 32 leaves four 56dp rows above the overscan.
-private val ROW_HEIGHT = 56.dp
-private val HEADER_HEIGHT = 32.dp
-private val MIN_STICKY_TEXT = 48.dp
-private const val FOCUS_MARGIN_MINUTES = 30L
-private const val NOW_REFRESH_MS = 60_000L
 
 internal sealed interface GuideFilter {
     data object All : GuideFilter
@@ -122,6 +72,9 @@ internal sealed interface GuideFilter {
 
 /** Asks the row for [guideId] to focus the cell covering window [minute]. [nonce] keeps each request distinct. */
 internal data class GuideJump(val guideId: String, val minute: Long, val nonce: Int)
+
+/** The cell most recently focused in the grid, shown by the preview pane. */
+private data class FocusedCell(val channel: Channel, val cell: GuideCell)
 
 @Composable
 fun GuideScreen(
@@ -419,370 +372,4 @@ fun GuideScreen(
             }
         }
     }
-}
-
-@Composable
-private fun ChannelRow(
-    channel: Channel,
-    programmes: List<Programme>,
-    isFavorite: Boolean,
-    favoriteLabel: String,
-    windowStart: Instant,
-    windowEnd: Instant,
-    now: Instant,
-    nowMinute: Long?,
-    minutePx: Float,
-    timeFormat: DateTimeFormatter,
-    scrollState: ScrollState,
-    initialFocus: FocusRequester?,
-    jump: GuideJump?,
-    onJumpHandled: () -> Unit,
-    onCellFocused: (Channel, GuideCell) -> Unit,
-    onPlay: (Channel) -> Unit,
-    onToggleFavorite: (Channel) -> Unit,
-) {
-    val cells = remember(programmes, windowStart, windowEnd) {
-        GuideTimeline.cellsFor(programmes, windowStart, windowEnd)
-    }
-    val initialIndex = if (initialFocus == null) -1 else {
-        cells.indexOfFirst { cell -> cell.programme?.let { isAiring(it, now) } == true }.coerceAtLeast(0)
-    }
-    val cellFocus = remember(cells) { List(cells.size) { FocusRequester() } }
-
-    LaunchedEffect(jump) {
-        if (jump == null) return@LaunchedEffect
-        val index = GuideTimeline.cellIndexAt(cells, jump.minute)
-        if (index >= 0) requestFocusWhenAttached(cellFocus[index])
-        onJumpHandled()
-    }
-
-    Row(Modifier.fillMaxWidth().height(ROW_HEIGHT)) {
-        Row(
-            Modifier.width(PIN_WIDTH).fillMaxHeight().padding(end = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "${channel.number.formatNumber()}  ${channel.name}",
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (isFavorite) {
-                Text("★", modifier = Modifier.semantics { contentDescription = favoriteLabel })
-            }
-        }
-        TimelineStrip(scrollState = scrollState, nowMinute = nowMinute, modifier = Modifier.weight(1f)) {
-            Row(Modifier.fillMaxHeight()) {
-                cells.forEachIndexed { index, cell ->
-                    GuideCellItem(
-                        channel = channel,
-                        cell = cell,
-                        airing = cell.programme?.let { isAiring(it, now) } == true,
-                        timeFormat = timeFormat,
-                        minutePx = minutePx,
-                        scrollState = scrollState,
-                        focusRequester = if (initialFocus != null && index == initialIndex) initialFocus else cellFocus[index],
-                        onFocused = onCellFocused,
-                        onPlay = onPlay,
-                        onToggleFavorite = onToggleFavorite,
-                        modifier = Modifier.width(MINUTE_WIDTH * cell.minutes.toFloat()).fillMaxHeight(),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun GuideCellItem(
-    channel: Channel,
-    cell: GuideCell,
-    airing: Boolean,
-    timeFormat: DateTimeFormatter,
-    minutePx: Float,
-    scrollState: ScrollState,
-    focusRequester: FocusRequester,
-    onFocused: (Channel, GuideCell) -> Unit,
-    onPlay: (Channel) -> Unit,
-    onToggleFavorite: (Channel) -> Unit,
-    modifier: Modifier,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val focused by interactionSource.collectIsFocusedAsState()
-    val programme = cell.programme
-    val colors = MaterialTheme.colorScheme
-    val minTextPx = with(LocalDensity.current) { MIN_STICKY_TEXT.toPx() }
-    val cellStartPx = cell.startMinute * minutePx
-    val noListing = stringResource(R.string.no_listing)
-    val toggleLabel = stringResource(R.string.guide_toggle_favorite)
-    val description = when {
-        programme == null -> stringResource(R.string.guide_cell_none, channel.name, noListing)
-        airing -> stringResource(
-            R.string.guide_cell_airing,
-            channel.name,
-            programme.title,
-            timeFormat.format(programme.start),
-            timeFormat.format(programme.stop),
-        )
-        else -> stringResource(
-            R.string.guide_cell_later,
-            channel.name,
-            programme.title,
-            timeFormat.format(programme.start),
-            timeFormat.format(programme.stop),
-        )
-    }
-    Surface(
-        onClick = { onPlay(channel) },
-        onLongClick = { onToggleFavorite(channel) },
-        modifier = modifier
-            .padding(horizontal = 1.dp, vertical = 2.dp)
-            .focusRequester(focusRequester)
-            .onFocusChanged { if (it.hasFocus) onFocused(channel, cell) }
-            .semantics(mergeDescendants = true) {
-                contentDescription = description
-                customActions = listOf(
-                    CustomAccessibilityAction(toggleLabel) {
-                        onToggleFavorite(channel)
-                        true
-                    },
-                )
-            },
-        interactionSource = interactionSource,
-        // No focus scale: a cell that starts before the visible edge would grow past the pinned column and clip its text.
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (airing) colors.primaryContainer else colors.surfaceVariant,
-            contentColor = colors.onSurface,
-            focusedContainerColor = colors.primary,
-            focusedContentColor = colors.onPrimary,
-        ),
-    ) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .stickyStart(scrollState, cellStartPx, minTextPx)
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                programme?.title ?: noListing,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (focused && programme != null) {
-                Text(
-                    "${timeFormat.format(programme.start)} - ${timeFormat.format(programme.stop)}",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-    }
-}
-
-/**
- * Starts the content at the visible left edge when the cell begins before the scroll position, so a
- * focused title is not clipped. The content gives up the same width, so it never leaves the cell.
- */
-private fun Modifier.stickyStart(scrollState: ScrollState, cellStartPx: Float, minVisiblePx: Float): Modifier =
-    layout { measurable, constraints ->
-        val cellWidth = constraints.maxWidth
-        val shift = (scrollState.value - cellStartPx).roundToInt()
-            .coerceIn(0, (cellWidth - minVisiblePx.roundToInt()).coerceAtLeast(0))
-        val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = cellWidth - shift))
-        layout(cellWidth, placeable.height) { placeable.place(shift, 0) }
-    }
-
-/** The cell most recently focused in the grid, shown by the preview pane. */
-private data class FocusedCell(val channel: Channel, val cell: GuideCell)
-
-/** Visible time range above the channel names, for example "Today 1:00 PM - 2:30 PM". Reads scroll in its own scope. */
-@Composable
-private fun VisibleRange(
-    scrollState: ScrollState,
-    viewport: MutableIntState,
-    minutePx: Float,
-    windowStart: Instant,
-    now: Instant,
-    timeFormat: DateTimeFormatter,
-    dayFormat: DateTimeFormatter,
-    zone: ZoneId,
-    todayLabel: String,
-    rangeFormat: String,
-) {
-    val label by remember(windowStart, now, todayLabel, rangeFormat) {
-        derivedStateOf {
-            if (viewport.intValue == 0) {
-                ""
-            } else {
-                val (startMinute, endMinute) = GuideTimeline.visibleSpan(
-                    scrollPx = scrollState.value.toFloat(),
-                    viewportPx = viewport.intValue.toFloat(),
-                    pxPerMinute = minutePx,
-                )
-                val start = windowStart.plusSeconds(startMinute * 60)
-                val end = windowStart.plusSeconds(endMinute * 60)
-                val sameDay = start.atZone(zone).toLocalDate() == now.atZone(zone).toLocalDate()
-                val day = if (sameDay) todayLabel else dayFormat.format(start)
-                String.format(Locale.getDefault(), rangeFormat, day, timeFormat.format(start), timeFormat.format(end))
-            }
-        }
-    }
-    Text(
-        label,
-        style = MaterialTheme.typography.bodySmall,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-@Composable
-private fun FilterChipRow(
-    filters: List<GuideFilter>,
-    activeFilter: GuideFilter,
-    searchOpen: Boolean,
-    selectedChip: FocusRequester,
-    searchChip: FocusRequester,
-    onNow: () -> Unit,
-    onSearch: () -> Unit,
-    onSelect: (GuideFilter) -> Unit,
-    modifier: Modifier,
-) {
-    LazyRow(
-        modifier = modifier.focusRestorer(selectedChip),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item(key = "now") {
-            FilterChip(selected = false, onClick = onNow) {
-                Text(stringResource(R.string.guide_now))
-            }
-        }
-        item(key = "search") {
-            FilterChip(
-                selected = searchOpen,
-                onClick = onSearch,
-                modifier = Modifier.focusRequester(searchChip),
-            ) {
-                Text(stringResource(R.string.guide_search))
-            }
-        }
-        items(filters, key = { it.toString() }) { option ->
-            val selected = activeFilter == option
-            FilterChip(
-                selected = selected,
-                onClick = { onSelect(option) },
-                modifier = if (selected) Modifier.focusRequester(selectedChip) else Modifier,
-            ) {
-                Text(option.label())
-            }
-        }
-    }
-}
-
-@Composable
-private fun SearchField(
-    state: TextFieldState,
-    focusRequester: FocusRequester,
-    hint: String,
-    onDone: () -> Unit,
-    modifier: Modifier,
-) {
-    var focused by remember { mutableStateOf(false) }
-    val borderColor = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-    val borderWidth = if (focused) 4.dp else 1.dp
-    Surface(
-        modifier = modifier.onFocusChanged { focused = it.hasFocus },
-        shape = RoundedCornerShape(8.dp),
-        border = Border(border = BorderStroke(borderWidth, borderColor)),
-    ) {
-        Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            BasicTextField(
-                state = state,
-                lineLimits = TextFieldLineLimits.SingleLine,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                onKeyboardAction = KeyboardActionHandler { onDone() },
-                decorator = TextFieldDecorator { inner ->
-                    Box(Modifier.fillMaxWidth()) {
-                        if (state.text.isEmpty()) {
-                            Text(
-                                hint,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        inner()
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
-            )
-        }
-    }
-}
-
-/** One horizontally scrolled strip; the header and every row share [scrollState] so columns stay aligned. */
-@Composable
-private fun TimelineStrip(
-    scrollState: ScrollState,
-    nowMinute: Long?,
-    modifier: Modifier,
-    content: @Composable () -> Unit,
-) {
-    // Focus must not scroll the strip: the default bring-into-view would chase a long cell's far end
-    // (hours ahead) on a vertical move. GuideScreen scrolls the timeline itself in revealMinute.
-    CompositionLocalProvider(LocalBringIntoViewSpec provides NoBringIntoView) {
-        TimelineStripContent(scrollState, nowMinute, modifier, content)
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-private val NoBringIntoView = object : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
-}
-
-@Composable
-private fun TimelineStripContent(
-    scrollState: ScrollState,
-    nowMinute: Long?,
-    modifier: Modifier,
-    content: @Composable () -> Unit,
-) {
-    Box(modifier.clipToBounds().horizontalScroll(scrollState)) {
-        content()
-        if (nowMinute != null) {
-            Box(
-                Modifier
-                    .offset(x = nowOffset(nowMinute))
-                    .fillMaxHeight()
-                    .width(2.dp)
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        }
-    }
-}
-
-/** Requests focus once the node is attached; a requester throws until its modifier has been placed. */
-private suspend fun requestFocusWhenAttached(request: FocusRequester) {
-    repeat(10) {
-        withFrameNanos { }
-        if (runCatching { request.requestFocus() }.isSuccess) return
-    }
-}
-
-private fun nowOffset(minute: Long): Dp = MINUTE_WIDTH * minute.toFloat()
-
-private fun isAiring(programme: Programme, now: Instant): Boolean =
-    !programme.start.isAfter(now) && programme.stop.isAfter(now)
-
-@Composable
-private fun GuideFilter.label(): String = when (this) {
-    GuideFilter.All -> stringResource(R.string.filter_all)
-    GuideFilter.Favorites -> stringResource(R.string.filter_favorites)
-    is GuideFilter.Group -> name
 }

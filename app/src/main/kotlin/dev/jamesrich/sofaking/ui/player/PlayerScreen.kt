@@ -1,18 +1,13 @@
-package dev.jamesrich.sofaking.ui
+package dev.jamesrich.sofaking.ui.player
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -42,27 +37,15 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import android.content.Context
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.media3.common.C
-import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.TrackSelectionOverride
-import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.extractor.DefaultExtractorsFactory
-import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.session.MediaSession
-import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
-import androidx.media3.ui.SubtitleView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
@@ -70,26 +53,9 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.ui.player.CaptionPolicy
-import dev.jamesrich.sofaking.ui.player.CaptionSync
-import dev.jamesrich.sofaking.ui.player.CaptionSyncLoadControl
-import dev.jamesrich.sofaking.ui.player.CaptionSyncRenderersFactory
-import dev.jamesrich.sofaking.ui.player.CaptionToggleOutcome
-import dev.jamesrich.sofaking.ui.player.TextTrackInfo
-import dev.jamesrich.sofaking.ui.player.CenterKeyGesture
-import dev.jamesrich.sofaking.ui.player.CenterPress
-import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
-import dev.jamesrich.sofaking.ui.player.LivePlayerWrapper
-import dev.jamesrich.sofaking.ui.player.MiniGuide
-import dev.jamesrich.sofaking.ui.player.ProgressBar
-import dev.jamesrich.sofaking.ui.player.nowPlayingMetadata
-import dev.jamesrich.sofaking.ui.player.programmeProgress
 import android.util.Log
 import kotlinx.coroutines.delay
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 private const val ZAP_OVERLAY_MS = 5_000L
 private const val DIGIT_COMMIT_MS = 1_500L
@@ -108,114 +74,6 @@ private class CaptionToast(val outcome: CaptionToggleOutcome)
 
 /** A playback error that is not behind-live-window; [retriesUsed] is 0 until the one automatic retry. */
 private data class Failure(val code: String, val retriesUsed: Int)
-
-/** CEA-608 CC1 and CEA-708 service 1, declared together so the SEI reader emits both. */
-@OptIn(UnstableApi::class)
-private fun captionFormats(): List<Format> = listOf(
-    Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA608).setAccessibilityChannel(1).build(),
-    Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA708).setAccessibilityChannel(1).build(),
-)
-
-private const val CAPTION_LARGE_SCALE = 1.3f
-private const val CAPTION_WHITE = 0xFFFFFFFF.toInt()
-private const val CAPTION_OPAQUE_BLACK = 0xFF000000.toInt()
-private const val CAPTION_CLEAR = 0x00000000
-
-/**
- * Points the text selection at CEA-708 service 1, else CEA-608 CC1 (see [CaptionPolicy.preferredTextTrack]).
- * Runs on every track change because ad breaks can drop the 708 track. Only sets the parameters when the
- * override differs, since setting them re-fires the listener.
- */
-@OptIn(UnstableApi::class)
-private fun preferCaptionTrack(player: ExoPlayer) {
-    val groups = player.currentTracks.groups
-    val tracks = ArrayList<TextTrackInfo>()
-    groups.forEachIndexed { groupIndex, group ->
-        if (group.type != C.TRACK_TYPE_TEXT) return@forEachIndexed
-        for (trackIndex in 0 until group.length) {
-            if (!group.isTrackSupported(trackIndex)) continue
-            val format = group.getTrackFormat(trackIndex)
-            tracks += TextTrackInfo(groupIndex, trackIndex, format.sampleMimeType, format.accessibilityChannel)
-        }
-    }
-    val wanted = CaptionPolicy.preferredTextTrack(tracks)?.let { choice ->
-        TrackSelectionOverride(groups[choice.groupIndex].mediaTrackGroup, choice.trackIndex)
-    }
-    val params = player.trackSelectionParameters
-    val current = params.overrides.values.filter { it.type == C.TRACK_TYPE_TEXT }
-    if (current == listOfNotNull(wanted)) return
-    player.trackSelectionParameters = params.buildUpon()
-        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-        .apply { wanted?.let { addOverride(it) } }
-        .build()
-}
-
-/** System settings, or large white text on an opaque black box; applied on every change of [style]. */
-@OptIn(UnstableApi::class)
-private fun applyCaptionAppearance(subtitles: SubtitleView, style: CaptionStyle, bottomFraction: Float) {
-    when (style) {
-        CaptionStyle.SYSTEM -> {
-            subtitles.setUserDefaultStyle()
-            subtitles.setUserDefaultTextSize()
-            subtitles.setApplyEmbeddedStyles(true)
-        }
-        CaptionStyle.LARGE_HIGH_CONTRAST -> {
-            // Embedded 608/708 colors would override the box, so they are turned off for this style.
-            subtitles.setStyle(
-                CaptionStyleCompat(CAPTION_WHITE, CAPTION_OPAQUE_BLACK, CAPTION_CLEAR, CaptionStyleCompat.EDGE_TYPE_NONE, CAPTION_CLEAR, null),
-            )
-            subtitles.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * CAPTION_LARGE_SCALE)
-            subtitles.setApplyEmbeddedStyles(false)
-        }
-    }
-    subtitles.setBottomPaddingFraction(bottomFraction)
-}
-
-/** Text tracks are disabled rather than unselected so a zap keeps the user's choice. */
-private fun captionParameters(base: TrackSelectionParameters, enabled: Boolean): TrackSelectionParameters =
-    base.buildUpon()
-        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
-        .setPreferredTextLanguage(CaptionPolicy.PREFERRED_LANGUAGE)
-        .setSelectUndeterminedTextLanguage(true)
-        .build()
-
-/** Dispatcharr proxies streams as continuous MPEG-TS, which can start mid-GOP. */
-@OptIn(UnstableApi::class)
-private fun buildLivePlayer(context: Context, captionsOn: Boolean, sync: CaptionSync): ExoPlayer {
-    val extractors = DefaultExtractorsFactory()
-        .setTsExtractorFlags(
-            DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS,
-        )
-        .setTsSubtitleFormats(captionFormats())
-    return ExoPlayer.Builder(context, CaptionSyncRenderersFactory(context, sync))
-        .setLoadControl(CaptionSyncLoadControl(sync))
-        .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))
-        .build()
-        .apply {
-            trackSelectionParameters = captionParameters(trackSelectionParameters, captionsOn)
-            playWhenReady = true
-        }
-}
-
-private fun CaptionToggleOutcome.labelRes(): Int = when (this) {
-    CaptionToggleOutcome.ON -> R.string.captions_on
-    CaptionToggleOutcome.OFF -> R.string.captions_off
-    CaptionToggleOutcome.NO_CAPTIONS_ON_CHANNEL -> R.string.captions_unavailable
-}
-
-private fun Key.digitValue(): Int? = when (this) {
-    Key.Zero, Key.NumPad0 -> 0
-    Key.One, Key.NumPad1 -> 1
-    Key.Two, Key.NumPad2 -> 2
-    Key.Three, Key.NumPad3 -> 3
-    Key.Four, Key.NumPad4 -> 4
-    Key.Five, Key.NumPad5 -> 5
-    Key.Six, Key.NumPad6 -> 6
-    Key.Seven, Key.NumPad7 -> 7
-    Key.Eight, Key.NumPad8 -> 8
-    Key.Nine, Key.NumPad9 -> 9
-    else -> null
-}
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -666,46 +524,5 @@ fun PlayerScreen(
                 InfoOverlay(lineup = lineup, channel = channel, now = Instant.now(), captionsOn = captionsOn, captionAdvanceMs = channelAdvance)
             }
         }
-    }
-}
-
-@Composable
-private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean, captionAdvanceMs: Int) {
-    val (current, next) = lineup.nowAndNext(channel, now)
-    val timeFormat = remember { DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).withZone(ZoneId.systemDefault()) }
-    Column(
-        Modifier
-            .align(Alignment.BottomStart)
-            .padding(horizontal = 48.dp, vertical = 27.dp)
-            .width(720.dp)
-            .background(Color(0xCC000000))
-            .padding(24.dp)
-            .semantics { liveRegion = LiveRegionMode.Polite },
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${channel.number.formatNumber()}  ${channel.name}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
-            if (captionsOn) {
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    stringResource(R.string.captions_indicator_timing, CaptionPolicy.advanceLabel(captionAdvanceMs)),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White,
-                    modifier = Modifier.background(Color(0x66FFFFFF)).padding(horizontal = 8.dp),
-                )
-            }
-        }
-        if (current == null) {
-            Text(stringResource(R.string.no_listing), style = MaterialTheme.typography.titleMedium, color = Color.White)
-        } else {
-            Text(current.title, style = MaterialTheme.typography.titleMedium, color = Color.White)
-            Text(
-                "${timeFormat.format(current.start)} - ${timeFormat.format(current.stop)}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.LightGray,
-            )
-            Spacer(Modifier.height(8.dp))
-            ProgressBar(programmeProgress(current.start, current.stop, now))
-        }
-        next?.let { Text(stringResource(R.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = Color.LightGray) }
     }
 }

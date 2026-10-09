@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="captions_on">Captions on</string>
+    <string name="captions_off">Captions off</string>
+    <string name="captions_unavailable">No captions on this channel</string>
+    <string name="captions_indicator">CC</string>
+    <string name="captions_setting">Closed captions</string>
+</resources>

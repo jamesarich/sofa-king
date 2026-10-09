@@ -20,19 +20,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
+import androidx.tv.material3.Switch
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.BuildConfig
+import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.AppSettings
 
 @Composable
@@ -42,9 +46,11 @@ fun SettingsScreen(
     onBack: () -> Unit,
     channelCount: Int,
     modifier: Modifier = Modifier,
+    onCaptionsChanged: (Boolean) -> Unit = {},
 ) {
     var serverUrl by remember(settings.serverUrl) { mutableStateOf(settings.serverUrl) }
     var profile by remember(settings.profile) { mutableStateOf(settings.profile) }
+    var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
     val serverFocus = remember { FocusRequester() }
     val profileFocus = remember { FocusRequester() }
 
@@ -79,6 +85,20 @@ fun SettingsScreen(
             "$channelCount channels loaded, version ${BuildConfig.VERSION_NAME}",
             style = MaterialTheme.typography.bodyMedium,
         )
+        Row(
+            modifier = Modifier.focusGroup(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(stringResource(R.string.captions_setting), style = MaterialTheme.typography.titleSmall)
+            Switch(
+                checked = captionsOn,
+                onCheckedChange = {
+                    captionsOn = it
+                    onCaptionsChanged(it)
+                },
+            )
+        }
         Row(
             modifier = Modifier.focusGroup(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),

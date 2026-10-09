@@ -9,6 +9,7 @@ data class AppSettings(
     val favorites: Set<String> = emptySet(),
     /** [Channel.guideId] of the channel watched most recently, to reopen on launch. */
     val lastChannel: String? = null,
+    val captionsEnabled: Boolean = false,
 )
 
 interface SettingsStore {
@@ -19,4 +20,6 @@ interface SettingsStore {
     suspend fun toggleFavorite(guideId: String)
 
     suspend fun setLastChannel(guideId: String)
+
+    suspend fun setCaptionsEnabled(enabled: Boolean)
 }

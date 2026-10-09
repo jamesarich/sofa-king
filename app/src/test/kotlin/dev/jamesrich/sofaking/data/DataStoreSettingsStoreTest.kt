@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -74,6 +76,22 @@ class DataStoreSettingsStoreTest {
 
         store.setLastChannel("12")
         assertEquals("12", store.settings.first().lastChannel)
+    }
+
+    @Test
+    fun `captions are off until the user turns them on`() = runTest {
+        assertFalse(newStore().settings.first().captionsEnabled)
+    }
+
+    @Test
+    fun `setCaptionsEnabled is persisted in both directions`() = runTest {
+        val store = newStore()
+
+        store.setCaptionsEnabled(true)
+        assertTrue(store.settings.first().captionsEnabled)
+
+        store.setCaptionsEnabled(false)
+        assertFalse(store.settings.first().captionsEnabled)
     }
 
     @Test

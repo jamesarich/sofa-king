@@ -103,9 +103,9 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
-    fun `caption advance defaults to three seconds and is clamped to eight`() = runTest {
+    fun `caption advance defaults to zero and is clamped to eight seconds`() = runTest {
         val store = newStore()
-        assertEquals(3_000, store.settings.first().captionAdvanceMs)
+        assertEquals(0, store.settings.first().captionAdvanceMs)
 
         store.setCaptionAdvanceMs(5_500)
         assertEquals(5_500, store.settings.first().captionAdvanceMs)
@@ -132,17 +132,10 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
-    fun `a legacy whole-seconds default is read as seconds`() = runTest {
-        dataStore.edit { it[intPreferencesKey("caption_advance_seconds")] = 5 }
+    fun `the old whole-seconds default is not migrated`() = runTest {
+        dataStore.edit { it[intPreferencesKey("caption_advance_seconds")] = 6 }
 
-        assertEquals(5_000, newStore().settings.first().captionAdvanceMs)
-    }
-
-    @Test
-    fun `legacy whole-seconds values are clamped to the old six-second bound before scaling`() = runTest {
-        dataStore.edit { it[intPreferencesKey("caption_advance_seconds")] = 42 }
-
-        assertEquals(6_000, newStore().settings.first().captionAdvanceMs)
+        assertEquals(0, newStore().settings.first().captionAdvanceMs)
     }
 
     @Test
@@ -152,12 +145,11 @@ class DataStoreSettingsStoreTest {
         val settings = newStore().settings.first()
         assertEquals(2_000, settings.captionAdvanceFor("5"))
         assertEquals(6_000, settings.captionAdvanceFor("8"))
-        assertEquals(3_000, settings.captionAdvanceFor("108"))
+        assertEquals(0, settings.captionAdvanceFor("108"))
     }
 
     @Test
-    fun `a millisecond value wins over a legacy seconds value`() = runTest {
-        dataStore.edit { it[intPreferencesKey("caption_advance_seconds")] = 5 }
+    fun `a set default replaces the zero default`() = runTest {
         val store = newStore()
         store.setCaptionAdvanceMs(1_500)
 

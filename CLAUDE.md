@@ -26,7 +26,7 @@ Android TV / Google TV live-TV client for the home Dispatcharr server. Single `:
 - Overscan: 48dp horizontal, 27dp vertical padding on full-screen content.
 - Playback: one `ExoPlayer` per player screen, zap with `setMediaItem` + `prepare`. TS extractor flags `FLAG_ALLOW_NON_IDR_KEYFRAMES | FLAG_DETECT_ACCESS_UNITS`. On `ERROR_CODE_BEHIND_LIVE_WINDOW`, `seekToDefaultPosition()` then `prepare()`.
 - Keep the screen on only while `isPlaying`; never for autoplay.
-- Captions: CEA-608 and 708 come from the TS SEI (`setTsSubtitleFormats`). Live captions trail speech, so `CaptionSync` renders text `captionAdvanceSeconds` ahead (a `ForwardingRenderer` around the text renderer) and `CaptionSyncLoadControl` holds playback until that much is buffered. Both are zero cost while captions are off.
+- Captions: CEA-608 and 708 come from the TS SEI (`setTsSubtitleFormats`). Live captions trail speech, so `CaptionSync` renders text the channel's caption advance ahead (`AppSettings.captionAdvanceFor`, milliseconds, default 0, set per channel from the player) (a `ForwardingRenderer` around the text renderer) and `CaptionSyncLoadControl` holds playback until that much is buffered. Both are zero cost while captions are off.
 - Wrapping a Media3 Java interface: never use Kotlin `by` delegation. It skips Java default methods, and `LoadControl`'s defaults throw "not implemented"; forward every PlayerId/Parameters overload explicitly (see `CaptionSyncTest`).
 - A `MediaSession` lives as long as the player; no background playback service.
 - `PlayerView` in `AndroidView` for now; `media3-ui-compose` `ContentFrame` is `@UnstableApi`, so pin Media3 if switching.

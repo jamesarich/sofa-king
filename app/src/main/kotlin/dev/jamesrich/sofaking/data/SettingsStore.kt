@@ -21,7 +21,7 @@ data class AppSettings(
     fun captionAdvanceFor(guideId: String): Int = captionAdvanceByChannel[guideId] ?: captionAdvanceMs
 
     companion object {
-        const val DEFAULT_CAPTION_ADVANCE_MS = 3_000
+        const val DEFAULT_CAPTION_ADVANCE_MS = 0
         val CAPTION_ADVANCE_RANGE_MS = 0..8_000
         const val CAPTION_ADVANCE_STEP_MS = 500
     }

@@ -80,16 +80,9 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[CAPTION_STYLE] = style.name }
     }
 
-    /**
-     * Milliseconds win once written. Until then the legacy whole-seconds key is the stored value, so a
-     * user's setting survives the unit change; the legacy key is never written again.
-     */
-    private fun advanceMs(prefs: Preferences): Int {
-        val stored = prefs[CAPTION_ADVANCE_MS]
-            ?: prefs[LEGACY_CAPTION_ADVANCE_SECONDS]?.let { legacySecondsToMs(it) }
-            ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS
-        return stored.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
-    }
+    /** The old whole-seconds default is deliberately not migrated: the default is now 0 and per-channel values carry the tuning. */
+    private fun advanceMs(prefs: Preferences): Int =
+        (prefs[CAPTION_ADVANCE_MS] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
 
     /** Per-channel values follow the same rule as [advanceMs]: the ms set wins once it exists. */
     private fun channelAdvances(prefs: Preferences): Map<String, Int> =
@@ -120,7 +113,6 @@ class DataStoreSettingsStore(
         private val CHANNEL_CAPTION_ADVANCE_MS = stringSetPreferencesKey("channel_caption_advance_ms")
         private val SMOOTH_CAPTIONS = booleanPreferencesKey("smooth_captions")
         private val CAPTION_STYLE = stringPreferencesKey("caption_style")
-        private val LEGACY_CAPTION_ADVANCE_SECONDS = intPreferencesKey("caption_advance_seconds")
         private val LEGACY_CHANNEL_CAPTION_ADVANCE = stringSetPreferencesKey("channel_caption_advance")
         private const val SEPARATOR = '\t'
 

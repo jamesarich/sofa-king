@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.DispatcharrRepository
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
+import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.SettingsStore
 import java.io.File
 import kotlinx.coroutines.CancellationException
@@ -107,10 +108,14 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setCaptionsEnabled(enabled: Boolean) = viewModelScope.launch { store.setCaptionsEnabled(enabled) }
 
-    fun setCaptionAdvanceSeconds(seconds: Int) = viewModelScope.launch { store.setCaptionAdvanceSeconds(seconds) }
+    fun setCaptionAdvanceMs(ms: Int) = viewModelScope.launch { store.setCaptionAdvanceMs(ms) }
 
-    fun setChannelCaptionAdvance(guideId: String, seconds: Int) =
-        viewModelScope.launch { store.setChannelCaptionAdvance(guideId, seconds) }
+    fun setChannelCaptionAdvance(guideId: String, ms: Int) =
+        viewModelScope.launch { store.setChannelCaptionAdvance(guideId, ms) }
+
+    fun setSmoothCaptions(enabled: Boolean) = viewModelScope.launch { store.setSmoothCaptions(enabled) }
+
+    fun setCaptionStyle(style: CaptionStyle) = viewModelScope.launch { store.setCaptionStyle(style) }
 
     private companion object {
         const val TAG = "SofaKing"

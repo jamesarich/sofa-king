@@ -45,6 +45,8 @@ import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.BuildConfig
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 
 @Composable
 fun SettingsScreen(
@@ -55,8 +57,12 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onCaptionsChanged: (Boolean) -> Unit = {},
     onCaptionAdvanceChanged: (Int) -> Unit = {},
+    onSmoothCaptionsChanged: (Boolean) -> Unit = {},
+    onCaptionStyleChanged: (CaptionStyle) -> Unit = {},
 ) {
-    var captionAdvance by remember(settings.captionAdvanceSeconds) { mutableIntStateOf(settings.captionAdvanceSeconds) }
+    var captionAdvance by remember(settings.captionAdvanceMs) { mutableIntStateOf(settings.captionAdvanceMs) }
+    var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
+    var captionStyle by remember(settings.captionStyle) { mutableStateOf(settings.captionStyle) }
     var serverUrl by remember(settings.serverUrl) { mutableStateOf(settings.serverUrl) }
     var profile by remember(settings.profile) { mutableStateOf(settings.profile) }
     var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
@@ -134,15 +140,66 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                Text(stringResource(R.string.caption_smooth), style = MaterialTheme.typography.titleSmall)
+                Switch(
+                    checked = smoothCaptions,
+                    onCheckedChange = {
+                        smoothCaptions = it
+                        onSmoothCaptionsChanged(it)
+                    },
+                )
+            }
+        }
+        item { Text(stringResource(R.string.caption_smooth_help), style = MaterialTheme.typography.bodySmall) }
+        item {
+            Row(
+                modifier = Modifier.focusGroup(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(stringResource(R.string.caption_style), style = MaterialTheme.typography.titleSmall)
+                Button(
+                    onClick = {
+                        captionStyle = if (captionStyle == CaptionStyle.SYSTEM) {
+                            CaptionStyle.LARGE_HIGH_CONTRAST
+                        } else {
+                            CaptionStyle.SYSTEM
+                        }
+                        onCaptionStyleChanged(captionStyle)
+                    },
+                ) {
+                    Text(
+                        stringResource(
+                            if (captionStyle == CaptionStyle.SYSTEM) R.string.caption_style_system else R.string.caption_style_large,
+                        ),
+                    )
+                }
+            }
+        }
+        item {
+            Row(
+                modifier = Modifier.focusGroup(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
                 Text(stringResource(R.string.caption_timing), style = MaterialTheme.typography.titleSmall)
                 Button(
-                    onClick = { captionAdvance = (captionAdvance - 1).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE); onCaptionAdvanceChanged(captionAdvance) },
-                    enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE.first,
+                    onClick = {
+                        captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = -1)
+                        onCaptionAdvanceChanged(captionAdvance)
+                    },
+                    enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE_MS.first,
                 ) { Text("−") }
-                Text(stringResource(R.string.caption_timing_value, captionAdvance), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    stringResource(R.string.caption_timing_value, CaptionPolicy.advanceLabel(captionAdvance)),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
                 Button(
-                    onClick = { captionAdvance = (captionAdvance + 1).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE); onCaptionAdvanceChanged(captionAdvance) },
-                    enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE.last,
+                    onClick = {
+                        captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = 1)
+                        onCaptionAdvanceChanged(captionAdvance)
+                    },
+                    enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE_MS.last,
                 ) { Text("+") }
             }
         }

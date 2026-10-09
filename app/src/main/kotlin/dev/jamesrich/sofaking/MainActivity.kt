@@ -26,6 +26,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.PlayerScreen
@@ -65,7 +66,9 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 onBack = { screen = Screen.Guide },
                 channelCount = lineup?.channels?.size ?: 0,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },
-                onCaptionAdvanceChanged = { vm.setCaptionAdvanceSeconds(it) },
+                onCaptionAdvanceChanged = { vm.setCaptionAdvanceMs(it) },
+                onSmoothCaptionsChanged = { vm.setSmoothCaptions(it) },
+                onCaptionStyleChanged = { vm.setCaptionStyle(it) },
             )
         }
         is Screen.Player -> if (lineup != null) {
@@ -78,8 +81,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 onChannelChanged = { vm.setLastChannel(it.guideId) },
                 captionsEnabled = settings?.captionsEnabled ?: false,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },
-                captionAdvanceFor = { settings?.captionAdvanceFor(it.guideId) ?: AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS },
-                onCaptionAdvanceChanged = { channel, seconds -> vm.setChannelCaptionAdvance(channel.guideId, seconds) },
+                captionAdvanceFor = { settings?.captionAdvanceFor(it.guideId) ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
+                onCaptionAdvanceChanged = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
+                captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
+                smoothCaptions = settings?.smoothCaptions ?: true,
             )
         } else {
             LaunchedEffect(Unit) { screen = Screen.Guide }

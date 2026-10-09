@@ -28,9 +28,12 @@ class DataStoreSettingsStore(
             favorites = prefs[FAVORITES] ?: emptySet(),
             lastChannel = prefs[LAST_CHANNEL],
             captionsEnabled = prefs[CAPTIONS_ENABLED] ?: false,
-            captionAdvanceSeconds = (prefs[CAPTION_ADVANCE] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS)
-                .coerceIn(AppSettings.CAPTION_ADVANCE_RANGE),
-            captionAdvanceByChannel = decodeAdvances(prefs[CHANNEL_CAPTION_ADVANCE].orEmpty()),
+            captionAdvanceMs = advanceMs(prefs),
+            captionAdvanceByChannel = channelAdvances(prefs),
+            smoothCaptions = prefs[SMOOTH_CAPTIONS] ?: true,
+            captionStyle = prefs[CAPTION_STYLE]?.let { name ->
+                CaptionStyle.entries.firstOrNull { it.name == name }
+            } ?: CaptionStyle.SYSTEM,
         )
     }
 
@@ -58,24 +61,54 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[CAPTIONS_ENABLED] = enabled }
     }
 
-    override suspend fun setCaptionAdvanceSeconds(seconds: Int) {
-        dataStore.edit { prefs -> prefs[CAPTION_ADVANCE] = seconds.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE) }
+    override suspend fun setCaptionAdvanceMs(ms: Int) {
+        dataStore.edit { prefs -> prefs[CAPTION_ADVANCE_MS] = ms.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS) }
     }
 
-    override suspend fun setChannelCaptionAdvance(guideId: String, seconds: Int) {
+    override suspend fun setChannelCaptionAdvance(guideId: String, ms: Int) {
         dataStore.edit { prefs ->
-            val updated = decodeAdvances(prefs[CHANNEL_CAPTION_ADVANCE].orEmpty()) +
-                (guideId to seconds.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE))
-            prefs[CHANNEL_CAPTION_ADVANCE] = updated.mapTo(HashSet()) { (id, secs) -> "$id$SEPARATOR$secs" }
+            val updated = channelAdvances(prefs) + (guideId to ms.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS))
+            prefs[CHANNEL_CAPTION_ADVANCE_MS] = updated.mapTo(HashSet()) { (id, value) -> "$id$SEPARATOR$value" }
         }
     }
 
-    /** Entries are `guideId<TAB>seconds`; anything malformed is skipped. */
-    private fun decodeAdvances(entries: Set<String>): Map<String, Int> = entries.mapNotNull { entry ->
+    override suspend fun setSmoothCaptions(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[SMOOTH_CAPTIONS] = enabled }
+    }
+
+    override suspend fun setCaptionStyle(style: CaptionStyle) {
+        dataStore.edit { prefs -> prefs[CAPTION_STYLE] = style.name }
+    }
+
+    /**
+     * Milliseconds win once written. Until then the legacy whole-seconds key is the stored value, so a
+     * user's setting survives the unit change; the legacy key is never written again.
+     */
+    private fun advanceMs(prefs: Preferences): Int {
+        val stored = prefs[CAPTION_ADVANCE_MS]
+            ?: prefs[LEGACY_CAPTION_ADVANCE_SECONDS]?.let { legacySecondsToMs(it) }
+            ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS
+        return stored.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
+    }
+
+    /** Per-channel values follow the same rule as [advanceMs]: the ms set wins once it exists. */
+    private fun channelAdvances(prefs: Preferences): Map<String, Int> =
+        prefs[CHANNEL_CAPTION_ADVANCE_MS]?.let { decodeAdvances(it, legacy = false) }
+            ?: decodeAdvances(prefs[LEGACY_CHANNEL_CAPTION_ADVANCE].orEmpty(), legacy = true)
+
+    /** Entries are `guideId<TAB>value`; anything malformed is skipped. */
+    private fun decodeAdvances(entries: Set<String>, legacy: Boolean): Map<String, Int> = entries.mapNotNull { entry ->
         val id = entry.substringBeforeLast(SEPARATOR, missingDelimiterValue = "")
-        val secs = entry.substringAfterLast(SEPARATOR).toIntOrNull()
-        if (id.isEmpty() || secs == null) null else id to secs.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE)
+        val value = entry.substringAfterLast(SEPARATOR).toIntOrNull()
+        when {
+            id.isEmpty() || value == null -> null
+            legacy -> id to legacySecondsToMs(value)
+            else -> id to value.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
+        }
     }.toMap()
+
+    /** The old setting was clamped to 0..6 whole seconds; keep that bound before scaling. */
+    private fun legacySecondsToMs(seconds: Int): Int = seconds.coerceIn(0..6) * 1_000
 
     companion object {
         private val SERVER_URL = stringPreferencesKey("server_url")
@@ -83,8 +116,12 @@ class DataStoreSettingsStore(
         private val FAVORITES = stringSetPreferencesKey("favorites")
         private val LAST_CHANNEL = stringPreferencesKey("last_channel")
         private val CAPTIONS_ENABLED = booleanPreferencesKey("captions_enabled")
-        private val CAPTION_ADVANCE = intPreferencesKey("caption_advance_seconds")
-        private val CHANNEL_CAPTION_ADVANCE = stringSetPreferencesKey("channel_caption_advance")
+        private val CAPTION_ADVANCE_MS = intPreferencesKey("caption_advance_ms")
+        private val CHANNEL_CAPTION_ADVANCE_MS = stringSetPreferencesKey("channel_caption_advance_ms")
+        private val SMOOTH_CAPTIONS = booleanPreferencesKey("smooth_captions")
+        private val CAPTION_STYLE = stringPreferencesKey("caption_style")
+        private val LEGACY_CAPTION_ADVANCE_SECONDS = intPreferencesKey("caption_advance_seconds")
+        private val LEGACY_CHANNEL_CAPTION_ADVANCE = stringSetPreferencesKey("channel_caption_advance")
         private const val SEPARATOR = '\t'
 
         private val lock = Any()

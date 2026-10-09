@@ -5,4 +5,7 @@
     <string name="captions_unavailable">No captions on this channel</string>
     <string name="captions_indicator">CC</string>
     <string name="captions_setting">Closed captions</string>
+    <string name="caption_timing">Caption timing</string>
+    <string name="caption_timing_value">%1$d s earlier</string>
+    <string name="caption_timing_help">Live captions are typed after the words are spoken. Showing them earlier lines them up with the speech; channels take that much longer to start while captions are on.</string>
 </resources>

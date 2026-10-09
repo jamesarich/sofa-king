@@ -25,6 +25,7 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.PlayerScreen
@@ -64,6 +65,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 onBack = { screen = Screen.Guide },
                 channelCount = lineup?.channels?.size ?: 0,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },
+                onCaptionAdvanceChanged = { vm.setCaptionAdvanceSeconds(it) },
             )
         }
         is Screen.Player -> if (lineup != null) {
@@ -76,6 +78,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 onChannelChanged = { vm.setLastChannel(it.guideId) },
                 captionsEnabled = settings?.captionsEnabled ?: false,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },
+                captionAdvanceSeconds = settings?.captionAdvanceSeconds ?: AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS,
             )
         } else {
             LaunchedEffect(Unit) { screen = Screen.Guide }

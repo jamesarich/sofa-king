@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,7 +52,9 @@ fun SettingsScreen(
     channelCount: Int,
     modifier: Modifier = Modifier,
     onCaptionsChanged: (Boolean) -> Unit = {},
+    onCaptionAdvanceChanged: (Int) -> Unit = {},
 ) {
+    var captionAdvance by remember(settings.captionAdvanceSeconds) { mutableIntStateOf(settings.captionAdvanceSeconds) }
     var serverUrl by remember(settings.serverUrl) { mutableStateOf(settings.serverUrl) }
     var profile by remember(settings.profile) { mutableStateOf(settings.profile) }
     var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
@@ -103,6 +106,23 @@ fun SettingsScreen(
                 },
             )
         }
+        Row(
+            modifier = Modifier.focusGroup(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(stringResource(R.string.caption_timing), style = MaterialTheme.typography.titleSmall)
+            Button(
+                onClick = { captionAdvance = (captionAdvance - 1).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE); onCaptionAdvanceChanged(captionAdvance) },
+                enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE.first,
+            ) { Text("−") }
+            Text(stringResource(R.string.caption_timing_value, captionAdvance), style = MaterialTheme.typography.bodyLarge)
+            Button(
+                onClick = { captionAdvance = (captionAdvance + 1).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE); onCaptionAdvanceChanged(captionAdvance) },
+                enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE.last,
+            ) { Text("+") }
+        }
+        Text(stringResource(R.string.caption_timing_help), style = MaterialTheme.typography.bodySmall)
         Row(
             modifier = Modifier.focusGroup(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),

@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -27,6 +28,8 @@ class DataStoreSettingsStore(
             favorites = prefs[FAVORITES] ?: emptySet(),
             lastChannel = prefs[LAST_CHANNEL],
             captionsEnabled = prefs[CAPTIONS_ENABLED] ?: false,
+            captionAdvanceSeconds = (prefs[CAPTION_ADVANCE] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS)
+                .coerceIn(AppSettings.CAPTION_ADVANCE_RANGE),
         )
     }
 
@@ -54,12 +57,17 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[CAPTIONS_ENABLED] = enabled }
     }
 
+    override suspend fun setCaptionAdvanceSeconds(seconds: Int) {
+        dataStore.edit { prefs -> prefs[CAPTION_ADVANCE] = seconds.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE) }
+    }
+
     companion object {
         private val SERVER_URL = stringPreferencesKey("server_url")
         private val PROFILE = stringPreferencesKey("profile")
         private val FAVORITES = stringSetPreferencesKey("favorites")
         private val LAST_CHANNEL = stringPreferencesKey("last_channel")
         private val CAPTIONS_ENABLED = booleanPreferencesKey("captions_enabled")
+        private val CAPTION_ADVANCE = intPreferencesKey("caption_advance_seconds")
 
         private val lock = Any()
         private var sharedDataStore: DataStore<Preferences>? = null

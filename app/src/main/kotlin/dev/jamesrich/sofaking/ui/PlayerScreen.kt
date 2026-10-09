@@ -58,9 +58,13 @@ import androidx.media3.ui.PlayerView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
+import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
+import dev.jamesrich.sofaking.ui.player.CaptionSync
+import dev.jamesrich.sofaking.ui.player.CaptionSyncLoadControl
+import dev.jamesrich.sofaking.ui.player.CaptionSyncRenderersFactory
 import dev.jamesrich.sofaking.ui.player.CaptionToggleOutcome
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
 import dev.jamesrich.sofaking.ui.player.programmeProgress
@@ -102,13 +106,14 @@ private fun captionParameters(base: TrackSelectionParameters, enabled: Boolean):
 
 /** Dispatcharr proxies streams as continuous MPEG-TS, which can start mid-GOP. */
 @OptIn(UnstableApi::class)
-private fun buildLivePlayer(context: Context, captionsOn: Boolean): ExoPlayer {
+private fun buildLivePlayer(context: Context, captionsOn: Boolean, sync: CaptionSync): ExoPlayer {
     val extractors = DefaultExtractorsFactory()
         .setTsExtractorFlags(
             DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS,
         )
         .setTsSubtitleFormats(captionFormats())
-    return ExoPlayer.Builder(context)
+    return ExoPlayer.Builder(context, CaptionSyncRenderersFactory(context, sync))
+        .setLoadControl(CaptionSyncLoadControl(sync))
         .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))
         .build()
         .apply {
@@ -147,6 +152,7 @@ fun PlayerScreen(
     onChannelChanged: (Channel) -> Unit,
     captionsEnabled: Boolean = false,
     onCaptionsChanged: (Boolean) -> Unit = {},
+    captionAdvanceSeconds: Int = AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS,
 ) {
     val context = LocalContext.current
     val currentChannels by rememberUpdatedState(channels)
@@ -165,8 +171,11 @@ fun PlayerScreen(
     var captionsOn by remember { mutableStateOf(captionsEnabled) }
     var captionToast by remember { mutableStateOf<CaptionToast?>(null) }
 
+    val captionSync = remember { CaptionSync() }
+    captionSync.advanceUs = if (captionsOn) captionAdvanceSeconds * 1_000_000L else 0L
+
     // One player for the whole session; zapping swaps the media item instead of rebuilding the pipeline.
-    val player = remember { buildLivePlayer(context, captionsEnabled) }
+    val player = remember { buildLivePlayer(context, captionsEnabled, captionSync) }
     DisposableEffect(player) {
         val session = MediaSession.Builder(context, player).build()
         val listener = object : Player.Listener {

@@ -95,6 +95,21 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `caption advance defaults to three seconds and is clamped`() = runTest {
+        val store = newStore()
+        assertEquals(3, store.settings.first().captionAdvanceSeconds)
+
+        store.setCaptionAdvanceSeconds(5)
+        assertEquals(5, store.settings.first().captionAdvanceSeconds)
+
+        store.setCaptionAdvanceSeconds(42)
+        assertEquals(6, store.settings.first().captionAdvanceSeconds)
+
+        store.setCaptionAdvanceSeconds(-3)
+        assertEquals(0, store.settings.first().captionAdvanceSeconds)
+    }
+
+    @Test
     fun `settings flow emits each update`() = runTest {
         val store = newStore()
 

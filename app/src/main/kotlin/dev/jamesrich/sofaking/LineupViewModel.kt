@@ -107,6 +107,8 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setCaptionsEnabled(enabled: Boolean) = viewModelScope.launch { store.setCaptionsEnabled(enabled) }
 
+    fun setCaptionAdvanceSeconds(seconds: Int) = viewModelScope.launch { store.setCaptionAdvanceSeconds(seconds) }
+
     private companion object {
         const val TAG = "SofaKing"
         val REFRESH_INTERVAL = 3.hours

@@ -51,18 +51,23 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.session.MediaSession
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.SubtitleView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
@@ -70,6 +75,7 @@ import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.CaptionSyncLoadControl
 import dev.jamesrich.sofaking.ui.player.CaptionSyncRenderersFactory
 import dev.jamesrich.sofaking.ui.player.CaptionToggleOutcome
+import dev.jamesrich.sofaking.ui.player.TextTrackInfo
 import dev.jamesrich.sofaking.ui.player.CenterKeyGesture
 import dev.jamesrich.sofaking.ui.player.CenterPress
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
@@ -109,6 +115,61 @@ private fun captionFormats(): List<Format> = listOf(
     Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA608).setAccessibilityChannel(1).build(),
     Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA708).setAccessibilityChannel(1).build(),
 )
+
+private const val CAPTION_LARGE_SCALE = 1.3f
+private const val CAPTION_WHITE = 0xFFFFFFFF.toInt()
+private const val CAPTION_OPAQUE_BLACK = 0xFF000000.toInt()
+private const val CAPTION_CLEAR = 0x00000000
+
+/**
+ * Points the text selection at CEA-708 service 1, else CEA-608 CC1 (see [CaptionPolicy.preferredTextTrack]).
+ * Runs on every track change because ad breaks can drop the 708 track. Only sets the parameters when the
+ * override differs, since setting them re-fires the listener.
+ */
+@OptIn(UnstableApi::class)
+private fun preferCaptionTrack(player: ExoPlayer) {
+    val groups = player.currentTracks.groups
+    val tracks = ArrayList<TextTrackInfo>()
+    groups.forEachIndexed { groupIndex, group ->
+        if (group.type != C.TRACK_TYPE_TEXT) return@forEachIndexed
+        for (trackIndex in 0 until group.length) {
+            if (!group.isTrackSupported(trackIndex)) continue
+            val format = group.getTrackFormat(trackIndex)
+            tracks += TextTrackInfo(groupIndex, trackIndex, format.sampleMimeType, format.accessibilityChannel)
+        }
+    }
+    val wanted = CaptionPolicy.preferredTextTrack(tracks)?.let { choice ->
+        TrackSelectionOverride(groups[choice.groupIndex].mediaTrackGroup, choice.trackIndex)
+    }
+    val params = player.trackSelectionParameters
+    val current = params.overrides.values.filter { it.type == C.TRACK_TYPE_TEXT }
+    if (current == listOfNotNull(wanted)) return
+    player.trackSelectionParameters = params.buildUpon()
+        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+        .apply { wanted?.let { addOverride(it) } }
+        .build()
+}
+
+/** System settings, or large white text on an opaque black box; applied on every change of [style]. */
+@OptIn(UnstableApi::class)
+private fun applyCaptionAppearance(subtitles: SubtitleView, style: CaptionStyle, bottomFraction: Float) {
+    when (style) {
+        CaptionStyle.SYSTEM -> {
+            subtitles.setUserDefaultStyle()
+            subtitles.setUserDefaultTextSize()
+            subtitles.setApplyEmbeddedStyles(true)
+        }
+        CaptionStyle.LARGE_HIGH_CONTRAST -> {
+            // Embedded 608/708 colors would override the box, so they are turned off for this style.
+            subtitles.setStyle(
+                CaptionStyleCompat(CAPTION_WHITE, CAPTION_OPAQUE_BLACK, CAPTION_CLEAR, CaptionStyleCompat.EDGE_TYPE_NONE, CAPTION_CLEAR, null),
+            )
+            subtitles.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * CAPTION_LARGE_SCALE)
+            subtitles.setApplyEmbeddedStyles(false)
+        }
+    }
+    subtitles.setBottomPaddingFraction(bottomFraction)
+}
 
 /** Text tracks are disabled rather than unselected so a zap keeps the user's choice. */
 private fun captionParameters(base: TrackSelectionParameters, enabled: Boolean): TrackSelectionParameters =
@@ -166,8 +227,10 @@ fun PlayerScreen(
     onChannelChanged: (Channel) -> Unit,
     captionsEnabled: Boolean = false,
     onCaptionsChanged: (Boolean) -> Unit = {},
-    captionAdvanceFor: (Channel) -> Int = { AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS },
+    captionAdvanceFor: (Channel) -> Int = { AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
     onCaptionAdvanceChanged: (Channel, Int) -> Unit = { _, _ -> },
+    captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
+    smoothCaptions: Boolean = true,
 ) {
     val context = LocalContext.current
     val currentChannels by rememberUpdatedState(channels)
@@ -198,7 +261,8 @@ fun PlayerScreen(
     var advanceOverrides by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     val currentChannel = currentChannels.getOrNull(index)
     val channelAdvance = currentChannel?.let { advanceOverrides[it.guideId] ?: captionAdvanceFor(it) } ?: 0
-    captionSync.advanceUs = if (captionsOn) channelAdvance * 1_000_000L else 0L
+    captionSync.advanceUs = if (captionsOn) channelAdvance * 1_000L else 0L
+    captionSync.smoothingEnabled = smoothCaptions
 
     // One player for the whole session; zapping swaps the media item instead of rebuilding the pipeline.
     val player = remember { buildLivePlayer(context, captionsEnabled, captionSync) }
@@ -210,6 +274,10 @@ fun PlayerScreen(
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
                 if (isPlaying) failure = null
+            }
+
+            override fun onTracksChanged(tracks: Tracks) {
+                preferCaptionTrack(player)
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -448,8 +516,8 @@ fun PlayerScreen(
                 val channel = currentChannels.getOrNull(index)
                 if (captionsOn && overlayVisible && channel != null) {
                     // Right shows captions earlier, Left later; the overlay stays up while adjusting.
-                    val step = if (key == Key.DirectionRight) 1 else -1
-                    val next = (channelAdvance + step).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE)
+                    val direction = if (key == Key.DirectionRight) 1 else -1
+                    val next = CaptionPolicy.stepAdvance(channelAdvance, direction)
                     advanceOverrides = advanceOverrides + (channel.guideId to next)
                     currentOnCaptionAdvanceChanged(channel, next)
                     overlayRequest++
@@ -503,14 +571,18 @@ fun PlayerScreen(
                 PlayerView(it).apply {
                     useController = false
                     this.player = player
-                    subtitleView?.apply {
-                        setUserDefaultStyle()
-                        setUserDefaultTextSize()
-                        setBottomPaddingFraction(captionBottomFraction)
+                }
+            },
+            update = { view ->
+                view.keepScreenOn = playing
+                // The tag remembers the style already applied, so recompositions don't restyle the subtitles.
+                view.subtitleView?.let { subtitles ->
+                    if (view.tag != captionStyle) {
+                        applyCaptionAppearance(subtitles, captionStyle, captionBottomFraction)
+                        view.tag = captionStyle
                     }
                 }
             },
-            update = { view -> view.keepScreenOn = playing },
         )
 
         val channel = currentChannels.getOrNull(index)
@@ -591,14 +663,14 @@ fun PlayerScreen(
                     onTune = { target -> zapTo(target) },
                 )
             } else if (overlayVisible) {
-                InfoOverlay(lineup = lineup, channel = channel, now = Instant.now(), captionsOn = captionsOn, captionAdvance = channelAdvance)
+                InfoOverlay(lineup = lineup, channel = channel, now = Instant.now(), captionsOn = captionsOn, captionAdvanceMs = channelAdvance)
             }
         }
     }
 }
 
 @Composable
-private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean, captionAdvance: Int) {
+private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean, captionAdvanceMs: Int) {
     val (current, next) = lineup.nowAndNext(channel, now)
     val timeFormat = remember { DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).withZone(ZoneId.systemDefault()) }
     Column(
@@ -615,7 +687,7 @@ private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant,
             if (captionsOn) {
                 Spacer(Modifier.width(16.dp))
                 Text(
-                    stringResource(R.string.captions_indicator_timing, captionAdvance),
+                    stringResource(R.string.captions_indicator_timing, CaptionPolicy.advanceLabel(captionAdvanceMs)),
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.White,
                     modifier = Modifier.background(Color(0x66FFFFFF)).padding(horizontal = 8.dp),

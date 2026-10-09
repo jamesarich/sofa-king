@@ -30,6 +30,10 @@ class CaptionSync {
     @Volatile
     var effectiveUs: Long = 0L
 
+    /** Read on every caption update, so a settings change applies without rebuilding the player. */
+    @Volatile
+    var smoothingEnabled: Boolean = true
+
     companion object {
         /**
          * Dispatcharr delivers live TS in bursts about 2 s apart, so the buffer swings by ~2 s; starting
@@ -66,7 +70,8 @@ class CaptionSyncRenderersFactory(context: Context, private val sync: CaptionSyn
         out: ArrayList<Renderer>,
     ) {
         val built = ArrayList<Renderer>()
-        super.buildTextRenderers(context, output, outputLooper, extensionRendererMode, built)
+        val smoothed = SmoothingTextOutput(output, outputLooper) { sync.smoothingEnabled }
+        super.buildTextRenderers(context, smoothed, outputLooper, extensionRendererMode, built)
         built.mapTo(out) { renderer ->
             object : ForwardingRenderer(renderer) {
                 override fun render(positionUs: Long, elapsedRealtimeUs: Long) {

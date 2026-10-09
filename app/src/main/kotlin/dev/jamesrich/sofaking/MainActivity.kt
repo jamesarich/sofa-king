@@ -95,15 +95,17 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
         Screen.Guide -> guideState.SaveableStateProvider("guide") {
             Column {
                 Header(onSettings = { screen = Screen.Settings }, onRefresh = vm::refresh)
-                when (val s = state) {
-                    LineupState.Loading -> MessageScreen(stringResource(R.string.loading))
-                    is LineupState.Failed -> MessageScreen(
+                // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
+                val s = state
+                when {
+                    s is LineupState.Loading || settings == null -> MessageScreen(stringResource(R.string.loading))
+                    s is LineupState.Failed -> MessageScreen(
                         message = stringResource(R.string.load_failed),
                         detail = s.message,
                         hint = stringResource(R.string.load_failed_hint),
                         onRetry = vm::refresh,
                     )
-                    is LineupState.Ready -> GuideOrEmpty(
+                    s is LineupState.Ready -> GuideOrEmpty(
                         lineup = s.lineup,
                         favorites = settings?.favorites.orEmpty(),
                         lastChannel = settings?.lastChannel,

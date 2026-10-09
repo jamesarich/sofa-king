@@ -30,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -219,6 +220,8 @@ fun GuideScreen(
         val wanted = lastFocusedGuideId ?: initialChannelId
         val row = wanted?.let { id -> visible.indexOfFirst { it.guideId == id } } ?: -1
         if (row >= 0) {
+            // Before the first measure the layout info is empty; a restored scroll position must not be thrown away.
+            withFrameNanos { }
             if (listState.layoutInfo.visibleItemsInfo.none { it.index == row }) listState.scrollToItem(row)
             requestJump(visible[row].guideId, cursor)
         } else {

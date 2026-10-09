@@ -10,7 +10,7 @@ _Live TV, right where you left it._
 - A live, muted preview of the focused channel above the guide.
 - The guide opens on the channel you watched last, and Back from the player returns to the cell you left.
 - Long-press a program to star its channel.
-- Full-screen player: Up zaps, Down opens a channel list with the last channel on top, long-press OK returns to the last channel, OK shows the info bar.
+- Full-screen player: Up and Down zap, OK shows the info bar and Down from there opens a channel list with the last channel on top, long-press OK returns to the last channel.
 - Closed captions with per-channel timing to offset live-captioning delay.
 - Media keys and system media controls: next/previous channel, play and pause.
 - The last lineup shows the moment the app opens; the lineup and guide refresh every 3 hours, or on demand from Refresh.
@@ -51,7 +51,7 @@ Both values can also be changed on the TV from Settings.
 | Key | Guide | Player |
 | --- | --- | --- |
 | D-pad Up | Move focus | Next channel |
-| D-pad Down | Move focus | Open the channel list (last channel first); Up/Down move, OK tunes, Back closes |
+| D-pad Down | Move focus | Previous channel; with the info bar up, open the channel list (last channel first): Up/Down move, OK tunes, Back closes |
 | D-pad Left / Right | Move focus | Toggle the info bar; with captions on and the info bar up, show this channel's captions later / earlier |
 | OK | Play the channel | Toggle the info bar, tune a typed number, or retry a channel that failed |
 | Long-press OK | Star or unstar the channel | Return to the last channel watched |

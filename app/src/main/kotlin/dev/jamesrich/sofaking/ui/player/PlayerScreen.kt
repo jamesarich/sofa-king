@@ -389,7 +389,8 @@ fun PlayerScreen(
         return when (key) {
             Key.Captions, Key.C -> { toggleCaptions(); true }
             Key.DirectionUp, Key.ChannelUp -> { zapStep(1); true }
-            Key.DirectionDown -> { openMiniGuide(); true }
+            // Down zaps like Up; with the info bar up it opens the channel list instead.
+            Key.DirectionDown -> { if (overlayVisible) openMiniGuide() else zapStep(-1); true }
             Key.ChannelDown -> { zapStep(-1); true }
             Key.MediaPrevious, Key.LastChannel -> { recallLastChannel(); true }
             Key.MediaPlayPause -> { if (wrapper.playWhenReady) wrapper.pause() else wrapper.play(); true }

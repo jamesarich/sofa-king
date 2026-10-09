@@ -6,7 +6,7 @@ _Live TV, right where you left it._
 
 ## Features
 
-- Guide grid with Now, Search, All and Favorites chips, plus category filters from your channel groups; hold Left or Right to jump two hours.
+- Guide grid with Now, Search, All and Favorites chips, plus category filters from your channel groups.
 - A live, muted preview of the focused channel above the guide.
 - Long-press a program to star its channel.
 - Full-screen player: Up zaps, Down opens a channel list with the last channel on top, long-press OK returns to the last channel, OK shows the info bar.
@@ -51,7 +51,6 @@ Both values can also be changed on the TV from Settings.
 | --- | --- | --- |
 | D-pad Up | Move focus | Next channel |
 | D-pad Down | Move focus | Open the channel list (last channel first); Up/Down move, OK tunes, Back closes |
-| Hold D-pad Left / Right | Jump the guide 2 hours back / ahead | |
 | D-pad Left / Right | Move focus | Toggle the info bar; with captions on and the info bar up, show this channel's captions later / earlier |
 | OK | Play the channel | Toggle the info bar, or tune a typed number |
 | Long-press OK | Star or unstar the channel | Return to the last channel watched |

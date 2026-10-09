@@ -58,12 +58,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -109,7 +103,6 @@ private val HEADER_HEIGHT = 32.dp
 private val MIN_STICKY_TEXT = 48.dp
 private const val FOCUS_MARGIN_MINUTES = 30L
 private const val NOW_REFRESH_MS = 60_000L
-private const val JUMP_MINUTES = 120L
 
 internal sealed interface GuideFilter {
     data object All : GuideFilter
@@ -119,12 +112,6 @@ internal sealed interface GuideFilter {
 
 /** Asks the row for [guideId] to focus the cell covering window [minute]. [nonce] keeps each request distinct. */
 internal data class GuideJump(val guideId: String, val minute: Long, val nonce: Int)
-
-/** One D-pad press on the grid: a short press moves one cell on release, a held press jumps in time once. */
-private class DpadHold {
-    var pressed = false
-    var jumped = false
-}
 
 @Composable
 fun GuideScreen(
@@ -196,11 +183,10 @@ fun GuideScreen(
     val marginPx = minutePx * FOCUS_MARGIN_MINUTES
     val viewport = remember { mutableIntStateOf(0) }
     var focused by remember { mutableStateOf<FocusedCell?>(null) }
-    // The time the user is looking at. Time jumps move it by JUMP_MINUTES; focus keeps it while the cell still covers it.
+    // The time the user is looking at; Now moves it, focus keeps it while the cell still covers it.
     var cursor by remember { mutableLongStateOf(nowClamped) }
     var jump by remember { mutableStateOf<GuideJump?>(null) }
     var jumpCount by remember { mutableIntStateOf(0) }
-    val hold = remember { DpadHold() }
 
     val selectedChip = remember { FocusRequester() }
     val searchChip = remember { FocusRequester() }
@@ -240,39 +226,6 @@ fun GuideScreen(
         jumpCount += 1
         jump = GuideJump(guideId, minute, jumpCount)
         revealMinute(minute)
-    }
-
-    // Left and Right: a tap moves one cell on release; holding jumps two hours once and ignores the repeats.
-    val onGridKey: (KeyEvent) -> Boolean = { event ->
-        val direction = when (event.key) {
-            Key.DirectionRight -> 1
-            Key.DirectionLeft -> -1
-            else -> 0
-        }
-        when {
-            direction == 0 -> false
-            event.type == KeyEventType.KeyDown -> {
-                if (event.nativeKeyEvent.repeatCount == 0) {
-                    hold.pressed = true
-                    hold.jumped = false
-                } else if (!hold.jumped) {
-                    hold.jumped = true
-                    focused?.channel?.let { channel ->
-                        val target = GuideTimeline.jumpStartMinute(cursor, direction * JUMP_MINUTES, nowClamped)
-                        requestJump(channel.guideId, target)
-                    }
-                }
-                true
-            }
-            event.type == KeyEventType.KeyUp -> {
-                val tap = hold.pressed && !hold.jumped
-                hold.pressed = false
-                hold.jumped = false
-                if (tap) focusManager.moveFocus(if (direction > 0) FocusDirection.Right else FocusDirection.Left)
-                true
-            }
-            else -> false
-        }
     }
 
     val onNow: () -> Unit = {
@@ -393,7 +346,7 @@ fun GuideScreen(
             )
         } else {
             LazyColumn(
-                modifier = Modifier.weight(1f).focusRestorer().onPreviewKeyEvent(onGridKey),
+                modifier = Modifier.weight(1f).focusRestorer(),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 itemsIndexed(visible, key = { _, channel -> "${channel.guideId}#${channel.number}" }) { index, channel ->

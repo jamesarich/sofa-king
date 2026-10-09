@@ -7,6 +7,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,16 +33,21 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import android.content.Context
 import android.net.Uri
+import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -54,6 +60,8 @@ import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.ui.player.CaptionPolicy
+import dev.jamesrich.sofaking.ui.player.CaptionToggleOutcome
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
 import dev.jamesrich.sofaking.ui.player.programmeProgress
 import kotlinx.coroutines.delay
@@ -66,23 +74,53 @@ private const val ZAP_OVERLAY_MS = 5_000L
 private const val DIGIT_COMMIT_MS = 1_500L
 private const val NOT_FOUND_MS = 2_000L
 private const val RETRY_MS = 3_000L
+private const val CAPTION_TOAST_MS = 2_000L
 
 /** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
 private class Notice(val digits: String)
 
+/** Caption toggle feedback; compared by identity so a repeated press restarts its timer. */
+private class CaptionToast(val outcome: CaptionToggleOutcome)
+
 /** A playback error that is not behind-live-window; [retriesUsed] is 0 until the one automatic retry. */
 private data class Failure(val code: String, val retriesUsed: Int)
 
+/** CEA-608 CC1 and CEA-708 service 1, declared together so the SEI reader emits both. */
+@OptIn(UnstableApi::class)
+private fun captionFormats(): List<Format> = listOf(
+    Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA608).setAccessibilityChannel(1).build(),
+    Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA708).setAccessibilityChannel(1).build(),
+)
+
+/** Text tracks are disabled rather than unselected so a zap keeps the user's choice. */
+private fun captionParameters(base: TrackSelectionParameters, enabled: Boolean): TrackSelectionParameters =
+    base.buildUpon()
+        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
+        .setPreferredTextLanguage(CaptionPolicy.PREFERRED_LANGUAGE)
+        .setSelectUndeterminedTextLanguage(true)
+        .build()
+
 /** Dispatcharr proxies streams as continuous MPEG-TS, which can start mid-GOP. */
 @OptIn(UnstableApi::class)
-private fun buildLivePlayer(context: Context): ExoPlayer {
-    val extractors = DefaultExtractorsFactory().setTsExtractorFlags(
-        DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS,
-    )
+private fun buildLivePlayer(context: Context, captionsOn: Boolean): ExoPlayer {
+    val extractors = DefaultExtractorsFactory()
+        .setTsExtractorFlags(
+            DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS,
+        )
+        .setTsSubtitleFormats(captionFormats())
     return ExoPlayer.Builder(context)
         .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))
         .build()
-        .apply { playWhenReady = true }
+        .apply {
+            trackSelectionParameters = captionParameters(trackSelectionParameters, captionsOn)
+            playWhenReady = true
+        }
+}
+
+private fun CaptionToggleOutcome.labelRes(): Int = when (this) {
+    CaptionToggleOutcome.ON -> R.string.captions_on
+    CaptionToggleOutcome.OFF -> R.string.captions_off
+    CaptionToggleOutcome.NO_CAPTIONS_ON_CHANNEL -> R.string.captions_unavailable
 }
 
 private fun Key.digitValue(): Int? = when (this) {
@@ -107,10 +145,14 @@ fun PlayerScreen(
     startIndex: Int,
     onExit: () -> Unit,
     onChannelChanged: (Channel) -> Unit,
+    captionsEnabled: Boolean = false,
+    onCaptionsChanged: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val currentChannels by rememberUpdatedState(channels)
     val currentOnChannelChanged by rememberUpdatedState(onChannelChanged)
+    val currentOnCaptionsChanged by rememberUpdatedState(onCaptionsChanged)
+    val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(LocalConfiguration.current.screenHeightDp)
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, (channels.size - 1).coerceAtLeast(0))) }
     var previousIndex by remember { mutableStateOf<Int?>(null) }
     var entry by remember { mutableStateOf(ChannelNumberEntry()) }
@@ -120,9 +162,11 @@ fun PlayerScreen(
     var playing by remember { mutableStateOf(false) }
     var buffering by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<Failure?>(null) }
+    var captionsOn by remember { mutableStateOf(captionsEnabled) }
+    var captionToast by remember { mutableStateOf<CaptionToast?>(null) }
 
     // One player for the whole session; zapping swaps the media item instead of rebuilding the pipeline.
-    val player = remember { buildLivePlayer(context) }
+    val player = remember { buildLivePlayer(context, captionsEnabled) }
     DisposableEffect(player) {
         val session = MediaSession.Builder(context, player).build()
         val listener = object : Player.Listener {
@@ -228,9 +272,24 @@ fun PlayerScreen(
         overlayVisible = false
     }
 
+    LaunchedEffect(captionToast) {
+        if (captionToast == null) return@LaunchedEffect
+        delay(CAPTION_TOAST_MS)
+        captionToast = null
+    }
+
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     BackHandler(onBack = onExit)
+
+    fun toggleCaptions() {
+        val enabled = !captionsOn
+        captionsOn = enabled
+        player.trackSelectionParameters = captionParameters(player.trackSelectionParameters, enabled)
+        val channelHasText = CaptionPolicy.hasTextTrack(player.currentTracks.groups.map { it.type })
+        captionToast = CaptionToast(CaptionPolicy.toggleOutcome(enabled, channelHasText))
+        currentOnCaptionsChanged(enabled)
+    }
 
     fun handleKey(key: Key): Boolean {
         if (currentChannels.isEmpty()) return false
@@ -240,6 +299,7 @@ fun PlayerScreen(
         }
         val size = currentChannels.size
         return when (key) {
+            Key.Captions, Key.C -> { toggleCaptions(); true }
             Key.DirectionUp, Key.ChannelUp -> { zapTo((index + 1) % size); true }
             Key.DirectionDown, Key.ChannelDown -> { zapTo((index - 1 + size) % size); true }
             Key.MediaPrevious, Key.LastChannel -> { previousIndex?.let { zapTo(it) }; true }
@@ -270,6 +330,11 @@ fun PlayerScreen(
                 PlayerView(it).apply {
                     useController = false
                     this.player = player
+                    subtitleView?.apply {
+                        setUserDefaultStyle()
+                        setUserDefaultTextSize()
+                        setBottomPaddingFraction(captionBottomFraction)
+                    }
                 }
             },
             update = { view -> view.keepScreenOn = playing },
@@ -312,15 +377,27 @@ fun PlayerScreen(
                         .padding(horizontal = 16.dp),
                 )
             }
+            captionToast?.let { toast ->
+                Text(
+                    stringResource(toast.outcome.labelRes()),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(horizontal = 48.dp, vertical = 27.dp)
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 16.dp),
+                )
+            }
             if (overlayVisible) {
-                InfoOverlay(lineup = lineup, channel = channel, now = Instant.now())
+                InfoOverlay(lineup = lineup, channel = channel, now = Instant.now(), captionsOn = captionsOn)
             }
         }
     }
 }
 
 @Composable
-private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant) {
+private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean) {
     val (current, next) = lineup.nowAndNext(channel, now)
     val timeFormat = remember { DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).withZone(ZoneId.systemDefault()) }
     Column(
@@ -331,7 +408,18 @@ private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant)
             .background(Color(0xCC000000))
             .padding(24.dp),
     ) {
-        Text("${channel.number.formatNumber()}  ${channel.name}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${channel.number.formatNumber()}  ${channel.name}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+            if (captionsOn) {
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    stringResource(R.string.captions_indicator),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White,
+                    modifier = Modifier.background(Color(0x66FFFFFF)).padding(horizontal = 8.dp),
+                )
+            }
+        }
         if (current == null) {
             Text(stringResource(R.string.no_listing), style = MaterialTheme.typography.titleMedium, color = Color.White)
         } else {

@@ -7,7 +7,7 @@ _Live TV, right where you left it._
 ## Features
 
 - Guide grid with All and Favorites filters, plus category filters from your channel groups.
-- Long-press a programme to star its channel.
+- Long-press a program to star its channel.
 - Full-screen player: Up and Down or the Channel keys zap, digits jump to a channel number, Previous or Last returns to the last channel, and OK, Left, Right or Info show the info overlay.
 - Lineup and guide refresh every 3 hours, or on demand from Refresh.
 - Channels appear first, then the guide fills in behind them.
@@ -21,14 +21,16 @@ _Screenshots to come._
 
 ```
 echo "sdk.dir=$ANDROID_HOME" > local.properties
-./gradlew :app:testDebugUnitTest :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:testDebugUnitTest :app:assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
+
+Install the release build on a TV. It is R8-optimized and signed with the local debug key; a debug build runs Compose unoptimized and is several times slower on streaming-stick hardware.
 
 The default server and profile come from Gradle properties:
 
 ```
-./gradlew :app:assembleDebug -PdispatcharrUrl=http://192.168.1.3:9191 -PdispatcharrProfile=livingroom
+./gradlew :app:assembleRelease -PdispatcharrUrl=http://192.168.1.3:9191 -PdispatcharrProfile=livingroom
 ```
 
 Both values can also be changed on the TV from Settings.
@@ -51,7 +53,7 @@ Both values can also be changed on the TV from Settings.
 | Digits 0-9 (and numpad) | | Type a channel number, then OK to tune |
 | Previous / Last channel | | Return to the last channel watched |
 | Info | | Toggle the info overlay |
-| Long-press OK on a programme | Star or unstar its channel | |
+| Long-press OK on a program | Star or unstar its channel | |
 | Back | Exit the app | Return to the guide |
 
 ## Dispatcharr setup
@@ -61,7 +63,7 @@ Sofa King reads two endpoints from Dispatcharr.
 - **Server URL.** The base address of your Dispatcharr, including the port, for example `http://192.168.1.3:9191`. The TV must be on the same network as the server. Plain HTTP on the LAN is allowed.
 - **Channel profile.** The name of the Dispatcharr channel profile that holds the channels you want on the TV. The app fetches `/output/m3u/<profile>` for the lineup and `/output/epg/<profile>?days=1` for the guide. Only channels in that profile appear.
 
-The guide matches programmes to channels by channel number, so the profile's channels need EPG data assigned in Dispatcharr. Channels without programmes show "No listing".
+The guide matches programs to channels by channel number, so the profile's channels need EPG data assigned in Dispatcharr. Channels without programs show "No listing".
 
 Streams play through Dispatcharr's `/proxy/ts/stream/` path, so the TV only needs to reach the Dispatcharr server.
 

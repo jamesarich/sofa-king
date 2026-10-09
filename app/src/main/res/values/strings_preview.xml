@@ -1,5 +1,5 @@
 <resources>
     <string name="preview_live">Live</string>
-    <string name="preview_hint">Focus a programme to preview its channel</string>
+    <string name="preview_hint">Focus a program to preview its channel</string>
     <string name="preview_unavailable">Preview unavailable</string>
 </resources>

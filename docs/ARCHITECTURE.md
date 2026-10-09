@@ -32,8 +32,8 @@ Dispatcharr
 
 1. `LineupViewModel` combines the saved server URL and profile with a reload trigger. A change to either restarts the load.
 2. The playlist loads first. Its channels are emitted as `Ready` with an empty guide, so the grid appears within a few seconds.
-3. The XMLTV guide streams through a pull parser. `XmltvParser` keeps only programmes whose `channel` id belongs to the lineup, then the finished `Lineup` replaces the state.
-4. Channel ids in XMLTV are Dispatcharr channel numbers. `Lineup.nowAndNext` picks the current and following programme for a channel at a given instant.
+3. The XMLTV guide streams through a pull parser. `XmltvParser` keeps only programs whose `channel` id belongs to the lineup, then the finished `Lineup` replaces the state.
+4. Channel ids in XMLTV are Dispatcharr channel numbers. `Lineup.nowAndNext` picks the current and following program for a channel at a given instant.
 5. On success the load repeats every 3 hours. On failure the app retries every minute and keeps the lineup it already has. A failure only shows the failure screen when there is no lineup yet.
 6. Favorites and the last channel are written to DataStore. They do not trigger a reload.
 
@@ -59,7 +59,7 @@ Dispatcharr
 - **Dispatcharr is the only source.** The app does not talk to any other service, so the server's own channel profile decides what appears on the TV.
 - **Two-phase load.** Channels first, guide second. The playlist is small and parses quickly, and the guide is the slow part on a Chromecast with Google TV.
 - **One day of guide.** The default XMLTV window is about 16 MB and one day is about 6.6 MB. A day is enough for the grid and parses about 2.5 times faster.
-- **Lineup only.** Programmes for channels outside the profile are dropped during parsing, so memory tracks the lineup, not the server's full guide.
+- **Lineup only.** Programs for channels outside the profile are dropped during parsing, so memory tracks the lineup, not the server's full guide.
 - **Compose for TV only.** Components come from `androidx.tv.material3`. Mobile Material 3 is not mixed in. Lists use foundation `LazyColumn`, `LazyRow` and `LazyVerticalGrid`.
 - **D-pad first.** Every lazy container has `focusRestorer`, and focus is requested only from `LaunchedEffect` or a callback. Back returns toward the channel list.
 - **Overscan padding.** Full-screen content keeps 48dp horizontal and 27dp vertical padding.

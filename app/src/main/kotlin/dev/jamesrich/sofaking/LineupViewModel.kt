@@ -105,6 +105,8 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setLastChannel(guideId: String) = viewModelScope.launch { store.setLastChannel(guideId) }
 
+    fun setCaptionsEnabled(enabled: Boolean) = viewModelScope.launch { store.setCaptionsEnabled(enabled) }
+
     private companion object {
         const val TAG = "SofaKing"
         val REFRESH_INTERVAL = 3.hours

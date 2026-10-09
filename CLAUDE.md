@@ -15,7 +15,8 @@ Android TV / Google TV live-TV client for the home Dispatcharr server. Single `:
 
 - `./gradlew :app:testDebugUnitTest :app:assembleDebug`. Needs `local.properties` with `sdk.dir` (git-ignored).
 - Parser tests run on the JVM with kxml2 standing in for Android's `XmlPullParser`.
-- Install on the TV: developer mode (About > Android TV OS build x7), Wireless debugging, `adb pair` then `adb connect`, `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+- Install on the TV: developer mode (About > Android TV OS build x7), Wireless debugging, `adb pair` then `adb connect`, `adb install -r app/build/outputs/apk/release/app-release.apk`.
+- Put release builds on the TV (`:app:assembleRelease`, R8, debug-signed). A debug build's first guide frame takes ~8 s on a Chromecast with Google TV; release takes ~1 s and opens from the cache in ~0.6 s.
 - Emulator: `system-images;android-36;google-tv;x86_64`.
 
 ## Rules

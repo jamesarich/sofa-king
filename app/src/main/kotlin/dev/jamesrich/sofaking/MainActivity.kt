@@ -63,6 +63,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 onSave = { url, profile -> vm.saveServer(url, profile); screen = Screen.Guide },
                 onBack = { screen = Screen.Guide },
                 channelCount = lineup?.channels?.size ?: 0,
+                onCaptionsChanged = { vm.setCaptionsEnabled(it) },
             )
         }
         is Screen.Player -> if (lineup != null) {
@@ -73,6 +74,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 startIndex = start,
                 onExit = { screen = Screen.Guide },
                 onChannelChanged = { vm.setLastChannel(it.guideId) },
+                captionsEnabled = settings?.captionsEnabled ?: false,
+                onCaptionsChanged = { vm.setCaptionsEnabled(it) },
             )
         } else {
             LaunchedEffect(Unit) { screen = Screen.Guide }

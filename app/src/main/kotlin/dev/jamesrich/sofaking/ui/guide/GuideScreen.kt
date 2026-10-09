@@ -58,6 +58,10 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.formatNumber
+import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
+import dev.jamesrich.sofaking.ui.preview.PREVIEW_HEIGHT
+import dev.jamesrich.sofaking.ui.preview.PreviewDetails
+import dev.jamesrich.sofaking.ui.preview.PreviewVideo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -121,6 +125,7 @@ fun GuideScreen(
     val minutePx = with(density) { MINUTE_WIDTH.toPx() }
     val marginPx = minutePx * FOCUS_MARGIN_MINUTES
     var viewportPx by remember { mutableIntStateOf(0) }
+    var focused by remember { mutableStateOf<FocusedCell?>(null) }
 
     val selectedChip = remember { FocusRequester() }
     val initialFocus = remember { FocusRequester() }
@@ -139,7 +144,9 @@ fun GuideScreen(
     }
 
     // Brings a newly focused cell into view, leaving one half-hour of room on the left.
-    val onCellFocused: (GuideCell) -> Unit = { cell ->
+    // Kept after focus leaves so the preview holds the last programme while focus is on the chips.
+    val onCellFocused: (Channel, GuideCell) -> Unit = { channel, cell ->
+        focused = FocusedCell(channel, cell)
         val startPx = cell.startMinute * minutePx
         val viewStart = scrollState.value.toFloat()
         if (startPx < viewStart + marginPx || startPx > viewStart + viewportPx - marginPx) {
@@ -148,20 +155,33 @@ fun GuideScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp)) {
-        LazyRow(
-            modifier = Modifier.focusRestorer(selectedChip),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(filters, key = { it.toString() }) { option ->
-                val selected = activeFilter == option
-                FilterChip(
-                    selected = selected,
-                    onClick = { filter = option },
-                    modifier = if (selected) Modifier.focusRequester(selectedChip) else Modifier,
-                ) {
-                    Text(option.label())
+        val chips: @Composable (Modifier) -> Unit = { chipModifier ->
+            FilterChipRow(
+                filters = filters,
+                activeFilter = activeFilter,
+                onSelect = { filter = it },
+                selectedChip = selectedChip,
+                modifier = chipModifier,
+            )
+        }
+        if (PREVIEW_ENABLED) {
+            // Chips sit above the preview in the left column so the grid keeps its rows on a 1080p TV.
+            Row(Modifier.fillMaxWidth().height(PREVIEW_HEIGHT), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    chips(Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(12.dp))
+                    PreviewDetails(
+                        channel = focused?.channel,
+                        programme = focused?.cell?.programme,
+                        live = focused?.cell?.programme?.let { isAiring(it, now) } == true,
+                        now = now,
+                        modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds(),
+                    )
                 }
+                PreviewVideo(channel = focused?.channel)
             }
+        } else {
+            chips(Modifier.fillMaxWidth())
         }
         Spacer(Modifier.height(16.dp))
 
@@ -223,7 +243,7 @@ private fun ChannelRow(
     timeFormat: DateTimeFormatter,
     scrollState: ScrollState,
     initialFocus: FocusRequester?,
-    onCellFocused: (GuideCell) -> Unit,
+    onCellFocused: (Channel, GuideCell) -> Unit,
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
 ) {
@@ -274,7 +294,7 @@ private fun GuideCellItem(
     airing: Boolean,
     timeFormat: DateTimeFormatter,
     focusRequester: FocusRequester?,
-    onFocused: (GuideCell) -> Unit,
+    onFocused: (Channel, GuideCell) -> Unit,
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     modifier: Modifier,
@@ -289,7 +309,7 @@ private fun GuideCellItem(
         modifier = modifier
             .padding(horizontal = 1.dp, vertical = 2.dp)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-            .onFocusChanged { if (it.hasFocus) onFocused(cell) },
+            .onFocusChanged { if (it.hasFocus) onFocused(channel, cell) },
         interactionSource = interactionSource,
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (airing) colors.primaryContainer else colors.surfaceVariant,
@@ -315,6 +335,34 @@ private fun GuideCellItem(
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelSmall,
                 )
+            }
+        }
+    }
+}
+
+/** The cell most recently focused in the grid, shown by the preview pane. */
+private data class FocusedCell(val channel: Channel, val cell: GuideCell)
+
+@Composable
+private fun FilterChipRow(
+    filters: List<GuideFilter>,
+    activeFilter: GuideFilter,
+    onSelect: (GuideFilter) -> Unit,
+    selectedChip: FocusRequester,
+    modifier: Modifier,
+) {
+    LazyRow(
+        modifier = modifier.focusRestorer(selectedChip),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(filters, key = { it.toString() }) { option ->
+            val selected = activeFilter == option
+            FilterChip(
+                selected = selected,
+                onClick = { onSelect(option) },
+                modifier = if (selected) Modifier.focusRequester(selectedChip) else Modifier,
+            ) {
+                Text(option.label())
             }
         }
     }

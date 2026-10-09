@@ -44,6 +44,40 @@ class XmltvParserTest {
     }
 
     @Test
+    fun `hand parser handles positive offsets and surrounding whitespace`() {
+        assertEquals(Instant.parse("2026-10-09T06:00:00Z"), XmltvParser.parseTime("20261009113000 +0530"))
+        assertEquals(Instant.parse("2026-10-09T11:30:00Z"), XmltvParser.parseTime("  20261009113000 +0000 \n"))
+        assertEquals(Instant.parse("2026-10-08T23:30:00Z"), XmltvParser.parseTime("20261009000000 +0030"))
+    }
+
+    @Test
+    fun `hand parser rejects malformed and out of range values`() {
+        assertNull("offset is required", XmltvParser.parseTime("20261009113000"))
+        assertNull("no separator", XmltvParser.parseTime("20261009113000+0000"))
+        assertNull("non-digit in date", XmltvParser.parseTime("2026100911300x +0000"))
+        assertNull("bad sign", XmltvParser.parseTime("20261009113000 *0000"))
+        assertNull("month 13", XmltvParser.parseTime("20261309113000 +0000"))
+        assertNull("hour 24", XmltvParser.parseTime("20261009243000 +0000"))
+        assertNull("offset minutes 60", XmltvParser.parseTime("20261009113000 +0060"))
+        assertNull("February 30", XmltvParser.parseTime("20260230113000 +0000"))
+    }
+
+    @Test
+    fun `skipped channels do not contribute programmes even when malformed`() {
+        val xml = """
+            <tv>
+              <programme channel="1" start="20261009100000 +0000" stop="20261009110000 +0000"><title>Kept</title></programme>
+              <programme channel="2" start="bogus" stop="20261009110000 +0000"><title>Dropped</title></programme>
+              <programme channel="3" start="20261009100000 +0000" stop="20261009110000 +0000"><title>Also dropped</title><desc>x</desc></programme>
+            </tv>
+        """.trimIndent()
+        val parser = KXmlParser().apply { setInput(xml.byteInputStream(), "UTF-8") }
+        val guide = XmltvParser.parse(parser, setOf("1"))
+        assertEquals(setOf("1"), guide.keys)
+        assertEquals("Kept", guide.getValue("1").single().title)
+    }
+
+    @Test
     fun `nowAndNext picks the airing programme and the one after it`() {
         val a = Programme("1", Instant.parse("2026-10-09T10:00:00Z"), Instant.parse("2026-10-09T11:00:00Z"), "A", null, null)
         val b = Programme("1", Instant.parse("2026-10-09T11:00:00Z"), Instant.parse("2026-10-09T12:00:00Z"), "B", null, null)

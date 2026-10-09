@@ -5,7 +5,8 @@ Android TV / Google TV live-TV client for the home Dispatcharr server. Single `:
 ## Data
 
 - Dispatcharr base URL and channel profile come from `BuildConfig` (`-PdispatcharrUrl`, `-PdispatcharrProfile`); defaults are `http://192.168.1.3:9191` and `livingroom`.
-- Playlist: `/output/m3u/<profile>`. Guide: `/output/epg/<profile>` (XMLTV, ~15 MB for ~750 channels; parse streaming, keep only lineup channels).
+- Playlist: `/output/m3u/<profile>`. Guide: `/output/epg/<profile>?days=1` (XMLTV; the default window is ~16 MB, one day ~6.6 MB). Parse streaming and keep only lineup channels.
+- Load in two phases: emit the channel list as soon as the playlist parses, then the guide. On a Chromecast with Google TV that is ~2 s to channels and ~10 s to a full guide for ~750 channels.
 - XMLTV `channel` ids are Dispatcharr channel numbers. Some channels have no programmes at all; the UI shows "No listing".
 - Streams are `/proxy/ts/stream/<uuid>`: continuous MPEG-TS that can start mid-GOP.
 - `app/src/test/resources/` holds a 20-channel snapshot of the real profile. Cloud sessions can't reach the LAN, so work against these fixtures there.

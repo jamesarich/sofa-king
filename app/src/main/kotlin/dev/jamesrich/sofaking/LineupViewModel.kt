@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.jamesrich.sofaking.data.AppSettings
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeSource
 
 sealed interface LineupState {
     data object Loading : LineupState
@@ -50,7 +52,16 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
             var last: Lineup? = null
             while (true) {
                 if (last == null) emit(LineupState.Loading)
-                val result = runCatching { repository.load() }
+                val result = runCatching {
+                    val started = TimeSource.Monotonic.markNow()
+                    val channels = repository.loadChannels()
+                    Log.i(TAG, "lineup: ${channels.size} channels in ${started.elapsedNow()}")
+                    // Channels first so the guide is usable while the large XMLTV parses.
+                    if (last == null) emit(LineupState.Ready(Lineup(channels, emptyMap())))
+                    val guide = repository.loadGuide(channels)
+                    Log.i(TAG, "guide: ${guide.values.sumOf { it.size }} programmes for ${guide.size} channels in ${started.elapsedNow()}")
+                    Lineup(channels, guide)
+                }
                 result.onSuccess { last = it; emit(LineupState.Ready(it)) }
                 // A failed background refresh keeps showing the lineup we already have.
                 result.onFailure { if (last == null) emit(LineupState.Failed(it.message ?: it.toString())) }
@@ -70,6 +81,7 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
     fun setLastChannel(guideId: String) = viewModelScope.launch { store.setLastChannel(guideId) }
 
     private companion object {
+        const val TAG = "SofaKing"
         val REFRESH_INTERVAL = 3.hours
         val RETRY_INTERVAL = 1.minutes
     }

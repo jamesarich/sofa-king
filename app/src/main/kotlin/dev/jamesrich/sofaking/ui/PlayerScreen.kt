@@ -387,6 +387,7 @@ fun PlayerScreen(
     val focus = remember { FocusRequester() }
     // Focus returns to the player surface whenever the mini-guide closes, including after its list is removed.
     LaunchedEffect(miniGuideOpen) { if (!miniGuideOpen) focus.requestFocus() }
+    var swallowBackUp by remember { mutableStateOf(false) }
     BackHandler {
         if (miniGuideOpen) miniGuideOpen = false else onExit()
     }
@@ -463,6 +464,19 @@ fun PlayerScreen(
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
         val key = event.key
+        // The mini-guide's focused list swallows Back before BackHandler sees it, so close it here and
+        // eat the matching key-up so the same press can't also leave the player.
+        if (key == Key.Back) {
+            if (event.type == KeyEventType.KeyDown && miniGuideOpen) {
+                miniGuideOpen = false
+                swallowBackUp = true
+                return true
+            }
+            if (event.type == KeyEventType.KeyUp && swallowBackUp) {
+                swallowBackUp = false
+                return true
+            }
+        }
         if (key == Key.DirectionCenter || key == Key.Enter) return handleCenter(event)
         if (event.type != KeyEventType.KeyDown || currentChannels.isEmpty()) return false
         if (!miniGuideOpen) return handleKey(key)

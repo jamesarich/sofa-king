@@ -12,14 +12,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.KeyboardActionHandler
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -71,7 +75,7 @@ fun SettingsScreen(
             onValueChange = { serverUrl = it },
             focusRequester = serverFocus,
             imeAction = ImeAction.Next,
-            keyboardActions = KeyboardActions(onNext = { profileFocus.requestFocus() }),
+            onAction = { profileFocus.requestFocus() },
         )
         SettingField(
             label = "Channel profile",
@@ -79,7 +83,7 @@ fun SettingsScreen(
             onValueChange = { profile = it },
             focusRequester = profileFocus,
             imeAction = ImeAction.Done,
-            keyboardActions = KeyboardActions(onDone = { onSave(serverUrl, profile) }),
+            onAction = { onSave(serverUrl, profile) },
         )
         Text(
             "$channelCount channels loaded, version ${BuildConfig.VERSION_NAME}",
@@ -120,8 +124,16 @@ private fun SettingField(
     onValueChange: (String) -> Unit,
     focusRequester: FocusRequester,
     imeAction: ImeAction,
-    keyboardActions: KeyboardActions,
+    onAction: () -> Unit,
 ) {
+    // Mirror external resets into the field; typing is reported back through onValueChange.
+    val state = rememberTextFieldState(value)
+    LaunchedEffect(value) {
+        if (state.text.toString() != value) state.setTextAndPlaceCursorAtEnd(value)
+    }
+    LaunchedEffect(state) {
+        snapshotFlow { state.text.toString() }.collect(onValueChange)
+    }
     var focused by remember { mutableStateOf(false) }
     val borderColor = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     val borderWidth = if (focused) 4.dp else 1.dp
@@ -138,13 +150,12 @@ private fun SettingField(
         ) {
             Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                 BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    singleLine = true,
+                    state = state,
+                    lineLimits = TextFieldLineLimits.SingleLine,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(imeAction = imeAction),
-                    keyboardActions = keyboardActions,
+                    onKeyboardAction = KeyboardActionHandler { onAction() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester),

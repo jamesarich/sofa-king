@@ -8,11 +8,12 @@ _Live TV, right where you left it._
 
 - Guide grid with Now, Search, All and Favorites chips, plus category filters from your channel groups.
 - A live, muted preview of the focused channel above the guide.
+- The guide opens on the channel you watched last, and Back from the player returns to the cell you left.
 - Long-press a program to star its channel.
 - Full-screen player: Up zaps, Down opens a channel list with the last channel on top, long-press OK returns to the last channel, OK shows the info bar.
 - Closed captions with per-channel timing to offset live-captioning delay.
 - Media keys and system media controls: next/previous channel, play and pause.
-- Lineup and guide refresh every 3 hours, or on demand from Refresh.
+- The last lineup shows the moment the app opens; the lineup and guide refresh every 3 hours, or on demand from Refresh.
 - Channels appear first, then the guide fills in behind them.
 - Dispatcharr URL and channel profile are set in Settings and stored on the device.
 
@@ -52,7 +53,7 @@ Both values can also be changed on the TV from Settings.
 | D-pad Up | Move focus | Next channel |
 | D-pad Down | Move focus | Open the channel list (last channel first); Up/Down move, OK tunes, Back closes |
 | D-pad Left / Right | Move focus | Toggle the info bar; with captions on and the info bar up, show this channel's captions later / earlier |
-| OK | Play the channel | Toggle the info bar, or tune a typed number |
+| OK | Play the channel | Toggle the info bar, tune a typed number, or retry a channel that failed |
 | Long-press OK | Star or unstar the channel | Return to the last channel watched |
 | Channel Up / Down | Move focus | Next / previous channel |
 | Captions (CC) | | Turn captions on or off |
@@ -62,13 +63,13 @@ Both values can also be changed on the TV from Settings.
 | Info | | Toggle the info bar |
 | Back | Exit the app | Close the channel list, or return to the guide |
 
-The Now chip returns the guide to the current time; Search filters by channel name, number or what's on. While a channel plays, the media session maps next/previous to channel up/down and supports play and pause, so system media controls and Assistant transport commands can drive it; voice phrasing beyond "pause" is untested.
+The Now chip returns the guide to the current time; Search filters by channel name, number or what's on. While a channel plays, the media session maps next/previous to channel up/down and supports play and pause, so system media controls and Assistant transport commands can drive it; voice phrasing beyond "pause" is untested. When another app comes to the front, playback stops and frees the TV's decoder; coming back resumes at the live edge.
 
 ## Dispatcharr setup
 
 Sofa King reads two endpoints from Dispatcharr.
 
-- **Server URL.** The base address of your Dispatcharr, including the port, for example `http://192.168.1.3:9191`. The TV must be on the same network as the server. Plain HTTP on the LAN is allowed.
+- **Server URL.** The base address of your Dispatcharr, including the port, for example `http://192.168.1.3:9191`. The TV must be on the same network as the server. Plain HTTP on the LAN is allowed. Settings only saves an address that starts with `http://` or `https://`.
 - **Channel profile.** The name of the Dispatcharr channel profile that holds the channels you want on the TV. The app fetches `/output/m3u/<profile>` for the lineup and `/output/epg/<profile>?days=1` for the guide. Only channels in that profile appear.
 
 The guide matches programs to channels by channel number, so the profile's channels need EPG data assigned in Dispatcharr. Channels without programs show "No listing".
@@ -77,17 +78,18 @@ Streams play through Dispatcharr's `/proxy/ts/stream/` path, so the TV only need
 
 ## Troubleshooting
 
-- **"Couldn't reach Dispatcharr".** Check the server URL in Settings, confirm the TV and server are on the same network, and open the URL in a browser on another device on that network. Refresh retries the load.
+- **"Couldn't reach Dispatcharr".** Check the server URL in Settings, confirm the TV and server are on the same network, and open the URL in a browser on another device on that network. The line under the headline is the network error. Refresh retries the load; a lineup loaded earlier keeps showing until it succeeds.
 - **"No channels in this profile".** The profile name does not match a profile in Dispatcharr, or the profile has no channels. Check the spelling in Settings.
-- **"No listing" on a channel.** Dispatcharr has no programme data for that channel. Assign an EPG source to the channel in Dispatcharr.
-- **"Can't play this channel".** The stream is not reachable through Dispatcharr. Check that the channel plays in Dispatcharr, then try another channel.
-- **The first guide load is slow.** A full guide for about 750 channels takes around 10 seconds on a Chromecast with Google TV. Channels appear first, and the guide fills in behind them.
-- **Playback starts a moment after tuning.** Streams can start mid-GOP, so the first frames may take a second to decode.
+- **"No listing" on a channel.** Dispatcharr has no program data for that channel. Assign an EPG source to the channel in Dispatcharr.
+- **"Can't play this channel".** The stream is not reachable through Dispatcharr. The app retries once on its own; OK retries again. Check that the channel plays in Dispatcharr, then try another channel.
+- **The guide takes a moment to fill.** A saved lineup appears at once; a fresh load from the server takes a few seconds for a large profile. Channels appear first, and the guide fills in behind them.
+- **Playback starts a moment after tuning.** Streams can start mid-GOP, so the first frames may take a second to decode. With captions on, tuning waits for the channel's caption timing to buffer.
 
 ## Development
 
 - [`CLAUDE.md`](./CLAUDE.md) holds the rules the code follows, including focus, overscan and playback constraints.
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) describes the packages, the data flow and the threading model.
+- `tools/render-banner.sh` regenerates the Google TV banner from the vector mark (ImageMagick and Noto Sans).
 
 ## License
 

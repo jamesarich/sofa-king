@@ -6,7 +6,17 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -187,6 +197,7 @@ fun GuideScreen(
     var cursor by remember { mutableLongStateOf(nowClamped) }
     var jump by remember { mutableStateOf<GuideJump?>(null) }
     var jumpCount by remember { mutableIntStateOf(0) }
+    var pendingRow by remember { mutableStateOf<Int?>(null) }
 
     val selectedChip = remember { FocusRequester() }
     val searchChip = remember { FocusRequester() }
@@ -218,6 +229,7 @@ fun GuideScreen(
     }
     val onCellFocused: (Channel, GuideCell) -> Unit = { channel, cell ->
         focused = FocusedCell(channel, cell)
+        pendingRow = null
         if (cursor !in cell.startMinute until cell.endMinute) cursor = cell.startMinute
         revealMinute(cursor)
     }
@@ -226,6 +238,39 @@ fun GuideScreen(
         jumpCount += 1
         jump = GuideJump(guideId, minute, jumpCount)
         revealMinute(minute)
+    }
+
+    // Up and Down land on the cell under the time cursor. Default focus search treats any cell overlapping a
+    // long focused cell (a full-row "No listing") as a candidate and can pick one hours ahead.
+    val onGridKey: (KeyEvent) -> Boolean = handler@{ event ->
+        val step = when (event.key) {
+            Key.DirectionDown -> 1
+            Key.DirectionUp -> -1
+            else -> return@handler false
+        }
+        if (event.type != KeyEventType.KeyDown) return@handler true
+        // Rapid presses arrive before focus lands, so count from the row already requested.
+        val current = pendingRow
+            ?: focused?.channel?.let { c -> visible.indexOfFirst { it.guideId == c.guideId && it.number == c.number } }
+            ?: -1
+        val target = current + step
+        // Up from the first row leaves the grid for the chips.
+        if (current < 0 || target !in visible.indices) {
+            pendingRow = null
+            return@handler false
+        }
+        pendingRow = target
+        scope.launch {
+            val shown = listState.layoutInfo.visibleItemsInfo
+            val first = shown.firstOrNull()?.index ?: 0
+            val last = shown.lastOrNull()?.index ?: 0
+            when {
+                target <= first -> listState.scrollToItem(target)
+                target >= last -> listState.scrollToItem((target - (last - first) + 1).coerceAtLeast(0))
+            }
+            requestJump(visible[target].guideId, cursor)
+        }
+        true
     }
 
     val onNow: () -> Unit = {
@@ -346,7 +391,8 @@ fun GuideScreen(
             )
         } else {
             LazyColumn(
-                modifier = Modifier.weight(1f).focusRestorer(),
+                state = listState,
+                modifier = Modifier.weight(1f).focusRestorer().onPreviewKeyEvent(onGridKey),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 itemsIndexed(visible, key = { _, channel -> "${channel.guideId}#${channel.number}" }) { index, channel ->
@@ -683,6 +729,25 @@ private fun SearchField(
 /** One horizontally scrolled strip; the header and every row share [scrollState] so columns stay aligned. */
 @Composable
 private fun TimelineStrip(
+    scrollState: ScrollState,
+    nowMinute: Long?,
+    modifier: Modifier,
+    content: @Composable () -> Unit,
+) {
+    // Focus must not scroll the strip: the default bring-into-view would chase a long cell's far end
+    // (hours ahead) on a vertical move. GuideScreen scrolls the timeline itself in revealMinute.
+    CompositionLocalProvider(LocalBringIntoViewSpec provides NoBringIntoView) {
+        TimelineStripContent(scrollState, nowMinute, modifier, content)
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+private val NoBringIntoView = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
+}
+
+@Composable
+private fun TimelineStripContent(
     scrollState: ScrollState,
     nowMinute: Long?,
     modifier: Modifier,

@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.zip.GZIPInputStream
 
 class DispatcharrRepository(
     private val baseUrl: String,
@@ -29,10 +30,18 @@ class DispatcharrRepository(
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 10_000
         connection.readTimeout = 60_000
+        // Setting Accept-Encoding ourselves turns off the stack's transparent gzip, so the decode happens here, once.
+        connection.setRequestProperty("Accept-Encoding", "gzip")
         try {
             val code = connection.responseCode
             check(code == HttpURLConnection.HTTP_OK) { "HTTP $code from $url" }
-            return connection.inputStream.buffered(64 * 1024).use(read)
+            val raw = connection.inputStream.buffered(64 * 1024)
+            val body = if (connection.contentEncoding.equals("gzip", ignoreCase = true)) {
+                GZIPInputStream(raw, 64 * 1024)
+            } else {
+                raw
+            }
+            return body.use(read)
         } finally {
             connection.disconnect()
         }

@@ -1,6 +1,6 @@
 [versions]
-agp = "9.4.1"
-kotlin = "2.4.20"
+agp = "9.5.0-alpha09"
+kotlin = "2.5.0-Beta1"
 coroutines = "1.11.0"
 compose-bom = "2026.09.00"
 tv-material = "1.1.0"

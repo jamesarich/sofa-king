@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="guide_now">Now</string>
+    <string name="guide_search">Search</string>
+    <string name="guide_search_hint">Channel, number or program</string>
+    <string name="guide_search_none">No channels match</string>
+    <string name="guide_today">Today</string>
+    <string name="guide_range">%1$s %2$s - %3$s</string>
+    <string name="guide_cell_airing">%1$s, %2$s, %3$s to %4$s, airing now</string>
+    <string name="guide_cell_later">%1$s, %2$s, %3$s to %4$s</string>
+    <string name="guide_cell_none">%1$s, %2$s</string>
+    <string name="guide_favorite">Favorite</string>
+    <string name="guide_toggle_favorite">Toggle favorite</string>
+    <string name="settings_section_server">Server</string>
+    <string name="settings_section_captions">Captions</string>
+    <string name="settings_section_about">About</string>
+</resources>

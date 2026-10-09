@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking.ui.guide
 import dev.jamesrich.sofaking.data.Programme
 import java.time.Duration
 import java.time.Instant
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
@@ -30,6 +32,33 @@ internal object GuideTimeline {
     /** Whole minutes from [windowStart] to [instant], clamped to 0..[WINDOW_MINUTES]. */
     fun offsetMinutes(windowStart: Instant, instant: Instant): Long =
         Duration.between(windowStart, instant).toMinutes().coerceIn(0L, WINDOW_MINUTES)
+
+    /** The start of the half hour containing [minute], in window minutes. */
+    fun slotFloor(minute: Long): Long = minute.coerceIn(0L, WINDOW_MINUTES) / SLOT_MINUTES * SLOT_MINUTES
+
+    /**
+     * The window minute a time jump lands on: [fromMinute] moved by [deltaMinutes], kept between the
+     * half hour containing [nowMinute] and the last slot of the window, so the target always has a cell.
+     */
+    fun jumpStartMinute(fromMinute: Long, deltaMinutes: Long, nowMinute: Long): Long {
+        val lastSlot = WINDOW_MINUTES - SLOT_MINUTES
+        val low = min(slotFloor(nowMinute), lastSlot)
+        return (fromMinute + deltaMinutes).coerceIn(low, lastSlot)
+    }
+
+    /** Index of the cell covering [minute], or -1 when none does. */
+    fun cellIndexAt(cells: List<GuideCell>, minute: Long): Int =
+        cells.indexOfFirst { minute >= it.startMinute && minute < it.endMinute }
+
+    /**
+     * The window minutes visible in a strip scrolled by [scrollPx] and [viewportPx] wide, where
+     * [pxPerMinute] is the width of one minute. Partly visible minutes at either edge count as visible.
+     */
+    fun visibleSpan(scrollPx: Float, viewportPx: Float, pxPerMinute: Float): Pair<Long, Long> {
+        val start = floor(scrollPx / pxPerMinute).toLong().coerceIn(0L, WINDOW_MINUTES)
+        val end = ceil((scrollPx + viewportPx) / pxPerMinute).toLong().coerceIn(0L, WINDOW_MINUTES)
+        return start to end
+    }
 
     /**
      * Covers `[windowStart, windowEnd)` with cells that tile it exactly, in order.

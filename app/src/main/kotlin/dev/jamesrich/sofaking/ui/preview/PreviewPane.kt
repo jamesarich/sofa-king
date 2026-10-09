@@ -52,9 +52,11 @@ import java.util.Locale
 /** Kill switch: false removes the pane and the preview player entirely. */
 const val PREVIEW_ENABLED = true
 
-internal val PREVIEW_WIDTH = 320.dp
-/** 16:9 for [PREVIEW_WIDTH]. Smaller than 400dp so the grid keeps three rows on a 960x540dp TV. */
-internal val PREVIEW_HEIGHT = 180.dp
+internal val PREVIEW_WIDTH = 256.dp
+/** 16:9 for [PREVIEW_WIDTH]. */
+internal val PREVIEW_HEIGHT = 144.dp
+/** The whole top band: the preview plus its breathing room. Leaves four grid rows on a 960x540dp TV. */
+internal val PREVIEW_BAND_HEIGHT = 160.dp
 private const val PREVIEW_DEBOUNCE_MS = 800L
 
 private val TIME_FORMAT_PATTERN = "h:mm a"
@@ -100,7 +102,7 @@ internal fun PreviewDetails(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     stringResource(R.string.preview_live),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimary,
                     maxLines = 1,
                     modifier = Modifier

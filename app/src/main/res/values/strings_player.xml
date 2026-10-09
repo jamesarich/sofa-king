@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="mini_guide_title">Channels</string>
+    <string name="mini_guide_last_channel">Last channel</string>
+    <string name="player_paused">Paused</string>
+</resources>

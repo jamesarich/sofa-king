@@ -10,13 +10,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +29,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -36,14 +37,17 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import android.content.Context
-import android.net.Uri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -66,7 +70,13 @@ import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.CaptionSyncLoadControl
 import dev.jamesrich.sofaking.ui.player.CaptionSyncRenderersFactory
 import dev.jamesrich.sofaking.ui.player.CaptionToggleOutcome
+import dev.jamesrich.sofaking.ui.player.CenterKeyGesture
+import dev.jamesrich.sofaking.ui.player.CenterPress
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
+import dev.jamesrich.sofaking.ui.player.LivePlayerWrapper
+import dev.jamesrich.sofaking.ui.player.MiniGuide
+import dev.jamesrich.sofaking.ui.player.ProgressBar
+import dev.jamesrich.sofaking.ui.player.nowPlayingMetadata
 import dev.jamesrich.sofaking.ui.player.programmeProgress
 import android.util.Log
 import kotlinx.coroutines.delay
@@ -80,6 +90,8 @@ private const val DIGIT_COMMIT_MS = 1_500L
 private const val NOT_FOUND_MS = 2_000L
 private const val RETRY_MS = 3_000L
 private const val CAPTION_TOAST_MS = 2_000L
+private const val MINI_GUIDE_IDLE_MS = 8_000L
+private const val METADATA_REFRESH_MS = 60_000L
 private const val TAG = "SofaKing"
 
 /** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
@@ -174,6 +186,12 @@ fun PlayerScreen(
     var failure by remember { mutableStateOf<Failure?>(null) }
     var captionsOn by remember { mutableStateOf(captionsEnabled) }
     var captionToast by remember { mutableStateOf<CaptionToast?>(null) }
+    var miniGuideOpen by remember { mutableStateOf(false) }
+    // Bumped on every key while the mini-guide is open, so its idle timer restarts.
+    var miniGuideActivity by remember { mutableIntStateOf(0) }
+    var paused by remember { mutableStateOf(false) }
+    var wasPlayingAtStop by remember { mutableStateOf(false) }
+    val centerGesture = remember { CenterKeyGesture() }
 
     val captionSync = remember { CaptionSync() }
     // Each channel's captioner runs a different distance behind; adjustments show before the store round-trips.
@@ -184,12 +202,18 @@ fun PlayerScreen(
 
     // One player for the whole session; zapping swaps the media item instead of rebuilding the pipeline.
     val player = remember { buildLivePlayer(context, captionsEnabled, captionSync) }
+    // The session and the system's next/previous/play/pause go through this wrapper; the view and listeners use the ExoPlayer.
+    val wrapper = remember(player) { LivePlayerWrapper(player) }
     DisposableEffect(player) {
-        val session = MediaSession.Builder(context, player).build()
+        val session = MediaSession.Builder(context, wrapper).build()
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
                 if (isPlaying) failure = null
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                paused = !playWhenReady
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -214,21 +238,20 @@ fun PlayerScreen(
         }
     }
 
+    fun nowPlayingFor(channel: Channel) =
+        nowPlayingMetadata(channel, lineup.nowAndNext(channel, Instant.now()).first?.title)
+
     fun load(channel: Channel) {
         // Reset the renderers so the next stream's decoder rescales instead of reusing the old surface size.
         player.stop()
         // Playback can't start until the full advance is buffered, so a fresh tune starts at the full lead.
         captionSync.effectiveUs = captionSync.advanceUs
+        val metadata = nowPlayingFor(channel)
+        wrapper.publishNowPlaying(metadata)
         player.setMediaItem(
             MediaItem.Builder()
                 .setUri(channel.streamUrl)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(channel.name)
-                        .setArtworkUri(channel.logo?.let(Uri::parse))
-                        .setIsPlayable(true)
-                        .build(),
-                )
+                .setMediaMetadata(metadata)
                 .build(),
         )
         player.prepare()
@@ -243,7 +266,26 @@ fun PlayerScreen(
         }
         overlayVisible = true
         overlayRequest++
+        miniGuideOpen = false
     }
+
+    fun zapStep(step: Int) {
+        val size = currentChannels.size
+        if (size > 0) zapTo(Math.floorMod(index + step, size))
+    }
+
+    /** Last-channel recall; with nothing watched before, it just shows the info overlay. */
+    fun recallLastChannel() {
+        val previous = previousIndex
+        if (previous != null) {
+            zapTo(previous)
+        } else {
+            overlayVisible = true
+            overlayRequest++
+        }
+    }
+
+    SideEffect { wrapper.onZapStep = { step -> zapStep(step) } }
 
     fun commitEntry() {
         val pending = entry
@@ -261,6 +303,33 @@ fun PlayerScreen(
         val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
         load(channel)
         currentOnChannelChanged(channel)
+    }
+
+    // Moves the session's programme title on when the show changes; the stream is not touched.
+    LaunchedEffect(index) {
+        while (true) {
+            delay(METADATA_REFRESH_MS)
+            val channel = currentChannels.getOrNull(index) ?: continue
+            wrapper.publishNowPlaying(nowPlayingFor(channel))
+        }
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        wasPlayingAtStop = wrapper.playWhenReady
+        wrapper.pause()
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        if (wasPlayingAtStop) {
+            wasPlayingAtStop = false
+            wrapper.resumeAtLive()
+        }
+    }
+
+    LaunchedEffect(miniGuideOpen, miniGuideActivity) {
+        if (!miniGuideOpen) return@LaunchedEffect
+        delay(MINI_GUIDE_IDLE_MS)
+        miniGuideOpen = false
     }
 
     // Keeps the caption look-ahead inside what's downloaded; see CaptionSync.nextEffectiveUs.
@@ -316,8 +385,11 @@ fun PlayerScreen(
     }
 
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-    BackHandler(onBack = onExit)
+    // Focus returns to the player surface whenever the mini-guide closes, including after its list is removed.
+    LaunchedEffect(miniGuideOpen) { if (!miniGuideOpen) focus.requestFocus() }
+    BackHandler {
+        if (miniGuideOpen) miniGuideOpen = false else onExit()
+    }
 
     fun toggleCaptions() {
         val enabled = !captionsOn
@@ -326,6 +398,32 @@ fun PlayerScreen(
         val channelHasText = CaptionPolicy.hasTextTrack(player.currentTracks.groups.map { it.type })
         captionToast = CaptionToast(CaptionPolicy.toggleOutcome(enabled, channelHasText))
         currentOnCaptionsChanged(enabled)
+    }
+
+    fun openMiniGuide() {
+        overlayVisible = false
+        miniGuideOpen = true
+        miniGuideActivity++
+    }
+
+    /** OK is judged on key-up: a short press toggles the overlay (or commits typed digits), a long press recalls the last channel. */
+    fun handleCenter(event: KeyEvent): Boolean {
+        // With the mini-guide open, its focused row takes OK.
+        if (miniGuideOpen || currentChannels.isEmpty()) return false
+        val native = event.nativeKeyEvent
+        return when (event.type) {
+            KeyEventType.KeyDown -> {
+                if (centerGesture.onKeyDown(native.isLongPress, native.repeatCount) == CenterPress.LONG) recallLastChannel()
+                true
+            }
+            KeyEventType.KeyUp -> {
+                if (centerGesture.onKeyUp() == CenterPress.SHORT) {
+                    if (entry.digits.isNotEmpty()) commitEntry() else overlayVisible = !overlayVisible
+                }
+                true
+            }
+            else -> false
+        }
     }
 
     fun handleKey(key: Key): Boolean {
@@ -338,12 +436,12 @@ fun PlayerScreen(
         return when (key) {
             Key.Captions, Key.C -> { toggleCaptions(); true }
             Key.DirectionUp, Key.ChannelUp -> { zapTo((index + 1) % size); true }
-            Key.DirectionDown, Key.ChannelDown -> { zapTo((index - 1 + size) % size); true }
-            Key.MediaPrevious, Key.LastChannel -> { previousIndex?.let { zapTo(it) }; true }
-            Key.DirectionCenter, Key.Enter -> {
-                if (entry.digits.isNotEmpty()) commitEntry() else overlayVisible = !overlayVisible
-                true
-            }
+            Key.DirectionDown -> { openMiniGuide(); true }
+            Key.ChannelDown -> { zapTo((index - 1 + size) % size); true }
+            Key.MediaPrevious, Key.LastChannel -> { recallLastChannel(); true }
+            Key.MediaPlayPause -> { if (wrapper.playWhenReady) wrapper.pause() else wrapper.play(); true }
+            Key.MediaPlay -> { wrapper.play(); true }
+            Key.MediaPause -> { wrapper.pause(); true }
             Key.Info -> { if (entry.digits.isEmpty()) overlayVisible = !overlayVisible; true }
             Key.DirectionLeft, Key.DirectionRight -> {
                 val channel = currentChannels.getOrNull(index)
@@ -363,16 +461,27 @@ fun PlayerScreen(
         }
     }
 
+    fun handleKeyEvent(event: KeyEvent): Boolean {
+        val key = event.key
+        if (key == Key.DirectionCenter || key == Key.Enter) return handleCenter(event)
+        if (event.type != KeyEventType.KeyDown || currentChannels.isEmpty()) return false
+        if (!miniGuideOpen) return handleKey(key)
+        miniGuideActivity++
+        return when (key) {
+            // Up and Down move focus inside the list; the focused row handles OK.
+            Key.DirectionUp, Key.DirectionDown -> false
+            Key.DirectionLeft, Key.DirectionRight -> true
+            else -> handleKey(key)
+        }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
             .background(Color.Black)
             .focusRequester(focus)
             .focusable()
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                handleKey(event.key)
-            },
+            .onPreviewKeyEvent { event -> handleKeyEvent(event) },
     ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -399,7 +508,23 @@ fun PlayerScreen(
                     stringResource(R.string.tuning),
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White,
-                    modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 48.dp, vertical = 27.dp),
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(horizontal = 48.dp, vertical = 27.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
+            if (paused && failure == null) {
+                Text(
+                    stringResource(R.string.player_paused),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(horizontal = 48.dp, vertical = 27.dp)
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 16.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
             failure?.let { f ->
@@ -407,7 +532,8 @@ fun PlayerScreen(
                     Modifier
                         .align(Alignment.Center)
                         .background(Color(0xCC000000))
-                        .padding(24.dp),
+                        .padding(24.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
                 ) {
                     Text(stringResource(R.string.cant_play), style = MaterialTheme.typography.headlineSmall, color = Color.White)
                     Text(f.code, style = MaterialTheme.typography.bodyMedium, color = Color.LightGray)
@@ -424,7 +550,8 @@ fun PlayerScreen(
                         .align(Alignment.TopEnd)
                         .padding(horizontal = 48.dp, vertical = 27.dp)
                         .background(Color(0xCC000000))
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
             captionToast?.let { toast ->
@@ -436,10 +563,20 @@ fun PlayerScreen(
                         .align(Alignment.TopStart)
                         .padding(horizontal = 48.dp, vertical = 27.dp)
                         .background(Color(0xCC000000))
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
-            if (overlayVisible) {
+            if (miniGuideOpen) {
+                MiniGuide(
+                    lineup = lineup,
+                    channels = currentChannels,
+                    currentIndex = index,
+                    previousIndex = previousIndex,
+                    now = Instant.now(),
+                    onTune = { target -> zapTo(target) },
+                )
+            } else if (overlayVisible) {
                 InfoOverlay(lineup = lineup, channel = channel, now = Instant.now(), captionsOn = captionsOn, captionAdvance = channelAdvance)
             }
         }
@@ -456,7 +593,8 @@ private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant,
             .padding(horizontal = 48.dp, vertical = 27.dp)
             .width(720.dp)
             .background(Color(0xCC000000))
-            .padding(24.dp),
+            .padding(24.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${channel.number.formatNumber()}  ${channel.name}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
@@ -483,12 +621,5 @@ private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant,
             ProgressBar(programmeProgress(current.start, current.stop, now))
         }
         next?.let { Text(stringResource(R.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = Color.LightGray) }
-    }
-}
-
-@Composable
-private fun ProgressBar(fraction: Float) {
-    Box(Modifier.fillMaxWidth().height(4.dp).background(Color(0x66FFFFFF))) {
-        Box(Modifier.fillMaxWidth(fraction).height(4.dp).background(Color.White))
     }
 }

@@ -30,9 +30,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import android.content.Context
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
+import androidx.media3.session.MediaSession
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -40,6 +47,18 @@ import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Lineup
 import kotlinx.coroutines.delay
 import java.time.Instant
+
+/** Dispatcharr proxies streams as continuous MPEG-TS, which can start mid-GOP. */
+@OptIn(UnstableApi::class)
+private fun buildLivePlayer(context: Context): ExoPlayer {
+    val extractors = DefaultExtractorsFactory().setTsExtractorFlags(
+        DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS,
+    )
+    return ExoPlayer.Builder(context)
+        .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))
+        .build()
+        .apply { playWhenReady = true }
+}
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -49,8 +68,24 @@ fun PlayerScreen(lineup: Lineup, startIndex: Int, onExit: () -> Unit) {
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, channels.lastIndex)) }
     var overlayVisible by remember { mutableStateOf(true) }
     // One player for the whole session; zapping swaps the media item instead of rebuilding the pipeline.
-    val player = remember { ExoPlayer.Builder(context).build().apply { playWhenReady = true } }
-    DisposableEffect(Unit) { onDispose { player.release() } }
+    val player = remember { buildLivePlayer(context) }
+    DisposableEffect(player) {
+        val session = MediaSession.Builder(context, player).build()
+        val listener = object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+                    player.seekToDefaultPosition()
+                    player.prepare()
+                }
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            session.release()
+            player.release()
+        }
+    }
 
     LaunchedEffect(index) {
         player.setMediaItem(MediaItem.fromUri(channels[index].streamUrl))
@@ -85,8 +120,13 @@ fun PlayerScreen(lineup: Lineup, startIndex: Int, onExit: () -> Unit) {
             factory = {
                 PlayerView(it).apply {
                     useController = false
-                    keepScreenOn = true
                     this.player = player
+                    // Ambient mode may start only when nothing is actually playing.
+                    player.addListener(object : Player.Listener {
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            keepScreenOn = isPlaying
+                        }
+                    })
                 }
             },
         )

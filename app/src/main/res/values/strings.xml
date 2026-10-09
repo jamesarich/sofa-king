@@ -9,6 +9,8 @@
     <string name="refresh">Refresh</string>
     <string name="settings">Settings</string>
     <string name="tuning">Tuning…</string>
+    <string name="filter_all">All</string>
+    <string name="filter_favorites">Favorites</string>
     <string name="cant_play">Can\'t play this channel</string>
     <string name="no_channel_number">No channel %1$s</string>
 </resources>

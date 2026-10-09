@@ -152,6 +152,8 @@ fun PlayerScreen(
     }
 
     fun load(channel: Channel) {
+        // Reset the renderers so the next stream's decoder rescales instead of reusing the old surface size.
+        player.stop()
         player.setMediaItem(MediaItem.fromUri(channel.streamUrl))
         player.prepare()
     }

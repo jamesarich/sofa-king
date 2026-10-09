@@ -122,13 +122,19 @@ fun GuideScreen(
     val marginPx = minutePx * FOCUS_MARGIN_MINUTES
     var viewportPx by remember { mutableIntStateOf(0) }
 
+    val selectedChip = remember { FocusRequester() }
     val initialFocus = remember { FocusRequester() }
     var initialFocusDone by remember { mutableStateOf(false) }
     LaunchedEffect(visible.isNotEmpty()) {
         if (!initialFocusDone && visible.isNotEmpty()) {
-            withFrameNanos { }
-            initialFocus.requestFocus()
-            initialFocusDone = true
+            // The first row may need a few frames to attach; requestFocus throws until it has.
+            repeat(10) {
+                withFrameNanos { }
+                if (runCatching { initialFocus.requestFocus() }.isSuccess) {
+                    initialFocusDone = true
+                    return@LaunchedEffect
+                }
+            }
         }
     }
 
@@ -143,11 +149,16 @@ fun GuideScreen(
 
     Column(modifier = modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp)) {
         LazyRow(
-            modifier = Modifier.focusRestorer(),
+            modifier = Modifier.focusRestorer(selectedChip),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(filters, key = { it.toString() }) { option ->
-                FilterChip(selected = activeFilter == option, onClick = { filter = option }) {
+                val selected = activeFilter == option
+                FilterChip(
+                    selected = selected,
+                    onClick = { filter = option },
+                    modifier = if (selected) Modifier.focusRequester(selectedChip) else Modifier,
+                ) {
                     Text(option.label())
                 }
             }
@@ -336,8 +347,9 @@ private fun nowOffset(minute: Long): Dp = MINUTE_WIDTH * minute.toFloat()
 private fun isAiring(programme: Programme, now: Instant): Boolean =
     !programme.start.isAfter(now) && programme.stop.isAfter(now)
 
+@Composable
 private fun GuideFilter.label(): String = when (this) {
-    GuideFilter.All -> "All"
-    GuideFilter.Favorites -> "Favorites"
+    GuideFilter.All -> stringResource(R.string.filter_all)
+    GuideFilter.Favorites -> stringResource(R.string.filter_favorites)
     is GuideFilter.Group -> name
 }

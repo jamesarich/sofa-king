@@ -22,14 +22,37 @@ import androidx.media3.exoplayer.upstream.Allocator
  * downloaded, so playback waits for that much buffer before it starts.
  */
 class CaptionSync {
+    /** The user's chosen advance; playback waits for this much buffer plus [MARGIN_US] before it starts. */
     @Volatile
     var advanceUs: Long = 0L
 
+    /** What the text renderer actually uses; never more than is downloaded, see [nextEffectiveUs]. */
+    @Volatile
+    var effectiveUs: Long = 0L
+
     companion object {
-        /** Extra buffer beyond the advance so the first cues aren't right at the download edge. */
-        const val MARGIN_US = 500_000L
+        /**
+         * Dispatcharr delivers live TS in bursts about 2 s apart, so the buffer swings by ~2 s; starting
+         * with this much beyond the advance keeps the look-ahead inside downloaded data most of the time.
+         */
+        const val MARGIN_US = 2_500_000L
+
+        /** Keep the look-ahead this far short of the download edge. */
+        const val HEADROOM_US = 750_000L
+
+        /** How fast the look-ahead may grow back after a dip, per update. */
+        const val RECOVER_STEP_US = 100_000L
 
         fun bufferNeededToStartUs(advanceUs: Long): Long = if (advanceUs <= 0L) 0L else advanceUs + MARGIN_US
+
+        /**
+         * Shrinks at once when the buffer can't cover the advance (late cues are otherwise dropped or
+         * shown in lumps) and grows back in small steps so captions don't jump forward.
+         */
+        fun nextEffectiveUs(currentUs: Long, advanceUs: Long, bufferedUs: Long): Long {
+            val ceiling = minOf(advanceUs, bufferedUs - HEADROOM_US).coerceAtLeast(0L)
+            return if (ceiling <= currentUs) ceiling else minOf(ceiling, currentUs + RECOVER_STEP_US)
+        }
     }
 }
 
@@ -47,7 +70,7 @@ class CaptionSyncRenderersFactory(context: Context, private val sync: CaptionSyn
         built.mapTo(out) { renderer ->
             object : ForwardingRenderer(renderer) {
                 override fun render(positionUs: Long, elapsedRealtimeUs: Long) {
-                    super.render(positionUs + sync.advanceUs, elapsedRealtimeUs)
+                    super.render(positionUs + sync.effectiveUs, elapsedRealtimeUs)
                 }
             }
         }

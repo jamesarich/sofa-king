@@ -78,7 +78,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 onChannelChanged = { vm.setLastChannel(it.guideId) },
                 captionsEnabled = settings?.captionsEnabled ?: false,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },
-                captionAdvanceSeconds = settings?.captionAdvanceSeconds ?: AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS,
+                captionAdvanceFor = { settings?.captionAdvanceFor(it.guideId) ?: AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS },
+                onCaptionAdvanceChanged = { channel, seconds -> vm.setChannelCaptionAdvance(channel.guideId, seconds) },
             )
         } else {
             LaunchedEffect(Unit) { screen = Screen.Guide }

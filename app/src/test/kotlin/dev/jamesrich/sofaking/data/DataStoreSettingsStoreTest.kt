@@ -110,6 +110,20 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `per-channel caption advance overrides the default only for that channel`() = runTest {
+        val store = newStore()
+        store.setCaptionAdvanceSeconds(5)
+        store.setChannelCaptionAdvance("5", 1)
+        store.setChannelCaptionAdvance("8", 6)
+        store.setChannelCaptionAdvance("5", 2)
+
+        val settings = store.settings.first()
+        assertEquals(2, settings.captionAdvanceFor("5"))
+        assertEquals(6, settings.captionAdvanceFor("8"))
+        assertEquals("unadjusted channels use the default", 5, settings.captionAdvanceFor("108"))
+    }
+
+    @Test
     fun `settings flow emits each update`() = runTest {
         val store = newStore()
 

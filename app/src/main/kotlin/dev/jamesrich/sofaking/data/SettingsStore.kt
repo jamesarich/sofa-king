@@ -12,7 +12,11 @@ data class AppSettings(
     val captionsEnabled: Boolean = false,
     /** How many seconds ahead captions render, to offset live captioning delay. */
     val captionAdvanceSeconds: Int = DEFAULT_CAPTION_ADVANCE_SECONDS,
+    /** Per-channel overrides of [captionAdvanceSeconds], keyed by [Channel.guideId]. */
+    val captionAdvanceByChannel: Map<String, Int> = emptyMap(),
 ) {
+    fun captionAdvanceFor(guideId: String): Int = captionAdvanceByChannel[guideId] ?: captionAdvanceSeconds
+
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_SECONDS = 3
         val CAPTION_ADVANCE_RANGE = 0..6
@@ -31,4 +35,6 @@ interface SettingsStore {
     suspend fun setCaptionsEnabled(enabled: Boolean)
 
     suspend fun setCaptionAdvanceSeconds(seconds: Int)
+
+    suspend fun setChannelCaptionAdvance(guideId: String, seconds: Int)
 }

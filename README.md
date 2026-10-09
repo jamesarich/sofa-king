@@ -48,7 +48,8 @@ Both values can also be changed on the TV from Settings.
 | --- | --- | --- |
 | D-pad Up / Down | Move focus | Next / previous channel |
 | Channel Up / Channel Down | Move focus | Next / previous channel |
-| D-pad Left / Right | Move focus | Toggle the info overlay |
+| D-pad Left / Right | Move focus | Toggle the info overlay; with captions on and the overlay up, show this channel's captions later / earlier |
+| Captions (CC) | | Turn captions on or off |
 | OK / Enter | Play the channel | Toggle the info overlay, or tune a typed number |
 | Digits 0-9 (and numpad) | | Type a channel number, then OK to tune |
 | Previous / Last channel | | Return to the last channel watched |

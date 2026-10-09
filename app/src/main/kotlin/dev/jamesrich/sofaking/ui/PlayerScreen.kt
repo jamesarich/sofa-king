@@ -68,6 +68,7 @@ import dev.jamesrich.sofaking.ui.player.CaptionSyncRenderersFactory
 import dev.jamesrich.sofaking.ui.player.CaptionToggleOutcome
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
 import dev.jamesrich.sofaking.ui.player.programmeProgress
+import android.util.Log
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
@@ -79,6 +80,7 @@ private const val DIGIT_COMMIT_MS = 1_500L
 private const val NOT_FOUND_MS = 2_000L
 private const val RETRY_MS = 3_000L
 private const val CAPTION_TOAST_MS = 2_000L
+private const val TAG = "SofaKing"
 
 /** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
 private class Notice(val digits: String)
@@ -152,12 +154,14 @@ fun PlayerScreen(
     onChannelChanged: (Channel) -> Unit,
     captionsEnabled: Boolean = false,
     onCaptionsChanged: (Boolean) -> Unit = {},
-    captionAdvanceSeconds: Int = AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS,
+    captionAdvanceFor: (Channel) -> Int = { AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS },
+    onCaptionAdvanceChanged: (Channel, Int) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val currentChannels by rememberUpdatedState(channels)
     val currentOnChannelChanged by rememberUpdatedState(onChannelChanged)
     val currentOnCaptionsChanged by rememberUpdatedState(onCaptionsChanged)
+    val currentOnCaptionAdvanceChanged by rememberUpdatedState(onCaptionAdvanceChanged)
     val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(LocalConfiguration.current.screenHeightDp)
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, (channels.size - 1).coerceAtLeast(0))) }
     var previousIndex by remember { mutableStateOf<Int?>(null) }
@@ -172,7 +176,11 @@ fun PlayerScreen(
     var captionToast by remember { mutableStateOf<CaptionToast?>(null) }
 
     val captionSync = remember { CaptionSync() }
-    captionSync.advanceUs = if (captionsOn) captionAdvanceSeconds * 1_000_000L else 0L
+    // Each channel's captioner runs a different distance behind; adjustments show before the store round-trips.
+    var advanceOverrides by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    val currentChannel = currentChannels.getOrNull(index)
+    val channelAdvance = currentChannel?.let { advanceOverrides[it.guideId] ?: captionAdvanceFor(it) } ?: 0
+    captionSync.advanceUs = if (captionsOn) channelAdvance * 1_000_000L else 0L
 
     // One player for the whole session; zapping swaps the media item instead of rebuilding the pipeline.
     val player = remember { buildLivePlayer(context, captionsEnabled, captionSync) }
@@ -209,6 +217,8 @@ fun PlayerScreen(
     fun load(channel: Channel) {
         // Reset the renderers so the next stream's decoder rescales instead of reusing the old surface size.
         player.stop()
+        // Playback can't start until the full advance is buffered, so a fresh tune starts at the full lead.
+        captionSync.effectiveUs = captionSync.advanceUs
         player.setMediaItem(
             MediaItem.Builder()
                 .setUri(channel.streamUrl)
@@ -251,6 +261,24 @@ fun PlayerScreen(
         val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
         load(channel)
         currentOnChannelChanged(channel)
+    }
+
+    // Keeps the caption look-ahead inside what's downloaded; see CaptionSync.nextEffectiveUs.
+    LaunchedEffect(player) {
+        var tick = 0
+        while (true) {
+            delay(250)
+            // While (re)buffering the start gate guards the lead; clamping then would collapse it to zero.
+            if (!player.isPlaying) continue
+            captionSync.effectiveUs = CaptionSync.nextEffectiveUs(
+                currentUs = captionSync.effectiveUs,
+                advanceUs = captionSync.advanceUs,
+                bufferedUs = player.totalBufferedDuration * 1_000L,
+            )
+            if (++tick % 8 == 0 && captionSync.advanceUs > 0) {
+                Log.d(TAG, "captions: buffered=${player.totalBufferedDuration}ms lead=${captionSync.effectiveUs / 1000}ms of ${captionSync.advanceUs / 1000}ms")
+            }
+        }
     }
 
     // Auto-retry once after 3 s; a second failure leaves the message up.
@@ -317,7 +345,20 @@ fun PlayerScreen(
                 true
             }
             Key.Info -> { if (entry.digits.isEmpty()) overlayVisible = !overlayVisible; true }
-            Key.DirectionLeft, Key.DirectionRight -> { overlayVisible = !overlayVisible; true }
+            Key.DirectionLeft, Key.DirectionRight -> {
+                val channel = currentChannels.getOrNull(index)
+                if (captionsOn && overlayVisible && channel != null) {
+                    // Right shows captions earlier, Left later; the overlay stays up while adjusting.
+                    val step = if (key == Key.DirectionRight) 1 else -1
+                    val next = (channelAdvance + step).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE)
+                    advanceOverrides = advanceOverrides + (channel.guideId to next)
+                    currentOnCaptionAdvanceChanged(channel, next)
+                    overlayRequest++
+                } else {
+                    overlayVisible = !overlayVisible
+                }
+                true
+            }
             else -> false
         }
     }
@@ -399,14 +440,14 @@ fun PlayerScreen(
                 )
             }
             if (overlayVisible) {
-                InfoOverlay(lineup = lineup, channel = channel, now = Instant.now(), captionsOn = captionsOn)
+                InfoOverlay(lineup = lineup, channel = channel, now = Instant.now(), captionsOn = captionsOn, captionAdvance = channelAdvance)
             }
         }
     }
 }
 
 @Composable
-private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean) {
+private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean, captionAdvance: Int) {
     val (current, next) = lineup.nowAndNext(channel, now)
     val timeFormat = remember { DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).withZone(ZoneId.systemDefault()) }
     Column(
@@ -422,7 +463,7 @@ private fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant,
             if (captionsOn) {
                 Spacer(Modifier.width(16.dp))
                 Text(
-                    stringResource(R.string.captions_indicator),
+                    stringResource(R.string.captions_indicator_timing, captionAdvance),
                     style = MaterialTheme.typography.labelLarge,
                     color = Color.White,
                     modifier = Modifier.background(Color(0x66FFFFFF)).padding(horizontal = 8.dp),

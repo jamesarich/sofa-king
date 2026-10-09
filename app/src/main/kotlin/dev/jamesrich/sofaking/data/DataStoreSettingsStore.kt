@@ -30,6 +30,7 @@ class DataStoreSettingsStore(
             captionsEnabled = prefs[CAPTIONS_ENABLED] ?: false,
             captionAdvanceSeconds = (prefs[CAPTION_ADVANCE] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_SECONDS)
                 .coerceIn(AppSettings.CAPTION_ADVANCE_RANGE),
+            captionAdvanceByChannel = decodeAdvances(prefs[CHANNEL_CAPTION_ADVANCE].orEmpty()),
         )
     }
 
@@ -61,6 +62,21 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[CAPTION_ADVANCE] = seconds.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE) }
     }
 
+    override suspend fun setChannelCaptionAdvance(guideId: String, seconds: Int) {
+        dataStore.edit { prefs ->
+            val updated = decodeAdvances(prefs[CHANNEL_CAPTION_ADVANCE].orEmpty()) +
+                (guideId to seconds.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE))
+            prefs[CHANNEL_CAPTION_ADVANCE] = updated.mapTo(HashSet()) { (id, secs) -> "$id$SEPARATOR$secs" }
+        }
+    }
+
+    /** Entries are `guideId<TAB>seconds`; anything malformed is skipped. */
+    private fun decodeAdvances(entries: Set<String>): Map<String, Int> = entries.mapNotNull { entry ->
+        val id = entry.substringBeforeLast(SEPARATOR, missingDelimiterValue = "")
+        val secs = entry.substringAfterLast(SEPARATOR).toIntOrNull()
+        if (id.isEmpty() || secs == null) null else id to secs.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE)
+    }.toMap()
+
     companion object {
         private val SERVER_URL = stringPreferencesKey("server_url")
         private val PROFILE = stringPreferencesKey("profile")
@@ -68,6 +84,8 @@ class DataStoreSettingsStore(
         private val LAST_CHANNEL = stringPreferencesKey("last_channel")
         private val CAPTIONS_ENABLED = booleanPreferencesKey("captions_enabled")
         private val CAPTION_ADVANCE = intPreferencesKey("caption_advance_seconds")
+        private val CHANNEL_CAPTION_ADVANCE = stringSetPreferencesKey("channel_caption_advance")
+        private const val SEPARATOR = '\t'
 
         private val lock = Any()
         private var sharedDataStore: DataStore<Preferences>? = null

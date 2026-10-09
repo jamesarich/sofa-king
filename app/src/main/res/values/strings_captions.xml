@@ -5,7 +5,8 @@
     <string name="captions_unavailable">No captions on this channel</string>
     <string name="captions_indicator">CC</string>
     <string name="captions_setting">Closed captions</string>
-    <string name="caption_timing">Caption timing</string>
+    <string name="captions_indicator_timing">CC  %1$d s early  ◀ ▶</string>
+    <string name="caption_timing">Default caption timing</string>
     <string name="caption_timing_value">%1$d s earlier</string>
-    <string name="caption_timing_help">Live captions are typed after the words are spoken. Showing them earlier lines them up with the speech; channels take that much longer to start while captions are on.</string>
+    <string name="caption_timing_help">Live captions are typed after the words are spoken, and each channel runs a different distance behind. While watching with captions on, press OK to show the info bar, then Left or Right to fix that channel; it remembers. Channels take that much longer to start while captions are on.</string>
 </resources>

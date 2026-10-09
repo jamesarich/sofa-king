@@ -33,7 +33,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.MediaItem
@@ -42,7 +41,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
-import androidx.media3.ui.PlayerView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
@@ -451,25 +449,9 @@ fun PlayerScreen(
             .focusable()
             .onPreviewKeyEvent { event -> handleKeyEvent(event) },
     ) {
-        // Remembers the style already applied, so recompositions don't restyle the subtitles.
-        val appliedStyle = remember { arrayOfNulls<CaptionStyle>(1) }
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = {
-                PlayerView(it).apply {
-                    useController = false
-                    this.player = player
-                }
-            },
-            update = { view ->
-                view.keepScreenOn = playing
-                if (appliedStyle[0] != captionStyle) {
-                    view.subtitleView?.let { applyCaptionAppearance(it, captionStyle, captionBottomFraction) }
-                    appliedStyle[0] = captionStyle
-                }
-            },
-            onRelease = { view -> view.player = null },
-        )
+        LiveVideo(player, Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
+        CaptionLayer(player, captionStyle, captionBottomFraction, Modifier.fillMaxSize())
+        KeepScreenOn(playing)
 
         val channel = currentChannels.getOrNull(index)
         if (channel == null) {

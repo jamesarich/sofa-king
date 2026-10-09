@@ -23,12 +23,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -36,7 +34,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.PlayerView
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -44,6 +41,7 @@ import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.player.LiveVideo
 import dev.jamesrich.sofaking.ui.player.recoverIfBehindLive
 import dev.jamesrich.sofaking.ui.range
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
@@ -140,19 +138,14 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val player = remember { buildPreviewPlayer(context) }
     val tuner = remember { PreviewTuner() }
-    var playing by remember { mutableStateOf(false) }
     var buffering by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
 
     DisposableEffect(player) {
         val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                playing = isPlaying
-                if (isPlaying) failed = false
-            }
-
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
+                if (playbackState == Player.STATE_READY) failed = false
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -193,49 +186,10 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
         tuner.markTuned(streamUrl)
     }
 
-    val shape = RoundedCornerShape(8.dp)
-    Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).clip(shape).background(SofaScrim)) {
-        // One view for the life of the preview: swapping it per buffering gap would re-attach the decoder's surface each time.
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = {
-                PlayerView(it).apply {
-                    useController = false
-                    this.player = player
-                }
-            },
-            onRelease = { view -> view.player = null },
-        )
-        if (!playing) {
-            // A raised plum card until the first frame, so the band never shows a bare black box.
-            Column(
-                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                if (channel == null) {
-                    Text(
-                        stringResource(R.string.preview_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Text(
-                        channel.label(),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (failed) {
-                        Text(
-                            stringResource(R.string.preview_unavailable),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
+    Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).background(SofaScrim)) {
+        // One surface for the life of the preview; the card covers it from a reset until the next first frame.
+        LiveVideo(player, Modifier.fillMaxSize()) { PreviewCard(channel, failed) }
+        if (failed) PreviewCard(channel, failed = true)
         if (buffering) {
             Text(
                 stringResource(R.string.tuning),
@@ -244,9 +198,41 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(8.dp)
-                    .background(SofaOverlayScrim, shape)
+                    .background(SofaOverlayScrim, RoundedCornerShape(8.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             )
+        }
+    }
+}
+
+/** A raised plum card in place of the picture, so the band never shows a bare black box. */
+@Composable
+private fun PreviewCard(channel: Channel?, failed: Boolean) {
+    Column(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        if (channel == null) {
+            Text(
+                stringResource(R.string.preview_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Text(
+                channel.label(),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (failed) {
+                Text(
+                    stringResource(R.string.preview_unavailable),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

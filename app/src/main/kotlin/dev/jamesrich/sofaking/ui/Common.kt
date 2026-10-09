@@ -1,15 +1,23 @@
 package dev.jamesrich.sofaking.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
@@ -21,12 +29,47 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+/** The crown-on-sofa mark, decorative wherever the app name is printed beside it. */
 @Composable
-fun MessageScreen(message: String, onRetry: (() -> Unit)? = null) {
-    Box(Modifier.fillMaxSize().padding(48.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(message, style = MaterialTheme.typography.titleLarge)
-            if (onRetry != null) Button(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+internal fun LogoMark(size: Dp, modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(R.drawable.banner_logo),
+        contentDescription = null,
+        modifier = modifier.size(size),
+    )
+}
+
+/**
+ * A full-screen state with the brand on it: loading, a failed load, an empty profile. [detail] is the
+ * technical reason in a quieter color; [hint] tells the viewer what to do about it.
+ */
+@Composable
+fun MessageScreen(
+    message: String,
+    detail: String? = null,
+    hint: String? = null,
+    onRetry: (() -> Unit)? = null,
+) {
+    Box(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.width(640.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            LogoMark(96.dp)
+            Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Text(message, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+            if (detail != null) {
+                Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            }
+            if (hint != null) {
+                Text(hint, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+            }
+            if (onRetry != null) {
+                Spacer(Modifier.height(4.dp))
+                Button(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+            }
         }
     }
 }

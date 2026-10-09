@@ -22,3 +22,11 @@ val SofaErrorDeep = Color(0xFF5C1A14)
 val SofaErrorSoft = Color(0xFFFFDAD6)
 
 val SofaScrim = Color(0xFF000000)
+
+/**
+ * Over live video. Plum at 88% keeps dusk text above 11:1 and mauve above 7:1 even over a white picture;
+ * the mini-guide's denser 92% reads 13:1 and 8:1.
+ */
+val SofaOverlayScrim = SofaPlum.copy(alpha = 0.88f)
+val SofaOverlayScrimDense = SofaPlum.copy(alpha = 0.92f)
+val SofaOverlayTrack = SofaDusk.copy(alpha = 0.3f)

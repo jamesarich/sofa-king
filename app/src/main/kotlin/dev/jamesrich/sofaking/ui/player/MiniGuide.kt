@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,6 +39,11 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.theme.SofaAmber
+import dev.jamesrich.sofaking.ui.theme.SofaDusk
+import dev.jamesrich.sofaking.ui.theme.SofaMauve
+import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrimDense
+import dev.jamesrich.sofaking.ui.theme.SofaPlum
 import java.time.Instant
 
 /**
@@ -65,13 +71,13 @@ internal fun BoxScope.MiniGuide(
             .align(Alignment.BottomStart)
             .fillMaxWidth()
             .fillMaxHeight(0.4f)
-            .background(Color(0xE6000000)),
+            .background(SofaOverlayScrimDense),
     ) {
         Column(Modifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 48.dp, vertical = 27.dp)) {
             Text(
                 stringResource(R.string.mini_guide_title),
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
+                color = SofaAmber,
             )
             Spacer(Modifier.height(8.dp))
             LazyColumn(
@@ -105,10 +111,13 @@ private fun MiniGuideRowItem(
     modifier: Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
+    // The focused row is amber with plum text, the same focus the guide grid uses.
+    val primary = if (focused) SofaPlum else SofaDusk
+    val secondary = if (focused) SofaPlum else SofaMauve
     Row(
         modifier
             .fillMaxWidth()
-            .background(if (focused) Color(0x55FFFFFF) else Color.Transparent)
+            .background(if (focused) SofaAmber else Color.Transparent, RoundedCornerShape(8.dp))
             .onFocusChanged { focused = it.isFocused }
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -117,7 +126,7 @@ private fun MiniGuideRowItem(
         Text(
             channel.number.formatNumber(),
             style = MaterialTheme.typography.titleMedium,
-            color = Color.White,
+            color = primary,
             modifier = Modifier.width(96.dp),
         )
         Column(Modifier.weight(1f)) {
@@ -125,35 +134,27 @@ private fun MiniGuideRowItem(
                 Text(
                     stringResource(R.string.mini_guide_last_channel),
                     style = MaterialTheme.typography.labelLarge,
-                    color = Color.LightGray,
+                    color = if (focused) SofaPlum else SofaAmber,
                 )
             }
             Text(
                 channel.name,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
+                color = primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 programme?.title ?: stringResource(R.string.no_listing),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.LightGray,
+                color = secondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (programme != null) {
                 Spacer(Modifier.height(4.dp))
-                ProgressBar(programmeProgress(programme.start, programme.stop, now))
+                ProgressBar(programmeProgress(programme.start, programme.stop, now), color = primary)
             }
         }
-    }
-}
-
-/** Thin white-on-translucent bar; [fraction] is 0..1. */
-@Composable
-internal fun ProgressBar(fraction: Float) {
-    Box(Modifier.fillMaxWidth().height(4.dp).background(Color(0x66FFFFFF))) {
-        Box(Modifier.fillMaxWidth(fraction).height(4.dp).background(Color.White))
     }
 }

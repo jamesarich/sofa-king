@@ -29,6 +29,7 @@ import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
@@ -96,7 +97,12 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 Header(onSettings = { screen = Screen.Settings }, onRefresh = vm::refresh)
                 when (val s = state) {
                     LineupState.Loading -> MessageScreen(stringResource(R.string.loading))
-                    is LineupState.Failed -> MessageScreen(stringResource(R.string.load_failed, s.message), onRetry = vm::refresh)
+                    is LineupState.Failed -> MessageScreen(
+                        message = stringResource(R.string.load_failed),
+                        detail = s.message,
+                        hint = stringResource(R.string.load_failed_hint),
+                        onRetry = vm::refresh,
+                    )
                     is LineupState.Ready -> GuideOrEmpty(
                         lineup = s.lineup,
                         favorites = settings?.favorites.orEmpty(),
@@ -119,7 +125,7 @@ private fun GuideOrEmpty(
     onToggleFavorite: (String) -> Unit,
 ) {
     if (lineup.channels.isEmpty()) {
-        MessageScreen(stringResource(R.string.no_channels))
+        MessageScreen(stringResource(R.string.no_channels), hint = stringResource(R.string.no_channels_hint))
     } else {
         GuideScreen(
             lineup = lineup,
@@ -131,13 +137,15 @@ private fun GuideOrEmpty(
     }
 }
 
+/** App bar above the guide, inside the overscan margins; the mark sits within the buttons' height so no grid row is lost. */
 @Composable
 private fun Header(onSettings: () -> Unit, onRefresh: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 20.dp),
+        Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 27.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        LogoMark(40.dp)
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
         Button(onClick = onRefresh) { Text(stringResource(R.string.refresh)) }
         Button(onClick = onSettings) { Text(stringResource(R.string.settings)) }

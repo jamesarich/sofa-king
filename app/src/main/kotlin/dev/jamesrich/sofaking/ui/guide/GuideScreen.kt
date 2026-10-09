@@ -326,7 +326,8 @@ fun GuideScreen(
         )
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp)) {
+    // The app header above already carries the top overscan margin; 16dp here is spacing, not overscan.
+    Column(modifier = modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 27.dp)) {
         if (PREVIEW_ENABLED) {
             PreviewBand(focused = focusedState, now = now, searchOpen = searchOpen, chips = chips, searchBar = searchBar)
         } else {

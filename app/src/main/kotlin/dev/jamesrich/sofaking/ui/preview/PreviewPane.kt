@@ -23,7 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +47,9 @@ import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.player.recoverIfBehindLive
 import dev.jamesrich.sofaking.ui.range
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
+import dev.jamesrich.sofaking.ui.theme.SofaDusk
+import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
+import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlinx.coroutines.delay
 import java.time.Instant
 
@@ -190,7 +193,8 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
         tuner.markTuned(streamUrl)
     }
 
-    Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).background(Color.Black)) {
+    val shape = RoundedCornerShape(8.dp)
+    Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).clip(shape).background(SofaScrim)) {
         // One view for the life of the preview: swapping it per buffering gap would re-attach the decoder's surface each time.
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -203,18 +207,22 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
             onRelease = { view -> view.player = null },
         )
         if (!playing) {
-            Column(Modifier.fillMaxSize().background(Color.Black).padding(12.dp), verticalArrangement = Arrangement.Center) {
+            // A raised plum card until the first frame, so the band never shows a bare black box.
+            Column(
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
                 if (channel == null) {
                     Text(
                         stringResource(R.string.preview_hint),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
                     Text(
                         channel.label(),
                         style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -222,7 +230,7 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
                         Text(
                             stringResource(R.string.preview_unavailable),
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.LightGray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -232,10 +240,11 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
             Text(
                 stringResource(R.string.tuning),
                 style = MaterialTheme.typography.labelLarge,
-                color = Color.White,
+                color = SofaDusk,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .background(Color(0xCC000000))
+                    .padding(8.dp)
+                    .background(SofaOverlayScrim, shape)
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }

@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -32,9 +32,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -54,6 +51,8 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
+import dev.jamesrich.sofaking.ui.theme.SofaDusk
+import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import android.util.Log
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -366,7 +365,16 @@ fun PlayerScreen(
             }
             KeyEventType.KeyUp -> {
                 if (centerGesture.onKeyUp() == CenterPress.SHORT) {
-                    if (entry.digits.isNotEmpty()) commitEntry() else overlayVisible = !overlayVisible
+                    val channel = currentChannels.getOrNull(index)
+                    when {
+                        entry.digits.isNotEmpty() -> commitEntry()
+                        // A failed channel retries on OK, however many automatic retries have run.
+                        failure != null && channel != null -> {
+                            failure = null
+                            load(channel)
+                        }
+                        else -> overlayVisible = !overlayVisible
+                    }
                 }
                 true
             }
@@ -438,7 +446,7 @@ fun PlayerScreen(
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(SofaScrim)
             .focusRequester(focus)
             .focusable()
             .onPreviewKeyEvent { event -> handleKeyEvent(event) },
@@ -465,71 +473,22 @@ fun PlayerScreen(
 
         val channel = currentChannels.getOrNull(index)
         if (channel == null) {
-            Text(stringResource(R.string.no_channels), style = MaterialTheme.typography.titleLarge, color = Color.White, modifier = Modifier.align(Alignment.Center))
+            Text(stringResource(R.string.no_channels), style = MaterialTheme.typography.titleLarge, color = SofaDusk, modifier = Modifier.align(Alignment.Center))
         } else {
-            if (buffering && failure == null) {
-                Text(
-                    stringResource(R.string.tuning),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(horizontal = 48.dp, vertical = 27.dp)
-                        .semantics { liveRegion = LiveRegionMode.Polite },
-                )
+            // Status pills stack top left so a caption toast never covers "Paused" or "Tuning".
+            Column(
+                Modifier.align(Alignment.TopStart).padding(horizontal = 48.dp, vertical = 27.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (buffering && failure == null) StatusPill(stringResource(R.string.tuning))
+                if (paused && failure == null) StatusPill(stringResource(R.string.player_paused))
+                captionToast?.let { StatusPill(stringResource(it.outcome.labelRes()), MaterialTheme.typography.titleLarge) }
             }
-            if (paused && failure == null) {
-                Text(
-                    stringResource(R.string.player_paused),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(horizontal = 48.dp, vertical = 27.dp)
-                        .background(Color(0xCC000000))
-                        .padding(horizontal = 16.dp)
-                        .semantics { liveRegion = LiveRegionMode.Polite },
-                )
-            }
-            failure?.let { f ->
-                Column(
-                    Modifier
-                        .align(Alignment.Center)
-                        .background(Color(0xCC000000))
-                        .padding(24.dp)
-                        .semantics { liveRegion = LiveRegionMode.Polite },
-                ) {
-                    Text(stringResource(R.string.cant_play), style = MaterialTheme.typography.headlineSmall, color = Color.White)
-                    Text(f.code, style = MaterialTheme.typography.bodyMedium, color = Color.LightGray)
-                }
-            }
+            failure?.let { FailureCard(it.code) }
             val pendingDigits = entry.digits
             val noticeText = notice?.let { stringResource(R.string.no_channel_number, it.digits) }
             if (pendingDigits.isNotEmpty() || noticeText != null) {
-                Text(
-                    pendingDigits.ifEmpty { noticeText.orEmpty() },
-                    style = MaterialTheme.typography.displayMedium,
-                    color = Color.White,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(horizontal = 48.dp, vertical = 27.dp)
-                        .background(Color(0xCC000000))
-                        .padding(horizontal = 16.dp)
-                        .semantics { liveRegion = LiveRegionMode.Polite },
-                )
-            }
-            captionToast?.let { toast ->
-                Text(
-                    stringResource(toast.outcome.labelRes()),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color.White,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(horizontal = 48.dp, vertical = 27.dp)
-                        .background(Color(0xCC000000))
-                        .padding(horizontal = 16.dp)
-                        .semantics { liveRegion = LiveRegionMode.Polite },
-                )
+                DigitsBadge(pendingDigits.ifEmpty { noticeText.orEmpty() })
             }
             if (miniGuideOpen) {
                 MiniGuide(

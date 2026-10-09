@@ -33,14 +33,15 @@ internal object CaptionPolicy {
     }
 
     /**
-     * Streams often carry both CEA-708 and CEA-608. CEA-708 service 1 wins, then any 708 service, then
-     * CEA-608 CC1, then any 608 track, then whatever text track there is. Null when there are none.
+     * Streams often carry both CEA-608 and CEA-708. CEA-608 CC1 wins, then any 608 track, then CEA-708
+     * service 1, then any 708 service, then whatever text track there is: Media3's 708 decoder shows each
+     * caption for about 100 ms and then clears it. Null when there are none.
      */
     fun preferredTextTrack(tracks: List<TextTrackInfo>): TextTrackInfo? =
-        tracks.firstOrNull { it.isCea708() && it.accessibilityChannel == SERVICE_ONE }
-            ?: tracks.firstOrNull { it.isCea708() }
-            ?: tracks.firstOrNull { it.isCea608() && it.accessibilityChannel == SERVICE_ONE }
+        tracks.firstOrNull { it.isCea608() && it.accessibilityChannel == SERVICE_ONE }
             ?: tracks.firstOrNull { it.isCea608() }
+            ?: tracks.firstOrNull { it.isCea708() && it.accessibilityChannel == SERVICE_ONE }
+            ?: tracks.firstOrNull { it.isCea708() }
             ?: tracks.firstOrNull()
 
     private fun TextTrackInfo.isCea708() = mimeType == MimeTypes.APPLICATION_CEA708

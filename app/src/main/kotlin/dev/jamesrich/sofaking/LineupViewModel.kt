@@ -1,16 +1,27 @@
 package dev.jamesrich.sofaking
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.DispatcharrRepository
 import dev.jamesrich.sofaking.data.Lineup
-import kotlinx.coroutines.Job
+import dev.jamesrich.sofaking.data.SettingsStore
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 
 sealed interface LineupState {
     data object Loading : LineupState
@@ -18,35 +29,48 @@ sealed interface LineupState {
     data class Failed(val message: String) : LineupState
 }
 
-class LineupViewModel(
-    private val repository: DispatcharrRepository = DispatcharrRepository(BuildConfig.DISPATCHARR_URL, BuildConfig.DISPATCHARR_PROFILE),
-) : ViewModel() {
-    private val _state = MutableStateFlow<LineupState>(LineupState.Loading)
-    val state: StateFlow<LineupState> = _state.asStateFlow()
+class LineupViewModel(application: Application) : AndroidViewModel(application) {
+    private val store: SettingsStore = DataStoreSettingsStore.create(
+        application,
+        AppSettings(BuildConfig.DISPATCHARR_URL, BuildConfig.DISPATCHARR_PROFILE),
+    )
 
-    private var refreshJob: Job? = null
+    val settings: StateFlow<AppSettings?> = store.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    init {
-        refresh()
-    }
+    private val reloads = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    /** Loads now, then reloads every few hours so new channels and guide data appear without a restart. */
-    fun refresh() {
-        refreshJob?.cancel()
-        refreshJob = viewModelScope.launch {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val state: StateFlow<LineupState> = combine(
+        store.settings.map { it.serverUrl to it.profile }.distinctUntilChanged(),
+        reloads.onStart { emit(Unit) },
+    ) { server, _ -> server }
+        .transformLatest { (url, profile) ->
+            val repository = DispatcharrRepository(url, profile)
+            var last: Lineup? = null
             while (true) {
-                if (_state.value !is LineupState.Ready) _state.value = LineupState.Loading
-                _state.value = runCatching { LineupState.Ready(repository.load()) }
-                    .getOrElse { error ->
-                        val previous = _state.value
-                        if (previous is LineupState.Ready) previous else LineupState.Failed(error.message ?: error.toString())
-                    }
-                delay(REFRESH_INTERVAL)
+                if (last == null) emit(LineupState.Loading)
+                val result = runCatching { repository.load() }
+                result.onSuccess { last = it; emit(LineupState.Ready(it)) }
+                // A failed background refresh keeps showing the lineup we already have.
+                result.onFailure { if (last == null) emit(LineupState.Failed(it.message ?: it.toString())) }
+                delay(if (result.isSuccess) REFRESH_INTERVAL else RETRY_INTERVAL)
             }
         }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
+
+    fun refresh() {
+        reloads.tryEmit(Unit)
     }
 
+    fun saveServer(url: String, profile: String) = viewModelScope.launch { store.setServer(url, profile) }
+
+    fun toggleFavorite(guideId: String) = viewModelScope.launch { store.toggleFavorite(guideId) }
+
+    fun setLastChannel(guideId: String) = viewModelScope.launch { store.setLastChannel(guideId) }
+
     private companion object {
-        val REFRESH_INTERVAL = 4.hours
+        val REFRESH_INTERVAL = 3.hours
+        val RETRY_INTERVAL = 1.minutes
     }
 }

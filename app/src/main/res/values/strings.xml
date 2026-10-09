@@ -5,4 +5,7 @@
     <string name="retry">Retry</string>
     <string name="no_listing">No listing</string>
     <string name="up_next">Next: %1$s</string>
+    <string name="no_channels">No channels in this profile</string>
+    <string name="refresh">Refresh</string>
+    <string name="settings">Settings</string>
 </resources>

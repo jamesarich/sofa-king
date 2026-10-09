@@ -6,9 +6,12 @@ _Live TV, right where you left it._
 
 ## Features
 
-- Guide grid with All and Favorites filters, plus category filters from your channel groups.
+- Guide grid with Now, Search, All and Favorites chips, plus category filters from your channel groups; hold Left or Right to jump two hours.
+- A live, muted preview of the focused channel above the guide.
 - Long-press a program to star its channel.
-- Full-screen player: Up and Down or the Channel keys zap, digits jump to a channel number, Previous or Last returns to the last channel, and OK, Left, Right or Info show the info overlay.
+- Full-screen player: Up zaps, Down opens a channel list with the last channel on top, long-press OK returns to the last channel, OK shows the info bar.
+- Closed captions with per-channel timing to offset live-captioning delay.
+- Media keys and system media controls: next/previous channel, play and pause.
 - Lineup and guide refresh every 3 hours, or on demand from Refresh.
 - Channels appear first, then the guide fills in behind them.
 - Dispatcharr URL and channel profile are set in Settings and stored on the device.
@@ -46,16 +49,21 @@ Both values can also be changed on the TV from Settings.
 
 | Key | Guide | Player |
 | --- | --- | --- |
-| D-pad Up / Down | Move focus | Next / previous channel |
-| Channel Up / Channel Down | Move focus | Next / previous channel |
-| D-pad Left / Right | Move focus | Toggle the info overlay; with captions on and the overlay up, show this channel's captions later / earlier |
+| D-pad Up | Move focus | Next channel |
+| D-pad Down | Move focus | Open the channel list (last channel first); Up/Down move, OK tunes, Back closes |
+| Hold D-pad Left / Right | Jump the guide 2 hours back / ahead | |
+| D-pad Left / Right | Move focus | Toggle the info bar; with captions on and the info bar up, show this channel's captions later / earlier |
+| OK | Play the channel | Toggle the info bar, or tune a typed number |
+| Long-press OK | Star or unstar the channel | Return to the last channel watched |
+| Channel Up / Down | Move focus | Next / previous channel |
 | Captions (CC) | | Turn captions on or off |
-| OK / Enter | Play the channel | Toggle the info overlay, or tune a typed number |
+| Play/Pause | | Pause or resume; resuming after 30 s jumps back to live |
 | Digits 0-9 (and numpad) | | Type a channel number, then OK to tune |
 | Previous / Last channel | | Return to the last channel watched |
-| Info | | Toggle the info overlay |
-| Long-press OK on a program | Star or unstar its channel | |
-| Back | Exit the app | Return to the guide |
+| Info | | Toggle the info bar |
+| Back | Exit the app | Close the channel list, or return to the guide |
+
+The Now chip returns the guide to the current time; Search filters by channel name, number or what's on. While a channel plays, the media session maps next/previous to channel up/down and supports play and pause, so system media controls and Assistant transport commands can drive it; voice phrasing beyond "pause" is untested.
 
 ## Dispatcharr setup
 

@@ -103,8 +103,9 @@ import kotlin.math.roundToInt
 
 private val PIN_WIDTH = 240.dp
 private val MINUTE_WIDTH = 6.dp
-private val ROW_HEIGHT = 64.dp
-private val HEADER_HEIGHT = 40.dp
+// 1080p TV budget (540dp tall): app header ~90 + band 144 + 8 + header 32 leaves four 56dp rows above the overscan.
+private val ROW_HEIGHT = 56.dp
+private val HEADER_HEIGHT = 32.dp
 private val MIN_STICKY_TEXT = 48.dp
 private const val FOCUS_MARGIN_MINUTES = 30L
 private const val NOW_REFRESH_MS = 60_000L
@@ -348,7 +349,7 @@ fun GuideScreen(
                 searchBar(Modifier.fillMaxWidth())
             }
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
 
         Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
             Box(Modifier.width(PIN_WIDTH).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
@@ -549,6 +550,8 @@ private fun GuideCellItem(
                 )
             },
         interactionSource = interactionSource,
+        // No focus scale: a cell that starts before the visible edge would grow past the pinned column and clip its text.
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = if (airing) colors.primaryContainer else colors.surfaceVariant,
             contentColor = colors.onSurface,

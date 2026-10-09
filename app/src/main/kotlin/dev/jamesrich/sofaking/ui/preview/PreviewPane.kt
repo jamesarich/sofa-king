@@ -55,8 +55,8 @@ const val PREVIEW_ENABLED = true
 internal val PREVIEW_WIDTH = 256.dp
 /** 16:9 for [PREVIEW_WIDTH]. */
 internal val PREVIEW_HEIGHT = 144.dp
-/** The whole top band: the preview plus its breathing room. Leaves four grid rows on a 960x540dp TV. */
-internal val PREVIEW_BAND_HEIGHT = 160.dp
+/** The whole top band, exactly the preview's height; see the row budget in GuideScreen. */
+internal val PREVIEW_BAND_HEIGHT = 144.dp
 private const val PREVIEW_DEBOUNCE_MS = 800L
 
 private val TIME_FORMAT_PATTERN = "h:mm a"

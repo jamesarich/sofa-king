@@ -59,20 +59,20 @@ class CaptionPolicyTest {
         TextTrackInfo(groupIndex = group, trackIndex = 0, mimeType = mime, accessibilityChannel = channel)
 
     @Test
-    fun `cea-608 CC1 is preferred over cea-708 when both are present`() {
-        val tracks = listOf(track(0, MimeTypes.APPLICATION_CEA708), track(1, MimeTypes.APPLICATION_CEA608))
+    fun `cea-708 service one is preferred over cea-608 when both are present`() {
+        val tracks = listOf(track(0, MimeTypes.APPLICATION_CEA608), track(1, MimeTypes.APPLICATION_CEA708))
         assertEquals(tracks[1], CaptionPolicy.preferredTextTrack(tracks))
     }
 
     @Test
-    fun `cea-708 service one is used when there is no cea-608 track`() {
-        val tracks = listOf(track(0, MimeTypes.APPLICATION_CEA708, channel = 3), track(1, MimeTypes.APPLICATION_CEA708))
+    fun `cea-708 on another service is taken before cea-608 CC1`() {
+        val tracks = listOf(track(0, MimeTypes.APPLICATION_CEA608), track(1, MimeTypes.APPLICATION_CEA708, channel = 3))
         assertEquals(tracks[1], CaptionPolicy.preferredTextTrack(tracks))
     }
 
     @Test
-    fun `cea-608 on another channel is taken before cea-708`() {
-        val tracks = listOf(track(0, MimeTypes.APPLICATION_CEA708), track(1, MimeTypes.APPLICATION_CEA608, channel = 3))
+    fun `cea-608 CC1 is used when there is no cea-708 track, such as after an ad break`() {
+        val tracks = listOf(track(0, MimeTypes.APPLICATION_CEA608, channel = 3), track(1, MimeTypes.APPLICATION_CEA608))
         assertEquals(tracks[1], CaptionPolicy.preferredTextTrack(tracks))
     }
 

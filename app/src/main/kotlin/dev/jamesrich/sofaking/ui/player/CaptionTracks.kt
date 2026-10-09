@@ -25,8 +25,8 @@ private const val CAPTION_OPAQUE_BLACK = 0xFF000000.toInt()
 private const val CAPTION_CLEAR = 0x00000000
 
 /**
- * Points the text selection at CEA-608 CC1, else CEA-708 service 1 (see [CaptionPolicy.preferredTextTrack]).
- * Runs on every track change because ad breaks can drop a caption track. Only sets the parameters when the
+ * Points the text selection at CEA-708 service 1, else CEA-608 CC1 (see [CaptionPolicy.preferredTextTrack]).
+ * Runs on every track change because ad breaks can drop the 708 track. Only sets the parameters when the
  * override differs, since setting them re-fires the listener.
  */
 @OptIn(UnstableApi::class)

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,11 +22,10 @@ import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.ui.formatNumber
+import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.range
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 internal fun CaptionToggleOutcome.labelRes(): Int = when (this) {
     CaptionToggleOutcome.ON -> R.string.captions_on
@@ -38,7 +36,7 @@ internal fun CaptionToggleOutcome.labelRes(): Int = when (this) {
 @Composable
 internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean, captionAdvanceMs: Int) {
     val (current, next) = lineup.nowAndNext(channel, now)
-    val timeFormat = remember { DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).withZone(ZoneId.systemDefault()) }
+    val timeFormat = rememberTimeFormatter()
     Column(
         Modifier
             .align(Alignment.BottomStart)
@@ -49,7 +47,7 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${channel.number.formatNumber()}  ${channel.name}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+            Text(channel.label(), style = MaterialTheme.typography.headlineSmall, color = Color.White)
             if (captionsOn) {
                 Spacer(Modifier.width(16.dp))
                 Text(
@@ -65,7 +63,7 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
         } else {
             Text(current.title, style = MaterialTheme.typography.titleMedium, color = Color.White)
             Text(
-                "${timeFormat.format(current.start)} - ${timeFormat.format(current.stop)}",
+                timeFormat.range(current.start, current.stop),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.LightGray,
             )

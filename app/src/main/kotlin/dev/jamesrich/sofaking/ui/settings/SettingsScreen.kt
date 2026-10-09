@@ -1,21 +1,14 @@
 package dev.jamesrich.sofaking.ui.settings
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.KeyboardActionHandler
-import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
@@ -29,23 +22,19 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Surface
 import androidx.tv.material3.Switch
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.BuildConfig
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 
 @Composable
@@ -236,33 +225,15 @@ private fun SettingField(
     LaunchedEffect(state) {
         snapshotFlow { state.text.toString() }.collect(onValueChange)
     }
-    var focused by remember { mutableStateOf(false) }
-    val borderColor = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-    val borderWidth = if (focused) 4.dp else 1.dp
 
     Column {
         Text(label, style = MaterialTheme.typography.titleSmall)
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .onFocusChanged { focused = it.hasFocus },
-            shape = RoundedCornerShape(8.dp),
-            border = Border(border = BorderStroke(borderWidth, borderColor)),
-        ) {
-            Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                BasicTextField(
-                    state = state,
-                    lineLimits = TextFieldLineLimits.SingleLine,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    keyboardOptions = KeyboardOptions(imeAction = imeAction),
-                    onKeyboardAction = KeyboardActionHandler { onAction() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                )
-            }
-        }
+        TvTextField(
+            state = state,
+            focusRequester = focusRequester,
+            imeAction = imeAction,
+            onAction = onAction,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        )
     }
 }

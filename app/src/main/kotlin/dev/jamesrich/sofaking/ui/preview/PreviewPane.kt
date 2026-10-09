@@ -42,12 +42,12 @@ import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Programme
-import dev.jamesrich.sofaking.ui.formatNumber
+import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.player.recoverIfBehindLive
+import dev.jamesrich.sofaking.ui.range
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import kotlinx.coroutines.delay
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /** Kill switch: false removes the pane and the preview player entirely. */
 const val PREVIEW_ENABLED = true
@@ -59,8 +59,6 @@ internal val PREVIEW_HEIGHT = 144.dp
 internal val PREVIEW_BAND_HEIGHT = 144.dp
 private const val PREVIEW_DEBOUNCE_MS = 800L
 
-private val TIME_FORMAT_PATTERN = "h:mm a"
-
 /** Programme details for the focused cell. [live] is whether the programme is airing at [now]. */
 @Composable
 internal fun PreviewDetails(
@@ -70,13 +68,11 @@ internal fun PreviewDetails(
     now: Instant,
     modifier: Modifier = Modifier,
 ) {
-    val timeFormat = remember {
-        DateTimeFormatter.ofPattern(TIME_FORMAT_PATTERN, Locale.getDefault()).withZone(ZoneId.systemDefault())
-    }
+    val timeFormat = rememberTimeFormatter()
     Column(modifier) {
         if (channel == null) return@Column
         Text(
-            "${channel.number.formatNumber()}  ${channel.name}",
+            channel.label(),
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -112,7 +108,7 @@ internal fun PreviewDetails(
             }
         }
         Text(
-            "${timeFormat.format(programme.start)} - ${timeFormat.format(programme.stop)}",
+            timeFormat.range(programme.start, programme.stop),
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
         )
@@ -156,12 +152,7 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
-                    player.seekToDefaultPosition()
-                    player.prepare()
-                    return
-                }
-                failed = true
+                if (!player.recoverIfBehindLive(error)) failed = true
             }
         }
         player.addListener(listener)
@@ -219,7 +210,7 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
                     )
                 } else {
                     Text(
-                        "${channel.number.formatNumber()}  ${channel.name}",
+                        channel.label(),
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White,
                         maxLines = 2,

@@ -75,7 +75,6 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
             val start = lineup.channels.indexOfFirst { it.guideId == current.guideId }.coerceAtLeast(0)
             PlayerScreen(
                 lineup = lineup,
-                channels = lineup.channels,
                 startIndex = start,
                 onExit = { screen = Screen.Guide },
                 onChannelChanged = { vm.setLastChannel(it.guideId) },

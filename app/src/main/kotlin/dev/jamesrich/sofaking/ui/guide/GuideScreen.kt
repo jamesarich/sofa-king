@@ -55,6 +55,7 @@ import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -96,9 +97,7 @@ fun GuideScreen(
     val nowMinute = GuideTimeline.offsetMinutes(windowStart, now).takeIf { now >= windowStart && now < windowEnd }
     val nowClamped = GuideTimeline.offsetMinutes(windowStart, now)
     val zone = remember { ZoneId.systemDefault() }
-    val timeFormat = remember {
-        DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).withZone(zone)
-    }
+    val timeFormat = rememberTimeFormatter()
     val dayFormat = remember {
         DateTimeFormatter.ofPattern("EEE", Locale.getDefault()).withZone(zone)
     }

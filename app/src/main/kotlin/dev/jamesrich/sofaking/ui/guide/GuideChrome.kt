@@ -2,7 +2,6 @@
 
 package dev.jamesrich.sofaking.ui.guide
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -12,45 +11,32 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.KeyboardActionHandler
-import androidx.compose.foundation.text.input.TextFieldDecorator
-import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Border
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.FilterChip
 import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
+import dev.jamesrich.sofaking.ui.TvTextField
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -147,40 +133,14 @@ internal fun SearchField(
     onDone: () -> Unit,
     modifier: Modifier,
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val borderColor = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-    val borderWidth = if (focused) 4.dp else 1.dp
-    Surface(
-        modifier = modifier.onFocusChanged { focused = it.hasFocus },
-        shape = RoundedCornerShape(8.dp),
-        border = Border(border = BorderStroke(borderWidth, borderColor)),
-    ) {
-        Box(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            BasicTextField(
-                state = state,
-                lineLimits = TextFieldLineLimits.SingleLine,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                onKeyboardAction = KeyboardActionHandler { onDone() },
-                decorator = TextFieldDecorator { inner ->
-                    Box(Modifier.fillMaxWidth()) {
-                        if (state.text.isEmpty()) {
-                            Text(
-                                hint,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        inner()
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
-            )
-        }
-    }
+    TvTextField(
+        state = state,
+        focusRequester = focusRequester,
+        imeAction = ImeAction.Done,
+        onAction = onDone,
+        modifier = modifier,
+        hint = hint,
+    )
 }
 
 /** One horizontally scrolled strip; the header and every row share [scrollState] so columns stay aligned. */

@@ -40,7 +40,8 @@ import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Programme
-import dev.jamesrich.sofaking.ui.formatNumber
+import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.range
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -87,7 +88,7 @@ internal fun ChannelRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "${channel.number.formatNumber()}  ${channel.name}",
+                channel.label(),
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -198,7 +199,7 @@ private fun GuideCellItem(
             )
             if (focused && programme != null) {
                 Text(
-                    "${timeFormat.format(programme.start)} - ${timeFormat.format(programme.stop)}",
+                    timeFormat.range(programme.start, programme.stop),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall,

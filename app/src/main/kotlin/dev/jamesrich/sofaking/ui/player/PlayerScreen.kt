@@ -79,7 +79,6 @@ private data class Failure(val code: String, val retriesUsed: Int)
 @Composable
 fun PlayerScreen(
     lineup: Lineup,
-    channels: List<Channel>,
     startIndex: Int,
     onExit: () -> Unit,
     onChannelChanged: (Channel) -> Unit,
@@ -91,6 +90,7 @@ fun PlayerScreen(
     smoothCaptions: Boolean = true,
 ) {
     val context = LocalContext.current
+    val channels = lineup.channels
     val currentChannels by rememberUpdatedState(channels)
     val currentOnChannelChanged by rememberUpdatedState(onChannelChanged)
     val currentOnCaptionsChanged by rememberUpdatedState(onCaptionsChanged)
@@ -123,7 +123,7 @@ fun PlayerScreen(
     captionSync.smoothingEnabled = smoothCaptions
 
     // One player for the whole session; zapping swaps the media item instead of rebuilding the pipeline.
-    val player = remember { buildLivePlayer(context, captionsEnabled, captionSync) }
+    val player = remember { buildLivePlayer(context, captionSync, captionsOn = captionsEnabled) }
     // The session and the system's next/previous/play/pause go through this wrapper; the view and listeners use the ExoPlayer.
     val wrapper = remember(player) { LivePlayerWrapper(player) }
     DisposableEffect(player) {
@@ -148,11 +148,7 @@ fun PlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
-                    player.seekToDefaultPosition()
-                    player.prepare()
-                    return
-                }
+                if (player.recoverIfBehindLive(error)) return
                 failure = Failure(error.errorCodeName, retriesUsed = failure?.retriesUsed ?: 0)
             }
         }
@@ -359,12 +355,11 @@ fun PlayerScreen(
             entry = entry.append(digit)
             return true
         }
-        val size = currentChannels.size
         return when (key) {
             Key.Captions, Key.C -> { toggleCaptions(); true }
-            Key.DirectionUp, Key.ChannelUp -> { zapTo((index + 1) % size); true }
+            Key.DirectionUp, Key.ChannelUp -> { zapStep(1); true }
             Key.DirectionDown -> { openMiniGuide(); true }
-            Key.ChannelDown -> { zapTo((index - 1 + size) % size); true }
+            Key.ChannelDown -> { zapStep(-1); true }
             Key.MediaPrevious, Key.LastChannel -> { recallLastChannel(); true }
             Key.MediaPlayPause -> { if (wrapper.playWhenReady) wrapper.pause() else wrapper.play(); true }
             Key.MediaPlay -> { wrapper.play(); true }

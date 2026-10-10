@@ -25,7 +25,7 @@ The app shows its saved lineup while refreshing. Channels load before guide data
 | Info | — | Toggle the info bar |
 | Back | Exit | Close the channel list or return to the guide |
 
-In the channel list, Up/Down select a channel, OK tunes it and Back closes the list. Leaving the app stops playback. Returning prepares the stream at the live edge while preserving paused intent.
+In the channel list, Up/Down select a channel, OK tunes it and Back closes the list. Leaving the app stops playback and releases its session on the server. Returning opens a new session for the same channel and prepares the stream at the live edge while preserving paused intent.
 
 ## Captions
 
@@ -35,19 +35,23 @@ Caption timing buffers video so delayed live captions align with speech. Increas
 
 ## Server settings
 
-Enter an absolute HTTP(S) address with a host and optional port. Embedded credentials, queries and fragments are not accepted. The profile must be a single name, without slashes, backslashes or control characters.
+Enter the Sofa King server's absolute HTTP(S) address with a host and optional port, for example `http://192.168.1.3:9193`. Embedded credentials, queries and fragments are not accepted.
 
-The playlist must contain numeric `tvg-chno` values. M3U `tvg-id` values match XMLTV `channel` attributes; without `tvg-id`, the app uses the channel number as the guide key. Stream URLs are read from the playlist.
+The API token is the server's `SOFA_API_TOKEN`: letters, digits and punctuation with no spaces. Leave it empty when the server runs without one. The token is shown as typed; the TV keyboard has no masked entry.
+
+Channels come from the server's catalog. A channel appears when the server reports it as playable and gives it a numeric display number; its first tag is the guide category.
 
 ## Troubleshooting
 
 | Symptom | Action |
 | --- | --- |
-| Couldn't reach Dispatcharr | Check the server address, network access and server availability. Select Refresh. |
-| No channels in this profile | Check the profile name and add channels to it in Dispatcharr. |
-| No listing | Assign guide data to the channel; check M3U/XMLTV IDs match. |
-| Can't play this channel | Test the stream in Dispatcharr. Press OK to retry or select another channel. |
-| Guide fills in after channels | Guide data loads after the playlist; the saved lineup remains visible during refresh. |
+| Connect to your Sofa King server | Open Settings and enter the server address and API token. |
+| Couldn't reach the Sofa King server | Check the address, token, network access and that the server is running. `AUTH_REQUIRED` means the token does not match. Select Refresh. |
+| No channels to play | The server has no channel with a playable source. Check its providers and source health. |
+| No listing | The channel has no guide data on the server; check its guide assignment there. |
+| Can't play this channel | The server could not open or keep a stream. Press OK to retry or select another channel. `CAPACITY_EXHAUSTED` means every session slot is a watch session. |
+| Preview unavailable | The server answered the preview session with an error, or the stream failed; focus another channel and come back. |
+| Guide fills in after channels | Guide data loads after the catalog; the saved lineup remains visible during refresh. |
 | Slow tune with captions | Reduce caption timing if the added buffer is too long. |
 
-Failed or ended streams reconnect after 2, 4, 8, 15, then every 30 seconds while the player is open and the app is started. OK retries immediately. A stalled stream that remains open does not trigger an automatic reconnect.
+Failed or ended streams reconnect after 2, 4, 8, 15, then every 30 seconds while the player is open and the app is started; a stream the server replaced reconnects at once. OK retries immediately. A stalled stream that remains open does not trigger an automatic reconnect.

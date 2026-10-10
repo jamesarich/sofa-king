@@ -40,7 +40,7 @@ internal fun LogoMark(size: Dp, modifier: Modifier = Modifier) {
 }
 
 /**
- * A full-screen state with the brand on it: loading, a failed load, an empty profile. [detail] is the
+ * A full-screen state with the brand on it: loading, a failed load, an empty lineup. [detail] is the
  * technical reason in a quieter color; [hint] tells the viewer what to do about it; [loading] adds the loader.
  */
 @Composable

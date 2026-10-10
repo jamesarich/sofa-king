@@ -1,17 +1,16 @@
 # Sofa King
 
-An Android TV and Google TV app for watching IPTV channels from Dispatcharr. It has a program guide, muted channel previews, favorites, and a full-screen player with closed captions.
+An Android TV and Google TV app for watching live channels from a [Sofa King server](https://github.com/jamesarich/sofa-king-backend). It has a program guide, muted channel previews, favorites, and a full-screen player with closed captions.
 
 Requires Android 9 or later and a TV remote. Channels and guide data come from your server; the app does not include a channel subscription.
 
 ## Set up your server
 
-1. Create a channel profile in [Dispatcharr](https://github.com/Dispatcharr/Dispatcharr).
-2. Add channels to that profile and assign their guide data.
-3. In Sofa King's Settings, enter the server's HTTP(S) base address and profile name.
-4. Return to the guide and select Refresh.
+1. Run the [Sofa King server](https://github.com/jamesarich/sofa-king-backend) on your network with your providers configured. Set `SOFA_API_TOKEN` when the server is reachable beyond localhost.
+2. In Sofa King's Settings, enter the server's HTTP(S) address with its port, for example `http://192.168.1.3:9193`, and the API token.
+3. Select Save & reload.
 
-The TV must be able to reach the server. Compatible servers must provide `/output/m3u/PROFILE` and `/output/epg/PROFILE?days=1`. The separate [Sofa King Backend](https://github.com/jamesarich/sofa-king-backend) exposes a JSON API that this app does not currently consume.
+The TV must be able to reach the server. The app uses the server's `/api/v1` JSON API for channels, guide data and playback sessions, and plays media from its `/media` relay.
 
 ## Build and install
 
@@ -33,17 +32,7 @@ adb connect TV_IP:DEBUG_PORT
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-The release APK is optimized with R8 and signed with the local debug key.
-
-To set server defaults at build time, replace the host, port and profile:
-
-```sh
-./gradlew :app:assembleRelease \
-  -PdispatcharrUrl=http://SERVER_HOST:SERVER_PORT \
-  -PdispatcharrProfile=PROFILE
-```
-
-Settings can override both values on the TV.
+The release APK is optimized with R8 and signed with the local debug key. The server address and token are entered on the TV; the app ships without defaults.
 
 ## Use
 

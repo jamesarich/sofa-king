@@ -10,7 +10,7 @@ Use JDK 21, the Android SDK with API 37.1 and the checked-in Gradle wrapper. Set
 
 On the shared development host, use `/home/james/.claude/bin/gradle-queue --` in place of `./gradlew`.
 
-Unit tests cover parsing, cache, settings, captions, remote-control logic and network cancellation. XML tests use kxml2 instead of the Android parser. Test fixtures are in `app/src/test/resources/`.
+Unit tests cover the API client, catalog and guide mapping, the playback session lifecycle, cache, settings, captions, remote-control logic and network cancellation. Server interactions run against MockWebServer, so no server is needed.
 
 On a TV, check D-pad focus, rapid preview changes, preview/player/guide handoff, background/foreground transitions, audio, captions and decoder recovery.
 

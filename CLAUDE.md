@@ -10,7 +10,7 @@ Use JDK 21 and an Android SDK configured in local.properties. On the shared host
 /home/james/.claude/bin/gradle-queue -- :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
 ```
 
-Use the test fixtures for offline development. Install release builds on TVs only when requested; release APKs use R8 and the local debug key.
+Unit tests run against MockWebServer; no server is needed for offline development. Install release builds on TVs only when requested; release APKs use R8 and the local debug key.
 
 ## UI
 
@@ -24,15 +24,21 @@ Use the test fixtures for offline development. Install release builds on TVs onl
 ## Playback and data
 
 - MainActivity owns one ExoPlayer. Preview and full-screen screens borrow it; neither releases it.
+- Every stream is a server playback session owned by `PlaybackSessions` in the ViewModel; screens call `tune` and `setIntent`, never the session API directly. The app holds one session at a time.
+- The preview opens a `preview` session; OK promotes the same session to `watch` with `setIntent`. Do not reopen or reload on the handoff.
+- Tag media items with the channel id as `mediaId` through `mediaItemFor`, and set the MIME type from the descriptor; never let Media3 sniff a session URL.
+- Renew well inside the 45 s preview lease (15 s). Release on channel change, Settings and ON_STOP; reopen on ON_START. Reopen on `replaced` and on a 410 from the relay by re-reading the session, not by retrying the old URL.
+- Session opens run under NonCancellable and a canceled tune releases what it opened. Never leak a session: capacity is small and the oldest preview is evicted.
 - Gate tune preparation on STARTED. Stop on ON_STOP and Settings; retain paused-user intent on return.
-- Preserve preview debounce and stream handoff. Zap with stop, setMediaItem, prepare.
+- Preserve preview debounce and stream handoff. Zap with stop, resolve the session, setMediaItem, prepare.
 - Reconnect failed/ended streams with the existing backoff. Do not add a watchdog that reconnects stalled-but-open streams.
 - PlayerScreen owns MediaSession; there is no background playback service.
 - Preserve CEA-608/708 selection, caption geometry and per-channel timing. Update renderer-thread settings from SideEffect through volatile fields.
 - When wrapping Media3 Java interfaces, forward every required overload explicitly; do not use Kotlin by delegation.
 - Keep sockets and files off the main thread. Preserve cancellation and close owned calls/listeners/resources.
-- Keep DataStore corruption recovery and last-good lineup behavior.
-- Network endpoints are /output/m3u/PROFILE and /output/epg/PROFILE?days=1. The native backend API is not integrated.
+- Keep DataStore corruption recovery and last-good lineup behavior. Never log or print the API token; `AppSettings.toString` hides it.
+- API requests go through `SofaKingApi` with the bearer token; media requests carry none. Guide queries stay within 200 channels and 24 hours.
+- Use kotlinx.serialization with `wireJson` for the server's JSON; unknown fields are ignored.
 
 ## Documentation
 

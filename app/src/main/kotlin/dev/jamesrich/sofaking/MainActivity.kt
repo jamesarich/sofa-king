@@ -10,7 +10,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.mutableStateOf
@@ -19,9 +22,14 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.Button
 import androidx.tv.material3.MaterialTheme
@@ -36,6 +44,9 @@ import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
+import dev.jamesrich.sofaking.ui.player.CaptionSync
+import dev.jamesrich.sofaking.ui.player.buildLivePlayer
+import dev.jamesrich.sofaking.ui.player.captionParameters
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
@@ -66,6 +77,35 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     val guideState = rememberSaveableStateHolder()
     val lineup = (state as? LineupState.Ready)?.lineup
 
+    // One player for the guide preview and the full screen, so OK on the previewed channel continues its stream.
+    val context = LocalContext.current
+    val captionSync = remember { CaptionSync() }
+    val player = remember { buildLivePlayer(context, captionSync) }
+    DisposableEffect(player) { onDispose { player.release() } }
+    // Before the first prepare: switching text tracks on a playing live stream restarts it.
+    val captionsEnabled = settings?.captionsEnabled
+    LaunchedEffect(captionsEnabled) {
+        if (captionsEnabled != null) player.trackSelectionParameters = captionParameters(player.trackSelectionParameters, captionsEnabled)
+    }
+    // The preview starts without a caption lead; the full screen sets each channel's own.
+    LaunchedEffect(screen) {
+        when (screen) {
+            Screen.Guide -> captionSync.advanceUs = 0L
+            Screen.Settings -> player.stop()
+            is Screen.Player -> Unit
+        }
+    }
+    // Stopped, not paused: the TV's one hardware decoder and the Dispatcharr stream go free while another app is
+    // in front. The item and playWhenReady survive, so prepare() resumes at the live edge, or stays paused.
+    val currentScreen by rememberUpdatedState(screen)
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.stop() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        if (currentScreen != Screen.Settings && player.mediaItemCount > 0 && player.playbackState == Player.STATE_IDLE) {
+            captionSync.effectiveUs = captionSync.advanceUs
+            player.prepare()
+        }
+    }
+
     when (val current = screen) {
         Screen.Settings -> settings?.let { s ->
             SettingsScreen(
@@ -84,6 +124,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
             PlayerScreen(
                 lineup = lineup,
                 startIndex = start,
+                player = player,
+                captionSync = captionSync,
                 onExit = { screen = Screen.Guide },
                 onChannelChanged = { vm.setLastChannel(it.guideId) },
                 captionsEnabled = settings?.captionsEnabled ?: false,
@@ -116,6 +158,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                         lastChannel = settings?.lastChannel,
                         onPlay = { screen = Screen.Player(it) },
                         onToggleFavorite = vm::toggleFavorite,
+                        previewPlayer = player,
                     )
                 }
             }
@@ -130,6 +173,7 @@ private fun GuideOrEmpty(
     lastChannel: String?,
     onPlay: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
+    previewPlayer: ExoPlayer,
 ) {
     if (lineup.channels.isEmpty()) {
         MessageScreen(stringResource(R.string.no_channels), hint = stringResource(R.string.no_channels_hint))
@@ -140,6 +184,7 @@ private fun GuideOrEmpty(
             initialChannelId = lastChannel,
             onPlay = { onPlay(it.guideId) },
             onToggleFavorite = { onToggleFavorite(it.guideId) },
+            previewPlayer = previewPlayer,
         )
     }
 }

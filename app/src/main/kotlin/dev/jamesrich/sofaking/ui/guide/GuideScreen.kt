@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
@@ -109,6 +110,7 @@ fun GuideScreen(
     initialChannelId: String?,
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
+    previewPlayer: ExoPlayer,
     modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
@@ -328,7 +330,7 @@ fun GuideScreen(
     // The app header above already carries the top overscan margin; 16dp here is spacing, not overscan.
     Column(modifier = modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 27.dp)) {
         if (PREVIEW_ENABLED) {
-            PreviewBand(focused = focusedState, now = now, searchOpen = searchOpen, chips = chips, searchBar = searchBar)
+            PreviewBand(focused = focusedState, now = now, searchOpen = searchOpen, chips = chips, searchBar = searchBar, player = previewPlayer)
         } else {
             chips(Modifier.fillMaxWidth())
             if (searchOpen) {
@@ -411,6 +413,7 @@ private fun PreviewBand(
     searchOpen: Boolean,
     chips: @Composable (Modifier) -> Unit,
     searchBar: @Composable (Modifier) -> Unit,
+    player: ExoPlayer,
 ) {
     val cell = focused.value
     Row(Modifier.fillMaxWidth().height(PREVIEW_BAND_HEIGHT), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -429,6 +432,6 @@ private fun PreviewBand(
                 )
             }
         }
-        PreviewVideo(channel = cell?.channel)
+        PreviewVideo(player = player, channel = cell?.channel)
     }
 }

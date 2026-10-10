@@ -37,13 +37,12 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -60,6 +59,7 @@ import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
+import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -71,6 +71,7 @@ private const val RETRY_MS = 3_000L
 private const val CAPTION_TOAST_MS = 2_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
 private const val METADATA_REFRESH_MS = 60_000L
+private const val STALL_CHECK_MS = 500L
 private const val TAG = "SofaKing"
 
 /** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
@@ -87,6 +88,8 @@ private data class Failure(val code: String, val retriesUsed: Int)
 fun PlayerScreen(
     lineup: Lineup,
     startIndex: Int,
+    player: ExoPlayer,
+    captionSync: CaptionSync,
     onExit: () -> Unit,
     onChannelChanged: (Channel) -> Unit,
     captionsEnabled: Boolean = false,
@@ -112,19 +115,19 @@ fun PlayerScreen(
     var notice by remember { mutableStateOf<Notice?>(null) }
     var overlayVisible by remember { mutableStateOf(true) }
     var overlayRequest by remember { mutableIntStateOf(0) }
-    var playing by remember { mutableStateOf(false) }
-    var buffering by remember { mutableStateOf(false) }
+    // The shared player may arrive already playing the channel from the guide preview.
+    var playing by remember { mutableStateOf(player.isPlaying) }
+    var buffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
     var failure by remember { mutableStateOf<Failure?>(null) }
     var captionsOn by remember { mutableStateOf(captionsEnabled) }
     var captionToast by remember { mutableStateOf<CaptionToast?>(null) }
     var miniGuideOpen by remember { mutableStateOf(false) }
     // Bumped on every key while the mini-guide is open, so its idle timer restarts.
     var miniGuideActivity by remember { mutableIntStateOf(0) }
-    var paused by remember { mutableStateOf(false) }
+    var paused by remember { mutableStateOf(!player.playWhenReady) }
     val centerGesture = remember { CenterKeyGesture() }
     val now by rememberMinuteNow()
 
-    val captionSync = remember { CaptionSync() }
     // Each channel's captioner runs a different distance behind; adjustments show before the store round-trips.
     var advanceOverrides by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     val currentChannel = currentChannels.getOrNull(index)
@@ -135,11 +138,12 @@ fun PlayerScreen(
         captionSync.smoothingEnabled = smoothCaptions
     }
 
-    // One player for the whole session; zapping swaps the media item instead of rebuilding the pipeline.
-    val player = remember { buildLivePlayer(context, captionSync, captionsOn = captionsEnabled) }
     // The session and the system's next/previous/play/pause go through this wrapper; the view and listeners use the ExoPlayer.
     val wrapper = remember(player) { LivePlayerWrapper(player) }
     DisposableEffect(player) {
+        player.volume = 1f
+        // The preview never watched track changes, so the caption choice is made again on arrival.
+        preferCaptionTrack(player)
         val session = MediaSession.Builder(context, wrapper).build()
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -169,7 +173,6 @@ fun PlayerScreen(
         onDispose {
             player.removeListener(listener)
             session.release()
-            player.release()
         }
     }
 
@@ -177,12 +180,17 @@ fun PlayerScreen(
         nowPlayingMetadata(channel, lineup.nowAndNext(channel, Instant.now()).first?.title)
 
     fun load(channel: Channel) {
+        val metadata = nowPlayingFor(channel)
+        wrapper.publishNowPlaying(metadata)
+        // Handed over from the guide preview mid-stream: keep it, and let the caption lead grow back from zero.
+        if (player.currentStreamUrl == channel.streamUrl && player.playbackState != Player.STATE_IDLE) {
+            captionSync.effectiveUs = 0L
+            return
+        }
         // Reset the renderers so the next stream's decoder rescales instead of reusing the old surface size.
         player.stop()
         // Playback can't start until the full advance is buffered, so a fresh tune starts at the full lead.
         captionSync.effectiveUs = captionSync.advanceUs
-        val metadata = nowPlayingFor(channel)
-        wrapper.publishNowPlaying(metadata)
         player.setMediaItem(
             MediaItem.Builder()
                 .setUri(channel.streamUrl)
@@ -261,15 +269,22 @@ fun PlayerScreen(
         }
     }
 
-    // Stopped, not paused: the TV's one hardware decoder and the Dispatcharr stream go free while another
-    // app is in front. The media item and playWhenReady survive, so prepare() resumes at the live edge, or
-    // stays paused if the user had paused.
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.stop() }
-
-    LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (player.mediaItemCount > 0 && player.playbackState == Player.STATE_IDLE) {
-            captionSync.effectiveUs = captionSync.advanceUs
-            player.prepare()
+    // Reconnects a stream that stopped arriving before its buffer runs dry; see StallWatch.
+    LaunchedEffect(player) {
+        val watch = StallWatch()
+        while (true) {
+            delay(STALL_CHECK_MS)
+            val active = player.playWhenReady &&
+                (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING)
+            if (!active) {
+                watch.reset()
+                continue
+            }
+            if (watch.shouldReconnect(SystemClock.uptimeMillis(), player.bufferedPosition, player.totalBufferedDuration)) {
+                captionSync.effectiveUs = captionSync.advanceUs
+                player.stop()
+                player.prepare()
+            }
         }
     }
 

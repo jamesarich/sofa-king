@@ -24,17 +24,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -47,6 +44,7 @@ import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.player.LiveVideo
+import dev.jamesrich.sofaking.ui.player.currentStreamUrl
 import dev.jamesrich.sofaking.ui.player.recoverIfBehindLive
 import dev.jamesrich.sofaking.ui.range
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
@@ -134,19 +132,24 @@ internal fun PreviewDetails(
 }
 
 /**
- * Muted live preview of [channel]. Tunes [PREVIEW_DEBOUNCE_MS] after focus rests on a stream, and
- * stops on ON_STOP and resumes on ON_START. The one preview player is released when this leaves composition.
+ * Muted live preview of [channel] on the app's shared [player]. Tunes [PREVIEW_DEBOUNCE_MS] after focus
+ * rests on a different stream; a stream the player already holds (the channel just watched) keeps playing.
+ * The player belongs to the app, which stops it in the background and releases it.
  */
 @OptIn(UnstableApi::class)
 @Composable
-internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val player = remember { buildPreviewPlayer(context) }
-    val tuner = remember { PreviewTuner() }
-    var buffering by remember { mutableStateOf(false) }
+internal fun PreviewVideo(player: ExoPlayer, channel: Channel?, modifier: Modifier = Modifier) {
+    var buffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
     var failed by remember { mutableStateOf(false) }
 
     DisposableEffect(player) {
+        player.volume = 0f
+        // Back from a paused full screen: rejoin the live edge rather than play from where it paused.
+        if (!player.playWhenReady) {
+            player.playWhenReady = true
+            player.stop()
+            player.prepare()
+        }
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
@@ -158,37 +161,22 @@ internal fun PreviewVideo(channel: Channel?, modifier: Modifier = Modifier) {
             }
         }
         player.addListener(listener)
-        onDispose {
-            player.removeListener(listener)
-            player.release()
-        }
-    }
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, player) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) {
-                player.stop()
-            } else if (event == Lifecycle.Event.ON_START && player.mediaItemCount > 0) {
-                // Re-prepares the item already set; a live stream resumes at the live edge.
-                player.prepare()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        onDispose { player.removeListener(listener) }
     }
 
     val streamUrl = channel?.streamUrl
     LaunchedEffect(streamUrl) {
         if (streamUrl == null) return@LaunchedEffect
+        if (player.currentStreamUrl == streamUrl) {
+            if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            return@LaunchedEffect
+        }
         delay(PREVIEW_DEBOUNCE_MS)
-        if (!tuner.needsTune(streamUrl)) return@LaunchedEffect
         failed = false
         // Reset the renderers before a new item, as the full-screen player does.
         player.stop()
         player.setMediaItem(MediaItem.fromUri(streamUrl))
         player.prepare()
-        tuner.markTuned(streamUrl)
     }
 
     Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).background(SofaScrim)) {

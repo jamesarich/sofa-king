@@ -8,9 +8,6 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.CaptionStyleCompat
-import androidx.media3.ui.SubtitleView
-import dev.jamesrich.sofaking.data.CaptionStyle
 
 /** CEA-608 CC1 and CEA-708 service 1, declared together so the SEI reader emits both. */
 @OptIn(UnstableApi::class)
@@ -19,10 +16,6 @@ internal fun captionFormats(): List<Format> = listOf(
     Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA708).setAccessibilityChannel(1).build(),
 )
 
-private const val CAPTION_LARGE_SCALE = 1.3f
-private const val CAPTION_WHITE = 0xFFFFFFFF.toInt()
-private const val CAPTION_OPAQUE_BLACK = 0xFF000000.toInt()
-private const val CAPTION_CLEAR = 0x00000000
 
 /**
  * Points the text selection at CEA-708 service 1, else CEA-608 CC1 (see [CaptionPolicy.preferredTextTrack]).
@@ -51,27 +44,6 @@ internal fun preferCaptionTrack(player: ExoPlayer) {
         .clearOverridesOfType(C.TRACK_TYPE_TEXT)
         .apply { wanted?.let { addOverride(it) } }
         .build()
-}
-
-/** System settings, or large white text on an opaque black box; applied on every change of [style]. */
-@OptIn(UnstableApi::class)
-internal fun applyCaptionAppearance(subtitles: SubtitleView, style: CaptionStyle, bottomFraction: Float) {
-    when (style) {
-        CaptionStyle.SYSTEM -> {
-            subtitles.setUserDefaultStyle()
-            subtitles.setUserDefaultTextSize()
-            subtitles.setApplyEmbeddedStyles(true)
-        }
-        CaptionStyle.LARGE_HIGH_CONTRAST -> {
-            // Embedded 608/708 colors would override the box, so they are turned off for this style.
-            subtitles.setStyle(
-                CaptionStyleCompat(CAPTION_WHITE, CAPTION_OPAQUE_BLACK, CAPTION_CLEAR, CaptionStyleCompat.EDGE_TYPE_NONE, CAPTION_CLEAR, null),
-            )
-            subtitles.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * CAPTION_LARGE_SCALE)
-            subtitles.setApplyEmbeddedStyles(false)
-        }
-    }
-    subtitles.setBottomPaddingFraction(bottomFraction)
 }
 
 /** Text tracks are disabled rather than unselected so a zap keeps the user's choice. */

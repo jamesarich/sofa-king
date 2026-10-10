@@ -47,7 +47,7 @@ internal object CaptionPolicy {
 
     private fun TextTrackInfo.isCea608() = mimeType == MimeTypes.APPLICATION_CEA608
 
-    /** SubtitleView bottom padding as a fraction of its height, so cues clear the overscan band. */
+    /** Bottom inset for captions as a fraction of the height, so cues clear the overscan band. */
     fun bottomPaddingFraction(screenHeightDp: Int): Float {
         require(screenHeightDp > 0) { "screen height must be positive: $screenHeightDp" }
         return OVERSCAN_BOTTOM_DP.toFloat() / screenHeightDp

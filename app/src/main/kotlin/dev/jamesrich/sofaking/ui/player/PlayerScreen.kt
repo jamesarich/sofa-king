@@ -460,7 +460,7 @@ fun PlayerScreen(
             .onPreviewKeyEvent { event -> handleKeyEvent(event) },
     ) {
         LiveVideo(player, Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
-        CaptionLayer(player, captionStyle, captionBottomFraction, Modifier.fillMaxSize())
+        Captions(player, captionStyle, captionBottomFraction, Modifier.fillMaxSize())
         KeepScreenOn(playing)
 
         val channel = currentChannels.getOrNull(index)

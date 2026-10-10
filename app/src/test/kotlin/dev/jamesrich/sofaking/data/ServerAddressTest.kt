@@ -41,4 +41,20 @@ class ServerAddressTest {
         assertNull(ServerAddress.normalizeProfile(""))
         assertNull(ServerAddress.normalizeProfile("living/room"))
     }
+
+    @Test
+    fun `base addresses cannot contain credentials queries or fragments`() {
+        assertNull(ServerAddress.normalizeUrl("https://user:secret@tv.example"))
+        assertNull(ServerAddress.normalizeUrl("https://tv.example?token=secret"))
+        assertNull(ServerAddress.normalizeUrl("https://tv.example#fragment"))
+        assertNull(ServerAddress.normalizeUrl("http://tv.example:65536"))
+    }
+
+    @Test
+    fun `profile delimiters are encoded as literal path data`() {
+        assertEquals("living%20room%3Fx=1%23a%25", ServerAddress.profilePath("living room?x=1#a%"))
+        assertNull(ServerAddress.normalizeProfile(".."))
+        assertNull(ServerAddress.normalizeProfile("living\\room"))
+        assertNull(ServerAddress.normalizeProfile("living\nroom"))
+    }
 }

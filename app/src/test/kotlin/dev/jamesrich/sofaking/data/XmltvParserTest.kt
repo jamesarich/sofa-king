@@ -89,4 +89,16 @@ class XmltvParserTest {
         assertNull(current)
         assertNotNull(next)
     }
+
+    @Test
+    fun `zero and negative programme durations are discarded`() {
+        val parser = KXmlParser().apply {
+            setInput("""<tv>
+                <programme channel="5" start="20261009120000 +0000" stop="20261009120000 +0000"><title>Zero</title></programme>
+                <programme channel="5" start="20261009120000 +0000" stop="20261009110000 +0000"><title>Negative</title></programme>
+                <programme channel="5" start="20261009120000 +0000" stop="20261009130000 +0000"><title>Valid</title></programme>
+                </tv>""".trimIndent().reader())
+        }
+        assertEquals("Valid", XmltvParser.parse(parser)["5"]?.single()?.title)
+    }
 }

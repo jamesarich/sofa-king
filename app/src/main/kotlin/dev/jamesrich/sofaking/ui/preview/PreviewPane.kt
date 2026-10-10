@@ -27,6 +27,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.withStateAtLeast
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -42,17 +45,17 @@ import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.label
-import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.player.LiveVideo
 import dev.jamesrich.sofaking.ui.player.currentStreamUrl
 import dev.jamesrich.sofaking.ui.player.recoverIfBehindLive
 import dev.jamesrich.sofaking.ui.range
+import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
-import kotlinx.coroutines.delay
 import java.time.Instant
+import kotlinx.coroutines.delay
 
 /** Kill switch: false removes the pane and the preview player entirely. */
 const val PREVIEW_ENABLED = true
@@ -143,13 +146,14 @@ internal fun PreviewVideo(player: ExoPlayer, channel: Channel?, modifier: Modifi
     var buffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
     var failed by remember { mutableStateOf(false) }
 
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(player) {
         player.volume = 0f
         // Back from a paused full screen: rejoin the live edge rather than play from where it paused.
         if (!player.playWhenReady) {
             player.playWhenReady = true
             player.stop()
-            player.prepare()
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) player.prepare()
         }
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -166,18 +170,22 @@ internal fun PreviewVideo(player: ExoPlayer, channel: Channel?, modifier: Modifi
     }
 
     val streamUrl = channel?.streamUrl
-    LaunchedEffect(streamUrl) {
+    LaunchedEffect(streamUrl, lifecycle) {
         if (streamUrl == null) return@LaunchedEffect
         if (player.currentStreamUrl == streamUrl) {
-            if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
+                if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            }
             return@LaunchedEffect
         }
         delay(PREVIEW_DEBOUNCE_MS)
-        failed = false
-        // Reset the renderers before a new item, as the full-screen player does.
-        player.stop()
-        player.setMediaItem(MediaItem.fromUri(streamUrl))
-        player.prepare()
+        lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
+            failed = false
+            // Reset the renderers before a new item, as the full-screen player does.
+            player.stop()
+            player.setMediaItem(MediaItem.fromUri(streamUrl))
+            player.prepare()
+        }
     }
 
     Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).background(SofaScrim)) {
@@ -197,7 +205,7 @@ internal fun PreviewVideo(player: ExoPlayer, channel: Channel?, modifier: Modifi
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                SofaLoader(16.dp)
+                SofaLoader(size = 16.dp)
                 Text(stringResource(R.string.tuning), style = MaterialTheme.typography.labelLarge, color = SofaDusk)
             }
         }

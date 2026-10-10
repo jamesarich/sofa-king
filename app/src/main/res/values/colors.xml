@@ -1,8 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="sofa_plum">#FF14111F</color>
-    <color name="sofa_plum_raised">#FF2A2440</color>
-    <color name="sofa_dusk">#FFF4EFFA</color>
-    <color name="sofa_amber">#FFFFB547</color>
-    <color name="sofa_lavender">#FFC9B8FF</color>
 </resources>

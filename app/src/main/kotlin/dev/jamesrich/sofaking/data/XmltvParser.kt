@@ -31,7 +31,7 @@ object XmltvParser {
         }
         val start = parser.getAttributeValue(null, "start")?.let(::parseTime)
         val stop = parser.getAttributeValue(null, "stop")?.let(::parseTime)
-        if (start == null || stop == null) {
+        if (start == null || stop == null || stop <= start) {
             skipElement(parser, depth)
             return null
         }

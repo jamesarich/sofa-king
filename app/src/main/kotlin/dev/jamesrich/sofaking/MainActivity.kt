@@ -206,7 +206,7 @@ private fun Header(refreshing: Boolean, onSettings: () -> Unit, onRefresh: () ->
             exit = PopOut,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SofaLoader(28.dp)
+                SofaLoader(size = 28.dp)
                 Text(
                     stringResource(R.string.refreshing),
                     style = MaterialTheme.typography.labelLarge,

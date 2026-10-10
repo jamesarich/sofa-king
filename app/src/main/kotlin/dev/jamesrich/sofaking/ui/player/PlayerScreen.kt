@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedContent
@@ -33,8 +34,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -62,9 +64,8 @@ import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
-import android.util.Log
-import kotlinx.coroutines.delay
 import java.time.Instant
+import kotlinx.coroutines.delay
 
 private const val ZAP_OVERLAY_MS = 5_000L
 private const val DIGIT_COMMIT_MS = 1_500L
@@ -107,7 +108,8 @@ fun PlayerScreen(
     val currentOnChannelChanged by rememberUpdatedState(onChannelChanged)
     val currentOnCaptionsChanged by rememberUpdatedState(onCaptionsChanged)
     val currentOnCaptionAdvanceChanged by rememberUpdatedState(onCaptionAdvanceChanged)
-    val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(LocalConfiguration.current.screenHeightDp)
+    val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
+    val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(windowHeightDp)
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, (channels.size - 1).coerceAtLeast(0))) }
     var previousIndex by remember { mutableStateOf<Int?>(null) }
     // What load() last tuned and what was watched before it, so a refreshed lineup can be followed by identity.
@@ -255,13 +257,16 @@ fun PlayerScreen(
         previousIndex = previousChannel?.let { indexAfterRefresh(channels, it) }
     }
 
-    LaunchedEffect(index, currentChannel?.streamUrl) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(index, currentChannel?.streamUrl, lifecycle) {
         val channel = currentChannel ?: return@LaunchedEffect
-        val before = tuned
-        tuned = channel
-        // The same stream after a refresh keeps playing; the same stream under a different number is still a change of channel.
-        if (before?.streamUrl != channel.streamUrl) load(channel)
-        if (before?.guideId != channel.guideId) currentOnChannelChanged(channel)
+        lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
+            val before = tuned
+            tuned = channel
+            // A refresh preserves the stream; a different guide ID still changes the saved channel.
+            if (before?.streamUrl != channel.streamUrl) load(channel)
+            if (before?.guideId != channel.guideId) currentOnChannelChanged(channel)
+        }
     }
 
     // Moves the session's programme title on when the show changes; the stream is not touched.
@@ -305,7 +310,6 @@ fun PlayerScreen(
 
     // Reconnects with backoff for as long as the channel is on screen, and only while the app is in front:
     // a retry in the background would take the TV's decoder and a Dispatcharr slot.
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(failure) {
         val current = failure ?: return@LaunchedEffect
         delay(reconnectDelayMs(current.attempt))

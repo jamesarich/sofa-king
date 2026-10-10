@@ -43,7 +43,7 @@ private const val SPIN_MS = 4_500
  * The animated values are read only in the draw phase, so it never recomposes while it spins.
  */
 @Composable
-fun SofaLoader(size: Dp = 48.dp, color: Color = SofaAmber, modifier: Modifier = Modifier) {
+fun SofaLoader(modifier: Modifier = Modifier, size: Dp = 48.dp, color: Color = SofaAmber) {
     val transition = rememberInfiniteTransition(label = "loader")
     val step = transition.animateFloat(
         initialValue = 0f,

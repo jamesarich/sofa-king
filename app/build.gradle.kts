@@ -16,8 +16,8 @@ android {
         versionName = "0.1.0"
 
         // Dispatcharr base URL and channel profile; override with -PdispatcharrUrl=... -PdispatcharrProfile=...
-        buildConfigField("String", "DISPATCHARR_URL", "\"${project.findProperty("dispatcharrUrl") ?: "http://192.168.1.3:9191"}\"")
-        buildConfigField("String", "DISPATCHARR_PROFILE", "\"${project.findProperty("dispatcharrProfile") ?: "livingroom"}\"")
+        buildConfigField("String", "DISPATCHARR_URL", groovy.json.JsonOutput.toJson((project.findProperty("dispatcharrUrl") ?: "http://192.168.1.3:9191").toString()))
+        buildConfigField("String", "DISPATCHARR_PROFILE", groovy.json.JsonOutput.toJson((project.findProperty("dispatcharrProfile") ?: "livingroom").toString()))
     }
 
     buildFeatures {
@@ -46,6 +46,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(libs.okhttp)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -69,4 +70,8 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kxml2)
     testImplementation(libs.kotlinx.coroutines.test)
+}
+
+dependencyLocking {
+    lockAllConfigurations()
 }

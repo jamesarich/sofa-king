@@ -3,7 +3,6 @@
     <string name="captions_on">Captions on</string>
     <string name="captions_off">Captions off</string>
     <string name="captions_unavailable">No captions on this channel</string>
-    <string name="captions_indicator">CC</string>
     <string name="captions_setting">Closed captions</string>
     <string name="captions_indicator_timing">CC %1$s s early ◀ ▶</string>
     <string name="caption_timing">Default caption timing</string>

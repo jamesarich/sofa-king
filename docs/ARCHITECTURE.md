@@ -1,6 +1,6 @@
 # Architecture
 
-Sofa King is a single Android module (`:app`) written in Kotlin with Compose for TV, `androidx.tv.material3` and Media3. It has no backend of its own: it reads the playlist and guide that Dispatcharr already publishes and plays the streams Dispatcharr proxies.
+Sofa King is a single Android module (`:app`) written in Kotlin with Compose for TV, `androidx.tv.material3` and Media3. The current Android data path reads M3U/XMLTV feeds and plays their stream URLs. The separate [Sofa King backend](https://github.com/jamesarich/sofa-king-backend) implements the native JSON/session API; the app has not integrated that API yet.
 
 ## Packages
 
@@ -19,10 +19,10 @@ All code lives under `dev.jamesrich.sofaking`.
 
 ## Data flow
 
-```
+```text
 Dispatcharr
-  /output/m3u/<profile>            playlist    -> M3uParser  -> List<Channel>
-  /output/epg/<profile>?days=1     XMLTV       -> XmltvParser -> Map<guideId, List<Programme>>
+  /output/m3u/PROFILE            playlist    -> M3uParser  -> List<Channel>
+  /output/epg/PROFILE?days=1     XMLTV       -> XmltvParser -> Map<guideId, List<Programme>>
                                                        |
             LineupCache (filesDir/lineup-cache.bin) <->  LineupViewModel (StateFlow<LineupState>)
                                                        |
@@ -42,7 +42,7 @@ Dispatcharr
 
 ## Threading
 
-- Network and parsing run in `withContext(Dispatchers.IO)` inside `DispatcharrRepository`; the cache reads and writes on IO as well. Nothing on the main thread reads a socket or a file.
+- Network and parsing run on an injected IO dispatcher inside `DispatcharrRepository`; an owned cancellation child cancels the OkHttp call and closes its socket when the load is canceled. OkHttp handles transparent gzip. the cache reads and writes on IO as well. Nothing on the main thread reads a socket or a file.
 - `LineupViewModel` runs its load loop in `viewModelScope`. Its flows use `stateIn(..., SharingStarted.Eagerly, ...)`, so the lineup is ready before the first screen asks for it.
 - Settings writes launch in `viewModelScope`. The DataStore backing scope uses `Dispatchers.IO`.
 - `rememberMinuteNow` ticks once a minute to move the "now" marker, the airing cells, the info bar and the mini-guide. Nothing calls `Instant.now()` during composition.
@@ -55,7 +55,7 @@ Dispatcharr
 - Up and Down are handled before focus search (`onGridKey`): the target row is the next one and the target cell is the one under the time cursor, so a long cell cannot pull focus hours ahead.
 - `Channel`, `Programme`, `Lineup` and `GuideCell` are `@Immutable`; `GuideRowEnv` carries strings, the formatter, pixel sizes and callbacks once per guide; a cell formats its accessibility description only inside `semantics {}`. The focused cell is read by the preview band alone.
 - Filter, search, the time cursor, scroll and the focused channel are saveable and the guide branch sits in a `SaveableStateHolder`, so Back from the player returns to the same cell. A fresh guide starts on the last channel watched.
-- The preview tunes the shared player 350 ms after focus rests on a different stream and plays it muted; a stream the player already holds, such as the channel just watched, keeps playing.
+- The preview tunes the shared player after a 350 ms focus debounce and waits for the activity to reach STARTED before preparing it; a stream the player already holds, such as the channel just watched, keeps playing.
 
 ## Playback
 
@@ -65,19 +65,19 @@ Dispatcharr
 - On `ERROR_CODE_BEHIND_LIVE_WINDOW`, the player seeks to the default position and prepares again. Any other error, or the stream ending, reconnects with backoff (2, 4, 8, 15, then every 30 s) while the channel is on screen and the app is in front; OK retries at once.
 - ON_STOP stops the player, freeing the TV's hardware decoder and the Dispatcharr stream; ON_START prepares the same item, which resumes at the live edge or stays paused if the user had paused. OK on the previewed channel hands the playing stream to the full screen without a reload, and Back hands it to the preview.
 - The screen stays on only while the player reports `isPlaying`, never during autoplay. The audible player handles audio focus.
-- The `MediaSession` lives as long as the player. There is no background playback service.
+- The `MediaSession` exists while `PlayerScreen` is composed; the shared player also serves the guide preview. There is no background playback service.
 - Video uses `media3-ui-compose`'s `ContentFrame` (`PlayerVideo.LiveVideo`): a SurfaceView sized to the picture, covered by a shutter from each `stop()` until the next rendered frame. Captions are drawn in Compose (`Captions`): cues from `onCues` become state, each placed at its 608/708 row and column by `CaptionGeometry`, styled from the system caption settings or the high-contrast style, and kept clear of the overscan band. `KeepScreenOn` holds the screen through the host view while playing.
 
 ## Key decisions
 
-- **Dispatcharr is the only source.** The app does not talk to any other service, so the server's own channel profile decides what appears on the TV.
+- **M3U/XMLTV is the current adapter.** `DispatcharrRepository` appends profile endpoints to the configured server. Native Sofa King backend integration is the next data-path change.
 - **Cache, then channels, then guide.** The last lineup is on screen at once; the playlist is small and parses quickly; the guide is the slow part on a Chromecast with Google TV.
 - **One day of guide.** The default XMLTV window is about 16 MB and one day is about 6.6 MB. A day is enough for the grid and parses about 2.5 times faster.
 - **Lineup only.** Programs for channels outside the profile are dropped during parsing, so memory tracks the lineup, not the server's full guide.
 - **Compose for TV only.** Components come from `androidx.tv.material3`. Mobile Material 3 is not mixed in. Lists use foundation `LazyColumn`, `LazyRow` and `LazyVerticalGrid`.
 - **D-pad first.** Every lazy container has `focusRestorer`, and focus is requested only from `LaunchedEffect` or a callback, through `requestFocusWhenAttached` for lazy items. Back returns toward the channel list.
 - **Overscan padding.** Full-screen content keeps 48dp horizontal and 27dp vertical padding; the app header carries the top margin above the guide.
-- **No background playback.** No service keeps a stream alive outside the player screen, and a stopped activity holds no decoder. The `MediaSession` exists only while the player does.
+- **No background playback.** No service keeps a stream alive outside the player screen, and a stopped activity holds no decoder. The `MediaSession` exists only while the full-screen player is composed.
 - **Guide in the app.** The Google TV Live tab and the TV Input Framework are not open to third-party apps, so the guide lives inside Sofa King.
 - **Brand on every screen.** Plum background, amber for focus and emphasis, lavender for the mark; overlays over video use a plum scrim chosen for contrast over any picture.
 

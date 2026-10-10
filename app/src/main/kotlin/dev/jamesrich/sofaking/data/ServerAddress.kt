@@ -18,10 +18,17 @@ object ServerAddress {
         }
         val scheme = uri.scheme?.lowercase()
         if (scheme != "http" && scheme != "https") return null
-        if (uri.host.isNullOrEmpty()) return null
+        if (uri.host.isNullOrEmpty() || uri.rawUserInfo != null || uri.rawQuery != null || uri.rawFragment != null) return null
+        if (uri.port < -1 || uri.port > 65535) return null
         return trimmed
     }
 
     /** [raw] trimmed, or null when nothing is left; the profile is a path segment on the server. */
-    fun normalizeProfile(raw: String): String? = raw.trim().takeIf { it.isNotEmpty() && !it.contains('/') }
+    fun normalizeProfile(raw: String): String? = raw.trim().takeIf {
+        it.isNotEmpty() && it !in setOf(".", "..") &&
+            it.none { char -> char == '/' || char == '\\' || char.isISOControl() }
+    }
+
+    /** Encodes a profile as one path segment, including literal percent signs and query delimiters. */
+    fun profilePath(profile: String): String = URI(null, null, "/$profile", null).rawPath.substring(1)
 }

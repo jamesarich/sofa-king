@@ -60,7 +60,7 @@ fun MessageScreen(
             LogoMark(96.dp)
             Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
-            if (loading) SofaLoader(56.dp)
+            if (loading) SofaLoader(size = 56.dp)
             Text(message, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
             if (detail != null) {
                 Text(detail, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)

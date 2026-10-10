@@ -1,9 +1,11 @@
 package dev.jamesrich.sofaking.ui.player
 
 import android.os.SystemClock
+import androidx.annotation.OptIn
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -11,6 +13,7 @@ import java.util.concurrent.CopyOnWriteArraySet
  * The player the MediaSession sees. System next and previous (Assistant, media keys) zap channels through
  * [onZapStep]; play, pause and the resume-to-live rule apply to every path, not just the remote's keys.
  */
+@OptIn(UnstableApi::class)
 internal class LivePlayerWrapper(private val live: ExoPlayer) : ForwardingPlayer(live) {
     /** +1 for the next channel, -1 for the previous one. */
     var onZapStep: (Int) -> Unit = {}

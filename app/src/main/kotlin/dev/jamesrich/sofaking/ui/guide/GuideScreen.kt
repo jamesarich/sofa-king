@@ -44,7 +44,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -284,7 +284,7 @@ fun GuideScreen(
         }
     }
 
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val noListing = stringResource(R.string.no_listing)
     val favoriteLabel = stringResource(R.string.guide_favorite)
     val toggleFavoriteLabel = stringResource(R.string.guide_toggle_favorite)

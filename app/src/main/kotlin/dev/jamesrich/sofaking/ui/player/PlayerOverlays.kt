@@ -58,7 +58,7 @@ internal fun StatusPill(text: String, style: TextStyle = MaterialTheme.typograph
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (busy) SofaLoader(22.dp)
+        if (busy) SofaLoader(size = 22.dp)
         Text(text, style = style, color = SofaDusk)
     }
 }

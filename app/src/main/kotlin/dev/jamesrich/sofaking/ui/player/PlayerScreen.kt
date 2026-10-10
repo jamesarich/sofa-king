@@ -37,6 +37,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.withStateAtLeast
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -66,10 +69,10 @@ import java.time.Instant
 private const val ZAP_OVERLAY_MS = 5_000L
 private const val DIGIT_COMMIT_MS = 1_500L
 private const val NOT_FOUND_MS = 2_000L
-private const val RETRY_MS = 3_000L
 private const val CAPTION_TOAST_MS = 2_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
 private const val METADATA_REFRESH_MS = 60_000L
+private const val STREAM_ENDED = "STREAM_ENDED"
 private const val TAG = "SofaKing"
 
 /** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
@@ -78,8 +81,9 @@ private class Notice(val digits: String)
 /** Caption toggle feedback; compared by identity so a repeated press restarts its timer. */
 private class CaptionToast(val outcome: CaptionToggleOutcome)
 
-/** A playback error that is not behind-live-window; [retriesUsed] is 0 until the one automatic retry. */
-private data class Failure(val code: String, val retriesUsed: Int)
+/** A stream that failed or ended; [attempt] counts the automatic reconnects made for it so far. */
+private data class Failure(val code: String, val attempt: Int)
+
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -160,11 +164,13 @@ fun PlayerScreen(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
                 if (playbackState == Player.STATE_READY) failure = null
+                // A live stream never ends; Dispatcharr closed the connection, so treat it as a failure and reconnect.
+                if (playbackState == Player.STATE_ENDED) failure = Failure(STREAM_ENDED, attempt = failure?.attempt ?: 0)
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 if (player.recoverIfBehindLive(error)) return
-                failure = Failure(error.errorCodeName, retriesUsed = failure?.retriesUsed ?: 0)
+                failure = Failure(error.errorCodeName, attempt = failure?.attempt ?: 0)
             }
         }
         player.addListener(listener)
@@ -181,7 +187,7 @@ fun PlayerScreen(
         val metadata = nowPlayingFor(channel)
         wrapper.publishNowPlaying(metadata)
         // Handed over from the guide preview mid-stream: keep it, and let the caption lead grow back from zero.
-        if (player.currentStreamUrl == channel.streamUrl && player.playbackState != Player.STATE_IDLE) {
+        if (player.currentStreamUrl == channel.streamUrl && (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING)) {
             captionSync.effectiveUs = 0L
             return
         }
@@ -297,13 +303,15 @@ fun PlayerScreen(
         }
     }
 
-    // Auto-retry once after 3 s; a second failure leaves the message up.
+    // Reconnects with backoff for as long as the channel is on screen, and only while the app is in front:
+    // a retry in the background would take the TV's decoder and a Dispatcharr slot.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(failure) {
         val current = failure ?: return@LaunchedEffect
-        if (current.retriesUsed > 0) return@LaunchedEffect
-        delay(RETRY_MS)
+        delay(reconnectDelayMs(current.attempt))
+        lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
         val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
-        failure = current.copy(retriesUsed = 1)
+        failure = current.copy(attempt = current.attempt + 1)
         load(channel)
     }
 

@@ -62,7 +62,7 @@ Dispatcharr
 - `buildLivePlayer` builds the app's one player: TS extractor flags that allow non-IDR keyframes and detect access units, because Dispatcharr streams are continuous MPEG-TS that can start mid-GOP. It also declares the CEA-608/708 formats, wraps the text renderer for `CaptionSync` and installs `CaptionSyncLoadControl`.
 - Each zap calls `stop()`, `setMediaItem` and `prepare()` on the same player; the stop resets the renderers so the next stream's decoder rescales rather than reusing the old surface size.
 - The tuned channel is tracked by guide id and number, so a refreshed lineup that reorders or grows keeps the stream and moves the row.
-- On `ERROR_CODE_BEHIND_LIVE_WINDOW`, the player seeks to the default position and prepares again. Any other error retries once after 3 s; OK retries again.
+- On `ERROR_CODE_BEHIND_LIVE_WINDOW`, the player seeks to the default position and prepares again. Any other error, or the stream ending, reconnects with backoff (2, 4, 8, 15, then every 30 s) while the channel is on screen and the app is in front; OK retries at once.
 - ON_STOP stops the player, freeing the TV's hardware decoder and the Dispatcharr stream; ON_START prepares the same item, which resumes at the live edge or stays paused if the user had paused. OK on the previewed channel hands the playing stream to the full screen without a reload, and Back hands it to the preview.
 - The screen stays on only while the player reports `isPlaying`, never during autoplay. The audible player handles audio focus.
 - The `MediaSession` lives as long as the player. There is no background playback service.

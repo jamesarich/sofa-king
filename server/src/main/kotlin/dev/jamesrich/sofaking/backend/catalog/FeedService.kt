@@ -57,6 +57,9 @@ class FeedService(
         val guideRevision = hash(Json.encodeToString(programmes))
         val channelsRevision = hash(Json.encodeToString(channels))
 
+        /** Which sources each channel has decides playbackEligible, and a withdrawal writes no health row. */
+        val offeringsRevision = hash(offerings.sortedBy { it.id }.joinToString(",") { "${it.id}:${it.channelId}" })
+
         /** When each channel's guide runs out; the only time-dependent input to the catalog body. */
         val guideEnds = programmesByChannel.mapValues { (_, rows) -> rows.maxOf { Instant.parse(it.endsAt) } }
         val guideEndsSorted = guideEnds.entries.sortedBy { it.key }.map { it.key to it.value }
@@ -188,12 +191,12 @@ class FeedService(
         )
     }
 
-    /** Snapshot, guide coverage, health version and which channels' guides are still current: everything the body depends on. */
+    /** Channels, offerings, guide coverage, health version and which guides are still current: everything the body depends on. */
     suspend fun catalogRevision(): String {
         val current = published.get()
         val now = clock.instant()
         val available = buildString { for ((id, end) in current.guideEndsSorted) if (end > now) append(id).append(',') }
-        return hash("${current.channelsRevision}:${current.guideCoverage}:${store.healthVersion()}:${hash(available)}")
+        return hash("${current.channelsRevision}:${current.offeringsRevision}:${current.guideCoverage}:${store.healthVersion()}:${hash(available)}")
     }
 
     suspend fun catalog(revision: String? = null): Catalog {

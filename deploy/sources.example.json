@@ -1,0 +1,8 @@
+[
+  {
+    "id": "dispatcharr",
+    "playlistUrl": "http://192.168.1.3:9191/output/m3u/sofaking?direct=true",
+    "guideUrl": "http://192.168.1.3:9191/output/epg/sofaking",
+    "defaultProtocol": "hls"
+  }
+]

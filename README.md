@@ -49,6 +49,7 @@ The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contain
 ## Documentation
 
 - [Configuration and troubleshooting](docs/live-tv.md)
+- [Deploy with Docker](docs/deploy.md)
 - [HTTP API and Kotlin client](docs/api.md)
 - [Source health and automatic recovery](docs/source-health.md)
 - [Architecture](docs/architecture.md)

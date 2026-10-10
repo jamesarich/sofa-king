@@ -6,6 +6,8 @@
 *.iml
 # Runtime state and credentials
 /data/
+/deploy/data/
+/deploy/sources.json
 .env
 .env.*
 !.env.example

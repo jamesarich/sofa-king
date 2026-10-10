@@ -60,7 +60,7 @@ The response contains `id`, `expiresAt`, and a `descriptor` with `protocol`, `mi
 
 The descriptor's `protocol`, `mimeType` and URL suffix (`.m3u8` or `.ts`) come from the source's protocol, not from the upstream path. If the first media fetch finds the other protocol (an M3U behind an extensionless URL, or MPEG-TS behind a `.m3u8` path), the server records it, increments the epoch and answers `410 STREAM_CHANGED`; fetch the session and open the new URL. Later sessions on that source start with the detected protocol.
 
-Sessions expire after 90 seconds without renewal. Renew and promote a preview without replacing its stream:
+A watch session expires 90 seconds after its last renewal, a preview after 45 seconds. When `SOFA_MAX_SESSIONS` sessions are active, a new request evicts the oldest preview session (its media requests end and later calls on it answer `410 SESSION_EXPIRED`); if every active session is a watch, the request fails with `429 CAPACITY_EXHAUSTED`. Renew and promote a preview without replacing its stream:
 
 ```sh
 curl --fail -X PATCH \
@@ -104,6 +104,8 @@ try {
 During playback, collect `playback.state`. For `PlaybackState.Ready`, resolve the descriptor with `client.mediaUrl(descriptor)` and reopen media when `epoch` changes. `Unavailable` supplies an error code and retry flag; `Closed` ends playback.
 
 Handles renew and fetch descriptors every 30 seconds. Close handles when their UI owner ends and close the client when its owner ends. Cleanup runs despite caller cancellation; DELETE has a 12-second deadline, with lease expiry covering unreachable servers.
+
+`openPlayback` generates one idempotency key per call and retries a transport failure or server-side 5xx up to three times with that key inside its 12-second budget, so a retry resumes the session the first attempt created instead of opening another. Client-side errors such as `404 CHANNEL_NOT_FOUND` are not retried.
 
 ## Errors
 

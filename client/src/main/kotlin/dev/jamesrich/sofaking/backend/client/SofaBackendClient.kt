@@ -65,6 +65,7 @@ class SofaBackendClient(
     baseUrl: String,
     private val token: String? = null,
     httpClient: HttpClient? = null,
+    private val retryBackoffMillis: Long = 300,
 ) {
     private val base =
         URI(baseUrl.trimEnd('/') + "/").also {
@@ -108,6 +109,7 @@ class SofaBackendClient(
     ): PlaybackHandle =
         mutex.withLock {
             check(!closed) { "Client is closed" }
+            // One idempotency key for the whole logical create: a retried request reuses the session the first one made.
             val body = json.encodeToString(OpenPlayback(channelId, intent, UUID.randomUUID().toString()))
             // Parse inside a bounded non-cancellable block, so a lost UI request still learns which session to release.
             var session: PlaybackSession? = null
@@ -115,9 +117,11 @@ class SofaBackendClient(
                 val opened =
                     withContext(NonCancellable) {
                         withTimeout(12_000) {
-                            decode<PlaybackSession>(request("/api/v1/playback-sessions", HttpMethod.Post, body)).also {
-                                session =
-                                    it
+                            retrying {
+                                decode<PlaybackSession>(request("/api/v1/playback-sessions", HttpMethod.Post, body)).also {
+                                    session =
+                                        it
+                                }
                             }
                         }
                     }
@@ -222,6 +226,22 @@ class SofaBackendClient(
             request("/api/v1/playback-sessions/$id", HttpMethod.Delete)
             Unit
         }
+
+    /** Three attempts over transport failures and server-side 5xx; client-side answers are returned as they are. */
+    private suspend fun <T> retrying(block: suspend () -> T): T {
+        var attempt = 0
+        while (true) {
+            try {
+                return block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val serverSide = e !is BackendException || e.error.code == "INTERNAL_ERROR" || e.error.code == "NOT_READY" || e.error.code.startsWith("HTTP_5")
+                if (!serverSide || ++attempt >= 3) throw e
+                delay(retryBackoffMillis * attempt)
+            }
+        }
+    }
 
     private suspend inline fun <reified T> get(path: String): T = decode(request(path, HttpMethod.Get))
 

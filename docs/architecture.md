@@ -30,7 +30,7 @@ Withdrawn sources lose playback eligibility. Their channels and health records r
 
 ## Playback
 
-Sessions select healthy sources before other eligible sources. They have 90-second leases, preview/watch intent, idempotency keys and stream epochs. Release, expiry and source disable cancel active media requests.
+Sessions select healthy sources before unverified ones, then suspect ones. They have preview/watch intent (45-second and 90-second leases), idempotency keys and stream epochs. At capacity the oldest preview session is evicted. Release, expiry, eviction and source disable cancel active media requests.
 
 The HLS relay rewrites variant, audio, subtitle, key, initialization-map and segment URLs into opaque session paths. It preserves playlist tags and byte ranges. Limits are 12 active requests and 4,096 mapped resources per session, and 32 concurrent upstream connections across the server.
 

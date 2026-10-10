@@ -20,9 +20,9 @@ class SessionManagerTest {
             val opened = sessions.open(request)
             assertEquals(opened, sessions.open(request))
             assertEquals("IDEMPOTENCY_CONFLICT", assertFailsWith<ApiFailure> { sessions.open(request.copy(intent = "watch")) }.code)
-            assertEquals("CAPACITY_EXHAUSTED", assertFailsWith<ApiFailure> { sessions.open(request.copy(idempotencyKey = "two")) }.code)
             val promoted = sessions.update(opened.id, UpdatePlayback("watch"))
             assertEquals("watch", promoted.intent); assertEquals(opened.descriptor, promoted.descriptor)
+            assertEquals("CAPACITY_EXHAUSTED", assertFailsWith<ApiFailure> { sessions.open(request.copy(idempotencyKey = "two")) }.code)
             val mediaJob = Job()
             sessions.acquire(opened.id, 1, opened.descriptor.url.substringAfterLast('/'), mediaJob)
             sessions.release(opened.id)
@@ -32,6 +32,29 @@ class SessionManagerTest {
             val second = sessions.open(request.copy(idempotencyKey = "two"))
             clock.now = clock.now.plusSeconds(91); sessions.expire()
             assertEquals("SESSION_EXPIRED", assertFailsWith<ApiFailure> { sessions.get(second.id) }.code)
+            sessions.close()
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
+    @Test fun `at capacity the oldest preview is evicted and previews hold shorter leases than watches`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-evict-")
+        try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock); feeds.refresh(fixture.feed)
+            val channel = feeds.catalog().channels.single().id
+            val sessions = SessionManager(feeds, store, clock, 2)
+            val first = sessions.open(OpenPlayback(channel, "preview", "first"))
+            assertEquals(clock.now.plusSeconds(45).toString(), first.expiresAt)
+            val watching = sessions.open(OpenPlayback(channel, "watch", "watching"))
+            assertEquals(clock.now.plusSeconds(90).toString(), watching.expiresAt)
+            val firstMedia = Job(); sessions.acquire(first.id, 1, first.descriptor.url.substringAfterLast('/'), firstMedia)
+            val third = sessions.open(OpenPlayback(channel, "preview", "third"))
+            assertTrue(firstMedia.isCancelled)
+            assertEquals("SESSION_EXPIRED", assertFailsWith<ApiFailure> { sessions.get(first.id) }.code)
+            assertEquals(watching.id, sessions.get(watching.id).id); assertEquals(third.id, sessions.get(third.id).id)
+            val promoted = sessions.update(third.id, UpdatePlayback("watch"))
+            assertEquals(clock.now.plusSeconds(90).toString(), promoted.expiresAt)
+            assertEquals("CAPACITY_EXHAUSTED", assertFailsWith<ApiFailure> { sessions.open(OpenPlayback(channel, "preview", "fourth")) }.code)
+            clock.now = clock.now.plusSeconds(46); sessions.expire()
+            assertEquals(watching.id, sessions.get(watching.id).id)
             sessions.close()
         } } } } finally { dir.toFile().deleteRecursively() }
     }

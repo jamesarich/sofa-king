@@ -47,9 +47,15 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
             if (original != request) throw ApiFailure(409, "IDEMPOTENCY_CONFLICT", "Key already used for another request")
             return@withLock sessions[id]?.descriptor() ?: throw ApiFailure(410, "SESSION_EXPIRED", "Session was released or expired")
         }
-        if (sessions.size >= capacity) throw ApiFailure(429, "CAPACITY_EXHAUSTED", "Playback capacity exhausted", true)
+        if (sessions.size >= capacity) {
+            // Previews are the surfing state; the oldest one yields its slot rather than refusing the new request.
+            val preview = sessions.values.firstOrNull { it.intent == "preview" }
+                ?: throw ApiFailure(429, "CAPACITY_EXHAUSTED", "Playback capacity exhausted", true)
+            preview.cancel()
+            sessions.remove(preview.id)
+        }
         val offering = select(request.channelId)
-        val session = LiveSession(UUID.randomUUID().toString(), request, offering, clock.instant().plusSeconds(90))
+        val session = LiveSession(UUID.randomUUID().toString(), request, offering, clock.instant().plus(lease(request.intent)))
         sessions[session.id] = session
         keys[request.idempotencyKey] = request to session.id
         while (keys.size > 4096) keys.remove(keys.keys.first())
@@ -72,9 +78,11 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
         val session = active(id)
         if (update.intent != null && update.intent !in setOf("preview", "watch")) throw ApiFailure(400, "INVALID_REQUEST", "Invalid playback intent")
         update.intent?.let { session.intent = it }
-        session.expires = clock.instant().plusSeconds(90)
+        session.expires = clock.instant().plus(lease(session.intent))
         session.descriptor()
     }
+    /** Watch leases outlast the client's 30-second renewal twice over; abandoned previews free their slot sooner. */
+    private fun lease(intent: String): Duration = if (intent == "watch") Duration.ofSeconds(90) else Duration.ofSeconds(45)
     suspend fun release(id: String) = mutex.withLock { sessions.remove(id)?.cancel(); Unit }
     suspend fun healthChanged(offeringId: String) = mutex.withLock {
         if (store.health(offeringId)?.let(::eligible) != true) {

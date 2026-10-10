@@ -86,6 +86,6 @@ Providers that need secret headers on a different CDN origin are unsupported. Di
 | Extensionless HLS answers `410 STREAM_CHANGED` once | The first fetch detects HLS and bumps the epoch; fetch the session again. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, to avoid that round trip. |
 | Startup rejects LAN binding | Set `SOFA_API_TOKEN` to at least 32 characters. |
 | `401 AUTH_REQUIRED` | Send the configured token in the Authorization header. |
-| `429 CAPACITY_EXHAUSTED` | Release unused sessions or wait for their 90-second leases to expire. |
+| `429 CAPACITY_EXHAUSTED` | Every slot holds a watch session. Release unused sessions or wait for their 90-second leases to expire; previews are evicted automatically. |
 | `503 SOURCE_UNAVAILABLE` | Inspect `/api/v1/sources` for quarantine, probation or manual disable. |
 | Sources never qualify | Check FFmpeg availability, `probe`, and whether the feed has credential/custom headers. |

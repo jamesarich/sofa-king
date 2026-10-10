@@ -1,6 +1,6 @@
 # Sofa King Backend
 
-Use `docs/architecture.md` for service boundaries and `docs/plans/live-tv.md` for the current milestone. Follow a lightweight native workflow: keep the plan current, implement working slices, run relevant checks, and commit verified changes. No Superpowers workflow or approval gates are required.
+Use `README.md` for setup, `docs/api.md` for the wire interface and `docs/architecture.md` for implemented service boundaries. Implement working slices, run relevant checks and commit verified changes.
 
 ## Scope
 
@@ -13,7 +13,11 @@ Use `docs/architecture.md` for service boundaries and `docs/plans/live-tv.md` fo
 
 ## Dependency policy
 
-James requested bleeding-edge server-side prereleases. Prefer the latest published Kotlin EAP, Ktor EAP and serialization prerelease, and latest published supporting libraries; pin exact versions, the wrapper checksum and dependency lockfiles. Verify official release/EAP registries before updates and compile/test the complete selected stack. Avoid dynamic versions and unversioned snapshots. Record source links, verification date and any incompatibility in `docs/dependencies.md`.
+Use bleeding-edge server-side prereleases. Prefer the latest published Kotlin EAP, Ktor EAP and serialization prerelease, and latest published supporting libraries; pin exact versions, the wrapper checksum and dependency lockfiles. Verify official release/EAP registries before updates and compile/test the complete selected stack. Avoid dynamic versions and unversioned snapshots. Update the dependency reference when pins change.
+
+## Documentation
+
+Write current facts and executable instructions. Do not add review diaries, dated test-count summaries, design histories or speculative roadmaps. Put change rationale and validation results in commit or pull-request descriptions.
 
 ## Verification
 

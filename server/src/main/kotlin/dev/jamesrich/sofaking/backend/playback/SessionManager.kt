@@ -103,7 +103,7 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
         val candidates = feeds.offerings().filter { it.channelId == channelId }
         if (candidates.isEmpty()) throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel")
         val states = store.allHealth()
-        return candidates.sortedBy { if (states[it.id]?.status == HealthStatus.HEALTHY) 0 else 1 }
+        return candidates.sortedBy { selectionRank(states[it.id]?.status) }
             .firstOrNull { states[it.id]?.let(::eligible) == true }
             ?: throw ApiFailure(503, "SOURCE_UNAVAILABLE", "No eligible source", true)
     }
@@ -118,3 +118,12 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
     }
 }
 fun eligible(state: dev.jamesrich.sofaking.backend.health.HealthState): Boolean = !state.manuallyDisabled && state.status in setOf(HealthStatus.UNVERIFIED, HealthStatus.HEALTHY, HealthStatus.SUSPECT)
+
+/** Healthy first, then unverified, then suspect; anything else is never selected. */
+internal fun selectionRank(status: HealthStatus?): Int =
+    when (status) {
+        HealthStatus.HEALTHY -> 0
+        HealthStatus.UNVERIFIED -> 1
+        HealthStatus.SUSPECT -> 2
+        else -> 3
+    }

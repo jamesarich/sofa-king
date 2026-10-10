@@ -16,6 +16,7 @@ internal suspend fun <T> HttpClient.withUpstreamResponse(
     providerHeaders: Map<String, String>,
     range: String? = null,
     unbounded: Boolean = false,
+    requestTimeoutMillis: Long? = null,
     consume: suspend (HttpResponse) -> T,
 ): T {
     val origin = URI(credentialOrigin)
@@ -35,8 +36,13 @@ internal suspend fun <T> HttpClient.withUpstreamResponse(
             range?.let { header(HttpHeaders.Range, it) }
             if (unbounded) {
                 timeout {
-                    requestTimeoutMillis = Long.MAX_VALUE
+                    this.requestTimeoutMillis = Long.MAX_VALUE
                     socketTimeoutMillis = 15_000
+                }
+            } else if (requestTimeoutMillis != null) {
+                timeout {
+                    this.requestTimeoutMillis = requestTimeoutMillis
+                    socketTimeoutMillis = requestTimeoutMillis
                 }
             }
         }.execute { response ->

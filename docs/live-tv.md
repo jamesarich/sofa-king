@@ -13,6 +13,8 @@ Set these environment variables before starting the server:
 | `SOFA_API_TOKEN` | Unset | API bearer token, at least 32 characters; required for non-loopback binding |
 | `SOFA_MAX_SESSIONS` | `4` | Maximum active playback sessions, 1–16 |
 | `SOFA_FFMPEG` | `ffmpeg` | FFmpeg executable used by source probes |
+| `SOFA_PROBE_PARALLELISM` | `6` | Concurrent source probes, 1–32 |
+| `SOFA_RESTREAM_ORIGINS` | Unset | Comma-separated `host[:port]` list of LAN restream proxies whose 502 counts as source evidence, for example `192.168.1.3:3000` |
 
 Relative paths resolve from the server's working directory. Configuration changes require a restart.
 

@@ -52,6 +52,34 @@ class SessionManagerTest {
             sessions.close()
         } } } } finally { dir.toFile().deleteRecursively() }
     }
+    @Test fun `selection prefers healthy then unverified then suspect and never quarantined`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-select-")
+        try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock(); val config = FeedConfig("p", "http://example.test/feed.m3u", probe = false)
+            val offerings = listOf("suspect", "unverified", "healthy", "quarantined").map { Offering(it, "c", "p", "http://example.test/$it.ts", "mpegts") }
+            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), offerings, emptyList(), clock.now.toString()))
+            store.recordObservation("healthy", Observation("ok", clock.now, true), clock.now)
+            store.recordObservation("suspect", Observation("bad", clock.now, false, FailureClass.OFFERING), clock.now)
+            for (minute in listOf(0L, 5L, 10L)) {
+                val at = clock.now.plusSeconds(minute * 60)
+                store.recordObservation("quarantined", Observation("q-$minute", at, false, FailureClass.OFFERING), at)
+            }
+            val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
+            val sessions = SessionManager(feeds, store, clock)
+            suspend fun selected(key: String): String {
+                val token = sessions.open(OpenPlayback("c", "preview", key)).descriptor.url.substringAfterLast('/')
+                return sessions.acquire(sessions.open(OpenPlayback("c", "preview", key)).id, 1, token, Job()).offering.id
+            }
+            assertEquals("healthy", selected("one"))
+            store.setManuallyDisabled("healthy", true)
+            assertEquals("unverified", selected("two"))
+            store.setManuallyDisabled("unverified", true)
+            assertEquals("suspect", selected("three"))
+            store.setManuallyDisabled("suspect", true)
+            assertEquals("SOURCE_UNAVAILABLE", assertFailsWith<ApiFailure> { selected("four") }.code)
+            sessions.close()
+        } } } finally { dir.toFile().deleteRecursively() }
+    }
     @Test fun `quarantined source blocks new playback without deleting channel`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-quarantine-play-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->

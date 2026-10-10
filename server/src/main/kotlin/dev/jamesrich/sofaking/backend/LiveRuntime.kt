@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.playback.*
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -31,7 +32,10 @@ class LiveRuntime(val feeds: FeedService, val sessions: SessionManager, val rela
                 val runtime = LiveRuntime(feeds, sessions, MediaRelay(http, feeds, sessions), http, scope)
                 feeds.start(scope)
                 scope.launch { while (isActive) { sessions.expire(); delay(1000) } }
-                if (configs.any { it.probe }) scope.launch { ProbeWorker(feeds, store, clock, config.ffmpeg, onHealthChanged = sessions::healthChanged).run() }
+                if (configs.any { it.probe }) {
+                    val probes = ProbeConfig(parallelism = config.probeParallelism, restreamOrigins = config.restreamOrigins)
+                    scope.launch { ProbeWorker(feeds, store, clock, config.ffmpeg, http, probes, onHealthChanged = sessions::healthChanged).run() }
+                }
                 return runtime
             } catch (failure: Throwable) { scope.cancel(); http.close(); throw failure }
         }

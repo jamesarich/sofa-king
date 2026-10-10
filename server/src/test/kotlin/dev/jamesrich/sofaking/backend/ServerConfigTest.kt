@@ -21,6 +21,17 @@ class ServerConfigTest {
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_API_TOKEN" to "short")) }
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_MAX_SESSIONS" to "100")) }
     }
+    @Test fun `probe parallelism and restream origins are parsed and bounded`() {
+        val config = ServerConfig.fromEnvironment(mapOf("SOFA_PROBE_PARALLELISM" to "3", "SOFA_RESTREAM_ORIGINS" to " 192.168.1.3:3000, Proxy.LAN ,"))
+        assertEquals(3, config.probeParallelism)
+        assertEquals(setOf("192.168.1.3:3000", "proxy.lan"), config.restreamOrigins)
+        assertEquals(6, ServerConfig.fromEnvironment(emptyMap()).probeParallelism)
+        assertTrue(ServerConfig.fromEnvironment(emptyMap()).restreamOrigins.isEmpty())
+        for (value in listOf("0", "33", "many")) {
+            assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_PROBE_PARALLELISM" to value)) }
+        }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_RESTREAM_ORIGINS" to "http://192.168.1.3:3000")) }
+    }
     @Test fun `invalid port or empty values fail before binding`() {
         for (value in listOf("no", "0", "65536", "-1", "")) {
             assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_PORT" to value)) }

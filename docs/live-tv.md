@@ -111,7 +111,7 @@ The export runs inside the Dispatcharr container and reads its database only. It
    SOFA_ADMIN_TOKEN='TOKEN' python3 scripts/dispatcharr-import.py --file sofaking.json --dry-run
    ```
 
-   Streams match sources by URL with the query string ignored, so renewed tokens do not matter. EPG sources match configured guides by URL (query ignored), then by guide ID equal to the Dispatcharr source name. The report lists every EPG source that did not match and every entry with unmatched streams or an unmapped guide source. Channels whose streams all fail to match are skipped unless `--include-unmatched` is given.
+   Streams match sources by URL with the query string ignored, so renewed tokens do not matter. EPG sources match configured guides by URL (query ignored), then by guide ID equal to the Dispatcharr source name. The report lists every EPG source that did not match and every entry with unmatched streams or an unmapped guide source. Channels whose streams all fail to match are skipped unless `--include-unmatched` is given; a channel without a number or name is skipped with an `error` and never aborts the rest. Household edits stored on Dispatcharr's channel override win over the synced values, and a channel hidden from output exports as disabled.
 
 4. Map the EPG sources the report flags and apply:
 

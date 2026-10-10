@@ -6,8 +6,11 @@
 *.iml
 # Runtime state and credentials
 /data/
+/data/
 /deploy/data/
 /deploy/sources.json
+*-export.json
+sofaking.json
 .env
 .env.*
 !.env.example

@@ -139,7 +139,7 @@ Validation: `number` 1–32 characters without spaces, `name` 1–256, `group` 1
 
 Streams match sources by `scheme://authority/path` with the query string ignored. An EPG source matches a configured guide by that same key, then by a guide ID equal to its name, then by `guideMap` (`epgSourceId` to guide ID), which also overrides the automatic match. Entries take the channel `uuid` as their ID (a derived UUID when absent) and are created or updated in place. A channel with no matching stream is skipped unless `includeUnmatched` is true.
 
-The report has `dryRun`, `created`, `updated`, `skipped`, `matchedStreams`, `unmatchedStreams`, `guideSources` (EPG source ID to guide ID or null) and `entries`, each with `number`, `name`, `uuid`, `action` (`created`, `updated`, `skipped`), `matchedStreams`, `unmatchedStreams` (keys without query strings) and `guide` (`mapped`, `unmapped-source`, `none`). `scripts/dispatcharr-import.py` posts a file and prints this report.
+The report has `dryRun`, `created`, `updated`, `skipped`, `matchedStreams`, `unmatchedStreams`, `guideSources` (EPG source ID to guide ID or null) and `entries`, each with `number`, `name`, `uuid`, `action` (`created`, `updated`, `skipped`), `matchedStreams`, `unmatchedStreams` (keys without query strings), `guide` (`mapped`, `unmapped-source`, `none`) and, for a channel skipped because its number or name is invalid, `error`. `scripts/dispatcharr-import.py` posts a file and prints this report.
 
 ## Kotlin client
 

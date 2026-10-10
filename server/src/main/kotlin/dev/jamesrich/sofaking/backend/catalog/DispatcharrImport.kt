@@ -44,18 +44,25 @@ class DispatcharrImporter(private val feeds: FeedService, private val guides: Gu
                 continue
             }
             val existing = lineup.entry(id)
-            val record = lineup.validated(
-                LineupEntryRecord(
-                    id = id,
-                    number = channel.number.trim(),
-                    name = channel.name.trim(),
-                    group = channel.group?.trim()?.takeIf { it.isNotEmpty() },
-                    logo = channel.logo?.takeIf { it.startsWith("http://") || it.startsWith("https://") },
-                    enabled = channel.enabled,
-                    guide = mapping,
-                    offeringIds = offerings,
-                ),
-            )
+            val record = try {
+                lineup.validated(
+                    LineupEntryRecord(
+                        id = id,
+                        number = channel.number.trim(),
+                        name = channel.name.trim(),
+                        group = channel.group?.trim()?.takeIf { it.isNotEmpty() },
+                        logo = channel.logo?.takeIf { it.startsWith("http://") || it.startsWith("https://") },
+                        enabled = channel.enabled,
+                        guide = mapping,
+                        offeringIds = offerings,
+                    ),
+                )
+            } catch (e: ApiFailure) {
+                // One bad channel must not abort the other nine hundred; it is reported and skipped.
+                skipped++
+                reports += ImportEntryReport(channel.number, channel.name, channel.uuid, "skipped", offerings.size, missing, guideState, e.message)
+                continue
+            }
             if (existing == null) created++ else updated++
             plan += record to (existing != null)
             reports += ImportEntryReport(channel.number, channel.name, channel.uuid, if (existing == null) "created" else "updated", offerings.size, missing, guideState)

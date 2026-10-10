@@ -63,7 +63,7 @@ import kotlinx.serialization.Serializable
 )
 @Serializable data class ImportEntryReport(
     val number: String, val name: String, val uuid: String? = null, val action: String, val matchedStreams: Int,
-    val unmatchedStreams: List<String> = emptyList(), val guide: String,
+    val unmatchedStreams: List<String> = emptyList(), val guide: String, val error: String? = null,
 )
 @Serializable data class ImportReport(
     val dryRun: Boolean, val created: Int, val updated: Int, val skipped: Int, val matchedStreams: Int, val unmatchedStreams: Int,

@@ -34,11 +34,14 @@ class DispatcharrImportTest {
                         listOf(DispatcharrStream("${fixture.base}/alt.m3u8?token=one", provider = "alt"), DispatcharrStream("${fixture.base}/master.m3u8?token=two", provider = "fixture"), DispatcharrStream("http://gone.test/dead.m3u8"))),
                     DispatcharrChannel(null, "6", "TS Station", null, null, "ts-station", 4, "ts-station", true, listOf(DispatcharrStream("${fixture.base}/live.ts"))),
                     DispatcharrChannel(null, "7", "Nothing Matches", null, null, null, null, null, true, listOf(DispatcharrStream("http://gone.test/x.ts"))),
+                    DispatcharrChannel(null, "", "No Number", null, null, null, null, null, true, listOf(DispatcharrStream("${fixture.base}/live.ts"))),
                 ),
             )
             val dry = importer.import(ImportLineup(export, dryRun = true))
-            assertEquals(2, dry.created); assertEquals(0, dry.updated); assertEquals(1, dry.skipped)
-            assertEquals(3, dry.matchedStreams); assertEquals(2, dry.unmatchedStreams)
+            assertEquals(2, dry.created); assertEquals(0, dry.updated); assertEquals(2, dry.skipped)
+            val unnumbered = dry.entries.single { it.name == "No Number" }
+            assertEquals("skipped", unnumbered.action); assertEquals(1, unnumbered.matchedStreams); assertTrue(unnumbered.error!!.contains("Number"))
+            assertEquals(4, dry.matchedStreams); assertEquals(2, dry.unmatchedStreams)
             assertEquals(mapOf("3" to "gz", "4" to null), dry.guideSources)
             assertTrue(stack.lineup.entries().isEmpty(), "a dry run writes nothing")
             val station = dry.entries.first { it.number == "5" }
@@ -59,7 +62,7 @@ class DispatcharrImportTest {
             assertEquals("15", stack.lineup.entry(uuid)!!.number)
             assertEquals(2, stack.lineup.entries().size)
             val withUnmatched = importer.import(ImportLineup(export.copy(channels = export.channels.drop(2)), includeUnmatched = true))
-            assertEquals(1, withUnmatched.created)
+            assertEquals(1, withUnmatched.created); assertEquals(1, withUnmatched.skipped)
             assertTrue(stack.lineup.entries().first { it.number == "7" }.offeringIds.isEmpty())
             assertEquals("INVALID_REQUEST", assertFailsWith<ApiFailure> { importer.import(ImportLineup(export.copy(format = "other"))) }.code)
             assertEquals("INVALID_REQUEST", assertFailsWith<ApiFailure> { importer.import(ImportLineup(export, guideMap = mapOf("3" to "missing"))) }.code)

@@ -31,10 +31,16 @@ def number(value):
     return ('%.4f' % float(value)).rstrip('0').rstrip('.')
 
 
-def logo_url(channel):
-    logo = getattr(channel, 'logo', None)
+def logo_url(logo):
     url = getattr(logo, 'url', None) if logo is not None else None
     return url if url and url.startswith(('http://', 'https://')) else None
+
+
+def effective(channel, field):
+    """Household edits to auto-synced channels live on ChannelOverride; a non-null override wins."""
+    override = getattr(channel, 'override', None)
+    value = getattr(override, field, None) if override is not None else None
+    return value if value is not None else getattr(channel, field)
 
 
 profile = ChannelProfile.objects.get(name=PROFILE)
@@ -47,7 +53,8 @@ channels = []
 epg_source_ids = set()
 for membership in memberships:
     channel = membership.channel
-    epg = channel.epg_data
+    epg = effective(channel, 'epg_data')
+    group = effective(channel, 'channel_group')
     if epg is not None and epg.epg_source_id is not None:
         epg_source_ids.add(epg.epg_source_id)
     streams = []
@@ -59,14 +66,14 @@ for membership in memberships:
         streams.append({'url': stream.url, 'name': stream.name, 'provider': account.name if account is not None else None})
     channels.append({
         'uuid': str(channel.uuid),
-        'number': number(channel.channel_number),
-        'name': channel.name,
-        'group': channel.channel_group.name if channel.channel_group_id else None,
-        'logo': logo_url(channel),
-        'tvgId': channel.tvg_id,
+        'number': number(effective(channel, 'channel_number')),
+        'name': effective(channel, 'name'),
+        'group': group.name if group is not None else None,
+        'logo': logo_url(effective(channel, 'logo')),
+        'tvgId': effective(channel, 'tvg_id'),
         'epgSourceId': epg.epg_source_id if epg is not None else None,
         'epgChannelId': epg.tvg_id if epg is not None else None,
-        'enabled': bool(membership.enabled),
+        'enabled': bool(membership.enabled) and not bool(getattr(channel, 'hidden_from_output', False)),
         'streams': streams,
     })
 

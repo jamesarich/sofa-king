@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Import fixture feeds, decode video through the relay, verify probe health and restart."""
 import functools
+import gzip
 import http.server
 import json
 import os
@@ -96,7 +97,14 @@ def main():
         (media / 'guide.xml').write_text(f'<tv><programme channel="fixture" start="{start}" stop="{end}"><title>Real fixture programme</title></programme></tv>')
         sources = directory / 'sources.json'
         (media / 'ts-feed.m3u').write_text(f'#EXTM3U\n#EXTINF:-1 tvg-id="ts-fixture" tvg-chno="6",Fixture TS\n{upstream}/endless.ts\n')
-        sources.write_text(json.dumps([{'id': 'fixture', 'playlistUrl': upstream + '/feed.m3u', 'guideUrl': upstream + '/guide.xml', 'probe': True}, {'id': 'ts-fixture', 'playlistUrl': upstream + '/ts-feed.m3u', 'probe': False}]))
+        with (media / 'guide.xml.gz').open('wb') as compressed:
+            compressed.write(gzip.compress((media / 'guide.xml').read_bytes()))
+        # The provider's own guide plus an independent gzip guide; the lineup maps the fixture channel onto the gzip one.
+        sources.write_text(json.dumps({
+            'providers': [{'id': 'fixture', 'playlistUrl': upstream + '/feed.m3u', 'guideUrl': upstream + '/guide.xml', 'probe': True},
+                          {'id': 'ts-fixture', 'playlistUrl': upstream + '/ts-feed.m3u', 'probe': False}],
+            'guides': [{'id': 'gz', 'url': upstream + '/guide.xml.gz', 'refreshSeconds': 300}],
+        }))
         data = directory / 'data'
         port = free_port()
         base = f'http://127.0.0.1:{port}'
@@ -112,14 +120,31 @@ def main():
                     if process.poll() is not None:
                         raise RuntimeError('Server exited during startup')
                     try:
-                        catalog = request(base, '/api/v1/channels')
-                        if len(catalog['channels']) == 2:
+                        providers = request(base, '/api/v1/providers')
+                        guides = request(base, '/api/v1/admin/guides')
+                        if all(p['lastSuccessAt'] for p in providers) and all(g['lastSuccessAt'] for g in guides):
                             break
                     except (URLError, TimeoutError):
                         pass
                     assert time.monotonic() < deadline, 'Import did not complete'
                     time.sleep(0.1)
+                assert request(base, '/api/v1/channels')['channels'] == [], 'Feed channels are served before curation'
+                candidates = request(base, '/api/v1/admin/candidates?q=fixture')
+                assert candidates['total'] == 2 and all(c['lineupEntryIds'] == [] for c in candidates['items'])
+                fixture_candidate = next(c for c in candidates['items'] if c['providerId'] == 'fixture')
+                entry = request(base, '/api/v1/admin/lineup', 'POST', {'channelId': fixture_candidate['channelId'], 'guide': {'guideId': 'gz', 'channelId': 'fixture'}})
+                assert entry['guide'] == {'guideId': 'gz', 'channelId': 'fixture'} and entry['offerings'][0]['providerId'] == 'fixture'
+                adopted = request(base, '/api/v1/admin/lineup/adopt', 'POST', {'providerId': 'ts-fixture'})
+                assert adopted == {'added': 1, 'skipped': 0}, adopted
+                deadline = time.monotonic() + 30
+                while True:
+                    catalog = request(base, '/api/v1/channels')
+                    if len(catalog['channels']) == 2 and catalog['channels'][0]['guideStatus'] == 'available':
+                        break
+                    assert time.monotonic() < deadline, 'Lineup mapping did not pull guide programmes: ' + json.dumps(catalog)
+                    time.sleep(0.1)
                 channel = catalog['channels'][0]
+                assert channel['id'] == entry['id'] and channel['legacyGuideId'] == 'fixture'
                 guide = request(base, '/api/v1/guide/query', 'POST', {'channelIds': [channel['id']], 'from': now.isoformat(), 'to': (now + timedelta(hours=1)).isoformat()})
                 assert guide['channels'][0]['programmes'][0]['title'] == 'Real fixture programme'
                 session = request(base, '/api/v1/playback-sessions', 'POST', {'channelId': channel['id'], 'intent': 'preview', 'idempotencyKey': 'smoke'})
@@ -145,8 +170,9 @@ def main():
                 assert int(progress['frame']) >= 100 and int(progress['out_time_us']) >= 7_000_000
                 deadline = time.monotonic() + 20
                 while True:
+                    # Source status is keyed by feed channel; the lineup entry names its source ids.
                     state = next(source for source in request(base, '/api/v1/sources')
-                                 if source['channelId'] == channel['id'])
+                                 if source['id'] == entry['offerings'][0]['id'])
                     if state['status'] == 'HEALTHY':
                         break
                     assert time.monotonic() < deadline, 'Decode probe did not qualify source'
@@ -177,7 +203,7 @@ def main():
                     except (URLError, TimeoutError):
                         assert time.monotonic() < deadline
                         time.sleep(0.1)
-                assert restarted['channels'][0]['id'] == channel['id']
+                assert restarted['channels'][0]['id'] == channel['id'] and len(restarted['channels']) == 2, 'Lineup did not survive restart'
                 assert request(base, '/api/v1/bootstrap')['serverId'] == identity
                 stop(process)
         finally:
@@ -185,7 +211,7 @@ def main():
                 stop(process)
             fixture.shutdown()
             fixture.server_close()
-        print('Live smoke passed: feed + guide import, session promotion, four concurrent HLS video decoders, automatic decode qualification, active TS upstream cancellation, release and persistent restart.')
+        print('Live smoke passed: feed + gzip guide import, lineup curation through the admin API, session promotion, four concurrent HLS video decoders, automatic decode qualification, active TS upstream cancellation, release and persistent lineup across restart.')
 
 
 if __name__ == '__main__':

@@ -20,13 +20,16 @@ spec.loader.exec_module(smoke)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--playlist', required=True)
-    parser.add_argument('--guide', required=True)
+    parser.add_argument('--guide', help='XMLTV guide URL (plain or gzip); omit to skip the guide check')
     parser.add_argument('--decode-channel', help='Exact imported station name to decode for eight seconds')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='sofa-bridge-smoke-') as temporary:
         directory = Path(temporary)
         sources = directory / 'sources.json'
-        sources.write_text(json.dumps([{'id': 'household-bridge', 'playlistUrl': args.playlist, 'guideUrl': args.guide, 'probe': False}]))
+        provider = {'id': 'household-bridge', 'playlistUrl': args.playlist, 'probe': False}
+        if args.guide:
+            provider['guideUrl'] = args.guide
+        sources.write_text(json.dumps([provider]))
         base = f'http://127.0.0.1:{smoke.free_port()}'
         env = dict(os.environ, SOFA_HOST='127.0.0.1', SOFA_PORT=base.rsplit(':', 1)[1], SOFA_DATA_DIR=str(directory / 'data'), SOFA_SOURCES=str(sources), SOFA_API_TOKEN=smoke.TOKEN)
         process = None
@@ -37,21 +40,32 @@ def main():
                 while True:
                     assert process.poll() is None, 'Backend exited'
                     try:
-                        catalog = smoke.request(base, '/api/v1/channels')
-                        if catalog['channels']:
-                            break
                         status = smoke.request(base, '/api/v1/providers')[0]
                         assert status['errorCode'] is None, 'Household feed import failed'
+                        guides = smoke.request(base, '/api/v1/admin/guides')
+                        if status['lastSuccessAt'] and all(g['lastSuccessAt'] or g['errorCode'] for g in guides):
+                            break
                     except (URLError, TimeoutError):
                         pass
                     assert time.monotonic() < deadline, 'Import timed out'
                     time.sleep(0.25)
+                # The app only sees the lineup; adopt the whole feed into this disposable server.
+                adopted = smoke.request(base, '/api/v1/admin/lineup/adopt', 'POST', {'providerId': 'household-bridge'})
+                assert adopted['added'] > 0, 'Nothing to adopt'
+                deadline = time.monotonic() + 300
+                while True:
+                    catalog = smoke.request(base, '/api/v1/channels')
+                    candidates = [c for c in catalog['channels'] if c['guideStatus'] == 'available'][:50]
+                    if candidates or not args.guide:
+                        break
+                    assert time.monotonic() < deadline, 'No real guide coverage'
+                    time.sleep(1)
                 now = datetime.now(timezone.utc)
-                candidates = [c for c in catalog['channels'] if c['guideStatus'] == 'available'][:50]
-                assert candidates, 'No real guide coverage'
-                guide = smoke.request(base, '/api/v1/guide/query', 'POST', {'channelIds': [c['id'] for c in candidates], 'from': now.isoformat(), 'to': (now + timedelta(hours=6)).isoformat()})
-                programmes = sum(len(c['programmes']) for c in guide['channels'])
-                assert programmes > 0, 'Bounded guide query has no programmes'
+                programmes = 0
+                if args.guide:
+                    guide = smoke.request(base, '/api/v1/guide/query', 'POST', {'channelIds': [c['id'] for c in candidates], 'from': now.isoformat(), 'to': (now + timedelta(hours=6)).isoformat()})
+                    programmes = sum(len(c['programmes']) for c in guide['channels'])
+                    assert programmes > 0, 'Bounded guide query has no programmes'
                 decoded = False
                 if args.decode_channel:
                     channel = next(c for c in catalog['channels'] if c['name'] == args.decode_channel)

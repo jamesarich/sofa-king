@@ -23,6 +23,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.readByteArray
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
@@ -53,6 +54,7 @@ class FeedService(
         val guideRevision = hash(Json.encodeToString(programmes))
     }
 
+    private val log = LoggerFactory.getLogger(FeedService::class.java)
     private val published = AtomicReference(Published(emptyList()))
     private val statuses = AtomicReference<List<ProviderStatus>>(configs.map { ProviderStatus(it.id) })
     private val mutex = Mutex()
@@ -80,9 +82,11 @@ class FeedService(
 
     suspend fun refresh(config: FeedConfig) =
         mutex.withLock {
+            val started = clock.instant()
             try {
                 val playlist = fetch(config.playlistUrl, config.headers, 16 * 1024 * 1024)
-                val (channels, offerings) = FeedParser.playlist(config.id, playlist, config.defaultProtocol)
+                val parsed = FeedParser.playlist(config.id, playlist, config.defaultProtocol)
+                val (channels, offerings) = parsed
                 require(channels.isNotEmpty() || config.allowEmpty) { "Empty playlist requires explicit allowEmpty" }
                 val programmes = config.guideUrl?.let { FeedParser.guide(fetch(it, config.headers, 64 * 1024 * 1024), channels) }.orEmpty()
                 val previous = published.get().feeds.find { it.providerId == config.id }
@@ -101,20 +105,32 @@ class FeedService(
                 )
                 statuses.set(
                     statuses.get().map {
-                        if (it.id ==
-                            config.id
-                        ) {
-                            ProviderStatus(config.id, snapshot.importedAt, channels = channels.size)
+                        if (it.id == config.id) {
+                            ProviderStatus(
+                                config.id,
+                                snapshot.importedAt,
+                                channels = channels.size,
+                                sources = offerings.size,
+                                skippedEntries = parsed.skippedCount,
+                                skipReasons = parsed.skipSummary,
+                            )
                         } else {
                             it
                         }
                     },
                 )
+                val durationMs = Duration.between(started, clock.instant()).toMillis()
+                log.info(
+                    "import provider={} channels={} sources={} programmes={} skipped={} durationMs={}",
+                    config.id, channels.size, offerings.size, programmes.size, parsed.skippedCount, durationMs,
+                )
+                if (parsed.skippedCount > 0) log.warn("import provider={} skipped malformed entries: {}", config.id, parsed.skipSummary)
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
-                // Do not log provider exception strings: they can contain signed URLs and credentials.
+            } catch (e: Exception) {
+                // Exception messages can carry signed URLs and credentials; log the class only.
                 statuses.set(statuses.get().map { if (it.id == config.id) it.copy(errorCode = "IMPORT_FAILED") else it })
+                log.warn("import provider={} failed class={} durationMs={}", config.id, e.javaClass.simpleName, Duration.between(started, clock.instant()).toMillis())
             }
         }
 

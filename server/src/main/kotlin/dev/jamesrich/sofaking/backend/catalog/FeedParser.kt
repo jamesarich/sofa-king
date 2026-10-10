@@ -9,6 +9,18 @@ import java.time.format.DateTimeFormatter
 import javax.xml.stream.XMLInputFactory
 import javax.xml.stream.XMLStreamConstants
 
+/** [skipped] counts malformed entries by short reason; the import still succeeds with the well-formed rest. */
+data class ParsedPlaylist(
+    val channels: List<Channel>,
+    val offerings: List<Offering>,
+    val skipped: Map<String, Int> = emptyMap(),
+) {
+    val skippedCount: Int get() = skipped.values.sum()
+
+    /** For example `missing-id=3, duplicate-source=1`, or null when nothing was skipped. */
+    val skipSummary: String? get() = skipped.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" }.ifEmpty { null }
+}
+
 object FeedParser {
     private val attribute = Regex("([\\w-]+)=\"([^\"]*)\"")
 
@@ -16,10 +28,15 @@ object FeedParser {
         provider: String,
         text: String,
         defaultProtocol: String? = null,
-    ): Pair<List<Channel>, List<Offering>> {
-        require(text.trimStart('\uFEFF', ' ', '\r', '\n').startsWith("#EXTM3U")) { "Not an extended M3U playlist" }
+    ): ParsedPlaylist {
+        require(text.trimStart('﻿', ' ', '\r', '\n').startsWith("#EXTM3U")) { "Not an extended M3U playlist" }
         val channels = linkedMapOf<String, Channel>()
         val offerings = mutableListOf<Offering>()
+        val offeringIds = HashSet<String>()
+        val skipped = sortedMapOf<String, Int>()
+        fun skip(reason: String) {
+            skipped.merge(reason, 1, Int::plus)
+        }
         var info: String? = null
         for (raw in text.lineSequence()) {
             val line = raw.trim()
@@ -28,9 +45,19 @@ object FeedParser {
                 continue
             }
             if (line.isBlank() || line.startsWith('#')) continue
-            val metadata = requireNotNull(info) { "Stream has no EXTINF metadata" }
+            val metadata = info
             info = null
-            httpUri(line)
+            if (metadata == null) {
+                skip("no-extinf")
+                continue
+            }
+            val uri =
+                try {
+                    httpUri(line)
+                } catch (_: Exception) {
+                    skip("invalid-url")
+                    continue
+                }
             val attrs = attribute.findAll(metadata).associate { it.groupValues[1] to it.groupValues[2] }
             // Use the comma outside quoted attributes, preserving commas in station names.
             var quoted = false
@@ -39,18 +66,23 @@ object FeedParser {
                     if (c == '"') quoted = !quoted
                     c == ',' && !quoted
                 }
-            require(split >= 0) { "Missing station name" }
-            val name = metadata.substring(split + 1).trim().ifBlank { attrs["tvg-name"].orEmpty() }
-            require(name.isNotBlank()) { "Empty station name" }
-            val key =
-                attrs["channel-id"] ?: attrs["tvg-id"]?.takeIf { it.isNotBlank() }
-                    ?: attrs["channel-uuid"] ?: throw IllegalArgumentException("A stable tvg-id, channel-id or channel-uuid is required")
+            val name = if (split < 0) "" else metadata.substring(split + 1).trim().ifBlank { attrs["tvg-name"].orEmpty() }
+            if (name.isBlank()) {
+                skip("missing-name")
+                continue
+            }
+            val key = attrs["channel-id"] ?: attrs["tvg-id"]?.takeIf { it.isNotBlank() } ?: attrs["channel-uuid"]
+            if (key == null) {
+                skip("missing-id")
+                continue
+            }
             val id =
-                attrs["channel-uuid"]?.let {
-                    java.util.UUID
-                        .fromString(it)
-                        .toString()
-                } ?: stableId("channel:$provider:$key")
+                try {
+                    attrs["channel-uuid"]?.let { java.util.UUID.fromString(it).toString() } ?: stableId("channel:$provider:$key")
+                } catch (_: IllegalArgumentException) {
+                    skip("invalid-uuid")
+                    continue
+                }
             val channel =
                 Channel(
                     id,
@@ -61,20 +93,26 @@ object FeedParser {
                     attrs["tvg-id"],
                 )
             // Multiple URLs with one exact provider key are alternatives, never fuzzy name merges.
-            require(
-                channels[id]?.let { it.name == name && it.displayNumber == channel.displayNumber } != false,
-            ) { "Ambiguous duplicate station key" }
-            channels.putIfAbsent(id, channel)
-            val protocol = attrs["stream-type"] ?: defaultProtocol ?: if (httpUri(line).path.endsWith(".m3u8", true)) "hls" else "mpegts"
-            require(protocol in setOf("hls", "mpegts")) { "Unsupported stream protocol" }
-            val uri = httpUri(line)
+            if (channels[id]?.let { it.name == name && it.displayNumber == channel.displayNumber } == false) {
+                skip("duplicate-key")
+                continue
+            }
+            val protocol = attrs["stream-type"] ?: defaultProtocol ?: if (uri.path.endsWith(".m3u8", true)) "hls" else "mpegts"
+            if (protocol !in setOf("hls", "mpegts")) {
+                skip("bad-protocol")
+                continue
+            }
             val sourceKey = attrs["stream-id"] ?: "${uri.scheme}://${uri.authority}${uri.path}"
             val offeringId = stableId("offering:$provider:$key:$sourceKey")
-            require(offerings.none { it.id == offeringId }) { "Ambiguous source identity: supply distinct stream-id attributes" }
+            if (!offeringIds.add(offeringId)) {
+                skip("duplicate-source")
+                continue
+            }
+            channels.putIfAbsent(id, channel)
             offerings += Offering(offeringId, id, provider, line, protocol)
             require(channels.size <= 10_000 && offerings.size <= 20_000) { "Playlist exceeds import limits" }
         }
-        return channels.values.toList() to offerings
+        return ParsedPlaylist(channels.values.toList(), offerings, skipped)
     }
 
     fun guide(

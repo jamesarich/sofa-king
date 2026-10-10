@@ -49,6 +49,21 @@ class FeedServiceTest {
             assertTrue(store.health(offering.id)!!.manuallyDisabled)
         } } } } finally { dir.toFile().deleteRecursively() }
     }
+    @Test fun `malformed entries are skipped and reported without failing the provider`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-partial-")
+        try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val feeds = FeedService(listOf(fixture.feed), store, http, MutableClock())
+            fixture.partial = true; feeds.refresh(fixture.feed)
+            val status = feeds.providers().single()
+            assertNull(status.errorCode)
+            assertEquals(1, status.channels); assertEquals(1, status.sources)
+            assertEquals(2, status.skippedEntries)
+            assertEquals("duplicate-source=1, missing-id=1", status.skipReasons)
+            assertEquals("Station", feeds.catalog().channels.single().name)
+            fixture.partial = false; feeds.refresh(fixture.feed)
+            assertEquals(0, feeds.providers().single().skippedEntries); assertNull(feeds.providers().single().skipReasons)
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
     @Test fun `guide overlap bounds and revision changes are explicit`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-guide-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->

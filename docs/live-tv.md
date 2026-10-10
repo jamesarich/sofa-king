@@ -37,6 +37,8 @@ Keep provider IDs stable: they participate in channel and source identity. Store
 
 Failed imports keep the last complete snapshot. Removed sources become unavailable; their channel IDs remain in the catalog. With `allowEmpty: false`, an empty playlist also keeps the previous snapshot.
 
+A malformed entry (no `tvg-id`, `channel-id` or `channel-uuid`; an identity reused with a different name or number; the same source differing only by query string without a `stream-id`; a non-HTTP URL; an unsupported `stream-type`; a URL without `#EXTINF`) is skipped and counted, and the rest of the playlist imports. `/api/v1/providers` reports `skippedEntries` and `skipReasons`, and the server logs the counts at warn level without URLs. A playlist that is not extended M3U, exceeds an import limit, or skips every entry without `allowEmpty` fails the import and keeps the previous snapshot.
+
 ### Import limits
 
 | Input | Limit |

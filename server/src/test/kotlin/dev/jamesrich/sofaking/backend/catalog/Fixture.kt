@@ -18,6 +18,8 @@ class Fixture : AutoCloseable {
     val base = "http://127.0.0.1:${server.address.port}"
     var malformed = false
     var withdrawn = false
+    /** One good entry plus one without an identity and one query-only duplicate. */
+    var partial = false
     val feed = FeedConfig("fixture", "$base/feed.m3u", "$base/guide.xml", probe = false)
     val tsFeed = FeedConfig("ts", "$base/ts-feed.m3u", probe = false)
     /** An HLS master served from an extensionless path with a generic content type. */
@@ -45,7 +47,11 @@ class Fixture : AutoCloseable {
                 return@createContext
             }
             val text = when (path) {
-                "/feed.m3u" -> if (malformed) "not a playlist" else if (withdrawn) "#EXTM3U\n" else "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8\n"
+                "/feed.m3u" ->
+                    if (malformed) "not a playlist"
+                    else if (withdrawn) "#EXTM3U\n"
+                    else if (partial) "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8\n#EXTINF:-1 tvg-chno=\"9\",Nameless Id\n$base/other.m3u8\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8?token=dup\n"
+                    else "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8\n"
                 "/ts-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ts-station\" tvg-chno=\"6\",TS Station\n$base/live.ts\n"
                 "/ext-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ext-station\" tvg-chno=\"7\",Extensionless\n$base/resolve?id=1\n"
                 "/fake-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"fake-station\" tvg-chno=\"8\",Mislabeled\n$base/fake.m3u8\n"

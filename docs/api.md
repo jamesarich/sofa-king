@@ -22,6 +22,8 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 
 Request bodies are limited to 64 KiB. The [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/) defines the response fields.
 
+Each provider status reports `lastSuccessAt`, `errorCode` (`IMPORT_FAILED` when the last import kept the previous snapshot), `channels` and `sources` from the last successful import, `skippedEntries` and `skipReasons`. Skip reasons are counts by short key, for example `duplicate-source=1, missing-id=3`: `missing-id`, `missing-name`, `invalid-url`, `invalid-uuid`, `duplicate-key` (one identity with a different name or number), `duplicate-source` (the same source with only a different query string and no `stream-id`), `bad-protocol` and `no-extinf`.
+
 ## Query the guide
 
 Replace `CHANNEL_UUID` with a catalog ID. Set `FROM_UTC` and `TO_UTC` to ISO 8601 UTC timestamps (`YYYY-MM-DDTHH:MM:SSZ`):

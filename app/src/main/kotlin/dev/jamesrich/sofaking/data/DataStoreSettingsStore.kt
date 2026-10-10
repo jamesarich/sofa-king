@@ -22,7 +22,6 @@ import java.io.IOException
 
 class DataStoreSettingsStore(
     private val dataStore: DataStore<Preferences>,
-    private val defaults: AppSettings,
 ) : SettingsStore {
 
     // An unreadable file reads as defaults rather than failing the flow, which would take the whole app down.
@@ -30,8 +29,8 @@ class DataStoreSettingsStore(
         .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
         .map { prefs ->
         AppSettings(
-            serverUrl = prefs[SERVER_URL] ?: defaults.serverUrl,
-            profile = prefs[PROFILE] ?: defaults.profile,
+            serverUrl = prefs[SERVER_URL].orEmpty(),
+            apiToken = prefs[API_TOKEN].orEmpty(),
             favorites = prefs[FAVORITES] ?: emptySet(),
             lastChannel = prefs[LAST_CHANNEL],
             captionsEnabled = prefs[CAPTIONS_ENABLED] ?: false,
@@ -44,12 +43,15 @@ class DataStoreSettingsStore(
         )
     }
 
-    override suspend fun setServer(serverUrl: String, profile: String) {
+    override suspend fun setServer(serverUrl: String, apiToken: String) {
         val server = ServerAddress.normalizeUrl(serverUrl) ?: serverUrl.trim().trimEnd('/')
-        val channelProfile = ServerAddress.normalizeProfile(profile) ?: profile.trim()
+        val token = ServerAddress.normalizeToken(apiToken) ?: apiToken.trim()
         dataStore.edit { prefs ->
             prefs[SERVER_URL] = server
-            prefs[PROFILE] = channelProfile
+            prefs[API_TOKEN] = token
+            // Left by installs that pointed at a playlist server; never read, and freed here.
+            prefs.remove(LEGACY_SERVER_URL)
+            prefs.remove(LEGACY_PROFILE)
         }
     }
 
@@ -111,8 +113,8 @@ class DataStoreSettingsStore(
     private fun legacySecondsToMs(seconds: Int): Int = seconds.coerceIn(0..6) * 1_000
 
     companion object {
-        private val SERVER_URL = stringPreferencesKey("server_url")
-        private val PROFILE = stringPreferencesKey("profile")
+        private val SERVER_URL = stringPreferencesKey("backend_url")
+        private val API_TOKEN = stringPreferencesKey("api_token")
         private val FAVORITES = stringSetPreferencesKey("favorites")
         private val LAST_CHANNEL = stringPreferencesKey("last_channel")
         private val CAPTIONS_ENABLED = booleanPreferencesKey("captions_enabled")
@@ -121,13 +123,15 @@ class DataStoreSettingsStore(
         private val SMOOTH_CAPTIONS = booleanPreferencesKey("smooth_captions")
         private val CAPTION_STYLE = stringPreferencesKey("caption_style")
         private val LEGACY_CHANNEL_CAPTION_ADVANCE = stringSetPreferencesKey("channel_caption_advance")
+        private val LEGACY_SERVER_URL = stringPreferencesKey("server_url")
+        private val LEGACY_PROFILE = stringPreferencesKey("profile")
         private const val SEPARATOR = '\t'
 
         private val lock = Any()
         private var sharedDataStore: DataStore<Preferences>? = null
 
         /** One DataStore per process: creating two for the same file throws. A corrupt file is replaced with defaults. */
-        fun create(context: Context, defaults: AppSettings): DataStoreSettingsStore {
+        fun create(context: Context): DataStoreSettingsStore {
             val appContext = context.applicationContext
             val store = synchronized(lock) {
                 sharedDataStore ?: PreferenceDataStoreFactory.create(
@@ -135,7 +139,7 @@ class DataStoreSettingsStore(
                     scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
                 ) { appContext.preferencesDataStoreFile("settings") }.also { sharedDataStore = it }
             }
-            return DataStoreSettingsStore(store, defaults)
+            return DataStoreSettingsStore(store)
         }
     }
 }

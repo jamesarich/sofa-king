@@ -5,12 +5,16 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
-import dev.jamesrich.sofaking.data.DispatcharrRepository
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
-import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.SettingsStore
+import dev.jamesrich.sofaking.data.SofaKingApi
+import dev.jamesrich.sofaking.data.SofaKingException
+import dev.jamesrich.sofaking.data.SofaKingRepository
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,12 +24,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
@@ -33,15 +37,18 @@ import kotlin.time.TimeSource
 
 sealed interface LineupState {
     data object Loading : LineupState
+
+    /** No usable server address yet; Settings is where it goes. */
+    data object Unconfigured : LineupState
     data class Ready(val lineup: Lineup) : LineupState
     data class Failed(val message: String) : LineupState
 }
 
+/** A server address and token the API can be built from. */
+private data class Server(val url: String, val token: String)
+
 class LineupViewModel(application: Application) : AndroidViewModel(application) {
-    private val store: SettingsStore = DataStoreSettingsStore.create(
-        application,
-        AppSettings(BuildConfig.DISPATCHARR_URL, BuildConfig.DISPATCHARR_PROFILE),
-    )
+    private val store: SettingsStore = DataStoreSettingsStore.create(application)
 
     val settings: StateFlow<AppSettings?> = store.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -50,7 +57,7 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _loading = MutableStateFlow(false)
 
-    /** True while the playlist and guide are being fetched, including a background or manual refresh. */
+    /** True while the catalog and guide are being fetched, including a background or manual refresh. */
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     private val cacheFile = File(application.filesDir, "lineup-cache.bin")
@@ -58,14 +65,30 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
     /** The last lineup loaded, with the server key it came from; read and written only inside [state]'s transform. */
     private var lastGood: Pair<String, Lineup>? = null
 
+    /** The one playback session the app holds; screens tune through it and the activity releases it when stopped. */
+    val sessions = PlaybackSessions()
+
+    /** The server as Settings has it, or null while the address is not a usable URL. */
+    private val server = store.settings
+        .map { s -> ServerAddress.normalizeUrl(s.serverUrl)?.let { Server(it, s.apiToken) } }
+        .distinctUntilChanged()
+
+    init {
+        // A new address or token releases the session held on the old server before anything tunes on the new one.
+        viewModelScope.launch {
+            server.collect { sessions.configure(it?.let { s -> SofaKingApi(s.url, s.token) }) }
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<LineupState> = combine(
-        store.settings.map { it.serverUrl to it.profile }.distinctUntilChanged(),
-        reloads.onStart { emit(Unit) },
-    ) { server, _ -> server }
-        .transformLatest { (url, profile) ->
-            val key = "$url\n$profile"
-            val repository = DispatcharrRepository(url, profile)
+    val state: StateFlow<LineupState> = combine(server, reloads.onStart { emit(Unit) }) { server, _ -> server }
+        .transformLatest { server ->
+            if (server == null) {
+                emit(LineupState.Unconfigured)
+                return@transformLatest
+            }
+            val key = server.url
+            val repository = SofaKingRepository(SofaKingApi(server.url, server.token))
             val cache = LineupCache(cacheFile, key)
             // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
             // so the last good lineup shows at once and the network load replaces it below.
@@ -87,8 +110,8 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
                     val started = TimeSource.Monotonic.markNow()
                     val channels = repository.loadChannels()
                     Log.i(TAG, "lineup: ${channels.size} channels in ${started.elapsedNow()}")
-                    // Channels first so the guide is usable while the large XMLTV parses. A cached guide
-                    // stays in place for channels it still covers; it is replaced once the new guide parses.
+                    // Channels first so the guide is usable while the programmes arrive. A cached guide stays in
+                    // place for channels it still covers; it is replaced once the new guide is in.
                     if (last?.channels != channels) emit(LineupState.Ready(Lineup(channels, last?.guide.orEmpty())))
                     val guide = repository.loadGuide(channels)
                     Log.i(TAG, "guide: ${guide.values.sumOf { it.size }} programmes for ${guide.size} channels in ${started.elapsedNow()}")
@@ -115,7 +138,7 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 // A failed background refresh keeps showing the lineup we already have.
-                result.onFailure { if (last == null) emit(LineupState.Failed(it.message ?: it.toString())) }
+                result.onFailure { if (last == null) emit(LineupState.Failed(describe(it))) }
                 delay(if (result.isSuccess) REFRESH_INTERVAL else RETRY_INTERVAL)
             }
         }
@@ -125,7 +148,7 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
         reloads.tryEmit(Unit)
     }
 
-    fun saveServer(url: String, profile: String) = viewModelScope.launch { store.setServer(url, profile) }
+    fun saveServer(url: String, apiToken: String) = viewModelScope.launch { store.setServer(url, apiToken) }
 
     fun toggleFavorite(guideId: String) = viewModelScope.launch { store.toggleFavorite(guideId) }
 
@@ -141,6 +164,16 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
     fun setSmoothCaptions(enabled: Boolean) = viewModelScope.launch { store.setSmoothCaptions(enabled) }
 
     fun setCaptionStyle(style: CaptionStyle) = viewModelScope.launch { store.setCaptionStyle(style) }
+
+    override fun onCleared() {
+        sessions.close()
+    }
+
+    /** The server's own error code when it answered, else the transport's message; never a URL or token. */
+    private fun describe(failure: Throwable): String = when (failure) {
+        is SofaKingException -> "${failure.code}: ${failure.message}"
+        else -> failure.message ?: failure.toString()
+    }
 
     private companion object {
         const val TAG = "SofaKing"

@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.Saver
@@ -27,7 +28,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.withStateAtLeast
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -38,6 +41,7 @@ import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.PopIn
@@ -47,9 +51,13 @@ import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.buildLivePlayer
 import dev.jamesrich.sofaking.ui.player.captionParameters
+import dev.jamesrich.sofaking.ui.player.currentChannelId
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
+import dev.jamesrich.sofaking.ui.player.withStream
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,32 +85,70 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     val guideState = rememberSaveableStateHolder()
     val lineup = (state as? LineupState.Ready)?.lineup
 
-    // One player for the guide preview and the full screen, so OK on the previewed channel continues its stream.
+    // One player for the guide preview and the full screen, so OK on the previewed channel continues its stream,
+    // and one server session behind it, promoted from preview to watch in place.
     val context = LocalContext.current
     val captionSync = remember { CaptionSync() }
     val player = remember { buildLivePlayer(context, captionSync) }
+    val sessions = vm.sessions
+    val scope = rememberCoroutineScope()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(player) { onDispose { player.release() } }
+    // The server replaced the stream under the held session (new epoch, or a session it dropped and the app
+    // reopened): the player reopens the item it holds for that channel at the new URL, metadata intact.
+    LaunchedEffect(sessions, player) {
+        sessions.replaced.collect { stream ->
+            lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
+                val item = player.currentMediaItem ?: return@withStateAtLeast
+                if (item.mediaId != stream.channelId || item.localConfiguration?.uri?.toString() == stream.url) return@withStateAtLeast
+                player.stop()
+                captionSync.effectiveUs = captionSync.advanceUs
+                player.setMediaItem(item.withStream(stream))
+                player.prepare()
+            }
+        }
+    }
     // Before the first prepare: switching text tracks on a playing live stream restarts it.
     val captionsEnabled = settings?.captionsEnabled
     LaunchedEffect(captionsEnabled) {
         if (captionsEnabled != null) player.trackSelectionParameters = captionParameters(player.trackSelectionParameters, captionsEnabled)
     }
-    // The preview starts without a caption lead; the full screen sets each channel's own.
+    // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
+    // the server, so it releases the session outright rather than keeping it to reopen.
     LaunchedEffect(screen) {
         when (screen) {
             Screen.Guide -> captionSync.advanceUs = 0L
-            Screen.Settings -> player.stop()
+            Screen.Settings -> {
+                player.stop()
+                sessions.release(forget = true)
+            }
             is Screen.Player -> Unit
         }
     }
-    // Stopped, not paused: the TV's one hardware decoder and the Dispatcharr stream go free while another app is
-    // in front. The item and playWhenReady survive, so prepare() resumes at the live edge, or stays paused.
+    // Stopped, not paused: the TV's one hardware decoder and the server's session go free while another app is
+    // in front. The item and playWhenReady survive; on return a fresh session is opened for the same channel
+    // and intent and the item is prepared at its URL, at the live edge or still paused.
     val currentScreen by rememberUpdatedState(screen)
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.stop() }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        player.stop()
+        scope.launch { sessions.release() }
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
         if (currentScreen != Screen.Settings && player.mediaItemCount > 0 && player.playbackState == Player.STATE_IDLE) {
             captionSync.effectiveUs = captionSync.advanceUs
-            player.prepare()
+            scope.launch {
+                val stream = try {
+                    sessions.reopen()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Preparing the stale item fails on the player, where the screen's own reconnect takes over.
+                    null
+                }
+                val item = player.currentMediaItem ?: return@launch
+                if (stream != null && stream.channelId == player.currentChannelId) player.setMediaItem(item.withStream(stream))
+                if (player.playbackState == Player.STATE_IDLE) player.prepare()
+            }
         }
     }
 
@@ -110,7 +156,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
         Screen.Settings -> settings?.let { s ->
             SettingsScreen(
                 settings = s,
-                onSave = { url, profile -> vm.saveServer(url, profile); screen = Screen.Guide },
+                onSave = { url, token -> vm.saveServer(url, token); screen = Screen.Guide },
                 onBack = { screen = Screen.Guide },
                 channelCount = lineup?.channels?.size ?: 0,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },
@@ -125,6 +171,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 lineup = lineup,
                 startIndex = start,
                 player = player,
+                sessions = sessions,
                 captionSync = captionSync,
                 onExit = { screen = Screen.Guide },
                 onChannelChanged = { vm.setLastChannel(it.guideId) },
@@ -146,6 +193,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 val s = state
                 when {
                     s is LineupState.Loading || settings == null -> MessageScreen(stringResource(R.string.loading), loading = true)
+                    s is LineupState.Unconfigured -> MessageScreen(
+                        message = stringResource(R.string.unconfigured),
+                        hint = stringResource(R.string.unconfigured_hint),
+                    )
                     s is LineupState.Failed -> MessageScreen(
                         message = stringResource(R.string.load_failed),
                         detail = s.message,
@@ -159,6 +210,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                         onPlay = { screen = Screen.Player(it) },
                         onToggleFavorite = vm::toggleFavorite,
                         previewPlayer = player,
+                        sessions = sessions,
                     )
                 }
             }
@@ -174,6 +226,7 @@ private fun GuideOrEmpty(
     onPlay: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     previewPlayer: ExoPlayer,
+    sessions: PlaybackSessions,
 ) {
     if (lineup.channels.isEmpty()) {
         MessageScreen(stringResource(R.string.no_channels), hint = stringResource(R.string.no_channels_hint))
@@ -185,6 +238,7 @@ private fun GuideOrEmpty(
             onPlay = { onPlay(it.guideId) },
             onToggleFavorite = { onToggleFavorite(it.guideId) },
             previewPlayer = previewPlayer,
+            sessions = sessions,
         )
     }
 }

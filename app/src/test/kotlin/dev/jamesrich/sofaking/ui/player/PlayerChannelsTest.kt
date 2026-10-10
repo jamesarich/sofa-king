@@ -7,7 +7,7 @@ import org.junit.Test
 
 class PlayerChannelsTest {
     private fun channel(guideId: String, number: Double, name: String = "Ch $guideId") =
-        Channel(guideId, number, name, null, "Test", "http://x/$guideId")
+        Channel(guideId, number, name, null, "Test")
 
     private val five = channel("5", 5.0)
     private val eight = channel("8", 8.0)

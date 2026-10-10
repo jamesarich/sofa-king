@@ -36,7 +36,7 @@ class CaptionSync {
 
     companion object {
         /**
-         * Dispatcharr delivers live TS in bursts about 2 s apart, so the buffer swings by ~2 s; starting
+         * Live TS relays deliver in bursts about 2 s apart, so the buffer swings by ~2 s; starting
          * with this much beyond the advance keeps the look-ahead inside downloaded data most of the time.
          */
         const val MARGIN_US = 2_500_000L

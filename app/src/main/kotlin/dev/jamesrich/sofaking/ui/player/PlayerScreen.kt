@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withStateAtLeast
-import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
@@ -56,6 +56,9 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.PlaybackIntent
+import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.RiseIn
@@ -65,7 +68,10 @@ import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val ZAP_OVERLAY_MS = 5_000L
 private const val DIGIT_COMMIT_MS = 1_500L
@@ -74,6 +80,7 @@ private const val CAPTION_TOAST_MS = 2_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
 private const val METADATA_REFRESH_MS = 60_000L
 private const val STREAM_ENDED = "STREAM_ENDED"
+private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 private const val TAG = "SofaKing"
 
 /** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
@@ -82,8 +89,16 @@ private class Notice(val digits: String)
 /** Caption toggle feedback; compared by identity so a repeated press restarts its timer. */
 private class CaptionToast(val outcome: CaptionToggleOutcome)
 
-/** A stream that failed or ended; [attempt] counts the automatic reconnects made for it so far. */
-private data class Failure(val code: String, val attempt: Int)
+/**
+ * A stream that failed or ended; [attempt] counts the automatic reconnects made for it so far. [immediate]
+ * marks a 410 from the relay, whose first reconnect re-reads the session without waiting for the backoff.
+ */
+private data class Failure(val code: String, val attempt: Int, val immediate: Boolean = false)
+
+/** The tune in flight, so a zap cancels the previous channel's session request before it lands on the player. */
+private class TuneJob {
+    var job: Job? = null
+}
 
 
 @OptIn(UnstableApi::class)
@@ -92,6 +107,7 @@ fun PlayerScreen(
     lineup: Lineup,
     startIndex: Int,
     player: ExoPlayer,
+    sessions: PlaybackSessions,
     captionSync: CaptionSync,
     onExit: () -> Unit,
     onChannelChanged: (Channel) -> Unit,
@@ -131,6 +147,8 @@ fun PlayerScreen(
     var paused by remember { mutableStateOf(!player.playWhenReady) }
     val centerGesture = remember { CenterKeyGesture() }
     val now by rememberMinuteNow()
+    val scope = rememberCoroutineScope()
+    val tuneJob = remember { TuneJob() }
 
     // Each channel's captioner runs a different distance behind; adjustments show before the store round-trips.
     var advanceOverrides by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
@@ -166,13 +184,13 @@ fun PlayerScreen(
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
                 if (playbackState == Player.STATE_READY) failure = null
-                // A live stream never ends; Dispatcharr closed the connection, so treat it as a failure and reconnect.
+                // A live stream never ends; the server closed the connection, so treat it as a failure and reconnect.
                 if (playbackState == Player.STATE_ENDED) failure = Failure(STREAM_ENDED, attempt = failure?.attempt ?: 0)
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 if (player.recoverIfBehindLive(error)) return
-                failure = Failure(error.errorCodeName, attempt = failure?.attempt ?: 0)
+                failure = Failure(error.errorCodeName, attempt = failure?.attempt ?: 0, immediate = error.isStreamGone())
             }
         }
         player.addListener(listener)
@@ -188,22 +206,40 @@ fun PlayerScreen(
     fun load(channel: Channel) {
         val metadata = nowPlayingFor(channel)
         wrapper.publishNowPlaying(metadata)
+        tuneJob.job?.cancel()
         // Handed over from the guide preview mid-stream: keep it, and let the caption lead grow back from zero.
-        if (player.currentStreamUrl == channel.streamUrl && (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING)) {
+        // The same session is promoted to watch, so the stream continues and its lease grows to 90 s.
+        if (player.currentChannelId == channel.guideId && (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING)) {
             captionSync.effectiveUs = 0L
+            tuneJob.job = scope.launch {
+                try {
+                    sessions.setIntent(channel.guideId, PlaybackIntent.WATCH)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "session: promote failed", e)
+                }
+            }
             return
         }
-        // Reset the renderers so the next stream's decoder rescales instead of reusing the old surface size.
+        // Reset the renderers so the next stream's decoder rescales instead of reusing the old surface size,
+        // and before the session changes hands, so the released stream's end is not read as a failure.
         player.stop()
         // Playback can't start until the full advance is buffered, so a fresh tune starts at the full lead.
         captionSync.effectiveUs = captionSync.advanceUs
-        player.setMediaItem(
-            MediaItem.Builder()
-                .setUri(channel.streamUrl)
-                .setMediaMetadata(metadata)
-                .build(),
-        )
-        player.prepare()
+        tuneJob.job = scope.launch {
+            val stream = try {
+                sessions.tune(channel.guideId, PlaybackIntent.WATCH)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // The reconnect loop below tunes again with backoff, as it does for a stream that failed.
+                failure = Failure((e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE, attempt = failure?.attempt ?: 0)
+                return@launch
+            }
+            player.setMediaItem(mediaItemFor(stream, metadata))
+            player.prepare()
+        }
     }
 
     fun zapTo(target: Int) {
@@ -258,14 +294,16 @@ fun PlayerScreen(
     }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(index, currentChannel?.streamUrl, lifecycle) {
+    LaunchedEffect(index, currentChannel?.guideId, lifecycle) {
         val channel = currentChannel ?: return@LaunchedEffect
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
             val before = tuned
             tuned = channel
-            // A refresh preserves the stream; a different guide ID still changes the saved channel.
-            if (before?.streamUrl != channel.streamUrl) load(channel)
-            if (before?.guideId != channel.guideId) currentOnChannelChanged(channel)
+            // A refresh that keeps the channel preserves its stream and session.
+            if (before?.guideId != channel.guideId) {
+                load(channel)
+                currentOnChannelChanged(channel)
+            }
         }
     }
 
@@ -309,10 +347,11 @@ fun PlayerScreen(
     }
 
     // Reconnects with backoff for as long as the channel is on screen, and only while the app is in front:
-    // a retry in the background would take the TV's decoder and a Dispatcharr slot.
+    // a retry in the background would take the TV's decoder and a session on the server. A 410 skips the
+    // first wait: the server asked for the session to be re-read, which is what tuning again does.
     LaunchedEffect(failure) {
         val current = failure ?: return@LaunchedEffect
-        delay(reconnectDelayMs(current.attempt))
+        if (!(current.immediate && current.attempt == 0)) delay(reconnectDelayMs(current.attempt))
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
         val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
         failure = current.copy(attempt = current.attempt + 1)

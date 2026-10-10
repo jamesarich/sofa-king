@@ -6,13 +6,12 @@ import java.time.Instant
 /** Models are immutable values; the annotation lets Compose skip rows and cells whose inputs are equal. */
 @Immutable
 data class Channel(
-    /** Matches the XMLTV `channel` id; Dispatcharr uses the channel number. */
+    /** The server's channel id: the key for guide data, favorites, caption timing and playback sessions. */
     val guideId: String,
     val number: Double,
     val name: String,
     val logo: String?,
     val group: String,
-    val streamUrl: String,
 )
 
 @Immutable

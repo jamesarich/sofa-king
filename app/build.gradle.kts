@@ -15,10 +15,6 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
-
-        // Dispatcharr base URL and channel profile; override with -PdispatcharrUrl=... -PdispatcharrProfile=...
-        buildConfigField("String", "DISPATCHARR_URL", groovy.json.JsonOutput.toJson((project.findProperty("dispatcharrUrl") ?: "http://192.168.1.3:9191").toString()))
-        buildConfigField("String", "DISPATCHARR_PROFILE", groovy.json.JsonOutput.toJson((project.findProperty("dispatcharrProfile") ?: "livingroom").toString()))
     }
 
     buildFeatures {
@@ -70,7 +66,6 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
-    testImplementation(libs.kxml2)
     testImplementation(libs.mockwebserver)
     testImplementation(libs.kotlinx.coroutines.test)
 }

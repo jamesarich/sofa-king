@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withStateAtLeast
-import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -40,13 +40,17 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.PlaybackIntent
+import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.player.LiveVideo
-import dev.jamesrich.sofaking.ui.player.currentStreamUrl
+import dev.jamesrich.sofaking.ui.player.currentChannelId
+import dev.jamesrich.sofaking.ui.player.isStreamGone
+import dev.jamesrich.sofaking.ui.player.mediaItemFor
 import dev.jamesrich.sofaking.ui.player.recoverIfBehindLive
 import dev.jamesrich.sofaking.ui.range
 import dev.jamesrich.sofaking.ui.rememberSettled
@@ -55,6 +59,7 @@ import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /** Kill switch: false removes the pane and the preview player entirely. */
@@ -65,8 +70,10 @@ internal val PREVIEW_WIDTH = 256.dp
 internal val PREVIEW_HEIGHT = 144.dp
 /** The whole top band, exactly the preview's height; see the row budget in GuideScreen. */
 internal val PREVIEW_BAND_HEIGHT = 144.dp
-// Long enough to skip rows passed under a held D-pad (repeats every 50-150 ms); each tune cold-starts a Dispatcharr channel.
+// Long enough to skip rows passed under a held D-pad (repeats every 50-150 ms); each tune opens a session and cold-starts a relay.
 private const val PREVIEW_DEBOUNCE_MS = 350L
+// How often a 410 from the relay reopens the same channel before the preview gives up on it.
+private const val MAX_STREAM_GONE_RETUNES = 2
 
 /** Programme details for the focused cell. [live] is whether the programme is airing at [now]. */
 @Composable
@@ -136,15 +143,18 @@ internal fun PreviewDetails(
 }
 
 /**
- * Muted live preview of [channel] on the app's shared [player]. Tunes [PREVIEW_DEBOUNCE_MS] after focus
- * rests on a different stream; a stream the player already holds (the channel just watched) keeps playing.
- * The player belongs to the app, which stops it in the background and releases it.
+ * Muted live preview of [channel] on the app's shared [player]. Opens a preview session through [sessions]
+ * [PREVIEW_DEBOUNCE_MS] after focus rests on a different channel; a stream the player already holds (the
+ * channel just watched) keeps playing and its session goes back to preview intent. The player belongs to
+ * the app, which stops it in the background and releases it.
  */
 @OptIn(UnstableApi::class)
 @Composable
-internal fun PreviewVideo(player: ExoPlayer, channel: Channel?, modifier: Modifier = Modifier) {
+internal fun PreviewVideo(player: ExoPlayer, sessions: PlaybackSessions, channel: Channel?, modifier: Modifier = Modifier) {
     var buffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
     var failed by remember { mutableStateOf(false) }
+    // Bumped when the relay answers 410, so the tune effect reopens the channel at once instead of after the debounce.
+    var retune by remember { mutableIntStateOf(0) }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(player) {
@@ -162,28 +172,47 @@ internal fun PreviewVideo(player: ExoPlayer, channel: Channel?, modifier: Modifi
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                if (!player.recoverIfBehindLive(error)) failed = true
+                if (player.recoverIfBehindLive(error)) return
+                if (error.isStreamGone() && retune < MAX_STREAM_GONE_RETUNES) retune++ else failed = true
             }
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
     }
 
-    val streamUrl = channel?.streamUrl
-    LaunchedEffect(streamUrl, lifecycle) {
-        if (streamUrl == null) return@LaunchedEffect
-        if (player.currentStreamUrl == streamUrl) {
-            lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
-                if (player.playbackState == Player.STATE_IDLE) player.prepare()
+    val guideId = channel?.guideId
+    LaunchedEffect(guideId) { retune = 0 }
+    LaunchedEffect(guideId, retune, lifecycle) {
+        if (guideId == null) return@LaunchedEffect
+        val held = player.currentChannelId == guideId
+        if (held && retune == 0 && player.playbackState != Player.STATE_IDLE) {
+            // Back from the full screen with its stream still playing: keep it, as a preview again.
+            try {
+                sessions.setIntent(guideId, PlaybackIntent.PREVIEW)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // The lease keeps renewing either way; a watch-intent preview only holds its slot longer.
             }
             return@LaunchedEffect
         }
-        delay(PREVIEW_DEBOUNCE_MS)
+        if (!held && retune == 0) delay(PREVIEW_DEBOUNCE_MS)
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
             failed = false
-            // Reset the renderers before a new item, as the full-screen player does.
+            // Stopped before the session changes hands: releasing the old session ends its stream, which would
+            // otherwise surface as a player error. This also resets the renderers, as the full screen does.
             player.stop()
-            player.setMediaItem(MediaItem.fromUri(streamUrl))
+        }
+        val stream = try {
+            sessions.tune(guideId, PlaybackIntent.PREVIEW)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            failed = true
+            return@LaunchedEffect
+        }
+        lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
+            player.setMediaItem(mediaItemFor(stream))
             player.prepare()
         }
     }

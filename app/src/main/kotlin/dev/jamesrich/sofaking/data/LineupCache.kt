@@ -15,7 +15,7 @@ import java.time.Instant
 
 /**
  * The last successfully loaded [Lineup], kept in app-private storage so a cold start can show it before the network answers.
- * [key] identifies the server and profile; a file written for another key is ignored and left in place.
+ * [key] identifies the server; a file written for another key is ignored and left in place.
  */
 class LineupCache(
     private val file: File,
@@ -65,7 +65,6 @@ class LineupCache(
             out.writeText(channel.name)
             out.writeNullableText(channel.logo)
             out.writeText(channel.group)
-            out.writeText(channel.streamUrl)
         }
         // Empty lists are dropped on read, so skipping them here keeps the file minimal without changing the result.
         val guide = lineup.guide.filterValues { it.isNotEmpty() }
@@ -93,7 +92,6 @@ class LineupCache(
                 name = input.readText(),
                 logo = input.readNullableText(),
                 group = input.readText(),
-                streamUrl = input.readText(),
             )
         }
         val channelIds = input.readCount()
@@ -146,7 +144,7 @@ class LineupCache(
 
     private companion object {
         /** Bump when the layout changes; older files are deleted on read. */
-        const val VERSION = 1
+        const val VERSION = 2
         const val BUFFER_SIZE = 64 * 1024
         const val MAX_COUNT = 1_000_000
         const val MAX_TEXT_BYTES = 1 shl 20

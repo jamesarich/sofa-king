@@ -3,8 +3,10 @@ package dev.jamesrich.sofaking.data
 import kotlinx.coroutines.flow.Flow
 
 data class AppSettings(
-    val serverUrl: String,
-    val profile: String,
+    /** The Sofa King server's base address; empty until the user enters one. */
+    val serverUrl: String = "",
+    /** The server's bearer token, sent on API requests; empty when the server runs without one. */
+    val apiToken: String = "",
     /** [Channel.guideId]s the user starred. */
     val favorites: Set<String> = emptySet(),
     /** [Channel.guideId] of the channel watched most recently, to reopen on launch. */
@@ -20,6 +22,12 @@ data class AppSettings(
 ) {
     fun captionAdvanceFor(guideId: String): Int = captionAdvanceByChannel[guideId] ?: captionAdvanceMs
 
+    /** Keeps the token out of logs and crash reports; everything else prints as a data class would. */
+    override fun toString(): String =
+        "AppSettings(serverUrl=$serverUrl, apiToken=${if (apiToken.isEmpty()) "unset" else "set"}, favorites=$favorites, " +
+            "lastChannel=$lastChannel, captionsEnabled=$captionsEnabled, captionAdvanceMs=$captionAdvanceMs, " +
+            "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle)"
+
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
         val CAPTION_ADVANCE_RANGE_MS = 0..8_000
@@ -33,7 +41,7 @@ enum class CaptionStyle { SYSTEM, LARGE_HIGH_CONTRAST }
 interface SettingsStore {
     val settings: Flow<AppSettings>
 
-    suspend fun setServer(serverUrl: String, profile: String)
+    suspend fun setServer(serverUrl: String, apiToken: String)
 
     suspend fun toggleFavorite(guideId: String)
 

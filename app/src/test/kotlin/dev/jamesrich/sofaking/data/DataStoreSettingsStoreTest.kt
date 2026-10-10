@@ -29,8 +29,6 @@ class DataStoreSettingsStoreTest {
 
     private lateinit var scope: CoroutineScope
 
-    private val defaults = AppSettings(serverUrl = "http://default:9191", profile = "livingroom")
-
     /** One DataStore per test: a second instance over the same file would not see the first one's writes. */
     private val dataStore: DataStore<Preferences> by lazy {
         PreferenceDataStoreFactory.create(scope = scope) {
@@ -48,22 +46,48 @@ class DataStoreSettingsStoreTest {
         scope.cancel()
     }
 
-    private fun newStore(): DataStoreSettingsStore = DataStoreSettingsStore(dataStore, defaults)
+    private fun newStore(): DataStoreSettingsStore = DataStoreSettingsStore(dataStore)
 
     @Test
-    fun `empty store reports the defaults`() = runTest {
+    fun `an empty store has no server and no token`() = runTest {
         val settings = newStore().settings.first()
-        assertEquals(defaults, settings)
+        assertEquals(AppSettings(), settings)
+        assertEquals("", settings.serverUrl)
+        assertEquals("", settings.apiToken)
     }
 
     @Test
     fun `setServer trims whitespace and strips a trailing slash`() = runTest {
         val store = newStore()
-        store.setServer("  http://dispatcharr.lan:9191/  ", " lounge ")
+        store.setServer("  http://sofa.lan:9193/  ", " abc123 ")
 
         val settings = store.settings.first()
-        assertEquals("http://dispatcharr.lan:9191", settings.serverUrl)
-        assertEquals("lounge", settings.profile)
+        assertEquals("http://sofa.lan:9193", settings.serverUrl)
+        assertEquals("abc123", settings.apiToken)
+    }
+
+    @Test
+    fun `a playlist server address from an earlier install is not read and is dropped on save`() = runTest {
+        dataStore.edit {
+            it[stringPreferencesKey("server_url")] = "http://192.168.1.3:9191"
+            it[stringPreferencesKey("profile")] = "livingroom"
+        }
+        val store = newStore()
+        assertEquals("", store.settings.first().serverUrl)
+
+        store.setServer("http://192.168.1.3:9193", "")
+
+        val prefs = dataStore.data.first()
+        assertEquals(null, prefs[stringPreferencesKey("server_url")])
+        assertEquals(null, prefs[stringPreferencesKey("profile")])
+        assertEquals("http://192.168.1.3:9193", store.settings.first().serverUrl)
+    }
+
+    @Test
+    fun `the token is kept out of the settings' string form`() {
+        val printed = AppSettings(serverUrl = "http://sofa.lan:9193", apiToken = "s3cret-token").toString()
+        assertFalse(printed, printed.contains("s3cret"))
+        assertTrue(printed, printed.contains("http://sofa.lan:9193"))
     }
 
     @Test
@@ -197,11 +221,11 @@ class DataStoreSettingsStoreTest {
     fun `settings flow emits each update`() = runTest {
         val store = newStore()
 
-        store.setServer("http://a:9191", "one")
-        assertEquals("one", store.settings.first { it.profile == "one" }.profile)
+        store.setServer("http://a:9193", "one")
+        assertEquals("one", store.settings.first { it.apiToken == "one" }.apiToken)
 
-        store.setServer("http://b:9191", "two")
-        val updated = store.settings.first { it.profile == "two" }
-        assertEquals("http://b:9191", updated.serverUrl)
+        store.setServer("http://b:9193", "two")
+        val updated = store.settings.first { it.apiToken == "two" }
+        assertEquals("http://b:9193", updated.serverUrl)
     }
 }

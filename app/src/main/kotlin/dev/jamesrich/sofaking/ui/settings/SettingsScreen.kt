@@ -50,7 +50,7 @@ private val FIELD_WIDTH = 640.dp
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
-    onSave: (serverUrl: String, profile: String) -> Unit,
+    onSave: (serverUrl: String, apiToken: String) -> Unit,
     onBack: () -> Unit,
     channelCount: Int,
     modifier: Modifier = Modifier,
@@ -63,15 +63,16 @@ fun SettingsScreen(
     var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
     var captionStyle by remember(settings.captionStyle) { mutableStateOf(settings.captionStyle) }
     var serverUrl by remember(settings.serverUrl) { mutableStateOf(settings.serverUrl) }
-    var profile by remember(settings.profile) { mutableStateOf(settings.profile) }
+    var apiToken by remember(settings.apiToken) { mutableStateOf(settings.apiToken) }
     var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
     val serverFocus = remember { FocusRequester() }
-    val profileFocus = remember { FocusRequester() }
-    // Save only takes an address Dispatcharr's endpoints can be appended to; the fields say what is missing.
+    val tokenFocus = remember { FocusRequester() }
+    // Save only takes an address the server's API paths can be appended to and a token a header can carry;
+    // the fields say what is missing.
     val validUrl = ServerAddress.normalizeUrl(serverUrl)
-    val validProfile = ServerAddress.normalizeProfile(profile)
-    val canSave = validUrl != null && validProfile != null
-    val save = { if (validUrl != null && validProfile != null) onSave(validUrl, validProfile) }
+    val validToken = ServerAddress.normalizeToken(apiToken)
+    val canSave = validUrl != null && validToken != null
+    val save = { if (validUrl != null && validToken != null) onSave(validUrl, validToken) }
 
     BackHandler { onBack() }
     LaunchedEffect(Unit) { requestFocusWhenAttached(serverFocus) }
@@ -112,20 +113,21 @@ fun SettingsScreen(
                 problem = stringResource(R.string.settings_server_url_invalid).takeIf { validUrl == null },
                 focusRequester = serverFocus,
                 imeAction = ImeAction.Next,
-                onAction = { profileFocus.requestFocus(FocusDirection.Enter) },
+                onAction = { tokenFocus.requestFocus(FocusDirection.Enter) },
             )
         }
         item {
             SettingField(
-                label = stringResource(R.string.settings_profile),
-                value = profile,
-                onValueChange = { profile = it },
-                problem = stringResource(R.string.settings_profile_invalid).takeIf { validProfile == null },
-                focusRequester = profileFocus,
+                label = stringResource(R.string.settings_api_token),
+                value = apiToken,
+                onValueChange = { apiToken = it },
+                problem = stringResource(R.string.settings_api_token_invalid).takeIf { validToken == null },
+                focusRequester = tokenFocus,
                 imeAction = ImeAction.Done,
                 onAction = save,
             )
         }
+        item { HelpText(stringResource(R.string.settings_api_token_help)) }
         item { SectionHeader(stringResource(R.string.settings_section_captions)) }
         item {
             SettingRow(label = stringResource(R.string.captions_setting)) {

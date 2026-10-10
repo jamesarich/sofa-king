@@ -18,16 +18,16 @@ class LineupCacheTest {
     private val now = Instant.parse("2026-10-09T10:00:00Z")
 
     private companion object {
-        const val KEY = "http://server:9191\nlivingroom"
+        const val KEY = "http://server:9193"
     }
 
     private fun cacheFile(): File = File(tempFolder.root, "lineup-cache.bin")
 
     private fun cache(key: String = KEY, at: Instant = now) = LineupCache(cacheFile(), key) { at }
 
-    private val channelOne = Channel("1", 1.0, "One", "http://logo/1.png", "News", "http://stream/1")
-    private val channelTwo = Channel("2", 2.5, "Café ☃", null, "Other", "http://stream/2")
-    private val channelThree = Channel("3", 3.0, "Quiet", null, "Other", "http://stream/3")
+    private val channelOne = Channel("1", 1.0, "One", "http://logo/1.png", "News")
+    private val channelTwo = Channel("2", 2.5, "Café ☃", null, "Other")
+    private val channelThree = Channel("3", 3.0, "Quiet", null, "Other")
 
     private fun programme(channel: String, start: String, stop: String, title: String, subtitle: String? = null, description: String? = null) =
         Programme(channel, Instant.parse(start), Instant.parse(stop), title, subtitle, description)
@@ -100,9 +100,9 @@ class LineupCacheTest {
 
     @Test
     fun `a file written for another server is ignored and kept`() = runTest {
-        cache(key = "http://a:9191\nlivingroom").write(Lineup(listOf(channelOne), emptyMap()))
+        cache(key = "http://a:9193").write(Lineup(listOf(channelOne), emptyMap()))
 
-        assertNull(cache(key = "http://b:9191\nlivingroom").read())
+        assertNull(cache(key = "http://b:9193").read())
         assertTrue(cacheFile().exists())
     }
 

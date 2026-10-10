@@ -66,6 +66,5 @@ class ChannelNumberEntryTest {
         name = name,
         logo = null,
         group = "Test",
-        streamUrl = "http://example.invalid/$number",
     )
 }

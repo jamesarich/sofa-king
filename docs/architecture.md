@@ -48,7 +48,7 @@ The five IPTV containers consumed approximately **3.3 GiB combined** in one idle
 
 “Plex” in upstream provider metadata also means the Plex FAST channel service. Removing the Plex media server from IPTV does not require dropping those FAST channels.
 
-Evidence: live Docker/Django/HTTP inspection and the local [feed contract](/home/james/homelab-plans/sofa-king-iptv-contract.md), [playback report](/home/james/homelab-plans/sofa-king-playback-report.md), [feed audit](/home/james/homelab-plans/sofa-king-iptv-audit.md), and Sofa King's [architecture](/home/james/src/sofa-king/docs/ARCHITECTURE.md) and data/player code.
+Evidence: live Docker/Django/HTTP inspection, private household feed-contract/playback/audit records, and Sofa King's [Android architecture](https://github.com/jamesarich/sofa-king/blob/main/docs/ARCHITECTURE.md) and data/player code. Household records remain outside Git because they contain operational details.
 
 ## Alternatives
 

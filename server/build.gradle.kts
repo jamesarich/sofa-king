@@ -19,6 +19,7 @@ dependencies {
     runtimeOnly(libs.slf4j.simple)
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.ktor.test)
+    testImplementation(libs.ktor.mock)
     testImplementation(project(":client"))
 }
 dependencyLocking { lockAllConfigurations() }

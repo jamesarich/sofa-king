@@ -1,6 +1,6 @@
 # Sofa King Backend
 
-A working Kotlin live TV backend for our Sofa King client, using the latest verified preview compiler/server stack. One application owns the native API, SQLite, playback sessions and source qualification. DVR remains a stretch goal.
+A working Kotlin live TV backend for our Sofa King client, using a pinned preview compiler/server stack. One application owns the native API, SQLite, playback sessions and source qualification. DVR remains a stretch goal.
 
 ## Implemented
 
@@ -12,7 +12,7 @@ A working Kotlin live TV backend for our Sofa King client, using the latest veri
 - Typed Kotlin client handles with observable playback state, automatic lease renewal and cancellation cleanup.
 - Local SQLite WAL, atomic migrations, persistent server identity and authenticated API access for LAN binding.
 
-The existing Sofa King Android app is unchanged and needs native API integration. This implementation is a working migration backend; it still uses configured provider feeds and does not yet replace every provider-specific component in the household stack.
+The Sofa King Android app still consumes M3U/XMLTV and needs native API integration. This implementation is a working migration backend; it still uses configured provider feeds and does not yet replace every provider-specific component in the household stack.
 
 ## Run
 
@@ -43,9 +43,7 @@ python3 scripts/smoke.py
 python3 scripts/live-smoke.py
 ```
 
-All 53 tests pass (52 server, one client). The installed application passes real HTTP/restart checks and generated-media acceptance. A read-only household bridge run imported 916 channels, returned 269 real programmes across 50 guide rows and decoded WOI ABC 5 Des Moines through the new backend. See [acceptance commands](docs/live-tv.md#verification).
-
-No production deployment, provider configuration changes, client edits or service retirement have occurred.
+These checks exercise the installed application over HTTP, persistence across restart, generated-media decoding, lease release and upstream cancellation. They do not certify Android TV playback or household cutover. See [acceptance commands](docs/live-tv.md#verification) and the [dated review record](docs/review-2026-10-10.md).
 
 ## Remaining work
 
@@ -57,5 +55,6 @@ Native Sofa King UI integration and device acceptance; provider-specific discove
 - [Current live TV milestone](docs/plans/live-tv.md)
 - [Completed foundation](docs/plans/foundation.md)
 - [Dependency pins and documented practices](docs/dependencies.md)
+- [Code and documentation review](docs/review-2026-10-10.md)
 
 Follow the lightweight repository-native workflow in `AGENTS.md`: implement working slices, maintain the plan, verify and commit. No Superpowers process dependency remains.

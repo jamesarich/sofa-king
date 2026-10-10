@@ -26,8 +26,12 @@ Ktor artifacts are restricted to the official JetBrains EAP repository using Gra
 
 Experimental features are enabled only when they serve a concrete feature. Preview compiler dependencies do not require enabling every experimental language construct or HTTP/3 for LAN viewing.
 
-## Verified baseline
+## Verification and review
 
-On 2026-10-10, the exact selected stack passed all 32 tests and `:server:installDist`. The installed distribution then passed `python3 scripts/smoke.py`, including real HTTP, SQLite migrations/WAL, SIGTERM and persistent identity across restart. Dependency locks include the Kotlin BOM alignment. This is local foundation validation; provider media and Android playback are not yet implemented or certified.
+The contract/client target JVM 17 with JDK 21; the server targets JVM 21. Run the commands in [the README](../README.md#verification) whenever dependency pins change, after building `test :server:installDist`. Kotlin's preview metadata requires a compatible consuming compiler.
 
-The working live TV milestone also uses matching Ktor EAP client/CIO/mock artifacts. The selected stack now passes 53 tests including client cancellation. The client/contract target JVM 17 with JDK 21; server remains JVM 21. HLS relay preserves the protocol structure described by [RFC 8216](https://datatracker.ietf.org/doc/html/rfc8216), uses [Ktor streaming responses](https://ktor.io/docs/server-responses.html), and bounds [connection/socket timeouts](https://ktor.io/docs/client-timeout.html) while allowing unbounded live stream duration. Provider/media errors are sanitized before logging. Server-side decode acceptance is separate from [Media3 HLS](https://developer.android.com/media/media3/exoplayer/hls) device acceptance.
+HLS behavior follows [RFC 8216](https://datatracker.ietf.org/doc/html/rfc8216); streaming responses and socket timeouts are bounded while live stream duration is unbounded. Automatic Ktor redirects are disabled so provider credentials stay within their configured origin. See [Ktor redirect configuration](https://ktor.io/docs/client-redirect.html) and [timeout configuration](https://ktor.io/docs/client-timeout.html). Server decode checks remain separate from [Media3 HLS device acceptance](https://developer.android.com/media/media3/exoplayer/hls).
+
+Follow [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html). Preserve cancellation in normal operations; use bounded non-cancellable cleanup only for resources that must be released. See [Kotlin cancellation guidance](https://kotlinlang.org/docs/cancellation-and-timeouts.html).
+
+Documentation follows the [GitHub style guide](https://docs.github.com/en/contributing/style-guide-and-content-model/style-guide): clear task-oriented prose, sentence-case headings, descriptive links, language-tagged samples and uppercase placeholders. Repository Markdown does not use GitHub Docs' Liquid templates. Keep implemented behavior in usage/reference docs, future behavior in plans, and dated verification evidence in [review records](review-2026-10-10.md).

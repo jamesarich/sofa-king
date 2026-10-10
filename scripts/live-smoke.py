@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 import signal
 import socket
-import sqlite3
 import subprocess
 import tempfile
 import threading
@@ -144,8 +143,8 @@ def main():
                 assert int(progress['frame']) >= 100 and int(progress['out_time_us']) >= 7_000_000
                 deadline = time.monotonic() + 20
                 while True:
-                    with sqlite3.connect(data / 'backend.sqlite') as connection:
-                        state = json.loads(connection.execute('SELECT state_json FROM offering_health').fetchone()[0])
+                    state = next(source for source in request(base, '/api/v1/sources')
+                                 if source['channelId'] == channel['id'])
                     if state['status'] == 'HEALTHY':
                         break
                     assert time.monotonic() < deadline, 'Decode probe did not qualify source'

@@ -20,7 +20,7 @@ class LiveRuntime(val feeds: FeedService, val sessions: SessionManager, val rela
         suspend fun create(store: BackendStore, config: ServerConfig, clock: Clock): LiveRuntime {
             val configs = loadFeeds(config.sourcesFile)
             val http = HttpClient(CIO) {
-                followRedirects = true
+                followRedirects = false
                 install(HttpTimeout) { requestTimeoutMillis = 60_000; connectTimeoutMillis = 5000; socketTimeoutMillis = 15_000 }
             }
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

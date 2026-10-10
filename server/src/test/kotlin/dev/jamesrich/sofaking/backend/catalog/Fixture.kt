@@ -28,10 +28,18 @@ class Fixture : AutoCloseable {
     val mislabeledFeed = FeedConfig("fake", "$base/fake-feed.m3u", probe = false)
     val tsConnections = AtomicInteger()
     val tsClosed = AtomicInteger()
+    /** Raw query string of the last media playlist request, for delivery-directive checks. */
+    @Volatile var lastMediaQuery: String? = null
     init {
         server.executor = executor
         server.createContext("/") { exchange ->
             val path = exchange.requestURI.path
+            if (path == "/media.m3u8") lastMediaQuery = exchange.requestURI.rawQuery
+            if (path == "/loop") {
+                exchange.responseHeaders.set("Location", "$base/loop")
+                exchange.sendResponseHeaders(302, -1); exchange.close()
+                return@createContext
+            }
             if (path == "/live.ts" || path == "/fake.m3u8") {
                 tsConnections.incrementAndGet()
                 exchange.responseHeaders.set("Content-Type", "video/mp2t")
@@ -57,7 +65,7 @@ class Fixture : AutoCloseable {
                 "/fake-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"fake-station\" tvg-chno=\"8\",Mislabeled\n$base/fake.m3u8\n"
                 "/resolve" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100000\nmedia.m3u8\n"
                 "/guide.xml" -> "<tv><programme channel=\"station\" start=\"20261010080000 -0500\" stop=\"20261010090000 -0500\"><title>Morning</title></programme></tv>"
-                "/master.m3u8" -> "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\",URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,AUDIO=\"audio\"\nmedia.m3u8\n"
+                "/master.m3u8" -> "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\",URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,AUDIO=\"audio\"\nmedia.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200000\nloop\n"
                 "/media.m3u8", "/audio.m3u8" -> "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n#EXTINF:4,\nsegment.ts\n#EXT-X-ENDLIST\n"
                 "/key" -> "0123456789abcdef"
                 else -> "fixture-segment"

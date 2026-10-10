@@ -16,6 +16,7 @@ Set these environment variables before starting the server:
 | `SOFA_PROBE_PARALLELISM` | `6` | Concurrent source probes, 1–32 |
 | `SOFA_RESTREAM_ORIGINS` | Unset | Comma-separated `host[:port]` list of LAN restream proxies whose 502 counts as source evidence, for example `192.168.1.3:3000` |
 | `SOFA_OBSERVATION_RETENTION_DAYS` | `7` | Days of health observation history to keep, 1–3650 |
+| `SOFA_ALLOW_LOOPBACK_UPSTREAMS` | `false` | Allow playlist, guide and stream URLs on loopback (`127.0.0.1`, `::1`, `localhost`); for local fixtures only |
 
 Relative paths resolve from the server's working directory. Configuration changes require a restart.
 
@@ -75,6 +76,10 @@ The token permits both playback and source administration. Health endpoints are 
 Credentials are sent only to the configured request origin. Cross-origin CDN requests receive only `User-Agent`, `Accept`, `Accept-Language`, `Origin` and `Referer`; authorization, cookies and custom headers are removed. Redirects are limited to five. HTTPS redirects cannot downgrade to HTTP; sources configured with HTTPS also reject HTTP media resources.
 
 Providers that need secret headers on a different CDN origin are unsupported. Direct FFmpeg probes skip feeds with credential or custom headers. See [source health](source-health.md).
+
+## Upstream addresses
+
+Playlist, guide, probe and media requests go only to `http`/`https` URLs without user info. Loopback (`127.0.0.0/8`, `::1`, `localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), unspecified (`0.0.0.0`, `::`) and multicast literals are refused, including as redirect targets; RFC1918 LAN hosts such as `192.168.1.3` are allowed. Hostnames are not resolved before the request. A refused media address answers `502 UPSTREAM_REJECTED`, a refused feed address fails that import, and a refused probe target is offering evidence. `SOFA_ALLOW_LOOPBACK_UPSTREAMS=true` permits loopback for local fixtures.
 
 ## Troubleshooting
 

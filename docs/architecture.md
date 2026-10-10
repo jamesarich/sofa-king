@@ -32,7 +32,7 @@ Withdrawn sources lose playback eligibility. Their channels and health records r
 
 Sessions select healthy sources before unverified ones, then suspect ones. They have preview/watch intent (45-second and 90-second leases), idempotency keys and stream epochs. At capacity the oldest preview session is evicted. Release, expiry, eviction and source disable cancel active media requests.
 
-The HLS relay rewrites variant, audio, subtitle, key, initialization-map and segment URLs into opaque session paths. It preserves playlist tags and byte ranges. Limits are 12 active requests and 4,096 mapped resources per session, and 32 concurrent upstream connections across the server.
+The HLS relay rewrites variant, audio, subtitle, key, initialization-map and segment URLs into opaque session paths. It preserves playlist tags and byte ranges, and forwards the LL-HLS delivery directives `_HLS_msn`, `_HLS_part` and `_HLS_skip` from a playlist request to the upstream playlist. Token lookups are O(1) in both directions. Root and playlist tokens are pinned for the session's epoch; segments and keys share a 4,096-entry LRU. Limits are 12 active requests per session and 32 concurrent upstream connections across the server. Upstream addresses follow the [address policy](live-tv.md#upstream-addresses); a refused address answers `502 UPSTREAM_REJECTED`.
 
 ## Live MPEG-TS relay
 

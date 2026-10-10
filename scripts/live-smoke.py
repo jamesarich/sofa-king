@@ -100,7 +100,9 @@ def main():
         data = directory / 'data'
         port = free_port()
         base = f'http://127.0.0.1:{port}'
-        env = dict(os.environ, SOFA_HOST='127.0.0.1', SOFA_PORT=str(port), SOFA_DATA_DIR=str(data), SOFA_SOURCES=str(sources), SOFA_API_TOKEN=TOKEN)
+        # The fixture serves from loopback, which the server refuses unless told it is a development fixture.
+        env = dict(os.environ, SOFA_HOST='127.0.0.1', SOFA_PORT=str(port), SOFA_DATA_DIR=str(data), SOFA_SOURCES=str(sources), SOFA_API_TOKEN=TOKEN,
+                   SOFA_ALLOW_LOOPBACK_UPSTREAMS='true')
         process = None
         try:
             with (directory / 'server.log').open('w') as log:

@@ -4,9 +4,11 @@ import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.health.*
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import java.nio.file.Files
+import java.time.Instant
 import kotlinx.coroutines.*
 import kotlin.test.*
 
@@ -14,7 +16,7 @@ class SessionManagerTest {
     @Test fun `idempotency promotion capacity cancellation and lease expiry are owned`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-session-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
-            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock); feeds.refresh(fixture.feed)
+            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
             val sessions = SessionManager(feeds, store, clock, 1)
             val request = OpenPlayback(feeds.catalog().channels.single().id, "preview", "one")
             val opened = sessions.open(request)
@@ -38,7 +40,7 @@ class SessionManagerTest {
     @Test fun `at capacity the oldest preview is evicted and previews hold shorter leases than watches`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-evict-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
-            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock); feeds.refresh(fixture.feed)
+            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
             val channel = feeds.catalog().channels.single().id
             val sessions = SessionManager(feeds, store, clock, 2)
             val first = sessions.open(OpenPlayback(channel, "preview", "first"))
@@ -61,7 +63,7 @@ class SessionManagerTest {
     @Test fun `manual disable immediately blocks media and cancels its upstream request`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-disable-play-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
-            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock); feeds.refresh(fixture.feed)
+            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
             val sessions = SessionManager(feeds, store, clock)
             val session = sessions.open(OpenPlayback(feeds.catalog().channels.single().id, idempotencyKey = "disable"))
             val token = session.descriptor.url.substringAfterLast('/')
@@ -127,10 +129,26 @@ class SessionManagerTest {
             sessions.close()
         } } } finally { dir.toFile().deleteRecursively() }
     }
+    @Test fun `playlist tokens survive the segment LRU and lookups are bidirectional`() {
+        val session = LiveSession("s", OpenPlayback("c", "watch", "k"), Offering("o", "c", "p", "http://example.test/resolve?id=1", "hls"), Instant.MAX)
+        val root = session.descriptor().descriptor.url.substringAfterLast('/')
+        assertTrue(root.endsWith(".m3u8"))
+        val variant = session.resource("http://example.test/v/index.m3u8")
+        val first = session.resource("http://example.test/v/seg0.ts")
+        assertEquals(first, session.resource("http://example.test/v/seg0.ts"))
+        for (index in 1..4200) session.resource("http://example.test/v/seg$index.ts")
+        assertEquals("http://example.test/resolve?id=1", session.resources[root])
+        assertEquals("http://example.test/v/index.m3u8", session.resources[variant])
+        assertNull(session.resources[first])
+        assertEquals(4096 + 2, session.resources.size)
+        assertEquals("http://example.test/v/seg4200.ts", session.resources[session.resource("http://example.test/v/seg4200.ts")])
+        session.resources.clear()
+        assertEquals(0, session.resources.size)
+    }
     @Test fun `quarantined source blocks new playback without deleting channel`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-quarantine-play-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
-            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock); feeds.refresh(fixture.feed)
+            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
             val offering = feeds.offerings().single()
             for (minute in listOf(0L, 5L, 10L)) {
                 val at = clock.now.plusSeconds(minute * 60)

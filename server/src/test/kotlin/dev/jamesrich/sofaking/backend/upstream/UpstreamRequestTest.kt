@@ -68,7 +68,7 @@ class UpstreamRequestTest {
                 HttpClient(MockEngine { respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, location)) }) {
                     followRedirects = false
                 }.use { http ->
-                    assertFailsWith<IllegalArgumentException> {
+                    assertFailsWith<UpstreamRejectedException> {
                         http.withUpstreamResponse(
                             "https://provider.test/live",
                             "https://provider.test/live",
@@ -76,6 +76,32 @@ class UpstreamRequestTest {
                         ) { it.bodyAsText() }
                     }
                 }
+            }
+        }
+
+    @Test fun `loopback link-local and unspecified upstreams are refused while LAN hosts are served`() =
+        runBlocking<Unit> {
+            HttpClient(MockEngine { respond("ok") }) { followRedirects = false }.use { http ->
+                suspend fun fetch(url: String, policy: UpstreamPolicy = UpstreamPolicy()) = http.withUpstreamResponse(url, url, emptyMap(), policy = policy) { it.bodyAsText() }
+                assertEquals("ok", fetch("http://192.168.1.3:3000/api/ext/v1/dlhd/1"))
+                assertEquals("ok", fetch("http://10.0.0.7/live.ts"))
+                assertEquals("ok", fetch("https://provider.test/live.m3u8"))
+                for (url in listOf("http://127.0.0.1:8080/healthz", "http://localhost/x", "http://api.localhost/x", "http://[::1]/x", "http://169.254.169.254/latest", "http://[fe80::1]/x", "http://0.0.0.0/x", "http://[::]/x", "http://user:pw@provider.test/x", "ftp://provider.test/x")) {
+                    assertFailsWith<UpstreamRejectedException>(url) { fetch(url) }
+                }
+                assertEquals("ok", fetch("http://127.0.0.1:8080/fixture", UpstreamPolicy(allowLoopback = true)))
+                assertEquals("ok", fetch("http://localhost/fixture", UpstreamPolicy(allowLoopback = true)))
+                assertFailsWith<UpstreamRejectedException> { fetch("http://169.254.1.1/x", UpstreamPolicy(allowLoopback = true)) }
+            }
+        }
+
+    @Test fun `redirects to refused addresses are rejected too`() =
+        runBlocking<Unit> {
+            HttpClient(MockEngine { request ->
+                if (request.url.host == "provider.test") respond("", HttpStatusCode.Found, headersOf(HttpHeaders.Location, "http://127.0.0.1:8080/internal"))
+                else respond("leaked")
+            }) { followRedirects = false }.use { http ->
+                assertFailsWith<UpstreamRejectedException> { http.withUpstreamResponse("http://provider.test/live", "http://provider.test/live", emptyMap()) { it.bodyAsText() } }
             }
         }
 

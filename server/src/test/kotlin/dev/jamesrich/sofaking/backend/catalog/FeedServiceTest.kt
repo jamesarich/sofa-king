@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.catalog
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.health.*
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import java.nio.file.Files
@@ -17,7 +18,7 @@ class FeedServiceTest {
             val clock = MutableClock()
             var id = ""; var offering = ""
             openStore(dir).use { store ->
-                val feeds = FeedService(listOf(fixture.feed), store, http, clock)
+                val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true))
                 feeds.initialize(); feeds.refresh(fixture.feed)
                 id = feeds.catalog().channels.single().id; offering = feeds.offerings().single().id
                 store.setManuallyDisabled(offering, true)
@@ -27,7 +28,7 @@ class FeedServiceTest {
                 assertFalse(feeds.catalog().channels.single().playbackEligible)
             }
             openStore(dir).use { store ->
-                val feeds = FeedService(listOf(fixture.feed), store, http, clock); feeds.initialize()
+                val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.initialize()
                 assertEquals(id, feeds.catalog().channels.single().id)
                 assertTrue(store.health(offering)!!.manuallyDisabled)
                 assertEquals(1, feeds.guide(GuideQuery(listOf(id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single().programmes.size)
@@ -38,7 +39,7 @@ class FeedServiceTest {
         val dir = Files.createTempDirectory("sofa-withdrawal-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val config = fixture.feed.copy(allowEmpty = true)
-            val feeds = FeedService(listOf(config), store, http, MutableClock()); feeds.refresh(config)
+            val feeds = FeedService(listOf(config), store, http, MutableClock(), UpstreamPolicy(allowLoopback = true)); feeds.refresh(config)
             val channel = feeds.catalog().channels.single(); val offering = feeds.offerings().single()
             store.setManuallyDisabled(offering.id, true)
             fixture.withdrawn = true; feeds.refresh(config)
@@ -53,7 +54,7 @@ class FeedServiceTest {
     @Test fun `malformed entries are skipped and reported without failing the provider`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-partial-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
-            val feeds = FeedService(listOf(fixture.feed), store, http, MutableClock())
+            val feeds = FeedService(listOf(fixture.feed), store, http, MutableClock(), UpstreamPolicy(allowLoopback = true))
             fixture.partial = true; feeds.refresh(fixture.feed)
             val status = feeds.providers().single()
             assertNull(status.errorCode)
@@ -68,7 +69,7 @@ class FeedServiceTest {
     @Test fun `catalog revision is stable until health or guide currency changes`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-revision-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
-            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock); feeds.refresh(fixture.feed)
+            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
             val initial = feeds.catalogRevision()
             assertEquals(initial, feeds.catalogRevision())
             assertEquals(initial, feeds.catalog(initial).revision)
@@ -87,7 +88,7 @@ class FeedServiceTest {
     @Test fun `guide overlap bounds and revision changes are explicit`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-guide-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
-            val feeds = FeedService(listOf(fixture.feed), store, http, MutableClock()); feeds.refresh(fixture.feed)
+            val feeds = FeedService(listOf(fixture.feed), store, http, MutableClock(), UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
             val id = feeds.catalog().channels.single().id
             val query = GuideQuery(listOf(id), "2026-10-10T14:00:00Z", "2026-10-10T15:00:00Z")
             assertTrue(feeds.guide(query).channels.single().programmes.isEmpty())

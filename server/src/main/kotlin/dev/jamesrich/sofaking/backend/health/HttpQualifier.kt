@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend.health
 
 import dev.jamesrich.sofaking.backend.catalog.Offering
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
+import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import dev.jamesrich.sofaking.backend.upstream.readHead
 import dev.jamesrich.sofaking.backend.upstream.sniffProtocol
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
@@ -19,6 +21,7 @@ internal class HttpQualifier(
     private val http: HttpClient,
     private val restreamOrigins: Set<String>,
     private val timeoutMillis: Long = 8000,
+    private val policy: UpstreamPolicy = UpstreamPolicy(),
 ) {
     suspend fun check(
         offering: Offering,
@@ -26,7 +29,7 @@ internal class HttpQualifier(
     ): FailureClass? =
         try {
             withTimeout(timeoutMillis) {
-                http.withUpstreamResponse(offering.url, offering.url, headers, requestTimeoutMillis = timeoutMillis) { response ->
+                http.withUpstreamResponse(offering.url, offering.url, headers, requestTimeoutMillis = timeoutMillis, policy = policy) { response ->
                     val status = response.status.value
                     if (status in 200..299) {
                         if (sniffProtocol(response.bodyAsChannel().readHead(HEAD_BYTES)) == null) FailureClass.OFFERING else null
@@ -39,6 +42,8 @@ internal class HttpQualifier(
             FailureClass.PROVIDER
         } catch (e: CancellationException) {
             throw e
+        } catch (_: UpstreamRejectedException) {
+            FailureClass.OFFERING
         } catch (_: IllegalArgumentException) {
             FailureClass.OFFERING
         } catch (_: Exception) {

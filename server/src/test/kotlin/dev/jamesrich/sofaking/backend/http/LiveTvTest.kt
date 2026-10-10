@@ -20,7 +20,7 @@ class LiveTvTest {
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(listOf(fixture.feed)))
             val store = openStore(dir)
-            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token), MutableClock())
+            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
             try {
                 runtime.feeds.refresh(fixture.feed)
                 application { backendModule(store, MutableClock(), runtime, token) }

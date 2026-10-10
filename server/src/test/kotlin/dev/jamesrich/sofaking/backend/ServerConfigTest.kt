@@ -36,6 +36,9 @@ class ServerConfigTest {
         for (value in listOf("0", "3651", "week")) {
             assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_OBSERVATION_RETENTION_DAYS" to value)) }
         }
+        assertFalse(ServerConfig.fromEnvironment(emptyMap()).allowLoopbackUpstreams)
+        assertTrue(ServerConfig.fromEnvironment(mapOf("SOFA_ALLOW_LOOPBACK_UPSTREAMS" to "TRUE")).allowLoopbackUpstreams)
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_ALLOW_LOOPBACK_UPSTREAMS" to "yes")) }
     }
     @Test fun `invalid port or empty values fail before binding`() {
         for (value in listOf("no", "0", "65536", "-1", "")) {

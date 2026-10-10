@@ -13,14 +13,14 @@ import kotlinx.coroutines.sync.withLock
 internal class LiveSession(val id: String, val request: OpenPlayback, var offering: Offering, var expires: Instant) {
     var epoch = 1
     var intent = request.intent
-    val resources = java.util.LinkedHashMap<String, String>(16, 0.75f, true)
+    /** Token to URL for every mapped resource; playlists are pinned, segments and keys share a 4,096-entry LRU. */
+    val resources = ResourceMap()
     val requests = mutableSetOf<Job>()
     fun resource(url: String, suffix: String? = null): String {
-        resources.entries.find { it.value == url }?.key?.let { key -> resources[key]; return key }
-        if (resources.size >= 4096) resources.remove(resources.keys.first())
+        resources.tokenFor(url)?.let { return it }
         val extension = java.net.URI(url).path.substringAfterLast('.', "").lowercase()
         val chosen = suffix ?: if (extension in setOf("m3u8", "ts", "m4s", "mp4", "aac", "vtt", "webvtt", "key", "bin")) extension else "ts"
-        return "${UUID.randomUUID()}.$chosen".also { resources[it] = url }
+        return "${UUID.randomUUID()}.$chosen".also { resources.put(it, url, pinned = chosen == "m3u8" || url == offering.url) }
     }
     /** The root token's suffix and MIME follow the offering's protocol, never the upstream path. */
     fun descriptor(): PlaybackSession {
@@ -31,6 +31,27 @@ internal class LiveSession(val id: String, val request: OpenPlayback, var offeri
     }
     fun cancel(except: Job? = null) { requests.filter { it != except }.forEach { it.cancel() }; requests.retainAll { it == except } }
 }
+/** O(1) in both directions. Pinned entries (root and playlists) never leave; the rest is a bounded LRU of segments and keys. */
+internal class ResourceMap(private val segmentLimit: Int = 4096) {
+    private val pinned = HashMap<String, String>()
+    private val segments = object : java.util.LinkedHashMap<String, String>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>): Boolean {
+            if (size <= segmentLimit) return false
+            tokens.remove(eldest.value)
+            return true
+        }
+    }
+    private val tokens = HashMap<String, String>()
+    val size: Int get() = pinned.size + segments.size
+    operator fun get(token: String): String? = pinned[token] ?: segments[token]
+    fun tokenFor(url: String): String? = tokens[url]?.also { token -> segments[token] }
+    fun put(token: String, url: String, pinned: Boolean) {
+        tokens[url] = token
+        if (pinned) this.pinned[token] = url else segments[token] = url
+    }
+    fun clear() { pinned.clear(); segments.clear(); tokens.clear() }
+}
+
 /** [shared] marks the live MPEG-TS root, which one upstream connection fans out to every session on the source. */
 data class MediaResource(val offering: Offering, val url: String, val shared: Boolean = false)
 

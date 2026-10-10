@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.playback.*
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
@@ -26,7 +27,7 @@ class LiveRuntime(val feeds: FeedService, val sessions: SessionManager, val rela
             }
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             try {
-                val feeds = FeedService(configs, store, http, clock)
+                val feeds = FeedService(configs, store, http, clock, UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams))
                 feeds.initialize()
                 val sessions = SessionManager(feeds, store, clock, config.maxSessions)
                 val runtime = LiveRuntime(feeds, sessions, MediaRelay(http, feeds, sessions, scope), http, scope)

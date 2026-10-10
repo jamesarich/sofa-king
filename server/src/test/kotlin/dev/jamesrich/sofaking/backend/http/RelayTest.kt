@@ -23,7 +23,7 @@ class RelayTest {
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(listOf(fixture.tsFeed)))
             val store = openStore(dir)
-            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token), MutableClock())
+            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
             try {
                 runtime.feeds.refresh(fixture.tsFeed)
                 application { backendModule(store, MutableClock(), runtime, token) }
@@ -56,6 +56,31 @@ class RelayTest {
         }
     }
 
+    @Test fun `LL-HLS directives reach the upstream playlist and a refused upstream answers 502`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-relay-hls-edges-")
+        val token = "secret".repeat(8)
+        Fixture().use { fixture ->
+            val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(listOf(fixture.feed)))
+            val store = openStore(dir)
+            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
+            try {
+                runtime.feeds.refresh(fixture.feed)
+                application { backendModule(store, MutableClock(), runtime, token) }
+                val channel = Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single()
+                val session = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "edges"))) }.bodyAsText())
+                val variants = client.get(session.descriptor.url).bodyAsText().lineSequence().filter { it.startsWith("/media/") }.toList()
+                assertEquals(2, variants.size)
+                assertEquals(HttpStatusCode.OK, client.get(variants[0] + "?_HLS_msn=3&_HLS_part=1&_HLS_skip=YES&unrelated=1").status)
+                assertEquals("_HLS_msn=3&_HLS_part=1&_HLS_skip=YES", fixture.lastMediaQuery)
+                assertEquals(HttpStatusCode.OK, client.get(variants[0]).status)
+                assertNull(fixture.lastMediaQuery)
+                val refused = client.get(variants[1])
+                assertEquals(HttpStatusCode.BadGateway, refused.status)
+                assertEquals("UPSTREAM_REJECTED", Json.decodeFromString<ApiError>(refused.bodyAsText()).code)
+            } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+        }
+    }
+
     @Test fun `descriptor follows the detected protocol after a mismatched first fetch`() = testApplication {
         val dir = Files.createTempDirectory("sofa-relay-protocol-")
         val token = "secret".repeat(8)
@@ -63,7 +88,7 @@ class RelayTest {
             val feeds = listOf(fixture.extensionlessFeed, fixture.mislabeledFeed)
             val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(feeds))
             val store = openStore(dir)
-            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token), MutableClock())
+            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
             try {
                 feeds.forEach { runtime.feeds.refresh(it) }
                 application { backendModule(store, MutableClock(), runtime, token) }

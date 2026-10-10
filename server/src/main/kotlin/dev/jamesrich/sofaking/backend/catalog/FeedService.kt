@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.api.SourceStatus
 import dev.jamesrich.sofaking.backend.api.UpdateSource
 import dev.jamesrich.sofaking.backend.health.HealthStatus
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
@@ -42,6 +43,8 @@ class FeedService(
     private val store: BackendStore,
     private val http: HttpClient,
     private val clock: Clock,
+    /** Governs every upstream fetch made for these feeds: playlists, guides, probes and relayed media. */
+    val upstream: UpstreamPolicy = UpstreamPolicy(),
 ) {
     private class Published(
         val feeds: List<FeedSnapshot>,
@@ -291,7 +294,7 @@ class FeedService(
         headers: Map<String, String>,
         limit: Int,
     ): String =
-        http.withUpstreamResponse(url, url, headers) { response ->
+        http.withUpstreamResponse(url, url, headers, policy = upstream) { response ->
             require(response.status.value == 200) { "Feed fetch failed" }
             val bytes = response.bodyAsChannel().readBuffer(limit.toLong() + 1).readByteArray()
             require(bytes.size <= limit) { "Feed exceeds size limit" }

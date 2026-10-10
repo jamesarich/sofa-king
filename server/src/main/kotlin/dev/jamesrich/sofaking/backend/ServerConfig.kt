@@ -13,6 +13,7 @@ data class ServerConfig(
     val probeParallelism: Int = 6,
     val restreamOrigins: Set<String> = emptySet(),
     val observationRetentionDays: Int = 7,
+    val allowLoopbackUpstreams: Boolean = false,
 ) {
     companion object {
         fun fromEnvironment(environment: Map<String, String>): ServerConfig {
@@ -35,6 +36,8 @@ data class ServerConfig(
             require(origins.all { it.matches(Regex("[a-z0-9.\\-\\[\\]:]+")) }) { "SOFA_RESTREAM_ORIGINS entries must be host or host:port" }
             val retention = (environment["SOFA_OBSERVATION_RETENTION_DAYS"] ?: "7").toIntOrNull()
             require(retention != null && retention in 1..3650) { "SOFA_OBSERVATION_RETENTION_DAYS must be between 1 and 3650" }
+            val loopback = environment["SOFA_ALLOW_LOOPBACK_UPSTREAMS"]?.lowercase()
+            require(loopback == null || loopback in setOf("true", "false")) { "SOFA_ALLOW_LOOPBACK_UPSTREAMS must be true or false" }
             return ServerConfig(
                 host,
                 port,
@@ -46,6 +49,7 @@ data class ServerConfig(
                 parallelism,
                 origins,
                 retention,
+                loopback == "true",
             )
         }
     }

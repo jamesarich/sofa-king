@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.store.IdentityStore
+import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
@@ -29,6 +30,7 @@ fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveR
             when (cause) {
                 is CancellationException -> throw cause
                 is ApiFailure -> call.respond(HttpStatusCode.fromValue(cause.status), ApiError(cause.code, cause.message, cause.retryable))
+                is UpstreamRejectedException -> call.respond(HttpStatusCode.BadGateway, ApiError("UPSTREAM_REJECTED", "Upstream address refused", false))
                 is BadRequestException, is kotlinx.serialization.SerializationException -> call.respond(HttpStatusCode.BadRequest, ApiError("INVALID_REQUEST", "Invalid request body", false))
                 else -> {
                     // Exception messages can contain upstream signed URLs; keep them out of logs.

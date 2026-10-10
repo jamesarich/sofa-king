@@ -53,6 +53,19 @@ class MediaRelay(
         }
     }
 
+    /** LL-HLS players append delivery directives to the playlist URL they were given; forward them to the real playlist. */
+    private fun withDeliveryDirectives(
+        url: String,
+        call: ApplicationCall,
+    ): String {
+        val directives =
+            listOf("_HLS_msn", "_HLS_part", "_HLS_skip").mapNotNull { name ->
+                call.request.queryParameters[name]?.takeIf { it.matches(Regex("[A-Za-z0-9_,]{1,32}")) }?.let { "$name=$it" }
+            }
+        if (directives.isEmpty()) return url
+        return url + (if (URI(url).rawQuery == null) "?" else "&") + directives.joinToString("&")
+    }
+
     /** The descriptor promised one protocol and the body carries the other: bump the epoch so the player re-reads it. */
     private suspend fun protocolMismatch(
         id: String,
@@ -75,7 +88,7 @@ class MediaRelay(
         val reader =
             shared.join(resource.offering.id) { consume ->
                 permits.withPermit {
-                    http.withUpstreamResponse(resource.url, resource.offering.url, headers, unbounded = true) { response ->
+                    http.withUpstreamResponse(resource.url, resource.offering.url, headers, unbounded = true, policy = feeds.upstream) { response ->
                         if (response.status.value != 200) throw UpstreamStatusException(response.status.value)
                         consume(response.bodyAsChannel())
                     }
@@ -110,11 +123,12 @@ class MediaRelay(
     ) {
         permits.withPermit {
             http.withUpstreamResponse(
-                resource.url,
+                withDeliveryDirectives(resource.url, call),
                 resource.offering.url,
                 feeds.config(resource.offering.providerId).headers,
                 range = call.request.headers[HttpHeaders.Range],
                 unbounded = true,
+                policy = feeds.upstream,
             ) { response ->
                 if (response.status.value !in setOf(200, 206)) {
                     throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)

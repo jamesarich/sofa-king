@@ -49,7 +49,7 @@ class ProbeWorker(
     private val qualifier: (suspend (Offering, Map<String, String>) -> FailureClass?)? = null,
 ) {
     private val log = LoggerFactory.getLogger(ProbeWorker::class.java)
-    private val fastTier = http?.let { HttpQualifier(it, config.restreamOrigins, config.httpTimeoutMillis) }
+    private val fastTier = http?.let { HttpQualifier(it, config.restreamOrigins, config.httpTimeoutMillis, feeds.upstream) }
     private val mutex = Mutex()
     private val pending = ArrayDeque<Offering>()
     private val inFlight = HashSet<String>()

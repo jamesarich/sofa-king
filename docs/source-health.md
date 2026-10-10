@@ -37,7 +37,7 @@ Restream origins are LAN proxies whose 502 means their upstream is gone. List th
 | `PROBATION` | No | Recovery passed once; another pass is required at least ten minutes later |
 | `ARCHIVED` | No | Archived source; automatic archival is not implemented |
 
-A suspect source is rechecked ahead of the rest of the queue, so a dead source confirms its quarantine in three probes about five minutes apart. One transient failure leaves a source suspect until its next pass clears it.
+A suspect source is rechecked ahead of unverified and healthy sources, no sooner than five minutes after its last attempt, so three strikes land inside the six-hour window whenever one round over the suspect queue takes under two hours. One transient failure leaves a source suspect until its next pass clears it.
 
 Initial quarantine lasts 15 minutes. Failed recovery backs off to one hour, six hours, then one day. Two qualifying recovery passes restore the source. A qualified pass clears all strikes.
 

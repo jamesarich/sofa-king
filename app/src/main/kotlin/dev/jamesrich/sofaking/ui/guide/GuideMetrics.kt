@@ -11,4 +11,7 @@ internal val HEADER_HEIGHT = 32.dp
 internal val MIN_STICKY_TEXT = 48.dp
 internal const val FOCUS_MARGIN_MINUTES = 30L
 
+/** Of the four rows on screen, the focused one sits in this slot (0-based) while the list scrolls under it. */
+internal const val FOCUS_ROW_SLOT = 1
+
 internal fun nowOffset(minute: Long): Dp = MINUTE_WIDTH * minute.toFloat()

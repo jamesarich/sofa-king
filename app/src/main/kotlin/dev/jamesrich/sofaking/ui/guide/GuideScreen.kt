@@ -251,13 +251,9 @@ fun GuideScreen(
         }
         pendingRow = target
         scope.launch {
-            val shown = listState.layoutInfo.visibleItemsInfo
-            val first = shown.firstOrNull()?.index ?: 0
-            val last = shown.lastOrNull()?.index ?: 0
-            when {
-                target <= first -> listState.scrollToItem(target)
-                target >= last -> listState.scrollToItem((target - (last - first) + 1).coerceAtLeast(0))
-            }
+            // The focused row holds the second slot and the channels scroll under it, as a cable guide does;
+            // the list clamps at either end, so the first and last rows still take focus in place.
+            listState.scrollToItem((target - FOCUS_ROW_SLOT).coerceAtLeast(0))
             requestJump(visible[target].guideId, cursor)
         }
         true

@@ -38,7 +38,7 @@ Run from the repository root with JDK 21 installed:
 docker compose -f deploy/compose.yaml build
 ```
 
-On the shared development host use `/home/james/.claude/bin/gradle-queue -- :server:installDist` for the first step. On an Apple Silicon machine add `--platform linux/amd64` to the Docker build for an amd64 host.
+On the shared development host use `/home/james/.claude/bin/gradle-queue -- :server:installDist` for the first step. On an Apple Silicon machine build for the amd64 host with `DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f deploy/compose.yaml build`.
 
 ## Configure
 
@@ -84,12 +84,13 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://OMV_HOST:9193/api/
 git pull
 ./gradlew :server:installDist
 docker compose -f deploy/compose.yaml build
+docker compose -f deploy/compose.yaml stop
 docker run --rm -v sofa-king-backend_sofa-data:/data -v "$PWD":/backup alpine \
   tar czf /backup/sofa-data-$(date +%F).tgz -C /data .
 docker compose -f deploy/compose.yaml up -d
 ```
 
-Schema migrations apply at startup and are one-way: an older image refuses to start on a newer database. To roll back, stop the service, restore the backup into the volume, and start the older image:
+The service is stopped before the backup so the SQLite WAL is checkpointed and the archive is consistent. Schema migrations apply at startup and are one-way: an older image refuses to start on a newer database. To roll back, stop the service, restore the backup into the volume, and start the older image:
 
 ```sh
 docker compose -f deploy/compose.yaml down

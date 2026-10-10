@@ -62,3 +62,5 @@ The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contain
 - Feeds with credential or custom headers are never probed, so their sources stay `UNVERIFIED`.
 - The restream-proxy 502 rule (`SOFA_RESTREAM_ORIGINS`) and the MPEG-TS keepalive relay are verified against local fixtures, not against a provider feed or the Android client.
 - A relay reconnect attempt already in progress finishes before the 30-second grace period is enforced, so a dead source can hold its sessions for up to one connect timeout longer.
+- The probe's protocol detection and its persistence are verified against local fixtures, not against the Dispatcharr feed.
+- The Docker image and compose stack are verified on a development host against a local fixture feed, not on OMV or with the Android client.

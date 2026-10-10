@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -47,6 +48,7 @@ kotlin {
 
 dependencies {
     implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -69,6 +71,7 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kxml2)
+    testImplementation(libs.mockwebserver)
     testImplementation(libs.kotlinx.coroutines.test)
 }
 

@@ -55,7 +55,7 @@ Dispatcharr
 - Up and Down are handled before focus search (`onGridKey`): the target row is the next one and the target cell is the one under the time cursor, so a long cell cannot pull focus hours ahead.
 - `Channel`, `Programme`, `Lineup` and `GuideCell` are `@Immutable`; `GuideRowEnv` carries strings, the formatter, pixel sizes and callbacks once per guide; a cell formats its accessibility description only inside `semantics {}`. The focused cell is read by the preview band alone.
 - Filter, search, the time cursor, scroll and the focused channel are saveable and the guide branch sits in a `SaveableStateHolder`, so Back from the player returns to the same cell. A fresh guide starts on the last channel watched.
-- The preview tunes the shared player 800 ms after focus rests on a different stream and plays it muted; a stream the player already holds, such as the channel just watched, keeps playing.
+- The preview tunes the shared player 350 ms after focus rests on a different stream and plays it muted; a stream the player already holds, such as the channel just watched, keeps playing.
 
 ## Playback
 

@@ -62,7 +62,8 @@ internal val PREVIEW_WIDTH = 256.dp
 internal val PREVIEW_HEIGHT = 144.dp
 /** The whole top band, exactly the preview's height; see the row budget in GuideScreen. */
 internal val PREVIEW_BAND_HEIGHT = 144.dp
-private const val PREVIEW_DEBOUNCE_MS = 800L
+// Long enough to skip rows passed under a held D-pad (repeats every 50-150 ms); each tune cold-starts a Dispatcharr channel.
+private const val PREVIEW_DEBOUNCE_MS = 350L
 
 /** Programme details for the focused cell. [live] is whether the programme is airing at [now]. */
 @Composable

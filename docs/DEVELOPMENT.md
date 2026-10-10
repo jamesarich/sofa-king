@@ -1,33 +1,35 @@
-# Development practices
+# Development
 
-## Build and review
+## Build and test
 
-Use JDK 21, the Android SDK with API 37.1 and the checked-in Gradle wrapper. AGP provides built-in Kotlin; the Compose compiler plugin uses the matching Kotlin preview. Versions live in [the version catalog](../gradle/libs.versions.toml), resolved dependencies use the checked-in Gradle lockfile, and the wrapper distribution has a pinned checksum. When changing dependencies, run the checks with `--write-locks` and review the lockfile diff. Preview combinations require build and runtime validation; release notes alone do not establish compatibility.
-
-Run these checks after changing code:
+Use JDK 21, the Android SDK with API 37.1 and the checked-in Gradle wrapper. Set `sdk.dir` in the ignored `local.properties` file; see [build and install](../README.md#build-and-install).
 
 ```sh
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
 ```
 
-On James's shared host, replace `./gradlew` with `/home/james/.claude/bin/gradle-queue --` to use the build queue. Release APKs use the local debug key for household testing. A distributable release needs its own signing configuration.
+On the shared development host, use `/home/james/.claude/bin/gradle-queue --` in place of `./gradlew`.
 
-Unit tests cover parsers, cache, settings, caption and remote-control logic, and cancellation of a stalled network body. Lint checks Android API usage. Builds and JVM tests do not establish TV focus, lifecycle, audio or caption correctness: exercise preview → player → guide, rapid focus changes, background/foreground and caption selection on the target TV.
+Unit tests cover parsing, cache, settings, captions, remote-control logic and network cancellation. XML tests use kxml2 instead of the Android parser. Test fixtures are in `app/src/test/resources/`.
 
-## Code conventions
+On a TV, check D-pad focus, rapid preview changes, preview/player/guide handoff, background/foreground transitions, audio, captions and decoder recovery.
 
-Follow [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the project-specific TV rules in [CLAUDE.md](../CLAUDE.md). Keep blocking work off the main thread, inject dispatchers where tests need control, propagate coroutine cancellation and close sockets and owned resources. Use lifecycle-aware flow collection and gate player preparation on STARTED. See [Android coroutine practices](https://developer.android.com/kotlin/coroutines/coroutines-best-practices) and [architecture recommendations](https://developer.android.com/topic/architecture/recommendations).
+## Dependencies
 
-The app owns one ExoPlayer. Composition effects remove listeners, and MainActivity stops playback on ON_STOP and releases the player on disposal. Keep preview handoff and paused-user intent intact. Platform-dependent behavior belongs in device checks; pure decisions belong in JVM tests.
+Exact versions are in [the version catalog](../gradle/libs.versions.toml). AGP supplies built-in Kotlin; the Compose compiler plugin has a matching preview pin. Resolved dependencies are locked and the wrapper has a pinned checksum.
 
-## Documentation conventions
+For dependency updates, change the version catalog, run the checks above with `--write-locks`, and review the lockfile diff. Run the same checks without that flag before committing.
 
-Use the [GitHub documentation style guide](https://docs.github.com/en/contributing/style-guide-and-content-model/style-guide) for clarity, sentence-case headings, descriptive links and numbered procedures. Label fenced examples with their language, place explanations before samples and use uppercase placeholders. Use ordinary repository Markdown; GitHub Docs' Liquid templates do not apply here.
+Release APKs use the local debug key. Distribution requires a release signing configuration.
 
-README explains setup and controls. Architecture documents implemented behavior. Plans identify future work explicitly. Update the relevant document in the same change as code. Keep dated measurements in review records, and avoid presenting test counts or timing samples as lasting guarantees.
+## Banner
 
-See the [October 10 review](REVIEW-2026-10-10.md) for findings and dated validation.
+Regenerate the TV banner after changing the vector mark. Requires ImageMagick and Noto Sans:
 
-## Native backend integration
+```sh
+tools/render-banner.sh
+```
 
-The backend and Android app currently use compatible Kotlin preview pins, but the app still reads profile M3U/XMLTV endpoints. Integration must consume native capabilities and leased descriptors, migrate numeric favorite/last-channel keys through `legacyGuideId`, and reopen media when its descriptor epoch changes. Verify cancellation and preview promotion on a TV before cutting over the household.
+## Conventions
+
+Use [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the TV constraints in [CLAUDE.md](../CLAUDE.md). Keep current behavior in documentation and change rationale in commits or pull requests.

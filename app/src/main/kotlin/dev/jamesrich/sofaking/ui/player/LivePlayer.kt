@@ -29,8 +29,6 @@ internal fun buildLivePlayer(context: Context, captions: CaptionSync, captionsOn
         .setLoadControl(CaptionSyncLoadControl(captions))
         // The audible player yields to Assistant and other apps the way the MediaSession promises.
         .setAudioAttributes(AudioAttributes.DEFAULT, true)
-        // Backstop behind StallWatch: buffering this long with nothing loading becomes an error the player retries.
-        .setStuckBufferingDetectionTimeoutMs(STUCK_BUFFERING_MS)
         .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))
         .build()
         .apply {
@@ -38,8 +36,6 @@ internal fun buildLivePlayer(context: Context, captions: CaptionSync, captionsOn
             playWhenReady = true
         }
 }
-
-private const val STUCK_BUFFERING_MS = 15_000
 
 /** The stream URL of the item the player holds, if any. */
 internal val Player.currentStreamUrl: String?

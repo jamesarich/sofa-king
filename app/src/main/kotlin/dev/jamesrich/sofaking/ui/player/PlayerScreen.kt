@@ -59,7 +59,6 @@ import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
-import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -71,7 +70,6 @@ private const val RETRY_MS = 3_000L
 private const val CAPTION_TOAST_MS = 2_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
 private const val METADATA_REFRESH_MS = 60_000L
-private const val STALL_CHECK_MS = 500L
 private const val TAG = "SofaKing"
 
 /** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
@@ -266,25 +264,6 @@ fun PlayerScreen(
             delay(METADATA_REFRESH_MS)
             val channel = currentChannels.getOrNull(index) ?: continue
             wrapper.publishNowPlaying(nowPlayingFor(channel))
-        }
-    }
-
-    // Reconnects a stream that stopped arriving before its buffer runs dry; see StallWatch.
-    LaunchedEffect(player) {
-        val watch = StallWatch()
-        while (true) {
-            delay(STALL_CHECK_MS)
-            val active = player.playWhenReady &&
-                (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING)
-            if (!active) {
-                watch.reset()
-                continue
-            }
-            if (watch.shouldReconnect(SystemClock.uptimeMillis(), player.bufferedPosition, player.totalBufferedDuration)) {
-                captionSync.effectiveUs = captionSync.advanceUs
-                player.stop()
-                player.prepare()
-            }
         }
     }
 

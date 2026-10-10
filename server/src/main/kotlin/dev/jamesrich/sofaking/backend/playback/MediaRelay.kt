@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.FeedService
+import dev.jamesrich.sofaking.backend.upstream.readHead
+import dev.jamesrich.sofaking.backend.upstream.sniffProtocol
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
@@ -45,14 +47,28 @@ class MediaRelay(
         val job = coroutineContext[Job]!!
         val resource = sessions.acquire(id, epoch, token, job)
         try {
-            if (resource.shared) serveShared(call, resource) else serveDirect(call, id, epoch, resource)
+            if (resource.shared) serveShared(call, id, epoch, job, resource) else serveDirect(call, id, epoch, job, resource)
         } finally {
             withContext(NonCancellable) { sessions.finished(id, job) }
         }
     }
 
+    /** The descriptor promised one protocol and the body carries the other: bump the epoch so the player re-reads it. */
+    private suspend fun protocolMismatch(
+        id: String,
+        epoch: Int,
+        job: Job,
+        protocol: String,
+    ): Nothing {
+        sessions.protocolObserved(id, epoch, protocol, job)
+        throw ApiFailure(410, "STREAM_CHANGED", "Stream protocol changed; fetch the current session descriptor", true)
+    }
+
     private suspend fun serveShared(
         call: ApplicationCall,
+        id: String,
+        epoch: Int,
+        job: Job,
         resource: MediaResource,
     ) {
         val headers = feeds.config(resource.offering.providerId).headers
@@ -68,6 +84,8 @@ class MediaRelay(
         try {
             try {
                 reader.awaitStarted()
+            } catch (e: UpstreamProtocolException) {
+                protocolMismatch(id, epoch, job, e.protocol)
             } catch (_: Exception) {
                 throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
             }
@@ -87,6 +105,7 @@ class MediaRelay(
         call: ApplicationCall,
         id: String,
         epoch: Int,
+        job: Job,
         resource: MediaResource,
     ) {
         permits.withPermit {
@@ -100,11 +119,17 @@ class MediaRelay(
                 if (response.status.value !in setOf(200, 206)) {
                     throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
                 }
+                val body = response.bodyAsChannel()
+                val head = body.readHead(2048)
+                val sniffed = sniffProtocol(head)
+                if (resource.url == resource.offering.url && sniffed == "mpegts") protocolMismatch(id, epoch, job, "mpegts")
                 val type = response.headers[HttpHeaders.ContentType].orEmpty().substringBefore(';')
-                val manifest = URI(response.request.url.toString()).path.endsWith(".m3u8", true) || type.contains("mpegurl", true)
+                val manifest =
+                    sniffed == "hls" ||
+                        (sniffed == null && (URI(response.request.url.toString()).path.endsWith(".m3u8", true) || type.contains("mpegurl", true)))
                 call.response.header(HttpHeaders.CacheControl, "no-store")
                 if (manifest) {
-                    val bytes = response.bodyAsChannel().readBuffer(2_097_153L).readByteArray()
+                    val bytes = head + body.readBuffer(2_097_153L - head.size).readByteArray()
                     if (bytes.size > 2_097_152) throw ApiFailure(502, "INVALID_MANIFEST", "Manifest too large")
                     val rewritten =
                         HlsRewriter.rewrite(
@@ -122,7 +147,8 @@ class MediaRelay(
                             ContentType.Application.OctetStream
                         }
                     call.respondBytesWriter(contentType = contentType, status = response.status) {
-                        response.bodyAsChannel().copyTo(this)
+                        writeFully(head)
+                        body.copyTo(this)
                     }
                 }
             }

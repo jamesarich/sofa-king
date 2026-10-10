@@ -15,19 +15,21 @@ internal class LiveSession(val id: String, val request: OpenPlayback, var offeri
     var intent = request.intent
     val resources = java.util.LinkedHashMap<String, String>(16, 0.75f, true)
     val requests = mutableSetOf<Job>()
-    fun resource(url: String): String {
+    fun resource(url: String, suffix: String? = null): String {
         resources.entries.find { it.value == url }?.key?.let { key -> resources[key]; return key }
         if (resources.size >= 4096) resources.remove(resources.keys.first())
         val extension = java.net.URI(url).path.substringAfterLast('.', "").lowercase()
-        val suffix = if (extension in setOf("m3u8", "ts", "m4s", "mp4", "aac", "vtt", "webvtt", "key", "bin")) extension else "ts"
-        return "${UUID.randomUUID()}.$suffix".also { resources[it] = url }
+        val chosen = suffix ?: if (extension in setOf("m3u8", "ts", "m4s", "mp4", "aac", "vtt", "webvtt", "key", "bin")) extension else "ts"
+        return "${UUID.randomUUID()}.$chosen".also { resources[it] = url }
     }
+    /** The root token's suffix and MIME follow the offering's protocol, never the upstream path. */
     fun descriptor(): PlaybackSession {
-        val token = resource(offering.url)
+        val hls = offering.protocol == "hls"
+        val token = resource(offering.url, if (hls) "m3u8" else "ts")
         return PlaybackSession(id, request.channelId, intent, expires.toString(), PlaybackDescriptor(offering.protocol,
-            if (offering.protocol == "hls") "application/vnd.apple.mpegurl" else "video/mp2t", "/media/sessions/$id/$epoch/$token", epoch))
+            if (hls) "application/vnd.apple.mpegurl" else "video/mp2t", "/media/sessions/$id/$epoch/$token", epoch))
     }
-    fun cancel() { requests.toList().forEach { it.cancel() }; requests.clear() }
+    fun cancel(except: Job? = null) { requests.filter { it != except }.forEach { it.cancel() }; requests.retainAll { it == except } }
 }
 /** [shared] marks the live MPEG-TS root, which one upstream connection fans out to every session on the source. */
 data class MediaResource(val offering: Offering, val url: String, val shared: Boolean = false)
@@ -36,6 +38,7 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
     private val mutex = Mutex()
     private val sessions = linkedMapOf<String, LiveSession>()
     private val keys = linkedMapOf<String, Pair<OpenPlayback, String>>()
+    private val observedProtocols = HashMap<String, String>()
     suspend fun open(request: OpenPlayback): PlaybackSession = mutex.withLock {
         reap()
         if (request.intent !in setOf("preview", "watch") || request.idempotencyKey.length !in 1..128)
@@ -61,7 +64,7 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
             session.offering = select(session.request.channelId)
         }
         if (refreshed != null && session.offering.id == refreshed.id && session.offering.url != refreshed.url) {
-            session.cancel(); session.offering = refreshed; session.epoch++; session.resources.clear()
+            session.cancel(); session.offering = observed(refreshed); session.epoch++; session.resources.clear()
         }
         session.descriptor()
     }
@@ -79,6 +82,16 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
                 it.cancel(); it.epoch++; it.resources.clear()
             }
         }
+    }
+    /** The first fetch found [protocol] instead of the descriptor's; later sessions on the source start with it. */
+    suspend fun protocolObserved(id: String, epoch: Int, protocol: String, job: Job) = mutex.withLock {
+        val session = active(id)
+        if (session.epoch != epoch) return@withLock
+        observedProtocols[session.offering.id] = protocol
+        session.cancel(except = job)
+        session.offering = session.offering.copy(protocol = protocol)
+        session.epoch++
+        session.resources.clear()
     }
     suspend fun expire() = mutex.withLock { reap() }
     suspend fun close() = mutex.withLock { sessions.values.forEach { it.cancel() }; sessions.clear() }
@@ -103,12 +116,14 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
         if (session.epoch != epoch) throw ApiFailure(410, "STREAM_CHANGED", "Fetch current descriptor", true)
         "/media/sessions/$id/$epoch/${session.resource(url)}"
     }
+    private fun observed(offering: Offering): Offering = observedProtocols[offering.id]?.let { offering.copy(protocol = it) } ?: offering
     private suspend fun select(channelId: String): Offering {
         val candidates = feeds.offerings().filter { it.channelId == channelId }
         if (candidates.isEmpty()) throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel")
         val states = store.allHealth()
         return candidates.sortedBy { selectionRank(states[it.id]?.status) }
             .firstOrNull { states[it.id]?.let(::eligible) == true }
+            ?.let(::observed)
             ?: throw ApiFailure(503, "SOURCE_UNAVAILABLE", "No eligible source", true)
     }
     private fun active(id: String): LiveSession {

@@ -80,7 +80,7 @@ Providers that need secret headers on a different CDN origin are unsupported. Di
 | Empty catalog | Set `SOFA_SOURCES`; inspect `/api/v1/providers` for `IMPORT_FAILED`; check playlist URL and format. |
 | Import stays unchanged | A failed or empty import preserves the previous snapshot. Check provider status and `allowEmpty`. |
 | Channel has no guide | Match M3U `tvg-id` to XMLTV `channel`; supply valid timestamps with offsets and positive durations. |
-| Extensionless HLS will not play | Set `defaultProtocol` to `hls`, or set `stream-type="hls"` on that playlist entry. |
+| Extensionless HLS answers `410 STREAM_CHANGED` once | The first fetch detects HLS and bumps the epoch; fetch the session again. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, to avoid that round trip. |
 | Startup rejects LAN binding | Set `SOFA_API_TOKEN` to at least 32 characters. |
 | `401 AUTH_REQUIRED` | Send the configured token in the Authorization header. |
 | `429 CAPACITY_EXHAUSTED` | Release unused sessions or wait for their 90-second leases to expire. |

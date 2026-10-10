@@ -35,7 +35,7 @@ internal suspend fun ByteReadChannel.readHead(limit: Int): ByteArray {
     val buffer = ByteArray(limit)
     var filled = 0
     while (filled < limit) {
-        val read = readAvailable(buffer, filled, limit)
+        val read = readAvailable(buffer, filled, limit - filled)
         if (read < 0) break
         filled += read
     }

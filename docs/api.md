@@ -56,6 +56,8 @@ curl --fail http://127.0.0.1:8080/api/v1/playback-sessions \
 
 The response contains `id`, `expiresAt`, and a `descriptor` with `protocol`, `mimeType`, relative `url`, and `epoch`. Resolve the URL against the server address and give it to the player.
 
+The descriptor's `protocol`, `mimeType` and URL suffix (`.m3u8` or `.ts`) come from the source's protocol, not from the upstream path. If the first media fetch finds the other protocol (an M3U behind an extensionless URL, or MPEG-TS behind a `.m3u8` path), the server records it, increments the epoch and answers `410 STREAM_CHANGED`; fetch the session and open the new URL. Later sessions on that source start with the detected protocol.
+
 Sessions expire after 90 seconds without renewal. Renew and promote a preview without replacing its stream:
 
 ```sh

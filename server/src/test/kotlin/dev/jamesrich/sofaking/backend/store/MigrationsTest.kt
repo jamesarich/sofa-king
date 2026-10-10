@@ -46,7 +46,7 @@ class MigrationsTest {
         val db = databaseAt(dir)
         try {
             applyMigrations(db, foundationMigrations())
-            assertEquals(listOf(1, 2, 3, 10), foundationMigrations().map { it.version })
+            assertEquals(listOf(1, 2, 3, 4, 10), foundationMigrations().map { it.version })
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").use { rows ->

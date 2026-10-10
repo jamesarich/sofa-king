@@ -1,6 +1,6 @@
 # Source health
 
-A channel can have multiple stream sources. The server quarantines failing sources without deleting the channel or changing its ID.
+A lineup entry can list multiple stream sources, from one provider or several. The server quarantines failing sources without deleting the entry or changing its ID.
 
 ## Automatic checks
 
@@ -41,7 +41,7 @@ A suspect source is rechecked ahead of unverified and healthy sources, no sooner
 
 Initial quarantine lasts 15 minutes. Failed recovery backs off to one hour, six hours, then one day. Two qualifying recovery passes restore the source. A qualified pass clears all strikes.
 
-Playback selects a healthy source first, then an unverified one, then a suspect one. Quarantined, probation, archived and manually disabled sources are never selected.
+Playback walks the lineup entry's sources in order within each health rank: healthy first, then unverified, then suspect. Quarantined, probation, archived, manually disabled and withdrawn sources are never selected.
 
 ## Inspect or disable a source
 

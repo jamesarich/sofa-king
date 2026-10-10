@@ -78,9 +78,7 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
             call.respond(entryInfo(entry))
         }
         patch("/lineup/{id}") {
-            val entry = runtime.lineup.update(call.parameters["id"]!!, call.body<UpdateLineupEntry>())
-            for (id in entry.offeringIds) runtime.sessions.healthChanged(id)
-            call.respond(entryInfo(entry))
+            call.respond(entryInfo(runtime.lineup.update(call.parameters["id"]!!, call.body<UpdateLineupEntry>())))
         }
         delete("/lineup/{id}") {
             runtime.lineup.delete(call.parameters["id"]!!)

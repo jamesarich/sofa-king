@@ -1,12 +1,15 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.Channel
-import dev.jamesrich.sofaking.backend.api.Programme
-import java.io.StringReader
+import java.io.ByteArrayInputStream
+import java.io.FilterInputStream
+import java.io.InputStream
+import java.io.PushbackInputStream
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import javax.xml.stream.XMLInputFactory
+import java.util.zip.GZIPInputStream
 import javax.xml.stream.XMLStreamConstants
 
 /** [skipped] counts malformed entries by short reason; the import still succeeds with the well-formed rest. */
@@ -19,6 +22,22 @@ data class ParsedPlaylist(
 
     /** For example `missing-id=3, duplicate-source=1`, or null when nothing was skipped. */
     val skipSummary: String? get() = skipped.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" }.ifEmpty { null }
+}
+
+data class ParsedGuide(val channels: List<GuideChannel>, val programmes: List<GuideProgramme>)
+
+/** Fails once more than [limit] decompressed bytes have been read, so a hostile guide cannot run unbounded. */
+private class BoundedInputStream(input: InputStream, private val limit: Long) : FilterInputStream(input) {
+    private var count = 0L
+
+    override fun read(): Int = super.read().also { if (it >= 0) consumed(1) }
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also { if (it > 0) consumed(it.toLong()) }
+
+    private fun consumed(bytes: Long) {
+        count += bytes
+        require(count <= limit) { "Guide exceeds size limit" }
+    }
 }
 
 object FeedParser {
@@ -115,61 +134,86 @@ object FeedParser {
         return ParsedPlaylist(channels.values.toList(), offerings, skipped)
     }
 
+    /** Parses XMLTV from [input] (plain or gzip), keeping only programmes whose channel [wanted] accepts. */
     fun guide(
-        text: String,
-        channels: List<Channel>,
-    ): List<Programme> {
-        val joins = channels.filter { it.legacyGuideId != null }.groupBy { it.legacyGuideId }
+        input: InputStream,
+        wanted: (String) -> Boolean,
+    ): ParsedGuide {
         val factory =
             XMLInputFactory.newFactory().apply {
                 setProperty(XMLInputFactory.SUPPORT_DTD, false)
                 setProperty("javax.xml.stream.isSupportingExternalEntities", false)
                 setXMLResolver { _, _, _, _ -> throw IllegalArgumentException("External XML entities are forbidden") }
             }
-        val reader = factory.createXMLStreamReader(StringReader(text))
-        val result = linkedMapOf<String, Programme>()
+        val reader = factory.createXMLStreamReader(BoundedInputStream(decompressed(input), GUIDE_BYTE_LIMIT))
+        val channels = linkedMapOf<String, GuideChannel>()
+        val seen = HashSet<String>()
+        val programmes = ArrayList<GuideProgramme>()
+        val keys = HashSet<String>()
         try {
             var root = false
             while (reader.hasNext()) {
                 when (reader.next()) {
-                    XMLStreamConstants.DTD -> {
-                        error("XML DTD is forbidden")
-                    }
+                    XMLStreamConstants.DTD -> error("XML DTD is forbidden")
 
                     XMLStreamConstants.START_ELEMENT -> {
                         if (!root) {
                             require(reader.localName == "tv") { "Not XMLTV" }
                             root = true
+                            continue
                         }
-                        if (reader.localName != "programme") continue
-                        val matched = joins[reader.getAttributeValue(null, "channel")].orEmpty()
-                        val start = reader.getAttributeValue(null, "start")
-                        val stop = reader.getAttributeValue(null, "stop")
-                        var title = ""
-                        var description: String? = null
-                        while (reader.hasNext()) {
-                            val event = reader.next()
-                            if (event == XMLStreamConstants.DTD) error("XML DTD is forbidden")
-                            if (event == XMLStreamConstants.END_ELEMENT && reader.localName == "programme") break
-                            if (event == XMLStreamConstants.START_ELEMENT &&
-                                reader.localName == "title"
-                            ) {
-                                title = reader.elementText.take(4096)
-                            } else if (event == XMLStreamConstants.START_ELEMENT &&
-                                reader.localName == "desc"
-                            ) {
-                                description = reader.elementText.take(16384)
+                        when (reader.localName) {
+                            "channel" -> {
+                                val id = reader.getAttributeValue(null, "id")?.trim()
+                                var name: String? = null
+                                var icon: String? = null
+                                while (reader.hasNext()) {
+                                    val event = reader.next()
+                                    if (event == XMLStreamConstants.DTD) error("XML DTD is forbidden")
+                                    if (event == XMLStreamConstants.END_ELEMENT && reader.localName == "channel") break
+                                    if (event != XMLStreamConstants.START_ELEMENT) continue
+                                    when (reader.localName) {
+                                        "display-name" -> {
+                                            val text = reader.elementText.trim().take(256)
+                                            if (name == null && text.isNotEmpty()) name = text
+                                        }
+                                        "icon" -> if (icon == null) icon = reader.getAttributeValue(null, "src")?.takeIf { it.startsWith("http://") || it.startsWith("https://") }?.take(2048)
+                                    }
+                                }
+                                if (!id.isNullOrEmpty()) channels.putIfAbsent(id, GuideChannel(id, name ?: id, icon))
+                                require(channels.size <= GUIDE_CHANNEL_LIMIT) { "Guide exceeds import limits" }
+                            }
+
+                            "programme" -> {
+                                val channel = reader.getAttributeValue(null, "channel")?.trim().orEmpty()
+                                val start = reader.getAttributeValue(null, "start")
+                                val stop = reader.getAttributeValue(null, "stop")
+                                val keep = channel.isNotEmpty() && wanted(channel)
+                                var title = ""
+                                var description: String? = null
+                                while (reader.hasNext()) {
+                                    val event = reader.next()
+                                    if (event == XMLStreamConstants.DTD) error("XML DTD is forbidden")
+                                    if (event == XMLStreamConstants.END_ELEMENT && reader.localName == "programme") break
+                                    if (event != XMLStreamConstants.START_ELEMENT) continue
+                                    if (reader.localName == "title") {
+                                        val text = reader.elementText.take(4096)
+                                        if (title.isBlank()) title = text
+                                    } else if (reader.localName == "desc") {
+                                        val text = reader.elementText.take(16384)
+                                        if (description == null) description = text
+                                    }
+                                }
+                                if (channel.isNotEmpty() && seen.add(channel)) require(seen.size <= GUIDE_CHANNEL_LIMIT) { "Guide exceeds import limits" }
+                                if (!keep) continue
+                                val from = xmlTime(start)
+                                val to = xmlTime(stop)
+                                if (from == null || to == null || !to.isAfter(from) || title.isBlank()) continue
+                                if (!keys.add("$channel\u0000$from\u0000$to\u0000$title")) continue
+                                programmes += GuideProgramme(channel, from, to, title.trim(), description)
+                                require(programmes.size <= GUIDE_PROGRAMME_LIMIT) { "Guide exceeds import limits" }
                             }
                         }
-                        if (matched.isEmpty()) continue
-                        val from = xmlTime(start)
-                        val to = xmlTime(stop)
-                        if (from == null || to == null || !to.isAfter(from) || title.isBlank()) continue
-                        for (channel in matched) {
-                            val id = stableId("programme:${channel.id}:$from:$to:$title")
-                            result[id] = Programme(id, channel.id, from.toString(), to.toString(), title, description)
-                        }
-                        require(result.size <= 250_000) { "Guide exceeds import limits" }
                     }
                 }
             }
@@ -177,8 +221,32 @@ object FeedParser {
         } finally {
             reader.close()
         }
-        return result.values.sortedWith(compareBy({ it.channelId }, { it.startsAt }))
+        for (id in seen) channels.putIfAbsent(id, GuideChannel(id, id))
+        return ParsedGuide(channels.values.toList(), programmes.sortedWith(compareBy({ it.channelId }, { it.startsAt })))
     }
+
+    fun guide(
+        text: String,
+        wanted: (String) -> Boolean = { true },
+    ): ParsedGuide = guide(ByteArrayInputStream(text.toByteArray(Charsets.UTF_8)), wanted)
+
+    /** Gzip is recognized by its magic bytes, whatever the URL or content type says. */
+    private fun decompressed(input: InputStream): InputStream {
+        val stream = PushbackInputStream(input, 2)
+        val head = ByteArray(2)
+        var read = 0
+        while (read < 2) {
+            val count = stream.read(head, read, 2 - read)
+            if (count < 0) break
+            read += count
+        }
+        if (read > 0) stream.unread(head, 0, read)
+        return if (read == 2 && head[0] == 0x1f.toByte() && head[1] == 0x8b.toByte()) GZIPInputStream(stream, 65_536) else stream
+    }
+
+    private const val GUIDE_BYTE_LIMIT = 1L shl 30
+    private const val GUIDE_CHANNEL_LIMIT = 100_000
+    private const val GUIDE_PROGRAMME_LIMIT = 1_000_000
 
     private fun xmlTime(value: String?): Instant? =
         try {

@@ -39,6 +39,9 @@ class ServerConfigTest {
         assertFalse(ServerConfig.fromEnvironment(emptyMap()).allowLoopbackUpstreams)
         assertTrue(ServerConfig.fromEnvironment(mapOf("SOFA_ALLOW_LOOPBACK_UPSTREAMS" to "TRUE")).allowLoopbackUpstreams)
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_ALLOW_LOOPBACK_UPSTREAMS" to "yes")) }
+        assertNull(ServerConfig.fromEnvironment(emptyMap()).adminToken)
+        assertEquals("a".repeat(32), ServerConfig.fromEnvironment(mapOf("SOFA_ADMIN_TOKEN" to "a".repeat(32))).adminToken)
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_ADMIN_TOKEN" to "short")) }
     }
     @Test fun `invalid port or empty values fail before binding`() {
         for (value in listOf("no", "0", "65536", "-1", "")) {

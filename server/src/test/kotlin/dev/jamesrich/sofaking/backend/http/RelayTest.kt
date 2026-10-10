@@ -25,7 +25,7 @@ class RelayTest {
             val store = openStore(dir)
             val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
             try {
-                runtime.feeds.refresh(fixture.tsFeed)
+                runtime.feeds.refresh(fixture.tsFeed); runtime.adoptAll()
                 application { backendModule(store, MutableClock(), runtime, token) }
                 val channel = Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single()
                 val opened = listOf("one", "two").map { key ->
@@ -64,7 +64,7 @@ class RelayTest {
             val store = openStore(dir)
             val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
             try {
-                runtime.feeds.refresh(fixture.feed)
+                runtime.feeds.refresh(fixture.feed); runtime.adoptAll()
                 application { backendModule(store, MutableClock(), runtime, token) }
                 val channel = Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single()
                 val session = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "edges"))) }.bodyAsText())
@@ -90,7 +90,7 @@ class RelayTest {
             val store = openStore(dir)
             val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
             try {
-                feeds.forEach { runtime.feeds.refresh(it) }
+                feeds.forEach { runtime.feeds.refresh(it) }; runtime.adoptAll()
                 application { backendModule(store, MutableClock(), runtime, token) }
                 val catalog = Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels
                 suspend fun open(channel: Channel, key: String): PlaybackSession =
@@ -142,7 +142,7 @@ class RelayTest {
             val store = openStore(dir)
             val runtime = LiveRuntime.create(store, config, MutableClock())
             try {
-                runtime.feeds.refresh(fixture.extensionlessFeed)
+                runtime.feeds.refresh(fixture.extensionlessFeed); runtime.adoptAll()
                 application { backendModule(store, MutableClock(), runtime, token) }
                 val channel = Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single()
                 val session = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(OpenPlayback(channel.id, "preview", "persisted"))) }.bodyAsText())

@@ -12,7 +12,17 @@ import io.ktor.client.plugins.HttpTimeout
 import java.time.Clock
 import kotlinx.coroutines.*
 
-class LiveRuntime(val feeds: FeedService, val sessions: SessionManager, val relay: MediaRelay, private val http: HttpClient, private val scope: CoroutineScope) {
+class LiveRuntime(
+    val store: BackendStore,
+    val feeds: FeedService,
+    val guides: GuideService,
+    val lineup: LineupService,
+    val catalog: CatalogService,
+    val sessions: SessionManager,
+    val relay: MediaRelay,
+    private val http: HttpClient,
+    private val scope: CoroutineScope,
+) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
         sessions.close()
@@ -20,20 +30,28 @@ class LiveRuntime(val feeds: FeedService, val sessions: SessionManager, val rela
     }
     companion object {
         suspend fun create(store: BackendStore, config: ServerConfig, clock: Clock): LiveRuntime {
-            val configs = loadFeeds(config.sourcesFile)
+            val sources = loadSources(config.sourcesFile)
             val http = HttpClient(CIO) {
                 followRedirects = false
                 install(HttpTimeout) { requestTimeoutMillis = 60_000; connectTimeoutMillis = 5000; socketTimeoutMillis = 15_000 }
             }
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             try {
-                val feeds = FeedService(configs, store, http, clock, UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams))
+                val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
+                val feeds = FeedService(sources.providers, store, http, clock, policy)
                 feeds.initialize()
-                val sessions = SessionManager(feeds, store, clock, config.maxSessions)
-                val runtime = LiveRuntime(feeds, sessions, MediaRelay(http, feeds, sessions, scope), http, scope)
+                lateinit var lineup: LineupService
+                val guides = GuideService(sources.allGuides, store, http, clock, policy) { lineup.wanted() }
+                guides.initialize()
+                lineup = LineupService(store, clock, feeds, guides)
+                lineup.initialize()
+                val catalog = CatalogService(feeds, guides, lineup, store, clock)
+                val sessions = SessionManager(catalog, store, clock, config.maxSessions)
+                val runtime = LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), http, scope)
                 feeds.start(scope)
+                guides.start(scope)
                 scope.launch { while (isActive) { sessions.expire(); delay(1000) } }
-                if (configs.any { it.probe }) {
+                if (sources.providers.any { it.probe }) {
                     val probes =
                         ProbeConfig(
                             parallelism = config.probeParallelism,

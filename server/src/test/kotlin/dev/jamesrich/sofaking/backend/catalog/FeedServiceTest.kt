@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.backend.health.*
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
@@ -20,18 +19,20 @@ class FeedServiceTest {
             openStore(dir).use { store ->
                 val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true))
                 feeds.initialize(); feeds.refresh(fixture.feed)
-                id = feeds.catalog().channels.single().id; offering = feeds.offerings().single().id
+                val stack = lineupStack(feeds, store, clock, http, guides = listOf(fixture.gzipGuide))
+                id = stack.catalog.catalog().channels.single().id; offering = feeds.offerings().single().id
                 store.setManuallyDisabled(offering, true)
                 fixture.malformed = true; feeds.refresh(fixture.feed)
-                assertEquals(id, feeds.catalog().channels.single().id)
+                assertEquals(id, stack.catalog.catalog().channels.single().id)
                 assertEquals("IMPORT_FAILED", feeds.providers().single().errorCode)
-                assertFalse(feeds.catalog().channels.single().playbackEligible)
+                assertFalse(stack.catalog.catalog().channels.single().playbackEligible)
             }
             openStore(dir).use { store ->
                 val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.initialize()
-                assertEquals(id, feeds.catalog().channels.single().id)
+                val stack = lineupStack(feeds, store, clock, http, guides = listOf(fixture.gzipGuide), adopt = false)
+                assertEquals(id, stack.catalog.catalog().channels.single().id, "the lineup is persisted, not re-adopted")
                 assertTrue(store.health(offering)!!.manuallyDisabled)
-                assertEquals(1, feeds.guide(GuideQuery(listOf(id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single().programmes.size)
+                assertEquals(1, stack.catalog.guide(GuideQuery(listOf(id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single().programmes.size)
             }
         } } } finally { dir.toFile().deleteRecursively() }
     }
@@ -39,19 +40,21 @@ class FeedServiceTest {
         val dir = Files.createTempDirectory("sofa-withdrawal-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val config = fixture.feed.copy(allowEmpty = true)
-            val feeds = FeedService(listOf(config), store, http, MutableClock(), UpstreamPolicy(allowLoopback = true)); feeds.refresh(config)
-            val channel = feeds.catalog().channels.single(); val offering = feeds.offerings().single()
-            val before = feeds.catalogRevision()
-            assertTrue(feeds.catalog(before).channels.single().playbackEligible)
+            val clock = MutableClock()
+            val feeds = FeedService(listOf(config), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(config)
+            val catalog = lineupStack(feeds, store, clock, http).catalog
+            val channel = catalog.catalog().channels.single(); val offering = feeds.offerings().single()
+            val before = catalog.catalogRevision()
+            assertTrue(catalog.catalog(before).channels.single().playbackEligible)
             fixture.withdrawn = true; feeds.refresh(config)
-            val withdrawn = feeds.catalogRevision()
+            val withdrawn = catalog.catalogRevision()
             assertNotEquals(before, withdrawn, "a withdrawal writes no health row yet changes playbackEligible")
-            assertEquals(channel.id, feeds.catalog().channels.single().id)
-            assertFalse(feeds.catalog(withdrawn).channels.single().playbackEligible)
+            assertEquals(channel.id, catalog.catalog().channels.single().id)
+            assertFalse(catalog.catalog(withdrawn).channels.single().playbackEligible)
             assertTrue(feeds.offerings().isEmpty())
             store.setManuallyDisabled(offering.id, true)
             fixture.withdrawn = false; feeds.refresh(config)
-            assertNotEquals(withdrawn, feeds.catalogRevision())
+            assertNotEquals(withdrawn, catalog.catalogRevision())
             assertEquals(offering.id, feeds.offerings().single().id)
             assertTrue(store.health(offering.id)!!.manuallyDisabled)
         } } } } finally { dir.toFile().deleteRecursively() }
@@ -66,41 +69,49 @@ class FeedServiceTest {
             assertEquals(1, status.channels); assertEquals(1, status.sources)
             assertEquals(2, status.skippedEntries)
             assertEquals("duplicate-source=1, missing-id=1", status.skipReasons)
-            assertEquals("Station", feeds.catalog().channels.single().name)
+            assertEquals("Station", feeds.channels().single().name)
             fixture.partial = false; feeds.refresh(fixture.feed)
             assertEquals(0, feeds.providers().single().skippedEntries); assertNull(feeds.providers().single().skipReasons)
         } } } } finally { dir.toFile().deleteRecursively() }
     }
-    @Test fun `catalog revision is stable until health or guide currency changes`() = runBlocking<Unit> {
+    @Test fun `catalog revision is stable until health lineup or guide currency changes`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-revision-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
-            val initial = feeds.catalogRevision()
-            assertEquals(initial, feeds.catalogRevision())
-            assertEquals(initial, feeds.catalog(initial).revision)
-            assertEquals("available", feeds.catalog().channels.single().guideStatus)
+            val stack = lineupStack(feeds, store, clock, http, guides = listOf(fixture.gzipGuide))
+            val catalog = stack.catalog
+            val initial = catalog.catalogRevision()
+            assertEquals(initial, catalog.catalogRevision())
+            assertEquals(initial, catalog.catalog(initial).revision)
+            assertEquals("available", catalog.catalog().channels.single().guideStatus)
             store.setManuallyDisabled(feeds.offerings().single().id, true)
-            val disabled = feeds.catalogRevision()
+            val disabled = catalog.catalogRevision()
             assertNotEquals(initial, disabled)
-            assertFalse(feeds.catalog(disabled).channels.single().playbackEligible)
+            assertFalse(catalog.catalog(disabled).channels.single().playbackEligible)
             clock.now = Instant.parse("2026-10-10T14:00:01Z")
-            val stale = feeds.catalogRevision()
+            val stale = catalog.catalogRevision()
             assertNotEquals(disabled, stale)
-            assertEquals("stale", feeds.catalog(stale).channels.single().guideStatus)
-            assertEquals(stale, feeds.catalogRevision())
+            assertEquals("stale", catalog.catalog(stale).channels.single().guideStatus)
+            assertEquals(stale, catalog.catalogRevision())
+            stack.lineup.update(catalog.catalog().channels.single().id, UpdateLineupEntry(name = "Renamed"))
+            assertNotEquals(stale, catalog.catalogRevision())
+            assertEquals("Renamed", catalog.catalog().channels.single().name)
         } } } } finally { dir.toFile().deleteRecursively() }
     }
     @Test fun `guide overlap bounds and revision changes are explicit`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-guide-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
-            val feeds = FeedService(listOf(fixture.feed), store, http, MutableClock(), UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
-            val id = feeds.catalog().channels.single().id
+            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
+            val catalog = lineupStack(feeds, store, clock, http, guides = listOf(fixture.gzipGuide)).catalog
+            val id = catalog.catalog().channels.single().id
             val query = GuideQuery(listOf(id), "2026-10-10T14:00:00Z", "2026-10-10T15:00:00Z")
-            assertTrue(feeds.guide(query).channels.single().programmes.isEmpty())
-            assertEquals("RESYNC_REQUIRED", assertFailsWith<ApiFailure> { feeds.guide(query.copy(revision = "old")) }.code)
-            assertFailsWith<ApiFailure> { feeds.guide(query.copy(to = "2026-10-12T14:00:00Z")) }
-            assertFailsWith<ApiFailure> { feeds.guide(query.copy(channelIds = List(201) { id })) }
-            assertEquals("CHANNEL_NOT_FOUND", assertFailsWith<ApiFailure> { feeds.guide(query.copy(channelIds = listOf("unknown"))) }.code)
+            assertTrue(catalog.guide(query).channels.single().programmes.isEmpty())
+            val overlapping = catalog.guide(query.copy(from = "2026-10-10T13:30:00Z")).channels.single()
+            assertEquals("Morning", overlapping.programmes.single().title); assertEquals(id, overlapping.programmes.single().channelId)
+            assertEquals("RESYNC_REQUIRED", assertFailsWith<ApiFailure> { catalog.guide(query.copy(revision = "old")) }.code)
+            assertFailsWith<ApiFailure> { catalog.guide(query.copy(to = "2026-10-12T14:00:00Z")) }
+            assertFailsWith<ApiFailure> { catalog.guide(query.copy(channelIds = List(201) { id })) }
+            assertEquals("CHANNEL_NOT_FOUND", assertFailsWith<ApiFailure> { catalog.guide(query.copy(channelIds = listOf("unknown"))) }.code)
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 }

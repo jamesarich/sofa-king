@@ -55,7 +55,7 @@ internal class ResourceMap(private val segmentLimit: Int = 4096) {
 /** [shared] marks the live MPEG-TS root, which one upstream connection fans out to every session on the source. */
 data class MediaResource(val offering: Offering, val url: String, val shared: Boolean = false)
 
-class SessionManager(private val feeds: FeedService, private val store: BackendStore, private val clock: Clock, private val capacity: Int = 4) {
+class SessionManager(private val catalog: CatalogService, private val store: BackendStore, private val clock: Clock, private val capacity: Int = 4) {
     private val mutex = Mutex()
     private val sessions = linkedMapOf<String, LiveSession>()
     private val keys = linkedMapOf<String, Pair<OpenPlayback, String>>()
@@ -84,7 +84,7 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
     suspend fun get(id: String): PlaybackSession = mutex.withLock {
         val session = active(id)
         val health = store.health(session.offering.id)
-        val refreshed = feeds.offering(session.offering.id)
+        val refreshed = catalog.offering(session.offering.id)
         if (refreshed == null || health == null || !eligible(health)) {
             session.cancel(); session.epoch++; session.resources.clear()
             session.offering = select(session.request.channelId)
@@ -122,14 +122,14 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
             session.resources.clear()
             session.offering.id
         }
-        feeds.recordProtocol(offeringId, protocol)
+        catalog.feeds.recordProtocol(offeringId, protocol)
     }
     suspend fun expire() = mutex.withLock { reap() }
     suspend fun close() = mutex.withLock { sessions.values.forEach { it.cancel() }; sessions.clear() }
     suspend fun acquire(id: String, epoch: Int, token: String, job: Job): MediaResource = mutex.withLock {
         val session = active(id)
         if (epoch != session.epoch) throw ApiFailure(410, "STREAM_CHANGED", "Fetch the current session descriptor", true)
-        if (feeds.offering(session.offering.id) == null || store.health(session.offering.id)?.let(::eligible) != true) {
+        if (catalog.offering(session.offering.id) == null || store.health(session.offering.id)?.let(::eligible) != true) {
             session.cancel()
             throw ApiFailure(503, "SOURCE_UNAVAILABLE", "Source is no longer eligible", true)
         }
@@ -147,9 +147,9 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
         if (session.epoch != epoch) throw ApiFailure(410, "STREAM_CHANGED", "Fetch current descriptor", true)
         "/media/sessions/$id/$epoch/${session.resource(url)}"
     }
+    /** Lineup order within each health rank: a healthy second choice beats an unverified first choice. */
     private suspend fun select(channelId: String): Offering {
-        val candidates = feeds.offerings().filter { it.channelId == channelId }
-        if (candidates.isEmpty()) throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel")
+        val candidates = catalog.offeringsFor(channelId) ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel")
         val states = store.allHealth()
         return candidates.sortedBy { selectionRank(states[it.id]?.status) }
             .firstOrNull { states[it.id]?.let(::eligible) == true }
@@ -165,8 +165,6 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
         expired.forEach { it.cancel(); sessions.remove(it.id) }
     }
 }
-fun eligible(state: dev.jamesrich.sofaking.backend.health.HealthState): Boolean = !state.manuallyDisabled && state.status in setOf(HealthStatus.UNVERIFIED, HealthStatus.HEALTHY, HealthStatus.SUSPECT)
-
 /** Healthy first, then unverified, then suspect; anything else is never selected. */
 internal fun selectionRank(status: HealthStatus?): Int =
     when (status) {

@@ -22,7 +22,7 @@ class LiveTvTest {
             val store = openStore(dir)
             val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
             try {
-                runtime.feeds.refresh(fixture.feed)
+                runtime.feeds.refresh(fixture.feed); runtime.adoptAll()
                 application { backendModule(store, MutableClock(), runtime, token) }
                 assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/channels").status)
                 val catalogResponse = client.get("/api/v1/channels") { bearerAuth(token) }

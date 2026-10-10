@@ -1,0 +1,67 @@
+package dev.jamesrich.sofaking.backend.catalog
+
+import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import java.nio.file.Files
+import java.time.Instant
+import kotlinx.coroutines.*
+import kotlin.test.*
+
+class GuideServiceTest {
+    @Test fun `guides import independently keep only mapped channels and survive restart`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-guides-")
+        try { Fixture().use { fixture -> HttpClient(CIO).use { http ->
+            val clock = MutableClock()
+            var channelId = ""
+            openStore(dir).use { store ->
+                val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
+                val stack = lineupStack(feeds, store, clock, http, guides = listOf(fixture.brokenGuide, fixture.gzipGuide))
+                val statuses = stack.guides.statuses().associateBy { it.id }
+                assertEquals("IMPORT_FAILED", statuses.getValue("broken").errorCode)
+                assertNull(statuses.getValue("gz").errorCode)
+                assertEquals(2, statuses.getValue("gz").channels, "the channel index lists every channel")
+                assertEquals(1, statuses.getValue("gz").programmes, "only the mapped channel's programmes are retained")
+                channelId = stack.catalog.catalog().channels.single().id
+                val entry = stack.lineup.entry(channelId)!!
+                assertEquals(GuideMapping("gz", "station"), entry.guide, "the implicit provider guide comes after explicit guides")
+                assertEquals("available", stack.catalog.catalog().channels.single().guideStatus)
+                assertEquals(listOf(GuideChannelInfo("gz", "station", "Station HD", "${fixture.base}/station.png")), stack.guides.searchChannels("gz", "HD", 10))
+                assertEquals(listOf("gz"), stack.guides.guidesListing("other"))
+            }
+            openStore(dir).use { store ->
+                val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.initialize()
+                lateinit var lineup: LineupService
+                val guides = GuideService(listOf(fixture.gzipGuide), store, http, clock, UpstreamPolicy(allowLoopback = true)) { lineup.wanted() }
+                guides.initialize()
+                lineup = LineupService(store, clock, feeds, guides); lineup.initialize()
+                val catalog = CatalogService(feeds, guides, lineup, store, clock)
+                assertEquals(1, guides.statuses().single().programmes)
+                assertEquals(Instant.parse("2026-10-10T14:00:00Z"), guides.coverage().getValue("gz").getValue("station"))
+                val window = catalog.guide(GuideQuery(listOf(channelId), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single()
+                assertEquals("Morning", window.programmes.single().title)
+            }
+        } } } finally { dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `a new mapping triggers one coalesced refresh that retains the newly wanted channel`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-guides-trigger-")
+        try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
+            val stack = lineupStack(feeds, store, clock, http, guides = listOf(fixture.gzipGuide))
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                stack.guides.start(scope)
+                val other = stack.lineup.create(CreateLineupEntry(number = "9", name = "Other", guide = GuideMapping("gz", "other")))
+                withTimeout(10_000) { while (stack.guides.statuses().single().programmes < 2) delay(50) }
+                val window = stack.catalog.guide(GuideQuery(listOf(other.id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single()
+                assertEquals("Elsewhere", window.programmes.single().title)
+                assertEquals("available", stack.catalog.catalog().channels.single { it.id == other.id }.guideStatus)
+                assertFalse(stack.catalog.catalog().channels.single { it.id == other.id }.playbackEligible, "an entry without sources is listed but not playable")
+            } finally { scope.coroutineContext[Job]!!.cancelAndJoin() }
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
+}

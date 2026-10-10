@@ -1,13 +1,9 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.Catalog
-import dev.jamesrich.sofaking.backend.api.ChannelGuide
-import dev.jamesrich.sofaking.backend.api.GuideQuery
-import dev.jamesrich.sofaking.backend.api.GuideWindow
+import dev.jamesrich.sofaking.backend.api.Channel
 import dev.jamesrich.sofaking.backend.api.ProviderStatus
 import dev.jamesrich.sofaking.backend.api.SourceStatus
 import dev.jamesrich.sofaking.backend.api.UpdateSource
-import dev.jamesrich.sofaking.backend.health.HealthStatus
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
@@ -28,7 +24,6 @@ import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
-import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
 
 class ApiFailure(
@@ -38,6 +33,7 @@ class ApiFailure(
     val retryable: Boolean = false,
 ) : RuntimeException(message)
 
+/** Provider playlists: the candidate channels and their sources. The lineup decides what the app sees. */
 class FeedService(
     val configs: List<FeedConfig>,
     private val store: BackendStore,
@@ -51,21 +47,17 @@ class FeedService(
         val feeds: List<FeedSnapshot>,
         val protocols: Map<String, String> = emptyMap(),
     ) {
-        val channels = feeds.flatMap { it.channels }.distinctBy { it.id }
+        val channels = feeds.flatMap { feed -> feed.channels.map { it to feed.providerId } }.distinctBy { it.first.id }
+        val channelById = channels.associate { it.first.id to it.first }
+        val providerByChannel = channels.associate { it.first.id to it.second }
         val offerings = feeds.flatMap { it.offerings }.map { offering -> protocols[offering.id]?.let { offering.copy(protocol = it) } ?: offering }
         val offeringById = offerings.associateBy { it.id }
-        val programmes = feeds.flatMap { it.programmes }.distinctBy { it.id }
-        val programmesByChannel = programmes.groupBy { it.channelId }
-        val guideRevision = hash(Json.encodeToString(programmes))
-        val channelsRevision = hash(Json.encodeToString(channels))
+        val offeringsByChannel = offerings.groupBy { it.channelId }
+        val offeringBySourceKey = offerings.groupBy { sourceKey(it.url) }
+        val channelsRevision = hash(Json.encodeToString(channels.map { it.first }))
 
-        /** Which sources each channel has decides playbackEligible, and a withdrawal writes no health row. */
+        /** Which sources exist decides playbackEligible, and a withdrawal writes no health row. */
         val offeringsRevision = hash(offerings.sortedBy { it.id }.joinToString(",") { "${it.id}:${it.channelId}" })
-
-        /** When each channel's guide runs out; the only time-dependent input to the catalog body. */
-        val guideEnds = programmesByChannel.mapValues { (_, rows) -> rows.maxOf { Instant.parse(it.endsAt) } }
-        val guideEndsSorted = guideEnds.entries.sortedBy { it.key }.map { it.key to it.value }
-        val guideCoverage = hash(guideEndsSorted.joinToString(",") { it.first })
     }
 
     private val log = LoggerFactory.getLogger(FeedService::class.java)
@@ -77,10 +69,7 @@ class FeedService(
         published.set(
             Published(
                 store.snapshots().filter { snapshot -> configs.any { it.id == snapshot.providerId } }.sortedBy { snapshot ->
-                    configs.indexOfFirst {
-                        it.id ==
-                            snapshot.providerId
-                    }
+                    configs.indexOfFirst { it.id == snapshot.providerId }
                 },
                 store.offeringProtocols(),
             ),
@@ -107,7 +96,27 @@ class FeedService(
 
     fun offerings(): List<Offering> = published.get().offerings
 
+    fun offeringsOf(channelId: String): List<Offering> = published.get().offeringsByChannel[channelId].orEmpty()
+
+    /** Offerings whose URL matches [url] ignoring its query string. */
+    fun offeringsMatching(url: String): List<Offering> = sourceKey(url)?.let { published.get().offeringBySourceKey[it] }.orEmpty()
+
+    fun channels(providerId: String? = null): List<Channel> {
+        val current = published.get()
+        return if (providerId == null) current.channels.map { it.first } else current.channels.filter { it.second == providerId }.map { it.first }
+    }
+
+    fun channel(id: String): Channel? = published.get().channelById[id]
+
+    fun providerOf(channelId: String): String? = published.get().providerByChannel[channelId]
+
     fun config(providerId: String): FeedConfig = configs.first { it.id == providerId }
+
+    /** Changes when any channel or source is added, changed or withdrawn. */
+    fun revision(): String {
+        val current = published.get()
+        return "${current.channelsRevision}:${current.offeringsRevision}"
+    }
 
     suspend fun refresh(config: FeedConfig) =
         mutex.withLock {
@@ -117,19 +126,15 @@ class FeedService(
                 val parsed = FeedParser.playlist(config.id, playlist, config.defaultProtocol)
                 val (channels, offerings) = parsed
                 require(channels.isNotEmpty() || config.allowEmpty) { "Empty playlist requires explicit allowEmpty" }
-                val programmes = config.guideUrl?.let { FeedParser.guide(fetch(it, config.headers, 64 * 1024 * 1024), channels) }.orEmpty()
                 val previous = published.get().feeds.find { it.providerId == config.id }
                 val retainedChannels = (channels + previous?.channels.orEmpty()).distinctBy { it.id }
-                val snapshot = FeedSnapshot(config.id, retainedChannels, offerings, programmes, clock.instant().toString())
+                val snapshot = FeedSnapshot(config.id, retainedChannels, offerings, importedAt = clock.instant().toString())
                 store.saveSnapshot(snapshot)
                 val current = published.get()
                 published.set(
                     Published(
                         (current.feeds.filterNot { it.providerId == config.id } + snapshot).sortedBy { item ->
-                            configs.indexOfFirst {
-                                it.id ==
-                                    item.providerId
-                            }
+                            configs.indexOfFirst { it.id == item.providerId }
                         },
                         current.protocols,
                     ),
@@ -152,8 +157,8 @@ class FeedService(
                 )
                 val durationMs = Duration.between(started, clock.instant()).toMillis()
                 log.info(
-                    "import provider={} channels={} sources={} programmes={} skipped={} durationMs={}",
-                    config.id, channels.size, offerings.size, programmes.size, parsed.skippedCount, durationMs,
+                    "import provider={} channels={} sources={} skipped={} durationMs={}",
+                    config.id, channels.size, offerings.size, parsed.skippedCount, durationMs,
                 )
                 if (parsed.skippedCount > 0) log.warn("import provider={} skipped malformed entries: {}", config.id, parsed.skipSummary)
             } catch (e: CancellationException) {
@@ -207,107 +212,6 @@ class FeedService(
             state.manuallyDisabled,
             state.lastQualifiedAt?.toString(),
             state.nextCheckAt?.toString(),
-        )
-    }
-
-    /** Channels, offerings, guide coverage, health version and which guides are still current: everything the body depends on. */
-    suspend fun catalogRevision(): String {
-        val current = published.get()
-        val now = clock.instant()
-        val available = buildString { for ((id, end) in current.guideEndsSorted) if (end > now) append(id).append(',') }
-        return hash("${current.channelsRevision}:${current.offeringsRevision}:${current.guideCoverage}:${store.healthVersion()}:${hash(available)}")
-    }
-
-    suspend fun catalog(revision: String? = null): Catalog {
-        val stamped = revision ?: catalogRevision()
-        val current = published.get()
-        val states = store.allHealth()
-        val guideEnds = current.guideEnds
-        val offers = current.offerings.groupBy { it.channelId }
-        val now = clock.instant()
-        val channels =
-            current.channels
-                .map { channel ->
-                    val end = guideEnds[channel.id]
-                    val guide =
-                        if (channel.legacyGuideId == null) {
-                            "unassigned"
-                        } else if (end == null) {
-                            "empty"
-                        } else if (end > now) {
-                            "available"
-                        } else {
-                            "stale"
-                        }
-                    channel.copy(
-                        guideStatus = guide,
-                        playbackEligible =
-                            offers[channel.id].orEmpty().any { offering ->
-                                states[offering.id]?.let {
-                                    !it.manuallyDisabled &&
-                                        it.status in setOf(HealthStatus.UNVERIFIED, HealthStatus.HEALTHY, HealthStatus.SUSPECT)
-                                } ==
-                                    true
-                            },
-                    )
-                }.sortedWith(compareBy({ it.displayNumber.toDoubleOrNull() ?: Double.MAX_VALUE }, { it.name }, { it.id }))
-        return Catalog(stamped, channels)
-    }
-
-    fun guide(query: GuideQuery): GuideWindow {
-        if (query.channelIds.size !in 1..200 || query.channelIds.distinct().size != query.channelIds.size) {
-            throw ApiFailure(400, "INVALID_QUERY", "Request 1 to 200 distinct channel IDs")
-        }
-        val from =
-            try {
-                Instant.parse(query.from)
-            } catch (
-                _: Exception,
-            ) {
-                throw ApiFailure(400, "INVALID_QUERY", "Invalid from timestamp")
-            }
-        val to =
-            try {
-                Instant.parse(query.to)
-            } catch (_: Exception) {
-                throw ApiFailure(400, "INVALID_QUERY", "Invalid to timestamp")
-            }
-        if (to <= from ||
-            Duration.between(from, to) > Duration.ofHours(24)
-        ) {
-            throw ApiFailure(400, "INVALID_QUERY", "Guide window must be positive and at most 24 hours")
-        }
-        val current = published.get()
-        val channels = current.channels.associateBy { it.id }
-        if (query.channelIds.any { it !in channels }) throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel ID")
-        val revision = current.guideRevision
-        if (query.revision != null && query.revision != revision) throw ApiFailure(409, "RESYNC_REQUIRED", "Guide revision changed", true)
-        val grouped =
-            query.channelIds.associateWith { id ->
-                current.programmesByChannel[id].orEmpty().filter {
-                    Instant.parse(it.startsAt) <
-                        to &&
-                        Instant.parse(it.endsAt) > from
-                }
-            }
-        return GuideWindow(
-            revision,
-            from.toString(),
-            to.toString(),
-            query.channelIds.map { id ->
-                val rows = grouped[id].orEmpty()
-                ChannelGuide(
-                    id,
-                    if (channels[id]!!.legacyGuideId == null) {
-                        "unassigned"
-                    } else if (rows.isEmpty()) {
-                        "empty"
-                    } else {
-                        "available"
-                    },
-                    rows,
-                )
-            },
         )
     }
 

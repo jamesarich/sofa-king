@@ -17,15 +17,13 @@ import io.ktor.server.routing.*
 import io.ktor.util.cio.ChannelIOException
 import io.ktor.utils.io.ClosedByteChannelException
 import io.ktor.utils.io.ConnectionClosedException
-import io.ktor.utils.io.readBuffer
 import java.security.MessageDigest
 import java.time.Clock
 import kotlinx.coroutines.CancellationException
-import kotlinx.io.readByteArray
 import kotlinx.serialization.json.Json
 
 private val wireJson = Json { encodeDefaults = true }
-fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveRuntime? = null, apiToken: String? = null) {
+fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveRuntime? = null, apiToken: String? = null, adminToken: String? = null) {
     install(ContentNegotiation) { json(wireJson) }
     install(StatusPages) {
         status(HttpStatusCode.NotFound) { call, status -> call.respond(status, ApiError("NOT_FOUND", "Resource not found", false)) }
@@ -47,9 +45,12 @@ fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveR
         }
     }
     intercept(ApplicationCallPipeline.Call) {
-        if (call.request.path().startsWith("/api/") && apiToken != null) {
+        val path = call.request.path()
+        // Admin routes take the admin token when one is configured; otherwise the API token covers them too.
+        val expected = if (path.startsWith("/api/v1/admin/") && adminToken != null) adminToken else apiToken
+        if (path.startsWith("/api/") && expected != null) {
             val presented = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()
-            if (!MessageDigest.isEqual(apiToken.toByteArray(), presented.toByteArray())) {
+            if (!MessageDigest.isEqual(expected.toByteArray(), presented.toByteArray())) {
                 call.respond(HttpStatusCode.Unauthorized, ApiError("AUTH_REQUIRED", "Bearer token required", false))
                 finish()
             }
@@ -68,11 +69,11 @@ fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveR
         if (runtime != null) {
             get("/api/v1/channels") {
                 // The revision is cheap; the body is not, so answer a matching If-None-Match before building it.
-                val revision = runtime.feeds.catalogRevision()
+                val revision = runtime.catalog.catalogRevision()
                 val etag = "\"$revision\""
                 call.response.header(HttpHeaders.ETag, etag)
                 if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) call.respond(HttpStatusCode.NotModified)
-                else call.respond(runtime.feeds.catalog(revision))
+                else call.respond(runtime.catalog.catalog(revision))
             }
             get("/api/v1/providers") { call.respond(runtime.feeds.providers()) }
             get("/api/v1/sources") { call.respond(runtime.feeds.sources()) }
@@ -81,7 +82,7 @@ fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveR
                 runtime.sessions.healthChanged(source.id)
                 call.respond(source)
             }
-            post("/api/v1/guide/query") { call.respond(runtime.feeds.guide(call.body<GuideQuery>())) }
+            post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.body<GuideQuery>())) }
             post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.body<OpenPlayback>())) }
             get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }
             patch("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.update(call.parameters["id"]!!, call.body<UpdatePlayback>())) }
@@ -103,9 +104,3 @@ internal fun clientAbort(cause: Throwable): Boolean {
     }
 }
 private val ioAbortMessage = Regex("(?i)broken pipe|connection reset|connection or inbound has closed")
-
-private suspend inline fun <reified T> ApplicationCall.body(): T {
-    val bytes = receiveChannel().readBuffer(65_537L).readByteArray()
-    if (bytes.size > 65_536) throw ApiFailure(413, "REQUEST_TOO_LARGE", "Request exceeds 64 KiB")
-    return wireJson.decodeFromString(bytes.toString(Charsets.UTF_8))
-}

@@ -21,6 +21,12 @@ class Fixture : AutoCloseable {
     /** One good entry plus one without an identity and one query-only duplicate. */
     var partial = false
     val feed = FeedConfig("fixture", "$base/feed.m3u", "$base/guide.xml", probe = false)
+    /** A second provider carrying the same station, for lineup failover. */
+    val altFeed = FeedConfig("alt", "$base/alt-feed.m3u", probe = false)
+    /** The same guide as the provider's, gzip-compressed and with a channel block. */
+    val gzipGuide = GuideConfig("gz", "$base/guide.xml.gz")
+    /** A guide that always fails, for failure isolation. */
+    val brokenGuide = GuideConfig("broken", "$base/broken-guide.xml")
     val tsFeed = FeedConfig("ts", "$base/ts-feed.m3u", probe = false)
     /** An HLS master served from an extensionless path with a generic content type. */
     val extensionlessFeed = FeedConfig("ext", "$base/ext-feed.m3u", probe = false)
@@ -54,17 +60,28 @@ class Fixture : AutoCloseable {
                 } finally { tsClosed.incrementAndGet() }
                 return@createContext
             }
+            if (path == "/guide.xml.gz") {
+                val bytes = java.io.ByteArrayOutputStream().also { out -> java.util.zip.GZIPOutputStream(out).use { it.write(guideXml(true).toByteArray()) } }.toByteArray()
+                exchange.responseHeaders.set("Content-Type", "application/gzip")
+                exchange.sendResponseHeaders(200, bytes.size.toLong()); exchange.responseBody.use { it.write(bytes) }
+                return@createContext
+            }
+            if (path == "/broken-guide.xml") {
+                exchange.sendResponseHeaders(503, -1); exchange.close()
+                return@createContext
+            }
             val text = when (path) {
                 "/feed.m3u" ->
                     if (malformed) "not a playlist"
                     else if (withdrawn) "#EXTM3U\n"
                     else if (partial) "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8\n#EXTINF:-1 tvg-chno=\"9\",Nameless Id\n$base/other.m3u8\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8?token=dup\n"
                     else "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8\n"
+                "/alt-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/alt.m3u8\n"
                 "/ts-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ts-station\" tvg-chno=\"6\",TS Station\n$base/live.ts\n"
                 "/ext-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ext-station\" tvg-chno=\"7\",Extensionless\n$base/resolve?id=1\n"
                 "/fake-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"fake-station\" tvg-chno=\"8\",Mislabeled\n$base/fake.m3u8\n"
                 "/resolve" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100000\nmedia.m3u8\n"
-                "/guide.xml" -> "<tv><programme channel=\"station\" start=\"20261010080000 -0500\" stop=\"20261010090000 -0500\"><title>Morning</title></programme></tv>"
+                "/guide.xml" -> guideXml(false)
                 "/master.m3u8" -> "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\",URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,AUDIO=\"audio\"\nmedia.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200000\nloop\n"
                 "/media.m3u8", "/audio.m3u8" -> "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n#EXTINF:4,\nsegment.ts\n#EXT-X-ENDLIST\n"
                 "/key" -> "0123456789abcdef"
@@ -81,6 +98,13 @@ class Fixture : AutoCloseable {
         server.start()
     }
     override fun close() { server.stop(0); executor.shutdownNow() }
+    private fun guideXml(withChannels: Boolean): String = buildString {
+        append("<tv>")
+        if (withChannels) append("<channel id=\"station\"><display-name>Station HD</display-name><icon src=\"$base/station.png\"/></channel><channel id=\"other\"><display-name>Other</display-name></channel>")
+        append("<programme channel=\"station\" start=\"20261010080000 -0500\" stop=\"20261010090000 -0500\"><title>Morning</title></programme>")
+        append("<programme channel=\"other\" start=\"20261010080000 -0500\" stop=\"20261010090000 -0500\"><title>Elsewhere</title></programme>")
+        append("</tv>")
+    }
     companion object {
         /** A PID 0x100 packet whose payload is the packet number. */
         fun tsPacket(number: Int): ByteArray = ByteArray(188) { index ->

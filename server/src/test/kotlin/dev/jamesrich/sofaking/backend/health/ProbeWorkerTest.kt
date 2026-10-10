@@ -25,19 +25,20 @@ class ProbeWorkerTest {
             val offering = Offering("source", channel.id, "p", "http://example.test/live.m3u8", "hls")
             store.saveSnapshot(FeedSnapshot("p", listOf(channel), listOf(offering), emptyList(), clock.now.toString()))
             val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
+            val catalog = lineupStack(feeds, store, clock, http).catalog
             var success = false
             val worker = ProbeWorker(feeds, store, clock, "unused") { _, _ -> if (success) null else FailureClass.OFFERING }
             assertTrue(worker.step()); assertFalse(worker.step())
             clock.now = clock.now.plusSeconds(300); assertTrue(worker.step())
             clock.now = clock.now.plusSeconds(300); assertTrue(worker.step())
             assertEquals(HealthStatus.QUARANTINED, store.health(offering.id)!!.status)
-            assertFalse(feeds.catalog().channels.single().playbackEligible)
+            assertFalse(catalog.catalog().channels.single().playbackEligible)
             clock.now = clock.now.plusSeconds(899); assertFalse(worker.step())
             clock.now = clock.now.plusSeconds(1); success = true; assertTrue(worker.step())
             assertEquals(HealthStatus.PROBATION, store.health(offering.id)!!.status)
             clock.now = clock.now.plusSeconds(600); assertTrue(worker.step())
             assertEquals(HealthStatus.HEALTHY, store.health(offering.id)!!.status)
-            assertTrue(feeds.catalog().channels.single().playbackEligible)
+            assertTrue(catalog.catalog().channels.single().playbackEligible)
         } } } finally { dir.toFile().deleteRecursively() }
     }
     @Test fun `provider faults do not strike and probe retry timing survives restart`() = runBlocking<Unit> {
@@ -119,6 +120,7 @@ class ProbeWorkerTest {
             val policy = UpstreamPolicy(allowLoopback = true)
             val channelId = openStore(dir).use { store ->
                 val feeds = FeedService(listOf(config), store, http, clock, policy); feeds.refresh(config)
+                val catalog = lineupStack(feeds, store, clock, http).catalog
                 val offering = feeds.offerings().single()
                 assertEquals("mpegts", offering.protocol)
                 // No FFmpeg here: the decode tier fails as LOCAL, which neither strikes nor hides the HTTP tier's detection.
@@ -127,9 +129,10 @@ class ProbeWorkerTest {
                 assertEquals(mapOf(offering.id to "hls"), store.offeringProtocols())
                 assertEquals("hls", feeds.offering(offering.id)!!.protocol)
                 assertEquals(HealthStatus.UNVERIFIED, store.health(offering.id)!!.status)
-                val opened = SessionManager(feeds, store, clock).open(OpenPlayback(offering.channelId, "preview", "k"))
+                val channelId = catalog.catalog().channels.single().id
+                val opened = SessionManager(catalog, store, clock).open(OpenPlayback(channelId, "preview", "k"))
                 assertEquals("hls", opened.descriptor.protocol); assertEquals(1, opened.descriptor.epoch); assertTrue(opened.descriptor.url.endsWith(".m3u8"))
-                offering.channelId
+                channelId
             }
             openStore(dir).use { store ->
                 val feeds = FeedService(listOf(config), store, http, clock, policy); feeds.initialize()
@@ -137,7 +140,8 @@ class ProbeWorkerTest {
                 // A re-import assigns mpegts again; the persisted detection still wins.
                 feeds.refresh(config)
                 assertEquals("hls", feeds.offerings().single().protocol)
-                val opened = SessionManager(feeds, store, clock).open(OpenPlayback(channelId, "preview", "k"))
+                val catalog = lineupStack(feeds, store, clock, http, adopt = false).catalog
+                val opened = SessionManager(catalog, store, clock).open(OpenPlayback(channelId, "preview", "k"))
                 assertEquals("hls", opened.descriptor.protocol); assertEquals(1, opened.descriptor.epoch)
             }
         } } } finally { dir.toFile().deleteRecursively() }

@@ -84,37 +84,44 @@ class FeedParserTest {
     }
 
     @Test fun `XMLTV preserves UTC offset and rejects malformed records`() {
-        val (channels, _) = FeedParser.playlist("p", playlist())
-        val programmes =
+        val parsed =
             FeedParser.guide(
                 """<tv>
           <programme channel="station" start="20261010080000 -0500" stop="20261010090000 -0500"><title>Morning</title><desc>News &amp; weather</desc></programme>
           <programme channel="station" start="20261010090000" stop="bad"><title>Invalid</title></programme>
+          <programme channel="unwanted" start="20261010080000 -0500" stop="20261010090000 -0500"><title>Dropped</title></programme>
         </tv>""",
-                channels,
-            )
-        assertEquals(1, programmes.size)
-        assertEquals("2026-10-10T13:00:00Z", programmes.single().startsAt)
-        assertEquals("News & weather", programmes.single().description)
+            ) { it == "station" }
+        assertEquals(1, parsed.programmes.size)
+        assertEquals("2026-10-10T13:00:00Z", parsed.programmes.single().startsAt.toString())
+        assertEquals("News & weather", parsed.programmes.single().description)
+        assertEquals(listOf("station", "unwanted"), parsed.channels.map { it.id }.sorted(), "programme channel ids are indexed even without a channel block")
+    }
+
+    @Test fun `gzip XMLTV is recognized by its magic bytes and the channel block is indexed`() {
+        val xml = """<tv><channel id="a"><display-name>Alpha</display-name><icon src="https://img.test/a.png"/></channel>
+            <programme channel="a" start="20261010080000 +0000" stop="20261010090000 +0000"><title>One</title></programme>
+            <programme channel="a" start="20261010080000 +0000" stop="20261010090000 +0000"><title>One</title></programme></tv>"""
+        val bytes = java.io.ByteArrayOutputStream().also { out -> java.util.zip.GZIPOutputStream(out).use { it.write(xml.toByteArray()) } }.toByteArray()
+        val parsed = FeedParser.guide(java.io.ByteArrayInputStream(bytes)) { true }
+        assertEquals(GuideChannel("a", "Alpha", "https://img.test/a.png"), parsed.channels.single())
+        assertEquals(1, parsed.programmes.size, "exact duplicates collapse")
+        assertEquals("One", parsed.programmes.single().title)
     }
 
     @Test fun `XMLTV cannot resolve external entities`() {
         assertFails {
-            FeedParser.guide(
-                """<!DOCTYPE tv [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><tv><programme channel="station"><title>&xxe;</title></programme></tv>""",
-                FeedParser.playlist("p", playlist()).channels,
-            )
+            FeedParser.guide("""<!DOCTYPE tv [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><tv><programme channel="station"><title>&xxe;</title></programme></tv>""")
         }
-        assertFails { FeedParser.guide("<html/>", emptyList()) }
+        assertFails { FeedParser.guide("<html/>") }
     }
 
     @Test fun `invalid calendar dates are discarded instead of normalized`() {
-        val channels = FeedParser.playlist("p", playlist()).channels
         val invalid = """<tv>
             <programme channel="station" start="20260230080000 +0000" stop="20260230090000 +0000">
                 <title>Invalid</title>
             </programme>
         </tv>"""
-        assertTrue(FeedParser.guide(invalid, channels).isEmpty())
+        assertTrue(FeedParser.guide(invalid).programmes.isEmpty())
     }
 }

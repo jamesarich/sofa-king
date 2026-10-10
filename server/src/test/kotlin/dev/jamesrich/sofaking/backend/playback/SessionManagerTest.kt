@@ -17,8 +17,9 @@ class SessionManagerTest {
         val dir = Files.createTempDirectory("sofa-session-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
-            val sessions = SessionManager(feeds, store, clock, 1)
-            val request = OpenPlayback(feeds.catalog().channels.single().id, "preview", "one")
+            val catalog = lineupStack(feeds, store, clock, http).catalog
+            val sessions = SessionManager(catalog, store, clock, 1)
+            val request = OpenPlayback(catalog.catalog().channels.single().id, "preview", "one")
             val opened = sessions.open(request)
             assertEquals(opened, sessions.open(request))
             assertEquals("IDEMPOTENCY_CONFLICT", assertFailsWith<ApiFailure> { sessions.open(request.copy(intent = "watch")) }.code)
@@ -41,8 +42,9 @@ class SessionManagerTest {
         val dir = Files.createTempDirectory("sofa-evict-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
-            val channel = feeds.catalog().channels.single().id
-            val sessions = SessionManager(feeds, store, clock, 2)
+            val catalog = lineupStack(feeds, store, clock, http).catalog
+            val channel = catalog.catalog().channels.single().id
+            val sessions = SessionManager(catalog, store, clock, 2)
             val first = sessions.open(OpenPlayback(channel, "preview", "first"))
             assertEquals(clock.now.plusSeconds(45).toString(), first.expiresAt)
             val watching = sessions.open(OpenPlayback(channel, "watch", "watching"))
@@ -64,8 +66,9 @@ class SessionManagerTest {
         val dir = Files.createTempDirectory("sofa-disable-play-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)); feeds.refresh(fixture.feed)
-            val sessions = SessionManager(feeds, store, clock)
-            val session = sessions.open(OpenPlayback(feeds.catalog().channels.single().id, idempotencyKey = "disable"))
+            val catalog = lineupStack(feeds, store, clock, http).catalog
+            val sessions = SessionManager(catalog, store, clock)
+            val session = sessions.open(OpenPlayback(catalog.catalog().channels.single().id, idempotencyKey = "disable"))
             val token = session.descriptor.url.substringAfterLast('/')
             val job = Job(); sessions.acquire(session.id, 1, token, job)
             store.setManuallyDisabled(feeds.offerings().single().id, true)
@@ -90,10 +93,12 @@ class SessionManagerTest {
                 store.recordObservation("quarantined", Observation("q-$minute", at, false, FailureClass.OFFERING), at)
             }
             val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
-            val sessions = SessionManager(feeds, store, clock)
+            val catalog = lineupStack(feeds, store, clock, http).catalog
+            val channel = catalog.catalog().channels.single().id
+            val sessions = SessionManager(catalog, store, clock)
             suspend fun selected(key: String): String {
-                val token = sessions.open(OpenPlayback("c", "preview", key)).descriptor.url.substringAfterLast('/')
-                return sessions.acquire(sessions.open(OpenPlayback("c", "preview", key)).id, 1, token, Job()).offering.id
+                val token = sessions.open(OpenPlayback(channel, "preview", key)).descriptor.url.substringAfterLast('/')
+                return sessions.acquire(sessions.open(OpenPlayback(channel, "preview", key)).id, 1, token, Job()).offering.id
             }
             assertEquals("healthy", selected("one"))
             store.setManuallyDisabled("healthy", true)
@@ -113,14 +118,16 @@ class SessionManagerTest {
             val offerings = listOf(Offering("ts-source", "ts", "p", "http://example.test/live.ts", "mpegts"), Offering("hls-source", "hls", "p", "http://example.test/live.m3u8", "hls"))
             store.saveSnapshot(FeedSnapshot("p", channels, offerings, emptyList(), clock.now.toString()))
             val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
-            val sessions = SessionManager(feeds, store, clock)
-            val ts = sessions.open(OpenPlayback("ts", "watch", "ts"))
+            val catalog = lineupStack(feeds, store, clock, http).catalog
+            val sessions = SessionManager(catalog, store, clock)
+            val ids = catalog.catalog().channels.associate { it.name to it.id }
+            val ts = sessions.open(OpenPlayback(ids.getValue("TS"), "watch", "ts"))
             val tsToken = ts.descriptor.url.substringAfterLast('/')
             val first = Job(); val second = Job()
             assertTrue(sessions.acquire(ts.id, 1, tsToken, first).shared)
             sessions.acquire(ts.id, 1, tsToken, second)
             assertTrue(first.isCancelled); assertFalse(second.isCancelled)
-            val hls = sessions.open(OpenPlayback("hls", "watch", "hls"))
+            val hls = sessions.open(OpenPlayback(ids.getValue("HLS"), "watch", "hls"))
             val hlsToken = hls.descriptor.url.substringAfterLast('/')
             val playlist = Job(); val segment = Job()
             assertFalse(sessions.acquire(hls.id, 1, hlsToken, playlist).shared)
@@ -154,9 +161,10 @@ class SessionManagerTest {
                 val at = clock.now.plusSeconds(minute * 60)
                 store.recordObservation(offering.id, Observation("failure-$minute", at, false, FailureClass.OFFERING), at)
             }
-            val channel = feeds.catalog().channels.single()
+            val catalog = lineupStack(feeds, store, clock, http).catalog
+            val channel = catalog.catalog().channels.single()
             assertFalse(channel.playbackEligible)
-            assertEquals("SOURCE_UNAVAILABLE", assertFailsWith<ApiFailure> { SessionManager(feeds, store, clock).open(OpenPlayback(channel.id, idempotencyKey = "blocked")) }.code)
+            assertEquals("SOURCE_UNAVAILABLE", assertFailsWith<ApiFailure> { SessionManager(catalog, store, clock).open(OpenPlayback(channel.id, idempotencyKey = "blocked")) }.code)
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 }

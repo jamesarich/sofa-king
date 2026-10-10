@@ -94,7 +94,8 @@ class GuideService(
         val started = clock.instant()
         try {
             val wantedIds = wanted()[config.id].orEmpty()
-            val parsed = http.withUpstreamResponse(config.url, config.url, config.headers, policy = upstream) { response ->
+            // Guides run to tens of megabytes; only socket inactivity bounds the download, never a total request timeout.
+            val parsed = http.withUpstreamResponse(config.url, config.url, config.headers, unbounded = true, policy = upstream) { response ->
                 require(response.status.value == 200) { "Guide fetch failed" }
                 val body = response.bodyAsChannel()
                 withContext(Dispatchers.IO) { body.toInputStream().use { FeedParser.guide(it) { id -> id in wantedIds } } }

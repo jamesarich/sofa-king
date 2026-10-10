@@ -83,6 +83,7 @@ fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveR
                 call.respond(source)
             }
             post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.body<GuideQuery>())) }
+            adminRoutes(runtime)
             post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.body<OpenPlayback>())) }
             get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }
             patch("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.update(call.parameters["id"]!!, call.body<UpdatePlayback>())) }

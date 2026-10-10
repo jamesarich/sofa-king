@@ -1,49 +1,61 @@
 # Sofa King Backend
 
-A Kotlin server for our Sofa King Android TV client: native channel and guide APIs, managed live playback, and automatic quarantine/recovery of bad sources.
+A working Kotlin live TV backend for our Sofa King client, using the latest verified preview compiler/server stack. One application owns the native API, SQLite, playback sessions and source qualification. DVR remains a stretch goal.
 
-## Current slice
+## Implemented
 
-The foundation provides a runnable Ktor/Netty application, native bootstrap DTOs, local SQLite persistence, transactional migrations and a persistent source-health policy.
+- Configured M3U/XMLTV ingestion with atomic activation and persistent last-good snapshots.
+- Stable channel UUIDs, display numbers, legacy favorite migration keys, native catalog with ETags and bounded guide queries.
+- Preview/watch sessions with idempotency, promotion, 90-second leases, capacity limits and cancellation.
+- Native HLS relay with rendition/key/subtitle/map rewriting and byte ranges, plus streaming TS delivery.
+- Automatic decode probes, persisted retry timing, quarantine/backoff/probation, and manual-disable APIs. Source withdrawal preserves channel identities.
+- Typed Kotlin client handles with observable playback state, automatic lease renewal and cancellation cleanup.
+- Local SQLite WAL, atomic migrations, persistent server identity and authenticated API access for LAN binding.
 
-- `GET /healthz`: process liveness.
-- `GET /readyz`: migrated storage readiness.
-- `GET /api/v1/bootstrap`: persistent server UUID, server time and truthful capability flags.
-- Unknown routes return a structured JSON error.
+The existing Sofa King Android app is unchanged and needs native API integration. This implementation is a working migration backend; it still uses configured provider feeds and does not yet replace every provider-specific component in the household stack.
 
-Source-health operations are internal Kotlin APIs. They preserve state across restart, deduplicate worker incidents, quarantine repeated offering failures, calculate recovery backoff and require probation before restoring eligibility. Provider/auth/rate-limit/local/device failures do not count as offering strikes. Manual disables survive rediscovery and successful observations.
+## Run
 
-**Not implemented yet:** provider ingestion, catalog/guide routes, pairing, SSE, network recovery jobs, automatic archival, media playback, timeshift or DVR. The bootstrap reports catalog, guide, playback and events as unavailable. No production IPTV or client configuration is changed by running this foundation.
-
-## Run locally
-
-Requires JDK 21. The checksum-pinned Gradle wrapper downloads its distribution.
+Requires JDK 21 and FFmpeg on PATH. Shared contract/client artifacts target JVM 17. Preview dependencies are pinned and locked; see [versions and practices](docs/dependencies.md).
 
 ```sh
 ./gradlew test :server:installDist
-python3 scripts/smoke.py
-SOFA_HOST=127.0.0.1 SOFA_PORT=8080 SOFA_DATA_DIR=./data \
-  server/build/install/server/bin/server
+SOFA_SOURCES=./data/sources.json server/build/install/server/bin/server
 ```
+
+On James's shared development host, build through `/home/james/.claude/bin/gradle-queue -- test :server:installDist`.
+
+`data/sources.json` is an ignored local provider configuration. See [configuration, API and client usage](docs/live-tv.md) for its shape and the household bridge example. Default binding is `127.0.0.1:8080`; non-loopback binding requires `SOFA_API_TOKEN`. Keep the data directory across restarts. Set `probe: false` on bridge feeds when the existing stack still owns qualification.
 
 ```sh
-curl http://127.0.0.1:8080/healthz
-curl http://127.0.0.1:8080/readyz
 curl http://127.0.0.1:8080/api/v1/bootstrap
+curl http://127.0.0.1:8080/api/v1/channels
+curl http://127.0.0.1:8080/api/v1/providers
+curl http://127.0.0.1:8080/api/v1/sources
 ```
 
-Configuration comes from `SOFA_HOST` (default `127.0.0.1`), `SOFA_PORT` (default `8080`) and `SOFA_DATA_DIR` (default `data`). Invalid ports or blank configuration fail before binding. Stop with Ctrl-C or SIGTERM; SQLite work and the Netty engine are closed. Retain the data directory across restart to preserve identity and source health. Database files and secrets are ignored by Git.
+Without source configuration the service starts with an empty catalog. Guide/playback endpoints remain available and report missing channels explicitly. No provider URLs or secrets appear in catalog or source-status responses.
 
-On James's shared development host, run Gradle through `/home/james/.claude/bin/gradle-queue -- test :server:installDist` to coordinate with other builds. This host-specific queue is not a project dependency.
+## Verification
 
-Verified on 2026-10-10: all 32 tests passed on the selected preview stack; the installed-server smoke check passed real HTTP, migrations, SIGTERM and identity across restart. The smoke script requires Python 3 and uses a disposable local data directory.
+```sh
+python3 scripts/smoke.py
+python3 scripts/live-smoke.py
+```
 
-## Documents and workflow
+All 53 tests pass (52 server, one client). The installed application passes real HTTP/restart checks and generated-media acceptance. A read-only household bridge run imported 916 channels, returned 269 real programmes across 50 guide rows and decoded WOI ABC 5 Des Moines through the new backend. See [acceptance commands](docs/live-tv.md#verification).
+
+No production deployment, provider configuration changes, client edits or service retirement have occurred.
+
+## Remaining work
+
+Native Sofa King UI integration and device acceptance; provider-specific discovery/resolvers/auth renewal; device pairing/roles; SSE; upstream sharing and provider capacity reservations; remux/transcode exceptions; automatic archival and incident retention; timeshift/DVR. Current provider fault classification uses HTTP/FFmpeg evidence rather than a full provider-wide correlation service. One guide revision is retained; mismatches request resync. See [implementation details and limits](docs/live-tv.md).
+
+## Project documents
 
 - [Architecture and migration roadmap](docs/architecture.md)
-- [Living foundation plan](docs/plans/foundation.md)
-- [Preview dependency pins and documented practices](docs/dependencies.md)
+- [Current live TV milestone](docs/plans/live-tv.md)
+- [Completed foundation](docs/plans/foundation.md)
+- [Dependency pins and documented practices](docs/dependencies.md)
 
-Use a lightweight native workflow: implement working slices, update the plan with decisions and evidence, test, fix and commit. `AGENTS.md` contains project-specific boundaries. No Superpowers process dependency remains.
-
-The compiler and server stack use explicitly selected preview releases, pinned and locked for reproducibility. Live TV is the first release; timeshift and scheduled DVR are stretch goals. The API and media protocols evolve jointly with Sofa King. Implementation proceeds alongside the existing OMV stack until production parity and rollback have been demonstrated.
+Follow the lightweight repository-native workflow in `AGENTS.md`: implement working slices, maintain the plan, verify and commit. No Superpowers process dependency remains.

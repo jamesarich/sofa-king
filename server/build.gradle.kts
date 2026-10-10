@@ -7,6 +7,8 @@ dependencies {
     implementation(libs.serialization.json)
     implementation(libs.coroutines)
     implementation(libs.ktor.core)
+    implementation(libs.ktor.client)
+    implementation(libs.ktor.cio)
     implementation(libs.ktor.netty)
     implementation(libs.ktor.json)
     implementation(libs.ktor.negotiation)
@@ -17,5 +19,6 @@ dependencies {
     runtimeOnly(libs.slf4j.simple)
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.ktor.test)
+    testImplementation(project(":client"))
 }
 dependencyLocking { lockAllConfigurations() }

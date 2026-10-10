@@ -18,3 +18,7 @@
 *.key
 # Local OS files
 .DS_Store
+
+# Python acceptance-script caches
+__pycache__/
+*.py[cod]

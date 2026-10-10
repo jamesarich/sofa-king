@@ -88,6 +88,42 @@ class BackendStore internal constructor(
         next
     }
 
+    suspend fun snapshots(): List<dev.jamesrich.sofaking.backend.catalog.FeedSnapshot> {
+        val encoded = query { Metadata.selectAll().filter { it[Metadata.key].startsWith("feed:") }.map { it[Metadata.value] } }
+        return encoded.map { Json.decodeFromString(it) }
+    }
+
+    suspend fun saveSnapshot(snapshot: dev.jamesrich.sofaking.backend.catalog.FeedSnapshot) {
+        val encoded = Json.encodeToString(snapshot)
+        val initial = HealthState().encode()
+        query {
+            val key = "feed:${snapshot.providerId}"
+            Metadata.deleteWhere { Metadata.key eq key }
+            Metadata.insert { it[Metadata.key] = key; it[value] = encoded }
+            OfferingHealth.batchInsert(snapshot.offerings, ignore = true) { offering ->
+                this[OfferingHealth.offeringId] = offering.id
+                this[OfferingHealth.stateJson] = initial
+                this[OfferingHealth.updatedAt] = snapshot.importedAt
+            }
+        }
+    }
+
+    suspend fun probeAttempts(): Map<String, Instant> = query {
+        Metadata.selectAll().filter { it[Metadata.key].startsWith("probe:") }
+            .associate { it[Metadata.key].removePrefix("probe:") to Instant.parse(it[Metadata.value]) }
+    }
+
+    suspend fun markProbeAttempt(offeringId: String, at: Instant) = query {
+        val key = "probe:$offeringId"
+        Metadata.deleteWhere { Metadata.key eq key }
+        Metadata.insert { it[Metadata.key] = key; it[value] = at.toString() }
+        Unit
+    }
+
+    suspend fun allHealth(): Map<String, HealthState> = query {
+        OfferingHealth.selectAll().associate { it[OfferingHealth.offeringId] to decodeHealth(it[OfferingHealth.stateJson]) }
+    }
+
     private fun currentHealth(offeringId: String): HealthState? = OfferingHealth.selectAll()
         .where { OfferingHealth.offeringId eq offeringId }.singleOrNull()?.let { decodeHealth(it[OfferingHealth.stateJson]) }
 
@@ -98,7 +134,7 @@ class BackendStore internal constructor(
         }
     }
 
-    private suspend fun <T> query(block: JdbcTransaction.() -> T): T = databaseWork {
+    internal suspend fun <T> query(block: JdbcTransaction.() -> T): T = databaseWork {
         transaction(database) { maxAttempts = 1; block() }
     }
 

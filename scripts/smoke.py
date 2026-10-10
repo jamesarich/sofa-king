@@ -52,7 +52,7 @@ def start_and_check(directory, iteration):
             assert status == 200
             bootstrap = json.loads(body)
             assert bootstrap['apiVersion'] == 1
-            assert bootstrap['capabilities'] == {'catalog': False, 'guide': False, 'playback': False, 'events': False}
+            assert bootstrap['capabilities'] == {'catalog': True, 'guide': True, 'playback': True, 'events': False}
             status, body = request(base, '/api/v1/missing')
             assert status == 404 and json.loads(body)['code'] == 'NOT_FOUND'
             return bootstrap['serverId']

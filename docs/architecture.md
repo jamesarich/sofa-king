@@ -1,5 +1,7 @@
 # Sofa King Kotlin IPTV backend — architecture proposal and delivery roadmap
 
+Implementation status: the [working live TV milestone](plans/live-tv.md) and [implementation guide](live-tv.md) distinguish the runnable migration backend from the complete replacement target below.
+
 Date: 2026-10-10. Status: reviewable design proposal; no server or client implementation changes.
 
 ## Intent and decisions from James

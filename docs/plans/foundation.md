@@ -27,7 +27,9 @@ The selected preview stack passed `test :server:installDist --write-locks` throu
 
 The packaging check caught a Kotlin-inferred return type that prevented Java from recognizing the entry point; `main` now explicitly returns `Unit`. Tests and packaging were rerun after the fix, then the real-server smoke passed.
 
-## Next working slices
+The subsequent [working live TV milestone](live-tv.md) now implements configured ingestion, native catalog/guide, sessions/relay, automatic qualification/recovery and a typed client. The 32-test result above records the original foundation baseline.
+
+## Originally planned follow-on slices
 
 1. Native catalog and bounded guide API, stable channel/offering identities, and an initial read-only provider adapter. Preserve existing household channel numbering and migrate Sofa King favorites deliberately.
 2. Sofa King client integration and pairing before exposing administration or household mutations beyond localhost.
@@ -35,7 +37,7 @@ The packaging check caught a Kotlin-inferred return type that prevented Java fro
 4. Bounded durable probe/recovery jobs using real decode-qualified evidence, provider correlation and capacity-aware scheduling; reversible automatic archival and explicit ledger retention.
 5. Retire existing services only after sustained household playback/guide acceptance and a demonstrated rollback path. Timeshift and DVR follow live TV.
 
-## Current limits
+## Original foundation limits
 
 No provider fetching, catalog/guide routes, pairing, events, network recovery scheduling, automatic archival, playback or DVR is implemented. Health operations are internal Kotlin APIs: this foundation does not yet cull production sources. Probe qualification and eligibility enforcement belong to the playback/jobs slices. Observation ledger pruning needs an explicit retention policy before continuous production use.
 

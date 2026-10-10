@@ -11,7 +11,7 @@ Verified 2026-10-10 against official release documentation and Maven metadata. J
 | Exposed JDBC/DSL | 1.5.1 | Maven Central metadata; newest published version |
 | SQLite JDBC | 3.53.4.0 | Maven Central metadata; newest published version |
 | Gradle | 9.9.0-milestone-2 | [Official versions registry](https://services.gradle.org/versions/all), checksum-pinned distribution |
-| JVM toolchain | 21 | Explicit aligned Java/Kotlin compilation and current installed LTS runtime |
+| JVM toolchain | 21 | Explicit server toolchain/runtime; shared contract/client target JVM 17 bytecode |
 
 Ktor artifacts are restricted to the official JetBrains EAP repository using Gradle exclusive content for `io.ktor`. All versions are locked. Do not select an obsolete RC just because it is labelled prerelease when a later stable release exists. Do not assume a prerelease combination works until the full build and runtime smoke check pass. Kotlin's published stable compatibility table does not certify this complete preview combination; local verification establishes the project's tested baseline.
 
@@ -29,3 +29,5 @@ Experimental features are enabled only when they serve a concrete feature. Previ
 ## Verified baseline
 
 On 2026-10-10, the exact selected stack passed all 32 tests and `:server:installDist`. The installed distribution then passed `python3 scripts/smoke.py`, including real HTTP, SQLite migrations/WAL, SIGTERM and persistent identity across restart. Dependency locks include the Kotlin BOM alignment. This is local foundation validation; provider media and Android playback are not yet implemented or certified.
+
+The working live TV milestone also uses matching Ktor EAP client/CIO/mock artifacts. The selected stack now passes 53 tests including client cancellation. The client/contract target JVM 17 with JDK 21; server remains JVM 21. HLS relay preserves the protocol structure described by [RFC 8216](https://datatracker.ietf.org/doc/html/rfc8216), uses [Ktor streaming responses](https://ktor.io/docs/server-responses.html), and bounds [connection/socket timeouts](https://ktor.io/docs/client-timeout.html) while allowing unbounded live stream duration. Provider/media errors are sanitized before logging. Server-side decode acceptance is separate from [Media3 HLS](https://developer.android.com/media/media3/exoplayer/hls) device acceptance.

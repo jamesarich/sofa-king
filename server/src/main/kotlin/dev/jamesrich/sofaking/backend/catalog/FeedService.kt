@@ -1,0 +1,114 @@
+package dev.jamesrich.sofaking.backend.catalog
+
+import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.backend.health.HealthStatus
+import dev.jamesrich.sofaking.backend.store.BackendStore
+import io.ktor.client.HttpClient
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.utils.io.*
+import kotlinx.io.readByteArray
+import kotlinx.coroutines.CancellationException
+import java.time.*
+import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
+
+class ApiFailure(val status: Int, val code: String, override val message: String, val retryable: Boolean = false) : RuntimeException(message)
+
+class FeedService(val configs: List<FeedConfig>, private val store: BackendStore, private val http: HttpClient, private val clock: Clock) {
+    private class Published(val feeds: List<FeedSnapshot>) {
+        val channels = feeds.flatMap { it.channels }.distinctBy { it.id }
+        val offerings = feeds.flatMap { it.offerings }
+        val offeringById = offerings.associateBy { it.id }
+        val programmes = feeds.flatMap { it.programmes }.distinctBy { it.id }
+        val programmesByChannel = programmes.groupBy { it.channelId }
+        val guideRevision = hash(Json.encodeToString(programmes))
+    }
+    private val published = AtomicReference(Published(emptyList()))
+    private val statuses = AtomicReference<List<ProviderStatus>>(configs.map { ProviderStatus(it.id) })
+    private val mutex = Mutex()
+    suspend fun initialize() { published.set(Published(store.snapshots().filter { snapshot -> configs.any { it.id == snapshot.providerId } }.sortedBy { snapshot -> configs.indexOfFirst { it.id == snapshot.providerId } })) }
+    fun providers(): List<ProviderStatus> = statuses.get()
+    fun offering(id: String): Offering? = published.get().offeringById[id]
+    fun offerings(): List<Offering> = published.get().offerings
+    fun config(providerId: String): FeedConfig = configs.first { it.id == providerId }
+    suspend fun refresh(config: FeedConfig) = mutex.withLock {
+        try {
+            val playlist = fetch(config.playlistUrl, config.headers, 16 * 1024 * 1024)
+            val (channels, offerings) = FeedParser.playlist(config.id, playlist, config.defaultProtocol)
+            require(channels.isNotEmpty() || config.allowEmpty) { "Empty playlist requires explicit allowEmpty" }
+            val programmes = config.guideUrl?.let { FeedParser.guide(fetch(it, config.headers, 64 * 1024 * 1024), channels) }.orEmpty()
+            val previous = published.get().feeds.find { it.providerId == config.id }
+            val retainedChannels = (channels + previous?.channels.orEmpty()).distinctBy { it.id }
+            val snapshot = FeedSnapshot(config.id, retainedChannels, offerings, programmes, clock.instant().toString())
+            store.saveSnapshot(snapshot)
+            published.set(Published((published.get().feeds.filterNot { it.providerId == config.id } + snapshot).sortedBy { item -> configs.indexOfFirst { it.id == item.providerId } }))
+            statuses.set(statuses.get().map { if (it.id == config.id) ProviderStatus(config.id, snapshot.importedAt, channels = channels.size) else it })
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) {
+            // Do not log provider exception strings: they can contain signed URLs and credentials.
+            statuses.set(statuses.get().map { if (it.id == config.id) it.copy(errorCode = "IMPORT_FAILED") else it })
+        }
+    }
+    fun start(scope: CoroutineScope): List<Job> = configs.map { config -> scope.launch {
+        while (isActive) { refresh(config); delay(config.refreshSeconds * 1000) }
+    } }
+    suspend fun sources(): List<SourceStatus> {
+        val states = store.allHealth()
+        return offerings().map { offering ->
+            val state = checkNotNull(states[offering.id])
+            SourceStatus(offering.id, offering.channelId, offering.providerId, state.status.name,
+                state.manuallyDisabled, state.lastQualifiedAt?.toString(), state.nextCheckAt?.toString())
+        }
+    }
+    suspend fun updateSource(id: String, update: UpdateSource): SourceStatus {
+        if (offering(id) == null) throw ApiFailure(404, "SOURCE_NOT_FOUND", "Unknown source")
+        store.setManuallyDisabled(id, update.manuallyDisabled)
+        return sources().first { it.id == id }
+    }
+    suspend fun catalog(): Catalog {
+        val current = published.get()
+        val states = store.allHealth()
+        val programmes = current.programmesByChannel
+        val offers = current.offerings.groupBy { it.channelId }
+        val now = clock.instant()
+        val channels = current.channels.map { channel ->
+            val guide = if (channel.legacyGuideId == null) "unassigned" else if (programmes[channel.id].isNullOrEmpty()) "empty"
+                else if (programmes[channel.id]!!.any { Instant.parse(it.endsAt) > now }) "available" else "stale"
+            channel.copy(guideStatus = guide, playbackEligible = offers[channel.id].orEmpty().any { offering ->
+                states[offering.id]?.let { !it.manuallyDisabled && it.status in setOf(HealthStatus.UNVERIFIED, HealthStatus.HEALTHY, HealthStatus.SUSPECT) } == true
+            })
+        }.sortedWith(compareBy({ it.displayNumber.toDoubleOrNull() ?: Double.MAX_VALUE }, { it.name }, { it.id }))
+        return Catalog(hash(Json.encodeToString(channels)), channels)
+    }
+    fun guide(query: GuideQuery): GuideWindow {
+        if (query.channelIds.size !in 1..200 || query.channelIds.distinct().size != query.channelIds.size)
+            throw ApiFailure(400, "INVALID_QUERY", "Request 1 to 200 distinct channel IDs")
+        val from = try { Instant.parse(query.from) } catch (_: Exception) { throw ApiFailure(400, "INVALID_QUERY", "Invalid from timestamp") }
+        val to = try { Instant.parse(query.to) } catch (_: Exception) { throw ApiFailure(400, "INVALID_QUERY", "Invalid to timestamp") }
+        if (to <= from || Duration.between(from, to) > Duration.ofHours(24)) throw ApiFailure(400, "INVALID_QUERY", "Guide window must be positive and at most 24 hours")
+        val current = published.get()
+        val channels = current.channels.associateBy { it.id }
+        if (query.channelIds.any { it !in channels }) throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel ID")
+        val revision = current.guideRevision
+        if (query.revision != null && query.revision != revision) throw ApiFailure(409, "RESYNC_REQUIRED", "Guide revision changed", true)
+        val grouped = query.channelIds.associateWith { id -> current.programmesByChannel[id].orEmpty().filter { Instant.parse(it.startsAt) < to && Instant.parse(it.endsAt) > from } }
+        return GuideWindow(revision, from.toString(), to.toString(), query.channelIds.map { id ->
+            val rows = grouped[id].orEmpty()
+            ChannelGuide(id, if (channels[id]!!.legacyGuideId == null) "unassigned" else if (rows.isEmpty()) "empty" else "available", rows)
+        })
+    }
+    private suspend fun fetch(url: String, headers: Map<String, String>, limit: Int): String = http.prepareGet(url) {
+        headers.forEach { (key, value) -> header(key, value) }
+    }.execute { response ->
+        require(response.status.value == 200) { "Feed fetch failed" }
+        val bytes = response.bodyAsChannel().readBuffer(limit.toLong() + 1).readByteArray()
+        require(bytes.size <= limit) { "Feed exceeds size limit" }
+        bytes.toString(Charsets.UTF_8)
+    }
+}
+fun hash(value: String): String = MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }

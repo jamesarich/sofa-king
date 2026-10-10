@@ -14,4 +14,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "sofa-king-backend"
-include(":api-contract", ":server")
+include(":api-contract", ":server", ":client")

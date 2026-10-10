@@ -18,6 +18,12 @@ internal object ProbeAttempts : Table("probe_attempt") {
     val attemptedAt = text("attempted_at")
     override val primaryKey = PrimaryKey(offeringId)
 }
+internal object OfferingProtocols : Table("offering_protocol") {
+    val offeringId = text("offering_id")
+    val protocol = text("protocol")
+    val observedAt = text("observed_at")
+    override val primaryKey = PrimaryKey(offeringId)
+}
 internal object HealthObservations : Table("health_observation") {
     val offeringId = text("offering_id").references(OfferingHealth.offeringId)
     val incidentId = text("incident_id")

@@ -1,6 +1,6 @@
 # Architecture
 
-One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores catalog snapshots, server identity, source health, probe attempt times and observation history. Playback sessions exist in memory.
+One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores catalog snapshots, server identity, source health, probe attempt times, observation history and detected source protocols. Playback sessions exist in memory.
 
 ## Modules
 
@@ -19,6 +19,8 @@ Stream URL → ProbeWorker → HealthPolicy → SQLite source health
 ```
 
 Imports publish complete snapshots. Invalid imports retain the previous snapshot. Immutable in-memory catalog/guide indexes serve requests. SQLite uses WAL, foreign keys, bounded blocking transactions and versioned atomic migrations.
+
+An offering's protocol is the one detected in its stream body, by the probe's HTTP tier or by a media fetch, stored per offering ID and applied over every published snapshot. Until a detection exists, the import's protocol (the entry's `stream-type`, the feed's `defaultProtocol`, then the path extension) applies.
 
 ## Identity
 

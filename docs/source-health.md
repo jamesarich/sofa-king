@@ -8,7 +8,7 @@ Probes are enabled by default for configured feeds. `SOFA_PROBE_PARALLELISM` wor
 
 Each probe has two tiers:
 
-1. HTTP qualification: one GET with an eight-second budget. It must answer 2xx and start with either `#EXTM3U` or three aligned MPEG-TS sync bytes. Any other answer ends the probe and is classified from the HTTP status.
+1. HTTP qualification: one GET with an eight-second budget. It must answer 2xx and start with either `#EXTM3U` or three aligned MPEG-TS sync bytes. Any other answer ends the probe and is classified from the HTTP status. The signature found is stored as the source's protocol, replacing the one the import assigned, so playback descriptors and the decode tier use it from then on, including after a restart.
 2. FFmpeg decode: 30 seconds of the first video stream with at least 30 frames and 29 seconds of media timestamps; the deadline is 50 seconds. For MPEG-TS sources FFmpeg reconnects on upstream EOF (`-reconnect_at_eof`), so a source that hiccups still qualifies when it delivers 30 seconds within the deadline. HLS sources rely on the HLS demuxer's own segment handling.
 
 Healthy sources recheck after six hours. Unverified and suspect sources retry no sooner than five minutes. Credential/custom-header feeds are not probed because FFmpeg cannot scope their headers by origin.

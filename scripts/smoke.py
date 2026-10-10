@@ -79,7 +79,7 @@ def main():
         assert first == second, 'Server identity changed across restart'
         with sqlite3.connect(directory / 'backend.sqlite') as connection:
             assert connection.execute('PRAGMA journal_mode').fetchone()[0] == 'wal'
-            assert connection.execute('SELECT version FROM schema_version ORDER BY version').fetchall() == [(1,), (2,), (3,)]
+            assert connection.execute('SELECT version FROM schema_version ORDER BY version').fetchall() == [(1,), (2,), (3,), (4,)]
         for iteration in (1, 2):
             log = (directory / f'run-{iteration}.log').read_text()
             steps = [log.find(step) for step in ('shutdown: server stopped', 'shutdown: runtime closed', 'shutdown: store closed')]

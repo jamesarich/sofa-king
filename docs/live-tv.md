@@ -32,7 +32,7 @@ The source file is a JSON array. Each object configures one provider:
 | `headers` | `{}` | Request headers for playlists, guides and streams |
 | `refreshSeconds` | `900` | Import interval; minimum 60 seconds |
 | `probe` | `true` | Enable automatic source qualification |
-| `defaultProtocol` | Unset | `hls` or `mpegts`; otherwise `.m3u8` implies HLS and other paths imply MPEG-TS |
+| `defaultProtocol` | Unset | `hls` or `mpegts` for entries without a `stream-type`; otherwise `.m3u8` implies HLS and other paths imply MPEG-TS. Applies until a probe or media fetch detects the protocol in the stream body |
 | `allowEmpty` | `false` | Allow an empty playlist to withdraw all of this provider's sources |
 
 Keep provider IDs stable: they participate in channel and source identity. Store credentials under the ignored `data/` directory.
@@ -88,7 +88,7 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 | Empty catalog | Set `SOFA_SOURCES`; inspect `/api/v1/providers` for `IMPORT_FAILED`; check playlist URL and format. |
 | Import stays unchanged | A failed or empty import preserves the previous snapshot. Check provider status and `allowEmpty`. |
 | Channel has no guide | Match M3U `tvg-id` to XMLTV `channel`; supply valid timestamps with offsets and positive durations. |
-| Extensionless HLS answers `410 STREAM_CHANGED` once | The first fetch detects HLS and bumps the epoch; fetch the session again. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, to avoid that round trip. |
+| Extensionless HLS answers `410 STREAM_CHANGED` once | The source has not been probed yet and the first fetch detects HLS, stores it and bumps the epoch; fetch the session again. The source keeps the detected protocol across restarts. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, so unprobed sources start right. |
 | Startup rejects LAN binding | Set `SOFA_API_TOKEN` to at least 32 characters. |
 | `401 AUTH_REQUIRED` | Send the configured token in the Authorization header. |
 | `429 CAPACITY_EXHAUSTED` | Every slot holds a watch session. Release unused sessions or wait for their 90-second leases to expire; previews are evicted automatically. |

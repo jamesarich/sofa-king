@@ -46,11 +46,13 @@ class FeedService(
     /** Governs every upstream fetch made for these feeds: playlists, guides, probes and relayed media. */
     val upstream: UpstreamPolicy = UpstreamPolicy(),
 ) {
+    /** [protocols] holds the protocol a stream body was seen to carry; it replaces the protocol the import assigned. */
     private class Published(
         val feeds: List<FeedSnapshot>,
+        val protocols: Map<String, String> = emptyMap(),
     ) {
         val channels = feeds.flatMap { it.channels }.distinctBy { it.id }
-        val offerings = feeds.flatMap { it.offerings }
+        val offerings = feeds.flatMap { it.offerings }.map { offering -> protocols[offering.id]?.let { offering.copy(protocol = it) } ?: offering }
         val offeringById = offerings.associateBy { it.id }
         val programmes = feeds.flatMap { it.programmes }.distinctBy { it.id }
         val programmesByChannel = programmes.groupBy { it.channelId }
@@ -80,8 +82,23 @@ class FeedService(
                             snapshot.providerId
                     }
                 },
+                store.offeringProtocols(),
             ),
         )
+    }
+
+    /** Records the protocol a probe or media fetch found in the stream body; every later offering view carries it. */
+    suspend fun recordProtocol(
+        offeringId: String,
+        protocol: String,
+    ) {
+        mutex.withLock {
+            val current = published.get()
+            if (current.protocols[offeringId] == protocol) return
+            store.recordProtocol(offeringId, protocol, clock.instant())
+            published.set(Published(current.feeds, current.protocols + (offeringId to protocol)))
+            log.info("source protocol offering={} protocol={}", offeringId, protocol)
+        }
     }
 
     fun providers(): List<ProviderStatus> = statuses.get()
@@ -105,14 +122,16 @@ class FeedService(
                 val retainedChannels = (channels + previous?.channels.orEmpty()).distinctBy { it.id }
                 val snapshot = FeedSnapshot(config.id, retainedChannels, offerings, programmes, clock.instant().toString())
                 store.saveSnapshot(snapshot)
+                val current = published.get()
                 published.set(
                     Published(
-                        (published.get().feeds.filterNot { it.providerId == config.id } + snapshot).sortedBy { item ->
+                        (current.feeds.filterNot { it.providerId == config.id } + snapshot).sortedBy { item ->
                             configs.indexOfFirst {
                                 it.id ==
                                     item.providerId
                             }
                         },
+                        current.protocols,
                     ),
                 )
                 statuses.set(

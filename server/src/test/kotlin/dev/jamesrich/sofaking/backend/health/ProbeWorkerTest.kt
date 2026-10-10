@@ -1,8 +1,11 @@
 package dev.jamesrich.sofaking.backend.health
 
 import dev.jamesrich.sofaking.backend.api.Channel
+import dev.jamesrich.sofaking.backend.api.OpenPlayback
 import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.engine.mock.MockEngine
@@ -91,9 +94,9 @@ class ProbeWorkerTest {
         }
         HttpClient(engine) { followRedirects = false }.use { http ->
             val tier = HttpQualifier(http, setOf("192.168.1.3:3000"))
-            suspend fun check(url: String) = tier.check(Offering("o", "c", "p", url, "mpegts"), emptyMap())
-            assertNull(check("http://192.168.1.3:3000/ts"))
-            assertNull(check("http://provider.test/m3u"))
+            suspend fun check(url: String) = tier.check(Offering("o", "c", "p", url, "mpegts"), emptyMap()).failure
+            assertEquals(HttpQualifier.Qualification(null, "mpegts"), tier.check(Offering("o", "c", "p", "http://192.168.1.3:3000/ts", "hls"), emptyMap()))
+            assertEquals(HttpQualifier.Qualification(null, "hls"), tier.check(Offering("o", "c", "p", "http://provider.test/m3u", "mpegts"), emptyMap()))
             assertEquals(FailureClass.OFFERING, check("http://provider.test/html"))
             assertEquals(FailureClass.OFFERING, check("http://192.168.1.3:3000/502"))
             assertEquals(FailureClass.PROVIDER, check("http://provider.test/502"))
@@ -107,6 +110,37 @@ class ProbeWorkerTest {
         assertTrue(HttpQualifier.isRestreamOrigin("http://192.168.1.3/x", setOf("192.168.1.3:80")))
         assertFalse(HttpQualifier.isRestreamOrigin("http://192.168.1.3:3001/x", setOf("192.168.1.3:3000")))
         assertTrue(HttpQualifier.isRestreamOrigin("https://proxy.lan:8443/x", setOf("proxy.lan")))
+    }
+    @Test fun `HTTP tier persists the detected protocol so sessions start with it before and after a restart`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-probe-protocol-")
+        try { Fixture().use { fixture -> HttpClient(CIO) { followRedirects = false }.use { http ->
+            val clock = MutableClock()
+            val config = fixture.extensionlessFeed.copy(probe = true)
+            val policy = UpstreamPolicy(allowLoopback = true)
+            val channelId = openStore(dir).use { store ->
+                val feeds = FeedService(listOf(config), store, http, clock, policy); feeds.refresh(config)
+                val offering = feeds.offerings().single()
+                assertEquals("mpegts", offering.protocol)
+                // No FFmpeg here: the decode tier fails as LOCAL, which neither strikes nor hides the HTTP tier's detection.
+                val worker = ProbeWorker(feeds, store, clock, "unused", http)
+                assertTrue(worker.step())
+                assertEquals(mapOf(offering.id to "hls"), store.offeringProtocols())
+                assertEquals("hls", feeds.offering(offering.id)!!.protocol)
+                assertEquals(HealthStatus.UNVERIFIED, store.health(offering.id)!!.status)
+                val opened = SessionManager(feeds, store, clock).open(OpenPlayback(offering.channelId, "preview", "k"))
+                assertEquals("hls", opened.descriptor.protocol); assertEquals(1, opened.descriptor.epoch); assertTrue(opened.descriptor.url.endsWith(".m3u8"))
+                offering.channelId
+            }
+            openStore(dir).use { store ->
+                val feeds = FeedService(listOf(config), store, http, clock, policy); feeds.initialize()
+                assertEquals("hls", feeds.offerings().single().protocol)
+                // A re-import assigns mpegts again; the persisted detection still wins.
+                feeds.refresh(config)
+                assertEquals("hls", feeds.offerings().single().protocol)
+                val opened = SessionManager(feeds, store, clock).open(OpenPlayback(channelId, "preview", "k"))
+                assertEquals("hls", opened.descriptor.protocol); assertEquals(1, opened.descriptor.epoch)
+            }
+        } } } finally { dir.toFile().deleteRecursively() }
     }
     @Test fun `suspect sources are rechecked before unverified ones and healthy rechecks come last`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-probe-order-")

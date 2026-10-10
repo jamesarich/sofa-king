@@ -23,31 +23,35 @@ internal class HttpQualifier(
     private val timeoutMillis: Long = 8000,
     private val policy: UpstreamPolicy = UpstreamPolicy(),
 ) {
+    /** A passing check carries the protocol the body was seen to be; a failing one carries the failure class. */
+    data class Qualification(val failure: FailureClass?, val protocol: String? = null)
+
     suspend fun check(
         offering: Offering,
         headers: Map<String, String>,
-    ): FailureClass? =
+    ): Qualification =
         try {
             withTimeout(timeoutMillis) {
                 http.withUpstreamResponse(offering.url, offering.url, headers, requestTimeoutMillis = timeoutMillis, policy = policy) { response ->
                     val status = response.status.value
                     if (status in 200..299) {
-                        if (sniffProtocol(response.bodyAsChannel().readHead(HEAD_BYTES)) == null) FailureClass.OFFERING else null
+                        val protocol = sniffProtocol(response.bodyAsChannel().readHead(HEAD_BYTES))
+                        if (protocol == null) Qualification(FailureClass.OFFERING) else Qualification(null, protocol)
                     } else {
-                        classifyStatus(status, isRestreamOrigin(offering.url, restreamOrigins))
+                        Qualification(classifyStatus(status, isRestreamOrigin(offering.url, restreamOrigins)))
                     }
                 }
             }
         } catch (_: TimeoutCancellationException) {
-            FailureClass.PROVIDER
+            Qualification(FailureClass.PROVIDER)
         } catch (e: CancellationException) {
             throw e
         } catch (_: UpstreamRejectedException) {
-            FailureClass.OFFERING
+            Qualification(FailureClass.OFFERING)
         } catch (_: IllegalArgumentException) {
-            FailureClass.OFFERING
+            Qualification(FailureClass.OFFERING)
         } catch (_: Exception) {
-            FailureClass.PROVIDER
+            Qualification(FailureClass.PROVIDER)
         }
 
     companion object {

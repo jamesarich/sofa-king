@@ -59,7 +59,6 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
     private val mutex = Mutex()
     private val sessions = linkedMapOf<String, LiveSession>()
     private val keys = linkedMapOf<String, Pair<OpenPlayback, String>>()
-    private val observedProtocols = HashMap<String, String>()
     suspend fun open(request: OpenPlayback): PlaybackSession = mutex.withLock {
         reap()
         if (request.intent !in setOf("preview", "watch") || request.idempotencyKey.length !in 1..128)
@@ -91,7 +90,7 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
             session.offering = select(session.request.channelId)
         }
         if (refreshed != null && session.offering.id == refreshed.id && session.offering.url != refreshed.url) {
-            session.cancel(); session.offering = observed(refreshed); session.epoch++; session.resources.clear()
+            session.cancel(); session.offering = refreshed; session.epoch++; session.resources.clear()
         }
         session.descriptor()
     }
@@ -112,15 +111,18 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
             }
         }
     }
-    /** The first fetch found [protocol] instead of the descriptor's; later sessions on the source start with it. */
-    suspend fun protocolObserved(id: String, epoch: Int, protocol: String, job: Job) = mutex.withLock {
-        val session = active(id)
-        if (session.epoch != epoch) return@withLock
-        observedProtocols[session.offering.id] = protocol
-        session.cancel(except = job)
-        session.offering = session.offering.copy(protocol = protocol)
-        session.epoch++
-        session.resources.clear()
+    /** The first fetch found [protocol] instead of the descriptor's; the source keeps it, across restarts, for later sessions. */
+    suspend fun protocolObserved(id: String, epoch: Int, protocol: String, job: Job) {
+        val offeringId = mutex.withLock {
+            val session = active(id)
+            if (session.epoch != epoch) return
+            session.cancel(except = job)
+            session.offering = session.offering.copy(protocol = protocol)
+            session.epoch++
+            session.resources.clear()
+            session.offering.id
+        }
+        feeds.recordProtocol(offeringId, protocol)
     }
     suspend fun expire() = mutex.withLock { reap() }
     suspend fun close() = mutex.withLock { sessions.values.forEach { it.cancel() }; sessions.clear() }
@@ -145,14 +147,12 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
         if (session.epoch != epoch) throw ApiFailure(410, "STREAM_CHANGED", "Fetch current descriptor", true)
         "/media/sessions/$id/$epoch/${session.resource(url)}"
     }
-    private fun observed(offering: Offering): Offering = observedProtocols[offering.id]?.let { offering.copy(protocol = it) } ?: offering
     private suspend fun select(channelId: String): Offering {
         val candidates = feeds.offerings().filter { it.channelId == channelId }
         if (candidates.isEmpty()) throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel")
         val states = store.allHealth()
         return candidates.sortedBy { selectionRank(states[it.id]?.status) }
             .firstOrNull { states[it.id]?.let(::eligible) == true }
-            ?.let(::observed)
             ?: throw ApiFailure(503, "SOURCE_UNAVAILABLE", "No eligible source", true)
     }
     private fun active(id: String): LiveSession {

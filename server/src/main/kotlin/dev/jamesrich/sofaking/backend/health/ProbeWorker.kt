@@ -147,8 +147,14 @@ class ProbeWorker(
         val failure =
             if (qualifier != null) {
                 qualifier.invoke(offering, headers)
+            } else if (fastTier == null) {
+                decode(offering, headers)
             } else {
-                fastTier?.check(offering, headers) ?: decode(offering, headers)
+                val qualification = fastTier.check(offering, headers)
+                val protocol = qualification.protocol
+                // The body is the authority on the protocol; the decode tier's reconnect flags depend on it too.
+                if (protocol != null && protocol != offering.protocol) feeds.recordProtocol(offering.id, protocol)
+                qualification.failure ?: decode(if (protocol == null) offering else offering.copy(protocol = protocol), headers)
             }
         val at = clock.instant()
         val after = store.recordObservation(offering.id, Observation(UUID.randomUUID().toString(), at, failure == null, failure), at)

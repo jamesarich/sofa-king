@@ -124,4 +124,35 @@ class RelayTest {
             } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
         }
     }
+
+    @Test fun `a persisted protocol serves the first fetch of a new process without a 410`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-relay-persisted-protocol-")
+        val token = "secret".repeat(8)
+        Fixture().use { fixture ->
+            val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(listOf(fixture.extensionlessFeed)))
+            val config = ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true)
+            // A previous process observed the body; either tier records it the same way.
+            openStore(dir).use { store ->
+                val runtime = LiveRuntime.create(store, config, MutableClock())
+                try {
+                    runtime.feeds.refresh(fixture.extensionlessFeed)
+                    runtime.feeds.recordProtocol(runtime.feeds.offerings().single().id, "hls")
+                } finally { runtime.close() }
+            }
+            val store = openStore(dir)
+            val runtime = LiveRuntime.create(store, config, MutableClock())
+            try {
+                runtime.feeds.refresh(fixture.extensionlessFeed)
+                application { backendModule(store, MutableClock(), runtime, token) }
+                val channel = Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single()
+                val session = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(OpenPlayback(channel.id, "preview", "persisted"))) }.bodyAsText())
+                assertEquals("hls", session.descriptor.protocol); assertEquals(1, session.descriptor.epoch)
+                assertEquals("application/vnd.apple.mpegurl", session.descriptor.mimeType); assertTrue(session.descriptor.url.endsWith(".m3u8"))
+                val manifest = client.get(session.descriptor.url)
+                assertEquals(HttpStatusCode.OK, manifest.status)
+                assertTrue(manifest.headers[HttpHeaders.ContentType]!!.contains("mpegurl"))
+                assertTrue(manifest.bodyAsText().lineSequence().any { it.startsWith("/media/sessions/${session.id}/1/") })
+            } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+        }
+    }
 }

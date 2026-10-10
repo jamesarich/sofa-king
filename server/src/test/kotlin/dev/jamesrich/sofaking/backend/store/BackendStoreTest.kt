@@ -115,7 +115,8 @@ class BackendStoreTest {
         openStore(dir).use { it.registerOffering("p:s") }
         DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
             connection.createStatement().use {
-                it.execute("DELETE FROM schema_version WHERE version = 3")
+                it.execute("DELETE FROM schema_version WHERE version >= 3")
+                it.execute("DROP TABLE offering_protocol")
                 it.execute("DROP TABLE probe_attempt")
                 it.execute("DROP INDEX health_observation_observed_at")
                 it.execute("DROP INDEX offering_health_updated_at")
@@ -137,6 +138,17 @@ class BackendStoreTest {
             store.registerOffering("p:t")
             assertNotEquals(disabled, store.healthVersion())
         }
+    }
+    @Test fun `detected protocols replace earlier detections and survive restart`() = runBlocking<Unit> {
+        val dir = directory()
+        openStore(dir).use { store ->
+            assertEquals(emptyMap(), store.offeringProtocols())
+            store.recordProtocol("p:s", "mpegts", t)
+            store.recordProtocol("p:s", "hls", t.plusSeconds(60))
+            store.recordProtocol("p:t", "mpegts", t)
+            assertFailsWith<IllegalArgumentException> { store.recordProtocol("p:u", "rtsp", t) }
+        }
+        openStore(dir).use { assertEquals(mapOf("p:s" to "hls", "p:t" to "mpegts"), it.offeringProtocols()) }
     }
     @Test fun `newer schema refuses startup without losing data`() = runBlocking<Unit> {
         val dir = directory()

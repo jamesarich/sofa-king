@@ -123,6 +123,23 @@ class BackendStore internal constructor(
         Unit
     }
 
+    /** Protocols detected from a stream body, by offering ID; a detection outranks the protocol an import assigned. */
+    suspend fun offeringProtocols(): Map<String, String> = query {
+        OfferingProtocols.selectAll().associate { it[OfferingProtocols.offeringId] to it[OfferingProtocols.protocol] }
+    }
+
+    suspend fun recordProtocol(offeringId: String, protocol: String, at: Instant) {
+        require(protocol in setOf("hls", "mpegts")) { "Unsupported protocol" }
+        query {
+            OfferingProtocols.deleteWhere { OfferingProtocols.offeringId eq offeringId }
+            OfferingProtocols.insert {
+                it[OfferingProtocols.offeringId] = offeringId
+                it[OfferingProtocols.protocol] = protocol
+                it[observedAt] = at.toString()
+            }
+        }
+    }
+
     suspend fun allHealth(): Map<String, HealthState> = query {
         OfferingHealth.selectAll().associate { it[OfferingHealth.offeringId] to decodeHealth(it[OfferingHealth.stateJson]) }
     }

@@ -80,6 +80,30 @@ class SessionManagerTest {
             sessions.close()
         } } } finally { dir.toFile().deleteRecursively() }
     }
+    @Test fun `re-acquiring a live MPEG-TS stream cancels the previous media request but HLS requests coexist`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-reacquire-")
+        try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock(); val config = FeedConfig("p", "http://example.test/feed.m3u", probe = false)
+            val channels = listOf(Channel("ts", "1", "TS"), Channel("hls", "2", "HLS"))
+            val offerings = listOf(Offering("ts-source", "ts", "p", "http://example.test/live.ts", "mpegts"), Offering("hls-source", "hls", "p", "http://example.test/live.m3u8", "hls"))
+            store.saveSnapshot(FeedSnapshot("p", channels, offerings, emptyList(), clock.now.toString()))
+            val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
+            val sessions = SessionManager(feeds, store, clock)
+            val ts = sessions.open(OpenPlayback("ts", "watch", "ts"))
+            val tsToken = ts.descriptor.url.substringAfterLast('/')
+            val first = Job(); val second = Job()
+            assertTrue(sessions.acquire(ts.id, 1, tsToken, first).shared)
+            sessions.acquire(ts.id, 1, tsToken, second)
+            assertTrue(first.isCancelled); assertFalse(second.isCancelled)
+            val hls = sessions.open(OpenPlayback("hls", "watch", "hls"))
+            val hlsToken = hls.descriptor.url.substringAfterLast('/')
+            val playlist = Job(); val segment = Job()
+            assertFalse(sessions.acquire(hls.id, 1, hlsToken, playlist).shared)
+            sessions.acquire(hls.id, 1, hlsToken, segment)
+            assertFalse(playlist.isCancelled); assertFalse(segment.isCancelled)
+            sessions.close()
+        } } } finally { dir.toFile().deleteRecursively() }
+    }
     @Test fun `quarantined source blocks new playback without deleting channel`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-quarantine-play-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->

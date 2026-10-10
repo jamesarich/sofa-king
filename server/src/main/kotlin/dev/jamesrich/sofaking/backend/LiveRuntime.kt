@@ -29,7 +29,7 @@ class LiveRuntime(val feeds: FeedService, val sessions: SessionManager, val rela
                 val feeds = FeedService(configs, store, http, clock)
                 feeds.initialize()
                 val sessions = SessionManager(feeds, store, clock, config.maxSessions)
-                val runtime = LiveRuntime(feeds, sessions, MediaRelay(http, feeds, sessions), http, scope)
+                val runtime = LiveRuntime(feeds, sessions, MediaRelay(http, feeds, sessions, scope), http, scope)
                 feeds.start(scope)
                 scope.launch { while (isActive) { sessions.expire(); delay(1000) } }
                 if (configs.any { it.probe }) {

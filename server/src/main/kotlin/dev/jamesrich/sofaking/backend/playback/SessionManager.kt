@@ -29,7 +29,8 @@ internal class LiveSession(val id: String, val request: OpenPlayback, var offeri
     }
     fun cancel() { requests.toList().forEach { it.cancel() }; requests.clear() }
 }
-data class MediaResource(val offering: Offering, val url: String)
+/** [shared] marks the live MPEG-TS root, which one upstream connection fans out to every session on the source. */
+data class MediaResource(val offering: Offering, val url: String, val shared: Boolean = false)
 
 class SessionManager(private val feeds: FeedService, private val store: BackendStore, private val clock: Clock, private val capacity: Int = 4) {
     private val mutex = Mutex()
@@ -89,9 +90,12 @@ class SessionManager(private val feeds: FeedService, private val store: BackendS
             throw ApiFailure(503, "SOURCE_UNAVAILABLE", "Source is no longer eligible", true)
         }
         val url = session.resources[token] ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown media resource")
+        val shared = session.offering.protocol == "mpegts" && url == session.offering.url
+        // A player reconnecting to a live stream replaces its previous request rather than adding to it.
+        if (shared) session.cancel()
         if (session.requests.size >= 12) throw ApiFailure(429, "CAPACITY_EXHAUSTED", "Too many media requests", true)
         session.requests += job
-        MediaResource(session.offering, url)
+        MediaResource(session.offering, url, shared)
     }
     suspend fun finished(id: String, job: Job) = mutex.withLock { sessions[id]?.requests?.remove(job); Unit }
     suspend fun resourcePath(id: String, epoch: Int, url: String): String = mutex.withLock {

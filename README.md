@@ -54,3 +54,10 @@ The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contain
 - [Architecture](docs/architecture.md)
 - [Build and test](docs/development.md)
 - [Dependencies](docs/dependencies.md)
+
+## Limitations
+
+- Only MPEG-TS sessions share an upstream connection; each HLS request fetches upstream itself.
+- Feeds with credential or custom headers are never probed, so their sources stay `UNVERIFIED`.
+- The restream-proxy 502 rule (`SOFA_RESTREAM_ORIGINS`) and the MPEG-TS keepalive relay are verified against local fixtures, not against a provider feed or the Android client.
+- A relay reconnect attempt already in progress finishes before the 30-second grace period is enforced, so a dead source can hold its sessions for up to one connect timeout longer.

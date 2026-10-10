@@ -14,6 +14,9 @@ import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.util.cio.ChannelIOException
+import io.ktor.utils.io.ClosedByteChannelException
+import io.ktor.utils.io.ConnectionClosedException
 import io.ktor.utils.io.readBuffer
 import java.security.MessageDigest
 import java.time.Clock
@@ -32,7 +35,10 @@ fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveR
                 is ApiFailure -> call.respond(HttpStatusCode.fromValue(cause.status), ApiError(cause.code, cause.message, cause.retryable))
                 is UpstreamRejectedException -> call.respond(HttpStatusCode.BadGateway, ApiError("UPSTREAM_REJECTED", "Upstream address refused", false))
                 is BadRequestException, is kotlinx.serialization.SerializationException -> call.respond(HttpStatusCode.BadRequest, ApiError("INVALID_REQUEST", "Invalid request body", false))
-                else -> {
+                // A viewer hanging up mid-response is routine; nobody is left to answer. Other failures are ours.
+                else -> if (clientAbort(cause)) {
+                    call.application.log.debug("Client closed the connection ({})", cause.javaClass.simpleName)
+                } else {
                     // Exception messages can contain upstream signed URLs; keep them out of logs.
                     call.application.log.error("Request failed ({})", cause.javaClass.simpleName)
                     call.respond(HttpStatusCode.InternalServerError, ApiError("INTERNAL_ERROR", "Request failed", true))
@@ -87,6 +93,17 @@ fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveR
         }
     }
 }
+/** A write or read that failed because the client's connection is gone, as Ktor, Netty and the JDK each report it. */
+internal fun clientAbort(cause: Throwable): Boolean {
+    val causes = generateSequence(cause) { it.cause }.take(4)
+    return causes.any { error ->
+        error is ClosedByteChannelException || error is ConnectionClosedException || error is ChannelIOException ||
+            error is java.nio.channels.ClosedChannelException ||
+            (error is java.io.IOException && error.message?.let { ioAbortMessage.containsMatchIn(it) } == true)
+    }
+}
+private val ioAbortMessage = Regex("(?i)broken pipe|connection reset|connection or inbound has closed")
+
 private suspend inline fun <reified T> ApplicationCall.body(): T {
     val bytes = receiveChannel().readBuffer(65_537L).readByteArray()
     if (bytes.size > 65_536) throw ApiFailure(413, "REQUEST_TOO_LARGE", "Request exceeds 64 KiB")

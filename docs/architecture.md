@@ -50,7 +50,7 @@ Configured HTTP(S) feeds, JSON control requests, HLS/MPEG-TS passthrough and FFm
 
 Health observation history is pruned to `SOFA_OBSERVATION_RETENTION_DAYS` (default 7) at the start of each probe batch; source health, strikes and probe attempt times are separate rows and are never pruned. The channels ETag derives from the published channels and offerings, the guide coverage, the health table's row count and latest update, and which channels' guides are still current, so a matching `If-None-Match` is answered without building the body.
 
-Logs are key=value lines: imports (counts, skipped entries, duration, failure class), probe batches (outcome counts, duration) and health transitions (source ID, old and new state), relay upstream reconnects and failures (source ID, attempt, exception class, HTTP status). Stream URLs, query tokens and provider exception messages are never logged.
+Logs are key=value lines: imports (counts, skipped entries, duration, failure class), probe batches (outcome counts, duration) and health transitions (source ID, old and new state), relay upstream reconnects and failures (source ID, attempt, exception class, HTTP status). A request that fails because the client closed its connection, as a player does when the viewer switches channels, logs at debug with the exception class; other request failures log at error. Stream URLs, query tokens and provider exception messages are never logged.
 
 On SIGTERM the shutdown hook stops the HTTP server, closes the runtime (imports, probes, relay upstreams and sessions) and then the store, in that order, and logs each step.
 

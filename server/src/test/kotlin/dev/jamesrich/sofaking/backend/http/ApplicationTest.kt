@@ -5,8 +5,18 @@ import dev.jamesrich.sofaking.backend.store.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.server.application.*
+import io.ktor.server.config.MapApplicationConfig
+import io.ktor.server.routing.*
 import io.ktor.server.testing.*
+import io.ktor.util.cio.ChannelWriteException
+import io.ktor.utils.io.ClosedByteChannelException
+import io.ktor.utils.io.ClosedWriteChannelException
+import io.ktor.utils.io.ConnectionClosedException
 import kotlinx.serialization.json.Json
+import org.slf4j.event.Level
+import org.slf4j.event.SubstituteLoggingEvent
+import org.slf4j.helpers.SubstituteLogger
 import java.nio.file.Files
 import java.time.*
 import java.util.UUID
@@ -40,6 +50,44 @@ class ApplicationTest {
         val response = client.get("/api/v1/missing")
         assertEquals(HttpStatusCode.NotFound, response.status)
         assertEquals("NOT_FOUND", Json.decodeFromString<ApiError>(response.bodyAsText()).code)
+    }
+    @Test fun `a client hanging up is a debug line while other failures stay errors`() {
+        assertTrue(clientAbort(ClosedByteChannelException()))
+        assertTrue(clientAbort(ClosedWriteChannelException()))
+        assertTrue(clientAbort(ConnectionClosedException("closed")))
+        assertTrue(clientAbort(ChannelWriteException("Cannot write to a channel", java.io.IOException("Broken pipe"))))
+        assertTrue(clientAbort(java.nio.channels.ClosedChannelException()))
+        assertTrue(clientAbort(java.io.IOException("Connection reset by peer")))
+        assertTrue(clientAbort(IllegalStateException("wrapped", ClosedByteChannelException())))
+        assertFalse(clientAbort(java.io.IOException("No space left on device")))
+        assertFalse(clientAbort(IllegalStateException("Store is closed")))
+        assertFalse(clientAbort(NullPointerException()))
+
+        val events = java.util.concurrent.ConcurrentLinkedQueue<SubstituteLoggingEvent>()
+        testApplication {
+            // The test host delivers a body writer's failure to the client channel only, so the hang-up is raised before the
+            // body here; the status page sees the same exception either way. Its own fallback is told not to rethrow.
+            environment {
+                log = SubstituteLogger("test", events, false)
+                config = MapApplicationConfig("ktor.test.throwOnException" to "false")
+            }
+            application {
+                backendModule(unreadyStore(), Clock.systemUTC())
+                routing {
+                    get("/abort") { throw ClosedWriteChannelException() }
+                    get("/broken") { throw IllegalStateException("broken") }
+                }
+            }
+            runCatching { client.get("/abort").bodyAsBytes() }
+            val logged = events.map { "${it.level}: ${it.message}" }
+            assertTrue(events.none { it.level == Level.ERROR }, "client abort logged as $logged")
+            assertTrue(events.any { it.level == Level.DEBUG && it.message.startsWith("Client closed the connection") }, "client abort logged as $logged")
+            events.clear()
+            val broken = client.get("/broken")
+            assertEquals(HttpStatusCode.InternalServerError, broken.status)
+            assertEquals("INTERNAL_ERROR", Json.decodeFromString<ApiError>(broken.bodyAsText()).code)
+            assertTrue(events.any { it.level == Level.ERROR && it.message.startsWith("Request failed") })
+        }
     }
     private fun unreadyStore() = object : IdentityStore {
         override suspend fun serverId(): String = error("Unavailable store must not be read")

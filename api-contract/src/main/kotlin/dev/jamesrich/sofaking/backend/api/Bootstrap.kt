@@ -1,0 +1,7 @@
+package dev.jamesrich.sofaking.backend.api
+
+import kotlinx.serialization.Serializable
+
+@Serializable data class Capabilities(val catalog: Boolean = false, val guide: Boolean = false, val playback: Boolean = false, val events: Boolean = false)
+@Serializable data class Bootstrap(val serverId: String, val serverTime: String, val apiVersion: Int = 1, val capabilities: Capabilities = Capabilities())
+@Serializable data class ApiError(val code: String, val message: String, val retryable: Boolean)

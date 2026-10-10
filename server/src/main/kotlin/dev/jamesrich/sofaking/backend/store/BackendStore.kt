@@ -1,0 +1,132 @@
+package dev.jamesrich.sofaking.backend.store
+
+import dev.jamesrich.sofaking.backend.health.*
+import java.nio.file.Path
+import java.time.Instant
+import java.util.UUID
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExecutorCoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+
+interface IdentityStore {
+    suspend fun serverId(): String
+    suspend fun ready(): Boolean
+}
+
+/** Serializes short SQLite transactions; never owns network/media work. */
+class BackendStore internal constructor(
+    private val database: Database,
+    private val executor: ExecutorService,
+    private val dispatcher: ExecutorCoroutineDispatcher,
+) : IdentityStore, AutoCloseable {
+    private val closed = AtomicBoolean(false)
+    private val policy = HealthPolicy()
+
+    internal suspend fun initialize() = databaseWork {
+        applyMigrations(database, foundationMigrations())
+        transaction(database) {
+            Metadata.insertIgnore { it[key] = "server_id"; it[value] = UUID.randomUUID().toString() }
+        }
+    }
+
+    override suspend fun serverId(): String = query {
+        Metadata.selectAll().where { Metadata.key eq "server_id" }.single()[Metadata.value]
+    }
+
+    override suspend fun ready(): Boolean {
+        if (closed.get()) return false
+        return try { query { exec("SELECT 1") { it.next() && it.getInt(1) == 1 } == true } }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { false }
+    }
+
+    suspend fun registerOffering(offeringId: String) {
+        require(offeringId.isNotBlank()) { "Offering ID is required" }
+        query {
+            OfferingHealth.insertIgnore {
+                it[OfferingHealth.offeringId] = offeringId
+                it[stateJson] = HealthState().encode()
+                it[updatedAt] = Instant.now().toString()
+            }
+        }
+    }
+
+    suspend fun health(offeringId: String): HealthState? = query { currentHealth(offeringId) }
+
+    suspend fun recordObservation(offeringId: String, observation: Observation, now: Instant): HealthState = query {
+        val current = requireNotNull(currentHealth(offeringId)) { "Unknown offering" }
+        val duplicate = HealthObservations.selectAll().where {
+            (HealthObservations.offeringId eq offeringId) and (HealthObservations.incidentId eq observation.incidentId)
+        }.any()
+        if (duplicate) current
+        else {
+            val next = policy.apply(current, observation, now)
+            HealthObservations.insert {
+                it[HealthObservations.offeringId] = offeringId
+                it[incidentId] = observation.incidentId
+                it[observedAt] = observation.observedAt.toString()
+                it[observationJson] = Json.encodeToString(observation.stored())
+            }
+            saveHealth(offeringId, next, now)
+            next
+        }
+    }
+
+    suspend fun setManuallyDisabled(offeringId: String, disabled: Boolean): HealthState = query {
+        val next = requireNotNull(currentHealth(offeringId)) { "Unknown offering" }.copy(manuallyDisabled = disabled)
+        saveHealth(offeringId, next, Instant.now())
+        next
+    }
+
+    private fun currentHealth(offeringId: String): HealthState? = OfferingHealth.selectAll()
+        .where { OfferingHealth.offeringId eq offeringId }.singleOrNull()?.let { decodeHealth(it[OfferingHealth.stateJson]) }
+
+    private fun saveHealth(offeringId: String, state: HealthState, at: Instant) {
+        OfferingHealth.update({ OfferingHealth.offeringId eq offeringId }) {
+            it[stateJson] = state.encode()
+            it[updatedAt] = at.toString()
+        }
+    }
+
+    private suspend fun <T> query(block: JdbcTransaction.() -> T): T = databaseWork {
+        transaction(database) { maxAttempts = 1; block() }
+    }
+
+    private suspend fun <T> databaseWork(block: () -> T): T {
+        check(!closed.get()) { "Store is closed" }
+        return withContext(dispatcher) { check(!closed.get()) { "Store is closed" }; block() }
+    }
+
+    override fun close() {
+        if (!closed.compareAndSet(false, true)) return
+        executor.shutdown()
+        check(executor.awaitTermination(10, TimeUnit.SECONDS)) { "Database work did not stop" }
+        dispatcher.close()
+        TransactionManager.closeAndUnregister(database)
+    }
+}
+
+suspend fun openStore(dataDirectory: Path): BackendStore {
+    val executor = Executors.newSingleThreadExecutor { task -> Thread(task, "sofa-sqlite") }
+    val dispatcher = executor.asCoroutineDispatcher()
+    var store: BackendStore? = null
+    try {
+        val database = withContext(dispatcher) { databaseAt(dataDirectory) }
+        store = BackendStore(database, executor, dispatcher)
+        store.initialize()
+        return store
+    } catch (failure: Throwable) {
+        if (store != null) store.close() else dispatcher.close()
+        throw failure
+    }
+}

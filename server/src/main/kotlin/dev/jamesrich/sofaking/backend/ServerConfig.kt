@@ -12,6 +12,7 @@ data class ServerConfig(
     val ffmpeg: String = "ffmpeg",
     val probeParallelism: Int = 6,
     val restreamOrigins: Set<String> = emptySet(),
+    val observationRetentionDays: Int = 7,
 ) {
     companion object {
         fun fromEnvironment(environment: Map<String, String>): ServerConfig {
@@ -32,6 +33,8 @@ data class ServerConfig(
             val origins =
                 environment["SOFA_RESTREAM_ORIGINS"].orEmpty().split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
             require(origins.all { it.matches(Regex("[a-z0-9.\\-\\[\\]:]+")) }) { "SOFA_RESTREAM_ORIGINS entries must be host or host:port" }
+            val retention = (environment["SOFA_OBSERVATION_RETENTION_DAYS"] ?: "7").toIntOrNull()
+            require(retention != null && retention in 1..3650) { "SOFA_OBSERVATION_RETENTION_DAYS must be between 1 and 3650" }
             return ServerConfig(
                 host,
                 port,
@@ -42,6 +45,7 @@ data class ServerConfig(
                 environment["SOFA_FFMPEG"] ?: "ffmpeg",
                 parallelism,
                 origins,
+                retention,
             )
         }
     }

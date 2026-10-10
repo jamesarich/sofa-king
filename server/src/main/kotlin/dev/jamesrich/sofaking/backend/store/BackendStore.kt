@@ -82,6 +82,11 @@ class BackendStore internal constructor(
         }
     }
 
+    /** Deletes observation history older than [before]; health state and strikes live in offering_health and are unaffected. */
+    suspend fun pruneObservations(before: Instant): Int = query {
+        HealthObservations.deleteWhere { observedAt less before.toString() }
+    }
+
     suspend fun setManuallyDisabled(offeringId: String, disabled: Boolean): HealthState = query {
         val next = requireNotNull(currentHealth(offeringId)) { "Unknown offering" }.copy(manuallyDisabled = disabled)
         saveHealth(offeringId, next, Instant.now())
@@ -89,7 +94,7 @@ class BackendStore internal constructor(
     }
 
     suspend fun snapshots(): List<dev.jamesrich.sofaking.backend.catalog.FeedSnapshot> {
-        val encoded = query { Metadata.selectAll().filter { it[Metadata.key].startsWith("feed:") }.map { it[Metadata.value] } }
+        val encoded = query { Metadata.selectAll().where { keyPrefix("feed:") }.map { it[Metadata.value] } }
         return encoded.map { Json.decodeFromString(it) }
     }
 
@@ -109,19 +114,24 @@ class BackendStore internal constructor(
     }
 
     suspend fun probeAttempts(): Map<String, Instant> = query {
-        Metadata.selectAll().filter { it[Metadata.key].startsWith("probe:") }
-            .associate { it[Metadata.key].removePrefix("probe:") to Instant.parse(it[Metadata.value]) }
+        ProbeAttempts.selectAll().associate { it[ProbeAttempts.offeringId] to Instant.parse(it[ProbeAttempts.attemptedAt]) }
     }
 
     suspend fun markProbeAttempt(offeringId: String, at: Instant) = query {
-        val key = "probe:$offeringId"
-        Metadata.deleteWhere { Metadata.key eq key }
-        Metadata.insert { it[Metadata.key] = key; it[value] = at.toString() }
+        ProbeAttempts.deleteWhere { ProbeAttempts.offeringId eq offeringId }
+        ProbeAttempts.insert { it[ProbeAttempts.offeringId] = offeringId; it[attemptedAt] = at.toString() }
         Unit
     }
 
     suspend fun allHealth(): Map<String, HealthState> = query {
         OfferingHealth.selectAll().associate { it[OfferingHealth.offeringId] to decodeHealth(it[OfferingHealth.stateJson]) }
+    }
+
+    /** Changes whenever any health row is written or added; cheap enough to answer every conditional catalog request. */
+    suspend fun healthVersion(): String = query {
+        val count = OfferingHealth.offeringId.count()
+        val latest = OfferingHealth.updatedAt.max()
+        OfferingHealth.select(count, latest).single().let { "${it[count]}:${it[latest] ?: ""}" }
     }
 
     private fun currentHealth(offeringId: String): HealthState? = OfferingHealth.selectAll()
@@ -132,6 +142,12 @@ class BackendStore internal constructor(
             it[stateJson] = state.encode()
             it[updatedAt] = at.toString()
         }
+    }
+
+    /** Range form of a prefix match, so the primary-key index serves it. */
+    private fun keyPrefix(prefix: String): Op<Boolean> {
+        val end = prefix.dropLast(1) + (prefix.last() + 1)
+        return (Metadata.key greaterEq prefix) and (Metadata.key less end)
     }
 
     internal suspend fun <T> query(block: JdbcTransaction.() -> T): T = databaseWork {

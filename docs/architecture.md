@@ -42,6 +42,14 @@ When the upstream ends or fails, the relay reconnects with backoff from 0.5 to 8
 
 ## Supported scope
 
-Configured HTTP(S) feeds, JSON control requests, HLS/MPEG-TS passthrough and FFmpeg source qualification are supported. Recordings, timeshift, transcoding/remuxing, shared HLS upstreams, web administration, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported. Observation history has no automatic pruning.
+Configured HTTP(S) feeds, JSON control requests, HLS/MPEG-TS passthrough and FFmpeg source qualification are supported. Recordings, timeshift, transcoding/remuxing, shared HLS upstreams, web administration, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
+
+## Operations
+
+Health observation history is pruned to `SOFA_OBSERVATION_RETENTION_DAYS` (default 7) at the start of each probe batch; source health, strikes and probe attempt times are separate rows and are never pruned. The channels ETag derives from the published snapshot, the health table's row count and latest update, and which channels' guides are still current, so a matching `If-None-Match` is answered without building the body.
+
+Logs are key=value lines: imports (counts, skipped entries, duration, failure class), probe batches (outcome counts, duration) and health transitions (source ID, old and new state), relay upstream reconnects and failures (source ID, attempt, exception class, HTTP status). Stream URLs, query tokens and provider exception messages are never logged.
+
+On SIGTERM the shutdown hook stops the HTTP server, closes the runtime (imports, probes, relay upstreams and sessions) and then the store, in that order, and logs each step.
 
 The Android app currently uses its separate M3U/XMLTV adapter. [API usage](api.md) and [source-health behavior](source-health.md) describe the server interface.

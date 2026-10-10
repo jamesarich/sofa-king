@@ -30,6 +30,7 @@ data class ProbeConfig(
     val httpTimeoutMillis: Long = 8000,
     val decodeSeconds: Int = 30,
     val deadlineSeconds: Long = 50,
+    val observationRetention: Duration = Duration.ofDays(7),
 )
 
 /**
@@ -103,6 +104,8 @@ class ProbeWorker(
                 outcomes.clear()
                 pending += due(now).filter { it.id !in inFlight }
                 batchStartedAt = if (pending.isEmpty()) null else now
+                val pruned = store.pruneObservations(now.minus(config.observationRetention))
+                if (pruned > 0) log.info("pruned health observations count={} retentionDays={}", pruned, config.observationRetention.toDays())
             }
             val next = pending.removeFirstOrNull() ?: return@withLock null
             inFlight += next.id

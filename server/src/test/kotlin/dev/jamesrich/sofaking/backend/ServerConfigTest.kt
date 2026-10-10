@@ -31,6 +31,11 @@ class ServerConfigTest {
             assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_PROBE_PARALLELISM" to value)) }
         }
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_RESTREAM_ORIGINS" to "http://192.168.1.3:3000")) }
+        assertEquals(7, ServerConfig.fromEnvironment(emptyMap()).observationRetentionDays)
+        assertEquals(30, ServerConfig.fromEnvironment(mapOf("SOFA_OBSERVATION_RETENTION_DAYS" to "30")).observationRetentionDays)
+        for (value in listOf("0", "3651", "week")) {
+            assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_OBSERVATION_RETENTION_DAYS" to value)) }
+        }
     }
     @Test fun `invalid port or empty values fail before binding`() {
         for (value in listOf("no", "0", "65536", "-1", "")) {

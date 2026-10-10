@@ -15,6 +15,7 @@ Set these environment variables before starting the server:
 | `SOFA_FFMPEG` | `ffmpeg` | FFmpeg executable used by source probes |
 | `SOFA_PROBE_PARALLELISM` | `6` | Concurrent source probes, 1–32 |
 | `SOFA_RESTREAM_ORIGINS` | Unset | Comma-separated `host[:port]` list of LAN restream proxies whose 502 counts as source evidence, for example `192.168.1.3:3000` |
+| `SOFA_OBSERVATION_RETENTION_DAYS` | `7` | Days of health observation history to keep, 1–3650 |
 
 Relative paths resolve from the server's working directory. Configuration changes require a restart.
 

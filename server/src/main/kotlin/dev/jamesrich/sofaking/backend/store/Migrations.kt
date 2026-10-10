@@ -7,7 +7,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 internal data class Migration(val version: Int, val sql: String)
 
 internal fun foundationMigrations(): List<Migration> = listOf(
-    "V001__foundation.sql", "V002__offering_health.sql",
+    "V001__foundation.sql", "V002__offering_health.sql", "V003__probe_attempt_and_indexes.sql",
 ).mapIndexed { index, resource ->
     val sql = checkNotNull(Migration::class.java.getResourceAsStream("/db/$resource")) {
         "Missing migration $resource"

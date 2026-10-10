@@ -59,11 +59,12 @@ fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveR
         }
         if (runtime != null) {
             get("/api/v1/channels") {
-                val catalog = runtime.feeds.catalog()
-                val etag = "\"${catalog.revision}\""
+                // The revision is cheap; the body is not, so answer a matching If-None-Match before building it.
+                val revision = runtime.feeds.catalogRevision()
+                val etag = "\"$revision\""
                 call.response.header(HttpHeaders.ETag, etag)
                 if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) call.respond(HttpStatusCode.NotModified)
-                else call.respond(catalog)
+                else call.respond(runtime.feeds.catalog(revision))
             }
             get("/api/v1/providers") { call.respond(runtime.feeds.providers()) }
             get("/api/v1/sources") { call.respond(runtime.feeds.sources()) }

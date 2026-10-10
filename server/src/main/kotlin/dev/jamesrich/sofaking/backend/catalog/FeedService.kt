@@ -52,6 +52,12 @@ class FeedService(
         val programmes = feeds.flatMap { it.programmes }.distinctBy { it.id }
         val programmesByChannel = programmes.groupBy { it.channelId }
         val guideRevision = hash(Json.encodeToString(programmes))
+        val channelsRevision = hash(Json.encodeToString(channels))
+
+        /** When each channel's guide runs out; the only time-dependent input to the catalog body. */
+        val guideEnds = programmesByChannel.mapValues { (_, rows) -> rows.maxOf { Instant.parse(it.endsAt) } }
+        val guideEndsSorted = guideEnds.entries.sortedBy { it.key }.map { it.key to it.value }
+        val guideCoverage = hash(guideEndsSorted.joinToString(",") { it.first })
     }
 
     private val log = LoggerFactory.getLogger(FeedService::class.java)
@@ -179,21 +185,31 @@ class FeedService(
         )
     }
 
-    suspend fun catalog(): Catalog {
+    /** Snapshot, guide coverage, health version and which channels' guides are still current: everything the body depends on. */
+    suspend fun catalogRevision(): String {
+        val current = published.get()
+        val now = clock.instant()
+        val available = buildString { for ((id, end) in current.guideEndsSorted) if (end > now) append(id).append(',') }
+        return hash("${current.channelsRevision}:${current.guideCoverage}:${store.healthVersion()}:${hash(available)}")
+    }
+
+    suspend fun catalog(revision: String? = null): Catalog {
+        val stamped = revision ?: catalogRevision()
         val current = published.get()
         val states = store.allHealth()
-        val programmes = current.programmesByChannel
+        val guideEnds = current.guideEnds
         val offers = current.offerings.groupBy { it.channelId }
         val now = clock.instant()
         val channels =
             current.channels
                 .map { channel ->
+                    val end = guideEnds[channel.id]
                     val guide =
                         if (channel.legacyGuideId == null) {
                             "unassigned"
-                        } else if (programmes[channel.id].isNullOrEmpty()) {
+                        } else if (end == null) {
                             "empty"
-                        } else if (programmes[channel.id]!!.any { Instant.parse(it.endsAt) > now }) {
+                        } else if (end > now) {
                             "available"
                         } else {
                             "stale"
@@ -210,7 +226,7 @@ class FeedService(
                             },
                     )
                 }.sortedWith(compareBy({ it.displayNumber.toDoubleOrNull() ?: Double.MAX_VALUE }, { it.name }, { it.id }))
-        return Catalog(hash(Json.encodeToString(channels)), channels)
+        return Catalog(stamped, channels)
     }
 
     fun guide(query: GuideQuery): GuideWindow {

@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.health.*
 import kotlinx.coroutines.*
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.jdbc.*
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.DriverManager
@@ -94,6 +96,46 @@ class BackendStoreTest {
             store.registerOffering("b")
             assertTrue(store.health("a")!!.manuallyDisabled)
             assertFalse(store.health("b")!!.manuallyDisabled)
+        }
+    }
+    @Test fun `observation history prunes by retention while strikes and health survive`() = runBlocking<Unit> {
+        openStore(directory()).use { store ->
+            store.registerOffering("p:s")
+            for (m in listOf(0L, 5L, 10L)) store.recordObservation("p:s", observation(m), t.plusSeconds(m * 60))
+            assertEquals(2, store.pruneObservations(t.plusSeconds(10 * 60)))
+            assertEquals(0, store.pruneObservations(t.plusSeconds(10 * 60)))
+            val state = store.health("p:s")!!
+            assertEquals(HealthStatus.QUARANTINED, state.status)
+            assertEquals(3, state.failures.size)
+            assertEquals(1, store.query { HealthObservations.selectAll().count() })
+        }
+    }
+    @Test fun `probe attempts migrate out of metadata and health version tracks every write`() = runBlocking<Unit> {
+        val dir = directory()
+        openStore(dir).use { it.registerOffering("p:s") }
+        DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
+            connection.createStatement().use {
+                it.execute("DELETE FROM schema_version WHERE version = 3")
+                it.execute("DROP TABLE probe_attempt")
+                it.execute("DROP INDEX health_observation_observed_at")
+                it.execute("DROP INDEX offering_health_updated_at")
+                it.execute("INSERT INTO metadata VALUES ('probe:p:s', '2026-10-10T00:00:00Z')")
+                it.execute("INSERT INTO metadata VALUES ('probe-unrelated', 'kept')")
+            }
+        }
+        openStore(dir).use { store ->
+            assertEquals(mapOf("p:s" to t), store.probeAttempts())
+            assertEquals(0L, store.query { Metadata.selectAll().where { Metadata.key eq "probe:p:s" }.count() })
+            assertEquals(1L, store.query { Metadata.selectAll().where { Metadata.key eq "probe-unrelated" }.count() })
+            store.markProbeAttempt("p:s", t.plusSeconds(60))
+            assertEquals(mapOf("p:s" to t.plusSeconds(60)), store.probeAttempts())
+            val initial = store.healthVersion()
+            assertEquals(initial, store.healthVersion())
+            store.setManuallyDisabled("p:s", true)
+            val disabled = store.healthVersion()
+            assertNotEquals(initial, disabled)
+            store.registerOffering("p:t")
+            assertNotEquals(disabled, store.healthVersion())
         }
     }
     @Test fun `newer schema refuses startup without losing data`() = runBlocking<Unit> {

@@ -33,7 +33,12 @@ class LiveRuntime(val feeds: FeedService, val sessions: SessionManager, val rela
                 feeds.start(scope)
                 scope.launch { while (isActive) { sessions.expire(); delay(1000) } }
                 if (configs.any { it.probe }) {
-                    val probes = ProbeConfig(parallelism = config.probeParallelism, restreamOrigins = config.restreamOrigins)
+                    val probes =
+                        ProbeConfig(
+                            parallelism = config.probeParallelism,
+                            restreamOrigins = config.restreamOrigins,
+                            observationRetention = java.time.Duration.ofDays(config.observationRetentionDays.toLong()),
+                        )
                     scope.launch { ProbeWorker(feeds, store, clock, config.ffmpeg, http, probes, onHealthChanged = sessions::healthChanged).run() }
                 }
                 return runtime

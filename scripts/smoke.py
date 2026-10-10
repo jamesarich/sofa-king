@@ -79,8 +79,12 @@ def main():
         assert first == second, 'Server identity changed across restart'
         with sqlite3.connect(directory / 'backend.sqlite') as connection:
             assert connection.execute('PRAGMA journal_mode').fetchone()[0] == 'wal'
-            assert connection.execute('SELECT version FROM schema_version ORDER BY version').fetchall() == [(1,), (2,)]
-        print('Runtime smoke passed: real HTTP, truthful capabilities, SQLite WAL/migrations, graceful SIGTERM and persistent identity across restart.')
+            assert connection.execute('SELECT version FROM schema_version ORDER BY version').fetchall() == [(1,), (2,), (3,)]
+        for iteration in (1, 2):
+            log = (directory / f'run-{iteration}.log').read_text()
+            steps = [log.find(step) for step in ('shutdown: server stopped', 'shutdown: runtime closed', 'shutdown: store closed')]
+            assert -1 not in steps and steps == sorted(steps), f'SIGTERM did not close server, runtime and store in order:\n{log}'
+        print('Runtime smoke passed: real HTTP, truthful capabilities, SQLite WAL/migrations, ordered SIGTERM shutdown and persistent identity across restart.')
 
 
 if __name__ == '__main__':

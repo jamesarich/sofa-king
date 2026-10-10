@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.store.openStore
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import java.nio.file.Files
+import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
@@ -62,6 +63,25 @@ class FeedServiceTest {
             assertEquals("Station", feeds.catalog().channels.single().name)
             fixture.partial = false; feeds.refresh(fixture.feed)
             assertEquals(0, feeds.providers().single().skippedEntries); assertNull(feeds.providers().single().skipReasons)
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
+    @Test fun `catalog revision is stable until health or guide currency changes`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-revision-")
+        try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock(); val feeds = FeedService(listOf(fixture.feed), store, http, clock); feeds.refresh(fixture.feed)
+            val initial = feeds.catalogRevision()
+            assertEquals(initial, feeds.catalogRevision())
+            assertEquals(initial, feeds.catalog(initial).revision)
+            assertEquals("available", feeds.catalog().channels.single().guideStatus)
+            store.setManuallyDisabled(feeds.offerings().single().id, true)
+            val disabled = feeds.catalogRevision()
+            assertNotEquals(initial, disabled)
+            assertFalse(feeds.catalog(disabled).channels.single().playbackEligible)
+            clock.now = Instant.parse("2026-10-10T14:00:01Z")
+            val stale = feeds.catalogRevision()
+            assertNotEquals(disabled, stale)
+            assertEquals("stale", feeds.catalog(stale).channels.single().guideStatus)
+            assertEquals(stale, feeds.catalogRevision())
         } } } } finally { dir.toFile().deleteRecursively() }
     }
     @Test fun `guide overlap bounds and revision changes are explicit`() = runBlocking<Unit> {

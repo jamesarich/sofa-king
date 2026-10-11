@@ -27,6 +27,15 @@ class Fixture : AutoCloseable {
     val gzipGuide = GuideConfig("gz", "$base/guide.xml.gz")
     /** A guide that always fails, for failure isolation. */
     val brokenGuide = GuideConfig("broken", "$base/broken-guide.xml")
+    /**
+     * The mjh shape: two 302 hops (the first `text/html`, the second with an empty body) ending at a
+     * gzip XMLTV body with a `DOCTYPE`, served as `application/octet-stream`.
+     */
+    val redirectedDoctypeGuide = GuideConfig("mjh", "$base/hop1/us.xml.gz")
+    /** The TVApp2 shape: plain XMLTV with a `DOCTYPE` on its own line, served as `application/xml`. */
+    val doctypeGuide = GuideConfig("tvapp2", "$base/doctype-guide.xml")
+    /** Requests for the external DTD or an external entity a hostile guide could name; must stay at zero. */
+    val dtdRequests = AtomicInteger()
     val tsFeed = FeedConfig("ts", "$base/ts-feed.m3u", probe = false)
     /** An HLS master served from an extensionless path with a generic content type. */
     val extensionlessFeed = FeedConfig("ext", "$base/ext-feed.m3u", probe = false)
@@ -70,6 +79,36 @@ class Fixture : AutoCloseable {
                 exchange.sendResponseHeaders(503, -1); exchange.close()
                 return@createContext
             }
+            if (path == "/hop1/us.xml.gz") {
+                exchange.responseHeaders.set("Content-Type", "text/html")
+                exchange.responseHeaders.set("Location", "$base/hop2/raw/us.xml.gz")
+                exchange.sendResponseHeaders(302, -1); exchange.close()
+                return@createContext
+            }
+            if (path == "/hop2/raw/us.xml.gz") {
+                exchange.responseHeaders.set("Content-Type", "text/html; charset=utf-8")
+                exchange.responseHeaders.set("Location", "$base/raw/us.xml.gz")
+                exchange.sendResponseHeaders(302, 0); exchange.responseBody.close()
+                return@createContext
+            }
+            if (path == "/raw/us.xml.gz") {
+                val bytes = java.io.ByteArrayOutputStream().also { out -> java.util.zip.GZIPOutputStream(out).use { it.write(resource("guides/mjh-doctype.xml")) } }.toByteArray()
+                exchange.responseHeaders.set("Content-Type", "application/octet-stream")
+                exchange.sendResponseHeaders(200, bytes.size.toLong()); exchange.responseBody.use { it.write(bytes) }
+                return@createContext
+            }
+            if (path == "/doctype-guide.xml") {
+                val bytes = resource("guides/tvapp2-doctype.xml")
+                exchange.responseHeaders.set("Content-Type", "application/xml")
+                exchange.sendResponseHeaders(200, bytes.size.toLong()); exchange.responseBody.use { it.write(bytes) }
+                return@createContext
+            }
+            if (path == "/xmltv.dtd" || path == "/entity.txt") {
+                dtdRequests.incrementAndGet()
+                val bytes = "FIXTURE-ENTITY-MARKER".toByteArray()
+                exchange.sendResponseHeaders(200, bytes.size.toLong()); exchange.responseBody.use { it.write(bytes) }
+                return@createContext
+            }
             val text = when (path) {
                 "/feed.m3u" ->
                     if (malformed) "not a playlist"
@@ -106,6 +145,8 @@ class Fixture : AutoCloseable {
         append("</tv>")
     }
     companion object {
+        fun resource(name: String): ByteArray = Fixture::class.java.classLoader.getResourceAsStream(name)!!.use { it.readBytes() }
+
         /** A PID 0x100 packet whose payload is the packet number. */
         fun tsPacket(number: Int): ByteArray = ByteArray(188) { index ->
             when (index) { 0 -> 0x47; 1 -> 0x01; 2 -> 0x00; 3 -> (0x10 or (number and 0x0F)).toByte(); else -> number.toByte() }

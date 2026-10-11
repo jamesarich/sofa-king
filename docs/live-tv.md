@@ -66,7 +66,7 @@ Each guide object configures one XMLTV source, independent of any provider:
 | `headers` | `{}` | Request headers for the guide |
 | `refreshSeconds` | `21600` | Import interval; minimum 300 seconds |
 
-Guides are parsed as a stream, so a guide of tens of megabytes needs no memory for the whole document. The `<channel>` index (and every channel id seen on a programme) is stored for curation; programmes are kept only for channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programmes within one fetch. Each guide fails on its own: `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one and the others keep refreshing.
+Guides are parsed as a stream: a 100 MB guide needs no memory for the document, only for its channel index and the programmes it retains. The `<channel>` index (and every channel id seen on a programme) is stored for curation; programmes are kept only for channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programmes within one fetch. The download follows up to five redirects, is bounded by a 15-second socket inactivity timeout rather than a total request timeout, and is read as gzip whenever the body starts with the gzip magic bytes, whatever the final content type says. A `<!DOCTYPE tv SYSTEM "xmltv.dtd">` declaration is accepted; the DTD is never fetched, and an entity declared in the document fails the import instead of resolving. Each guide fails on its own: `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one and the others keep refreshing, and the log line carries the exception class and its message with URLs redacted.
 
 ### Import limits
 

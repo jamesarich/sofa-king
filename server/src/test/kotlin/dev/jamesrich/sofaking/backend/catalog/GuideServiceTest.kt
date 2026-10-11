@@ -46,6 +46,31 @@ class GuideServiceTest {
         } } } finally { dir.toFile().deleteRecursively() }
     }
 
+    @Test fun `DOCTYPE guides import, plain and through a two-hop redirect to gzip`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-guides-doctype-")
+        try { Fixture().use { fixture -> HttpClient(CIO) { followRedirects = false }.use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            val feeds = FeedService(emptyList(), store, http, clock, UpstreamPolicy(allowLoopback = true))
+            val stack = lineupStack(feeds, store, clock, http, guides = listOf(fixture.redirectedDoctypeGuide, fixture.doctypeGuide))
+            val statuses = stack.guides.statuses().associateBy { it.id }
+            assertNull(statuses.getValue("mjh").errorCode)
+            assertEquals(clock.now.toString(), statuses.getValue("mjh").lastSuccessAt)
+            assertEquals(2, statuses.getValue("mjh").channels)
+            assertNull(statuses.getValue("tvapp2").errorCode)
+            assertEquals(2, statuses.getValue("tvapp2").channels)
+            assertEquals("CW Forever", stack.guides.searchChannels("mjh", "forever", 10).single().displayName)
+            assertEquals(0, fixture.dtdRequests.get(), "the xmltv.dtd named by the DOCTYPE is never requested")
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `a failed import logs the message without URLs`() {
+        val cause = IllegalStateException("Guide fetch failed for https://guide.example/epg.xml.gz?token=secret123 [url=http://x.test/a?k=v]\n  after retry")
+        assertEquals("Guide fetch failed for <url> [url=<url>] after retry", redactedMessage(cause))
+        assertEquals("Guide exceeds size limit", redactedMessage(RuntimeException("", IllegalArgumentException("Guide exceeds size limit"))))
+        assertEquals("", redactedMessage(RuntimeException()))
+        assertEquals(300, redactedMessage(RuntimeException("y".repeat(1000))).length)
+    }
+
     @Test fun `a new mapping triggers one coalesced refresh that retains the newly wanted channel`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-guides-trigger-")
         try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->

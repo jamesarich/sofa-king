@@ -115,9 +115,11 @@ class GuideService(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            // Exception messages can carry the guide URL; log the class only.
             statuses.set(statuses.get().map { if (it.id == config.id) it.copy(errorCode = "IMPORT_FAILED") else it })
-            log.warn("guide import guide={} failed class={} durationMs={}", config.id, e.javaClass.simpleName, Duration.between(started, clock.instant()).toMillis())
+            log.warn(
+                "guide import guide={} failed class={} message=\"{}\" durationMs={}",
+                config.id, e.javaClass.simpleName, redactedMessage(e), Duration.between(started, clock.instant()).toMillis(),
+            )
         }
     }
 
@@ -138,4 +140,12 @@ class GuideService(
             }
         }
     }
+}
+
+private val urlInMessage = Regex("""https?://[^\s"'\]\[<>]+""")
+
+/** The exception's message with every URL (and so any query token) replaced by `<url>`, on one line, bounded. */
+internal fun redactedMessage(e: Throwable): String {
+    val message = e.message?.takeIf { it.isNotBlank() } ?: e.cause?.message ?: return ""
+    return urlInMessage.replace(message, "<url>").replace(Regex("\\s+"), " ").trim().take(300)
 }

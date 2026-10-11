@@ -144,7 +144,13 @@ object FeedParser {
         return ParsedPlaylist(channels.values.toList(), offerings, skipped, notes)
     }
 
-    /** Parses XMLTV from [input] (plain or gzip), keeping only programmes whose channel [wanted] accepts. */
+    /**
+     * Parses XMLTV from [input] (plain or gzip), keeping only programmes whose channel [wanted] accepts.
+     *
+     * A `<!DOCTYPE tv SYSTEM "xmltv.dtd">` declaration is reported and skipped, never processed: the
+     * external DTD is not fetched, internal-subset declarations are ignored, and a reference to an entity
+     * declared there fails the parse as undeclared instead of resolving.
+     */
     fun guide(
         input: InputStream,
         wanted: (String) -> Boolean,
@@ -164,8 +170,6 @@ object FeedParser {
             var root = false
             while (reader.hasNext()) {
                 when (reader.next()) {
-                    XMLStreamConstants.DTD -> error("XML DTD is forbidden")
-
                     XMLStreamConstants.START_ELEMENT -> {
                         if (!root) {
                             require(reader.localName == "tv") { "Not XMLTV" }
@@ -179,7 +183,6 @@ object FeedParser {
                                 var icon: String? = null
                                 while (reader.hasNext()) {
                                     val event = reader.next()
-                                    if (event == XMLStreamConstants.DTD) error("XML DTD is forbidden")
                                     if (event == XMLStreamConstants.END_ELEMENT && reader.localName == "channel") break
                                     if (event != XMLStreamConstants.START_ELEMENT) continue
                                     when (reader.localName) {
@@ -203,7 +206,6 @@ object FeedParser {
                                 var description: String? = null
                                 while (reader.hasNext()) {
                                     val event = reader.next()
-                                    if (event == XMLStreamConstants.DTD) error("XML DTD is forbidden")
                                     if (event == XMLStreamConstants.END_ELEMENT && reader.localName == "programme") break
                                     if (event != XMLStreamConstants.START_ELEMENT) continue
                                     if (reader.localName == "title") {

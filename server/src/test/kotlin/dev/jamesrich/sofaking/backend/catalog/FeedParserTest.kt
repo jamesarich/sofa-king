@@ -5,6 +5,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
+
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -161,9 +163,37 @@ class FeedParserTest {
         assertEquals("One", parsed.programmes.single().title)
     }
 
-    @Test fun `XMLTV cannot resolve external entities`() {
-        assertFails {
-            FeedParser.guide("""<!DOCTYPE tv [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><tv><programme channel="station"><title>&xxe;</title></programme></tv>""")
+    @Test fun `XMLTV with a DOCTYPE declaration parses as plain or gzip`() {
+        val tvapp2 = FeedParser.guide(Fixture.resource("guides/tvapp2-doctype.xml").inputStream()) { true }
+        assertEquals(listOf("111871", "10021"), tvapp2.channels.map { it.id })
+        assertEquals(listOf("ACC", "AMC"), tvapp2.channels.map { it.displayName })
+        assertEquals(2, tvapp2.programmes.size)
+        assertEquals("Biztalk Special Coverage on AI EP3", tvapp2.programmes.first { it.channelId == "10021" }.title)
+
+        val gz = java.io.ByteArrayOutputStream().also { out -> java.util.zip.GZIPOutputStream(out).use { it.write(Fixture.resource("guides/mjh-doctype.xml")) } }.toByteArray()
+        val mjh = FeedParser.guide(java.io.ByteArrayInputStream(gz)) { it == "USBA370000104" }
+        assertEquals(2, mjh.channels.size)
+        assertEquals("CW Forever", mjh.channels.first().displayName)
+        assertEquals("48 Hours", mjh.programmes.single().title, "the mapped channel's programme survives a rating block")
+    }
+
+    @Test fun `XMLTV never fetches the DTD or resolves external entities`() {
+        Fixture().use { fixture ->
+            val external = FeedParser.guide("""<!DOCTYPE tv SYSTEM "${fixture.base}/xmltv.dtd"><tv><channel id="a"><display-name>A</display-name></channel></tv>""")
+            assertEquals("A", external.channels.single().displayName, "an external DTD is skipped, not fetched")
+
+            val parameter = FeedParser.guide("""<!DOCTYPE tv [<!ENTITY % ext SYSTEM "${fixture.base}/xmltv.dtd"> %ext;]><tv><channel id="b"/></tv>""")
+            assertEquals("b", parameter.channels.single().id, "a parameter entity in the internal subset is ignored")
+
+            val secret = java.nio.file.Files.createTempFile("sofa-xxe-", ".txt").also { it.toFile().writeText("FILE-ENTITY-MARKER"); it.toFile().deleteOnExit() }
+            for (target in listOf("${fixture.base}/entity.txt", secret.toUri().toString())) {
+                val failure = assertFails {
+                    FeedParser.guide("""<!DOCTYPE tv [<!ENTITY xxe SYSTEM "$target">]><tv><programme channel="station" start="20261010080000 +0000" stop="20261010090000 +0000"><title>&xxe;</title></programme></tv>""")
+                }
+                assertTrue(failure.message.orEmpty().contains("not declared"), "the entity is undeclared, never resolved: ${failure.message}")
+                assertFalse(failure.message.orEmpty().contains("MARKER"))
+            }
+            assertEquals(0, fixture.dtdRequests.get(), "no request left the parser for a DTD or an entity")
         }
         assertFails { FeedParser.guide("<html/>") }
     }

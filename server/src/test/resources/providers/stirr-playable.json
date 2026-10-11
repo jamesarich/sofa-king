@@ -1,0 +1,12 @@
+{
+ "status": 200,
+ "message": "Success",
+ "data": [
+  {
+   "media": [
+    "BASE/ssai/stream.m3u8?cb=1&AV_APPNAME=STIRR&AV_CONTENT_ID=5735&AV_NONCE=[vx_nonce]&vx_token=fixture-token"
+   ],
+   "drm": []
+  }
+ ]
+}

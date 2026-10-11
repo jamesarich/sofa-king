@@ -18,7 +18,8 @@ These are unofficial clients. They call the same public endpoints each service's
     { "id": "adultswim", "type": "native", "service": "adultswim" },
     { "id": "pbs", "type": "native", "service": "pbs", "options": { "zip": "50309" } },
     { "id": "samsung", "type": "native", "service": "samsung", "options": { "region": "us" } },
-    { "id": "plex", "type": "native", "service": "plex" }
+    { "id": "plex", "type": "native", "service": "plex" },
+    { "id": "stirr", "type": "native", "service": "stirr" }
   ]
 }
 ```
@@ -26,7 +27,7 @@ These are unofficial clients. They call the same public endpoints each service's
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr` |
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region |
@@ -34,7 +35,7 @@ These are unofficial clients. They call the same public endpoints each service's
 
 `headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only; every native source is HLS.
 
-A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider id, refreshed hourly; its channel ids are the service's own, and a lineup entry created from a candidate maps onto it automatically. The guide holds every channel in its index and programmes only for channels the lineup maps, so a service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS, Plex) is asked only about mapped channels.
+A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider id, refreshed hourly; its channel ids are the service's own, and a lineup entry created from a candidate maps onto it automatically. The guide holds every channel in its index and programmes only for channels the lineup maps, so a service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS, Plex, STIRR) is asked only about mapped channels.
 
 ## How a native source plays
 
@@ -105,6 +106,12 @@ Fragility: a third party's mirror and redirector; both can lag or go away. Some 
 The watch.plex.tv client's API. An anonymous token comes from plex.tv's `users/anonymous` with the install's device id as client identifier and is kept until Plex refuses it (a 401 or 403 replaces it and retries once). The channel list is the US `plex` lineup on epg.provider.plex.tv, keyed by `gridKey`; channels whose media says `drm` are left out (none today). The group is the first themed guide filter (genre) that lists the channel, with Bingeworthy and Global only for channels nothing else lists; Plex has no channel numbers. The guide is the per-channel `grid` for today and tomorrow (UTC), for mapped channels only. A resolve fetches the channel's `library/parts` master, which Plex serves directly with the token in its query, and hands that URL to the relay for an hour.
 
 Fragility: the compound part id carries a server prefix Plex rotates; only `gridKey` is trusted as the channel id and the part key is re-read from the lineup. The anonymous token is rate-limited per token.
+
+### stirr (STIRR)
+
+The stirr.com web API. The channel list is one `videos/list` document of every live channel (`content_type=4`), keyed by `videoid`, with the channel number, the first category as the group and the logo (the square thumb when there is none); channels marked `drm_protected` are left out (none today). The guide is the per-channel `epg` endpoint in UTC, for mapped channels only. A resolve POSTs to `v2/videos/ID/playable`, which answers an Aniview, Wurl or other ad-stitched HLS URL carrying a session and a `vx_token` that lives about 12 hours; `[vx_nonce]` is blanked and the URL is handed to the relay for an hour with the web client's `Origin` and `Referer`.
+
+Fragility: the list document is over a megabyte with rows nested by category, so rows are found by shape (`videoid` and `title`). Each channel's stream comes from a different ad stitcher, so one channel can fail while the rest play.
 
 ## Checking a provider
 

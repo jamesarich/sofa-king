@@ -43,7 +43,7 @@ interface ProviderClient {
 object NativeServices {
     private val guides = mapOf(
         "whale" to true, "vizio" to true, "lg" to true, "freelivesports" to true, "hallmark" to true,
-        "ballysports" to true, "adultswim" to true, "pbs" to true, "samsung" to false, "plex" to true,
+        "ballysports" to true, "adultswim" to true, "pbs" to true, "samsung" to false, "plex" to true, "stirr" to true,
     )
 
     val names: Set<String> get() = guides.keys

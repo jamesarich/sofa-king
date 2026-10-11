@@ -149,6 +149,7 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
 
         fun client(service: String, context: ProviderContext): ProviderClient = when (service) {
             "whale" -> WhaleClient(context)
+            "vizio" -> VizioClient(context)
             else -> throw IllegalArgumentException("Unknown native service $service")
         }
     }

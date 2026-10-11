@@ -161,6 +161,9 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/curation/preview` | The plan a run would apply now, applying nothing |
 | POST | `/api/v1/admin/curation/run` | Apply a plan now, whether or not automation is enabled; returns what was applied |
 | GET | `/api/v1/admin/curation/changes?limit=` | Applied actions, newest first; `limit` 1-1000 (default 100) |
+| GET | `/api/v1/admin/policy` | The [lineup policy](plans/2026-10-11-lineup-policy.md) `SOFA_POLICY` names, as `policy` with `revision` (the file's SHA-256) and `path`; 404 `POLICY_NOT_CONFIGURED` when unset |
+| GET | `/api/v1/admin/policy/preview` | The stations the policy builds now against the served lineup: `added` keys, `removed` entries, field `changes`, `merges`, `splits`, `counts` and `findings`; writes nothing |
+| GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
 
 An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `pinned` (the fields an admin set, which [curation](curation.md#pins) never changes), `createdBy` (`manual`, `import` or `rule:ID`) and, while curation rather than an admin holds the entry disabled, `autoDisabledAt` and `autoDisabledReason` (`unavailable` or `alias`).
 

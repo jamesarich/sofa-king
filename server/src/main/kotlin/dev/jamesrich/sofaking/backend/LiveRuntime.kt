@@ -27,6 +27,8 @@ class LiveRuntime(
     val curation: CurationService,
     private val http: HttpClient,
     private val scope: CoroutineScope,
+    /** The lineup policy when `SOFA_POLICY` names one; read-only, the lineup is not built from it. */
+    val policy: PolicyService? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -37,6 +39,7 @@ class LiveRuntime(
     companion object {
         suspend fun create(store: BackendStore, config: ServerConfig, clock: Clock): LiveRuntime {
             val sources = loadSources(config.sourcesFile)
+            val loadedPolicy = config.policyFile?.let { loadPolicy(it, sources.providers.mapTo(HashSet()) { provider -> provider.id }) }
             val http = HttpClient(CIO) {
                 followRedirects = false
                 install(HttpTimeout) { requestTimeoutMillis = 60_000; connectTimeoutMillis = 5000; socketTimeoutMillis = 15_000 }
@@ -61,7 +64,11 @@ class LiveRuntime(
                 logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) })
                 logos.initialize()
                 val sessions = SessionManager(catalog, store, clock, config.maxSessions)
-                val runtime = LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, curation, http, scope)
+                val policyService = loadedPolicy?.let { PolicyService(it, feeds, guides, lineup, store, clock) }
+                val runtime = LiveRuntime(
+                    store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, curation, http, scope,
+                    policyService,
+                )
                 feeds.start(scope)
                 guides.start(scope)
                 logos.start(scope)

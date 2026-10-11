@@ -42,6 +42,8 @@ data class ServerConfig(
     val adminToken: String? = null,
     val outputs: OutputConfig = OutputConfig(),
     val hdhr: HdhrConfig = HdhrConfig(),
+    /** The lineup policy file; when set it is loaded and validated at start. */
+    val policyFile: Path? = null,
 ) {
     companion object {
         fun fromEnvironment(environment: Map<String, String>): ServerConfig {
@@ -58,6 +60,7 @@ data class ServerConfig(
             val capacity = (environment["SOFA_MAX_SESSIONS"] ?: "4").toIntOrNull()
             require(capacity != null && capacity in 1..16) { "SOFA_MAX_SESSIONS must be between 1 and 16" }
             val sources = environment["SOFA_SOURCES"]?.let { require(it.isNotBlank()); Path.of(it) }
+            val policy = environment["SOFA_POLICY"]?.let { require(it.isNotBlank()) { "SOFA_POLICY must not be blank" }; Path.of(it) }
             val parallelism = (environment["SOFA_PROBE_PARALLELISM"] ?: "6").toIntOrNull()
             require(parallelism != null && parallelism in 1..32) { "SOFA_PROBE_PARALLELISM must be between 1 and 32" }
             val origins =
@@ -103,6 +106,7 @@ data class ServerConfig(
                 adminToken,
                 OutputConfig(outputToken, guideDays),
                 HdhrConfig(hdhrEnabled, tuners, deviceId, friendlyName, allow, extraPorts),
+                policy,
             )
         }
 

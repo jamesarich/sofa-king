@@ -86,6 +86,7 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
             call.respond(HttpStatusCode.NoContent)
         }
         curationRoutes(runtime.curation)
+        policyRoutes(runtime.policy)
     }
 }
 

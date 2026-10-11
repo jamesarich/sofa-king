@@ -12,6 +12,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_PORT` | `8080` | Listen port, 1-65535 |
 | `SOFA_DATA_DIR` | `data` | Database and logo cache directory |
 | `SOFA_SOURCES` | Unset | Path to the source configuration JSON file; unset starts with no providers or guides |
+| `SOFA_POLICY` | Unset | Path to a lineup policy JSON file, loaded and validated at start (any error stops the server); read by the policy preview routes only, the lineup is not built from it |
 | `SOFA_API_TOKEN` | Unset | API bearer token, at least 32 characters; required for non-loopback binding |
 | `SOFA_ADMIN_TOKEN` | Unset | Bearer token for `/api/v1/admin/*`, at least 32 characters; unset means the API token administers the lineup too |
 | `SOFA_MAX_SESSIONS` | `4` | Maximum active playback sessions, 1-16 |

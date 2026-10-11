@@ -519,11 +519,17 @@ class CurationService(
                 }
             }
             val current = entry.guide
-            if (entry.enabled && !entry.pinned("guide") && (current == null || current.guideId in retiredGuides)) {
+            val dangling = current != null && (guides.config(current.guideId) == null ||
+                (guides.channels(current.guideId).isNotEmpty() && guides.channel(current.guideId, current.channelId) == null))
+            if (entry.enabled && !entry.pinned("guide") && (current == null || current.guideId in retiredGuides || dangling)) {
                 val target = guideFor(candidates, retiredGuides)
                 if (target != null && target != current) {
                     val shown = { m: GuideMapping? -> m?.let { "${it.guideId}/${it.channelId}" } }
-                    val reason = if (current == null) "unassigned" else "guide ${current.guideId} retired"
+                    val reason = when {
+                        current == null -> "unassigned"
+                        current.guideId in retiredGuides -> "guide ${current.guideId} retired"
+                        else -> "guide ${current.guideId} does not list ${current.channelId}"
+                    }
                     steps += Step.SetGuide(entry.id, current, target, CurationAction("remap-guide", entry.id, entry.name, "guide", shown(current), shown(target), reason))
                 }
             }

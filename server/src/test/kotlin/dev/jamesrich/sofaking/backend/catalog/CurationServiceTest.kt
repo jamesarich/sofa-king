@@ -273,6 +273,11 @@ class CurationServiceTest {
         r.lineup.update(entry.id, UpdateLineupEntry(enabled = true, clearGuide = true, unpin = listOf("guide")))
         assertEquals("unassigned", r.curation.run().actions.single().reason)
         assertEquals(GuideMapping("fixture", "station"), r.entry(entry.id).guide)
+
+        r.curation.updateSettings(CurationSettings(enabled = true))
+        r.lineup.update(entry.id, UpdateLineupEntry(guide = GuideMapping("gz", "gone"), unpin = listOf("guide")))
+        assertEquals("guide gz does not list gone", r.curation.run().actions.single().reason)
+        assertEquals(GuideMapping("fixture", "station"), r.entry(entry.id).guide, "a loaded guide that lacks the channel counts as no mapping")
         assertEquals("INVALID_REQUEST", assertFailsWith<ApiFailure> { r.curation.updateSettings(CurationSettings(retiredGuides = listOf("bad id"))) }.code)
     }
 

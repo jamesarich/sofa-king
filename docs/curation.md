@@ -42,7 +42,7 @@ Every field an admin request sets on an entry is pinned: `number`, `name`, `grou
 | `defaultGroup` | unset | Group for an adopted candidate with no raw group and no matching rule |
 | `retiredGuides` | `[]` | Guide IDs going away; an enabled entry mapped to one, or to no guide, moves to a guide its sources list |
 
-An entry the `retiredGuides` pass maps takes the first source, in the entry's order, whose `tvg-id` a guide that is not retired lists: that source's provider guide first, then a guide that is no provider's own, since a provider guide keys channels by that provider's IDs. A pinned guide, a disabled entry and an entry whose sources no live guide lists keep their mapping. A provider guide fetches programmes only for the channels the lineup maps to it, so each remap adds its channel to the next guide refresh.
+The guide pass also moves an enabled entry whose mapping names a guide that is no longer configured, or a loaded guide that does not list its channel. The entry takes the first source, in the entry's order, whose `tvg-id` a guide that is not retired lists: that source's provider guide first, then a guide that is no provider's own, since a provider guide keys channels by that provider's IDs. A pinned guide, a disabled entry and an entry whose sources no live guide lists keep their mapping. A provider guide fetches programmes only for the channels the lineup maps to it, so each remap adds its channel to the next guide refresh.
 
 ## Rules
 

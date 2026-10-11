@@ -17,6 +17,32 @@ import kotlinx.serialization.json.Json
 import kotlin.test.*
 
 class RelayTest {
+    @Test fun `a gzip-encoded media playlist and key reach the player as the bytes they encode`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-relay-gzip-")
+        val token = "secret".repeat(8)
+        Fixture().use { fixture ->
+            fixture.gzipEncoded = true
+            val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(listOf(fixture.feed)))
+            val store = openStore(dir)
+            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
+            try {
+                runtime.feeds.refresh(fixture.feed); runtime.adoptAll()
+                application { backendModule(store, MutableClock(), runtime, token) }
+                val channel = Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single()
+                val session = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "gzip"))) }.bodyAsText())
+                val variant = client.get(session.descriptor.url).bodyAsText().lineSequence().first { it.startsWith("/media/") }
+                val media = client.get(variant)
+                assertEquals(HttpStatusCode.OK, media.status)
+                val playlist = media.bodyAsText()
+                assertTrue(playlist.startsWith("#EXTM3U") && playlist.contains("#EXT-X-KEY:METHOD=AES-128,URI=\"/media/sessions/"), playlist)
+                val key = client.get(Regex("URI=\"([^\"]+)\"").find(playlist)!!.groupValues[1]) { header(HttpHeaders.Range, "bytes=0-") }
+                assertEquals(HttpStatusCode.OK, key.status)
+                assertEquals("0123456789abcdef", key.bodyAsText(), "the key is inflated, not the gzip bytes the origin sent")
+                assertNull(key.headers[HttpHeaders.ContentEncoding])
+            } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+        }
+    }
+
     @Test fun `two MPEG-TS sessions on one source share a single upstream connection`() = testApplication {
         val dir = Files.createTempDirectory("sofa-relay-ts-")
         val token = "secret".repeat(8)

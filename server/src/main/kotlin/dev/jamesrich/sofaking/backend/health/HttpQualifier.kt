@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.health
 import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
+import dev.jamesrich.sofaking.backend.upstream.inflateHead
 import dev.jamesrich.sofaking.backend.upstream.readHead
 import dev.jamesrich.sofaking.backend.upstream.sniffProtocol
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
@@ -35,7 +36,7 @@ internal class HttpQualifier(
                 http.withUpstreamResponse(offering.url, offering.url, headers, requestTimeoutMillis = timeoutMillis, policy = policy) { response ->
                     val status = response.status.value
                     if (status in 200..299) {
-                        val protocol = sniffProtocol(response.bodyAsChannel().readHead(HEAD_BYTES))
+                        val protocol = sniffProtocol(inflateHead(response.bodyAsChannel().readHead(HEAD_BYTES)))
                         if (protocol == null) Qualification(FailureClass.OFFERING) else Qualification(null, protocol)
                     } else {
                         Qualification(classifyStatus(status, isRestreamOrigin(offering.url, restreamOrigins)))

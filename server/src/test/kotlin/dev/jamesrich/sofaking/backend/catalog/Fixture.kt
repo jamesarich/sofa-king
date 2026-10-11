@@ -57,6 +57,8 @@ class Fixture : AutoCloseable {
     val logoRequests = AtomicInteger()
     /** While set, `/logo.png` answers 503. */
     @Volatile var logoBroken = false
+    /** While set, `/key` and the media playlists are served gzip-encoded with a `Content-Encoding` header, as some CDNs do unasked. */
+    @Volatile var gzipEncoded = false
     val tsConnections = AtomicInteger()
     val tsClosed = AtomicInteger()
     /** Raw query string of the last media playlist request, for delivery-directive checks. */
@@ -177,8 +179,14 @@ class Fixture : AutoCloseable {
                 "/key" -> "0123456789abcdef"
                 else -> "fixture-segment"
             }
-            val bytes = text.toByteArray()
             exchange.responseHeaders.set("Content-Type", if (path.endsWith("m3u8")) "application/vnd.apple.mpegurl" else "application/octet-stream")
+            if (gzipEncoded && (path == "/key" || path == "/media.m3u8" || path == "/audio.m3u8")) {
+                val compressed = java.io.ByteArrayOutputStream().also { out -> java.util.zip.GZIPOutputStream(out).use { it.write(text.toByteArray()) } }.toByteArray()
+                exchange.responseHeaders.set("Content-Encoding", "gzip")
+                exchange.sendResponseHeaders(200, compressed.size.toLong()); exchange.responseBody.use { it.write(compressed) }
+                return@createContext
+            }
+            val bytes = text.toByteArray()
             val range = exchange.requestHeaders.getFirst("Range")
             if (range == "bytes=0-3") {
                 exchange.responseHeaders.set("Content-Range", "bytes 0-3/${bytes.size}")

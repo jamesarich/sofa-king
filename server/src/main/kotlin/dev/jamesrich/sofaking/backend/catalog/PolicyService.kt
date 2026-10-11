@@ -50,20 +50,35 @@ class PolicyService(
 
     fun document(): PolicyDocument = file.current().let { PolicyDocument(it.revision, it.path.toString(), it.policy) }
 
-    /** One run over the current snapshot and the remembered availability; writes nothing. */
+    /**
+     * One run over the current snapshot and the remembered availability; writes nothing. Stations whose names match
+     * loosely are compared by schedule first, and the aliases that evidence learns are built with.
+     */
     suspend fun run(loaded: LoadedPolicy = file.current()): BuildResult {
         val candidates = feeds.channels().map { channel -> FeedCandidate(channel, feeds.providerOf(channel.id).orEmpty(), feeds.offeringsOf(channel.id)) }
-        return StationBuilder.build(
-            BuildInput(
-                loaded.policy, candidates, guides::guidesListing, feeds.configs.mapTo(HashSet()) { it.id }, store.allHealth(), store.stationAvailability(), clock.instant(),
-            ),
-        )
+        val providerIds = feeds.configs.mapTo(HashSet()) { it.id }
+        val health = store.allHealth()
+        val previous = store.stationAvailability()
+        val now = clock.instant()
+        fun build(policy: LineupPolicy) = StationBuilder.build(BuildInput(policy, candidates, guides::guidesListing, providerIds, health, previous, now))
+        val first = build(loaded.policy)
+        val learning = learnAliases(first, loaded.policy, schedules(first, loaded.policy, now))
+        return if (learning.learned.isEmpty()) first.with(learning) else build(withLearned(loaded.policy, learning.learned)).with(learning)
+    }
+
+    /** The programmes in the learning window of every station in a loose pair that has a guide, by station key. */
+    private suspend fun schedules(result: BuildResult, policy: LineupPolicy, now: Instant): Map<String, List<GuideProgramme>> {
+        val keys = loosePairs(result, policy.names.never).flatMap { listOf(it.first, it.second) }.toSet()
+        val mapped = result.stations.filter { it.key in keys && it.guide != null }.associate { it.key to it.guide!! }
+        val byGuide = mapped.values.groupBy({ it.guideId }, { it.channelId })
+        val programmes = byGuide.mapValues { (guideId, channels) -> guides.programmes(guideId, channels.toSet(), now, now.plus(LEARN_WINDOW)) }
+        return mapped.mapValues { (_, guide) -> programmes[guide.guideId]?.get(guide.channelId).orEmpty() }
     }
 
     suspend fun preview(): PolicyPreview {
         val loaded = file.current()
         val result = run(loaded)
-        return previewDiff(result, lineup.entries(), clock.instant(), loaded.revision).copy(findings = findingsOf(result))
+        return previewDiff(result, lineup.entries(), clock.instant(), loaded.revision).copy(findings = findingsOf(result), learned = result.learned)
     }
 
     suspend fun findings(): PolicyFindings {
@@ -140,24 +155,30 @@ class PolicyService(
         store.recordCurationChanges(changes, now)
 
         val numbers = result.assigned.filterKeys { loaded.policy.stations[it]?.number == null }
+        val names = loaded.policy.names
+        val blocked = names.learned.filter { (from, to) -> neverMerges(names.never, from, to) }.keys
         var revision = loaded.revision
-        if (numbers.isNotEmpty()) {
+        if (numbers.isNotEmpty() || result.learned.isNotEmpty() || blocked.isNotEmpty()) {
+            val what = "${numbers.size} assigned numbers and ${result.learned.size} learned aliases"
             try {
-                revision = file.edit(null) { tree -> withNumbers(tree, numbers) }.revision
+                val learned = mergeLearned(names.learned, result.learned, blocked)
+                revision = file.edit(null) { tree -> withNumbers(withLearnedNames(tree, learned, result.learned.keys), numbers) }.revision
             } catch (e: ApiFailure) {
-                findings += "policy: ${numbers.size} assigned numbers not written back: ${e.message}"
-                log.warn("lineup policy number write-back failed code={} numbers={}", e.code, numbers.size)
+                findings += "policy: $what not written back: ${e.message}"
+                log.warn("lineup policy write-back failed code={} numbers={} learned={}", e.code, numbers.size, result.learned.size)
             } catch (e: java.io.IOException) {
-                findings += "policy: ${numbers.size} assigned numbers not written back: ${e.javaClass.simpleName}"
-                log.warn("lineup policy number write-back failed class={} numbers={}", e.javaClass.simpleName, numbers.size)
+                findings += "policy: $what not written back: ${e.javaClass.simpleName}"
+                log.warn("lineup policy write-back failed class={} numbers={} learned={}", e.javaClass.simpleName, numbers.size, result.learned.size)
             }
         }
+        for ((from, to) in result.learned) log.info("lineup policy learned alias from={} to={}", from, to)
         log.info(
-            "lineup policy run cause={} stations={} changed={} changes={} assigned={} findings={} durationMs={}",
-            cause, next.size, changed, changes.size, numbers.size, findings.size, Duration.between(started, clock.instant()).toMillis(),
+            "lineup policy run cause={} stations={} changed={} changes={} assigned={} learned={} findings={} durationMs={}",
+            cause, next.size, changed, changes.size, numbers.size, result.learned.size, findings.size, Duration.between(started, clock.instant()).toMillis(),
         )
         PolicyApplyResult(
             now.toString(), revision, changed, next.size, next.count { it.enabled }, changes.size, numbers.toSortedMap(), findings.sorted(), result.suggestedAliases,
+            result.learned,
         )
     }
 
@@ -172,7 +193,7 @@ class PolicyService(
     private suspend fun keyOf(entryId: String): String {
         run().stations.firstOrNull { it.id == entryId }?.let { return it.key }
         val entry = lineup.entry(entryId) ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
-        return StationKeys(policy.names.aliases, policy.names.version).key(entry.name)
+        return stationKeys(policy.names).key(entry.name)
     }
 
     /** Writes [request] as the override of the entry's station, then applies. */
@@ -284,6 +305,26 @@ private fun editStation(tree: JsonObject, key: String, edit: (MutableMap<String,
     edit(station)
     stations[key] = JsonObject(station)
     return JsonObject(tree.toMutableMap().apply { put("stations", JsonObject(stations.toSortedMap())) })
+}
+
+/**
+ * [tree] with `names.learned` replaced by [learned], and the station override of each of [mergedAway] dropped when
+ * it holds nothing but a number, since that key is no longer a station.
+ */
+internal fun withLearnedNames(tree: JsonObject, learned: Map<String, String>, mergedAway: Set<String>): JsonObject {
+    val names = (tree["names"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+    if (learned.isEmpty()) names.remove("learned") else names["learned"] = JsonObject(learned.toSortedMap().mapValues { JsonPrimitive(it.value) })
+    val next = tree.toMutableMap().apply { put("names", JsonObject(names)) }
+    val stations = (tree["stations"] as? JsonObject)?.toMutableMap()
+    if (stations != null && mergedAway.isNotEmpty()) {
+        for (key in mergedAway) {
+            val station = stations[key] ?: continue
+            val override = runCatching { checkJson.decodeFromJsonElement(StationOverride.serializer(), station) }.getOrNull()
+            if (override != null && numberOnly(override)) stations.remove(key)
+        }
+        next["stations"] = JsonObject(stations.toSortedMap())
+    }
+    return JsonObject(next)
 }
 
 /** [tree] with `stations.<key>.number` set for each of [numbers] that has none. */

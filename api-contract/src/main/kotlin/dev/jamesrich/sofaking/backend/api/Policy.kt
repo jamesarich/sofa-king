@@ -17,8 +17,15 @@ import kotlinx.serialization.Serializable
     val stations: Map<String, StationOverride> = emptyMap(),
 )
 
-/** [version] selects the name normalization (1 or 2); [aliases] map one normalized name onto another station's key. */
-@Serializable data class PolicyNames(val version: Int = 2, val aliases: Map<String, String> = emptyMap())
+/**
+ * [version] selects the name normalization (1 or 2); [aliases] map one normalized name onto another station's key.
+ * [learned] holds the aliases runs found from matching schedules, applied after [aliases], which win on conflict;
+ * [never] lists pairs of keys that never merge.
+ */
+@Serializable data class PolicyNames(
+    val version: Int = 2, val aliases: Map<String, String> = emptyMap(), val learned: Map<String, String> = emptyMap(),
+    val never: List<List<String>> = emptyList(),
+)
 
 /**
  * One provider entry. A candidate takes the first entry whose [id] is its provider and whose filters pass it.
@@ -86,6 +93,8 @@ import kotlinx.serialization.Serializable
     val changes: List<PolicyFieldChange> = emptyList(), val merges: List<PolicyRegrouping> = emptyList(),
     val splits: List<PolicyRegrouping> = emptyList(), val counts: Map<String, Int> = emptyMap(), val findings: List<String> = emptyList(),
     val suggestedAliases: List<String> = emptyList(),
+    /** Aliases this run learned from matching schedules, `from` key to station key; an apply writes them to `names.learned`. */
+    val learned: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -103,11 +112,14 @@ import kotlinx.serialization.Serializable
     val candidates: List<PolicyCandidate> = emptyList(), val findings: List<String> = emptyList(),
 )
 
-/** What one apply did. [assigned] holds the numbers this run gave stations without one, written back to the policy. */
+/**
+ * What one apply did. [assigned] holds the numbers this run gave stations without one and [learned] the aliases it
+ * found from matching schedules; both are written back to the policy.
+ */
 @Serializable data class PolicyApplyResult(
     val appliedAt: String, val revision: String, val changed: Boolean, val stations: Int, val enabledStations: Int,
     val changes: Int = 0, val assigned: Map<String, String> = emptyMap(), val findings: List<String> = emptyList(),
-    val suggestedAliases: List<String> = emptyList(),
+    val suggestedAliases: List<String> = emptyList(), val learned: Map<String, String> = emptyMap(),
 )
 
 /** A policy write and the apply that followed it. */

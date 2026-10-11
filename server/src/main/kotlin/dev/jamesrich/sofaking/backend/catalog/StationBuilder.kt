@@ -46,7 +46,15 @@ class BuildResult(
     val keys: StationKeys,
     /** Pairs of live station keys that probably name one station, as `<key>: possible alias of <other key>`. */
     val suggestedAliases: List<String> = emptyList(),
-)
+    /** Aliases this run learned from matching schedules and built with, not yet in the policy file. */
+    val learned: Map<String, String> = emptyMap(),
+) {
+    /** This result with [learning] applied: its aliases recorded, its suggestions and findings added. */
+    fun with(learning: Learning): BuildResult = BuildResult(
+        stations, assigned, (findings + learning.findings).sorted(), availability, candidates, keys,
+        (suggestedAliases + learning.suggestions).distinct().sorted(), learning.learned,
+    )
+}
 
 private val NUMBER_ORDER: Comparator<BigDecimal?> = nullsLast(naturalOrder())
 
@@ -103,7 +111,7 @@ object StationBuilder {
         val decisions = ArrayList<PolicyCandidate>()
         val all = input.candidates.sortedWith(compareBy({ it.providerId }, { it.channel.id }))
         val (live, ghosts) = all.partition { it.offerings.isNotEmpty() }
-        val keys = StationKeys(policy.names.aliases, policy.names.version)
+        val keys = stationKeys(policy.names)
         val liveOfferings = live.flatMapTo(HashSet()) { candidate -> candidate.offerings.map { it.id } }
         val entries = policy.providers.map(::CompiledEntry)
         val overrides = policy.stations.toSortedMap()
@@ -234,10 +242,11 @@ object StationBuilder {
             availability[draft.key] = StationAvailability(since, off, pinOfferings = draft.pinOfferings)
             if (draft.offeringIds.isEmpty()) findings += "${draft.key}: required station has no live source"
         }
-        // Stations whose candidates are gone stay, disabled, for keepMissingDays; required ones never leave.
+        // Stations whose candidates are gone stay, disabled, for keepMissingDays; required ones never leave. A key an
+        // alias now joins into another station merged rather than vanished.
         val present = drafts.mapTo(HashSet()) { it.key }
         for ((key, previous) in input.previous.toSortedMap()) {
-            if (key in present) continue
+            if (key in present || keys.resolve(key) != key) continue
             val missingSince = previous.missingSince ?: input.now
             val required = overrides[key]?.required == true
             if (!required && Duration.between(missingSince, input.now) >= Duration.ofDays(policy.health.keepMissingDays.toLong())) continue
@@ -304,7 +313,7 @@ object StationBuilder {
         return BuildResult(
             stations, assigned, findings.sorted(), availability,
             decisions.sortedWith(compareBy({ it.key }, { it.providerId }, { it.channelId })), keys,
-            suggestedAliases(drafts.filter { it.sources.isNotEmpty() }.map { it.key }),
+            suggestedAliases(drafts.filter { it.sources.isNotEmpty() }.map { it.key }, policy.names.never),
         )
     }
 

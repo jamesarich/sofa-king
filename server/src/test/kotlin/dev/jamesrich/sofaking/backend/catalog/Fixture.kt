@@ -53,6 +53,12 @@ class Fixture : AutoCloseable {
     /** The station with a `tvg-logo` naming this fixture's PNG, for the logo cache. */
     val logoFeed = FeedConfig("logo", "$base/branded-feed.m3u", probe = false)
     val logoUrl = "$base/logo.png"
+    /**
+     * Two services with their own guides: `Learn Show` and `Learn Show TV` air one schedule, `NFL Network` and
+     * `NFL Channel` two different ones, from 2026-10-10T13:00Z.
+     */
+    val learnFeed = FeedConfig("learn", "$base/learn-feed.m3u", "$base/learn-guide.xml", probe = false)
+    val learnTwinFeed = FeedConfig("learn2", "$base/learn2-feed.m3u", "$base/learn2-guide.xml", probe = false)
     /** Requests for any `/logo*` or `/decoy*` path. */
     val logoRequests = AtomicInteger()
     /** While set, `/logo.png` answers 503. */
@@ -174,6 +180,10 @@ class Fixture : AutoCloseable {
                 "/branded-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"logo-station\" tvg-chno=\"11\" tvg-logo=\"$logoUrl\" group-title=\"News\",Logo Station\n$base/master.m3u8\n"
                 "/resolve" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100000\nmedia.m3u8\n"
                 "/guide.xml" -> guideXml(false)
+                "/learn-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"learn-show\" tvg-chno=\"30\",Learn Show\n$base/learn-show.m3u8\n#EXTINF:-1 tvg-id=\"nfl-network\" tvg-chno=\"31\",NFL Network\n$base/nfl-network.m3u8\n"
+                "/learn2-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"show-tv\" tvg-chno=\"40\",Learn Show TV\n$base/show-tv.m3u8\n#EXTINF:-1 tvg-id=\"nfl-channel\" tvg-chno=\"41\",NFL Channel\n$base/nfl-channel.m3u8\n"
+                "/learn-guide.xml" -> scheduleXml(mapOf("learn-show" to SHOW, "nfl-network" to listOf("NFL Total Access", "Good Morning Football", "NFL Films Presents", "Inside the NFL")))
+                "/learn2-guide.xml" -> scheduleXml(mapOf("show-tv" to SHOW, "nfl-channel" to listOf("Classic Game", "Game Rewind", "Top 100 Players", "Classic Game")))
                 "/master.m3u8" -> "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\",URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,AUDIO=\"audio\"\nmedia.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200000\nloop\n"
                 "/media.m3u8", "/audio.m3u8" -> "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n#EXTINF:4,\nsegment.ts\n#EXT-X-ENDLIST\n"
                 "/key" -> "0123456789abcdef"
@@ -203,7 +213,17 @@ class Fixture : AutoCloseable {
         append("<programme channel=\"other\" start=\"20261010080000 -0500\" stop=\"20261010090000 -0500\"><title>Elsewhere</title></programme>")
         append("</tv>")
     }
+    /** Hourly programmes from 2026-10-10T13:00Z, one list of titles per channel. */
+    private fun scheduleXml(channels: Map<String, List<String>>): String = buildString {
+        append("<tv>")
+        for ((channel, titles) in channels) titles.forEachIndexed { hour, title ->
+            append("<programme channel=\"$channel\" start=\"202610101${3 + hour}0000 +0000\" stop=\"202610101${4 + hour}0000 +0000\"><title>$title</title></programme>")
+        }
+        append("</tv>")
+    }
     companion object {
+        private val SHOW = listOf("News at One", "Afternoon Show", "Matinee", "Evening Report")
+
         fun resource(name: String): ByteArray = Fixture::class.java.classLoader.getResourceAsStream(name)!!.use { it.readBytes() }
 
         /** A 1x1 opaque PNG. */

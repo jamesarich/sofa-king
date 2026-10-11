@@ -26,11 +26,15 @@ class PolicyApplyTest {
     private class Setup(val dir: Path, val policyFile: Path, val runtime: LiveRuntime, val fixture: Fixture)
 
     /** A runtime over the fixture's feeds with [policy] in its own directory; the policy loop never fires on its own. */
-    private suspend fun ApplicationTestBuilder.withPolicy(policy: String = basePolicy, block: suspend Setup.() -> Unit) {
+    private suspend fun ApplicationTestBuilder.withPolicy(
+        policy: String = basePolicy,
+        feeds: (Fixture) -> List<FeedConfig> = { listOf(it.feed, it.altFeed, it.twinFeed, it.tsFeed) },
+        block: suspend Setup.() -> Unit,
+    ) {
         val dir = Files.createTempDirectory("sofa-policy-apply-")
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json")
-            Files.writeString(sources, """{"providers":${json.encodeToString(listOf(fixture.feed, fixture.altFeed, fixture.twinFeed, fixture.tsFeed))},"guides":[]}""")
+            Files.writeString(sources, """{"providers":${json.encodeToString(feeds(fixture))},"guides":[]}""")
             val policyDir = Files.createDirectories(dir.resolve("policy"))
             val policyFile = policyDir.resolve("policy.json")
             Files.writeString(policyFile, policy)
@@ -206,6 +210,33 @@ class PolicyApplyTest {
             val preview = Json.decodeFromString<PolicyPreview>(client.get("/api/v1/admin/policy/preview") { asAdmin() }.bodyAsText())
             assertEquals(findings.suggestedAliases, preview.suggestedAliases)
             assertEquals(findings.findings, preview.findings)
+        }
+    }
+
+    @Test fun `matching schedules teach an alias that is written back once, and different schedules never merge`() = testApplication {
+        withPolicy("""{"providers":[{"id":"learn"},{"id":"learn2"}]}""", feeds = { listOf(it.learnFeed, it.learnTwinFeed) }) {
+            for (guide in runtime.guides.configs) runtime.guides.refresh(guide)
+            val first = runtime.policy!!.apply("test")
+            assertTrue(first.learned.isEmpty(), "no programmes are kept before the lineup maps the guides")
+            assertEquals(listOf("learnshowtv: possible alias of learnshow", "nflnetwork: possible alias of nflchannel"), first.suggestedAliases)
+            assertEquals(setOf("learnshow", "learnshowtv", "nflnetwork", "nflchannel"), stationsIn(policyFile).keys)
+
+            for (guide in runtime.guides.configs) runtime.guides.refresh(guide)
+            val preview = Json.decodeFromString<PolicyPreview>(client.get("/api/v1/admin/policy/preview") { asAdmin() }.bodyAsText())
+            assertEquals(mapOf("learnshowtv" to "learnshow"), preview.learned)
+            val second = runtime.policy!!.apply("test")
+            assertEquals(mapOf("learnshowtv" to "learnshow"), second.learned)
+            assertTrue(second.suggestedAliases.isEmpty(), "${second.suggestedAliases}")
+            val written = Json.parseToJsonElement(Files.readString(policyFile)).jsonObject
+            assertEquals(JsonObject(mapOf("learnshowtv" to JsonPrimitive("learnshow"))), written["names"]!!.jsonObject["learned"])
+            assertEquals(setOf("learnshow", "nflnetwork", "nflchannel"), stationsIn(policyFile).keys, "the merged-away station's number-only override goes")
+            val entries = runtime.lineup.entries().associateBy { it.number }
+            assertEquals(listOf("30", "31", "41"), entries.keys.toList())
+            assertEquals(listOf("learn", "learn2"), entries.getValue("30").offeringIds.map { runtime.feeds.offering(it)!!.providerId })
+
+            val third = runtime.policy!!.apply("test")
+            assertTrue(third.learned.isEmpty()); assertFalse(third.changed)
+            assertEquals(second.revision, third.revision, "nothing new to write back")
         }
     }
 }

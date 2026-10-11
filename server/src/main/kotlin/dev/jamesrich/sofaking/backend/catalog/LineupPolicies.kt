@@ -90,6 +90,15 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
         val normalized = normalizedName(from, policy.names.version)
         if (normalized != from) errors += "names.aliases: \"$from\" is not a normalized name (it normalizes to \"$normalized\")"
     }
+    val learned = policy.names.learned
+    for ((from, to) in learned.entries.sortedBy { it.key }) {
+        if (from == to) errors += "names.learned: \"$from\" aliases itself"
+        else if (to in learned) errors += "names.learned: \"$from\" -> \"$to\" chains through another learned alias"
+    }
+    policy.names.never.forEachIndexed { index, pair ->
+        if (pair.size != 2 || pair.any { it.isBlank() } || pair[0] == pair[1]) errors += "names.never[$index]: must be two different keys"
+    }
+    val effective = effectiveLearned(policy.names)
 
     val numbers = HashMap<String, MutableList<String>>()
     val ids = HashMap<String, MutableList<String>>()
@@ -97,6 +106,7 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
     for ((key, station) in policy.stations.entries.sortedBy { it.key }) {
         val where = "stations[\"$key\"]"
         if (key in aliases) errors += "$where: key is an alias of \"${aliases.getValue(key)}\"; use the post-alias key"
+        else if (key in effective) errors += "$where: key is a learned alias of \"${effective.getValue(key)}\"; use the post-alias key"
         if (key.isBlank() || key.length > 256) errors += "$where: key must be 1 to 256 characters"
         station.number?.let { number ->
             if (number.isBlank() || number.length > 32 || number.any { it.isWhitespace() }) errors += "$where: number must be 1 to 32 characters without spaces"

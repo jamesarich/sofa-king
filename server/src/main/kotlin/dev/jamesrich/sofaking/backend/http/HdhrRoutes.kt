@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.hash
+import dev.jamesrich.sofaking.backend.catalog.stableId
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.store.IdentityStore
 import dev.jamesrich.sofaking.backend.upstream.probeHeadersSafe
@@ -60,7 +61,7 @@ internal data class LineupStatus(
  */
 fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentityStore) {
     val allow = AddressAllowList(config.allow)
-    val tuners = AtomicInteger()
+    val tuners = Array(config.devices) { AtomicInteger() }
 
     suspend fun guard(call: ApplicationCall): Boolean {
         if (allow.allows(call.request.origin.remoteAddress)) return true
@@ -68,21 +69,32 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
         return false
     }
 
-    suspend fun deviceId(): String = config.deviceId ?: hash(store.serverId()).take(8).uppercase()
+    /** The device a request reached: 0 on the main port, then one per extra port in order. */
+    fun device(call: ApplicationCall): Int = config.extraPorts.indexOf(call.request.local.localPort) + 1
 
-    fun lineup(base: String): List<LineupItem> {
+    suspend fun deviceId(device: Int): String {
+        val first = config.deviceId ?: hash(store.serverId()).take(8).uppercase()
+        return if (device == 0) first else hash("$first:$device").take(8).uppercase()
+    }
+
+    fun name(device: Int): String = if (device == 0) config.friendlyName else "${config.friendlyName} ${device + 1}"
+
+    fun lineup(base: String, device: Int): List<LineupItem> {
         val seen = HashSet<String>()
-        return runtime.lineup.entries().filter { it.enabled && seen.add(it.number) }.map { LineupItem(it.number, it.name, "$base/auto/v${it.number}") }
+        return runtime.lineup.entries()
+            .filter { it.enabled && seen.add(it.number) && Math.floorMod(it.id.hashCode(), config.devices) == device }
+            .map { LineupItem(it.number, it.name, "$base/auto/v${it.number}") }
     }
 
     get("/discover.json") {
         if (!guard(call)) return@get
         val base = publicBase(call)
-        call.respond(Discover(friendlyName = config.friendlyName, deviceId = deviceId(), baseUrl = base, lineupUrl = "$base/lineup.json", tunerCount = config.tuners))
+        val device = device(call)
+        call.respond(Discover(friendlyName = name(device), deviceId = deviceId(device), baseUrl = base, lineupUrl = "$base/lineup.json", tunerCount = config.tuners))
     }
     get("/lineup.json") {
         if (!guard(call)) return@get
-        call.respond(lineup(publicBase(call)))
+        call.respond(lineup(publicBase(call), device(call)))
     }
     get("/lineup_status.json") {
         if (!guard(call)) return@get
@@ -94,6 +106,8 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
     get("/device.xml") {
         if (!guard(call)) return@get
         val base = publicBase(call)
+        val device = device(call)
+        val udn = if (device == 0) store.serverId() else stableId("${store.serverId()}:hdhr:$device")
         call.respondText(
             """
             <?xml version="1.0" encoding="utf-8"?>
@@ -102,12 +116,12 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
             <URLBase>${xml(base)}</URLBase>
             <device>
             <deviceType>urn:schemas-upnp-org:device:MediaServer:1</deviceType>
-            <friendlyName>${xml(config.friendlyName)}</friendlyName>
+            <friendlyName>${xml(name(device))}</friendlyName>
             <manufacturer>Silicondust</manufacturer>
             <modelName>HDTC-2US</modelName>
             <modelNumber>HDTC-2US</modelNumber>
-            <serialNumber>${deviceId()}</serialNumber>
-            <UDN>uuid:${xml(store.serverId())}</UDN>
+            <serialNumber>${deviceId(device)}</serialNumber>
+            <UDN>uuid:${xml(udn)}</UDN>
             </device>
             </root>
             """.trimIndent(),
@@ -118,6 +132,7 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
         if (!guard(call)) return@get
         val number = call.parameters["number"]!!
         val entry = runtime.lineup.entries().firstOrNull { it.enabled && it.number == number } ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel number")
+        val tuners = tuners[device(call)]
         if (tuners.incrementAndGet() > config.tuners) {
             tuners.decrementAndGet()
             tunersBusy(call)

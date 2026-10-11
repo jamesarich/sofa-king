@@ -33,6 +33,7 @@ The image sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/data`. 
 | `SOFA_HDHR_ENABLED` | No | HDHomeRun emulation for Plex at the root of the port, default `true` |
 | `SOFA_HDHR_ALLOW` | For Plex | Client IPs or CIDR blocks allowed on the unauthenticated HDHomeRun routes, for example the Plex server's address; unset admits the whole LAN |
 | `SOFA_HDHR_TUNERS` | No | Tuners Plex sees, default 2, at most `SOFA_MAX_SESSIONS` |
+| `SOFA_HDHR_EXTRA_PORTS` | For large lineups in Plex | Container ports for more HDHomeRun devices, each carrying part of the lineup; publish each one in `compose.yaml` |
 | `SOFA_HDHR_DEVICE_ID`, `SOFA_HDHR_NAME` | No | The device identity Plex stores; the ID defaults to a value derived from the server identity in the volume |
 
 Every variable in [configuration](live-tv.md#server-settings) can be added to `deploy/.env`. `JAVA_OPTS` reaches the JVM; without it the heap is a quarter of the container's memory limit.

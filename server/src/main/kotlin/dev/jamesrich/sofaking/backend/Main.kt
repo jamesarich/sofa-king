@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.http.backendModule
 import dev.jamesrich.sofaking.backend.store.openStore
+import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import java.time.Clock
@@ -20,7 +21,8 @@ fun main(): Unit = runBlocking<Unit> {
             store.close()
             throw failure
         }
-    val server = embeddedServer(Netty, host = config.host, port = config.port) {
+    val ports = listOf(config.port) + if (config.hdhr.enabled) config.hdhr.extraPorts else emptyList()
+    val server = embeddedServer(Netty, configure = { ports.forEach { p -> connector { host = config.host; port = p } } }) {
         backendModule(store, Clock.systemUTC(), runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr)
     }
     // The JVM halts as soon as its shutdown hooks return, so the hook itself runs the whole ordered close.

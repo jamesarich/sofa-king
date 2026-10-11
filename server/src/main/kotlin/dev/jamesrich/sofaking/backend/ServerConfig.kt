@@ -18,7 +18,14 @@ data class HdhrConfig(
     val friendlyName: String = "Sofa King",
     /** Client IPs or CIDR blocks; empty admits every address that reaches the port. */
     val allow: List<String> = emptyList(),
-)
+    /**
+     * Further listening ports, each one more device carrying its share of the lineup by a stable hash of the entry
+     * ID. Plex cannot save a channel map of several hundred channels on one device.
+     */
+    val extraPorts: List<Int> = emptyList(),
+) {
+    val devices: Int get() = 1 + extraPorts.size
+}
 
 data class ServerConfig(
     val host: String,
@@ -75,6 +82,10 @@ data class ServerConfig(
             require(friendlyName.isNotBlank() && friendlyName.length <= 64 && friendlyName.none { it < ' ' }) { "SOFA_HDHR_NAME must be 1 to 64 printable characters" }
             val allow = environment["SOFA_HDHR_ALLOW"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
             AddressAllowList(allow)
+            val extraPorts = environment["SOFA_HDHR_EXTRA_PORTS"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }.map { it.toIntOrNull() ?: 0 }
+            require(extraPorts.all { it in 1..65535 } && extraPorts.distinct().size == extraPorts.size && port !in extraPorts && extraPorts.size <= 7) {
+                "SOFA_HDHR_EXTRA_PORTS must list up to 7 distinct ports other than SOFA_PORT"
+            }
             return ServerConfig(
                 host,
                 port,
@@ -89,7 +100,7 @@ data class ServerConfig(
                 loopback,
                 adminToken,
                 OutputConfig(outputToken, guideDays),
-                HdhrConfig(hdhrEnabled, tuners, deviceId, friendlyName, allow),
+                HdhrConfig(hdhrEnabled, tuners, deviceId, friendlyName, allow, extraPorts),
             )
         }
 

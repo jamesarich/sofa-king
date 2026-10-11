@@ -68,6 +68,11 @@ class ServerConfigTest {
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_ALLOW" to "plex.lan")) }
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_ALLOW" to "192.168.1.0/33")) }
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_ENABLED" to "off")) }
+        assertEquals(listOf(8081, 8082), ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to " 8081,8082 ")).hdhr.extraPorts)
+        assertEquals(3, ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "8081,8082")).hdhr.devices)
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "8080")) }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "8081,8081")) }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "x")) }
     }
     @Test fun `invalid port or empty values fail before binding`() {
         for (value in listOf("no", "0", "65536", "-1", "")) {

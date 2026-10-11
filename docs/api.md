@@ -141,6 +141,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | Method | Path | Response or action |
 | --- | --- | --- |
 | GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Feed channels with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1–1000 (default 100) |
+| GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`. An empty list means nothing is playing |
 | GET | `/api/v1/admin/guides` | Guide import status: `lastSuccessAt`, `errorCode`, `channels`, retained `programmes` |
 | GET | `/api/v1/admin/guides/{id}/channels?q=&limit=` | XMLTV channels of a guide (`channelId`, `displayName`, `icon`) |
 | GET | `/api/v1/admin/lineup` | Every entry in lineup order |

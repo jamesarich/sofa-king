@@ -25,6 +25,9 @@ class SessionManagerTest {
             assertEquals("IDEMPOTENCY_CONFLICT", assertFailsWith<ApiFailure> { sessions.open(request.copy(intent = "watch")) }.code)
             val promoted = sessions.update(opened.id, UpdatePlayback("watch"))
             assertEquals("watch", promoted.intent); assertEquals(opened.descriptor, promoted.descriptor)
+            val listed = sessions.snapshot().single()
+            assertEquals(opened.id, listed.id); assertEquals("watch", listed.intent); assertEquals("fixture", listed.providerId)
+            assertFalse(listed.external); assertFalse(listed.busy); assertEquals(promoted.expiresAt, listed.expiresAt)
             assertEquals("CAPACITY_EXHAUSTED", assertFailsWith<ApiFailure> { sessions.open(request.copy(idempotencyKey = "two")) }.code)
             val mediaJob = Job()
             sessions.acquire(opened.id, 1, opened.descriptor.url.substringAfterLast('/'), mediaJob)
@@ -35,6 +38,7 @@ class SessionManagerTest {
             val second = sessions.open(request.copy(idempotencyKey = "two"))
             clock.now = clock.now.plusSeconds(91); sessions.expire()
             assertEquals("SESSION_EXPIRED", assertFailsWith<ApiFailure> { sessions.get(second.id) }.code)
+            assertTrue(sessions.snapshot().isEmpty(), "an expired session is not listed")
             sessions.close()
         } } } } finally { dir.toFile().deleteRecursively() }
     }

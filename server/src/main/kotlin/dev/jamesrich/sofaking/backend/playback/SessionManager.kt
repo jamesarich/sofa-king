@@ -97,6 +97,10 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     suspend fun attach(id: String, job: Job) = mutex.withLock { active(id).requests += job; Unit }
     suspend fun offeringOf(id: String): Offering = mutex.withLock { active(id).offering }
     suspend fun count(): Int = mutex.withLock { reap(); sessions.size }
+    suspend fun snapshot(): List<ActiveSession> = mutex.withLock {
+        reap()
+        sessions.values.map { ActiveSession(it.id, it.request.channelId, it.intent, it.external, it.busy, it.offering.providerId, it.expires.toString()) }
+    }
     /** The source each channel would play now, for players that need the protocol before opening. */
     suspend fun preferredOfferings(channelIds: Collection<String>): Map<String, Offering> {
         val states = store.allHealth()

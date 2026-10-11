@@ -19,6 +19,11 @@ import kotlinx.serialization.Serializable
 @Serializable data class UpdatePlayback(val intent: String? = null)
 @Serializable data class PlaybackDescriptor(val protocol: String, val mimeType: String, val url: String, val epoch: Int)
 @Serializable data class PlaybackSession(val id: String, val channelId: String, val intent: String, val expiresAt: String, val descriptor: PlaybackDescriptor)
+/** A live session as the admin API lists it; [external] marks an M3U or HDHomeRun player, [busy] a media request in flight. */
+@Serializable data class ActiveSession(
+    val id: String, val channelId: String, val intent: String, val external: Boolean, val busy: Boolean,
+    val providerId: String, val expiresAt: String,
+)
 @Serializable data class ProviderStatus(
     val id: String, val lastSuccessAt: String? = null, val errorCode: String? = null, val channels: Int = 0,
     val sources: Int = 0, val skippedEntries: Int = 0, val skipReasons: String? = null, val notes: String? = null,

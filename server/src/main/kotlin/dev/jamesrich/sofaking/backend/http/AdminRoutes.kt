@@ -27,6 +27,7 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
         return entry.info(runtime, states, runtime.lineup.entries().indexOfFirst { it.id == entry.id })
     }
     route("/api/v1/admin") {
+        get("/sessions") { call.respond(runtime.sessions.snapshot()) }
         get("/candidates") {
             val query = call.request.queryParameters["q"]?.trim()?.lowercase().orEmpty()
             val provider = call.request.queryParameters["provider"]

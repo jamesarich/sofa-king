@@ -1,0 +1,75 @@
+{
+ "channel": {
+  "item": [
+   {
+    "callsign": "XINTOUCH-CMS",
+    "genre": [
+     {
+      "genreId": 768,
+      "value": "Faith & Family"
+     }
+    ],
+    "guid": {
+     "value": "99951481"
+    },
+    "number": 2013,
+    "properties": {
+     "is_live": "true"
+    },
+    "title": "In Touch + Network"
+   },
+   {
+    "callsign": "XFOXNMT-CMS",
+    "genre": [
+     {
+      "genreId": 13,
+      "value": "News"
+     }
+    ],
+    "guid": {
+     "value": "99991635"
+    },
+    "number": 4,
+    "properties": {
+     "is_live": "true"
+    },
+    "title": "LiveNOW from FOX"
+   },
+   {
+    "callsign": "XFMC--DRM",
+    "genre": [
+     {
+      "genreId": 2,
+      "value": "Comedy"
+     }
+    ],
+    "guid": {
+     "value": "99991351"
+    },
+    "number": 902,
+    "properties": {
+     "is_live": "true"
+    },
+    "title": "Xumo Free Comedy Movies"
+   },
+   {
+    "callsign": "XMSTRJAM-CMS",
+    "genre": [
+     {
+      "genreId": 783,
+      "value": "Automotive"
+     }
+    ],
+    "guid": {
+     "value": "99951597"
+    },
+    "number": 603,
+    "properties": {
+     "is_live": "false"
+    },
+    "title": "Monster Jam"
+   }
+  ]
+ },
+ "version": 1
+}

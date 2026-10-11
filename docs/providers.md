@@ -22,7 +22,8 @@ These are unofficial clients. They call the same public endpoints each service's
     { "id": "stirr", "type": "native", "service": "stirr" },
     { "id": "tcl", "type": "native", "service": "tcl" },
     { "id": "roku", "type": "native", "service": "roku" },
-    { "id": "localnow", "type": "native", "service": "localnow", "options": { "dma": "679", "market": "iaDesMoines" } }
+    { "id": "localnow", "type": "native", "service": "localnow", "options": { "dma": "679", "market": "iaDesMoines" } },
+    { "id": "xumo", "type": "native", "service": "xumo" }
   ]
 }
 ```
@@ -30,7 +31,7 @@ These are unofficial clients. They call the same public endpoints each service's
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo` |
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `dma` and `market` for `localnow` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
@@ -133,6 +134,12 @@ Fragility: CloudFront in front of the web client sometimes answers 403 for a whi
 The localnow.com web client. The page's `__NEXT_DATA__` runtime config carries the data-store host and a public app token (`DSP_TOKEN`, a JWT valid about a month, re-read every 12 hours or on a 401 or 403). One `live/epg/US/website` request lists every channel for the configured `dma` and `market` (`679` and `iaDesMoines` add Local Now Des Moines and the Des Moines station channels; without them the national lineup comes back), keyed by `video_id`, with number, logo, first genre as group and the next five programmes, which are the whole guide; the snapshot is kept 15 minutes. Channels whose `subscription_access` is not `unlocked` are left out (none today). A resolve asks `video/play/ID/1920/1080` and hands its MediaTailor `video_m3u8` to the relay for an hour; an answer with a `drm_config` fails as the channel's fault.
 
 Fragility: five programmes per channel cover as little as an hour on some channels, so the guide is only as deep as the last refresh. The app token is the web client's and changes with it.
+
+### xumo (Xumo Play)
+
+The play.xumo.com web API on valencia-app-mds.xumo.com, market `10006`, sent with the install's device id. The channel list is the market's `proxy/channels/list`, keyed by the channel's guid, with number, first genre as group and the color logo; live channels whose call sign ends in `-DRM` or `DRM-CMS` are Widevine and left out (18 of 451 today), as are channels not marked live. The guide is the EPG in six-hour blocks (`epg/MARKET/DATE/BLOCK.json`, 50 channels a page) from the current block for 18 hours, keeping programmes only for mapped channels; a block not yet published (HTTP 400) ends it. A resolve reads the channel's `broadcast` document for the current hour and takes its `ssaiStreamUrl`, or else the live asset's HLS source, fills the `[IFA]`, `[PLATFORM]`, `[CCPA_Value]` and similar macros (blanking the rest), follows the one-hop JSON pointer a few channels use instead of a manifest, and hands the URL to the relay for an hour.
+
+Fragility: the DRM filter is a call-sign convention, not a flag; a DRM channel named otherwise lists and fails to decode. About ten guide requests per block.
 
 ## Checking a provider
 

@@ -1,0 +1,17 @@
+{
+ "refresh": {
+  "from": 1,
+  "to": 2
+ },
+ "assets": [
+  {
+   "id": "XMOLDASSET",
+   "live": false
+  },
+  {
+   "id": "XM1YMKFW9XMSV6",
+   "type": "Asset",
+   "live": true
+  }
+ ]
+}

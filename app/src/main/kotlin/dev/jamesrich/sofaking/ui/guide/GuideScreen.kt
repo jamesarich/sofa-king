@@ -288,7 +288,8 @@ fun GuideScreen(
         val cells = GuideTimeline.cellsFor(lineup.guide[current.channel.guideId].orEmpty(), windowStart, windowEnd)
         val cell = GuideTimeline.cellAfterUpdate(cells, current.cell, cursor) ?: return@LaunchedEffect
         if (cell != current.cell) focused = FocusedCell(current.channel, cell)
-        if (gridFocused) requestJump(current.channel.guideId, cursor)
+        // A row move already requested keeps its jump.
+        if (gridFocused && pendingRow == null) requestJump(current.channel.guideId, cursor)
     }
 
     // Up and Down land on the cell under the time cursor. Default focus search treats any cell overlapping a

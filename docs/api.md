@@ -20,7 +20,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 | DELETE | `/api/v1/playback-sessions/{id}` | Release the session; returns 204 |
 | GET | `/media/sessions/{id}/{epoch}/{resource}` | Session-authorized HLS or MPEG-TS media |
 | GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
-| GET | `/output/guide.xml?days=` | The lineup's programmes as XMLTV |
+| GET | `/output/guide.xml?days=` | The lineup's programs as XMLTV |
 | GET | `/output/stream/{channelId}.m3u8` or `.ts` | Opens a player session for the channel and streams it |
 | GET | `/logos/{key}` | A cached lineup logo, public, see [logos](#logos) |
 | GET | `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/device.xml` | HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
@@ -105,7 +105,7 @@ http://HOST/output/stream/CHANNEL_UUID.m3u8?token=TOKEN
 
 `tvg-id` is the channel ID, the same value the XMLTV uses, so players match guide and channel without a name lookup. `HOST` is the `Host` header of the request, so the URLs work through a port mapping; `X-Forwarded-Proto: https` switches the scheme. The stream suffix follows the protocol of the source the channel would play now: `.m3u8` for HLS, `.ts` for MPEG-TS and for a channel without an eligible source, which lists but fails at play time. After a source's protocol is detected (a probe or a fetch), the suffix changes on the player's next playlist refresh.
 
-`GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3; `?days=1`-`14` overrides). Times are `YYYYMMDDHHMMSS +0000`. Only channels with a guide mapping have programmes. The body is streamed and uncompressed.
+`GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3; `?days=1`-`14` overrides). Times are `YYYYMMDDHHMMSS +0000`. Only channels with a guide mapping have programs. The body is streamed and uncompressed.
 
 `tvg-logo` and `<icon>` name the channel's logo at `http://HOST/logos/KEY`, never the feed's own logo host.
 

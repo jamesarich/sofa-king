@@ -8,7 +8,7 @@ The data directory holds everything the server keeps across restarts:
 
 | Path | Contents |
 | --- | --- |
-| `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programmes, source health and probe times, curation rules, settings and change log, native provider device IDs and session tokens, and the server identity |
+| `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, curation rules, settings and change log, native provider device IDs and session tokens, and the server identity |
 | `logos/` | Cached lineup logos, one file per source URL |
 
 Playback sessions and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions.

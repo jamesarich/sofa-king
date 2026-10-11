@@ -85,7 +85,7 @@ Each guide object configures one XMLTV source, independent of any provider:
 | `headers` | `{}` | Request headers for the guide |
 | `refreshSeconds` | `21600` | Import interval; minimum 300 seconds |
 
-Guides are parsed as a stream. The server keeps the `<channel>` index (and every channel ID seen on a programme) for curation, and it keeps programmes only for channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programmes within one fetch. The download follows up to five redirects and is bounded by a 15-second socket inactivity timeout rather than a total request timeout. It is read as gzip whenever the body starts with the gzip magic bytes, whatever the content type says. A `<!DOCTYPE tv SYSTEM "xmltv.dtd">` declaration is accepted. The DTD is never fetched, and an entity declared in the document fails the import instead of resolving. In UTF-8 and single-byte guides, control characters that XML forbids are dropped before parsing and counted as `controlChars` in the import log line. A UTF-16 guide is parsed as sent. Each guide fails on its own. `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one, the others keep refreshing, and the log line carries the exception class and its message with URLs redacted.
+Guides are parsed as a stream. The server keeps the `<channel>` index (and every channel ID seen on a program) for curation, and it keeps programs only for channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programs within one fetch. The download follows up to five redirects and is bounded by a 15-second socket inactivity timeout rather than a total request timeout. It is read as gzip whenever the body starts with the gzip magic bytes, whatever the content type says. A `<!DOCTYPE tv SYSTEM "xmltv.dtd">` declaration is accepted. The DTD is never fetched, and an entity declared in the document fails the import instead of resolving. In UTF-8 and single-byte guides, control characters that XML forbids are dropped before parsing and counted as `controlChars` in the import log line. A UTF-16 guide is parsed as sent. Each guide fails on its own. `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one, the others keep refreshing, and the log line carries the exception class and its message with URLs redacted.
 
 ### Import limits
 
@@ -97,7 +97,7 @@ Guides are parsed as a stream. The server keeps the `<channel>` index (and every
 | Channels per provider | 10,000 |
 | Sources per provider | 20,000 |
 | Channels per guide | 100,000 |
-| Retained programmes per guide | 1,000,000 |
+| Retained programs per guide | 1,000,000 |
 
 The XMLTV limit counts decompressed bytes as they stream past the parser, so it caps the download without buffering it. A guide that crosses it fails with `IMPORT_FAILED` and `Guide exceeds size limit` in the log.
 
@@ -155,7 +155,7 @@ The tuner routes carry no token: anyone who can reach the port can list the line
 
 1. Set `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` and `SOFA_HDHR_TUNERS` to the number of simultaneous Plex streams and recordings, at most `SOFA_MAX_SESSIONS`. Restart, then check from the Plex host with `curl --fail http://SERVER_HOST:8080/discover.json`.
 2. In Plex Web, open Settings, then Live TV & DVR, then Set Up Plex DVR. The server does not answer SSDP discovery, so choose "Don't see your HDHomeRun device? Enter its network address manually" and enter `SERVER_HOST:8080`. Plex reads `/discover.json` and `/lineup.json` and lists the device by `SOFA_HDHR_NAME` with its tuner count.
-3. Plex shows the channels from `/lineup.json`. At the guide step, choose "Have an XMLTV guide on your server?" and enter `http://SERVER_HOST:8080/output/guide.xml?token=OUTPUT_TOKEN`. Plex fetches the guide on its own schedule. Keep `SOFA_XMLTV_DAYS` at 3 or more so a daily refresh never runs out of programmes.
+3. Plex shows the channels from `/lineup.json`. At the guide step, choose "Have an XMLTV guide on your server?" and enter `http://SERVER_HOST:8080/output/guide.xml?token=OUTPUT_TOKEN`. Plex fetches the guide on its own schedule. Keep `SOFA_XMLTV_DAYS` at 3 or more so a daily refresh never runs out of programs.
 4. Map the channels. The XMLTV lists each channel's name and number as display names, and the lineup carries the same values, so Plex pairs most of them. Choose the rest from the dropdowns. Plex saves a device's channel map in one request, and a very large map on one device fails with "There was a problem saving channel mappings". Split a large lineup across devices, as described below.
 5. Play a channel. Plex opens `/auto/vNUMBER`. An MPEG-TS source streams through the fan-out. An HLS source is remuxed to MPEG-TS by FFmpeg with stream copy, so CEA-608 captions inside the video reach Plex's caption setting. When every tuner or session slot is taken, Plex reports "all tuners are in use".
 

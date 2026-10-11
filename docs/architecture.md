@@ -1,6 +1,6 @@
 # Architecture
 
-One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programmes, server identity, source health, probe attempt times, observation history, the logo cache index, native provider state (device ids, tokens), and the curation rules, settings, availability state and change log; the logo files sit beside it in the data directory. Playback sessions and resolved native stream URLs exist in memory.
+One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programs, server identity, source health, probe attempt times, observation history, the logo cache index, native provider state (device ids, tokens), and the curation rules, settings, availability state and change log; the logo files sit beside it in the data directory. Playback sessions and resolved native stream URLs exist in memory.
 
 ## Modules
 
@@ -28,7 +28,7 @@ Lineup logo URLs → LogoCache (fetch, validate, data/logos/<key>) → /logos/{k
 Rules + settings (SQLite) + lineup + feeds + health → CurationService.plan → apply (one lineup transaction) → curation_change log
 ```
 
-Provider imports publish complete snapshots; invalid imports retain the previous snapshot. Guide imports replace one guide's rows atomically and keep only programmes for channels the lineup maps onto that guide; the channel index is kept whole. Immutable in-memory indexes serve catalog requests; guide programmes are read from SQLite by guide, channel and window. SQLite uses WAL, foreign keys, bounded blocking transactions and versioned atomic migrations whose versions may have gaps.
+Provider imports publish complete snapshots; invalid imports retain the previous snapshot. Guide imports replace one guide's rows atomically and keep only programs for channels the lineup maps onto that guide; the channel index is kept whole. Immutable in-memory indexes serve catalog requests; guide programs are read from SQLite by guide, channel and window. SQLite uses WAL, foreign keys, bounded blocking transactions and versioned atomic migrations whose versions may have gaps.
 
 An offering's protocol is the one detected in its stream body, by the probe's HTTP tier or by a media fetch, stored per offering ID and applied over every published snapshot. Until a detection exists, the import's protocol (the entry's `stream-type`, the feed's `defaultProtocol`, then the path extension) applies.
 
@@ -42,7 +42,7 @@ The app's channel ID is the lineup entry UUID. Entries imported from a Dispatcha
 
 Feed channel IDs (candidates) use published `channel-uuid` values, otherwise a UUID derived from the provider ID and the exact `channel-id` or `tvg-id`, otherwise from the provider ID and the source key. The source key is the URL's lowercase scheme and authority, its percent-decoded path and its remaining query parameters sorted, after the provider's renewable parameters are dropped (`SourceIdentity.kt`; the default list and the `renewableQuery` override are in [live TV](live-tv.md#source-identity)). Source IDs use explicit `stream-id` values when supplied, otherwise derive from provider, channel key and source key, so a rotated token changes neither ID and two URLs that differ only by a renewable parameter are one source. The Dispatcharr import matches streams by the same source key, falling back to a lone `scheme://authority/path` match. See [migrate from Dispatcharr](migrate-from-dispatcharr.md).
 
-Guide programmes belong to a guide ID and XMLTV channel ID; an entry's `legacyGuideId` is its mapped XMLTV channel ID. Programme IDs in the API derive from the entry ID, times and title.
+Guide programs belong to a guide ID and XMLTV channel ID; an entry's `legacyGuideId` is its mapped XMLTV channel ID. Program IDs in the API derive from the entry ID, times and title.
 
 ## Lineup
 
@@ -60,7 +60,7 @@ The HLS relay rewrites variant, audio, subtitle, key, initialization-map and seg
 
 ## Player outputs
 
-`/output/playlist.m3u` and `/output/guide.xml` are rendered from the catalog and the stored programmes on each request; nothing is cached or stored for them. `/output/stream/{id}` opens an external session: a watch session with no idempotency key whose lease is the player's activity. `SessionManager.acquire` and `finished` move its expiry 60 seconds past each media request, a request still in flight exempts it from reaping, and the request handler releases it when a TS response ends. Capacity eviction prefers a preview, then an external session with no request in flight. An HLS source is answered with a redirect to the session's root playlist, so one session serves every player on that channel; an MPEG-TS source is served through the same fan-out as an API session. The handler catches the relay's protocol-mismatch `410` and switches paths within the request.
+`/output/playlist.m3u` and `/output/guide.xml` are rendered from the catalog and the stored programs on each request; nothing is cached or stored for them. `/output/stream/{id}` opens an external session: a watch session with no idempotency key whose lease is the player's activity. `SessionManager.acquire` and `finished` move its expiry 60 seconds past each media request, a request still in flight exempts it from reaping, and the request handler releases it when a TS response ends. Capacity eviction prefers a preview, then an external session with no request in flight. An HLS source is answered with a redirect to the session's root playlist, so one session serves every player on that channel; an MPEG-TS source is served through the same fan-out as an API session. The handler catches the relay's protocol-mismatch `410` and switches paths within the request.
 
 ## Logos
 
@@ -84,7 +84,7 @@ Configured HTTP(S) feeds and guides, JSON control and admin requests, HLS/MPEG-T
 
 Health observation history is pruned to `SOFA_OBSERVATION_RETENTION_DAYS` (default 7) at the start of each probe batch; source health, strikes and probe attempt times are separate rows and are never pruned. The channels ETag derives from the lineup, the published channels and offerings, each guide's import time, the health table's row count and latest update, which entries' guides are still current, and the request's `Host` (the logo URLs carry it), so a matching `If-None-Match` is answered without building the body.
 
-Logs are key=value lines: provider imports (counts, skipped entries, duration, failure class), logo fetch failures (key, exception class, the message with every URL replaced by `<url>`, whether a stale file remains), guide imports (channels, retained programmes, duration; on failure the exception class and its message with every URL replaced by `<url>`), probe batches (outcome counts, duration) and health transitions (source ID, old and new state), curation runs (planned, applied and finding counts, whether enabled, duration) and each applied action (kind, entry ID, field, rule ID; never the value, which can be a logo URL), relay upstream reconnects and failures (source ID, attempt, exception class, HTTP status). A request that fails with a closed channel, broken pipe or connection reset, as when a player switches channels mid-body, logs at debug with the exception class; other request failures log at error. Stream URLs, guide URLs, query tokens and provider exception messages are never logged; a guide failure message is logged only after URL redaction.
+Logs are key=value lines: provider imports (counts, skipped entries, duration, failure class), logo fetch failures (key, exception class, the message with every URL replaced by `<url>`, whether a stale file remains), guide imports (channels, retained programs, duration; on failure the exception class and its message with every URL replaced by `<url>`), probe batches (outcome counts, duration) and health transitions (source ID, old and new state), curation runs (planned, applied and finding counts, whether enabled, duration) and each applied action (kind, entry ID, field, rule ID; never the value, which can be a logo URL), relay upstream reconnects and failures (source ID, attempt, exception class, HTTP status). A request that fails with a closed channel, broken pipe or connection reset, as when a player switches channels mid-body, logs at debug with the exception class; other request failures log at error. Stream URLs, guide URLs, query tokens and provider exception messages are never logged; a guide failure message is logged only after URL redaction.
 
 On SIGTERM the shutdown hook stops the HTTP server, closes the runtime (imports, probes, relay upstreams and sessions) and then the store, in that order, and logs each step.
 

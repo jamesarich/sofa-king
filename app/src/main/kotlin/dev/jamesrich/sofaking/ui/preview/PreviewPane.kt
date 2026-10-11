@@ -155,6 +155,7 @@ internal fun PreviewDetails(
  * [PREVIEW_DEBOUNCE_MS] after focus rests on a different channel; a stream the player already holds (the
  * channel just watched) keeps playing and its session goes back to preview intent. The player belongs to
  * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
+ * [muted] follows the guide's rest timers; [onFailedChanged] tells the guide when the preview has no picture.
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -164,10 +165,14 @@ internal fun PreviewVideo(
     channel: Channel?,
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
+    muted: Boolean,
+    onFailedChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var buffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
     var failed by remember { mutableStateOf(false) }
+    LaunchedEffect(failed) { onFailedChanged(failed) }
+    LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
     // Bumped when the relay answers 410, so the tune effect reopens the channel at once instead of after the debounce.
     var retune by remember { mutableIntStateOf(0) }
 

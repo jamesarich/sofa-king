@@ -1,6 +1,6 @@
 # Sofa King
 
-An Android TV and Google TV app for watching live channels from a [Sofa King server](https://github.com/jamesarich/sofa-king-backend). It has a program guide, muted channel previews, favorites, and a full-screen player with closed captions.
+An Android TV and Google TV app for watching live channels from a [Sofa King server](https://github.com/jamesarich/sofa-king-backend). It has a program guide, channel previews that unmute and go full screen as focus rests, favorites, and a full-screen player with closed captions.
 
 Requires Android 9 or later and a TV remote. Channels and guide data come from your server; the app does not include a channel subscription.
 

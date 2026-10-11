@@ -6,7 +6,7 @@ The app opens full screen on the channel you last watched; Back shows the guide 
 
 The Now chip, the Guide key and the Menu key return to the current time on the focused channel. Search filters by channel name, number or current program. The Search key starts voice search through the TV's speech recognizer and focuses the first match; the Search chip, a TV without a recognizer, or a dismissed recognizer open the text field instead. All, Favorites and category chips select channel groups.
 
-The focused channel plays in a muted preview after a 350 ms delay. OK opens that channel full-screen. Back returns to the same guide position. Long-press OK on a program toggles its channel's favorite status. In the guide, Back moves from the grid to the selected filter chip, and from the chips or the header it exits the app; open search closes first.
+The focused channel plays in a muted preview after a 350 ms delay. After focus has rested on it for 5 seconds the preview's sound comes on, and after 10 seconds the channel opens full screen, continuing the preview's stream; any key press restarts both timers and mutes the preview again. OK opens that channel full-screen at once. Back returns to the same guide position with the preview muted; the channel just left does not reopen by itself until focus moves to another channel. Long-press OK on a program toggles its channel's favorite status. In the guide, Back moves from the grid to the selected filter chip, and from the chips or the header it exits the app; open search closes first.
 
 The app shows its saved lineup while refreshing. Channels load before guide data. Automatic refresh runs every three hours; select Refresh to request a new load.
 

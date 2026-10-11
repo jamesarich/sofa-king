@@ -45,7 +45,7 @@ Models are immutable. A shared minute clock updates the guide and current-progra
 
 ## Playback
 
-MainActivity owns one ExoPlayer. Preview and full-screen playback share it, so opening the previewed channel preserves the stream. Preview tuning debounces focus by 350 ms. Tune effects wait for the activity to reach STARTED.
+MainActivity owns one ExoPlayer. Preview and full-screen playback share it, so opening the previewed channel preserves the stream. Preview tuning debounces focus by 350 ms. Tune effects wait for the activity to reach STARTED. `PreviewDwell` holds the preview's rest timers on the uptime clock: muted on tune, sound after 5 s, full screen after 10 s through the same promote handoff as OK; a key press or a focus move restarts both and mutes, focus off the grid or an open search stops them, and the channel the player was just left on is suppressed until another channel takes focus.
 
 Every stream comes from a playback session. `PlaybackSessions` holds at most one: the preview opens it with `preview` intent, and OK on the previewed channel promotes the same session to `watch` with a PATCH, so the player keeps its item and nothing reloads. Tuning another channel releases the held session, then opens the next. The lease is renewed every 15 seconds with an empty PATCH, inside the 45-second preview lease. A renewal that returns a new descriptor epoch, or `410 SESSION_EXPIRED` followed by a reopen, is published on `replaced`; MainActivity swaps the held item's URL and prepares it. A 410 from the media relay is a player error whose first reconnect runs without the backoff delay; tuning again re-reads the session and takes the current URL.
 

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,11 +63,14 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
+import dev.jamesrich.sofaking.ui.preview.PreviewDwell
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
 import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -111,6 +116,9 @@ internal fun initialGuideRow(visible: List<Channel>, lastFocused: String?, lastW
     return visible.indexOfFirst { it.guideId == wanted }
 }
 
+/** What the preview's rest timers watch: the channel under focus, the last key press and whether the preview failed. */
+private data class DwellInput(val channelId: String?, val nonce: Int, val failed: Boolean)
+
 /** The cell most recently focused in the grid, shown by the preview pane. */
 private data class FocusedCell(val channel: Channel, val cell: GuideCell)
 
@@ -118,7 +126,8 @@ private data class FocusedCell(val channel: Channel, val cell: GuideCell)
  * The guide grid. Filter, search, time cursor, scroll and the focused channel are saveable, so a trip to the
  * player and back lands where the user left; [initialChannelId] (the last channel watched) is where a fresh
  * guide starts, [startAtNow] puts the cursor at the current time instead of where it was, and [startSearch]
- * opens search by voice on arrival.
+ * opens search by voice on arrival. [returnedFrom] is the channel the full screen was just left on, which the
+ * preview's rest timer must not reopen until focus has moved.
  */
 @Composable
 fun GuideScreen(
@@ -127,6 +136,7 @@ fun GuideScreen(
     initialChannelId: String?,
     startAtNow: Boolean,
     startSearch: Boolean,
+    returnedFrom: String?,
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     previewPlayer: ExoPlayer,
@@ -204,6 +214,12 @@ fun GuideScreen(
     val focusedState = remember { mutableStateOf<FocusedCell?>(null) }
     var focused by focusedState
     var gridFocused by remember { mutableStateOf(false) }
+    // The preview's rest timers: muted on tune, sound after five seconds, full screen after ten, restarted by
+    // any key. Both run only while a cell holds focus with search closed, so typing never opens a channel.
+    val dwell = remember { PreviewDwell(suppressedChannelId = returnedFrom) }
+    var dwellNonce by remember { mutableIntStateOf(0) }
+    var previewMuted by remember { mutableStateOf(true) }
+    var previewFailed by remember { mutableStateOf(false) }
     var lastFocusedGuideId by rememberSaveable { mutableStateOf<String?>(null) }
     var jump by remember { mutableStateOf<GuideJump?>(null) }
     var jumpCount by remember { mutableIntStateOf(0) }
@@ -406,9 +422,32 @@ fun GuideScreen(
         )
     }
 
-    // Remote shortcuts answered wherever focus is; everything else goes on to the focused node.
+    // Observed from the snapshot, not read in composition, so a focus move still recomposes only the band.
+    LaunchedEffect(Unit) {
+        snapshotFlow { DwellInput(focused?.channel?.guideId?.takeIf { gridFocused && !searchOpen }, dwellNonce, previewFailed) }
+            .collectLatest { input ->
+                if (dwell.channelId != input.channelId) dwell.onFocus(input.channelId, SystemClock.uptimeMillis())
+                while (true) {
+                    val now = SystemClock.uptimeMillis()
+                    previewMuted = dwell.isMuted(now)
+                    if (dwell.opensFullScreen(now)) {
+                        // The same handoff as OK: the preview session is promoted, nothing reloads. A preview
+                        // without a picture is not opened; it would only carry its failure to the full screen.
+                        val channel = focused?.channel?.takeIf { it.guideId == dwell.channelId }
+                        if (channel != null && !input.failed) onPlay(channel)
+                        return@collectLatest
+                    }
+                    delay(dwell.nextTransitionMs(now) ?: return@collectLatest)
+                }
+            }
+    }
+
+    // Remote shortcuts answered wherever focus is; everything else goes on to the focused node. Every key
+    // press restarts the preview's rest timers.
     val onGuideKey: (KeyEvent) -> Boolean = handler@{ event ->
         if (event.type != KeyEventType.KeyDown) return@handler false
+        dwell.onKey(SystemClock.uptimeMillis())
+        dwellNonce++
         when (event.key.guideShortcut()) {
             GuideShortcut.NOW -> onNow()
             GuideShortcut.SEARCH -> openVoiceSearch()
@@ -430,6 +469,8 @@ fun GuideScreen(
                 sessions = sessions,
                 captionsEnabled = captionsEnabled,
                 captionStyle = captionStyle,
+                muted = previewMuted,
+                onFailedChanged = { previewFailed = it },
             )
         } else {
             chips(Modifier.fillMaxWidth())
@@ -517,6 +558,8 @@ private fun PreviewBand(
     sessions: PlaybackSessions,
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
+    muted: Boolean,
+    onFailedChanged: (Boolean) -> Unit,
 ) {
     val cell = focused.value
     Row(Modifier.fillMaxWidth().height(PREVIEW_BAND_HEIGHT), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -541,6 +584,8 @@ private fun PreviewBand(
             channel = cell?.channel,
             captionsEnabled = captionsEnabled,
             captionStyle = captionStyle,
+            muted = muted,
+            onFailedChanged = onFailedChanged,
         )
     }
 }

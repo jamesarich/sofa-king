@@ -29,6 +29,7 @@ Unit tests run against MockWebServer; no server is needed for offline developmen
 - MainActivity owns one ExoPlayer. Preview and full-screen screens borrow it; neither releases it.
 - Every stream is a server playback session owned by `PlaybackSessions` in the ViewModel; screens call `tune` and `setIntent`, never the session API directly. The app holds one session at a time.
 - The preview opens a `preview` session; OK promotes the same session to `watch` with `setIntent`. Do not reopen or reload on the handoff.
+- The preview's rest timers live in `PreviewDwell` (muted on tune, sound at 5 s, full screen at 10 s, any key restarts both); the auto full screen uses the OK handoff, runs only while a grid cell has focus with search closed, and never refires for the channel the player was just left on until focus moves. Keep the timing decisions in the class, not in effects.
 - Tag media items with the channel id as `mediaId` through `mediaItemFor`, and set the MIME type from the descriptor; never let Media3 sniff a session URL.
 - Renew well inside the 45 s preview lease (15 s). Release on channel change, Settings and ON_STOP; reopen on ON_START. Reopen on `replaced` and on a 410 from the relay by re-reading the session, not by retrying the old URL.
 - Session opens run under NonCancellable and a canceled tune releases what it opened. Never leak a session: capacity is small and the oldest preview is evicted.

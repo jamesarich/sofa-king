@@ -79,9 +79,10 @@ class MainActivity : ComponentActivity() {
 private sealed interface Screen {
     /**
      * [atNow] moves the guide's cursor to the current time on arrival (the Guide key from the player); [search]
-     * opens its search by voice (the Search key). Neither survives a restore.
+     * opens its search by voice (the Search key); [returnedFrom] is the channel the player was left on, which
+     * the preview must not reopen by itself until focus moves. None survives a restore.
      */
-    data class Guide(val atNow: Boolean = false, val search: Boolean = false) : Screen
+    data class Guide(val atNow: Boolean = false, val search: Boolean = false, val returnedFrom: String? = null) : Screen
     data class Player(val guideId: String) : Screen
     data object Settings : Screen
 }
@@ -105,6 +106,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     // once per process (restored across configuration changes), and before the guide composes, so the preview
     // never opens a session that the full screen is about to replace.
     var launchDecided by rememberSaveable { mutableStateOf(false) }
+    // The channel the player has tuned, so the guide knows which one it came back from.
+    var watching by remember { mutableStateOf<String?>(null) }
     val launch = launchTarget(state, settings)
     LaunchedEffect(launch, launchDecided) {
         if (launchDecided || launch == LaunchTarget.Undecided) return@LaunchedEffect
@@ -200,14 +203,17 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 player = player,
                 sessions = sessions,
                 captionSync = captionSync,
-                onExit = { screen = Screen.Guide() },
-                onGuide = { screen = Screen.Guide(atNow = true) },
-                onSearch = { screen = Screen.Guide(search = true) },
-                onChannelChanged = { vm.setLastChannel(it.guideId) },
+                onExit = { screen = Screen.Guide(returnedFrom = watching) },
+                onGuide = { screen = Screen.Guide(atNow = true, returnedFrom = watching) },
+                onSearch = { screen = Screen.Guide(search = true, returnedFrom = watching) },
+                onChannelChanged = {
+                    watching = it.guideId
+                    vm.setLastChannel(it.guideId)
+                },
                 reloadLineup = vm::reloadLineup,
                 onChannelGone = { channel ->
                     notice = context.getString(R.string.channel_gone, channel.label())
-                    screen = Screen.Guide()
+                    screen = Screen.Guide(returnedFrom = watching)
                 },
                 captionsEnabled = settings?.captionsEnabled ?: false,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },
@@ -255,6 +261,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                         lastChannel = settings?.lastChannel,
                         startAtNow = current.atNow,
                         startSearch = current.search,
+                        returnedFrom = current.returnedFrom,
                         onPlay = { screen = Screen.Player(it) },
                         onToggleFavorite = vm::toggleFavorite,
                         previewPlayer = player,
@@ -275,6 +282,7 @@ private fun GuideOrEmpty(
     lastChannel: String?,
     startAtNow: Boolean,
     startSearch: Boolean,
+    returnedFrom: String?,
     onPlay: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     previewPlayer: ExoPlayer,
@@ -291,6 +299,7 @@ private fun GuideOrEmpty(
             initialChannelId = lastChannel,
             startAtNow = startAtNow,
             startSearch = startSearch,
+            returnedFrom = returnedFrom,
             onPlay = { onPlay(it.guideId) },
             onToggleFavorite = { onToggleFavorite(it.guideId) },
             previewPlayer = previewPlayer,

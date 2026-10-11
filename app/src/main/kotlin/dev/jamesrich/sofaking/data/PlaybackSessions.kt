@@ -116,6 +116,11 @@ class PlaybackSessions(
         }
     }
 
+    /** [release] on this instance's own scope, for callers that cannot suspend or whose scope may already be canceled. */
+    fun releaseAsync() {
+        scope.launch { release() }
+    }
+
     /** Opens a fresh session for the channel released last, with its intent; null when there is none to return to. */
     suspend fun reopen(): PlaybackStream? {
         val (channelId, intent) = mutex.withLock { resumable } ?: return null

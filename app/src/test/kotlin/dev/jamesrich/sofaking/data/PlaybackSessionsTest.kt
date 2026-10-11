@@ -303,6 +303,16 @@ class PlaybackSessionsTest {
     }
 
     @Test
+    fun `releaseAsync releases the held session without a suspending caller`() = runBlocking {
+        sessions.tune("c1", PlaybackIntent.PREVIEW)
+
+        sessions.releaseAsync()
+
+        awaitRequests { requests -> requests.any { it == "DELETE /api/v1/playback-sessions/s1" } }
+        assertNull(sessions.current.value)
+    }
+
+    @Test
     fun `configuring another server releases the held session`() = runBlocking {
         sessions.tune("c1", PlaybackIntent.PREVIEW)
 

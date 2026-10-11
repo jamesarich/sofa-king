@@ -161,7 +161,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     val currentScreen by rememberUpdatedState(screen)
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         player.stop()
-        scope.launch { sessions.release() }
+        sessions.releaseAsync()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
         if (currentScreen != Screen.Settings && player.mediaItemCount > 0 && player.playbackState == Player.STATE_IDLE) {

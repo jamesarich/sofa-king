@@ -19,7 +19,8 @@ These are unofficial clients. They call the same public endpoints each service's
     { "id": "pbs", "type": "native", "service": "pbs", "options": { "zip": "50309" } },
     { "id": "samsung", "type": "native", "service": "samsung", "options": { "region": "us" } },
     { "id": "plex", "type": "native", "service": "plex" },
-    { "id": "stirr", "type": "native", "service": "stirr" }
+    { "id": "stirr", "type": "native", "service": "stirr" },
+    { "id": "tcl", "type": "native", "service": "tcl" }
   ]
 }
 ```
@@ -27,7 +28,7 @@ These are unofficial clients. They call the same public endpoints each service's
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl` |
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region |
@@ -112,6 +113,12 @@ Fragility: the compound part id carries a server prefix Plex rotates; only `grid
 The stirr.com web API. The channel list is one `videos/list` document of every live channel (`content_type=4`), keyed by `videoid`, with the channel number, the first category as the group and the logo (the square thumb when there is none); channels marked `drm_protected` are left out (none today). The guide is the per-channel `epg` endpoint in UTC, for mapped channels only. A resolve POSTs to `v2/videos/ID/playable`, which answers an Aniview, Wurl or other ad-stitched HLS URL carrying a session and a `vx_token` that lives about 12 hours; `[vx_nonce]` is blanked and the URL is handed to the relay for an hour with the web client's `Origin` and `Referer`.
 
 Fragility: the list document is over a megabyte with rows nested by category, so rows are found by shape (`videoid` and `title`). Each channel's stream comes from a different ad stitcher, so one channel can fail while the rest play.
+
+### tcl (TCL TV+)
+
+The tcltv.plus web API on gateway-prod.ideonow.com, sent with the install's device id. The `livetab` lists the categories; one `programlist/by/category` request per category (the personal `recommend` row is skipped) carries every channel in it, keyed by `bundle_id`, with its logo, its ad-stitched HLS template and its programmes from an hour ago to eleven hours ahead, so the channel list and the guide are the same requests, cached for 55 minutes. The group is the first themed category that lists the channel; the curated rows (TCL TOP 15, Featured, Bingeable, TV Favorites) only group what nothing else does. TCL has no channel numbers. Channels with `drm` are left out (none today). A resolve posts the template to `format-stream-url`, as the TCL client does, which fills its own macros and percent-encodes literal brackets; the brace macros it leaves (`{DEVICE_ID}` and the like) are filled with the device id and privacy defaults or blanked, and the URL is handed to the relay for an hour.
+
+Fragility: about 35 category requests per refresh. Seasonal rows (Happy Halloween) are themed as far as the client can tell and group the channels they list first. Upstream streams come from Xumo, Amagi, Wurl, Frequency and others, each with its own ad macros.
 
 ## Checking a provider
 

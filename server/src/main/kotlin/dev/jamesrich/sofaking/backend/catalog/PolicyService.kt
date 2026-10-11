@@ -205,7 +205,13 @@ class PolicyService(
 
     /** Writes [bytes] as the whole policy when [ifMatch] is the loaded revision, then applies it. */
     suspend fun replace(ifMatch: String, bytes: ByteArray): PolicyWriteResult {
-        file.replace(ifMatch, bytes)
+        val before = file.current().policy
+        val written = file.replace(ifMatch, bytes).policy
+        // A number a person changed or removed in the new file is theirs now; a reclaim must never delete it.
+        val taken = written.numbering.assigned.filterTo(HashSet()) { key ->
+            written.stations[key]?.number.let { it == null || it != before.stations[key]?.number }
+        }
+        if (taken.isNotEmpty()) file.edit(null) { tree -> withAssignedKeys(tree, add = emptySet(), remove = taken) }
         val applied = apply("policy")
         return PolicyWriteResult(document(), applied)
     }

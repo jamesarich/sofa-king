@@ -322,6 +322,20 @@ class PolicyApplyTest {
             assertEquals(setOf("ts station", "twin sports"), assignedIn(policyFile))
         }
     }
+
+    @Test fun `a policy PUT that changes a server-assigned number takes the key out of the assigned list`() = testApplication {
+        withPolicy {
+            runtime.policy!!.apply("test")
+            val before = Json.parseToJsonElement(Files.readString(policyFile)).jsonObject
+            val revision = runtime.policy!!.document().revision
+            val stations = before.getValue("stations").jsonObject.toMutableMap()
+            stations["ts station"] = JsonObject(stations.getValue("ts station").jsonObject + ("number" to JsonPrimitive("77")))
+            val edited = JsonObject(before + ("stations" to JsonObject(stations))).toString()
+            val put = client.put("/api/v1/admin/policy") { asAdmin(); header(HttpHeaders.IfMatch, "\"$revision\""); setBody(edited) }
+            assertEquals(HttpStatusCode.OK, put.status, put.bodyAsText())
+            assertEquals(setOf("station", "twin sports"), assignedIn(policyFile), "the changed number is a person's now; the unchanged ones stay the server's")
+        }
+    }
 }
 
 class PolicyLoopTest {

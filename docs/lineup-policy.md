@@ -77,6 +77,7 @@ A learned alias for a pair in `names.never` is ignored and removed at the next w
 | `numbering.floor` | `1000` | First number handed out when a station's own number is taken or not numeric |
 | `numbering.keepProviderNumbers` | `true` | Use the leading channel's own number when it is free; ignored while `numbering.groups` is set |
 | `numbering.groups` | `{}` | Group to the first number of its block, such as `{"News": 100, "Sports": 200}` |
+| `numbering.assigned` | `[]` | Kept by the server: the station keys whose numbers it wrote. Only these numbers are reclaimed when a station has been gone for `keepMissingDays`; a number set or changed by hand leaves the list |
 | `numbering.groupSize` | `100` | Numbers in each group's block; 1 to 100000 |
 | `health.disableAfterHours` | `24` | Hours without an eligible source before a station turns off; 1 to 720 |
 | `health.enableOn` | `healthy` | `healthy`: a `HEALTHY` source turns it back on; `eligible`: any selectable source does |

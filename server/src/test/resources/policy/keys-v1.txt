@@ -22,8 +22,8 @@
 3sat DE	3sat de
 40 y 20	40 y 20
 48 Hours	48 hours
-4K TRAVEL TV	4k travel
-4K Travel TV	4k travel
+4K TRAVEL TV	4k travel tv
+4K Travel TV	4k travel tv
 4UV	4uv
 5 Minute Craft	5 minute craft
 5 USA	5 usa
@@ -97,10 +97,10 @@ ACC Digital Network	acc digital network
 ACC Network USA	acc network usa
 ACCDN	accdn
 ACE TV	ace tv
-ACL Cornhole TV	acl cornhole
+ACL Cornhole TV	acl cornhole tv
 ADN NOTICIAS	adn noticias
 AFV with Alfonso Ribeiro	afv with alfonso ribeiro
-AHC (American Heroes Channel)	ahc american heroes
+AHC (American Heroes Channel)	ahc american heroes channel
 AIR & SPACE	air and space
 ALF	alf
 ALLBLK Gems	allblk gems
@@ -108,7 +108,7 @@ AMC Thrillers	amc thrillers
 AMC USA	amc usa
 AMC en Español	amc en espanol
 AMC+	amc plus
-AMERICA'S BOATING CHANNEL	america s boating
+AMERICA'S BOATING CHANNEL	america s boating channel
 AMERICATEVÉ	americateve
 AMP	amp
 ANIME x HIDIVE	anime x hidive
@@ -121,7 +121,7 @@ AXN Movies Portugal	axn movies portugal
 AXS TV USA	axs tv usa
 AYM Sports	aym sports
 About K-Content by CJ ENM	about k content by cj enm
-Absinthe TV	absinthe
+Absinthe TV	absinthe tv
 Abu Dhabi Sports 1 Premium	abu dhabi sports 1 premium
 Abu Dhabi Sports 1 UAE	abu dhabi sports 1 uae
 Abu Dhabi Sports 2 Premium	abu dhabi sports 2 premium
@@ -132,10 +132,10 @@ AccuWeather NOW	accuweather now
 AccuWeather Now	accuweather now
 Ace TV	ace tv
 Acelerados	acelerados
-Acorn TV	acorn
+Acorn TV	acorn tv
 Acorn TV Mysteries	acorn tv mysteries
 Action Hollywood Movies	action hollywood movies
-Action Movies - Rakuten TV	action movies rakuten
+Action Movies - Rakuten TV	action movies rakuten tv
 Action News 5 Memphis	action news 5 memphis
 Action News Jax	action news jax
 Action Packed!	action packed
@@ -166,13 +166,13 @@ Alkass Four	alkass four
 Alkass One	alkass one
 Alkass Three	alkass three
 Alkass Two	alkass two
-All Babies Channel	all babies
+All Babies Channel	all babies channel
 All Chewed Up	all chewed up
 All Out Alaska	all out alaska
 All Reality	all reality
-All Reality WE tv	all reality we
-All Reality We TV	all reality we
-All Weddings We TV	all weddings we
+All Reality WE tv	all reality we tv
+All Reality We TV	all reality we tv
+All Weddings We TV	all weddings we tv
 All-Out Alaska	all out alaska
 All-Out Reality	all out reality
 AllBlk	allblk
@@ -184,7 +184,7 @@ Altitude Sports	altitude sports
 Always Funny	always funny
 Always Funny Videos	always funny videos
 Always On	always on
-Amasian TV	amasian
+Amasian TV	amasian tv
 Amasian TV Movies & More	amasian tv movies and more
 Amazon Live	amazon live
 America's Dumbest Criminals	america s dumbest criminals
@@ -224,7 +224,7 @@ AppleTV	appletv
 Aqua Teen Hunger Force	aqua teen hunger force
 Aqui y Ahora	aqui y ahora
 Aquí y Ahora	aqui y ahora
-Arab Heritage TV	arab heritage
+Arab Heritage TV	arab heritage tv
 Are We There Yet	are we there yet
 Are We There Yet?	are we there yet
 Arena Sport 1 BiH	arena sport 1 bih
@@ -278,7 +278,7 @@ Azteca Deportes Network LITE 3	azteca deportes network lite 3
 Azteca Internacional	azteca internacional
 Azteca Noticias	azteca noticias
 Azteca Uno MX	azteca uno mx
-BABY SHARK TV	baby shark
+BABY SHARK TV	baby shark tv
 BBC Adventure	bbc adventure
 BBC America (BBCA)	bbc america bbca
 BBC Comedy	bbc comedy
@@ -302,7 +302,7 @@ BBC Two UK	bbc two uk
 BET Cinema	bet cinema
 BET Classics	bet classics
 BET Comedy Movies	bet comedy movies
-BET Pluto TV	bet pluto
+BET Pluto TV	bet pluto tv
 BET Throwbacks	bet throwbacks
 BET USA	bet usa
 BET Visionaries	bet visionaries
@@ -314,14 +314,14 @@ BNT 1 Bulgaria	bnt 1 bulgaria
 BNT 2 Bulgaria	bnt 2 bulgaria
 BNT 3 Bulgaria	bnt 3 bulgaria
 BOLLYWOOD 4U	bollywood 4u
-BOLLYWOOD TV	bollywood
+BOLLYWOOD TV	bollywood tv
 BOOT	boot
 BR Fernsehen DE	br fernsehen de
 BUZZR	buzzr
 BYUtv	byutv
 Baby Einstein	baby einstein
 Baby Joy Joy	baby joy joy
-Baby Shark TV	baby shark
+Baby Shark TV	baby shark tv
 Bachelor Nation	bachelor nation
 Back in Time	back in time
 Bad Girls Club	bad girls club
@@ -369,12 +369,12 @@ Big Brother S28 CAM 2	big brother s28 cam 2
 Big Brother S28 CAM 3	big brother s28 cam 3
 Big Brother S28 CAM 4	big brother s28 cam 4
 Big Brother S28 Quadview	big brother s28 quadview
-Billboard Español TV	billboard espanol
-Billboard TV	billboard
-Billiard TV	billiard
-Billiards TV	billiards
+Billboard Español TV	billboard espanol tv
+Billboard TV	billboard tv
+Billiard TV	billiard tv
+Billiards TV	billiards tv
 Binge Fest	binge fest
-Binge TV	binge
+Binge TV	binge tv
 Bingeworthy	bingeworthy
 Biography: The Icons	biography the icons
 Bizaar	bizaar
@@ -392,24 +392,24 @@ Blippi	blippi
 Bloodline Detectives	bloodline detectives
 Bloodline Detectives Hosted by Nancy Grace	bloodline detectives hosted by nancy grace
 Bloomberg Originals	bloomberg originals
-Bloomberg TV	bloomberg
+Bloomberg TV	bloomberg tv
 Bloomberg TV+	bloomberg tv plus
 Blossom	blossom
 Blue Bloods	blue bloods
 Bollywood 4U	bollywood 4u
-Bollywood TV	bollywood
+Bollywood TV	bollywood tv
 Bommi & Friends	bommi and friends
 Bon Appetit	bon appetit
 Bon Appétit	bon appetit
 Bonanza	bonanza
-Bonanza-Billies TV	bonanza billies
+Bonanza-Billies TV	bonanza billies tv
 Bondi Rescue	bondi rescue
 Boomerang	boomerang
 Boruto: Naruto Next Generations	boruto naruto next generations
 Boston 25	boston 25
 Boston 25 News	boston 25 news
 Bounce XL	bounce xl
-Bowling TV	bowling
+Bowling TV	bowling tv
 Box Playlist	box playlist
 Brat TV	brat tv
 Brave Wilderness	brave wilderness
@@ -502,7 +502,7 @@ CGTN Documentary	cgtn documentary
 CGTN Español	cgtn espanol
 CGTN Global Biz	cgtn global biz
 CHGO Sports	chgo sports
-CHRONO TV	chrono
+CHRONO TV	chrono tv
 CINEVAULT	cinevault
 CINEVAULT: Classics	cinevault classics
 CINEVAULT: WESTERNS	cinevault westerns
@@ -551,7 +551,7 @@ CW USA	cw usa
 Caillou	caillou
 Camino al Cielo	camino al cielo
 Camp Spoopy	camp spoopy
-Campfire Channel	campfire
+Campfire Channel	campfire channel
 Campfire Vibes	campfire vibes
 Canal 11 Portugal	canal 11 portugal
 Canal ViX	canal vix
@@ -595,7 +595,7 @@ Canal+ Sport SK	canal plus sport sk
 Canal+ Sport360	canal plus sport360
 Canal5 MX	canal5 mx
 Candyjar	candyjar
-Canela.TV	canela
+Canela.TV	canela tv
 Canela.TV Clasicos	canela tv clasicos
 Canela.TV Clásicos	canela tv clasicos
 Canela.TV Deportes	canela tv deportes
@@ -618,7 +618,7 @@ Caylus	caylus
 Celebrity Name Game	celebrity name game
 Celia	celia
 Celine Dept	celine dept
-Cesar's Pack Leader TV	cesar s pack leader
+Cesar's Pack Leader TV	cesar s pack leader tv
 Challenge Accepted	challenge accepted
 Channel 10 Israe	channel 10 israe
 Channel 11 Israel	channel 11 israel
@@ -649,9 +649,9 @@ Chip & Jo: Feels Like Home	chip and jo feels like home
 Chip & Jo: Feels Like Home by Magnolia Network	chip and jo feels like home by magnolia network
 Choppertown	choppertown
 Christmas Plus	christmas plus
-Chrono TV	chrono
-Cigar TV	cigar
-Cindie TV	cindie
+Chrono TV	chrono tv
+Cigar TV	cigar tv
+Cindie TV	cindie tv
 Cine Amor	cine amor
 Cine Estrella	cine estrella
 Cine EstrellaTV	cine estrellatv
@@ -670,7 +670,7 @@ Cine terror	cine terror
 CineLife	cinelife
 Cinemax USA	cinemax usa
 Cinepride	cinepride
-Cinépolis Channel	cinepolis
+Cinépolis Channel	cinepolis channel
 Circle	circle
 Circle Country	circle country
 Cirque du Soleil	cirque du soleil
@@ -683,7 +683,7 @@ Classic Cinema	classic cinema
 Classic Doctor Who	classic doctor who
 Classic Family Feud	classic family feud
 Classic Movie Westerns	classic movie westerns
-Classic Movies Channel	classic movies
+Classic Movies Channel	classic movies channel
 Classic Rock	classic rock
 Classic TV Comedy	classic tv comedy
 Classic TV Crime Drama	classic tv crime drama
@@ -697,23 +697,23 @@ Clic	clic
 Cold Case Files	cold case files
 Cold Case Files by A&E	cold case files by a and e
 CombaTV	combatv
-Combat War Channel	combat war
+Combat War Channel	combat war channel
 Combate Brasil	combate brasil
 Combate Global MMA	combate global mma
 Come Dine With Me	come dine with me
 Comedy	comedy
 Comedy Central	comedy central
-Comedy Central Pluto TV	comedy central pluto
+Comedy Central Pluto TV	comedy central pluto tv
 Comedy Central en español	comedy central en espanol
 Comedy Dynamics	comedy dynamics
-Comedy Movies - Rakuten TV	comedy movies rakuten
+Comedy Movies - Rakuten TV	comedy movies rakuten tv
 Comedy Plus	comedy plus
-Comercio TV	comercio
+Comercio TV	comercio tv
 Comet USA	comet usa
 Como Dice El Dicho	como dice el dicho
 Como Dice el Dicho	como dice el dicho
-Complex TV	complex
-Conan O'Brien TV	conan o brien
+Complex TV	complex tv
+Conan O'Brien TV	conan o brien tv
 Confess By Nosey	confess by nosey
 Confess by Nosey	confess by nosey
 Construcciones Asombrosas	construcciones asombrosas
@@ -725,7 +725,7 @@ Cooking Panda	cooking panda
 Corazón	corazon
 Coreano by CJ ENM	coreano by cj enm
 Corner Gas	corner gas
-Cornhole TV	cornhole
+Cornhole TV	cornhole tv
 Cosmic Frontiers	cosmic frontiers
 Cosmos	cosmos
 Cosmote Sport 1 HD	cosmote sport 1
@@ -738,16 +738,16 @@ Cosmote Sport 7 HD	cosmote sport 7
 Cosmote Sport 8 HD	cosmote sport 8
 Cosmote Sport 9 HD	cosmote sport 9
 Cougar Town	cougar town
-Court TV	court
+Court TV	court tv
 Court TV Legendary Trials	court tv legendary trials
 Court TV USA	court tv usa
 Cowboy Classics	cowboy classics
-Cowboy Movie Channel	cowboy movie
+Cowboy Movie Channel	cowboy movie channel
 Cowboy+ Sports	cowboy plus sports
 Cozy Vibes	cozy vibes
-Craftsy TV	craftsy
+Craftsy TV	craftsy tv
 CraftsyTV	craftsytv
-Creator TV	creator
+Creator TV	creator tv
 Creator Television	creator television
 Creators	creators
 Cricket Gold	cricket gold
@@ -758,8 +758,8 @@ Crime 360	crime 360
 Crime Cults Killers	crime cults killers
 Crime Cults Killers  by A&E	crime cults killers by a and e
 Crime Cults Killers by A&E	crime cults killers by a and e
-Crime Files Channel	crime files
-Crime Scene TV	crime scene
+Crime Files Channel	crime files channel
+Crime Scene TV	crime scene tv
 Crime Scenes	crime scenes
 Crime ThrillHer	crime thrillher
 Crime Time	crime time
@@ -812,7 +812,7 @@ DP World Tour	dp world tour
 DP World Tour Golf US	dp world tour golf us
 DR1 Denmark	dr1 denmark
 DR2 Denmark	dr2 denmark
-DREAD TV	dread
+DREAD TV	dread tv
 DRIVE + SPEED	drive plus speed
 DRIVE+SPEED	drive plus speed
 DSTV M-Net	dstv m net
@@ -826,13 +826,13 @@ Dallas Cowboys Cheer	dallas cowboys cheer
 Dallas Cowboys Cheerleaders	dallas cowboys cheerleaders
 Dance Moms	dance moms
 Dance Moms by Lifetime	dance moms by lifetime
-Danger TV	danger
+Danger TV	danger tv
 DangerTV	dangertv
 Danny Duncan	danny duncan
 Daring Deeds	daring deeds
 Dark Fears	dark fears
-Dark Matter TV	dark matter
-Dark Matters TV	dark matters
+Dark Matter TV	dark matter tv
+Dark Matters TV	dark matters tv
 Dark Screen	dark screen
 Dark Shadows	dark shadows
 Dateline	dateline
@@ -867,7 +867,7 @@ Denver 7	denver 7
 Designated Survivor	designated survivor
 Desimpedidos	desimpedidos
 Destination America	destination america
-Dhar Mann TV	dhar mann
+Dhar Mann TV	dhar mann tv
 Diagnosis Murder	diagnosis murder
 Dick Van Dyke	dick van dyke
 Diema Bulgaria	diema bulgaria
@@ -881,14 +881,14 @@ Digi Sport 3 Romania	digi sport 3 romania
 Digi Sport 4 Romania	digi sport 4 romania
 Dinos 24/7	dinos 24 7
 Discovering China	discovering china
-Discovery Channel	discovery
+Discovery Channel	discovery channel
 Discovery Family	discovery family
-Discovery Life Channel	discovery life
+Discovery Life Channel	discovery life channel
 Discovery Turbo	discovery turbo
 Discovery Turbo TV	discovery turbo tv
 Discovery Velocity CA	discovery velocity ca
 Discovery+	discovery plus
-Disney Channel	disney
+Disney Channel	disney channel
 Disney JR	disney jr
 Disney XD	disney xd
 Divorce Court	divorce court
@@ -917,11 +917,11 @@ Draft Kings	draft kings
 DraftKings	draftkings
 DraftKings Network	draftkings network
 Drama Life	drama life
-Drama TV	drama
+Drama TV	drama tv
 Dramon	dramon
 Driftwood	driftwood
 Drive+Speed	drive plus speed
-Drone TV	drone
+Drone TV	drone tv
 Dry Bar Comedy	dry bar comedy
 Dubai Racing 2 UAE	dubai racing 2 uae
 Dubai Sports 1 UAE	dubai sports 1 uae
@@ -930,7 +930,7 @@ Dubai Sports 3 UAE	dubai sports 3 uae
 Duck Dynasty	duck dynasty
 Duck Dynasty by A&E	duck dynasty by a and e
 Dude Perfect	dude perfect
-Dungeon TV	dungeon
+Dungeon TV	dungeon tv
 Dungeons & Dragons	dungeons and dragons
 Dungeons & Dragons Adventures	dungeons and dragons adventures
 Dynasty	dynasty
@@ -973,7 +973,7 @@ Ebony TV Drama	ebony tv drama
 Ebony TV by Lionsgate	ebony tv by lionsgate
 Eddie's Wonderland	eddie s wonderland
 El Capo	el capo
-El Conflicto TV	el conflicto
+El Conflicto TV	el conflicto tv
 El Reino Infantil	el reino infantil
 El Rey	el rey
 El Rey Rebel	el rey rebel
@@ -1003,14 +1003,14 @@ Entertains	entertains
 Entravision Ahora	entravision ahora
 EntrepreneurTV	entrepreneurtv
 Envoy FAST	envoy fast
-Epic Gardening TV	epic gardening
-Equus TV	equus
+Epic Gardening TV	epic gardening tv
+Equus TV	equus tv
 Escape Perfecto	escape perfecto
-Escape TV	escape
+Escape TV	escape tv
 Esports Edge	esports edge
 Estrella Games	estrella games
 Estrella News	estrella news
-Estrella TV	estrella
+Estrella TV	estrella tv
 Estrella TV Deportes	estrella tv deportes
 EstrellaTV	estrellatv
 Euro Hits	euro hits
@@ -1051,7 +1051,7 @@ FIFA+	fifa plus
 FIFA+ Women	fifa plus women
 FIFA+ en Español	fifa plus en espanol
 FIGHT NETWORK	fight network
-FIGHT TV	fight
+FIGHT TV	fight tv
 FILMEX	filmex
 FILMEX Acción	filmex accion
 FILMEX CLASICO	filmex clasico
@@ -1109,14 +1109,14 @@ FTF Sports	ftf sports
 FTF Sports (For the Fan)	ftf sports for the fan
 FUEL TV	fuel tv
 FUSE TV USA	fuse tv usa
-FX Movie Channel	fx movie
+FX Movie Channel	fx movie channel
 FX USA	fx usa
 FXX USA	fxx usa
 FYI	fyi
 FailArmy	failarmy
-Fairground AI Creator TV	fairground ai creator
+Fairground AI Creator TV	fairground ai creator tv
 Fall Vibes	fall vibes
-Family Affair Channel	family affair
+Family Affair Channel	family affair channel
 Family Feud	family feud
 Family Feud Classic	family feud classic
 Family Night	family night
@@ -1136,7 +1136,7 @@ FanDuel Sports Network West	fanduel sports network west
 FanDuel Sports Network Wisconsin	fanduel sports network wisconsin
 Fantasy	fantasy
 Farscape	farscape
-Fashion TV	fashion
+Fashion TV	fashion tv
 FashionTV	fashiontv
 Fatos Desconhecidos	fatos desconhecidos
 Fear Factor	fear factor
@@ -1152,7 +1152,7 @@ Field & Stream TV	field and stream tv
 Fifth Gear	fifth gear
 Fifth Gear (UK)	fifth gear uk
 Fight Network	fight network
-Fight TV	fight
+Fight TV	fight tv
 Film4 UK	film4 uk
 FilmBox Premium Poland	filmbox premium poland
 FilmNight	filmnight
@@ -1160,9 +1160,9 @@ FilmRise	filmrise
 FilmRise Action	filmrise action
 FilmRise Anime	filmrise anime
 FilmRise Autopista al Cielo	filmrise autopista al cielo
-FilmRise Black TV	filmrise black
-FilmRise British TV	filmrise british
-FilmRise Classic TV	filmrise classic
+FilmRise Black TV	filmrise black tv
+FilmRise British TV	filmrise british tv
+FilmRise Classic TV	filmrise classic tv
 FilmRise Comedy	filmrise comedy
 FilmRise Concursos de Cocina	filmrise concursos de cocina
 FilmRise Creators	filmrise creators
@@ -1181,8 +1181,8 @@ FilmRise Series Gratis	filmrise series gratis
 FilmRise True Crime	filmrise true crime
 FilmRise Western	filmrise western
 Filmrise Anime	filmrise anime
-Filmrise British TV	filmrise british
-Filmrise Classic TV	filmrise classic
+Filmrise British TV	filmrise british tv
+Filmrise Classic TV	filmrise classic tv
 Filmrise Horror	filmrise horror
 Filmrise Kids	filmrise kids
 Filmrise Sci-Fi	filmrise sci fi
@@ -1190,7 +1190,7 @@ Filmrise True Crime	filmrise true crime
 Filmrise Western	filmrise western
 Filmrise Z Nation	filmrise z nation
 Filmzie	filmzie
-Fireplace TV	fireplace
+Fireplace TV	fireplace tv
 Fireplace Vibes	fireplace vibes
 First 48	first 48
 First 48 & Beyond	first 48 and beyond
@@ -1204,13 +1204,13 @@ FlixLatino	flixlatino
 FloHockey 24/7	flohockey 24 7
 FloRacing	floracing
 FloRacing 24/7	floracing 24 7
-FloSports Channel	flosports
-Fluffy TV	fluffy
-Foosball TV	foosball
+FloSports Channel	flosports channel
+Fluffy TV	fluffy tv
+Foosball TV	foosball tv
 Forensic Files	forensic files
 Forever Kids	forever kids
 Forged In Fire	forged in fire
-Formula 1 TV	formula 1
+Formula 1 TV	formula 1 tv
 Four In A Bed	four in a bed
 Four in a Bed	four in a bed
 Fox 10 News Mobile-Pensacola	fox 10 news mobile pensacola
@@ -1246,7 +1246,7 @@ France 3	france 3
 France 4	france 4
 France 5	france 5
 Frasier	frasier
-Free Action & Drama TV	free action and drama
+Free Action & Drama TV	free action and drama tv
 Free Action Movies	free action movies
 Free Black Cinema	free black cinema
 Free Comedy Movies	free comedy movies
@@ -1277,14 +1277,14 @@ Fuel TV	fuel tv
 Funny AF	funny af
 Fuse +	fuse plus
 Futcrunch	futcrunch
-GAME & FISH TV	game and fish
+GAME & FISH TV	game and fish tv
 GARDEN with Monty Don	garden with monty don
 GCTV	gctv
 GET	get
 GET Comedy	get comedy
 GET TV	get tv
 GET.	get
-GFN Soccer TV	gfn soccer
+GFN Soccer TV	gfn soccer tv
 GG Good Game	gg good game
 GLORY Kickboxing	glory kickboxing
 GOL PLAY Spain	gol play spain
@@ -1292,12 +1292,12 @@ GOLF Channel USA	golf channel usa
 GOLFPASS	golfpass
 GUSTOTV	gustotv
 Gags - Just for Laughs	gags just for laughs
-Gaiam TV	gaiam
+Gaiam TV	gaiam tv
 GaitherTV FAST	gaithertv fast
 Galanes	galanes
 Galavisi贸n USA	galavisi贸n usa
-Galxy TV	galxy
-Game & Fish TV	game and fish
+Galxy TV	galxy tv
+Game & Fish TV	game and fish tv
 Game Show Central	game show central
 Game Show Network	game show network
 GameTVGO	gametvgo
@@ -1319,7 +1319,7 @@ Ghost Whisperer	ghost whisperer
 Ghosts	ghosts
 Ghosts Are Real	ghosts are real
 Ghosts are Real	ghosts are real
-Glewed TV	glewed
+Glewed TV	glewed tv
 GlitchPlus	glitchplus
 Global Biz	global biz
 Global CA	global ca
@@ -1332,7 +1332,7 @@ GoPro	gopro
 GoPro TV	gopro tv
 GoProTV	goprotv
 GoTraveler	gotraveler
-GoUSA TV	gousa
+GoUSA TV	gousa tv
 Goal TV	goal tv
 Golazo Network	golazo network
 Gold UK	gold uk
@@ -1353,7 +1353,7 @@ Grind Hard Plumbing Co.	grind hard plumbing co
 Grit Channel	grit channel
 Grit XTRA	grit xtra
 Grit Xtra	grit xtra
-Gritos TV	gritos
+Gritos TV	gritos tv
 Gritos TV by Trinian	gritos tv by trinian
 Grizzy & The Lemmings	grizzy and the lemmings
 Grizzy and the Lemmings	grizzy and the lemmings
@@ -1365,7 +1365,7 @@ Growing Up Hip Hop WeTV	growing up hip hop wetv
 Growing Up Hip-Hop	growing up hip hop
 GrowthDay Network	growthday network
 Gunsmoke	gunsmoke
-Gusto TV	gusto
+Gusto TV	gusto tv
 GustoTV	gustotv
 HBCU Go!	hbcu go
 HBCUGO SPORTS	hbcugo sports
@@ -1380,14 +1380,14 @@ HBO USA	hbo usa
 HBO Zone USA	hbo zone usa
 HBO2 USA	hbo2 usa
 HGTV	hgtv
-HOMERUN TV	homerun
+HOMERUN TV	homerun tv
 HOOP TV	hoop tv
-HORROR TV	horror
+HORROR TV	horror tv
 HOT BENCH	hot bench
 HOT3 Israel	hot3 israel
 HSN	hsn
 HSN HD	hsn
-HUNT FISH TV	hunt fish
+HUNT FISH TV	hunt fish tv
 Hagerty	hagerty
 Hallmark Movies & More	hallmark movies and more
 Hallmark Movies & Mysterie	hallmark movies and mysterie
@@ -1401,7 +1401,7 @@ Harcore Pawn	harcore pawn
 Hard Knocks	hard knocks
 Harlem Globetrotters	harlem globetrotters
 Hasbro Legends	hasbro legends
-Haunt TV	haunt
+Haunt TV	haunt tv
 Haunt TV US	haunt tv us
 HauntTV	haunttv
 Headline News	headline news
@@ -1449,7 +1449,7 @@ Home. Made. Nation	home made nation
 Home.Made.Nation	home made nation
 Homeful	homeful
 Homeful en Español	homeful en espanol
-Homerun TV	homerun
+Homerun TV	homerun tv
 Hong Kong Fight Club	hong kong fight club
 Hoop TV	hoop tv
 HorizonSports	horizonsports
@@ -1458,7 +1458,7 @@ Horror Plus	horror plus
 Horror Stories	horror stories
 Horror by ALTER	horror by alter
 Horse & Country	horse and country
-Horse TV	horse
+Horse TV	horse tv
 Hot Bench	hot bench
 Hot Country	hot country
 Hot Ones	hot ones
@@ -1467,9 +1467,9 @@ House	house
 How To	how to
 How-To	how to
 Howdy	howdy
-Humor Mill TV	humor mill
+Humor Mill TV	humor mill tv
 Hungry	hungry
-Hunt Fish TV	hunt fish
+Hunt Fish TV	hunt fish tv
 Hunter	hunter
 Hunter x Hunter	hunter x hunter
 I (Almost) Got Away With It	i almost got away with it
@@ -1560,13 +1560,13 @@ Jersey Shore	jersey shore
 Jesse James West	jesse james west
 Jesser	jesser
 Jewelry Television	jewelry television
-Jewish Life TV	jewish life
+Jewish Life TV	jewish life tv
 Jewish Life Television JLTV	jewish life television jltv
 Jim Rome Show	jim rome show
 JoJo's Bizarre Adventure	jojo s bizarre adventure
 Joel Osteen Network	joel osteen network
 Joel Osteen network	joel osteen network
-Johnny Carson TV	johnny carson
+Johnny Carson TV	johnny carson tv
 Johnny Test	johnny test
 Jorge Ramos: Asi Veo Las Cosas	jorge ramos asi veo las cosas
 Journy	journy
@@ -1694,7 +1694,7 @@ KOMO 4 News Seattle, WA	komo 4 news seattle wa
 KOSA Midland TX	kosa midland tx
 KOTA Territory News Rapid City SD	kota territory news rapid city sd
 KOTV News On 6 Tulsa OK	kotv news on 6 tulsa ok
-KOZOOM - The Billiard Channel	kozoom the billiard
+KOZOOM - The Billiard Channel	kozoom the billiard channel
 KOZOOM TV	kozoom tv
 KPAX	kpax
 KPAX News Missoula	kpax news missoula
@@ -1777,9 +1777,9 @@ Kanal 4 Denmark	kanal 4 denmark
 Kanal 5 Denmark	kanal 5 denmark
 Kanal D Drama	kanal d drama
 Kanal D Turkey	kanal d turkey
-Kartoon Channel!	kartoon
+Kartoon Channel!	kartoon channel
 Kelsi Davies: Paranormal Investigations	kelsi davies paranormal investigations
-Kidoodle TV	kidoodle
+Kidoodle TV	kidoodle tv
 KidoodleTV Canada	kidoodletv canada
 Kids Movie Club	kids movie club
 Kids TV	kids tv
@@ -1795,7 +1795,7 @@ LA7d HD+ Italy	la7d hd plus italy
 LAFF More	laff more
 LATV	latv
 LCI France	lci france
-LEGO Kids TV	lego kids
+LEGO Kids TV	lego kids tv
 LEX 18 News	lex 18 news
 LOL Network	lol network
 LOL! Network	lol network
@@ -1808,9 +1808,9 @@ La Fiebre del Jade	la fiebre del jade
 La Sexta Spain	la sexta spain
 La novia de Estambul	la novia de estambul
 La7 Italy	la7 italy
-LaLiga SmartBank TV	laliga smartbank
+LaLiga SmartBank TV	laliga smartbank tv
 LaLigaTV UK	laligatv uk
-LaMúsica TV	lamusica
+LaMúsica TV	lamusica tv
 Lacrosse Channel	lacrosse channel
 Lacrosse TV	lacrosse tv
 Laff More	laff more
@@ -1823,7 +1823,7 @@ Lassie	lassie
 LatiNation	latination
 Latinus	latinus
 Laugh On	laugh on
-Laugh TV	laugh
+Laugh TV	laugh tv
 Lauren Lake’s Paternity Court	lauren lake s paternity court
 Law & Crime	law and crime
 Law & Crime Network	law and crime network
@@ -1858,7 +1858,7 @@ Live Music	live music
 Live PD Presents	live pd presents
 Live PD: Presents	live pd presents
 LiveNOW from FOX	livenow from fox
-Liverpool TV (LFC TV)	liverpool tv lfc
+Liverpool TV (LFC TV)	liverpool tv lfc tv
 Living With Evil	living with evil
 Living with Evil	living with evil
 Lo Mejor de Liga	lo mejor de liga
@@ -1873,7 +1873,7 @@ Locked On Sports Atlanta	locked on sports atlanta
 Locked On Sports Today	locked on sports today
 Locked Up Abroad	locked up abroad
 Locked on NBA	locked on nba
-Logo Pluto TV	logo pluto
+Logo Pluto TV	logo pluto tv
 Logo TV USA	logo tv usa
 Lone Star	lone star
 Los Asesinatos de Midsomer	los asesinatos de midsomer
@@ -1881,7 +1881,7 @@ Loupe 4K	loupe 4k
 Love & Hip Hop	love and hip hop
 Love & Marriage	love and marriage
 Love After Lockup	love after lockup
-Love After Lockup We TV	love after lockup we
+Love After Lockup We TV	love after lockup we tv
 Love Kills	love kills
 Love Nature	love nature
 Love Nature 4K	love nature 4k
@@ -1932,7 +1932,7 @@ MTRSPT1	mtrspt1
 MTV Biggest Pop	mtv biggest pop
 MTV Denmark	mtv denmark
 MTV Flow Latino	mtv flow latino
-MTV Pluto TV	mtv pluto
+MTV Pluto TV	mtv pluto tv
 MTV Poland	mtv poland
 MTV Spankin' New	mtv spankin new
 MTV UK	mtv uk
@@ -1945,7 +1945,7 @@ MVMT of Culture	mvmt of culture
 MY9TV USA	my9tv usa
 MadTV	madtv
 Made In Hollywood	made in hollywood
-Magellan TV	magellan
+Magellan TV	magellan tv
 MagellanTV Wildest	magellantv wildest
 Magnolia Network	magnolia network
 Magnolia Selects	magnolia selects
@@ -1954,9 +1954,9 @@ Majordomo TV with David Chang	majordomo tv with david chang
 Man City 24/7	man city 24 7
 Manual do Mundo	manual do mundo
 Marathons	marathons
-Mark Rober TV	mark rober
+Mark Rober TV	mark rober tv
 Marquee Sports Network	marquee sports network
-Marquee TV	marquee
+Marquee TV	marquee tv
 Martha Stewart	martha stewart
 Martha Stewart Channel	martha stewart channel
 MasterChef	masterchef
@@ -1984,12 +1984,12 @@ McLeod's Daughters	mcleod s daughters
 McLeods Daughters	mcleods daughters
 McLeod’s Daughters	mcleod s daughters
 MeatEater	meateater
-Mecum TV	mecum
+Mecum TV	mecum tv
 Mediacorp Entertainment – Chinese	mediacorp entertainment chinese
 Mediacorp Entertainment – English	mediacorp entertainment english
 Mediacorp Entertainment – Tamil	mediacorp entertainment tamil
 Medical Incredible	medical incredible
-Mera Mera TV	mera mera
+Mera Mera TV	mera mera tv
 Mercury+	mercury plus
 Merhaba Amour	merhaba amour
 Metal Rocks	metal rocks
@@ -2009,7 +2009,7 @@ Military Heroes Presented By History	military heroes presented by history
 Military Heroes presented by History	military heroes presented by history
 Million Dollar Dream Home	million dollar dream home
 Million Dollar Listing Vault	million dollar listing vault
-Miramax Movie Channel	miramax movie
+Miramax Movie Channel	miramax movie channel
 Miramax Movies	miramax movies
 Mission Impossible	mission impossible
 Mister Rogers' Neighborhood	mister rogers neighborhood
@@ -2033,7 +2033,7 @@ More TV Drama	more tv drama
 More TV Sitcoms	more tv sitcoms
 More True Crime	more true crime
 More U	more u
-MotoAmerica TV	motoamerica
+MotoAmerica TV	motoamerica tv
 MotoGP	motogp
 MotoGP Channel	motogp channel
 MotoGP TV	motogp tv
@@ -2051,7 +2051,7 @@ Movie Music by Stingray	movie music by stingray
 Movie Run	movie run
 MovieSphere	moviesphere
 MovieSphere by Lionsgate	moviesphere by lionsgate
-Movieitaly Channel	movieitaly
+Movieitaly Channel	movieitaly channel
 Moviesphere	moviesphere
 Movistar Deportes 2 Spain	movistar deportes 2 spain
 Movistar Deportes 3 Spain	movistar deportes 3 spain
@@ -2074,7 +2074,7 @@ Must Watch	must watch
 My Little Pet	my little pet
 My Little Pony	my little pony
 My Money	my money
-My Padel TV	my padel
+My Padel TV	my padel tv
 My Time Movie Network	my time movie network
 My Wife and Kids	my wife and kids
 MyOutdoorTV	myoutdoortv
@@ -2155,7 +2155,7 @@ NHRA TV	nhra tv
 NICK	nick
 NICK JR	nick jr
 NLC	nlc
-NOMADLife.tv	nomadlife
+NOMADLife.tv	nomadlife tv
 NOW TV Turkey	now tv turkey
 NTD	ntd
 NTD News	ntd news
@@ -2178,11 +2178,11 @@ National Lampoon Channel	national lampoon channel
 Naturaleza	naturaleza
 Naturaleza Salvaje	naturaleza salvaje
 Nature Moments	nature moments
-NatureStream.TV	naturestream
+NatureStream.TV	naturestream tv
 NatureVision	naturevision
 Naturescape	naturescape
-Nautical Channel	nautical
-Nesting TV	nesting
+Nautical Channel	nautical channel
+Nesting TV	nesting tv
 News 12 New York	news 12 new york
 News 12, New York	news 12 new york
 News 18 India	news 18 india
@@ -2195,22 +2195,22 @@ NewsNation USA	newsnation usa
 Newsday TV Long Island NY	newsday tv long island ny
 Newsmax 2	newsmax 2
 Newsmax N2	newsmax n2
-Newsmax TV	newsmax
+Newsmax TV	newsmax tv
 Newsmax USA	newsmax usa
 Newsmax2	newsmax2
-Nick Jr. Pluto TV	nick jr pluto
+Nick Jr. Pluto TV	nick jr pluto tv
 Nick Music	nick music
-Nick Pluto TV	nick pluto
+Nick Pluto TV	nick pluto tv
 Nick en Espanol	nick en espanol
 Nick en Español	nick en espanol
-Nickelodeon Pluto TV	nickelodeon pluto
+Nickelodeon Pluto TV	nickelodeon pluto tv
 Nickelodeon en español	nickelodeon en espanol
 Nicktoons	nicktoons
 Nikita	nikita
 Ninja Kidz	ninja kidz
 Ninja Kidz TV	ninja kidz tv
 Nip/Tuck	nip tuck
-Nitro TV	nitro
+Nitro TV	nitro tv
 No Reservations	no reservations
 Nolly Africa	nolly africa
 Nolly Africa HD	nolly africa
@@ -2267,12 +2267,12 @@ ONE Championship	one championship
 ONE Championship TV	one championship tv
 ONNJ On New Jersey	onnj on new jersey
 ONTV4U	ontv4u
-ONTV4U - Free Live Shopping & Lifestyle TV	ontv4u free live shopping and lifestyle
+ONTV4U - Free Live Shopping & Lifestyle TV	ontv4u free live shopping and lifestyle tv
 OUTFLIX MOVIES	outflix movies
 OUTflix Movies	outflix movies
 Ocean Vibes	ocean vibes
 Off the Air/Smalls	off the air smalls
-Old West TV	old west
+Old West TV	old west tv
 Omstars	omstars
 On Patrol: Live	on patrol live
 OnTime Sports	ontime sports
@@ -2338,9 +2338,9 @@ PBS WKLE (KET2)	pbs wkle ket2
 PBS WKNO (WKNO-2)	pbs wkno wkno 2
 PBS WLVT (PBS39 Extra)	pbs wlvt pbs39 extra
 PBS WMVS (Milwaukee PBS 36.1)	pbs wmvs milwaukee pbs 36 1
-PBS WPNE (The Wisconsin Channel)	pbs wpne the wisconsin
-PBS WUNC (The North Carolina Channel)	pbs wunc the north carolina
-PBS WVPB (The West Virginia Channel)	pbs wvpb the west virginia
+PBS WPNE (The Wisconsin Channel)	pbs wpne the wisconsin channel
+PBS WUNC (The North Carolina Channel)	pbs wunc the north carolina channel
+PBS WVPB (The West Virginia Channel)	pbs wvpb the west virginia channel
 PBS World (KDIN)	pbs world kdin
 PBS World (WETA)	pbs world weta
 PDC TV	pdc tv
@@ -2351,14 +2351,14 @@ PGA Tour	pga tour
 PHLY Sports	phly sports
 POP TV USA	pop tv usa
 POWERNATION	powernation
-POWERtube TV	powertube
+POWERtube TV	powertube tv
 PTV Sports	ptv sports
 Pac 12 Insider	pac 12 insider
 Pac-12 Insider	pac 12 insider
 Pac-12 Network USA	pac 12 network usa
 Pam Grier's Soul Flix	pam grier s soul flix
-Panic TV	panic
-Paramount Movie Channel	paramount movie
+Panic TV	panic tv
+Paramount Movie Channel	paramount movie channel
 Paramount Network	paramount network
 Paramount+	paramount plus
 Paramount+ Picks	paramount plus picks
@@ -2378,21 +2378,21 @@ People Are Awesome	people are awesome
 People are Awesome	people are awesome
 Peppa Pig	peppa pig
 Pequeños Gigantes	pequenos gigantes
-Perfect Game TV	perfect game
+Perfect Game TV	perfect game tv
 Perform	perform
 Perform by Lifetime	perform by lifetime
 Perry Mason	perry mason
 Pet Collective	pet collective
 Pet Collective +	pet collective plus
 Pickers & Pawn	pickers and pawn
-Pickle TV	pickle
+Pickle TV	pickle tv
 PickleTV	pickletv
-Pickleball TV	pickleball
+Pickleball TV	pickleball tv
 PickleballTV	pickleballtv
 Pink Panther	pink panther
 Pins & Needles	pins and needles
-Pitaara TV	pitaara
-Pitufo TV	pitufo
+Pitaara TV	pitaara tv
+Pitufo TV	pitufo tv
 Places & Spaces	places and spaces
 Playing For Change	playing for change
 Playing for Change	playing for change
@@ -2441,11 +2441,11 @@ Pluto TV Thrillers	pluto tv thrillers
 Pluto TV Trending Now	pluto tv trending now
 Pluto TV True Crime	pluto tv true crime
 Pluto TV Westerns	pluto tv westerns
-Plymouth Rock TV	plymouth rock
+Plymouth Rock TV	plymouth rock tv
 Pocket.watch Game-On	pocket watch game on
 Pokemon	pokemon
 Poker Night In America	poker night in america
-Poker Night TV	poker night
+Poker Night TV	poker night tv
 Poker Night in America	poker night in america
 PokerGO	pokergo
 Pokémon	pokemon
@@ -2467,12 +2467,12 @@ Polsat Sport Premium 2 Super HD PL	polsat sport premium 2 super hd pl
 Pop Adult	pop adult
 Pop Picks	pop picks
 PopCorn Central	popcorn central
-Popstar! TV	popstar
+Popstar! TV	popstar tv
 Popular Science	popular science
 Portlandia	portlandia
 Portlandia IFC	portlandia ifc
 Porto Canal Portugal	porto canal portugal
-Portrait TV	portrait
+Portrait TV	portrait tv
 Power Nation	power nation
 Power Rangers	power rangers
 PowerNation	powernation
@@ -2480,7 +2480,7 @@ PowerNation Spanish	powernation spanish
 PowerSports World	powersports world
 Powernation	powernation
 Powersports World	powersports world
-Powertube TV	powertube
+Powertube TV	powertube tv
 Premier Brasil	premier brasil
 Premier Sport 1 CZ	premier sport 1 cz
 Premier Sport 2 CZ	premier sport 2 cz
@@ -2503,7 +2503,7 @@ Property & Reno	property and reno
 Property Brothers	property brothers
 Property Brothers Channel	property brothers channel
 Pulse	pulse
-Pure Flix TV	pure flix
+Pure Flix TV	pure flix tv
 Pursuit UP	pursuit up
 Pursuit Up	pursuit up
 PursuitUP	pursuitup
@@ -2517,7 +2517,7 @@ QVC2 HD	qvc2
 Qello Concerts	qello concerts
 Qello Concerts by Stingray	qello concerts by stingray
 Quirky AF	quirky af
-Qwest TV	qwest
+Qwest TV	qwest tv
 RACER Select	racer select
 RCM	rcm
 RCN Más	rcn mas
@@ -2558,7 +2558,7 @@ Rainbow Rangers	rainbow rangers
 Rainbow Ruby	rainbow ruby
 Rainy Day Vibes	rainy day vibes
 Rakuten Viki	rakuten viki
-Rally Tv	rally
+Rally Tv	rally tv
 Rawhide	rawhide
 Real America's Voice	real america s voice
 Real America's Voice en Español	real america s voice en espanol
@@ -2573,10 +2573,10 @@ Real Madrid TV	real madrid tv
 Real Madrid TV Spain	real madrid tv spain
 Real Wild	real wild
 Reality Rocks	reality rocks
-Realmadrid TV	realmadrid
+Realmadrid TV	realmadrid tv
 Rebelde	rebelde
-Red Bull TV	red bull
-Reelz Channel	reelz
+Red Bull TV	red bull tv
+Reelz Channel	reelz channel
 Reelz Famous & Infamous	reelz famous and infamous
 Reelz Famous and Infamous	reelz famous and infamous
 Relative Justice	relative justice
@@ -2597,23 +2597,23 @@ Rick and Morty	rick and morty
 Ridiculousness	ridiculousness
 RiffTrax	rifftrax
 Rig TV	rig tv
-RightNow TV	rightnow
+RightNow TV	rightnow tv
 Ring Bulgaria	ring bulgaria
 Road Renegades	road renegades
 Robot Chicken	robot chicken
 Robot Wars by Mech+	robot wars by mech plus
-Roku Channel Movies & TV	roku channel movies and
+Roku Channel Movies & TV	roku channel movies and tv
 Roku Fireside	roku fireside
 Roku Moods Nature	roku moods nature
 Roku Moods: Summertime	roku moods summertime
 Roku Originals	roku originals
-Roku Sports Channel	roku sports
-Romance Channel	romance
+Roku Sports Channel	roku sports channel
+Romance Channel	romance channel
 Rookie Blue	rookie blue
 Root Sports Northwest	root sports northwest
 Rovr Pets	rovr pets
 Royalworld - Nobility & Dynasties	royalworld nobility and dynasties
-RugbyPass TV	rugbypass
+RugbyPass TV	rugbypass tv
 Runtime Español	runtime espanol
 Runtime Sangre Fría	runtime sangre fria
 Rustic Retreats	rustic retreats
@@ -2636,11 +2636,11 @@ SNL Vault	snl vault
 SONY TEN 1	sony ten 1
 SONY TEN 2	sony ten 2
 SONY TEN 3	sony ten 3
-SPARK TV	spark
+SPARK TV	spark tv
 SPEED SPORT 1	speed sport 1
 SPEEDVISION	speedvision
 SPIN	spin
-SPORT FISHING TV	sport fishing
+SPORT FISHING TV	sport fishing tv
 SPORTSGRID	sportsgrid
 SR Fernsehen DE	sr fernsehen de
 SSC Sport 1	ssc sport 1
@@ -2653,7 +2653,7 @@ SSC Sport Extra 2	ssc sport extra 2
 SSC Sport Extra 3	ssc sport extra 3
 STELLAR	stellar
 SUPER RTL DE	super rtl de
-SURFER TV	surfer
+SURFER TV	surfer tv
 SWAC TV	swac tv
 SWR DE	swr de
 SYFY USA	syfy usa
@@ -2677,16 +2677,16 @@ Scene Stealers	scene stealers
 Schitts Creek	schitts creek
 Schwab Network	schwab network
 Sci-Fi Faves	sci fi faves
-Science Channel	science
+Science Channel	science channel
 Science Is Amazing	science is amazing
 Science Quest	science quest
 Science is Amazing	science is amazing
 Scifi World	scifi world
 Scrambled Up	scrambled up
-Scream Factory TV	scream factory
+Scream Factory TV	scream factory tv
 Screambox	screambox
 Screambox TV	screambox tv
-Screams TV	screams
+Screams TV	screams tv
 Screams TV by Trinian	screams tv by trinian
 Screendreams by Invincible	screendreams by invincible
 Scripps News	scripps news
@@ -2713,9 +2713,9 @@ Shooting Sports Life	shooting sports life
 Shop LC	shop lc
 ShopLC	shoplc
 ShopTV	shoptv
-Shout Factory TV	shout factory
+Shout Factory TV	shout factory tv
 Shout! Movies	shout movies
-Shout! TV	shout
+Shout! TV	shout tv
 Show TV Turkey	show tv turkey
 Showtime 2 USA (SHO2) USA	showtime 2 usa sho2 usa
 Showtime Extreme USA	showtime extreme usa
@@ -2732,7 +2732,7 @@ Silent Witness|New Tricks	silent witness new tricks
 Sitcom Legends	sitcom legends
 Sixx DE	sixx de
 Sketchy AF	sketchy af
-Skull Bound TV	skull bound
+Skull Bound TV	skull bound tv
 Sky Arts UK	sky arts uk
 Sky Atlantic	sky atlantic
 Sky Calcio 1 (251) Italy	sky calcio 1 251 italy
@@ -2816,7 +2816,7 @@ Slightly Off IFC	slightly off ifc
 Slopes TV	slopes tv
 Slugterra	slugterra
 Smart Healthy Green Living	smart healthy green living
-Smithsonian Channel	smithsonian
+Smithsonian Channel	smithsonian channel
 Smithsonian Channel Selects	smithsonian channel selects
 Smokehouse	smokehouse
 Smooth Jazz	smooth jazz
@@ -2824,7 +2824,7 @@ Smosh	smosh
 So Yummy	so yummy
 So... Real	so real
 Sobreviví	sobrevivi
-Sonic TV	sonic
+Sonic TV	sonic tv
 Sonic The Hedgehog	sonic the hedgehog
 Sonic the Hedgehog	sonic the hedgehog
 Sony One Dramon	sony one dramon
@@ -2849,7 +2849,7 @@ Spectrum Sportsnet LA	spectrum sportsnet la
 Speed Sport 1	speed sport 1
 Speedvision	speedvision
 Spike Outdoors	spike outdoors
-Spike Pluto TV	spike pluto
+Spike Pluto TV	spike pluto tv
 Spooks (MI-5)	spooks mi 5
 SporTV Brasil	sportv brasil
 SporTV2 Brasil	sportv2 brasil
@@ -2864,7 +2864,7 @@ Sport 5 Israel	sport 5 israel
 Sport 5 Live Israel	sport 5 live israel
 Sport 5 PLUS Israel	sport 5 plus israel
 Sport 5 Star Israel	sport 5 star israel
-Sport Fishing TV	sport fishing
+Sport Fishing TV	sport fishing tv
 Sport KLUB Golf Croatia	sport klub golf croatia
 Sport Klub 1 Croatia	sport klub 1 croatia
 Sport Klub 2 Croatia	sport klub 2 croatia
@@ -2885,7 +2885,7 @@ Sporting TV Portugal	sporting tv portugal
 Sports Connect	sports connect
 Sports First - Stream Free Now	sports first stream free now
 Sports Fishing	sports fishing
-Sports Illustrated TV	sports illustrated
+Sports Illustrated TV	sports illustrated tv
 SportsGrid	sportsgrid
 SportsGrid Canada	sportsgrid canada
 SportsGrid Live	sportsgrid live
@@ -2926,7 +2926,7 @@ Starz Encore Westerns	starz encore westerns
 Starz In Black	starz in black
 Starz Kids & Family	starz kids and family
 StarzPlay CricLife 1 HD	starzplay criclife 1
-Stash TV	stash
+Stash TV	stash tv
 Stiletto	stiletto
 Stingray 2000s	stingray 2000s
 Stingray Christian Hits	stingray christian hits
@@ -2987,7 +2987,7 @@ Strongman Champions	strongman champions
 Strongman Champions League	strongman champions league
 Summer Vibes	summer vibes
 Sundance Now	sundance now
-Sundance TV	sundance
+Sundance TV	sundance tv
 Super Mario Brothers	super mario brothers
 Super Simple Songs	super simple songs
 SuperSport Action	supersport action
@@ -3010,7 +3010,7 @@ Supernanny	supernanny
 Supernatural Drama	supernatural drama
 Supersport Football	supersport football
 Surf Cinema	surf cinema
-Surfer TV	surfer
+Surfer TV	surfer tv
 Surfing Plus	surfing plus
 Survive or Die	survive or die
 Survivor	survivor
@@ -3031,7 +3031,7 @@ TCM USA	tcm usa
 TEST MY RIDE	test my ride
 TF1 France	tf1 france
 TG Junior	tg junior
-THALAA TV	thalaa
+THALAA TV	thalaa tv
 THE RING TV	ring tv
 TLC	tlc
 TMC Channel USA	tmc channel usa
@@ -3051,7 +3051,7 @@ TNT Sports Argentina	tnt sports argentina
 TNT Sports HD Chile	tnt sports hd chile
 TNT USA	tnt usa
 TODAY All Day	today all day
-TOLLY TV	tolly
+TOLLY TV	tolly tv
 TOTALLY TURTLES	totally turtles
 TRACE Brazuca	trace brazuca
 TRACE Latina	trace latina
@@ -3072,7 +3072,7 @@ TV Amor	tv amor
 TV Land Drama	tv land drama
 TV Land Sitcoms	tv land sitcoms
 TV ONE USA	tv one usa
-TV One CRIME & JUSTICE FAST CHANNEL	tv one crime and justice fast
+TV One CRIME & JUSTICE FAST CHANNEL	tv one crime and justice fast channel
 TV One Crime & Justice	tv one crime and justice
 TV One Stars & Stories	tv one stars and stories
 TV Rain	tv rain
@@ -3112,7 +3112,7 @@ TVLAND	tvland
 TVN HD Poland	tvn hd poland
 TVN24 Poland	tvn24 poland
 TVO CA	tvo ca
-TVOAI Channel	tvoai
+TVOAI Channel	tvoai channel
 TVOne Stars & Stories	tvone stars and stories
 TVP INFO	tvp info
 TVP Sport Poland	tvp sport poland
@@ -3123,7 +3123,7 @@ TYT	tyt
 TYT Network	tyt network
 TYT-Go	tyt go
 Tampa Bay 28	tampa bay 28
-Tarima TV	tarima
+Tarima TV	tarima tv
 Tastemade	tastemade
 Tastemade Food & More	tastemade food and more
 Tastemade Home	tastemade home
@@ -3134,7 +3134,7 @@ Tastemade Travel Channel	tastemade travel channel
 Tastemade US	tastemade us
 Tasty	tasty
 Team Liquid	team liquid
-Team USA TV	team usa
+Team USA TV	team usa tv
 Teen Mom	teen mom
 Teen Wolf by MGM	teen wolf by mgm
 TeenNick	teennick
@@ -3188,7 +3188,7 @@ The Best of Dr. Phil	best of dr phil
 The Beverly Hillbillies	beverly hillbillies
 The Biggest Loser	biggest loser
 The Black Effect	black effect
-The Bob Ross Channel	bob ross
+The Bob Ross Channel	bob ross channel
 The Bold and the Beautiful	bold and the beautiful
 The Brady Bunch	brady bunch
 The Breakfast Club on iHeartRadio	breakfast club on iheartradio
@@ -3198,13 +3198,13 @@ The Challenge	challenge
 The Conners	conners
 The Country Network	country network
 The Curse of Oak Island	curse of oak island
-The Daily Wire TV	daily wire
+The Daily Wire TV	daily wire tv
 The Dead Files	dead files
 The Design Network	design network
 The Dick Van Dyke Show	dick van dyke show
 The Doctor Blake Mysteries	doctor blake mysteries
 The Doctors	doctors
-The Ed Bassmaster Channel	ed bassmaster
+The Ed Bassmaster Channel	ed bassmaster channel
 The Ed Sullivan Show	ed sullivan show
 The Emeril Lagasse Channel	emeril lagasse channel
 The Eric Andre Show	eric andre show
@@ -3217,15 +3217,15 @@ The Food Network	food network
 The Goldbergs	goldbergs
 The Graham Norton Show	graham norton show
 The Grappling Network	grappling network
-The Great British Baking Channel	great british baking
+The Great British Baking Channel	great british baking channel
 The Great Courses Signature	great courses signature
 The Grio	grio
-The Hallmark Channel	hallmark
+The Hallmark Channel	hallmark channel
 The Hill	hill
 The Hill TV	hill tv
 The Hills/Laguna Beach	hills laguna beach
-The Homestyle Channel	homestyle
-The Jack Hanna Channel	jack hanna
+The Homestyle Channel	homestyle channel
+The Jack Hanna Channel	jack hanna channel
 The Jamie Oliver Channel	jamie oliver channel
 The Jim Rome Show	jim rome show
 The Johnny Carson Show	johnny carson show
@@ -3250,15 +3250,15 @@ The Price Is Right: The Barker Era	price is right the barker era
 The Price is Right	price is right
 The Price is Right: Drew Carey	price is right drew carey
 The Price is Right: The Barker Era	price is right the barker era
-The Prof G Channel	prof g
-The Red Green Channel	red green
+The Prof G Channel	prof g channel
+The Red Green Channel	red green channel
 The Red Green Show	red green show
 The Repair Shop	repair shop
 The Reuters 60	reuters 60
 The Rifleman	rifleman
 The Ringer from Spotify	ringer from spotify
 The Royalty Family	royalty family
-The Sherlock Holmes Channel	sherlock holmes
+The Sherlock Holmes Channel	sherlock holmes channel
 The Spa	spa
 The Therapy Crouch	therapy crouch
 The Three Stooges	three stooges
@@ -3271,7 +3271,7 @@ The Virginian	virginian
 The Walking Dead Espanol	walking dead espanol
 The Walking Dead Universe	walking dead universe
 The Walking Dead en español	walking dead en espanol
-The Weather Channel	weather
+The Weather Channel	weather channel
 The Wicked Tuna Channel	wicked tuna channel
 The Wiggles	wiggles
 The Wild Wild West	wild wild west
@@ -3281,7 +3281,7 @@ The X-Files	x files
 The Yorkshire Vet	yorkshire vet
 The Yorkshire Vet & Friends	yorkshire vet and friends
 TheGrio	thegrio
-TheSorryGirls TV	thesorrygirls
+TheSorryGirls TV	thesorrygirls tv
 Third Watch	third watch
 This Old House	this old house
 This Old House Classic	this old house classic
@@ -3331,9 +3331,9 @@ Trace Urban	trace urban
 Trailer Park Boys: The SwearNet Show	trailer park boys the swearnet show
 Trailers From Hell	trailers from hell
 Transformers	transformers
-Travel & Food TV	travel and food
+Travel & Food TV	travel and food tv
 Travel + Adventure	travel plus adventure
-Travel Channel	travel
+Travel Channel	travel channel
 Travel Escapes	travel escapes
 Travel and Adventure	travel and adventure
 Trending Now	trending now
@@ -3343,7 +3343,7 @@ Trinity Broadcast Network	trinity broadcast network
 Trinity Broadcasting Network	trinity broadcasting network
 Triton Poker	triton poker
 TruBlu	trublu
-TruBlu Crime Channel	trublu crime
+TruBlu Crime Channel	trublu crime channel
 TruTV USA	trutv usa
 True Crime Now	true crime now
 True History	true history
@@ -3371,7 +3371,7 @@ Unbeaten	unbeaten
 Unbeaten (North America)	unbeaten north america
 Unbeaten Sports	unbeaten sports
 Unbeaten Sports Channel	unbeaten sports channel
-Unchained TV	unchained
+Unchained TV	unchained tv
 UnchainedTV	unchainedtv
 Unidentified	unidentified
 Unimas	unimas
@@ -3393,7 +3393,7 @@ Untold Stories Of The ER	untold stories of the er
 Untold Stories of the E.R.	untold stories of the e r
 Untold Stories of the ER	untold stories of the er
 Up Faith and Family	up faith and family
-Urban Action Channel	urban action
+Urban Action Channel	urban action channel
 V Film Family	v film family
 V Film Premiere	v film premiere
 V Sport Motor Sweden	v sport motor sweden
@@ -3412,7 +3412,7 @@ Venevisión Internacional	venevision internacional
 Veronica NL Netherland	veronica nl netherland
 Very Alabama by WVTM	very alabama by wvtm
 Very Arkansas by 40/29	very arkansas by 40 29
-Very Baltimore by WBAL-TV	very baltimore by wbal
+Very Baltimore by WBAL-TV	very baltimore by wbal tv
 Very Boston by WCVB	very boston by wcvb
 Very Carolina by WXII	very carolina by wxii
 Very Carolina by WYFF 4	very carolina by wyff 4
@@ -3431,10 +3431,10 @@ Very New Mexico by KOAT	very new mexico by koat
 Very New Orleans by WDSU	very new orleans by wdsu
 Very Oklahoma by KOCO	very oklahoma by koco
 Very Omaha by KETV	very omaha by ketv
-Very Orlando by WESH 2-TV	very orlando by wesh 2
+Very Orlando by WESH 2-TV	very orlando by wesh 2 tv
 Very Pennsylvania by WGAL	very pennsylvania by wgal
 Very Pittsburgh by WTAE	very pittsburgh by wtae
-Very Sacramento by KCRA-TV	very sacramento by kcra
+Very Sacramento by KCRA-TV	very sacramento by kcra tv
 Very Savannah by WJCL	very savannah by wjcl
 Very South Florida by WPBF 25	very south florida by wpbf 25
 Very Tampa Bay by WMOR	very tampa bay by wmor
@@ -3665,7 +3665,7 @@ WSBT 22 News South Bend IN	wsbt 22 news south bend in
 WSBT 22 News South Bend, IN	wsbt 22 news south bend in
 WSFA 12 News Montgomery AL	wsfa 12 news montgomery al
 WSMV 4 News	wsmv 4 news
-WSMV Nashville TV	wsmv nashville
+WSMV Nashville TV	wsmv nashville tv
 WSMV4 News Nashville	wsmv4 news nashville
 WSOC (ABC) News 9 Charlotte NC	wsoc abc news 9 charlotte nc
 WSOC (ABC) News 9 Charlotte, NC	wsoc abc news 9 charlotte nc
@@ -3755,7 +3755,7 @@ Western Bound	western bound
 Western Bound - US	western bound us
 Western Bound Español	western bound espanol
 Western Bound Wrangled by INSP	western bound wrangled by insp
-Western TV	western
+Western TV	western tv
 Westerns	westerns
 Westerns Plus	westerns plus
 WhE Play	whe play
@@ -3767,7 +3767,7 @@ Wicked Tuna	wicked tuna
 Wild 'N Out	wild n out
 Wild Nature	wild nature
 Wild TV	wild tv
-Wild West TV	wild west
+Wild West TV	wild west tv
 WildEarth	wildearth
 Willow 2 Cricket	willow 2 cricket
 Willow Cricket	willow cricket
@@ -3784,7 +3784,7 @@ Women Behind Bars	women behind bars
 Women's Sports Network	women s sports network
 Wonder	wonder
 WonderViz	wonderviz
-World Billiards TV	world billiards
+World Billiards TV	world billiards tv
 World Chase Tag	world chase tag
 World Of Love Island	world of love island
 World Poker Tour	world poker tour
@@ -3797,7 +3797,7 @@ World's Wildest Police Videos	world s wildest police videos
 World’s Most Evil Killers	world s most evil killers
 Wu Tang Collection	wu tang collection
 Wu Tang Collection TV	wu tang collection tv
-X Games TV	x games
+X Games TV	x games tv
 XFC TV	xfc tv
 XITE 60s & 70s Groove	xite 60s and 70s groove
 XITE 80s Flashback	xite 80s flashback
@@ -3828,21 +3828,21 @@ Xtreme Outdoor By History	xtreme outdoor by history
 Xtreme Outdoor Presented by HISTORY	xtreme outdoor presented by history
 Xtreme Outdoor by HISTORY	xtreme outdoor by history
 Xtreme Outdoor by History	xtreme outdoor by history
-Xumo Free Action & Drama TV	xumo free action and drama
+Xumo Free Action & Drama TV	xumo free action and drama tv
 Xumo Free Action Movies	xumo free action movies
 Xumo Free Black Cinema	xumo free black cinema
 Xumo Free Comedy Movies	xumo free comedy movies
-Xumo Free Comedy TV	xumo free comedy
-Xumo Free Crime TV	xumo free crime
-Xumo Free Food TV	xumo free food
-Xumo Free Game Show TV	xumo free game show
+Xumo Free Comedy TV	xumo free comedy tv
+Xumo Free Crime TV	xumo free crime tv
+Xumo Free Food TV	xumo free food tv
+Xumo Free Game Show TV	xumo free game show tv
 Xumo Free Horror & Thriller Movies	xumo free horror and thriller movies
-Xumo Free Kids TV	xumo free kids
+Xumo Free Kids TV	xumo free kids tv
 Xumo Free Movies	xumo free movies
-Xumo Free Nature & Wildlife TV	xumo free nature and wildlife
-Xumo Free Reality TV	xumo free reality
+Xumo Free Nature & Wildlife TV	xumo free nature and wildlife tv
+Xumo Free Reality TV	xumo free reality tv
 Xumo Free Sci-Fi & Fantasy Movies	xumo free sci fi and fantasy movies
-Xumo Free Travel & Lifestyle TV	xumo free travel and lifestyle
+Xumo Free Travel & Lifestyle TV	xumo free travel and lifestyle tv
 Xumo Free Westerns	xumo free westerns
 Xumo Her Movies	xumo her movies
 Xumo Horror & Thriller	xumo horror and thriller
@@ -3850,7 +3850,7 @@ Y2K	y2k
 YES Network USA	yes network usa
 YRF Music	yrf music
 YTV CA	ytv ca
-Yachting tv	yachting
+Yachting tv	yachting tv
 Yahoo Finance	yahoo finance
 Yahoo Sports Network	yahoo sports network
 Yahoo! Finance	yahoo finance
@@ -3879,9 +3879,9 @@ Ziggo Sport NL	ziggo sport nl
 Zona Investigación	zona investigacion
 Zona TUDN	zona tudn
 ZooMoo	zoomoo
-Zoomer TV	zoomer
+Zoomer TV	zoomer tv
 a-z B-Flix	a z b flix
-a-z Best Classic TV	a z best classic
+a-z Best Classic TV	a z best classic tv
 a-z Classic Flix	a z classic flix
 a-z Western Grit	a z western grit
 adn Noticias	adn noticias
@@ -3934,7 +3934,7 @@ beIN Sports Xtra en Español	bein sports xtra en espanol
 bein Sports 5 Turkey	bein sports 5 turkey
 britbox	britbox
 cinemax	cinemax
-crema.tv	crema
+crema.tv	crema tv
 crunchyroll	crunchyroll
 ducktv	ducktv
 eClutch Access	eclutch access
@@ -3942,7 +3942,7 @@ fubo Sports	fubo sports
 fubo Sports Network	fubo sports network
 grokker	grokker
 hidive	hidive
-iCarly TV	icarly
+iCarly TV	icarly tv
 iHeart 2000s Radio	iheart 2000s radio
 iHeart 2010s Radio	iheart 2010s radio
 iHeart Alternative Radio	iheart alternative radio
@@ -3953,13 +3953,13 @@ iHeart80s	iheart80s
 iHeart90s	iheart90s
 iHeartCountry	iheartcountry
 iHeartCountry Classics	iheartcountry classics
-iHeartRadio Classic Rock Channel	iheartradio classic rock
+iHeartRadio Classic Rock Channel	iheartradio classic rock channel
 iHeartRadio Hit Nation	iheartradio hit nation
 iHeartRadio R&B Jams	iheartradio r and b jams
 iHeartRadio Real Oldies	iheartradio real oldies
 iHeartRadio Rock Nation	iheartradio rock nation
 iHeartRadio Yacht Rock	iheartradio yacht rock
-iShowSpeed TV	ishowspeed
+iShowSpeed TV	ishowspeed tv
 kocowa	kocowa
 outtv	outtv
 pocket.watch Game-On	pocket watch game on
@@ -3973,5 +3973,5 @@ wedotv Cars	wedotv cars
 ¿Qué Culpa Tiene Fatmagül?	que culpa tiene fatmagul
 Éxitos del Momento	exitos del momento
 ÚN TV	un tv
-ÚNICA TV	unica
+ÚNICA TV	unica tv
 МАТЧ! БОЕЦ Russia	матч боец russia

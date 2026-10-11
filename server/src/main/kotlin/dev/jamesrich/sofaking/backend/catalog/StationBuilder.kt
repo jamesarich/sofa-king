@@ -17,6 +17,8 @@ data class FeedCandidate(val channel: Channel, val providerId: String, val offer
 data class StationAvailability(
     val unavailableSince: Instant? = null, val autoDisabled: Boolean = false, val missingSince: Instant? = null,
     val lastNumber: String? = null, val lastName: String? = null,
+    /** Pin identity to the offering IDs it last resolved to; what a required station's sticky snapshot keeps. */
+    val pinOfferings: Map<String, List<String>> = emptyMap(),
 )
 
 /** Everything a run reads. [guidesListing] gives the guides that list a `tvg-id`, in configuration order. */
@@ -42,6 +44,8 @@ class BuildResult(
     val availability: Map<String, StationAvailability>,
     val candidates: List<PolicyCandidate>,
     val keys: StationKeys,
+    /** Pairs of live station keys that probably name one station, as `<key>: possible alias of <other key>`. */
+    val suggestedAliases: List<String> = emptyList(),
 )
 
 private val NUMBER_ORDER: Comparator<BigDecimal?> = nullsLast(naturalOrder())
@@ -99,7 +103,8 @@ object StationBuilder {
         val decisions = ArrayList<PolicyCandidate>()
         val all = input.candidates.sortedWith(compareBy({ it.providerId }, { it.channel.id }))
         val (live, ghosts) = all.partition { it.offerings.isNotEmpty() }
-        val keys = StationKeys(live.map { it.channel.name }, policy.names.aliases, policy.names.version)
+        val keys = StationKeys(policy.names.aliases, policy.names.version)
+        val liveOfferings = live.flatMapTo(HashSet()) { candidate -> candidate.offerings.map { it.id } }
         val entries = policy.providers.map(::CompiledEntry)
         val overrides = policy.stations.toSortedMap()
 
@@ -135,9 +140,28 @@ object StationBuilder {
 
         class Draft(
             val key: String, val leading: Member?, val sources: List<Member>, val offeringIds: List<String>, val override: StationOverride?,
-            val baseEnabled: Boolean, val missing: StationAvailability? = null,
+            val baseEnabled: Boolean, val missing: StationAvailability? = null, val pinOfferings: Map<String, List<String>> = emptyMap(),
         ) {
             var number: String? = override?.number
+        }
+
+        // Pins that matched no live channel. For a required station whose pin a retained ghost still matches, the
+        // offerings that pin last resolved to stay while the feed still has them (the sticky snapshot).
+        val sticky = HashMap<String, MutableList<Pair<String, List<String>>>>()
+        for ((key, override) in overrides) {
+            override.sources.forEachIndexed { index, pin ->
+                if (key to index in matchedPins) return@forEachIndexed
+                val identity = pinIdentity(pin)
+                val retained = ghosts.filter { pinMatches(pin, it) }.map { it.channel.id }.sorted()
+                val kept = if (override.required && retained.isNotEmpty()) input.previous[key]?.pinOfferings?.get(identity).orEmpty().filter { it in liveOfferings } else emptyList()
+                if (kept.isNotEmpty()) sticky.getOrPut(key) { mutableListOf() } += identity to kept
+                val tail = when {
+                    kept.isNotEmpty() -> "; keeping ${kept.size} last known sources of retained channel ${retained.first()}"
+                    retained.isNotEmpty() -> "; retained channel ${retained.first()} has no last known source left"
+                    else -> ""
+                }
+                findings += if (override.required) "$key: required source missing: $identity$tail" else "$key: pinned source missing: $identity$tail"
+            }
         }
 
         val drafts = ArrayList<Draft>()
@@ -158,12 +182,28 @@ object StationBuilder {
             val ordered = pinned + rest
             val leading = eligible.minWithOrNull(compareBy<Member> { it.entry ?: Int.MAX_VALUE }.thenBy(NUMBER_ORDER) { it.number }.thenBy { it.id })
             val offeringIds = ArrayList<String>()
+            val pinOfferings = sortedMapOf<String, List<String>>()
             var dropped = 0
+            fun take(candidateIds: List<String>): Int {
+                val ids = candidateIds.filter { it !in offeringIds }
+                val room = (policy.maxSourcesPerStation - offeringIds.size).coerceAtLeast(0)
+                offeringIds += ids.take(room)
+                dropped += (ids.size - room).coerceAtLeast(0)
+                return room
+            }
+            fun takeSticky() {
+                val kept = sticky[key].orEmpty().sortedBy { (identity, _) -> override!!.sources.indexOfFirst { pinIdentity(it) == identity } }
+                for ((identity, ids) in kept) { take(ids); pinOfferings[identity] = ids }
+            }
+            // Pinned sources, then the sticky snapshot, then the rest.
+            if (pinned.isEmpty()) takeSticky()
             for (member in ordered) {
-                val ids = member.candidate.offerings.map { it.id }.sorted().filter { it !in offeringIds }
-                val room = policy.maxSourcesPerStation - offeringIds.size
-                offeringIds += ids.take(room.coerceAtLeast(0))
-                dropped += (ids.size - room.coerceAtLeast(0)).coerceAtLeast(0)
+                val room = take(member.candidate.offerings.map { it.id }.sorted())
+                if (member === pinned.lastOrNull()) takeSticky()
+                if (member.pin != null) {
+                    val identity = pinIdentity(override!!.sources[member.pin])
+                    pinOfferings[identity] = pinOfferings[identity].orEmpty() + member.candidate.offerings.map { it.id }.sorted()
+                }
                 val nameKey = keys.key(member.candidate.channel.name)
                 when {
                     room <= 0 -> decide(member.candidate, member.entry, "skipped", key, "over the source cap of ${policy.maxSourcesPerStation}")
@@ -174,17 +214,7 @@ object StationBuilder {
             }
             if (dropped > 0) findings += "$key: $dropped sources over the cap of ${policy.maxSourcesPerStation} dropped"
             val baseEnabled = override?.enabled ?: leading?.entry?.let { policy.providers[it].enabled } ?: true
-            drafts += Draft(key, leading, ordered, offeringIds, override, baseEnabled)
-        }
-
-        // Pins that matched no live channel; a ghost that would match is what a sticky snapshot keeps.
-        for ((key, override) in overrides) {
-            override.sources.forEachIndexed { index, pin ->
-                if (key to index in matchedPins) return@forEachIndexed
-                val retained = ghosts.filter { pinMatches(pin, it) }.map { it.channel.id }.sorted()
-                val tail = if (retained.isEmpty()) "" else "; retained channel ${retained.first()} could back it"
-                findings += if (override.required) "$key: required source missing: ${pinIdentity(pin)}$tail" else "$key: pinned source missing: ${pinIdentity(pin)}$tail"
-            }
+            drafts += Draft(key, leading, ordered, offeringIds, override, baseEnabled, pinOfferings = pinOfferings)
         }
 
         // Availability by key: unavailable long enough turns a station off until a source qualifies again.
@@ -201,7 +231,7 @@ object StationBuilder {
             if (!off && since != null && Duration.between(since, input.now) >= disableAfter) off = true
             else if (off && (healthyNow || (policy.health.enableOn == "eligible" && eligibleNow))) off = false
             if (off) autoOff += draft.key
-            availability[draft.key] = StationAvailability(since, off)
+            availability[draft.key] = StationAvailability(since, off, pinOfferings = draft.pinOfferings)
             if (draft.offeringIds.isEmpty()) findings += "${draft.key}: required station has no live source"
         }
         // Stations whose candidates are gone stay, disabled, for keepMissingDays; required ones never leave.
@@ -274,6 +304,7 @@ object StationBuilder {
         return BuildResult(
             stations, assigned, findings.sorted(), availability,
             decisions.sortedWith(compareBy({ it.key }, { it.providerId }, { it.channelId })), keys,
+            suggestedAliases(drafts.filter { it.sources.isNotEmpty() }.map { it.key }),
         )
     }
 

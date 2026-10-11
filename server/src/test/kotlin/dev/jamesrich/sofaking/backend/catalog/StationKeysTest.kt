@@ -6,7 +6,7 @@ import kotlin.test.*
 
 class StationKeysTest {
     private val corpus: List<String> = String(Fixture.resource("policy/candidate-names.txt"), Charsets.UTF_8).lines().filter { it.isNotEmpty() }
-    private val keys = StationKeys(corpus)
+    private val keys = StationKeys()
 
     private fun assertDistinct(vararg names: String) {
         val mapped = names.associateWith { keys.key(it) }
@@ -47,22 +47,30 @@ class StationKeysTest {
         assertNotEquals("russia", key)
     }
 
-    @Test fun `a trailing tv or channel goes only when nothing else carries the remainder`() {
-        assertEquals("bob ross", StationKeys(listOf("The Bob Ross Channel")).normalize("The Bob Ross Channel"))
-        assertEquals("tennis channel", StationKeys(listOf("Tennis Channel", "Tennis TV")).normalize("Tennis Channel"))
-        assertEquals("tennis", StationKeys(listOf("Tennis Channel")).normalize("Tennis Channel"))
-        assertEquals("mlb channel", StationKeys(listOf("MLB Channel")).normalize("MLB Channel"), "a remainder under five characters keeps its suffix")
-        assertEquals("cbs news channel", StationKeys(listOf("CBS News", "CBS News Channel")).normalize("CBS News Channel"), "the bare remainder counts as another suffix")
+    @Test fun `a trailing tv or channel always stays, so a key depends on the name alone`() {
+        assertEquals("bob ross channel", keys.normalize("The Bob Ross Channel"))
+        assertEquals("tennis channel", keys.normalize("Tennis Channel"))
+        assertEquals("mlb channel", keys.normalize("MLB Channel"))
+        assertEquals("bloomberg tv", keys.normalize("Bloomberg TV"))
         assertEquals("hd", baseName("HD"), "a lone word is never dropped")
         assertEquals("the", baseName("The"))
         assertEquals("at and t plus", baseName("AT&T+"))
     }
 
     @Test fun `aliases apply after normalization`() {
-        val aliased = StationKeys(listOf("ESPN 8", "ESPN8"), mapOf("espn 8" to "espn8"))
+        val aliased = StationKeys(mapOf("espn 8" to "espn8"))
         assertEquals("espn8", aliased.key("ESPN 8"))
         assertEquals("espn8", aliased.key("ESPN8"))
         assertEquals("espn 8", aliased.normalize("ESPN 8"))
+    }
+
+    @Test fun `suggested aliases pair a bare name with its tv or channel spelling and spellings that differ by spaces`() {
+        val suggested = suggestedAliases(listOf("bob ross", "bob ross channel", "espn 8", "espn8", "grio", "thegrio", "cheddar tv", "tennis channel", "tennis tv", "cbs news"))
+        assertEquals(
+            listOf("bob ross channel: possible alias of bob ross", "espn 8: possible alias of espn8", "grio: possible alias of thegrio"),
+            suggested,
+        )
+        assertTrue(suggestedAliases(listOf("tennis channel", "tennis tv", "tennis plus")).isEmpty(), "two suffixes without the bare name suggest nothing")
     }
 
     /** Any change to normalization shows up here as a diff of this file; delete it and rerun to accept one. */

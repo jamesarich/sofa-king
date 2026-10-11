@@ -73,11 +73,11 @@ class StationBuilderTest {
 
     @Test fun `the earliest provider entry leads and its sources come first`() {
         val result = build(policy, catalog)
-        val bob = result.station("bob ross")
+        val bob = result.station("bob ross channel")
         assertEquals("Bob Ross Channel", bob.name, "whale is the first entry, so it leads")
         assertEquals("https://logo.test/w1.png", bob.logo)
         assertEquals(listOf("w1-o1", "s1-o1"), bob.offeringIds)
-        assertEquals(stationId("bob ross"), bob.id)
+        assertEquals(stationId("bob ross channel"), bob.id)
         val bbc = result.station("bbc news")
         assertEquals(listOf("w2-o1", "s2-o1", "s2-o2", "v1-o1"), bbc.offeringIds, "HD and plain spellings meet, in entry order")
         assertEquals("Headlines", bbc.group, "the group map reads the leading candidate's raw group")
@@ -125,7 +125,27 @@ class StationBuilderTest {
         assertTrue("nfl network: required station has no live source" in result.findings)
 
         val retained = build(policy, withoutPin + candidate("masq", "m1", "NFL Net Feed 3", "900", tvg = "NFLNetwork.us", offerings = 0))
-        assertTrue(retained.findings.any { it.startsWith("nfl network: required source missing") && it.endsWith("retained channel m1 could back it") })
+        assertTrue(retained.findings.any { it.startsWith("nfl network: required source missing") && it.endsWith("retained channel m1 has no last known source left") })
+    }
+
+    @Test fun `a required pin left with only a retained channel keeps the sources it last resolved to while the feed has them`() {
+        val first = build(policy, catalog)
+        val remembered = first.availability.getValue("nfl network")
+        assertEquals(mapOf("masq/tvg-id:NFLNetwork.us" to listOf("m1-o1")), remembered.pinOfferings)
+
+        val ghost = candidate("masq", "m1", "NFL Net Feed 3", "900", tvg = "NFLNetwork.us", offerings = 0)
+        // The provider moved the stream to a new channel under another tvg-id; its offering row survives.
+        val moved = FeedCandidate(Channel("m7", "907", "NFL Moved", null, emptyList(), "NFLNetwork2.us"), "masq", listOf(Offering("m1-o1", "m7", "masq", "https://example.test/m1/1", "hls")))
+        val base = catalog.filterNot { it.channel.id == "m1" } + ghost
+        val kept = build(policy, base + moved, previous = mapOf("nfl network" to remembered))
+        val nfl = kept.station("nfl network")
+        assertEquals(listOf("m1-o1"), nfl.offeringIds); assertTrue(nfl.enabled)
+        assertTrue(kept.findings.any { it == "nfl network: required source missing: masq/tvg-id:NFLNetwork.us; keeping 1 last known sources of retained channel m1" }, "${kept.findings}")
+        assertEquals(remembered.pinOfferings, kept.availability.getValue("nfl network").pinOfferings, "the snapshot carries to the next run")
+
+        val gone = build(policy, base, previous = mapOf("nfl network" to remembered))
+        assertTrue(gone.station("nfl network").offeringIds.isEmpty())
+        assertTrue(gone.findings.any { it.endsWith("retained channel m1 has no last known source left") })
     }
 
     @Test fun `the source cap keeps pins and the best sources and reports the rest`() {
@@ -166,18 +186,18 @@ class StationBuilderTest {
         assertTrue(result.station("bbc news").enabled, "a disabled entry's source does not disable a station another entry leads")
         val overridden = build(policy.copy(stations = policy.stations + ("vizio only" to StationOverride(enabled = true))), catalog + candidate("vizio", "v9", "Vizio Only", "30"))
         assertTrue(overridden.station("vizio only").enabled)
-        val off = build(policy.copy(stations = policy.stations + ("bob ross" to StationOverride(enabled = false))), catalog)
-        assertEquals("policy", off.station("bob ross").disabledReason)
+        val off = build(policy.copy(stations = policy.stations + ("bob ross channel" to StationOverride(enabled = false))), catalog)
+        assertEquals("policy", off.station("bob ross channel").disabledReason)
     }
 
     @Test fun `the guide is the source provider's own, else one no other provider owns`() {
         val guides = mapOf("bob" to listOf("samsung", "whale"), "s-bob" to listOf("whale"), "bbc" to listOf("whale", "epg"), "s-bbc" to listOf("epg"))
         val result = build(policy, catalog, listing = { guides[it].orEmpty() })
-        assertEquals(GuideMapping("whale", "bob"), result.station("bob ross").guide)
+        assertEquals(GuideMapping("whale", "bob"), result.station("bob ross channel").guide)
         assertEquals(GuideMapping("whale", "bbc"), result.station("bbc news").guide)
 
         val foreign = build(policy, listOf(candidate("samsung", "s1", "The Bob Ross Channel", tvg = "s-bob")), listing = { guides[it].orEmpty() }, providers = setOf("whale", "samsung"))
-        assertNull(foreign.station("bob ross").guide, "another provider's guide names a different channel")
+        assertNull(foreign.station("bob ross channel").guide, "another provider's guide names a different channel")
         val independent = build(policy, listOf(candidate("samsung", "s2", "BBC News", tvg = "s-bbc")), listing = { guides[it].orEmpty() }, providers = setOf("whale", "samsung"))
         assertEquals(GuideMapping("epg", "s-bbc"), independent.station("bbc news").guide)
         val overridden = build(policy.copy(stations = mapOf("bbc news" to StationOverride(guide = GuideMapping("custom", "x")))), catalog, listing = { guides[it].orEmpty() })
@@ -188,21 +208,21 @@ class StationBuilderTest {
         val one = listOf(candidate("whale", "w1", "Bob Ross Channel", "15"))
         val broken = mapOf("w1-o1" to HealthState(HealthStatus.QUARANTINED))
         val fresh = build(policy, one, health = broken)
-        assertTrue(fresh.station("bob ross").enabled)
-        assertEquals(StationAvailability(now, false, lastNumber = "15", lastName = "Bob Ross Channel"), fresh.availability["bob ross"])
+        assertTrue(fresh.station("bob ross channel").enabled)
+        assertEquals(StationAvailability(now, false, lastNumber = "15", lastName = "Bob Ross Channel"), fresh.availability["bob ross channel"])
 
         val since = now.minus(Duration.ofHours(25))
-        val off = build(policy, one, health = broken, previous = mapOf("bob ross" to StationAvailability(since)))
-        assertEquals("unavailable", off.station("bob ross").disabledReason)
-        assertEquals(since, off.availability.getValue("bob ross").unavailableSince)
+        val off = build(policy, one, health = broken, previous = mapOf("bob ross channel" to StationAvailability(since)))
+        assertEquals("unavailable", off.station("bob ross channel").disabledReason)
+        assertEquals(since, off.availability.getValue("bob ross channel").unavailableSince)
 
         val eligibleOnly = mapOf("w1-o1" to HealthState(HealthStatus.UNVERIFIED))
-        val stillOff = build(policy, one, health = eligibleOnly, previous = mapOf("bob ross" to StationAvailability(null, autoDisabled = true)))
-        assertEquals("unavailable", stillOff.station("bob ross").disabledReason, "enableOn healthy waits for a healthy source")
-        val eligibleOn = build(policy.copy(health = PolicyHealth(enableOn = "eligible")), one, health = eligibleOnly, previous = mapOf("bob ross" to StationAvailability(null, autoDisabled = true)))
-        assertTrue(eligibleOn.station("bob ross").enabled)
-        val back = build(policy, one, previous = mapOf("bob ross" to StationAvailability(null, autoDisabled = true)))
-        assertTrue(back.station("bob ross").enabled)
+        val stillOff = build(policy, one, health = eligibleOnly, previous = mapOf("bob ross channel" to StationAvailability(null, autoDisabled = true)))
+        assertEquals("unavailable", stillOff.station("bob ross channel").disabledReason, "enableOn healthy waits for a healthy source")
+        val eligibleOn = build(policy.copy(health = PolicyHealth(enableOn = "eligible")), one, health = eligibleOnly, previous = mapOf("bob ross channel" to StationAvailability(null, autoDisabled = true)))
+        assertTrue(eligibleOn.station("bob ross channel").enabled)
+        val back = build(policy, one, previous = mapOf("bob ross channel" to StationAvailability(null, autoDisabled = true)))
+        assertTrue(back.station("bob ross channel").enabled)
     }
 
     @Test fun `stations whose candidates vanish stay disabled for keepMissingDays`() {
@@ -224,5 +244,9 @@ class StationBuilderTest {
         val result = build(aliased, listOf(candidate("whale", "e1", "ESPN 8", "8"), candidate("samsung", "e2", "ESPN8", "1008")))
         assertEquals(listOf("e1-o1", "e2-o1"), result.station("espn8").offeringIds)
         assertEquals(1, result.stations.size)
+        assertTrue(result.suggestedAliases.isEmpty())
+
+        val unaliased = build(aliased.copy(names = PolicyNames()), listOf(candidate("whale", "e1", "ESPN 8", "8"), candidate("samsung", "e2", "ESPN8", "1008")))
+        assertEquals(listOf("espn 8: possible alias of espn8"), unaliased.suggestedAliases)
     }
 }

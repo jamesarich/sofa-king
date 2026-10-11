@@ -22,6 +22,35 @@ class BackendStoreTest {
         val id = openStore(dir).use { it.serverId() }
         assertEquals(id, openStore(dir).use { it.serverId() })
     }
+    @Test fun `health writes are visible at once and persist across reopen`() = runBlocking<Unit> {
+        val dir = directory()
+        val before = openStore(dir).use { store ->
+            store.registerOffering("p:s")
+            assertEquals(HealthState(), store.health("p:s"))
+            val next = store.recordObservation("p:s", observation(0, "a"), t)
+            assertEquals(next, store.health("p:s"))
+            assertEquals(mapOf("p:s" to next), store.allHealth())
+            store.setManuallyDisabled("p:s", true)
+            assertTrue(store.health("p:s")!!.manuallyDisabled)
+            assertTrue(store.allHealth().getValue("p:s").manuallyDisabled)
+            store.allHealth()
+        }
+        openStore(dir).use { store -> assertEquals(before, store.allHealth()) }
+    }
+    @Test fun `snapshot import publishes new offerings and keeps existing health`() = runBlocking<Unit> {
+        openStore(directory()).use { store ->
+            store.registerOffering("p:old")
+            store.setManuallyDisabled("p:old", true)
+            val offerings = listOf(
+                dev.jamesrich.sofaking.backend.catalog.Offering("p:old", "c", "p", "http://old", "hls"),
+                dev.jamesrich.sofaking.backend.catalog.Offering("p:new", "c", "p", "http://new", "hls"),
+            )
+            store.saveSnapshot(dev.jamesrich.sofaking.backend.catalog.FeedSnapshot("p", emptyList(), offerings, emptyList(), t.toString()))
+            assertEquals(HealthState(), store.health("p:new"))
+            assertTrue(store.health("p:old")!!.manuallyDisabled)
+            assertEquals(setOf("p:old", "p:new"), store.allHealth().keys)
+        }
+    }
     @Test fun `store is ready only while open`() = runBlocking<Unit> {
         val store = openStore(directory())
         assertTrue(store.ready())

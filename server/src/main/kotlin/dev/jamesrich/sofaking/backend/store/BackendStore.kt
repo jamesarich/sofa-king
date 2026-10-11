@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -32,10 +33,14 @@ class BackendStore internal constructor(
     private val closed = AtomicBoolean(false)
     private val policy = HealthPolicy()
 
+    /** Mirror of offering_health; only [writeHealth] replaces it, after the DB commit, so health reads never touch SQLite. */
+    private val healthSnapshot = AtomicReference<Map<String, HealthState>>(emptyMap())
+
     internal suspend fun initialize() = databaseWork {
         applyMigrations(database, foundationMigrations())
         transaction(database) {
             Metadata.insertIgnore { it[key] = "server_id"; it[value] = UUID.randomUUID().toString() }
+            healthSnapshot.set(OfferingHealth.selectAll().associate { it[OfferingHealth.offeringId] to decodeHealth(it[OfferingHealth.stateJson]) })
         }
     }
 
@@ -52,19 +57,20 @@ class BackendStore internal constructor(
 
     suspend fun registerOffering(offeringId: String) {
         require(offeringId.isNotBlank()) { "Offering ID is required" }
-        query {
+        writeHealth { changed ->
             OfferingHealth.insertIgnore {
                 it[OfferingHealth.offeringId] = offeringId
                 it[stateJson] = HealthState().encode()
                 it[updatedAt] = Instant.now().toString()
             }
+            if (offeringId !in healthSnapshot.get()) changed[offeringId] = HealthState()
         }
     }
 
-    suspend fun health(offeringId: String): HealthState? = query { currentHealth(offeringId) }
+    suspend fun health(offeringId: String): HealthState? = healthSnapshot.get()[offeringId]
 
-    suspend fun recordObservation(offeringId: String, observation: Observation, now: Instant): HealthState = query {
-        val current = requireNotNull(currentHealth(offeringId)) { "Unknown offering" }
+    suspend fun recordObservation(offeringId: String, observation: Observation, now: Instant): HealthState = writeHealth { changed ->
+        val current = requireNotNull(healthSnapshot.get()[offeringId]) { "Unknown offering" }
         val duplicate = HealthObservations.selectAll().where {
             (HealthObservations.offeringId eq offeringId) and (HealthObservations.incidentId eq observation.incidentId)
         }.any()
@@ -78,6 +84,7 @@ class BackendStore internal constructor(
                 it[observationJson] = Json.encodeToString(observation.stored())
             }
             saveHealth(offeringId, next, now)
+            changed[offeringId] = next
             next
         }
     }
@@ -87,9 +94,10 @@ class BackendStore internal constructor(
         HealthObservations.deleteWhere { observedAt less before.toString() }
     }
 
-    suspend fun setManuallyDisabled(offeringId: String, disabled: Boolean): HealthState = query {
-        val next = requireNotNull(currentHealth(offeringId)) { "Unknown offering" }.copy(manuallyDisabled = disabled)
+    suspend fun setManuallyDisabled(offeringId: String, disabled: Boolean): HealthState = writeHealth { changed ->
+        val next = requireNotNull(healthSnapshot.get()[offeringId]) { "Unknown offering" }.copy(manuallyDisabled = disabled)
         saveHealth(offeringId, next, Instant.now())
+        changed[offeringId] = next
         next
     }
 
@@ -101,7 +109,7 @@ class BackendStore internal constructor(
     suspend fun saveSnapshot(snapshot: dev.jamesrich.sofaking.backend.catalog.FeedSnapshot) {
         val encoded = Json.encodeToString(snapshot)
         val initial = HealthState().encode()
-        query {
+        writeHealth { changed ->
             val key = "feed:${snapshot.providerId}"
             Metadata.deleteWhere { Metadata.key eq key }
             Metadata.insert { it[Metadata.key] = key; it[value] = encoded }
@@ -110,6 +118,8 @@ class BackendStore internal constructor(
                 this[OfferingHealth.stateJson] = initial
                 this[OfferingHealth.updatedAt] = snapshot.importedAt
             }
+            val known = healthSnapshot.get()
+            for (offering in snapshot.offerings) if (offering.id !in known) changed[offering.id] = HealthState()
         }
     }
 
@@ -140,9 +150,7 @@ class BackendStore internal constructor(
         }
     }
 
-    suspend fun allHealth(): Map<String, HealthState> = query {
-        OfferingHealth.selectAll().associate { it[OfferingHealth.offeringId] to decodeHealth(it[OfferingHealth.stateJson]) }
-    }
+    suspend fun allHealth(): Map<String, HealthState> = healthSnapshot.get()
 
     /** Changes whenever any health row is written or added; cheap enough to answer every conditional catalog request. */
     suspend fun healthVersion(): String = query {
@@ -150,9 +158,6 @@ class BackendStore internal constructor(
         val latest = OfferingHealth.updatedAt.max()
         OfferingHealth.select(count, latest).single().let { "${it[count]}:${it[latest] ?: ""}" }
     }
-
-    private fun currentHealth(offeringId: String): HealthState? = OfferingHealth.selectAll()
-        .where { OfferingHealth.offeringId eq offeringId }.singleOrNull()?.let { decodeHealth(it[OfferingHealth.stateJson]) }
 
     private fun saveHealth(offeringId: String, state: HealthState, at: Instant) {
         OfferingHealth.update({ OfferingHealth.offeringId eq offeringId }) {
@@ -169,6 +174,14 @@ class BackendStore internal constructor(
 
     internal suspend fun <T> query(block: JdbcTransaction.() -> T): T = databaseWork {
         transaction(database) { maxAttempts = 1; block() }
+    }
+
+    /** Runs [block] in one transaction, then publishes the rows it changed; a rolled-back write publishes nothing. */
+    private suspend fun <T> writeHealth(block: JdbcTransaction.(MutableMap<String, HealthState>) -> T): T = databaseWork {
+        val changed = LinkedHashMap<String, HealthState>()
+        val result = transaction(database) { maxAttempts = 1; block(changed) }
+        if (changed.isNotEmpty()) healthSnapshot.updateAndGet { it + changed }
+        result
     }
 
     private suspend fun <T> databaseWork(block: () -> T): T {

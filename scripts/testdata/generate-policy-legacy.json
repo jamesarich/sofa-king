@@ -1,0 +1,12 @@
+{
+  "exportedAt": "2026-01-01",
+  "channels": [
+    {"name": "Local 5 News", "number": "5", "group": "Local", "logo": "https://logo.test/5.png",
+     "sources": [{"provider": "aggregator", "channelName": "Local 5", "tvgId": "local5", "number": "9", "status": "HEALTHY"}]},
+    {"name": "Sports One", "number": "227", "group": "Sports",
+     "sources": [{"provider": "aggregator", "channelName": "Sports One", "tvgId": "sports1"},
+                 {"provider": "aggregator", "channelName": "Sports One Backup", "tvgId": "sports1b"}]},
+    {"name": "The Sports Two", "number": "228", "group": "Sports",
+     "sources": [{"provider": "aggregator", "channelName": "Sports One", "tvgId": "sports1"}]}
+  ]
+}

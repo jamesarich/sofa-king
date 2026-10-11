@@ -1,0 +1,23 @@
+{
+  "providers": [{"id": "whale"}, {"id": "samsung"}, {"id": "vizio"}, {"id": "localnow"}, {"id": "aggregator"}],
+  "lineup": [
+    {"id": "e1", "number": "100", "name": "BBC News", "enabled": true, "offerings": [
+      {"id": "o1", "providerId": "whale", "channelName": "BBC News HD"},
+      {"id": "o2", "providerId": "samsung", "channelName": "BBC News North America"},
+      {"id": "o3", "providerId": "aggregator", "channelName": "BBC World"}
+    ]},
+    {"id": "e2", "number": "101", "name": "ESPN8 The Ocho", "enabled": true, "offerings": [
+      {"id": "o4", "providerId": "vizio", "channelName": "ESPN 8 The Ocho"}
+    ]},
+    {"id": "e3", "number": "102", "name": "Quiet", "enabled": false, "offerings": [
+      {"id": "o5", "providerId": "whale", "channelName": "Quiet Channel"}
+    ]}
+  ],
+  "candidates": {
+    "aggregator": [
+      {"channelId": "c1", "providerId": "aggregator", "number": "1", "name": "Sports One", "tvgId": "sports1"},
+      {"channelId": "c2", "providerId": "aggregator", "number": "2", "name": "Sports One Backup", "tvgId": "sports1b"},
+      {"channelId": "c3", "providerId": "aggregator", "number": "3", "name": "Real Sports One", "tvgId": "real1"}
+    ]
+  }
+}

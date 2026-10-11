@@ -122,4 +122,29 @@ class PreviewDwellTest {
         advance(100)
         assertTrue(quick.opensFullScreen(now))
     }
+
+    @Test
+    fun `without a full screen delay the preview unmutes but never opens`() {
+        val off = PreviewDwell(fullScreenAfterMs = null)
+        off.onFocus("a", now)
+        assertEquals(5_000L, off.nextTransitionMs(now))
+        advance(5_000)
+        assertFalse(off.isMuted(now))
+        assertNull(off.nextTransitionMs(now))
+        advance(600_000)
+        assertFalse(off.opensFullScreen(now))
+        assertNull(off.nextTransitionMs(now))
+    }
+
+    @Test
+    fun `a longer full screen delay is the next transition after unmuting`() {
+        val thirty = PreviewDwell(fullScreenAfterMs = 30_000L)
+        thirty.onFocus("a", now)
+        advance(5_000)
+        assertEquals(25_000L, thirty.nextTransitionMs(now))
+        advance(24_999)
+        assertFalse(thirty.opensFullScreen(now))
+        advance(1)
+        assertTrue(thirty.opensFullScreen(now))
+    }
 }

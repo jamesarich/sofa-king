@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend.logos
 
 import dev.jamesrich.sofaking.backend.catalog.hash
+import dev.jamesrich.sofaking.backend.catalog.normalizeLogoUrl
+import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.LogoRecord
 import dev.jamesrich.sofaking.backend.store.deleteLogo
@@ -148,8 +150,8 @@ class LogoCache(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // Logo URLs are not secrets, but like every upstream URL they stay out of the log.
-                log.info("logo fetch failed key={} class={} cached={}", key, e.javaClass.simpleName, previous?.cached == true)
+                // Logo URLs are not secrets, but like every upstream URL they stay out of the log, so the message is redacted.
+                log.info("logo fetch failed key={} class={} message=\"{}\" cached={}", key, e.javaClass.simpleName, redactedMessage(e), previous?.cached == true)
                 previous?.copy(sourceUrl = source, failedAt = at, failures = previous.failures + 1)
                     ?: LogoRecord(key, source, null, 0, null, fetchedAt = null, failedAt = at, failures = 1)
             }
@@ -161,8 +163,10 @@ class LogoCache(
 
     private class Image(val bytes: ByteArray, val contentType: String)
 
-    private suspend fun download(source: String): Image =
-        http.withUpstreamResponse(source, source, emptyMap(), requestTimeoutMillis = 15_000, policy = policy) { response ->
+    private suspend fun download(source: String): Image {
+        // Entries stored before references were normalized can still carry spaces or other unencoded characters.
+        val target = normalizeLogoUrl(source) ?: throw IllegalArgumentException("Logo URL is not an HTTP(S) address")
+        return http.withUpstreamResponse(target, target, emptyMap(), requestTimeoutMillis = 15_000, policy = policy) { response ->
             require(response.status.value == 200) { "Logo fetch answered ${response.status.value}" }
             val declared = response.headers[HttpHeaders.ContentType]?.substringBefore(';')?.trim()?.lowercase()
             require(declared in IMAGE_TYPES) { "Not an image content type" }
@@ -173,6 +177,7 @@ class LogoCache(
             val type = rasterType(bytes) ?: (if (declared == SVG && looksLikeMarkup(bytes)) SVG else null) ?: throw IllegalArgumentException("Body is not an image")
             Image(bytes, type)
         }
+    }
 
     private suspend fun write(key: String, bytes: ByteArray) = withContext(Dispatchers.IO) {
         val temporary = Files.createTempFile(directory, "$key.", ".tmp")

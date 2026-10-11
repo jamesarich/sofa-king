@@ -146,13 +146,13 @@ class LineupService(
         if (entry.number.isBlank() || entry.number.length > 32 || entry.number.any { it.isWhitespace() }) invalid("Number must be 1 to 32 characters without spaces")
         if (entry.name.isBlank() || entry.name.length > 256) invalid("Name must be 1 to 256 characters")
         if (entry.group != null && (entry.group.isBlank() || entry.group.length > 128)) invalid("Group must be 1 to 128 characters")
-        if (entry.logo != null && (entry.logo.length > 2048 || runCatching { httpUri(entry.logo) }.isFailure)) invalid("Logo must be an HTTP(S) URL")
+        val logo = entry.logo?.let { normalizeLogoUrl(it) ?: invalid("Logo must be an HTTP(S) URL") }
         entry.guide?.let { mapping ->
             if (guides.config(mapping.guideId) == null) invalid("Unknown guide ${mapping.guideId}")
             if (mapping.channelId.isBlank() || mapping.channelId.length > 256) invalid("Guide channel ID must be 1 to 256 characters")
         }
         if (entry.offeringIds.size > 64) invalid("At most 64 sources per entry")
-        return entry.copy(name = entry.name.trim(), number = entry.number.trim(), group = entry.group?.trim())
+        return entry.copy(name = entry.name.trim(), number = entry.number.trim(), group = entry.group?.trim(), logo = logo)
     }
 
     companion object {

@@ -96,7 +96,8 @@ class Fixture : AutoCloseable {
             if (path.startsWith("/logo") || path.startsWith("/decoy")) {
                 logoRequests.incrementAndGet()
                 val (type, bytes) = when (path) {
-                    "/logo.png", "/logo-copy.png" -> "image/png" to PNG
+                    // `/logo copy.png` is the decoded path of a reference a feed wrote with the space unencoded.
+                    "/logo.png", "/logo-copy.png", "/logo copy.png" -> "image/png" to PNG
                     "/logo.svg" -> "image/svg+xml; charset=utf-8" to SVG.toByteArray()
                     // A PNG labeled JPEG is stored as what it is.
                     "/logo-mislabeled.jpg" -> "image/jpeg" to PNG

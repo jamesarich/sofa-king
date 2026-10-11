@@ -51,7 +51,7 @@ class DispatcharrImporter(private val feeds: FeedService, private val guides: Gu
                         number = channel.number.trim(),
                         name = channel.name.trim(),
                         group = channel.group?.trim()?.takeIf { it.isNotEmpty() },
-                        logo = channel.logo?.takeIf { it.startsWith("http://") || it.startsWith("https://") },
+                        logo = normalizeLogoUrl(channel.logo),
                         enabled = channel.enabled,
                         guide = mapping,
                         offeringIds = offerings,

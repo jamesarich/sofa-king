@@ -125,6 +125,8 @@ object FeedParser {
         text: String,
         defaultProtocol: String? = null,
         renewable: Set<String> = DEFAULT_RENEWABLE_QUERY,
+        /** The playlist's own URL; relative `tvg-logo` references resolve against it. */
+        baseUrl: String? = null,
     ): ParsedPlaylist {
         require(text.trimStart('﻿', ' ', '\r', '\n').startsWith("#EXTM3U")) { "Not an extended M3U playlist" }
         val channels = linkedMapOf<String, Channel>()
@@ -193,7 +195,7 @@ object FeedParser {
                     id,
                     attrs["tvg-chno"] ?: attrs["channel-number"] ?: published ?: id.take(8),
                     name,
-                    attrs["tvg-logo"]?.takeIf { it.startsWith("https://") || it.startsWith("http://") },
+                    normalizeLogoUrl(attrs["tvg-logo"], baseUrl),
                     attrs["group-title"]?.takeIf(String::isNotBlank)?.let(::listOf).orEmpty(),
                     attrs["tvg-id"],
                 )
@@ -221,6 +223,8 @@ object FeedParser {
      */
     fun guide(
         input: InputStream,
+        /** The guide's own URL; relative `<icon src>` references resolve against it. */
+        baseUrl: String? = null,
         wanted: (String) -> Boolean,
     ): ParsedGuide {
         val factory =
@@ -259,7 +263,7 @@ object FeedParser {
                                             val text = reader.elementText.trim().take(256)
                                             if (name == null && text.isNotEmpty()) name = text
                                         }
-                                        "icon" -> if (icon == null) icon = reader.getAttributeValue(null, "src")?.takeIf { it.startsWith("http://") || it.startsWith("https://") }?.take(2048)
+                                        "icon" -> if (icon == null) icon = normalizeLogoUrl(reader.getAttributeValue(null, "src"), baseUrl)
                                     }
                                 }
                                 if (!id.isNullOrEmpty()) channels.putIfAbsent(id, GuideChannel(id, name ?: id, icon))
@@ -309,7 +313,7 @@ object FeedParser {
     fun guide(
         text: String,
         wanted: (String) -> Boolean = { true },
-    ): ParsedGuide = guide(ByteArrayInputStream(text.toByteArray(Charsets.UTF_8)), wanted)
+    ): ParsedGuide = guide(ByteArrayInputStream(text.toByteArray(Charsets.UTF_8)), wanted = wanted)
 
     /** Gzip is recognized by its magic bytes, whatever the URL or content type says. */
     private fun decompressed(input: InputStream): InputStream {

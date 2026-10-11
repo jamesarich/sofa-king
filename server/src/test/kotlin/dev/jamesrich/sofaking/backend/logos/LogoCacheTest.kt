@@ -144,4 +144,21 @@ class LogoCacheTest {
         assertFalse(LogoCache.looksLikeMarkup(Fixture.PNG))
         assertFalse(LogoCache.looksLikeMarkup(ByteArray(0)))
     }
+
+    @Test fun `a stored reference with an unencoded space is fetched, and one that is no URL is a failure row`() = withFixture { fixture, http, dir ->
+        val clock = MutableClock()
+        val spaced = "${fixture.base}/logo copy.png"
+        val relative = "/logo.png"
+        openStore(dir).use { store ->
+            val logos = cache(store, http, clock, dir, { listOf(spaced, relative) })
+            logos.initialize()
+            val record = assertNotNull(logos.lookup(LogoCache.keyOf(spaced)))
+            assertEquals("image/png", record.contentType)
+            assertEquals(spaced, record.sourceUrl, "the key and the row keep the reference as the lineup carries it")
+            assertEquals(1, fixture.logoRequests.get())
+            assertNull(logos.lookup(LogoCache.keyOf(relative)))
+            assertEquals(1, fixture.logoRequests.get(), "a reference that is no URL is refused before any request")
+            assertEquals(1, logos.record(LogoCache.keyOf(relative))?.failures)
+        }
+    }
 }

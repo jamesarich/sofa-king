@@ -278,4 +278,21 @@ class FeedParserTest {
         </tv>"""
         assertTrue(FeedParser.guide(invalid).programmes.isEmpty())
     }
+
+    @Test fun `logo references are encoded and relative ones resolve against the playlist`() {
+        val text = "#EXTM3U\n#EXTINF:-1 tvg-id=\"a\" tvg-logo=\"http://img.test/a b.png\",A\nhttp://x.test/a.m3u8\n" +
+            "#EXTINF:-1 tvg-id=\"b\" tvg-logo=\"/logos/b.png\",B\nhttp://x.test/b.m3u8\n" +
+            "#EXTINF:-1 tvg-id=\"c\" tvg-logo=\"ftp://img.test/c.png\",C\nhttp://x.test/c.m3u8\n"
+        val parsed = FeedParser.playlist("p", text, baseUrl = "http://feed.test:5523/feeds/default/m3u")
+        assertEquals(listOf("http://img.test/a%20b.png", "http://feed.test:5523/logos/b.png", null), parsed.channels.map { it.logo })
+        assertNull(FeedParser.playlist("p", text).channels[1].logo, "without the playlist URL a relative logo means nothing")
+    }
+
+    @Test fun `guide icons are encoded and relative ones resolve against the guide`() {
+        val xml = "<tv><channel id=\"a\"><display-name>A</display-name><icon src=\"/icons/a b.png\"/></channel>" +
+            "<channel id=\"b\"><icon src=\"http://i.test/b.png\"/></channel><channel id=\"c\"><icon src=\"c.png\"/></channel></tv>"
+        val guide = FeedParser.guide(xml.byteInputStream(), "http://g.test/epg/guide.xml") { true }
+        assertEquals(listOf("http://g.test/icons/a%20b.png", "http://i.test/b.png", "http://g.test/epg/c.png"), guide.channels.map { it.icon })
+        assertEquals(listOf(null, "http://i.test/b.png", null), FeedParser.guide(xml.byteInputStream()) { true }.channels.map { it.icon })
+    }
 }

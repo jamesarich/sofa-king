@@ -142,7 +142,7 @@ class FeedService(
             val started = clock.instant()
             try {
                 val playlist = fetch(config.playlistUrl, config.headers, 16 * 1024 * 1024)
-                val parsed = FeedParser.playlist(config.id, playlist, config.defaultProtocol, config.renewable)
+                val parsed = FeedParser.playlist(config.id, playlist, config.defaultProtocol, config.renewable, config.playlistUrl)
                 val (channels, offerings) = parsed
                 require(channels.isNotEmpty() || config.allowEmpty) { "Empty playlist requires explicit allowEmpty" }
                 val previous = published.get().feeds.find { it.providerId == config.id }

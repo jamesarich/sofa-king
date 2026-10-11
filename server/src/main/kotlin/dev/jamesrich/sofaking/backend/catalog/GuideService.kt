@@ -98,7 +98,7 @@ class GuideService(
             val parsed = http.withUpstreamResponse(config.url, config.url, config.headers, unbounded = true, policy = upstream) { response ->
                 require(response.status.value == 200) { "Guide fetch failed" }
                 val body = response.bodyAsChannel()
-                withContext(Dispatchers.IO) { body.toInputStream().use { FeedParser.guide(it) { id -> id in wantedIds } } }
+                withContext(Dispatchers.IO) { body.toInputStream().use { FeedParser.guide(it, config.url) { id -> id in wantedIds } } }
             }
             val importedAt = clock.instant()
             store.saveGuide(config.id, importedAt, parsed.channels, parsed.programmes)

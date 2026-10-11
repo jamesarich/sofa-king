@@ -12,10 +12,12 @@ RUN apt-get update \
 
 COPY server/build/install/server /opt/sofa
 
-# SOFA_API_TOKEN (32+ characters) is required for the LAN bind; SOFA_SOURCES unset starts an empty catalog.
+# SOFA_API_TOKEN (32+ characters) and SOFA_HDHR_ALLOW are required for the LAN bind unless SOFA_HDHR_ENABLED=false; SOFA_SOURCES unset starts an empty catalog.
+# The start script reads SERVER_OPTS (APP_NAME + _OPTS) and JAVA_OPTS; the image sets the former so JAVA_OPTS stays the operator's knob.
 ENV SOFA_HOST=0.0.0.0 \
     SOFA_PORT=8080 \
-    SOFA_DATA_DIR=/data
+    SOFA_DATA_DIR=/data \
+    SERVER_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 
 USER sofa
 WORKDIR /opt/sofa

@@ -19,10 +19,12 @@ data class HdhrConfig(
     /** Client IPs or CIDR blocks; empty admits every address that reaches the port, so it is refused off loopback. */
     val allow: List<String> = emptyList(),
     /**
-     * Further listening ports, each one more device carrying its share of the lineup by a stable hash of the entry
-     * ID. Plex cannot save a channel map of several hundred channels on one device.
+     * Further listening ports, each one more device carrying its share of the lineup: by a stable hash of the entry
+     * ID, or with a lineup policy by range in lineup order. Plex cannot save a channel map of several hundred channels on one device.
      */
     val extraPorts: List<Int> = emptyList(),
+    /** Channels per device when the lineup policy splits devices by range. */
+    val deviceSize: Int = 250,
 ) {
     val devices: Int get() = 1 + extraPorts.size
 }
@@ -91,6 +93,8 @@ data class ServerConfig(
             require(extraPorts.all { it in 1..65535 } && extraPorts.distinct().size == extraPorts.size && port !in extraPorts && extraPorts.size <= 7) {
                 "SOFA_HDHR_EXTRA_PORTS must list up to 7 distinct ports other than SOFA_PORT"
             }
+            val deviceSize = (environment["SOFA_HDHR_DEVICE_SIZE"] ?: "250").toIntOrNull()
+            require(deviceSize != null && deviceSize in 1..5000) { "SOFA_HDHR_DEVICE_SIZE must be between 1 and 5000" }
             return ServerConfig(
                 host,
                 port,
@@ -105,7 +109,7 @@ data class ServerConfig(
                 loopback,
                 adminToken,
                 OutputConfig(outputToken, guideDays),
-                HdhrConfig(hdhrEnabled, tuners, deviceId, friendlyName, allow, extraPorts),
+                HdhrConfig(hdhrEnabled, tuners, deviceId, friendlyName, allow, extraPorts, deviceSize),
                 policy,
             )
         }

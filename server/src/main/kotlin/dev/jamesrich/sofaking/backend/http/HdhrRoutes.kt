@@ -62,6 +62,7 @@ internal data class LineupStatus(
 fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentityStore) {
     val allow = AddressAllowList(config.allow)
     val tuners = Array(config.devices) { AtomicInteger() }
+    val log = org.slf4j.LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.http.Hdhr")
 
     suspend fun guard(call: ApplicationCall): Boolean {
         if (allow.allows(call.request.origin.remoteAddress)) return true
@@ -79,11 +80,22 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
 
     fun name(device: Int): String = if (device == 0) config.friendlyName else "${config.friendlyName} ${device + 1}"
 
+    val overflowWarned = AtomicInteger()
+
     fun lineup(base: String, device: Int): List<LineupItem> {
         val seen = HashSet<String>()
-        return runtime.lineup.entries()
-            .filter { it.enabled && seen.add(it.number) && Math.floorMod(it.id.hashCode(), config.devices) == device }
-            .map { LineupItem(it.number, it.name, "$base/auto/v${it.number}") }
+        val enabled = runtime.lineup.entries().filter { it.enabled && seen.add(it.number) }
+        // With a policy, devices hold consecutive ranges in lineup order, so a new channel moves only its own range.
+        val mine = if (runtime.policy == null) {
+            enabled.filter { Math.floorMod(it.id.hashCode(), config.devices) == device }
+        } else {
+            val capacity = config.devices * config.deviceSize
+            if (enabled.size > capacity && overflowWarned.getAndSet(enabled.size) != enabled.size) {
+                log.warn("HDHomeRun devices hold {} channels but {} are enabled; the rest go on the last device, add ports to SOFA_HDHR_EXTRA_PORTS", capacity, enabled.size)
+            }
+            enabled.filterIndexed { index, _ -> minOf(index / config.deviceSize, config.devices - 1) == device }
+        }
+        return mine.map { LineupItem(it.number, it.name, "$base/auto/v${it.number}") }
     }
 
     get("/discover.json") {

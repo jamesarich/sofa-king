@@ -85,6 +85,9 @@ class ServerConfigTest {
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "8080")) }
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "8081,8081")) }
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "x")) }
+        assertEquals(250, ServerConfig.fromEnvironment(emptyMap()).hdhr.deviceSize)
+        assertEquals(400, ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_DEVICE_SIZE" to "400")).hdhr.deviceSize)
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_DEVICE_SIZE" to "0")) }
     }
     @Test fun `invalid port or empty values fail before binding`() {
         for (value in listOf("no", "0", "65536", "-1", "")) {

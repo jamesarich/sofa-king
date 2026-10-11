@@ -43,7 +43,7 @@ Initial quarantine lasts 15 minutes. Failed recovery backs off to one hour, six 
 
 Playback walks the lineup entry's sources in order within each health rank: healthy first, then unverified, then suspect. Quarantined, probation, archived, manually disabled and withdrawn sources are never selected.
 
-An entry none of whose sources is selectable for `disableAfterHours` (default 24) is disabled by [curation](curation.md) when that automation is enabled, so the M3U, XMLTV and HDHomeRun listings stop carrying it; a source qualifying `HEALTHY` again (or any selectable source, with `enableOn: eligible`) restores it. An entry whose `enabled` flag the household set is never touched.
+An entry none of whose sources is selectable for `disableAfterHours` (default 24) is disabled by [curation](curation.md) when that automation is enabled, so the M3U, XMLTV and HDHomeRun listings stop carrying it; a source qualifying `HEALTHY` again (or any selectable source, with `enableOn: eligible`) restores it. An entry whose `enabled` flag an admin set is never touched.
 
 ## Inspect or disable a source
 

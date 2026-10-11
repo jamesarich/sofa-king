@@ -162,7 +162,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/curation/run` | Apply a plan now, whether or not automation is enabled; returns what was applied |
 | GET | `/api/v1/admin/curation/changes?limit=` | Applied actions, newest first; `limit` 1-1000 (default 100) |
 
-An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `pinned` (the fields an admin set, which [curation](curation.md#pins) never changes), `createdBy` (`manual`, `import` or `rule:ID`) and, while curation rather than the household holds the entry disabled, `autoDisabledAt` and `autoDisabledReason` (`unavailable` or `alias`).
+An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `pinned` (the fields an admin set, which [curation](curation.md#pins) never changes), `createdBy` (`manual`, `import` or `rule:ID`) and, while curation rather than an admin holds the entry disabled, `autoDisabledAt` and `autoDisabledReason` (`unavailable` or `alias`).
 
 Create from a feed candidate, copying its number, name, logo, group, sources and (when its `tvg-id` is listed by a configured guide) guide mapping:
 
@@ -174,7 +174,7 @@ curl --fail -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/v1
 
 Any field in the body overrides the copied value and is pinned: `id` (a UUID), `number`, `name`, `group`, `logo`, `enabled` (true when absent, pinned only when sent), `offerings` (source IDs in failover order), `guide`, `position` (insertion index). Without `channelId`, `number` and `name` are required.
 
-Update fields with `PATCH`; absent fields keep their value, `clearGroup`, `clearLogo` and `clearGuide` remove optional values, `position` moves the entry. Every field sent or cleared is pinned; `pin` and `unpin` lists change pins alone (`{"unpin": ["group"]}` lets curation manage the group again). Sending `enabled` either way makes the flag the household's: curation stops tracking a disable of its own.
+Update fields with `PATCH`; absent fields keep their value, `clearGroup`, `clearLogo` and `clearGuide` remove optional values, `position` moves the entry. Every field sent or cleared is pinned; `pin` and `unpin` lists change pins alone (`{"unpin": ["group"]}` lets curation manage the group again). Sending `enabled` either way makes the flag the admin's: curation stops tracking a disable of its own.
 
 ```sh
 curl --fail -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/v1/admin/lineup/ENTRY_ID \

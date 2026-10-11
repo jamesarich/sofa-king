@@ -173,6 +173,24 @@ class CurationServiceTest {
         assertTrue(ts.enabled); assertEquals("Live", ts.group); assertEquals("6", ts.number); assertEquals("rule:ts", ts.createdBy)
     }
 
+    @Test fun `one adoption run joins the same station from a later rule's provider as a fallback, the first rule's source leading`() = rig({ listOf(it.feed, it.twinFeed) }) { r ->
+        r.curation.updateSettings(CurationSettings(enabled = true, equivalentEvidence = "name"))
+        r.curation.createRule(CurationRule("twin-first", "adopt", position = 0, match = RuleMatch(providerId = "twin"), set = RuleSet(enabled = true)))
+        r.curation.createRule(CurationRule("fixture-second", "adopt", position = 1, match = RuleMatch(providerId = "fixture"), set = RuleSet(enabled = true)))
+        val adopted = r.curation.run().actions.filter { it.kind == "adopt" }
+        assertEquals(2, adopted.size, "Station once and Twin Sports, not Station twice")
+        val station = r.lineup.entries().single { it.name.equals("station", ignoreCase = true) }
+        assertEquals(listOf(r.sourceOf(r.channel("twin", "STATION")), r.sourceOf(r.channel("fixture"))), station.offeringIds)
+        assertTrue(r.curation.run().actions.none { it.kind == "adopt" })
+    }
+
+    @Test fun `without name evidence an adoption run keeps stations with different guide ids apart`() = rig({ listOf(it.feed, it.twinFeed) }) { r ->
+        r.curation.updateSettings(CurationSettings(enabled = true))
+        r.curation.createRule(CurationRule("twin-first", "adopt", position = 0, match = RuleMatch(providerId = "twin")))
+        r.curation.createRule(CurationRule("fixture-second", "adopt", position = 1, match = RuleMatch(providerId = "fixture")))
+        assertEquals(3, r.curation.run().actions.count { it.kind == "adopt" })
+    }
+
     @Test fun `an entry with no eligible source for a day is disabled and restored when a source is healthy, and household flags win`() = rig({ listOf(it.feed, it.altFeed, it.tsFeed) }) { r ->
         r.curation.updateSettings(CurationSettings(enabled = true))
         val station = r.channel("fixture"); val alt = r.channel("alt"); val ts = r.channel("ts")

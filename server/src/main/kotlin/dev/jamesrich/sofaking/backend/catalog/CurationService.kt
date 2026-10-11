@@ -477,14 +477,29 @@ class CurationService(
             }
         }
 
-        // Adoption: the first adopt rule a leftover candidate matches creates its entry, numbered by the policy.
+        // Adoption: the first adopt rule a leftover candidate matches creates its entry, numbered by the policy. Rule
+        // order is provider priority: an earlier rule's candidate becomes the entry, and a later candidate that is
+        // evidently the same station joins it as a fallback source instead of becoming a duplicate.
         val numbers = c.entries.mapTo(HashSet()) { it.number }
-        for (candidate in unreferenced.sortedWith(LineupService.channelOrder)) {
-            if (adoptRules.isEmpty() || candidate.id in attachedChannels || candidate.id in c.adopted) continue
+        val adoptedByName = HashMap<String, Int>()
+        val ordered = unreferenced.mapNotNull { candidate ->
+            if (adoptRules.isEmpty() || candidate.id in attachedChannels || candidate.id in c.adopted) return@mapNotNull null
             val provider = feeds.providerOf(candidate.id)
+            val index = adoptRules.indexOfFirst { it.matches(provider, candidate.tags.firstOrNull(), candidate.name, candidate.legacyGuideId) }
+            if (index < 0) null else Triple(candidate, provider, index)
+        }.sortedWith(compareBy<Triple<Channel, String?, Int>> { it.third }.thenComparator { a, b -> LineupService.channelOrder.compare(a.first, b.first) })
+        for ((candidate, provider, ruleIndex) in ordered) {
             val raw = candidate.tags.firstOrNull()
             val tvg = candidate.legacyGuideId
-            val rule = adoptRules.firstOrNull { it.matches(provider, raw, candidate.name, tvg) } ?: continue
+            val rule = adoptRules[ruleIndex]
+            val sameAs = adoptedByName[candidate.name.trim().lowercase()]?.let { steps[it] as Step.Adopt }
+            if (sameAs != null && (c.settings.equivalentEvidence == "name" || (tvg != null && tvg == sameAs.entry.guide?.channelId))) {
+                val merged = sameAs.entry.copy(offeringIds = sameAs.entry.offeringIds + feeds.offeringsOf(candidate.id).map { it.id }.filter { it !in sameAs.entry.offeringIds })
+                if (merged.offeringIds.size <= Step.MAX_OFFERINGS) {
+                    steps[adoptedByName.getValue(candidate.name.trim().lowercase())] = Step.Adopt(sameAs.channelId, merged, sameAs.action)
+                    continue
+                }
+            }
             val correction = correctionRules.firstOrNull { it.matches(provider, raw, candidate.name, tvg) }
             val name = correction?.rule?.set?.name ?: candidate.name
             val group = rule.rule.set.group ?: correction?.rule?.set?.group ?: groupRules.firstOrNull { it.matches(provider, raw, name, tvg) }?.rule?.set?.group ?: raw ?: c.settings.defaultGroup
@@ -499,6 +514,7 @@ class CurationService(
                 )
             } catch (e: ApiFailure) { findings += "candidate ${candidate.name} ($provider) cannot be adopted: ${e.message}"; continue }
             numbers += number
+            adoptedByName.putIfAbsent(candidate.name.trim().lowercase(), steps.size)
             steps += Step.Adopt(candidate.id, entry, CurationAction("adopt", entry.id, name, "number", null, number, "adopted from $provider, ${if (entry.enabled) "enabled" else "disabled"}", rule.id))
         }
 

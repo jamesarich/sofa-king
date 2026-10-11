@@ -34,15 +34,18 @@ The source file is a JSON object with `providers` and `guides` (a bare JSON arra
 
 ### Providers
 
-Each provider object configures one M3U playlist:
+Each provider object configures one M3U playlist, or with `"type": "native"` one built-in service client ([native providers](providers.md)):
 
 | Field | Default | Description |
 | --- | --- | --- |
 | `id` | Required | Unique provider ID: 1–64 letters, digits, underscores or hyphens |
-| `playlistUrl` | Required | HTTP(S) M3U playlist URL |
-| `guideUrl` | Unset | HTTP(S) XMLTV URL; an implicit guide with this provider's id |
-| `headers` | `{}` | Request headers for playlists, guides and streams |
-| `refreshSeconds` | `900` | Import interval; minimum 60 seconds |
+| `type` | `m3u` | `m3u` for a playlist, `native` for a service client |
+| `playlistUrl` | Required for `m3u` | HTTP(S) M3U playlist URL; absent for `native` |
+| `service` | Required for `native` | The service name, see [native providers](providers.md#configuration) |
+| `options` | `{}` | Service options for `native`, for example `{"zip": "50309"}` for `pbs` |
+| `guideUrl` | Unset | HTTP(S) XMLTV URL; an implicit guide with this provider's id. A native service with a guide of its own, or a published XMLTV, gets the implicit guide without it |
+| `headers` | `{}` | Request headers for playlists, guides and streams (`m3u` only) |
+| `refreshSeconds` | `900` (`3600` for `native`) | Import interval; minimum 60 seconds |
 | `probe` | `true` | Enable automatic source qualification |
 | `defaultProtocol` | Unset | `hls` or `mpegts` for entries without a `stream-type`; otherwise `.m3u8` implies HLS and other paths imply MPEG-TS. Applies until a probe or media fetch detects the protocol in the stream body |
 | `allowEmpty` | `false` | Allow an empty playlist to withdraw all of this provider's sources |
@@ -61,6 +64,8 @@ Every stream URL has a source key: the lowercase scheme and authority, the perce
 A channel's identity is its `channel-uuid`, else its `channel-id`, else its `tvg-id`, else the source key of its URL. An entry without a published identity is its own channel: the channel ID and source ID derive from the provider ID and the source key, the name, logo and group are display values that may change between refreshes, `legacyGuideId` is empty, and without `tvg-chno` the number is the first eight characters of the channel ID (renumber after adopting). A published identity repeated with another name or number keeps the first entry's name and number and adds the URL as an alternative source. An explicit `stream-id` replaces the source key in the source ID; the same source key twice under one channel is `duplicate-source` and the second URL is dropped.
 
 Source IDs therefore survive token rotation, refreshes and reordering. Entries from before this rule referring to a source whose URL has an identity query parameter (anything outside the renewable list) show that source as `WITHDRAWN`; re-run the [Dispatcharr import](#migrate-from-dispatcharr), which replaces each entry's sources in place, or re-add the source through `PATCH /api/v1/admin/lineup/ENTRY_ID`. Sources whose URL has a lowercase scheme and host and no query, or only renewable parameters, keep their IDs.
+
+A native provider's sources have `svc://SERVICE/CHANNEL_ID` URLs, stable identities that the server resolves to a playable URL when a session, a probe or the HDHomeRun remux needs one ([how a native source plays](providers.md#how-a-native-source-plays)). Its candidates' `tvg-id` is the service's channel id, which its implicit guide lists, so adding a candidate maps the guide.
 
 ### Guides
 
@@ -109,7 +114,7 @@ Curate with the [admin API](api.md#admin-api). The common steps:
 4. Map the guide: find the XMLTV channel with `GET /api/v1/admin/guides/GUIDE_ID/channels?q=espn`, then `PATCH` with `{"guide": {"guideId": "GUIDE_ID", "channelId": "XMLTV_ID"}}`.
 5. Renumber, rename or hide: `PATCH` with `number`, `name`, `group`, `logo` or `enabled`; `clearGroup`, `clearLogo` and `clearGuide` remove optional values. Reorder with `PUT /api/v1/admin/lineup/order` listing every entry ID once.
 
-Everything from one provider at once: `POST /api/v1/admin/lineup/adopt` with `{"providerId": "fastchannels"}` adds every channel of that provider whose sources no entry uses yet.
+Everything from one provider at once: `POST /api/v1/admin/lineup/adopt` with `{"providerId": "whale"}` adds every channel of that provider whose sources no entry uses yet.
 
 Every field one of these requests sets is pinned to the household. [Curation](curation.md) fills and corrects the rest by rule (groups, name and logo corrections, equivalent sources from other providers, entries disabled while no source works, candidates adopted by rule) and leaves pinned fields alone; `GET /api/v1/admin/curation/preview` shows what it would change before `settings.enabled` turns it on.
 

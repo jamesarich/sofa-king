@@ -1,6 +1,6 @@
 # Architecture
 
-One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programmes, server identity, source health, probe attempt times, observation history, the logo cache index, and the curation rules, settings, availability state and change log; the logo files sit beside it in the data directory. Playback sessions exist in memory.
+One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programmes, server identity, source health, probe attempt times, observation history, the logo cache index, native provider state (device ids, tokens), and the curation rules, settings, availability state and change log; the logo files sit beside it in the data directory. Playback sessions and resolved native stream URLs exist in memory.
 
 ## Modules
 
@@ -14,7 +14,10 @@ One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provid
 
 ```text
 Provider M3U → FeedParser → SQLite snapshot → FeedService (candidates + offerings)
+Service API → ProviderClient (providers/) → ProviderRegistry (svc:// offerings) → SQLite snapshot → FeedService
 XMLTV (gzip ok) → FeedParser.guide (streaming) → SQLite guide tables → GuideService
+Service guide API → ProviderClient.guide → SQLite guide tables → GuideService
+svc:// offering → FeedService.playable → ProviderRegistry.resolve (cached until expiry) → MediaRelay / ProbeWorker / TsRemux
 Admin API / Dispatcharr import → LineupService → SQLite lineup tables
 FeedService + GuideService + LineupService → CatalogService → JSON API
 Lineup entry → SessionManager (ordered offerings by health) → MediaRelay → HLS/MPEG-TS player
@@ -28,6 +31,10 @@ Rules + settings (SQLite) + lineup + feeds + health → CurationService.plan →
 Provider imports publish complete snapshots; invalid imports retain the previous snapshot. Guide imports replace one guide's rows atomically and keep only programmes for channels the lineup maps onto that guide; the channel index is kept whole. Immutable in-memory indexes serve catalog requests; guide programmes are read from SQLite by guide, channel and window. SQLite uses WAL, foreign keys, bounded blocking transactions and versioned atomic migrations whose versions may have gaps.
 
 An offering's protocol is the one detected in its stream body, by the probe's HTTP tier or by a media fetch, stored per offering ID and applied over every published snapshot. Until a detection exists, the import's protocol (the entry's `stream-type`, the feed's `defaultProtocol`, then the path extension) applies.
+
+## Native providers
+
+`providers/` holds one `ProviderClient` per service behind `ProviderRegistry`, which `FeedService` and `GuideService` call for `type: native` providers. A client lists `ProviderChannel`s (the service's own ids, numbers, logos, group and region tags), optionally serves the service's guide as a `ParsedGuide` for the channel ids the lineup wants, and resolves a channel id to a `ResolvedStream` (URL, headers, expiry). The registry derives channel and offering ids the way `FeedParser` does, with `svc://service/id` as the offering URL, so identities are deterministic and the lineup, health and outputs see ordinary HLS offerings. `FeedService.playable(offering)` is the one seam: a native offering resolves through the registry (cached per offering, single-flight, dropped a minute before expiry, at most six hours), anything else returns its own URL and provider headers. `MediaRelay`, `ProbeWorker` and the HDHomeRun remux fetch what `playable` returns; the relay substitutes the resolved URL for the session's root resource only, since child playlists and segments are absolute by the time the player asks for them. A `ProviderFailure` is transient (provider evidence, `502` to a session) or not (the channel is gone: offering evidence). `ProviderContext` gives each client its options, HTTP through the upstream address policy with hand-followed redirects and gzip detection, a short-lived shared cache for the service's payload, and durable state in `provider_state` (one random device id per provider per install, session tokens with expiry).
 
 ## Identity
 

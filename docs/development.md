@@ -10,7 +10,7 @@ python3 scripts/smoke.py
 python3 scripts/live-smoke.py
 ```
 
-Unit tests cover persistence, imports, gzip guide parsing, lineup curation, the Dispatcharr import, health policy, source selection, sessions, relay behavior, the admin API, the M3U/XMLTV player output, the logo cache (content-type and size refusal, cache hits, weekly refresh, eviction, the rewrite in every output, reference normalization), curation (group and correction rules against pins, equivalent attachment by evidence and by rule, adoption and numbering, health-based disable and restore under an injected clock, alias merges, retired logo hosts, the pipeline-file import, persistence and the admin endpoints), the HDHomeRun routes and the FFmpeg remux, and client cleanup. Tests about a response's lifetime or an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job and returns from the handler at once; `MediaFixture` generates real H.264/AAC HLS with FFmpeg, so FFmpeg is needed to run the suite. The smoke scripts start disposable servers; the media smoke generates H.264/AAC fixtures, curates a lineup through the admin API, checks concurrent playback and cancellation, loads the player output with FFmpeg as the player, and runs a curation rule through preview, run and restart.
+Unit tests cover persistence, imports, gzip guide parsing, native provider clients (parsing, token handling, macro filling, resolution caching and expiry, the relay and probe paths over `svc://` sources), lineup curation, the Dispatcharr import, health policy, source selection, sessions, relay behavior, the admin API, the M3U/XMLTV player output, the logo cache (content-type and size refusal, cache hits, weekly refresh, eviction, the rewrite in every output, reference normalization), curation (group and correction rules against pins, equivalent attachment by evidence and by rule, adoption and numbering, health-based disable and restore under an injected clock, alias merges, retired logo hosts, the pipeline-file import, persistence and the admin endpoints), the HDHomeRun routes and the FFmpeg remux, and client cleanup. Tests about a response's lifetime or an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job and returns from the handler at once; `MediaFixture` generates real H.264/AAC HLS with FFmpeg, so FFmpeg is needed to run the suite. The smoke scripts start disposable servers; the media smoke generates H.264/AAC fixtures, curates a lineup through the admin API, checks concurrent playback and cancellation, loads the player output with FFmpeg as the player, and runs a curation rule through preview, run and restart.
 
 To test a provider feed, replace the URLs and channel name:
 
@@ -22,6 +22,15 @@ python3 scripts/bridge-smoke.py \
 ```
 
 This imports the feed into a temporary server with probes disabled, adopts every channel into its lineup and optionally decodes the named channel. `--guide` is optional.
+
+To check a [native provider](providers.md) against its live service:
+
+```sh
+python3 scripts/provider-smoke.py --service whale
+python3 scripts/provider-smoke.py --service pbs --option zip=50309
+```
+
+This starts a temporary server with that one provider, adopts its channels, opens sessions on three of them expecting an HLS master from the relay, and decodes five seconds of two with FFmpeg (`--resolve`, `--decode`, `--seconds` and `--pick NAME,NAME` adjust it). Native provider unit tests run against `ProviderFixture`, a loopback stand-in for each service's API fed by the small sanitized documents under `server/src/test/resources/providers/`; every client takes its base URLs from options so a test can point it there.
 
 `scripts/dispatcharr-export.py` runs inside a Dispatcharr container and `scripts/dispatcharr-import.py` posts its output; see [migrate from Dispatcharr](live-tv.md#migrate-from-dispatcharr).
 

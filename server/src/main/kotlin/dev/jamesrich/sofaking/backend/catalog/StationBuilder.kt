@@ -19,6 +19,8 @@ data class StationAvailability(
     val lastNumber: String? = null, val lastName: String? = null,
     /** Pin identity to the offering IDs it last resolved to; what a required station's sticky snapshot keeps. */
     val pinOfferings: Map<String, List<String>> = emptyMap(),
+    /** When a run first saw one of the station's sources qualified healthy; null while it never has. */
+    val verifiedAt: Instant? = null,
 )
 
 /** Everything a run reads. [guidesListing] gives the guides that list a `tvg-id`, in configuration order. */
@@ -228,6 +230,7 @@ object StationBuilder {
         // Availability by key: unavailable long enough turns a station off until a source qualifies again.
         val availability = sortedMapOf<String, StationAvailability>()
         val autoOff = HashSet<String>()
+        val unverified = HashSet<String>()
         val disableAfter = Duration.ofHours(policy.health.disableAfterHours.toLong())
         for (draft in drafts) {
             val states = draft.offeringIds.mapNotNull { input.health[it] }
@@ -239,7 +242,10 @@ object StationBuilder {
             if (!off && since != null && Duration.between(since, input.now) >= disableAfter) off = true
             else if (off && (healthyNow || (policy.health.enableOn == "eligible" && eligibleNow))) off = false
             if (off) autoOff += draft.key
-            availability[draft.key] = StationAvailability(since, off, pinOfferings = draft.pinOfferings)
+            val qualified = states.any { it.status == HealthStatus.HEALTHY || it.lastQualifiedAt != null }
+            val verifiedAt = previous?.verifiedAt ?: if (qualified) input.now else null
+            if (policy.health.requireVerified && verifiedAt == null) unverified += draft.key
+            availability[draft.key] = StationAvailability(since, off, pinOfferings = draft.pinOfferings, verifiedAt = verifiedAt)
             if (draft.offeringIds.isEmpty()) findings += "${draft.key}: required station has no live source"
         }
         // Stations whose candidates are gone stay, disabled, for keepMissingDays; required ones never leave. A key an
@@ -291,6 +297,7 @@ object StationBuilder {
                 draft.missing != null -> "missing"
                 !draft.baseEnabled -> "policy"
                 draft.offeringIds.isEmpty() -> "no-source"
+                draft.key in unverified -> "unverified"
                 draft.key in autoOff -> "unavailable"
                 else -> null
             }

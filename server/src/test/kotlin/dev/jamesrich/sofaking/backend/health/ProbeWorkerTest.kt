@@ -218,4 +218,26 @@ class ProbeWorkerTest {
             assertEquals(List(statusChanges.size) { offering.id }, observed)
         } } } finally { dir.toFile().deleteRecursively() }
     }
+
+    @Test fun `under a policy the worker probes what stations reference by tier, whatever the probe flag`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-probe-targets-")
+        try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            val ids = listOf("a", "b", "c", "d", "e")
+            store.saveSnapshot(FeedSnapshot("p", ids.map { Channel(it, "1", it) }, ids.map { Offering(it, it, "p", "http://example.test/$it.m3u8", "hls") }, emptyList(), clock.now.toString()))
+            val feeds = FeedService(listOf(FeedConfig("p", "http://example.test/feed.m3u", probe = false)), store, http, clock); feeds.initialize()
+            store.recordObservation("a", Observation("x", clock.now, false, FailureClass.OFFERING), clock.now)
+            clock.now = clock.now.plusSeconds(600)
+
+            val probed = mutableListOf<String>()
+            val untargeted = ProbeWorker(feeds, store, clock, "unused") { offering, _ -> probed += offering.id; null }
+            assertFalse(untargeted.step(), "without a policy the probe flag holds")
+
+            // a is suspect, so health alone would take it first; the tiers come before health.
+            val plan = mapOf("a" to 2, "b" to 1, "c" to 0, "e" to 0)
+            val worker = ProbeWorker(feeds, store, clock, "unused", targets = { plan }) { offering, _ -> probed += offering.id; null }
+            while (worker.step()) Unit
+            assertEquals(listOf("c", "e", "b", "a"), probed, "first sources of unverified stations, their other sources, then the rest; d is no station's")
+        } } } finally { dir.toFile().deleteRecursively() }
+    }
 }

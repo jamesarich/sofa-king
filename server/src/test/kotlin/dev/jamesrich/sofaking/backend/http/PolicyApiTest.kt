@@ -23,11 +23,11 @@ class PolicyApiTest {
             val sources = dir.resolve("sources.json")
             Files.writeString(sources, """{"providers":${json.encodeToString(listOf(fixture.feed, fixture.altFeed))},"guides":[]}""")
             val policyFile = dir.resolve("policy.json")
-            val policyText = """{"providers":[{"id":"alt"},{"id":"fixture"}],"numbering":{"floor":100},"stations":{"station":{"group":"Local"}}}"""
+            val policyText = """{"providers":[{"id":"alt"},{"id":"fixture"}],"health":{"requireVerified":false},"numbering":{"floor":100},"stations":{"station":{"group":"Local"}}}"""
             Files.writeString(policyFile, policyText)
             val store = openStore(dir)
             val config = ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin, policyFile = policyFile)
-            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000)
+            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000, probes = false)
             try {
                 for (provider in runtime.feeds.configs) runtime.feeds.refresh(provider)
                 runtime.adoptAll()

@@ -39,7 +39,8 @@ class LiveRuntime(
         http.close()
     }
     companion object {
-        suspend fun create(store: BackendStore, config: ServerConfig, clock: Clock, policyDebounceMillis: Long = 10_000): LiveRuntime {
+        /** [probes] false keeps the probe worker from starting, for tests over fixtures. */
+        suspend fun create(store: BackendStore, config: ServerConfig, clock: Clock, policyDebounceMillis: Long = 10_000, probes: Boolean = true): LiveRuntime {
             val sources = loadSources(config.sourcesFile)
             val providerIds = sources.providers.mapTo(HashSet()) { provider -> provider.id }
             val loadedPolicy = config.policyFile?.let { loadPolicy(it, providerIds) }
@@ -92,14 +93,22 @@ class LiveRuntime(
                     policyService, curationLoop,
                 )
                 scope.launch { while (isActive) { sessions.expire(); delay(1000) } }
-                if (sources.providers.any { it.probe }) {
-                    val probes =
+                // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.
+                val service = policyService
+                if (probes && (service != null || sources.providers.any { it.probe })) {
+                    val probeConfig =
                         ProbeConfig(
                             parallelism = config.probeParallelism,
                             restreamOrigins = config.restreamOrigins,
                             observationRetention = java.time.Duration.ofDays(config.observationRetentionDays.toLong()),
                         )
-                    scope.launch { ProbeWorker(feeds, store, clock, config.ffmpeg, http, probes, onObserved = { id -> sessions.healthChanged(id) }, onHealthChanged = { lineupInputsChanged("health") }).run() }
+                    val targets = service?.let { { it.probeTargets() } }
+                    scope.launch {
+                        ProbeWorker(
+                            feeds, store, clock, config.ffmpeg, http, probeConfig, onObserved = { id -> sessions.healthChanged(id) },
+                            onHealthChanged = { lineupInputsChanged("health") }, targets = targets,
+                        ).run()
+                    }
                 }
                 return runtime
             } catch (failure: Throwable) { scope.cancel(); http.close(); throw failure }

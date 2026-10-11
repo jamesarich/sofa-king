@@ -61,12 +61,12 @@ class HdhrDevicesTest {
         Fixture().use { fixture ->
             val feeds = listOf(fixture.feed, fixture.tsFeed, fixture.twinFeed)
             val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(feeds))
-            val policyFile = dir.resolve("policy.json"); Files.writeString(policyFile, """{"providers":[{"id":"fixture"},{"id":"ts"},{"id":"twin"}]}""")
+            val policyFile = dir.resolve("policy.json"); Files.writeString(policyFile, """{"providers":[{"id":"fixture"},{"id":"ts"},{"id":"twin"}],"health":{"requireVerified":false}}""")
             val store = openStore(dir)
             val ports = List(2) { ServerSocket(0).use { it.localPort } }
             val hdhr = HdhrConfig(deviceId = "ABCDEF01", extraPorts = listOf(ports[1]), deviceSize = 1)
             val config = ServerConfig("127.0.0.1", ports[0], dir, sources, token, allowLoopbackUpstreams = true, hdhr = hdhr, policyFile = policyFile)
-            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000)
+            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000, probes = false)
             val server = embeddedServer(Netty, configure = { ports.forEach { p -> connector { host = "127.0.0.1"; port = p } } }) {
                 backendModule(store, MutableClock(), runtime, token, hdhr = hdhr)
             }

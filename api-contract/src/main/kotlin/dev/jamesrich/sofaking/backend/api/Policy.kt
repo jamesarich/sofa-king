@@ -54,8 +54,13 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class PolicyNumbering(val floor: Int = 1000, val keepProviderNumbers: Boolean = true)
 
-/** [enableOn] is `healthy` or `eligible`. */
-@Serializable data class PolicyHealth(val disableAfterHours: Int = 24, val enableOn: String = "healthy", val keepMissingDays: Int = 7)
+/**
+ * [enableOn] is `healthy` or `eligible`. With [requireVerified], a station stays off until one of its sources has
+ * qualified healthy once.
+ */
+@Serializable data class PolicyHealth(
+    val disableAfterHours: Int = 24, val enableOn: String = "healthy", val keepMissingDays: Int = 7, val requireVerified: Boolean = true,
+)
 
 /** Overrides for one station. [prefer] orders and [exclude] removes unpinned sources by provider ID. */
 @Serializable data class StationOverride(
@@ -70,7 +75,10 @@ import kotlinx.serialization.Serializable
 /** The loaded policy and its [revision], the SHA-256 of the file. */
 @Serializable data class PolicyDocument(val revision: String, val path: String, val policy: LineupPolicy)
 
-/** One station a policy run produces. [disabledReason] is `policy`, `unavailable`, `missing` or `no-source` when not [enabled]. */
+/**
+ * One station a policy run produces. [disabledReason] is `policy`, `no-source`, `unverified`, `unavailable` or
+ * `missing` when not [enabled].
+ */
 @Serializable data class PolicyStation(
     val id: String, val key: String, val number: String, val name: String, val group: String? = null, val logo: String? = null,
     val guide: GuideMapping? = null, val enabled: Boolean = true, val required: Boolean = false,

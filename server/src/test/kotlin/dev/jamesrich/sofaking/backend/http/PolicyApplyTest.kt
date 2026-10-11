@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.*
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.stationAvailability
 import io.ktor.client.request.*
@@ -21,7 +22,7 @@ class PolicyApplyTest {
     private val json = Json { encodeDefaults = true }
     private val token = "secret".repeat(8)
     private val admin = "curator".repeat(6)
-    private val basePolicy = """{"names":{"version":1},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
+    private val basePolicy = """{"names":{"version":1},"health":{"requireVerified":false},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
 
     private class Setup(val dir: Path, val policyFile: Path, val runtime: LiveRuntime, val fixture: Fixture)
 
@@ -40,7 +41,7 @@ class PolicyApplyTest {
             Files.writeString(policyFile, policy)
             val store = openStore(dir)
             val config = ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin, policyFile = policyFile)
-            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000)
+            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000, probes = false)
             try {
                 application { backendModule(store, MutableClock(), runtime, token, admin) }
                 for (provider in runtime.feeds.configs) runtime.feeds.refresh(provider)
@@ -213,6 +214,24 @@ class PolicyApplyTest {
         }
     }
 
+    @Test fun `a station waits for a verified source, and the probe plan ranks its first source`() = testApplication {
+        withPolicy("""{"providers":[{"id":"fixture"},{"id":"alt"}]}""", feeds = { listOf(it.feed, it.altFeed) }) {
+            val first = runtime.policy!!.apply("test")
+            assertEquals(0, first.enabledStations)
+            val entry = runtime.lineup.entries().single()
+            assertFalse(entry.enabled)
+            val (lead, other) = entry.offeringIds
+            assertEquals(mapOf(lead to 0, other to 1), runtime.policy!!.probeTargets())
+
+            val at = MutableClock().now
+            runtime.store.recordObservation(other, Observation("qualified", at, true), at)
+            assertEquals(1, runtime.policy!!.apply("health").enabledStations)
+            assertTrue(runtime.lineup.entries().single().enabled)
+            assertEquals(at, runtime.store.stationAvailability().getValue("station").verifiedAt)
+            assertEquals(mapOf(lead to 2, other to 2), runtime.policy!!.probeTargets())
+        }
+    }
+
     @Test fun `matching schedules teach an alias that is written back once, and different schedules never merge`() = testApplication {
         withPolicy("""{"providers":[{"id":"learn"},{"id":"learn2"}]}""", feeds = { listOf(it.learnFeed, it.learnTwinFeed) }) {
             for (guide in runtime.guides.configs) runtime.guides.refresh(guide)
@@ -251,7 +270,7 @@ class PolicyLoopTest {
             Files.writeString(policyFile, """{"providers":[{"id":"fixture"}]}""")
             val store = openStore(dir)
             val config = ServerConfig("127.0.0.1", 8080, dir, sources, "secret".repeat(8), allowLoopbackUpstreams = true, policyFile = policyFile)
-            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 10)
+            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 10, probes = false)
             try {
                 assertNull(runtime.curationLoop)
                 runtime.feeds.refresh(fixture.feed)

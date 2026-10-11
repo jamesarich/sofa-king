@@ -37,8 +37,8 @@ data class ProbeConfig(
 
 /**
  * Probes run on [ProbeConfig.parallelism] workers that claim due offerings from one shared queue.
- * Suspect, probation and quarantined sources are claimed before unverified ones, then healthy rechecks.
- * Persistent attempt times keep the five-minute spacing across restarts.
+ * Suspect, probation and quarantined sources are claimed before unverified ones, then healthy rechecks; under a
+ * lineup policy the policy's tiers rank first. Persistent attempt times keep the five-minute spacing across restarts.
  */
 class ProbeWorker(
     private val feeds: FeedService,
@@ -51,6 +51,11 @@ class ProbeWorker(
     private val onHealthChanged: suspend (String) -> Unit = {},
     /** Fires after every observation, changed or not. */
     private val onObserved: suspend (String) -> Unit = {},
+    /**
+     * Under a lineup policy: the offerings to probe, whatever their provider's `probe` flag, each with a tier that
+     * ranks before health status (lower first). Offerings it leaves out are never probed. Null without a policy.
+     */
+    private val targets: (() -> Map<String, Int>)? = null,
     private val qualifier: (suspend (Offering, Map<String, String>) -> FailureClass?)? = null,
 ) {
     private val log = LoggerFactory.getLogger(ProbeWorker::class.java)
@@ -121,19 +126,20 @@ class ProbeWorker(
     private suspend fun due(now: Instant): List<Offering> {
         val states = store.allHealth()
         val attempts = store.probeAttempts()
+        val plan = targets?.invoke()
         return feeds
             .offerings()
             .asSequence()
             .filter {
                 val feed = feeds.config(it.providerId)
-                feed.probe && (qualifier != null || probeHeadersSafe(feed.headers))
+                (if (plan != null) it.id in plan else feed.probe) && (qualifier != null || probeHeadersSafe(feed.headers))
             }.mapNotNull { offering ->
                 val state = states[offering.id] ?: return@mapNotNull null
                 val probeable =
                     !state.manuallyDisabled && state.status != HealthStatus.ARCHIVED && due(state, now) &&
                         attempts[offering.id]?.let { now < it.plusSeconds(300) } != true
                 if (probeable) offering to state else null
-            }.sortedWith(compareBy({ priority(it.second.status) }, { attempts[it.first.id] ?: Instant.MIN }))
+            }.sortedWith(compareBy({ plan?.get(it.first.id) ?: 0 }, { priority(it.second.status) }, { attempts[it.first.id] ?: Instant.MIN }))
             .take(config.parallelism * 4)
             .map { it.first }
             .toList()

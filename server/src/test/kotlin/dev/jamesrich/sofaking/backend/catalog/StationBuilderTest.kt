@@ -50,6 +50,7 @@ class StationBuilderTest {
 
     private val policy = LineupPolicy(
         names = PolicyNames(version = 1),
+        health = PolicyHealth(requireVerified = false),
         providers = listOf(PolicyProvider("whale"), PolicyProvider("samsung"), PolicyProvider("vizio", enabled = false)),
         groups = PolicyGroups(map = mapOf("news" to "Headlines"), patterns = listOf(GroupPattern(name = "tennis", group = "Sports")), default = "Entertainment"),
         numbering = PolicyNumbering(floor = 1000),
@@ -221,7 +222,7 @@ class StationBuilderTest {
         val eligibleOnly = mapOf("w1-o1" to HealthState(HealthStatus.UNVERIFIED))
         val stillOff = build(policy, one, health = eligibleOnly, previous = mapOf("bob ross channel" to StationAvailability(null, autoDisabled = true)))
         assertEquals("unavailable", stillOff.station("bob ross channel").disabledReason, "enableOn healthy waits for a healthy source")
-        val eligibleOn = build(policy.copy(health = PolicyHealth(enableOn = "eligible")), one, health = eligibleOnly, previous = mapOf("bob ross channel" to StationAvailability(null, autoDisabled = true)))
+        val eligibleOn = build(policy.copy(health = PolicyHealth(enableOn = "eligible", requireVerified = false)), one, health = eligibleOnly, previous = mapOf("bob ross channel" to StationAvailability(null, autoDisabled = true)))
         assertTrue(eligibleOn.station("bob ross channel").enabled)
         val back = build(policy, one, previous = mapOf("bob ross channel" to StationAvailability(null, autoDisabled = true)))
         assertTrue(back.station("bob ross channel").enabled)
@@ -250,6 +251,37 @@ class StationBuilderTest {
 
         val unaliased = build(aliased.copy(names = PolicyNames(version = 1)), listOf(candidate("whale", "e1", "ESPN 8", "8"), candidate("samsung", "e2", "ESPN8", "1008")))
         assertEquals(listOf("espn 8: possible alias of espn8"), unaliased.suggestedAliases)
+    }
+
+    @Test fun `with requireVerified a station stays off until a source has qualified healthy once`() {
+        val verifying = policy.copy(health = PolicyHealth(requireVerified = true))
+        val two = listOf(candidate("whale", "w1", "Bob Ross Channel", "15", offerings = 2))
+        val unverified = mapOf("w1-o1" to HealthState(HealthStatus.UNVERIFIED), "w1-o2" to HealthState(HealthStatus.SUSPECT))
+        val waiting = build(verifying, two, health = unverified)
+        assertEquals("unverified", waiting.station("bob ross channel").disabledReason)
+        assertNull(waiting.availability.getValue("bob ross channel").verifiedAt)
+        assertEquals(mapOf("w1-o1" to 0, "w1-o2" to 1), probeTiers(waiting), "the first source of an unverified station is probed first")
+
+        val required = build(verifying.copy(stations = verifying.stations + ("bob ross channel" to StationOverride(required = true))), two, health = unverified)
+        assertEquals("unverified", required.station("bob ross channel").disabledReason, "a required station waits too, in the lineup")
+
+        val qualified = build(verifying, two, health = unverified + ("w1-o2" to HealthState(HealthStatus.HEALTHY)))
+        assertTrue(qualified.station("bob ross channel").enabled)
+        assertEquals(now, qualified.availability.getValue("bob ross channel").verifiedAt)
+        assertEquals(mapOf("w1-o1" to 2, "w1-o2" to 2), probeTiers(qualified))
+        val once = build(verifying, two, health = mapOf("w1-o1" to HealthState(HealthStatus.SUSPECT, lastQualifiedAt = now.minusSeconds(60))))
+        assertTrue(once.station("bob ross channel").enabled, "a source that qualified before counts")
+
+        // Verified once, the station follows the availability rules even while no source is healthy.
+        val remembered = mapOf("bob ross channel" to StationAvailability(verifiedAt = now.minus(Duration.ofDays(3))))
+        val later = build(verifying, two, health = mapOf("w1-o1" to HealthState(HealthStatus.QUARANTINED), "w1-o2" to HealthState(HealthStatus.QUARANTINED)), previous = remembered)
+        assertTrue(later.station("bob ross channel").enabled)
+        assertEquals(now.minus(Duration.ofDays(3)), later.availability.getValue("bob ross channel").verifiedAt)
+        val stale = mapOf("bob ross channel" to StationAvailability(unavailableSince = now.minus(Duration.ofHours(25)), verifiedAt = now.minus(Duration.ofDays(3))))
+        assertEquals("unavailable", build(verifying, two, health = mapOf("w1-o1" to HealthState(HealthStatus.QUARANTINED)), previous = stale).station("bob ross channel").disabledReason)
+
+        val off = build(verifying.copy(stations = mapOf("bob ross channel" to StationOverride(enabled = false))), two, health = unverified)
+        assertEquals(mapOf("w1-o1" to 2, "w1-o2" to 2), probeTiers(off), "a station the policy turns off is not probed first")
     }
 
     @Test fun `version 2 keys join spellings that differ only by spaces without an alias`() {

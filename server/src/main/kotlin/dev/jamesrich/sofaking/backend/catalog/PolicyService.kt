@@ -45,6 +45,13 @@ class PolicyService(
     private val log = LoggerFactory.getLogger(PolicyService::class.java)
     private val runMutex = Mutex()
     private val trigger = Trigger<String>(Trigger.CONFLATED)
+    private val probePlan = java.util.concurrent.atomic.AtomicReference<Map<String, Int>>(emptyMap())
+
+    /**
+     * The offerings the last apply's stations reference, each with its probe tier: 0 for the first source of an
+     * unverified station, 1 for its other sources, 2 for the rest. Empty until the first apply.
+     */
+    fun probeTargets(): Map<String, Int> = probePlan.get()
 
     val policy: LineupPolicy get() = file.current().policy
 
@@ -123,6 +130,7 @@ class PolicyService(
             )
         }
         val result = run(loaded)
+        probePlan.set(probeTiers(result))
         val findings = findingsOf(result).toMutableList()
         val current = lineup.entries()
         val currentById = current.associateBy { it.id }
@@ -305,6 +313,22 @@ private fun editStation(tree: JsonObject, key: String, edit: (MutableMap<String,
     edit(station)
     stations[key] = JsonObject(station)
     return JsonObject(tree.toMutableMap().apply { put("stations", JsonObject(stations.toSortedMap())) })
+}
+
+/**
+ * Each offering [result]'s stations reference, with its probe tier: 0 for the first source of a station no source
+ * has verified, 1 for that station's other sources, 2 for every other offering. Stations the policy turns off
+ * never rank above 2.
+ */
+internal fun probeTiers(result: BuildResult): Map<String, Int> {
+    val tiers = HashMap<String, Int>()
+    for (station in result.stations) {
+        val unverified = result.availability[station.key]?.verifiedAt == null && station.disabledReason != "policy"
+        station.offeringIds.forEachIndexed { index, id ->
+            tiers.merge(id, if (!unverified) 2 else if (index == 0) 0 else 1, ::minOf)
+        }
+    }
+    return tiers
 }
 
 /**

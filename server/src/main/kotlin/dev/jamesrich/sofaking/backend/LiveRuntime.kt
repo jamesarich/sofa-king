@@ -76,9 +76,9 @@ class LiveRuntime(
                 val sessions = SessionManager(catalog, store, clock, config.maxSessions)
                 policyService = loadedPolicy?.let { loaded ->
                     lateinit var service: PolicyService
-                    val capacity = if (config.hdhr.enabled) config.hdhr.devices * config.hdhr.deviceSize else null
+                    val sizing = if (config.hdhr.enabled) HdhrSizing(config.hdhr.devices, config.hdhr.deviceSize) else null
                     val file = PolicyFile(loaded, providerIds) { service.requestRun("policy") }
-                    service = PolicyService(file, feeds, guides, lineup, store, clock, capacity, policyDebounceMillis)
+                    service = PolicyService(file, feeds, guides, lineup, store, clock, sizing, policyDebounceMillis)
                     service
                 }
                 feeds.start(scope)

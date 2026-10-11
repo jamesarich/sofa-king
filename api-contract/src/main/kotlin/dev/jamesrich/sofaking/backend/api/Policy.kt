@@ -110,6 +110,8 @@ import kotlinx.serialization.Serializable
     val suggestedAliases: List<String> = emptyList(),
     /** Aliases this run learned from matching schedules, `from` key to station key; an apply writes them to `names.learned`. */
     val learned: Map<String, String> = emptyMap(),
+    /** With HDHomeRun range devices: the devices the enabled stations need, and the devices configured. */
+    val devicesNeeded: Int? = null, val devicesConfigured: Int? = null,
 )
 
 /**
@@ -129,12 +131,14 @@ import kotlinx.serialization.Serializable
 
 /**
  * What one apply did. [assigned] holds the numbers this run gave stations without one and [learned] the aliases it
- * found from matching schedules; both are written back to the policy.
+ * found from matching schedules; both are written back to the policy. With HDHomeRun range devices,
+ * [devicesNeeded] is what the enabled stations need and [devicesConfigured] what is set up.
  */
 @Serializable data class PolicyApplyResult(
     val appliedAt: String, val revision: String, val changed: Boolean, val stations: Int, val enabledStations: Int,
     val changes: Int = 0, val assigned: Map<String, String> = emptyMap(), val findings: List<String> = emptyList(),
     val suggestedAliases: List<String> = emptyList(), val learned: Map<String, String> = emptyMap(),
+    val devicesNeeded: Int? = null, val devicesConfigured: Int? = null,
 )
 
 /** A policy write and the apply that followed it. */

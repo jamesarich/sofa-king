@@ -36,8 +36,8 @@ class PolicyService(
     private val lineup: LineupService,
     private val store: BackendStore,
     private val clock: Clock,
-    /** Channels the HDHomeRun devices hold together when they split the lineup by range; null when they do not. */
-    private val hdhrCapacity: Int? = null,
+    /** The HDHomeRun devices that split the lineup by range; null when they do not. */
+    private val hdhr: HdhrSizing? = null,
     /** Quiet time after a trigger before the run, so a burst of changes is one run. */
     private val debounceMillis: Long = 10_000,
     private val intervalSeconds: Long = 900,
@@ -85,7 +85,9 @@ class PolicyService(
     suspend fun preview(): PolicyPreview {
         val loaded = file.current()
         val result = run(loaded)
-        return previewDiff(result, lineup.entries(), clock.instant(), loaded.revision).copy(findings = findingsOf(result), learned = result.learned)
+        return previewDiff(result, lineup.entries(), clock.instant(), loaded.revision).copy(
+            findings = findingsOf(result), learned = result.learned, devicesNeeded = hdhr?.needed(enabledChannels(result)), devicesConfigured = hdhr?.devices,
+        )
     }
 
     suspend fun findings(): PolicyFindings {
@@ -105,11 +107,18 @@ class PolicyService(
         )
     }
 
+    /** Enabled channels the devices serve: one per number. */
+    private fun enabledChannels(result: BuildResult): Int = result.stations.filter { it.enabled }.distinctBy { it.number }.size
+
     private fun findingsOf(result: BuildResult): List<String> {
-        val capacity = hdhrCapacity ?: return result.findings
-        val enabled = result.stations.filter { it.enabled }.distinctBy { it.number }.size
-        if (enabled <= capacity) return result.findings
-        return (result.findings + "hdhr: $enabled enabled stations exceed the $capacity channels the HDHomeRun devices hold; add ports to SOFA_HDHR_EXTRA_PORTS").sorted()
+        val sizing = hdhr ?: return result.findings
+        val enabled = enabledChannels(result)
+        val needed = sizing.needed(enabled)
+        if (needed <= sizing.devices) return result.findings
+        return (
+            result.findings +
+                "hdhr: $enabled enabled stations need $needed devices of ${sizing.deviceSize} channels, ${sizing.devices} configured; add ports to SOFA_HDHR_EXTRA_PORTS"
+            ).sorted()
     }
 
     /**
@@ -186,7 +195,7 @@ class PolicyService(
         )
         PolicyApplyResult(
             now.toString(), revision, changed, next.size, next.count { it.enabled }, changes.size, numbers.toSortedMap(), findings.sorted(), result.suggestedAliases,
-            result.learned,
+            result.learned, hdhr?.needed(enabledChannels(result)), hdhr?.devices,
         )
     }
 
@@ -294,6 +303,12 @@ class PolicyService(
             }
         }
     }
+}
+
+/** HDHomeRun devices that split a policy lineup by range: [devices] of [deviceSize] channels each. */
+data class HdhrSizing(val devices: Int, val deviceSize: Int) {
+    /** Devices [enabled] channels need. */
+    fun needed(enabled: Int): Int = (enabled + deviceSize - 1) / deviceSize
 }
 
 private fun replacementOf(element: JsonElement): PolicyReplacement = when (element) {

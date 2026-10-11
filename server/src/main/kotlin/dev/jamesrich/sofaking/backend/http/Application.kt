@@ -56,14 +56,21 @@ fun Application.backendModule(
         }
     }
     intercept(ApplicationCallPipeline.Call) {
-        val path = call.request.path()
-        // Admin routes take the admin token when one is configured; otherwise the API token covers them too.
-        val expected = if (path.startsWith("/api/v1/admin/") && adminToken != null) adminToken else apiToken
-        if (path.startsWith("/api/") && expected != null) {
-            val presented = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()
-            if (!MessageDigest.isEqual(expected.toByteArray(), presented.toByteArray())) {
-                call.respond(HttpStatusCode.Unauthorized, ApiError("AUTH_REQUIRED", "Bearer token required", false))
-                finish()
+        // Decide on the path routing resolves, so no spelling of a guarded route skips its token.
+        val path = routedPath(call.request.path())
+        if (path == null) {
+            call.respond(HttpStatusCode.BadRequest, ApiError("INVALID_REQUEST", "Invalid request path", false))
+            finish()
+        } else {
+            // Admin routes take the admin token when one is configured; otherwise the API token covers them too.
+            val isAdmin = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/")
+            val expected = if (isAdmin && adminToken != null) adminToken else apiToken
+            if ((path == "/api" || path.startsWith("/api/")) && expected != null) {
+                val presented = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()
+                if (!MessageDigest.isEqual(expected.toByteArray(), presented.toByteArray())) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiError("AUTH_REQUIRED", "Bearer token required", false))
+                    finish()
+                }
             }
         }
     }
@@ -113,6 +120,15 @@ fun Application.backendModule(
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
         }
     }
+}
+/**
+ * The path routing matches: empty segments dropped, each segment percent-decoded. Null when a segment is undecodable,
+ * decodes to a dot segment, or decodes to something containing '/', which routing would otherwise see as a path split.
+ */
+internal fun routedPath(raw: String): String? {
+    val segments = raw.split('/').filter { it.isNotEmpty() }.map { segment -> runCatching { segment.decodeURLPart() }.getOrNull() ?: return null }
+    if (segments.any { it == "." || it == ".." || it.contains('/') }) return null
+    return segments.joinToString("/", prefix = "/")
 }
 /** A write or read that failed because the client's connection is gone, as Ktor, Netty and the JDK each report it. */
 internal fun clientAbort(cause: Throwable): Boolean {

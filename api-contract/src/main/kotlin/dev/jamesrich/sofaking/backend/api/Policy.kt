@@ -92,6 +92,12 @@ import kotlinx.serialization.Serializable
     val offeringIds: List<String> = emptyList(), val disabledReason: String? = null,
 )
 
+/**
+ * A raw category no `groups.map` entry or pattern names, for the stations that fall to the default group or keep the
+ * raw one. [category] is the lowercase key `groups.map` takes; [example] is the first station name in sorted order.
+ */
+@Serializable data class PolicyUnmappedCategory(val provider: String, val category: String, val stations: Int, val example: String)
+
 /** One field that differs between a current lineup entry and the station it maps to. */
 @Serializable data class PolicyFieldChange(val key: String, val entryId: String, val field: String, val before: String? = null, val after: String? = null)
 
@@ -112,6 +118,7 @@ import kotlinx.serialization.Serializable
     val learned: Map<String, String> = emptyMap(),
     /** With HDHomeRun range devices: the devices the enabled stations need, and the devices configured. */
     val devicesNeeded: Int? = null, val devicesConfigured: Int? = null,
+    val unmappedCategories: List<PolicyUnmappedCategory> = emptyList(),
 )
 
 /**
@@ -139,6 +146,7 @@ import kotlinx.serialization.Serializable
     val changes: Int = 0, val assigned: Map<String, String> = emptyMap(), val findings: List<String> = emptyList(),
     val suggestedAliases: List<String> = emptyList(), val learned: Map<String, String> = emptyMap(),
     val devicesNeeded: Int? = null, val devicesConfigured: Int? = null,
+    val unmappedCategories: List<PolicyUnmappedCategory> = emptyList(),
 )
 
 /** A policy write and the apply that followed it. */
@@ -147,6 +155,7 @@ import kotlinx.serialization.Serializable
 /** Open findings of a run over the current feeds, and live station keys that probably name one station. */
 @Serializable data class PolicyFindings(
     val generatedAt: String, val revision: String, val findings: List<String> = emptyList(), val suggestedAliases: List<String> = emptyList(),
+    val unmappedCategories: List<PolicyUnmappedCategory> = emptyList(),
 )
 
 /** One source of a channel in a legacy lineup export. */

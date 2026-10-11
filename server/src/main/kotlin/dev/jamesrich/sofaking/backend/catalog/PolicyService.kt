@@ -89,13 +89,14 @@ class PolicyService(
         val result = run(loaded)
         return previewDiff(result, lineup.entries(), clock.instant(), loaded.revision).copy(
             findings = findingsOf(result), learned = result.learned, devicesNeeded = hdhr?.needed(enabledChannels(result)), devicesConfigured = hdhr?.devices,
+            unmappedCategories = result.unmappedCategories,
         )
     }
 
     suspend fun findings(): PolicyFindings {
         val loaded = file.current()
         val result = run(loaded)
-        return PolicyFindings(clock.instant().toString(), loaded.revision, findingsOf(result), result.suggestedAliases)
+        return PolicyFindings(clock.instant().toString(), loaded.revision, findingsOf(result), result.suggestedAliases, result.unmappedCategories)
     }
 
     suspend fun explain(key: String): StationExplanation {
@@ -197,7 +198,7 @@ class PolicyService(
         )
         PolicyApplyResult(
             now.toString(), revision, changed, next.size, next.count { it.enabled }, changes.size, numbers.toSortedMap(), findings.sorted(), result.suggestedAliases,
-            result.learned, hdhr?.needed(enabledChannels(result)), hdhr?.devices,
+            result.learned, hdhr?.needed(enabledChannels(result)), hdhr?.devices, result.unmappedCategories,
         )
     }
 

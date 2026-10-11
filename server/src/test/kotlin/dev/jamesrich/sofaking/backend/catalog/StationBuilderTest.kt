@@ -334,4 +334,35 @@ class StationBuilderTest {
         assertEquals(setOf("espn8", "nflnetwork", "nflchannel"), result.stations.map { it.key }.toSet())
         assertTrue(result.suggestedAliases.isEmpty())
     }
+
+    private val unmappedPolicy = LineupPolicy(
+        names = PolicyNames(version = 1),
+        health = PolicyHealth(requireVerified = false),
+        providers = listOf(PolicyProvider("whale"), PolicyProvider("samsung")),
+        groups = PolicyGroups(map = mapOf("news" to "Headlines"), patterns = listOf(GroupPattern(name = "tennis", group = "Sports")), default = "Entertainment"),
+    )
+
+    @Test fun `a raw category nothing maps is counted per provider, and mapped or pattern-matched ones are not`() {
+        val result = build(unmappedPolicy, listOf(
+            candidate("whale", "u1", "Alpha One", "1", group = "Lifestyle"),
+            candidate("whale", "u2", "Bravo", "2", group = "Lifestyle"),
+            candidate("samsung", "u3", "Charlie", "3", group = "Arts"),
+            candidate("whale", "u4", "Delta News", "4", group = "News"),
+            candidate("whale", "u5", "Tennis Live", "5", group = "Hobbies"),
+        ))
+        assertEquals(
+            listOf(PolicyUnmappedCategory("whale", "lifestyle", 2, "Alpha One"), PolicyUnmappedCategory("samsung", "arts", 1, "Charlie")),
+            result.unmappedCategories,
+        )
+        assertTrue("groups: 2 categories have no mapping (3 stations); see unmappedCategories" in result.findings)
+    }
+
+    @Test fun `a station with a group override is not counted as unmapped`() {
+        val result = build(
+            unmappedPolicy.copy(stations = mapOf("charlie" to StationOverride(group = "Arts"))),
+            listOf(candidate("samsung", "u3", "Charlie", "3", group = "Arts")),
+        )
+        assertEquals(emptyList(), result.unmappedCategories)
+        assertTrue(result.findings.none { it.startsWith("groups:") }, "no summary finding when nothing is unmapped")
+    }
 }

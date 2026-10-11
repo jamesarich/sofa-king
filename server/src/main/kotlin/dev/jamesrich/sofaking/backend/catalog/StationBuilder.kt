@@ -52,11 +52,13 @@ class BuildResult(
     val suggestedAliases: List<String> = emptyList(),
     /** Aliases this run learned from matching schedules and built with, not yet in the policy file. */
     val learned: Map<String, String> = emptyMap(),
+    /** Raw categories the group map and patterns do not name, most stations first. */
+    val unmappedCategories: List<PolicyUnmappedCategory> = emptyList(),
 ) {
     /** This result with [learning] applied: its aliases recorded, its suggestions and findings added. */
     fun with(learning: Learning): BuildResult = BuildResult(
         stations, assigned, (findings + learning.findings).sorted(), availability, candidates, keys,
-        (suggestedAliases + learning.suggestions).distinct().sorted(), learning.learned,
+        (suggestedAliases + learning.suggestions).distinct().sorted(), learning.learned, unmappedCategories,
     )
 }
 
@@ -268,10 +270,13 @@ object StationBuilder {
         }
 
         val groupPatterns = policy.groups.patterns.map { Triple(it.name?.let { p -> Regex(p, RegexOption.IGNORE_CASE) }, it.rawGroup?.let { p -> Regex(p, RegexOption.IGNORE_CASE) }, it.group) }
+        fun patternGroup(name: String?, raw: String?): String? =
+            groupPatterns.firstOrNull { (byName, byGroup, _) -> (byName != null && name != null && byName.containsMatchIn(name)) || (byGroup != null && raw != null && byGroup.containsMatchIn(raw)) }?.third
         fun groupOf(name: String?, raw: String?): String? =
-            raw?.let { policy.groups.map[it.trim().lowercase()] }
-                ?: groupPatterns.firstOrNull { (byName, byGroup, _) -> (byName != null && name != null && byName.containsMatchIn(name)) || (byGroup != null && raw != null && byGroup.containsMatchIn(raw)) }?.third
-                ?: policy.groups.default ?: raw
+            raw?.let { policy.groups.map[it.trim().lowercase()] } ?: patternGroup(name, raw) ?: policy.groups.default ?: raw
+        // A raw category that neither the map nor a pattern names; its station takes the default group or keeps the raw one.
+        fun unmapped(name: String?, raw: String?): Boolean =
+            raw != null && policy.groups.map[raw.trim().lowercase()] == null && patternGroup(name, raw) == null
         fun groupFor(draft: Draft): String? = draft.override?.group ?: draft.leading?.candidate?.channel.let { groupOf(it?.name, it?.tags?.firstOrNull()) }
 
         // Pass one reserves override numbers and the numbers missing stations still hold; pass two assigns the rest,
@@ -335,10 +340,26 @@ object StationBuilder {
         }.sortedWith(compareBy<PolicyStation, BigDecimal?>(NUMBER_ORDER) { numberValue(it.number) }.thenBy { it.key })
 
         for ((id, group) in stations.groupBy { it.id }.toSortedMap()) if (group.size > 1) findings += "${group.first().key}: id $id is shared with ${group.drop(1).joinToString { it.key }}"
+        // Stations whose leading channel's raw category nothing maps, grouped by provider and lowercase category.
+        val unmappedRows = drafts.mapNotNull { draft ->
+            val leading = draft.leading ?: return@mapNotNull null
+            val channel = leading.candidate.channel
+            val raw = channel.tags.firstOrNull()
+            if (draft.override?.group != null || raw == null || !unmapped(channel.name, raw)) return@mapNotNull null
+            Triple(leading.candidate.providerId, raw.trim().lowercase(), draft.override?.name ?: channel.name)
+        }
+        val unmappedCategories = unmappedRows.groupBy { it.first to it.second }.map { (category, rows) ->
+            PolicyUnmappedCategory(category.first, category.second, rows.size, rows.map { it.third }.sorted().first())
+        }.sortedWith(compareByDescending<PolicyUnmappedCategory> { it.stations }.thenBy { it.provider }.thenBy { it.category })
+        if (unmappedCategories.isNotEmpty()) {
+            findings += "groups: ${unmappedCategories.size} categories have no mapping (${unmappedRows.size} stations); see unmappedCategories"
+        }
+
         return BuildResult(
             stations, assigned, findings.sorted(), availability,
             decisions.sortedWith(compareBy({ it.key }, { it.providerId }, { it.channelId })), keys,
             suggestedAliases(drafts.filter { it.sources.isNotEmpty() }.map { it.key }, policy.names.never),
+            unmappedCategories = unmappedCategories,
         )
     }
 

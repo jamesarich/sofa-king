@@ -71,7 +71,7 @@ A learned alias for a pair in `names.never` is ignored and removed at the next w
 | `names.learned` | `{}` | Key to station key, written by runs from matching schedules; may not chain |
 | `names.never` | `[]` | Pairs of keys, `[["a", "b"]]`, that never merge |
 | `providers` | `[]` | Provider entries in priority order, see below |
-| `groups.map` | `{}` | Lowercase raw group to group |
+| `groups.map` | `{}` | Lowercase raw group to group; [unmapped categories](#unmapped-categories) list what is missing |
 | `groups.patterns` | `[]` | `{"name": regex, "rawGroup": regex, "group": "..."}`, first match wins; give `name`, `rawGroup` or both |
 | `groups.default` | unset | Group for a station nothing else groups; unset keeps the raw group |
 | `numbering.floor` | `1000` | First number handed out when a station's own number is taken or not numeric |
@@ -153,7 +153,17 @@ A source whose provider configures `headers` other than `User-Agent`, `Accept`, 
 
 ## Findings
 
-Each run reports findings, each starting with the station key: required or pinned sources missing, stations over the source cap, missing stations, stations left as they were, and schedule matches the policy kept from merging (an override holding more than a number, or a `names.never` pair). With HDHomeRun range devices, a lineup that needs more devices than are configured adds an `hdhr:` finding. `GET /api/v1/admin/policy/findings` returns the open findings of a run over the current feeds, and the suggested aliases.
+Each run reports findings, each starting with the station key (the `groups:` summary of unmapped categories is the exception): required or pinned sources missing, stations over the source cap, missing stations, stations left as they were, and schedule matches the policy kept from merging (an override holding more than a number, or a `names.never` pair). With HDHomeRun range devices, a lineup that needs more devices than are configured adds an `hdhr:` finding. `GET /api/v1/admin/policy/findings` returns the open findings of a run over the current feeds, and the suggested aliases.
+
+### Unmapped categories
+
+A station whose leading channel has a raw category that `groups.map` and `groups.patterns` do not name takes `groups.default`, or keeps the raw category when there is none. Each run lists these in `unmappedCategories`, in preview, apply and findings: one entry per provider and category, `{"provider", "category", "stations", "example"}`, with the most stations first, then provider and category. `category` is the lowercase key `groups.map` takes, and `example` is the first station name in sorted order. Stations with a group override are not listed, and neither are stations with no raw category. When the list is not empty, the findings carry one `groups:` line with the category and station counts.
+
+To map a category, add its `category` to `groups.map` with the group it belongs in, then apply. A category that should stay in the default group needs no entry.
+
+```json
+"groups": { "map": { "news": "Headlines", "lifestyle": "Lifestyle" }, "default": "Entertainment" }
+```
 
 ## API
 
@@ -163,9 +173,9 @@ All routes are under `/api/v1/admin` and take the admin token.
 | --- | --- | --- |
 | GET | `/policy` | The policy with its `revision` (the file's SHA-256, also the `ETag`) and `path` |
 | PUT | `/policy` | Replace the policy; `If-Match: <revision>` is required. Validates, writes, applies, and returns the document and the apply result |
-| GET | `/policy/preview` | What a run would change against the served lineup, the aliases it would learn (`learned`), and with range devices `devicesNeeded` and `devicesConfigured`; writes nothing |
-| POST | `/policy/apply` | Run now and write the result; reports `enabledStations`, the numbers it `assigned`, the aliases it `learned`, and with range devices `devicesNeeded` and `devicesConfigured` |
-| GET | `/policy/findings` | Open findings and suggested aliases |
+| GET | `/policy/preview` | What a run would change against the served lineup, the aliases it would learn (`learned`), the `unmappedCategories`, and with range devices `devicesNeeded` and `devicesConfigured`; writes nothing |
+| POST | `/policy/apply` | Run now and write the result; reports `enabledStations`, the numbers it `assigned`, the aliases it `learned`, the `unmappedCategories`, and with range devices `devicesNeeded` and `devicesConfigured` |
+| GET | `/policy/findings` | Open findings, suggested aliases and `unmappedCategories` |
 | POST | `/policy/check` | The cutover check, see below |
 | GET | `/stations/{key}` | One station: its pins and every channel that names the key or joins it, with why |
 | PATCH | `/lineup/{id}` | Writes `name`, `number`, `group`, `logo`, `guide`, `enabled` and `offerings` (as pins by provider and `tvg-id`) into the station's override, then applies |

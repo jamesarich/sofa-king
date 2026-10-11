@@ -16,7 +16,8 @@
     { "id": "roku", "type": "native", "service": "roku" },
     { "id": "localnow", "type": "native", "service": "localnow", "options": { "dma": "679", "market": "iaDesMoines" } },
     { "id": "xumo", "type": "native", "service": "xumo" },
-    { "id": "pluto", "type": "native", "service": "pluto" }
+    { "id": "pluto", "type": "native", "service": "pluto" },
+    { "id": "tubi", "type": "native", "service": "tubi" }
   ],
   "guides": [
     { "id": "gracenote", "url": "http://192.168.1.3:3000/DaddyLiveUSGracenote/epg/playlist.xml" },

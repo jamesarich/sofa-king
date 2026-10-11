@@ -24,7 +24,8 @@ These are unofficial clients. They call the same public endpoints each service's
     { "id": "roku", "type": "native", "service": "roku" },
     { "id": "localnow", "type": "native", "service": "localnow", "options": { "dma": "679", "market": "iaDesMoines" } },
     { "id": "xumo", "type": "native", "service": "xumo" },
-    { "id": "pluto", "type": "native", "service": "pluto" }
+    { "id": "pluto", "type": "native", "service": "pluto" },
+    { "id": "tubi", "type": "native", "service": "tubi" }
   ]
 }
 ```
@@ -32,7 +33,7 @@ These are unofficial clients. They call the same public endpoints each service's
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi` |
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `dma` and `market` for `localnow` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
@@ -147,6 +148,12 @@ Fragility: the DRM filter is a call-sign convention, not a flag; a DRM channel n
 The pluto.tv web client's own API. `boot.pluto.tv/v4/start`, with the install's device id as `clientID`, answers a session JWT (valid a day, kept four hours, replaced on a 401 or 403), the channels and stitcher hosts and the stitcher query parameters. The channel list is the channels service's `v2/guide/channels`, keyed by Pluto's channel id, with number, color logo and the name of the channel's first category from `v2/guide/categories`; channels with `entitlements` (today 29, all `Registered`) need a Pluto account and are left out. The guide is `v2/guide/timelines` for mapped channels, 25 per request, twelve hours from the current hour. A resolve is the stitcher host, `/v2` and the channel's stitched path, with the boot's parameters, the JWT and `masterJWTPassthrough`, handed to the relay for an hour.
 
 Fragility: the boot's `appVersion` is the web client's and may be refused when Pluto retires it. The stitcher parameters carry the location Pluto derives from the server's address.
+
+### tubi (Tubi)
+
+tubitv.com/live as a signed-out visitor sees it. The page's `window.__data` state carries the `tubitv_us_linear` containers and their channel ids (176 today); the public `oz/epg/programming` endpoint, 50 ids a request, answers each channel's title, thumbnail, HLS manifest (with a token valid about three days) and about two days of programmes, which are the guide; the snapshot is kept 30 minutes. The group is the first themed container that lists the channel; Featured, Recommended, Recently Added and Favorites only group what nothing else does. Tubi has no channel numbers. Channels with `needs_login` or a resource with a `license_server` are left out (none today). A resolve asks `programming` for that one channel and hands its manifest to the relay for an hour.
+
+Fragility: the channel ids come from the page's server-rendered state; a page served without them fails the import as provider evidence and the last complete snapshot stays.
 
 ## Checking a provider
 

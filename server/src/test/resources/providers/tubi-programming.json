@@ -1,0 +1,88 @@
+{
+ "rows": [
+  {
+   "content_id": 613761,
+   "title": "NFL Channel",
+   "needs_login": false,
+   "images": {
+    "thumbnail": [
+     "https://canvas-lb.tubitv.com/opts/MWTjzbz0C0Irrw==/7bffc557-8e66-4b08-b279-55ece734e19f/CHgQeDoFMS4xLjlAAQ=="
+    ]
+   },
+   "video_resources": [
+    {
+     "type": "hlsv3",
+     "manifest": {
+      "url": "BASE/live/fixture/playlist.m3u8?token=fixture-token&tb.sid=fixture"
+     },
+     "codec": "VIDEO_CODEC_H264"
+    }
+   ],
+   "programs": [
+    {
+     "title": "Weekly Game Previews",
+     "description": "This weekly series breaks down what you need to know for every NFL matchup ahead of Week 5 from the 2026 NFL season.",
+     "start_time": "2026-10-11T02:29:00Z",
+     "end_time": "2026-10-11T05:18:00Z"
+    },
+    {
+     "title": "NFL Game Re-Airs",
+     "description": "Justin Herbert's immaculate fourth quarter touchdown toss to Keenan Allen keeps the Bolts undefeated on the season as they take down Bo Nix and the Broncos 23-20.",
+     "start_time": "2026-10-11T05:18:00Z",
+     "end_time": "2026-10-11T08:11:00Z"
+    }
+   ]
+  },
+  {
+   "content_id": 711410,
+   "title": "Dateline 24/7",
+   "needs_login": true,
+   "images": {
+    "thumbnail": [
+     "https://canvas-lb.tubitv.com/opts/acReNIzwC2WiuA==/32d8bd46-4cc6-4f9b-8db3-694be23ed0e3/CHgQeDoFMS4xLjlAAQ=="
+    ]
+   },
+   "video_resources": [
+    {
+     "type": "hlsv3",
+     "manifest": {
+      "url": "BASE/live/login/playlist.m3u8?token=fixture-token"
+     },
+     "codec": "VIDEO_CODEC_H264"
+    }
+   ],
+   "programs": [
+    {
+     "title": "Dateline NBC",
+     "description": "An Idaho man is sentenced to life after falsely confessing to his friend's murder; but after the true culprit is caught and the case seemingly closed, a chilling twist unfolds.",
+     "start_time": "2026-10-11T03:05:00Z",
+     "end_time": "2026-10-11T04:42:00Z"
+    }
+   ]
+  },
+  {
+   "content_id": 555129,
+   "title": "theGrio",
+   "needs_login": false,
+   "images": {
+    "thumbnail": [
+     "https://canvas-lb.tubitv.com/opts/TyT5UhcvEErw2A==/a9b7d587-ab4a-4d4d-bc0d-6f14da292f9f/CHgQeDoFMS4xLjlAAQ=="
+    ]
+   },
+   "video_resources": [
+    {
+     "type": "hlsv3",
+     "manifest": {
+      "url": "BASE/live/drm/playlist.m3u8?token=fixture-token"
+     },
+     "codec": "VIDEO_CODEC_H264",
+     "license_server": {
+      "url": "BASE/license"
+     }
+    }
+   ],
+   "programs": []
+  }
+ ],
+ "valid_duration": 21600
+}

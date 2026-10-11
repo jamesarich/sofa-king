@@ -77,8 +77,11 @@ class MainActivity : ComponentActivity() {
 }
 
 private sealed interface Screen {
-    /** [atNow] moves the guide's cursor to the current time on arrival (the Guide key from the player). */
-    data class Guide(val atNow: Boolean = false) : Screen
+    /**
+     * [atNow] moves the guide's cursor to the current time on arrival (the Guide key from the player); [search]
+     * opens its search by voice (the Search key). Neither survives a restore.
+     */
+    data class Guide(val atNow: Boolean = false, val search: Boolean = false) : Screen
     data class Player(val guideId: String) : Screen
     data object Settings : Screen
 }
@@ -199,6 +202,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 captionSync = captionSync,
                 onExit = { screen = Screen.Guide() },
                 onGuide = { screen = Screen.Guide(atNow = true) },
+                onSearch = { screen = Screen.Guide(search = true) },
                 onChannelChanged = { vm.setLastChannel(it.guideId) },
                 reloadLineup = vm::reloadLineup,
                 onChannelGone = { channel ->
@@ -250,6 +254,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                         favorites = settings?.favorites.orEmpty(),
                         lastChannel = settings?.lastChannel,
                         startAtNow = current.atNow,
+                        startSearch = current.search,
                         onPlay = { screen = Screen.Player(it) },
                         onToggleFavorite = vm::toggleFavorite,
                         previewPlayer = player,
@@ -267,6 +272,7 @@ private fun GuideOrEmpty(
     favorites: Set<String>,
     lastChannel: String?,
     startAtNow: Boolean,
+    startSearch: Boolean,
     onPlay: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     previewPlayer: ExoPlayer,
@@ -280,6 +286,7 @@ private fun GuideOrEmpty(
             favorites = favorites,
             initialChannelId = lastChannel,
             startAtNow = startAtNow,
+            startSearch = startSearch,
             onPlay = { onPlay(it.guideId) },
             onToggleFavorite = { onToggleFavorite(it.guideId) },
             previewPlayer = previewPlayer,

@@ -119,6 +119,7 @@ fun PlayerScreen(
     onExit: () -> Unit,
     onChannelChanged: (Channel) -> Unit,
     onGuide: () -> Unit = onExit,
+    onSearch: () -> Unit = onExit,
     reloadLineup: suspend () -> Lineup? = { null },
     onChannelGone: (Channel) -> Unit = { onExit() },
     captionsEnabled: Boolean = false,
@@ -484,6 +485,10 @@ fun PlayerScreen(
         when (key.playerExit()) {
             PlayerExit.GUIDE_AT_NOW -> {
                 onGuide()
+                return true
+            }
+            PlayerExit.SEARCH -> {
+                onSearch()
                 return true
             }
             null -> Unit

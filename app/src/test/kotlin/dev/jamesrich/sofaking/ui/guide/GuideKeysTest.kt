@@ -18,4 +18,9 @@ class GuideKeysTest {
         assertNull(Key.Back.guideShortcut())
         assertNull(Key.DirectionCenter.guideShortcut())
     }
+
+    @Test
+    fun `Search opens voice search`() {
+        assertEquals(GuideShortcut.SEARCH, Key.Search.guideShortcut())
+    }
 }

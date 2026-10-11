@@ -116,7 +116,8 @@ private data class FocusedCell(val channel: Channel, val cell: GuideCell)
 /**
  * The guide grid. Filter, search, time cursor, scroll and the focused channel are saveable, so a trip to the
  * player and back lands where the user left; [initialChannelId] (the last channel watched) is where a fresh
- * guide starts, and [startAtNow] puts the cursor at the current time instead of where it was.
+ * guide starts, [startAtNow] puts the cursor at the current time instead of where it was, and [startSearch]
+ * opens search by voice on arrival.
  */
 @Composable
 fun GuideScreen(
@@ -124,6 +125,7 @@ fun GuideScreen(
     favorites: Set<String>,
     initialChannelId: String?,
     startAtNow: Boolean,
+    startSearch: Boolean,
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     previewPlayer: ExoPlayer,
@@ -209,7 +211,8 @@ fun GuideScreen(
     val searchField = remember { FocusRequester() }
     val initialFocus = remember { FocusRequester() }
     // True once a cell has taken focus; until then the header's buttons hold it, so the request is retried.
-    var initialFocusDone by remember { mutableStateOf(false) }
+    // A guide opened for search gives focus to the search instead.
+    var initialFocusDone by remember { mutableStateOf(startSearch) }
     var initialFocusAttempt by remember { mutableIntStateOf(0) }
     var returnToSearchChip by remember { mutableStateOf(false) }
 
@@ -308,6 +311,25 @@ fun GuideScreen(
     val onSearchToggle: () -> Unit = {
         if (searchOpen) closeSearch() else searchOpen = true
     }
+    // Voice search: the TV's recognizer takes the query and the first matching row takes focus; without a
+    // recognizer, or when it is dismissed, the text field takes focus as the Search chip's does.
+    var searchFocusRequest by remember { mutableIntStateOf(0) }
+    var focusResults by remember { mutableStateOf(false) }
+    val startVoiceSearch = rememberVoiceSearch { spoken ->
+        searchOpen = true
+        if (spoken != null) {
+            searchState.setTextAndPlaceCursorAtEnd(spoken)
+            focusResults = true
+        }
+        searchFocusRequest++
+    }
+    val openVoiceSearch: () -> Unit = {
+        if (!startVoiceSearch()) {
+            searchOpen = true
+            searchFocusRequest++
+        }
+    }
+    LaunchedEffect(Unit) { if (startSearch) openVoiceSearch() }
     // From the grid, Back climbs to the selected chip (scrolled into the row first, since only a composed chip
     // can take focus); from the chips or the header it leaves the activity to finish.
     val backAction = guideBackAction(searchOpen, gridFocused)
@@ -321,8 +343,14 @@ fun GuideScreen(
             GuideBack.EXIT -> Unit
         }
     }
-    LaunchedEffect(searchOpen) {
-        if (searchOpen) requestFocusWhenAttached(searchField)
+    LaunchedEffect(searchOpen, searchFocusRequest) {
+        if (!searchOpen) return@LaunchedEffect
+        if (focusResults) {
+            focusResults = false
+            // No row matched: the field takes focus so the query can be changed.
+            if (requestFocusWhenAttached(initialFocus, FIRST_FOCUS_FRAMES)) return@LaunchedEffect
+        }
+        requestFocusWhenAttached(searchField)
     }
     LaunchedEffect(returnToSearchChip) {
         if (returnToSearchChip) {
@@ -380,6 +408,7 @@ fun GuideScreen(
         if (event.type != KeyEventType.KeyDown) return@handler false
         when (event.key.guideShortcut()) {
             GuideShortcut.NOW -> onNow()
+            GuideShortcut.SEARCH -> openVoiceSearch()
             null -> return@handler false
         }
         true

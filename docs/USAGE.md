@@ -4,7 +4,7 @@
 
 The app opens full screen on the channel you last watched; Back shows the guide focused on that channel. On a first run, or when that channel is no longer in the lineup, it opens the guide.
 
-The Now chip, the Guide key and the Menu key return to the current time on the focused channel. Search filters by channel name, number or current program. All, Favorites and category chips select channel groups.
+The Now chip, the Guide key and the Menu key return to the current time on the focused channel. Search filters by channel name, number or current program. The Search key starts voice search through the TV's speech recognizer and focuses the first match; the Search chip, a TV without a recognizer, or a dismissed recognizer open the text field instead. All, Favorites and category chips select channel groups.
 
 The focused channel plays in a muted preview after a 350 ms delay. OK opens that channel full-screen. Back returns to the same guide position. Long-press OK on a program toggles its channel's favorite status. In the guide, Back moves from the grid to the selected filter chip, and from the chips or the header it exits the app; open search closes first.
 
@@ -26,6 +26,7 @@ The app shows its saved lineup while refreshing. Channels load before guide data
 | Previous / Last | — | Return to the previously watched channel |
 | Info | — | Toggle the info bar |
 | Guide / Menu | Jump to Now | Open the guide at Now |
+| Search | Search by voice | Open guide search by voice |
 | Back | Close search; move from the grid to the selected filter chip; exit from the chips or header | Close the channel list or return to the guide |
 
 In the channel list, Up/Down select a channel, OK tunes it and Back closes the list. Leaving the app stops playback and releases its session on the server. Returning opens a new session for the same channel and prepares the stream at the live edge while preserving paused intent.

@@ -17,10 +17,11 @@ internal fun Key.digitValue(): Int? = when (this) {
 }
 
 /** A key that leaves the player for the guide, and where in the guide it lands. */
-internal enum class PlayerExit { GUIDE_AT_NOW }
+internal enum class PlayerExit { GUIDE_AT_NOW, SEARCH }
 
-/** The Guide key, or Menu on remotes without one, opens the guide at the current time. */
+/** The Guide key, or Menu on remotes without one, opens the guide at the current time; Search opens its search by voice. */
 internal fun Key.playerExit(): PlayerExit? = when (this) {
     Key.Guide, Key.Menu -> PlayerExit.GUIDE_AT_NOW
+    Key.Search -> PlayerExit.SEARCH
     else -> null
 }

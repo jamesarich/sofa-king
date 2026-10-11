@@ -3,6 +3,7 @@
     <string name="guide_now">Now</string>
     <string name="guide_search">Search</string>
     <string name="guide_search_hint">Channel, number or program</string>
+    <string name="guide_search_voice_prompt">Say a channel, number or program</string>
     <string name="guide_search_none">No channels match</string>
     <string name="guide_today">Today</string>
     <string name="guide_range">%1$s %2$s - %3$s</string>

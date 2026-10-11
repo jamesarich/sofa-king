@@ -26,4 +26,9 @@ class PlayerKeysTest {
         assertEquals(7, Key.NumPad7.digitValue())
         assertNull(Key.Guide.digitValue())
     }
+
+    @Test
+    fun `Search leaves the player for guide search`() {
+        assertEquals(PlayerExit.SEARCH, Key.Search.playerExit())
+    }
 }

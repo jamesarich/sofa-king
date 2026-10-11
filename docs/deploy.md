@@ -22,7 +22,7 @@ The image sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/data`. 
 
 Compose requires `SOFA_API_TOKEN`. Set `SOFA_ADMIN_TOKEN`, `SOFA_OUTPUT_TOKEN` and `SOFA_HDHR_ALLOW` as the [configuration table](live-tv.md#server-settings) describes for your players and Plex. Any other variable in that table can go in `deploy/.env` too.
 
-`JAVA_OPTS` reaches the JVM. Without it the heap is a quarter of the container's memory limit.
+The image caps the heap at 75% of the container's memory limit and exits on `OutOfMemoryError` (`SERVER_OPTS`); `JAVA_OPTS` adds to those flags.
 
 ## Build
 

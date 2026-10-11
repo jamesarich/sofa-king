@@ -55,10 +55,12 @@ import kotlinx.serialization.Serializable
 /**
  * New numbers come from [floor] upward, or the leading channel's own number with [keepProviderNumbers]. With
  * [groups] (group to first number), a station takes the next free number in its group's block of [groupSize],
- * then the floor once the block is full; provider numbers are not kept.
+ * then the floor once the block is full; provider numbers are not kept. [assigned] lists, sorted, the station keys whose
+ * number the server wrote; those numbers are reclaimed once the station has been gone for keepMissingDays.
  */
 @Serializable data class PolicyNumbering(
     val floor: Int = 1000, val keepProviderNumbers: Boolean = true, val groups: Map<String, Int> = emptyMap(), val groupSize: Int = 100,
+    val assigned: List<String> = emptyList(),
 )
 
 /**

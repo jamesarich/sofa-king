@@ -54,11 +54,13 @@ class BuildResult(
     val learned: Map<String, String> = emptyMap(),
     /** Raw categories the group map and patterns do not name, most stations first. */
     val unmappedCategories: List<PolicyUnmappedCategory> = emptyList(),
+    /** Keys that left the lineup this run after keepMissingDays; a write-back reclaims their server-assigned numbers. */
+    val reclaimed: Set<String> = emptySet(),
 ) {
     /** This result with [learning] applied: its aliases recorded, its suggestions and findings added. */
     fun with(learning: Learning): BuildResult = BuildResult(
         stations, assigned, (findings + learning.findings).sorted(), availability, candidates, keys,
-        (suggestedAliases + learning.suggestions).distinct().sorted(), learning.learned, unmappedCategories,
+        (suggestedAliases + learning.suggestions).distinct().sorted(), learning.learned, unmappedCategories, reclaimed,
     )
 }
 
@@ -259,11 +261,15 @@ object StationBuilder {
         // Stations whose candidates are gone stay, disabled, for keepMissingDays; required ones never leave. A key an
         // alias now joins into another station merged rather than vanished.
         val present = drafts.mapTo(HashSet()) { it.key }
+        val reclaimed = HashSet<String>()
         for ((key, previous) in input.previous.toSortedMap()) {
             if (key in present || keys.resolve(key) != key) continue
             val missingSince = previous.missingSince ?: input.now
             val required = overrides[key]?.required == true
-            if (!required && Duration.between(missingSince, input.now) >= Duration.ofDays(policy.health.keepMissingDays.toLong())) continue
+            if (!required && Duration.between(missingSince, input.now) >= Duration.ofDays(policy.health.keepMissingDays.toLong())) {
+                reclaimed += key
+                continue
+            }
             availability[key] = previous.copy(missingSince = missingSince)
             drafts += Draft(key, null, emptyList(), emptyList(), overrides[key], false, previous)
             findings += "$key: candidates missing since $missingSince"
@@ -279,10 +285,10 @@ object StationBuilder {
             raw != null && policy.groups.map[raw.trim().lowercase()] == null && patternGroup(name, raw) == null
         fun groupFor(draft: Draft): String? = draft.override?.group ?: draft.leading?.candidate?.channel.let { groupOf(it?.name, it?.tags?.firstOrNull()) }
 
-        // Pass one reserves override numbers and the numbers missing stations still hold; pass two assigns the rest,
-        // in the station's group block when numbering.groups names its group.
+        // Pass one reserves every number the file holds, including a station that has just left, and the numbers missing
+        // stations still hold; pass two assigns the rest, in the station's group block when numbering.groups names its group.
         val used = HashSet<String>()
-        for (draft in drafts) draft.override?.number?.let { used += canonicalNumber(it) }
+        for (override in overrides.values) override.number?.let { used += canonicalNumber(it) }
         for (draft in drafts.filter { it.number == null && it.missing?.lastNumber != null }.sortedBy { it.key }) {
             val last = canonicalNumber(draft.missing!!.lastNumber!!)
             if (used.add(last)) draft.number = last
@@ -297,16 +303,19 @@ object StationBuilder {
         fun blockEnd(start: Int): Int = minOf(start + numbering.groupSize, starts.firstOrNull { it > start } ?: Int.MAX_VALUE)
         for (draft in pending) {
             val provider = draft.leading?.candidate?.channel?.displayNumber?.takeIf { it.matches(STATION_NUMBER) }?.let(::canonicalNumber)
+            // An unverified station holds a floor number that is never written, so its block keeps for a verified station.
+            val temporary = draft.baseEnabled && draft.key in unverified
             // Stations the policy keeps off number from the floor, so group blocks hold only what viewers can see.
             val block = if (draft.baseEnabled) numbering.groups[groupFor(draft)] else null
             val number = when {
+                temporary -> nextFree(used, numbering.floor)
                 block != null -> nextFreeIn(used, block, blockEnd(block)) ?: nextFree(used, numbering.floor)
                 numbering.groups.isEmpty() && numbering.keepProviderNumbers && provider != null && provider !in used -> provider
                 else -> nextFree(used, numbering.floor)
             }
             used += number
             draft.number = number
-            assigned[draft.key] = number
+            if (!temporary) assigned[draft.key] = number
         }
         for (draft in drafts) {
             val record = availability[draft.key] ?: continue
@@ -360,6 +369,7 @@ object StationBuilder {
             decisions.sortedWith(compareBy({ it.key }, { it.providerId }, { it.channelId })), keys,
             suggestedAliases(drafts.filter { it.sources.isNotEmpty() }.map { it.key }, policy.names.never),
             unmappedCategories = unmappedCategories,
+            reclaimed = reclaimed,
         )
     }
 

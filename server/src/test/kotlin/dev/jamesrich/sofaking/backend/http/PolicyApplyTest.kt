@@ -5,7 +5,9 @@ import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.store.saveStationAvailability
 import dev.jamesrich.sofaking.backend.store.stationAvailability
+import java.time.Duration
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -53,6 +55,9 @@ class PolicyApplyTest {
     private fun HttpRequestBuilder.asAdmin() { bearerAuth(admin); contentType(ContentType.Application.Json) }
 
     private fun stationsIn(file: Path): JsonObject = Json.parseToJsonElement(Files.readString(file)).jsonObject["stations"]?.jsonObject ?: JsonObject(emptyMap())
+
+    private fun assignedIn(file: Path): Set<String> =
+        Json.parseToJsonElement(Files.readString(file)).jsonObject["numbering"]?.jsonObject?.get("assigned")?.jsonArray?.map { it.jsonPrimitive.content }?.toSet().orEmpty()
 
     @Test fun `apply writes the lineup, availability and change log, then writes assigned numbers back once`() = testApplication {
         withPolicy {
@@ -233,7 +238,7 @@ class PolicyApplyTest {
     }
 
     @Test fun `matching schedules teach an alias that is written back once, and different schedules never merge`() = testApplication {
-        withPolicy("""{"providers":[{"id":"learn"},{"id":"learn2"}]}""", feeds = { listOf(it.learnFeed, it.learnTwinFeed) }) {
+        withPolicy("""{"health":{"requireVerified":false},"providers":[{"id":"learn"},{"id":"learn2"}]}""", feeds = { listOf(it.learnFeed, it.learnTwinFeed) }) {
             for (guide in runtime.guides.configs) runtime.guides.refresh(guide)
             val first = runtime.policy!!.apply("test")
             assertTrue(first.learned.isEmpty(), "no programmes are kept before the lineup maps the guides")
@@ -256,6 +261,65 @@ class PolicyApplyTest {
             val third = runtime.policy!!.apply("test")
             assertTrue(third.learned.isEmpty()); assertFalse(third.changed)
             assertEquals(second.revision, third.revision, "nothing new to write back")
+        }
+    }
+
+    @Test fun `an unverified station's floor number is never written, and its block number is written once it verifies`() = testApplication {
+        withPolicy("""{"providers":[{"id":"fixture"},{"id":"alt"}]}""", feeds = { listOf(it.feed, it.altFeed) }) {
+            val before = Files.readString(policyFile)
+            val first = runtime.policy!!.apply("test")
+            assertEquals(0, first.enabledStations)
+            assertTrue(first.assigned.isEmpty())
+            assertEquals("1000", runtime.lineup.entries().single().number)
+            assertEquals(before, Files.readString(policyFile), "nothing is written for an unverified station")
+
+            val at = MutableClock().now
+            runtime.store.recordObservation(runtime.lineup.entries().single().offeringIds.last(), Observation("qualified", at, true), at)
+            val second = runtime.policy!!.apply("health")
+            assertEquals(1, second.enabledStations)
+            assertEquals(mapOf("station" to "5"), second.assigned)
+            assertEquals(mapOf("station" to "5"), stationsIn(policyFile).mapValues { it.value.jsonObject["number"]!!.jsonPrimitive.content })
+            assertEquals(setOf("station"), assignedIn(policyFile))
+
+            val third = runtime.policy!!.apply("health")
+            assertTrue(third.assigned.isEmpty())
+            assertEquals(second.revision, third.revision, "nothing new to write back")
+        }
+    }
+
+    @Test fun `a server-assigned number leaves the file once its station has been gone for keepMissingDays, a human one stays`() = testApplication {
+        val long = MutableClock().now.minus(Duration.ofDays(8))
+        val policy = """{"names":{"version":1},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"health":{"requireVerified":false},"numbering":{"floor":100,"keepProviderNumbers":false,"assigned":["gone"]},"stations":{"gone":{"number":"50"},"human":{"number":"51"}}}"""
+        withPolicy(policy) {
+            runtime.store.saveStationAvailability(
+                mapOf(
+                    "gone" to StationAvailability(lastNumber = "50", lastName = "Gone", missingSince = long),
+                    "human" to StationAvailability(lastNumber = "51", lastName = "Human", missingSince = long),
+                ),
+                long,
+            )
+            val applied = runtime.policy!!.apply("test")
+            assertFalse("gone" in stationsIn(policyFile), "the reclaimed station's entry goes once its number does")
+            assertEquals("51", stationsIn(policyFile).getValue("human").jsonObject["number"]!!.jsonPrimitive.content)
+            assertEquals(setOf("station", "ts station", "twin sports"), assignedIn(policyFile))
+            assertFalse("gone" in applied.assigned)
+            assertTrue(runtime.lineup.entries().none { it.number == "50" }, "the lineup holds no reclaimed number")
+        }
+    }
+
+    @Test fun `a PATCH that sets a number takes the key out of the assigned list, so later runs keep it`() = testApplication {
+        withPolicy {
+            runtime.policy!!.apply("test")
+            assertEquals(setOf("station", "ts station", "twin sports"), assignedIn(policyFile))
+
+            val patched = client.patch("/api/v1/admin/lineup/${stationId("station")}") { asAdmin(); setBody("""{"number":"13"}""") }
+            assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
+            assertEquals(setOf("ts station", "twin sports"), assignedIn(policyFile))
+            assertEquals("13", stationsIn(policyFile).getValue("station").jsonObject["number"]!!.jsonPrimitive.content)
+
+            runtime.policy!!.apply("test")
+            assertEquals("13", runtime.lineup.entry(stationId("station"))!!.number)
+            assertEquals(setOf("ts station", "twin sports"), assignedIn(policyFile))
         }
     }
 }

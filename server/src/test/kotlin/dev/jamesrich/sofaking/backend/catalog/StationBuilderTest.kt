@@ -324,6 +324,39 @@ class StationBuilderTest {
         assertEquals(listOf("1", "2", "2000"), build(ranged, three).stations.map { it.number }.sorted(), "Local takes 1 and 2; 3 is News's, so the third falls to the floor")
     }
 
+    @Test fun `an unverified station takes a floor number that is not assigned, then its block number once verified`() {
+        val blocked = LineupPolicy(
+            names = PolicyNames(version = 1), providers = listOf(PolicyProvider("a")), groups = PolicyGroups(default = "Local"),
+            numbering = PolicyNumbering(floor = 1000, groups = mapOf("Local" to 1), groupSize = 10),
+        )
+        val alpha = listOf(candidate("a", "a1", "Alpha", "5"))
+        val waiting = build(blocked, alpha, health = mapOf("a1-o1" to HealthState(HealthStatus.UNVERIFIED)))
+        assertEquals("unverified", waiting.station("alpha").disabledReason)
+        assertEquals("1000", waiting.station("alpha").number)
+        assertEquals(emptyMap(), waiting.assigned)
+
+        val verified = build(blocked, alpha, health = mapOf("a1-o1" to HealthState(HealthStatus.HEALTHY)))
+        assertEquals("1", verified.station("alpha").number)
+        assertEquals(mapOf("alpha" to "1"), verified.assigned)
+    }
+
+    @Test fun `a station gone past keepMissingDays leaves, and the number it held is free for the next station`() {
+        val numbered = LineupPolicy(
+            names = PolicyNames(version = 1), health = PolicyHealth(requireVerified = false, keepMissingDays = 7),
+            providers = listOf(PolicyProvider("a")), numbering = PolicyNumbering(floor = 1000),
+            stations = mapOf("gone" to StationOverride(number = "5")),
+        )
+        val previous = mapOf("gone" to StationAvailability(lastNumber = "5", lastName = "Gone", missingSince = now.minus(Duration.ofDays(8))))
+        val leaving = build(numbered, listOf(candidate("a", "a1", "Five", "5")), previous = previous)
+        assertEquals(setOf("gone"), leaving.reclaimed)
+        assertEquals("1000", leaving.station("five").number, "the file still holds 5 during the run that reclaims it")
+        assertEquals(mapOf("five" to "1000"), leaving.assigned)
+
+        val next = build(numbered.copy(stations = emptyMap()), listOf(candidate("a", "a1", "Five", "5")))
+        assertEquals("5", next.station("five").number, "once the file no longer holds 5, the next station takes it")
+        assertEquals(mapOf("five" to "5"), next.assigned)
+    }
+
     @Test fun `version 2 keys join spellings that differ only by spaces without an alias`() {
         val v2 = policy.copy(names = PolicyNames(version = 2), stations = emptyMap())
         val result = build(v2, listOf(

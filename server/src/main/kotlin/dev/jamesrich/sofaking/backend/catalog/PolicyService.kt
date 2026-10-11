@@ -175,14 +175,15 @@ class PolicyService(
         store.recordCurationChanges(changes, now)
 
         val numbers = result.assigned.filterKeys { loaded.policy.stations[it]?.number == null }
+        val reclaim = result.reclaimed.filterTo(HashSet()) { it in loaded.policy.numbering.assigned }
         val names = loaded.policy.names
         val blocked = names.learned.filter { (from, to) -> neverMerges(names.never, from, to) }.keys
         var revision = loaded.revision
-        if (numbers.isNotEmpty() || result.learned.isNotEmpty() || blocked.isNotEmpty()) {
-            val what = "${numbers.size} assigned numbers and ${result.learned.size} learned aliases"
+        if (numbers.isNotEmpty() || reclaim.isNotEmpty() || result.learned.isNotEmpty() || blocked.isNotEmpty()) {
+            val what = "${numbers.size} assigned numbers, ${reclaim.size} reclaimed numbers and ${result.learned.size} learned aliases"
             try {
                 val learned = mergeLearned(names.learned, result.learned, blocked)
-                revision = file.edit(null) { tree -> withNumbers(withLearnedNames(tree, learned, result.learned.keys), numbers) }.revision
+                revision = file.edit(null) { tree -> withNumbers(withLearnedNames(tree, learned, result.learned.keys), numbers, reclaim) }.revision
             } catch (e: ApiFailure) {
                 findings += "policy: $what not written back: ${e.message}"
                 log.warn("lineup policy write-back failed code={} numbers={} learned={}", e.code, numbers.size, result.learned.size)
@@ -230,7 +231,7 @@ class PolicyService(
             }.distinctBy(::pinIdentity)
         }
         file.edit(ifMatch) { tree ->
-            editStation(tree, key) { station ->
+            val edited = editStation(tree, key) { station ->
                 request.name?.let { station["name"] = JsonPrimitive(it) }
                 request.number?.let { station["number"] = JsonPrimitive(it) }
                 if (request.clearGroup) station.remove("group") else request.group?.let { station["group"] = JsonPrimitive(it) }
@@ -239,6 +240,8 @@ class PolicyService(
                 request.enabled?.let { station["enabled"] = JsonPrimitive(it) }
                 pins?.let { station["sources"] = JsonArray(it.map(::pinJson)) }
             }
+            // A number set by hand is never the server's, so it is never reclaimed.
+            if (request.number != null) withAssignedKeys(edited, add = emptySet(), remove = setOf(key)) else edited
         }
         apply("patch")
         return lineup.entry(entryId)
@@ -358,22 +361,49 @@ internal fun withLearnedNames(tree: JsonObject, learned: Map<String, String>, me
     if (learned.isEmpty()) names.remove("learned") else names["learned"] = JsonObject(learned.toSortedMap().mapValues { JsonPrimitive(it.value) })
     val next = tree.toMutableMap().apply { put("names", JsonObject(names)) }
     val stations = (tree["stations"] as? JsonObject)?.toMutableMap()
+    val dropped = HashSet<String>()
     if (stations != null && mergedAway.isNotEmpty()) {
         for (key in mergedAway) {
             val station = stations[key] ?: continue
             val override = runCatching { checkJson.decodeFromJsonElement(StationOverride.serializer(), station) }.getOrNull()
-            if (override != null && numberOnly(override)) stations.remove(key)
+            if (override != null && numberOnly(override)) { stations.remove(key); dropped += key }
         }
         next["stations"] = JsonObject(stations.toSortedMap())
     }
-    return JsonObject(next)
+    return withAssignedKeys(JsonObject(next), add = emptySet(), remove = dropped)
 }
 
-/** [tree] with `stations.<key>.number` set for each of [numbers] that has none. */
-internal fun withNumbers(tree: JsonObject, numbers: Map<String, String>): JsonObject {
+/**
+ * [tree] with each of [numbers] written as `stations.<key>.number` where none is set, and each [reclaimed] key's
+ * number removed (its station entry too, once empty). Both change `numbering.assigned` to match.
+ */
+internal fun withNumbers(tree: JsonObject, numbers: Map<String, String>, reclaimed: Set<String>): JsonObject {
     var next = tree
+    for (key in reclaimed.toSortedSet()) next = withoutNumber(next, key)
     for ((key, number) in numbers.toSortedMap()) next = editStation(next, key) { station -> if ("number" !in station) station["number"] = JsonPrimitive(number) }
-    return next
+    return withAssignedKeys(next, add = numbers.keys, remove = reclaimed)
+}
+
+/** [tree] without `stations.<key>.number`; the station entry goes too when nothing else is left in it. */
+private fun withoutNumber(tree: JsonObject, key: String): JsonObject {
+    val stations = (tree["stations"] as? JsonObject)?.toMutableMap() ?: return tree
+    val station = (stations[key] as? JsonObject)?.toMutableMap() ?: return tree
+    if (station.remove("number") == null) return tree
+    if (station.isEmpty()) stations.remove(key) else stations[key] = JsonObject(station)
+    return JsonObject(tree.toMutableMap().apply { put("stations", JsonObject(stations.toSortedMap())) })
+}
+
+/** [tree] with [add] and without [remove] in `numbering.assigned`, sorted; the list goes when it empties. */
+internal fun withAssignedKeys(tree: JsonObject, add: Set<String>, remove: Set<String>): JsonObject {
+    val numbering = (tree["numbering"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+    val keys = (numbering["assigned"] as? JsonArray).orEmpty().map { it.jsonPrimitive.content }.toMutableSet()
+    if (keys.containsAll(add) && keys.none { it in remove }) return tree
+    keys += add
+    keys -= remove
+    if (keys.isEmpty()) numbering.remove("assigned") else numbering["assigned"] = JsonArray(keys.sorted().map { JsonPrimitive(it) })
+    val next = tree.toMutableMap()
+    if (numbering.isEmpty()) next.remove("numbering") else next["numbering"] = JsonObject(numbering)
+    return JsonObject(next)
 }
 
 /** One change-log action per field that differs between the lineup before and after a run, matched by entry ID. */

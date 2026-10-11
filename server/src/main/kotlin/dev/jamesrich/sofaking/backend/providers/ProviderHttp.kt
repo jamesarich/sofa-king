@@ -26,8 +26,14 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
-/** One answered request. [body] is decompressed when it arrived gzip-encoded by content, whatever the headers said. */
-class Fetched(val status: Int, val body: ByteArray, val contentType: String?, val url: String, val location: String? = null) {
+/**
+ * One answered request. [body] is decompressed when it arrived gzip-encoded by content, whatever the headers said.
+ * [cookies] are the `name=value` pairs the response set, for the services whose API needs the web session's cookies.
+ */
+class Fetched(
+    val status: Int, val body: ByteArray, val contentType: String?, val url: String, val location: String? = null,
+    val cookies: List<String> = emptyList(),
+) {
     val ok: Boolean get() = status in 200..299
 
     fun text(): String = body.toString(Charsets.UTF_8)
@@ -82,13 +88,14 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
                 }.execute { response ->
                     val status = response.status.value
                     val location = response.headers[HttpHeaders.Location]
+                    val cookies = response.headers.getAll(HttpHeaders.SetCookie).orEmpty().map { it.substringBefore(';').trim() }.filter { '=' in it }
                     if (status in REDIRECTS && location != null && follow) {
                         response.bodyAsChannel().cancel(null)
-                        Fetched(status, ByteArray(0), null, hop.toString(), location)
+                        Fetched(status, ByteArray(0), null, hop.toString(), location, cookies)
                     } else {
                         val bytes = response.bodyAsChannel().readBuffer(limit.toLong() + 1).readByteArray()
                         if (bytes.size > limit) throw ProviderFailure("Provider response exceeds ${limit / 1024} KiB")
-                        Fetched(status, gunzipped(bytes), response.headers[HttpHeaders.ContentType], hop.toString(), location)
+                        Fetched(status, gunzipped(bytes), response.headers[HttpHeaders.ContentType], hop.toString(), location, cookies)
                     }
                 }
             } catch (e: CancellationException) {

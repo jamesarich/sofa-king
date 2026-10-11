@@ -20,7 +20,8 @@ These are unofficial clients. They call the same public endpoints each service's
     { "id": "samsung", "type": "native", "service": "samsung", "options": { "region": "us" } },
     { "id": "plex", "type": "native", "service": "plex" },
     { "id": "stirr", "type": "native", "service": "stirr" },
-    { "id": "tcl", "type": "native", "service": "tcl" }
+    { "id": "tcl", "type": "native", "service": "tcl" },
+    { "id": "roku", "type": "native", "service": "roku" }
   ]
 }
 ```
@@ -28,10 +29,10 @@ These are unofficial clients. They call the same public endpoints each service's
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku` |
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
-| `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region |
+| `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
 | `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source |
 
 `headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only; every native source is HLS.
@@ -119,6 +120,12 @@ Fragility: the list document is over a megabyte with rows nested by category, so
 The tcltv.plus web API on gateway-prod.ideonow.com, sent with the install's device id. The `livetab` lists the categories; one `programlist/by/category` request per category (the personal `recommend` row is skipped) carries every channel in it, keyed by `bundle_id`, with its logo, its ad-stitched HLS template and its programmes from an hour ago to eleven hours ahead, so the channel list and the guide are the same requests, cached for 55 minutes. The group is the first themed category that lists the channel; the curated rows (TCL TOP 15, Featured, Bingeable, TV Favorites) only group what nothing else does. TCL has no channel numbers. Channels with `drm` are left out (none today). A resolve posts the template to `format-stream-url`, as the TCL client does, which fills its own macros and percent-encodes literal brackets; the brace macros it leaves (`{DEVICE_ID}` and the like) are filled with the device id and privacy defaults or blanked, and the URL is handed to the relay for an hour.
 
 Fragility: about 35 category requests per refresh. Seasonal rows (Happy Halloween) are themed as far as the client can tell and group the channels they list first. Upstream streams come from Xumo, Amagi, Wurl, Frequency and others, each with its own ad macros.
+
+### roku (The Roku Channel)
+
+The channel list is Matt Huisman's mirror (i.mjh.nz `Roku/.channels.json.gz`), keyed by Roku's station id with number, logo and first group. The mirror leaves out the channels that need DRM: it lists about 260 of the roughly 840 the web client shows, ABC News Live (which it omits) is FairPlay, and a sample of five listed channels was clear or AES-128. Its XMLTV (`Roku/all.xml.gz`, the same ids) is the provider's implicit guide through the ordinary guide pipeline; set `guideUrl` to override. A resolve runs the therokuchannel.roku.com web client's steps: an anonymous session (the home page's cookies and the `csrf` token, kept 55 minutes), the content proxy for the channel's `playId` (kept six hours), and a POST to `playback`, which answers an `osm.sr.roku.com` HLS URL the relay uses for five hours. A playback answer that names DRM fails as the channel's fault; a 401 or 403 boots a new session and retries once.
+
+Fragility: CloudFront in front of the web client sometimes answers 403 for a while, which fails resolves as provider evidence. The channel list depends on a third party's mirror.
 
 ## Checking a provider
 

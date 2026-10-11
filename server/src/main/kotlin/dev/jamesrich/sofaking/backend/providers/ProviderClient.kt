@@ -43,7 +43,8 @@ interface ProviderClient {
 object NativeServices {
     private val guides = mapOf(
         "whale" to true, "vizio" to true, "lg" to true, "freelivesports" to true, "hallmark" to true,
-        "ballysports" to true, "adultswim" to true, "pbs" to true, "samsung" to false, "plex" to true, "stirr" to true, "tcl" to true,
+        "ballysports" to true, "adultswim" to true, "pbs" to true, "samsung" to false, "plex" to true, "stirr" to true,
+        "tcl" to true, "roku" to false,
     )
 
     val names: Set<String> get() = guides.keys
@@ -53,6 +54,7 @@ object NativeServices {
     /** An XMLTV guide published for the service, used when the service has no guide API of its own. */
     fun defaultGuideUrl(service: String, options: Map<String, String>): String? = when (service) {
         "samsung" -> "https://i.mjh.nz/SamsungTVPlus/${options["region"] ?: "us"}.xml.gz"
+        "roku" -> "https://i.mjh.nz/Roku/all.xml.gz"
         else -> null
     }
 

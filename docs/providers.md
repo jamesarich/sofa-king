@@ -17,7 +17,8 @@ These are unofficial clients. They call the same public endpoints each service's
     { "id": "ballysports", "type": "native", "service": "ballysports" },
     { "id": "adultswim", "type": "native", "service": "adultswim" },
     { "id": "pbs", "type": "native", "service": "pbs", "options": { "zip": "50309" } },
-    { "id": "samsung", "type": "native", "service": "samsung", "options": { "region": "us" } }
+    { "id": "samsung", "type": "native", "service": "samsung", "options": { "region": "us" } },
+    { "id": "plex", "type": "native", "service": "plex" }
   ]
 }
 ```
@@ -25,7 +26,7 @@ These are unofficial clients. They call the same public endpoints each service's
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex` |
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region |
@@ -33,7 +34,7 @@ These are unofficial clients. They call the same public endpoints each service's
 
 `headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only; every native source is HLS.
 
-A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider id, refreshed hourly; its channel ids are the service's own, and a lineup entry created from a candidate maps onto it automatically. The guide holds every channel in its index and programmes only for channels the lineup maps, so a service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS) is asked only about mapped channels.
+A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider id, refreshed hourly; its channel ids are the service's own, and a lineup entry created from a candidate maps onto it automatically. The guide holds every channel in its index and programmes only for channels the lineup maps, so a service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS, Plex) is asked only about mapped channels.
 
 ## How a native source plays
 
@@ -98,6 +99,12 @@ Fragility: which feeds are clear is the station's decision and changes; the sche
 Matt Huisman's published mirrors (i.mjh.nz): the channel list `.channels.json.gz` by `region` (default `us`), channels with a `license_url` left out as DRM, and the XMLTV `REGION.xml.gz` as the provider's implicit guide through the ordinary guide pipeline (refreshed with the provider, hourly by default; set `guideUrl` to override). A resolve requests `jmp2.uk/stvp-ID` without following, takes its redirect target, fills `{PSID}`, `{TARGETOPT}` and `{US_PRIVACY}` and blanks the other braces; the relay follows the remaining hop to the CDN.
 
 Fragility: a third party's mirror and redirector; both can lag or go away. Some targets are CMAF with DRM despite no `license_url` and do not decode.
+
+### plex (Plex free live TV)
+
+The watch.plex.tv client's API. An anonymous token comes from plex.tv's `users/anonymous` with the install's device id as client identifier and is kept until Plex refuses it (a 401 or 403 replaces it and retries once). The channel list is the US `plex` lineup on epg.provider.plex.tv, keyed by `gridKey`; channels whose media says `drm` are left out (none today). The group is the first themed guide filter (genre) that lists the channel, with Bingeworthy and Global only for channels nothing else lists; Plex has no channel numbers. The guide is the per-channel `grid` for today and tomorrow (UTC), for mapped channels only. A resolve fetches the channel's `library/parts` master, which Plex serves directly with the token in its query, and hands that URL to the relay for an hour.
+
+Fragility: the compound part id carries a server prefix Plex rotates; only `gridKey` is trusted as the channel id and the part key is re-read from the lineup. The anonymous token is rate-limited per token.
 
 ## Checking a provider
 

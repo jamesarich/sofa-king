@@ -9,7 +9,8 @@
     { "id": "ballysports", "type": "native", "service": "ballysports" },
     { "id": "adultswim", "type": "native", "service": "adultswim" },
     { "id": "pbs", "type": "native", "service": "pbs", "options": { "zip": "50309" } },
-    { "id": "samsung", "type": "native", "service": "samsung", "options": { "region": "us" } }
+    { "id": "samsung", "type": "native", "service": "samsung", "options": { "region": "us" } },
+    { "id": "plex", "type": "native", "service": "plex" }
   ],
   "guides": [
     { "id": "gracenote", "url": "http://192.168.1.3:3000/DaddyLiveUSGracenote/epg/playlist.xml" },

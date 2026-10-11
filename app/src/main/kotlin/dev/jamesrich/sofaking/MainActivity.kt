@@ -259,6 +259,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                         onToggleFavorite = vm::toggleFavorite,
                         previewPlayer = player,
                         sessions = sessions,
+                        captionsEnabled = settings?.captionsEnabled ?: false,
+                        captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
                     )
                 }
             }
@@ -277,6 +279,8 @@ private fun GuideOrEmpty(
     onToggleFavorite: (String) -> Unit,
     previewPlayer: ExoPlayer,
     sessions: PlaybackSessions,
+    captionsEnabled: Boolean,
+    captionStyle: CaptionStyle,
 ) {
     if (lineup.channels.isEmpty()) {
         MessageScreen(stringResource(R.string.no_channels), hint = stringResource(R.string.no_channels_hint))
@@ -291,6 +295,8 @@ private fun GuideOrEmpty(
             onToggleFavorite = { onToggleFavorite(it.guideId) },
             previewPlayer = previewPlayer,
             sessions = sessions,
+            captionsEnabled = captionsEnabled,
+            captionStyle = captionStyle,
         )
     }
 }

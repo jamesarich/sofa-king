@@ -33,12 +33,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withStateAtLeast
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
+import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
@@ -47,10 +49,12 @@ import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.player.Captions
 import dev.jamesrich.sofaking.ui.player.LiveVideo
 import dev.jamesrich.sofaking.ui.player.currentChannelId
 import dev.jamesrich.sofaking.ui.player.isStreamGone
 import dev.jamesrich.sofaking.ui.player.mediaItemFor
+import dev.jamesrich.sofaking.ui.player.preferCaptionTrack
 import dev.jamesrich.sofaking.ui.player.recoverIfBehindLive
 import dev.jamesrich.sofaking.ui.range
 import dev.jamesrich.sofaking.ui.rememberSettled
@@ -74,6 +78,10 @@ internal val PREVIEW_BAND_HEIGHT = 144.dp
 private const val PREVIEW_DEBOUNCE_MS = 350L
 // How often a 410 from the relay reopens the same channel before the preview gives up on it.
 private const val MAX_STREAM_GONE_RETUNES = 2
+
+/** Captions are drawn over the preview only while the viewer has them on and the picture is there to caption. */
+internal fun showPreviewCaptions(captionsEnabled: Boolean, hasChannel: Boolean, failed: Boolean): Boolean =
+    captionsEnabled && hasChannel && !failed
 
 /** Programme details for the focused cell. [live] is whether the programme is airing at [now]. */
 @Composable
@@ -146,11 +154,18 @@ internal fun PreviewDetails(
  * Muted live preview of [channel] on the app's shared [player]. Opens a preview session through [sessions]
  * [PREVIEW_DEBOUNCE_MS] after focus rests on a different channel; a stream the player already holds (the
  * channel just watched) keeps playing and its session goes back to preview intent. The player belongs to
- * the app, which stops it in the background and releases it.
+ * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
  */
 @OptIn(UnstableApi::class)
 @Composable
-internal fun PreviewVideo(player: ExoPlayer, sessions: PlaybackSessions, channel: Channel?, modifier: Modifier = Modifier) {
+internal fun PreviewVideo(
+    player: ExoPlayer,
+    sessions: PlaybackSessions,
+    channel: Channel?,
+    captionsEnabled: Boolean,
+    captionStyle: CaptionStyle,
+    modifier: Modifier = Modifier,
+) {
     var buffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
     var failed by remember { mutableStateOf(false) }
     // Bumped when the relay answers 410, so the tune effect reopens the channel at once instead of after the debounce.
@@ -159,6 +174,8 @@ internal fun PreviewVideo(player: ExoPlayer, sessions: PlaybackSessions, channel
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(player) {
         player.volume = 0f
+        // The caption choice is made here as on the full screen, so the preview's cues come from the preferred track.
+        preferCaptionTrack(player)
         // Back from a paused full screen: rejoin the live edge rather than play from where it paused.
         if (!player.playWhenReady) {
             player.playWhenReady = true
@@ -169,6 +186,10 @@ internal fun PreviewVideo(player: ExoPlayer, sessions: PlaybackSessions, channel
             override fun onPlaybackStateChanged(playbackState: Int) {
                 buffering = playbackState == Player.STATE_BUFFERING
                 if (playbackState == Player.STATE_READY) failed = false
+            }
+
+            override fun onTracksChanged(tracks: Tracks) {
+                preferCaptionTrack(player)
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -220,6 +241,8 @@ internal fun PreviewVideo(player: ExoPlayer, sessions: PlaybackSessions, channel
     Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).background(SofaScrim)) {
         // One surface for the life of the preview; the card covers it from a reset until the next first frame.
         LiveVideo(player, Modifier.fillMaxSize()) { PreviewCard(channel, failed) }
+        // No overscan inset: the box sits inside the guide's margins already.
+        if (showPreviewCaptions(captionsEnabled, channel != null, failed)) Captions(player, captionStyle, bottomFraction = 0f, Modifier.fillMaxSize())
         if (failed) PreviewCard(channel, failed = true)
         AnimatedVisibility(
             rememberSettled(buffering && !failed),

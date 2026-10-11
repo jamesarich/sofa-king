@@ -55,7 +55,7 @@ ON_STOP and Settings stop playback and release the session; Settings forgets it,
 
 Channel changes stop the player, resolve the session, set the media item and prepare it. Behind-live-window errors seek to the live edge. Other errors and ended streams reconnect with backoff while the player is visible and the activity is started. A session refused with `CHANNEL_NOT_FOUND` is not retried: the player asks the ViewModel to reload the lineup, waits for its catalog, and follows the channel to the row with the same number, then the same name; when neither exists it returns to the guide, which shows a short notice.
 
-The TS extractor declares CEA-608/708 tracks for MPEG-TS sources; HLS sources go through Media3's HLS extractor, which exposes CEA-608 by default. CaptionSync and its load control apply per-channel timing; Compose draws text cues using the selected style. Renderer-thread settings use volatile fields. Video uses Media3 ContentFrame and SurfaceView.
+The TS extractor declares CEA-608/708 tracks for MPEG-TS sources; HLS sources go through Media3's HLS extractor, which exposes CEA-608 by default. CaptionSync and its load control apply per-channel timing; Compose draws text cues using the selected style, on the full screen and over the preview, where the same composable scales to the preview box and both screens pick the preferred text track on every track change. Renderer-thread settings use volatile fields. Video uses Media3 ContentFrame and SurfaceView.
 
 ## Server interface
 

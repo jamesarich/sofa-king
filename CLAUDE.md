@@ -36,7 +36,7 @@ Unit tests run against MockWebServer; no server is needed for offline developmen
 - Preserve preview debounce and stream handoff. Zap with stop, resolve the session, setMediaItem, prepare.
 - Reconnect failed/ended streams with the existing backoff. Do not add a watchdog that reconnects stalled-but-open streams. A `CHANNEL_NOT_FOUND` session error reloads the lineup and follows the channel by number, then name; never retry a dead id with the backoff.
 - PlayerScreen owns MediaSession; there is no background playback service.
-- Preserve CEA-608/708 selection, caption geometry and per-channel timing. Update renderer-thread settings from SideEffect through volatile fields.
+- Preserve CEA-608/708 selection, caption geometry and per-channel timing. Update renderer-thread settings from SideEffect through volatile fields. The preview draws the same `Captions` composable as the full screen, scaled to its box with no overscan inset, gated on the CC setting; both screens call `preferCaptionTrack` on track changes.
 - When wrapping Media3 Java interfaces, forward every required overload explicitly; do not use Kotlin by delegation.
 - Keep sockets and files off the main thread. Preserve cancellation and close owned calls/listeners/resources.
 - Keep DataStore corruption recovery and last-good lineup behavior. Never log or print the API token; `AppSettings.toString` hides it and Settings masks all but its last four characters while the field is not being edited.

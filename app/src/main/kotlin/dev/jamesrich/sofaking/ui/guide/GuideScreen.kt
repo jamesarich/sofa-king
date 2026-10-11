@@ -54,6 +54,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
+import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
@@ -130,6 +131,8 @@ fun GuideScreen(
     onToggleFavorite: (Channel) -> Unit,
     previewPlayer: ExoPlayer,
     sessions: PlaybackSessions,
+    captionsEnabled: Boolean,
+    captionStyle: CaptionStyle,
     modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
@@ -417,7 +420,17 @@ fun GuideScreen(
     // The app header above already carries the top overscan margin; 16dp here is spacing, not overscan.
     Column(modifier = modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 27.dp).onPreviewKeyEvent(onGuideKey)) {
         if (PREVIEW_ENABLED) {
-            PreviewBand(focused = focusedState, now = now, searchOpen = searchOpen, chips = chips, searchBar = searchBar, player = previewPlayer, sessions = sessions)
+            PreviewBand(
+                focused = focusedState,
+                now = now,
+                searchOpen = searchOpen,
+                chips = chips,
+                searchBar = searchBar,
+                player = previewPlayer,
+                sessions = sessions,
+                captionsEnabled = captionsEnabled,
+                captionStyle = captionStyle,
+            )
         } else {
             chips(Modifier.fillMaxWidth())
             if (searchOpen) {
@@ -502,6 +515,8 @@ private fun PreviewBand(
     searchBar: @Composable (Modifier) -> Unit,
     player: ExoPlayer,
     sessions: PlaybackSessions,
+    captionsEnabled: Boolean,
+    captionStyle: CaptionStyle,
 ) {
     val cell = focused.value
     Row(Modifier.fillMaxWidth().height(PREVIEW_BAND_HEIGHT), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -520,6 +535,12 @@ private fun PreviewBand(
                 )
             }
         }
-        PreviewVideo(player = player, sessions = sessions, channel = cell?.channel)
+        PreviewVideo(
+            player = player,
+            sessions = sessions,
+            channel = cell?.channel,
+            captionsEnabled = captionsEnabled,
+            captionStyle = captionStyle,
+        )
     }
 }

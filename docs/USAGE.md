@@ -33,7 +33,7 @@ In the channel list, Up/Down select a channel, OK tunes it and Back closes the l
 
 ## Captions
 
-Enable captions with the CC key or in Settings. While captions are on, press OK to show the info bar, then use Left/Right to adjust timing in half-second steps. Timing is saved per channel; Settings sets the default timing.
+Enable captions with the CC key or in Settings. They show in the guide's preview as well as the player, in the selected style. While captions are on, press OK to show the info bar, then use Left/Right to adjust timing in half-second steps. Timing is saved per channel; Settings sets the default timing.
 
 Caption timing buffers video so delayed live captions align with speech. Increasing it also increases tune-in delay. Caption style and smoothing are available in Settings.
 

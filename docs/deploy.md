@@ -31,7 +31,7 @@ The image sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/data`. 
 | `SOFA_OUTPUT_TOKEN` | For players | At least 32 letters, digits, hyphens or underscores; opens the M3U/XMLTV output and its stream URLs under `/output/*` through `?token=` |
 | `SOFA_XMLTV_DAYS` | No | Days ahead in the XMLTV output, default 3 |
 | `SOFA_HDHR_ENABLED` | No | HDHomeRun emulation for Plex at the root of the port, default `true` |
-| `SOFA_HDHR_ALLOW` | For Plex | Client IPs or CIDR blocks allowed on the unauthenticated HDHomeRun routes, for example the Plex server's address; unset admits the whole LAN |
+| `SOFA_HDHR_ALLOW` | For Plex | Client IPs or CIDR blocks allowed on the unauthenticated HDHomeRun routes, for example the Plex server's address; required unless `SOFA_HDHR_ENABLED=false`, since the container binds `0.0.0.0` |
 | `SOFA_HDHR_TUNERS` | No | Tuners Plex sees, default 2, at most `SOFA_MAX_SESSIONS` |
 | `SOFA_HDHR_EXTRA_PORTS` | For large lineups in Plex | Container ports for more HDHomeRun devices, each carrying part of the lineup; publish each one in `compose.yaml` |
 | `SOFA_HDHR_DEVICE_ID`, `SOFA_HDHR_NAME` | No | The device identity Plex stores; the ID defaults to a value derived from the server identity in the volume |

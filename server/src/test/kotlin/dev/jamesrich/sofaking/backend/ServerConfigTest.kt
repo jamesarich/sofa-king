@@ -11,7 +11,7 @@ class ServerConfigTest {
         assertEquals(Path.of("data"), config.dataDirectory)
     }
     @Test fun `explicit environment chooses port host and data`() {
-        val config = ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "192.168.1.3", "SOFA_API_TOKEN" to "x".repeat(32), "SOFA_PORT" to "9193", "SOFA_DATA_DIR" to "/tmp/sofa-config"))
+        val config = ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "192.168.1.3", "SOFA_API_TOKEN" to "x".repeat(32), "SOFA_HDHR_ALLOW" to "192.168.1.10", "SOFA_PORT" to "9193", "SOFA_DATA_DIR" to "/tmp/sofa-config"))
         assertEquals("192.168.1.3", config.host)
         assertEquals(9193, config.port)
         assertEquals(Path.of("/tmp/sofa-config"), config.dataDirectory)
@@ -20,6 +20,18 @@ class ServerConfigTest {
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0")) }
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_API_TOKEN" to "short")) }
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_MAX_SESSIONS" to "100")) }
+    }
+    @Test fun `non-loopback binding with HDHomeRun enabled requires an allow-list`() {
+        val token = "x".repeat(32)
+        val message = assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token)) }.message
+        assertEquals("Non-loopback binding with SOFA_HDHR_ENABLED requires SOFA_HDHR_ALLOW", message)
+        assertEquals("Non-loopback binding with SOFA_HDHR_ENABLED requires SOFA_HDHR_ALLOW", assertFailsWith<IllegalArgumentException> {
+            ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token, "SOFA_HDHR_ALLOW" to " "))
+        }.message)
+        assertFalse(ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token, "SOFA_HDHR_ENABLED" to "false")).hdhr.enabled)
+        assertEquals(listOf("192.168.1.10"), ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token, "SOFA_HDHR_ALLOW" to "192.168.1.10")).hdhr.allow)
+        assertEquals(emptyList(), ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_ALLOW" to "")).hdhr.allow)
+        ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "::1"))
     }
     @Test fun `probe parallelism and restream origins are parsed and bounded`() {
         val config = ServerConfig.fromEnvironment(mapOf("SOFA_PROBE_PARALLELISM" to "3", "SOFA_RESTREAM_ORIGINS" to " 192.168.1.3:3000, Proxy.LAN ,"))

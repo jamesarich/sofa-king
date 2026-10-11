@@ -24,7 +24,7 @@ Set these environment variables before starting the server:
 | `SOFA_HDHR_TUNERS` | `2` | Tuners Plex sees, which is the number of HDHomeRun streams open at once, 1 to `SOFA_MAX_SESSIONS` |
 | `SOFA_HDHR_DEVICE_ID` | Derived from the server identity | Eight hex digits Plex identifies the tuner by; keep it stable or Plex sees a new device |
 | `SOFA_HDHR_NAME` | `Sofa King` | Friendly name Plex shows, 1–64 characters |
-| `SOFA_HDHR_ALLOW` | Unset | Client IPs or CIDR blocks admitted to the HDHomeRun routes, comma separated (`192.168.1.10,192.168.1.0/24`); unset admits every address that reaches the port |
+| `SOFA_HDHR_ALLOW` | Unset | Client IPs or CIDR blocks admitted to the HDHomeRun routes, comma separated (`192.168.1.10,192.168.1.0/24`); required when `SOFA_HOST` is not loopback and HDHomeRun is enabled; on loopback, unset admits every address that reaches the port |
 | `SOFA_HDHR_EXTRA_PORTS` | Unset | Further ports the server listens on, comma separated, up to 7; each is one more HDHomeRun device (`SOFA_HDHR_NAME 2`, …) carrying its share of the lineup, split by a stable hash of the entry ID so a lineup change moves no other channel. Each device has its own `SOFA_HDHR_TUNERS` |
 
 Relative paths resolve from the server's working directory. Configuration changes require a restart.

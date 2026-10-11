@@ -16,7 +16,7 @@ data class HdhrConfig(
     /** Eight hex digits; null derives one from the server identity. */
     val deviceId: String? = null,
     val friendlyName: String = "Sofa King",
-    /** Client IPs or CIDR blocks; empty admits every address that reaches the port. */
+    /** Client IPs or CIDR blocks; empty admits every address that reaches the port, so it is refused off loopback. */
     val allow: List<String> = emptyList(),
     /**
      * Further listening ports, each one more device carrying its share of the lineup by a stable hash of the entry
@@ -53,7 +53,8 @@ data class ServerConfig(
             require(directory.isNotBlank()) { "SOFA_DATA_DIR must not be blank" }
             val token = environment["SOFA_API_TOKEN"]
             require(token == null || token.length >= 32) { "SOFA_API_TOKEN must contain at least 32 characters" }
-            require(host in setOf("127.0.0.1", "localhost", "::1") || token != null) { "Non-loopback binding requires SOFA_API_TOKEN" }
+            val loopbackBind = host in setOf("127.0.0.1", "localhost", "::1")
+            require(loopbackBind || token != null) { "Non-loopback binding requires SOFA_API_TOKEN" }
             val capacity = (environment["SOFA_MAX_SESSIONS"] ?: "4").toIntOrNull()
             require(capacity != null && capacity in 1..16) { "SOFA_MAX_SESSIONS must be between 1 and 16" }
             val sources = environment["SOFA_SOURCES"]?.let { require(it.isNotBlank()); Path.of(it) }
@@ -82,6 +83,7 @@ data class ServerConfig(
             require(friendlyName.isNotBlank() && friendlyName.length <= 64 && friendlyName.none { it < ' ' }) { "SOFA_HDHR_NAME must be 1 to 64 printable characters" }
             val allow = environment["SOFA_HDHR_ALLOW"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
             AddressAllowList(allow)
+            require(!hdhrEnabled || loopbackBind || allow.isNotEmpty()) { "Non-loopback binding with SOFA_HDHR_ENABLED requires SOFA_HDHR_ALLOW" }
             val extraPorts = environment["SOFA_HDHR_EXTRA_PORTS"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }.map { it.toIntOrNull() ?: 0 }
             require(extraPorts.all { it in 1..65535 } && extraPorts.distinct().size == extraPorts.size && port !in extraPorts && extraPorts.size <= 7) {
                 "SOFA_HDHR_EXTRA_PORTS must list up to 7 distinct ports other than SOFA_PORT"

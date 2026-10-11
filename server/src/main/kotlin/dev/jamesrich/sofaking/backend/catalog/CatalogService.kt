@@ -15,6 +15,8 @@ class CatalogService(
     val lineup: LineupService,
     private val store: BackendStore,
     private val clock: Clock,
+    /** `host` or `host:port` values whose logos count as absent, from the curation settings. */
+    private val retiredLogoHosts: () -> Set<String> = { emptySet() },
 ) {
     /** Lineup, feeds, guide coverage, health version and which guides are still current: everything the body depends on. */
     suspend fun catalogRevision(): String {
@@ -26,7 +28,8 @@ class CatalogService(
                 append(entry.id).append(':').append(end?.let { if (it > now) "available" else "stale" } ?: "none").append(',')
             }
         }
-        return hash("${lineup.revision()}:${feeds.revision()}:${guides.revision()}:${store.healthVersion()}:${hash(current)}")
+        // Retired logo hosts change which URL a channel's logo resolves to, so they are part of the revision.
+        return hash("${lineup.revision()}:${feeds.revision()}:${guides.revision()}:${store.healthVersion()}:${hash(current)}:${retiredLogoHosts().sorted()}")
     }
 
     suspend fun catalog(revision: String? = null): Catalog {
@@ -58,9 +61,17 @@ class CatalogService(
         )
     }
 
-    /** The logo URL a channel shows: the entry's override, else the first of its sources' feed logos. */
-    fun logoSource(entry: LineupEntryRecord): String? =
-        entry.logo ?: entry.offeringIds.mapNotNull(feeds::offering).firstNotNullOfOrNull { feeds.channel(it.channelId)?.logo }
+    /**
+     * The logo URL a channel shows: the entry's own, else the first of its sources' feed logos, else the mapped guide
+     * channel's icon. A logo on a retired host counts as absent at every step.
+     */
+    fun logoSource(entry: LineupEntryRecord): String? {
+        val retired = retiredLogoHosts()
+        fun live(url: String?): String? = url?.takeUnless { onRetiredHost(it, retired) }
+        return live(entry.logo)
+            ?: entry.offeringIds.asSequence().mapNotNull(feeds::offering).mapNotNull { live(feeds.channel(it.channelId)?.logo) }.firstOrNull()
+            ?: entry.guide?.let { live(guides.channel(it.guideId, it.channelId)?.icon) }
+    }
 
     /** The entry's sources in failover order; the session manager ranks them by health. */
     fun offeringsFor(channelId: String): List<Offering>? =
@@ -103,3 +114,12 @@ class CatalogService(
 }
 
 fun eligible(state: HealthState): Boolean = !state.manuallyDisabled && state.status in setOf(HealthStatus.UNVERIFIED, HealthStatus.HEALTHY, HealthStatus.SUSPECT)
+
+/** True when [url]'s authority (`host` or `host:port`, lowercase) or bare host is listed in [hosts]. */
+fun onRetiredHost(url: String, hosts: Set<String>): Boolean {
+    if (hosts.isEmpty()) return false
+    val uri = try { java.net.URI(url) } catch (_: Exception) { return false }
+    val authority = uri.authority?.lowercase() ?: return false
+    val host = uri.host?.lowercase()
+    return authority in hosts || (host != null && host in hosts)
+}

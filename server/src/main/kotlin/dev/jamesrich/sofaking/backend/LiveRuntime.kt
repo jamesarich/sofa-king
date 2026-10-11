@@ -23,6 +23,7 @@ class LiveRuntime(
     val relay: MediaRelay,
     val remux: TsRemux,
     val logos: LogoCache,
+    val curation: CurationService,
     private val http: HttpClient,
     private val scope: CoroutineScope,
 ) {
@@ -43,22 +44,28 @@ class LiveRuntime(
             try {
                 val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
                 lateinit var logos: LogoCache
-                val feeds = FeedService(sources.providers, store, http, clock, policy) { logos.requestSweep() }
+                lateinit var curation: CurationService
+                // A new snapshot can change what curation would do, so an import triggers a run as well as a logo sweep.
+                val feeds = FeedService(sources.providers, store, http, clock, policy) { logos.requestSweep(); curation.requestRun() }
                 feeds.initialize()
                 lateinit var lineup: LineupService
                 val guides = GuideService(sources.allGuides, store, http, clock, policy) { lineup.wanted() }
                 guides.initialize()
                 lineup = LineupService(store, clock, feeds, guides) { logos.requestSweep() }
                 lineup.initialize()
-                val catalog = CatalogService(feeds, guides, lineup, store, clock)
+                curation = CurationService(store, clock, feeds, guides, lineup, onSettingsChanged = { logos.requestSweep() })
+                curation.initialize()
+                val catalog = CatalogService(feeds, guides, lineup, store, clock, curation::retiredLogoHosts)
                 logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) })
                 logos.initialize()
                 val sessions = SessionManager(catalog, store, clock, config.maxSessions)
-                val runtime = LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope)
+                val runtime = LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, curation, http, scope)
                 feeds.start(scope)
                 guides.start(scope)
                 logos.start(scope)
                 logos.requestSweep()
+                curation.start(scope)
+                curation.requestRun()
                 scope.launch { while (isActive) { sessions.expire(); delay(1000) } }
                 if (sources.providers.any { it.probe }) {
                     val probes =
@@ -67,7 +74,7 @@ class LiveRuntime(
                             restreamOrigins = config.restreamOrigins,
                             observationRetention = java.time.Duration.ofDays(config.observationRetentionDays.toLong()),
                         )
-                    scope.launch { ProbeWorker(feeds, store, clock, config.ffmpeg, http, probes, onHealthChanged = sessions::healthChanged).run() }
+                    scope.launch { ProbeWorker(feeds, store, clock, config.ffmpeg, http, probes, onHealthChanged = { id -> sessions.healthChanged(id); curation.requestRun() }).run() }
                 }
                 return runtime
             } catch (failure: Throwable) { scope.cancel(); http.close(); throw failure }

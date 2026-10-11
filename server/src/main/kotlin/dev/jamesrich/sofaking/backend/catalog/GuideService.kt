@@ -45,7 +45,7 @@ class GuideService(
 ) {
     private class Published(val guides: Map<String, StoredGuide>) {
         val revision = hash(guides.entries.sortedBy { it.key }.joinToString(";") { "${it.key}:${it.value.importedAt}" })
-        val channelIndex: Map<String, Set<String>> = guides.mapValues { (_, guide) -> guide.channels.mapTo(HashSet()) { it.id } }
+        val channelIndex: Map<String, Map<String, GuideChannel>> = guides.mapValues { (_, guide) -> guide.channels.associateBy { it.id } }
     }
 
     private val log = LoggerFactory.getLogger(GuideService::class.java)
@@ -74,6 +74,8 @@ class GuideService(
 
     fun channels(guideId: String): List<GuideChannel> = published.get().guides[guideId]?.channels.orEmpty()
 
+    fun channel(guideId: String, channelId: String): GuideChannel? = published.get().channelIndex[guideId]?.get(channelId)
+
     fun searchChannels(guideId: String, query: String?, limit: Int): List<GuideChannelInfo> {
         val needle = query?.trim()?.lowercase().orEmpty()
         return channels(guideId).asSequence()
@@ -84,7 +86,7 @@ class GuideService(
     /** Configured guides that list [channelId], in configuration order. */
     fun guidesListing(channelId: String): List<String> {
         val index = published.get().channelIndex
-        return configs.map { it.id }.filter { index[it]?.contains(channelId) == true }
+        return configs.map { it.id }.filter { index[it]?.containsKey(channelId) == true }
     }
 
     suspend fun programmes(guideId: String, channelIds: Collection<String>, from: Instant, to: Instant): Map<String, List<GuideProgramme>> =

@@ -151,6 +151,13 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | PUT | `/api/v1/admin/lineup/order` | Reorder: `{"ids": [...]}` listing every entry once; returns the lineup |
 | POST | `/api/v1/admin/lineup/adopt` | `{"providerId": "...", "enabled": true}` adds every channel of the provider whose sources no entry uses; returns `added` and `skipped` |
 | POST | `/api/v1/admin/lineup/import` | Dispatcharr import, see below |
+| GET, PUT | `/api/v1/admin/curation/settings` | Curation settings, see [curation](#curation) |
+| GET, POST | `/api/v1/admin/curation/rules` | List rules; create one (201) |
+| PUT, DELETE | `/api/v1/admin/curation/rules/{id}` | Replace or remove a rule (204) |
+| POST | `/api/v1/admin/curation/import` | Create rules from the pipeline's data files |
+| GET | `/api/v1/admin/curation/preview` | The plan a run would apply now, applying nothing |
+| POST | `/api/v1/admin/curation/run` | Apply a plan now, whether or not automation is enabled; returns what was applied |
+| GET | `/api/v1/admin/curation/changes?limit=` | Applied actions, newest first; `limit` 1–1000 (default 100) |
 
 An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `pinned` (the fields the household set, which [curation](curation.md#pins) never changes), `createdBy` (`manual`, `import` or `rule:ID`) and, while curation rather than the household holds the entry disabled, `autoDisabledAt` and `autoDisabledReason` (`unavailable` or `alias`).
 
@@ -192,6 +199,33 @@ Validation: `number` 1–32 characters without spaces, `name` 1–256, `group` 1
 Streams match sources by [source key](live-tv.md#source-identity) (URL without the provider's renewable query parameters, tried under every provider's list), then, when exactly one source shares the stream's `scheme://authority/path`, by that path alone. An EPG source matches a configured guide by `scheme://authority/path` with the query ignored, then by a guide ID equal to its name, then by `guideMap` (`epgSourceId` to guide ID), which also overrides the automatic match. Entries take the channel `uuid` as their ID (a derived UUID when absent) and are created or updated in place. A channel with no matching stream is skipped unless `includeUnmatched` is true.
 
 The report has `dryRun`, `created`, `updated`, `skipped`, `matchedStreams`, `unmatchedStreams`, `guideSources` (EPG source ID to guide ID or null) and `entries`, each with `number`, `name`, `uuid`, `action` (`created`, `updated`, `skipped`), `matchedStreams`, `unmatchedStreams` (source keys under the default renewable list), `guide` (`mapped`, `unmapped-source`, `none`) and, for a channel skipped because its number or name is invalid, `error`. `scripts/dispatcharr-import.py` posts a file and prints this report.
+
+### Curation
+
+The rules and settings that keep the lineup curated without Dispatcharr; what each one does is in [curation](curation.md). Every request takes the admin token.
+
+`GET /api/v1/admin/curation/settings` returns the settings and `PUT` replaces them; absent fields take their defaults:
+
+```json
+{
+  "enabled": false, "intervalSeconds": 900, "disableAfterHours": 24, "enableOn": "healthy",
+  "equivalentEvidence": "name-and-guide", "numberFloor": 1000, "retiredLogoHosts": ["192.168.1.3:9192"], "defaultGroup": null
+}
+```
+
+Validation: `intervalSeconds` 60–86400, `disableAfterHours` 1–720, `enableOn` `healthy` or `eligible`, `equivalentEvidence` `name-and-guide` or `name`, `numberFloor` 1–999999, each retired host `host` or `host:port` (lowercased), `defaultGroup` 1–128 characters. A change triggers a run.
+
+A rule is `{"id", "kind", "position", "enabled", "match", "set", "note"}`; `POST` generates `id` when it is absent and answers `409 RULE_EXISTS` for a taken one, `PUT /rules/{id}` replaces the rule with that id (`404 RULE_NOT_FOUND`), and the list is in position order. `match` takes `providerId`, `group`, `groupPattern`, `name`, `namePattern`, `tvgId` and `entryId`; `set` takes `group`, `name`, `logo`, `enabled` and `canonicalEntryId`. Which fields a kind needs is in [rules](curation.md#rules); a rule that lacks them, names an unknown provider or entry, or carries a pattern that does not compile answers `400 INVALID_REQUEST`.
+
+```sh
+curl --fail http://127.0.0.1:8080/api/v1/admin/curation/rules \
+  -H 'Content-Type: application/json' \
+  --data '{"kind": "group", "match": {"group": "US: Sports"}, "set": {"group": "Sports"}}'
+```
+
+`GET /api/v1/admin/curation/preview` answers the plan: `generatedAt`, `enabled` (whether a run would apply it), `actions`, `counts` by kind and `findings`. An action has `kind` (`regroup`, `rename`, `relogo`, `clear-logo`, `attach`, `disable`, `enable`, `adopt`), `entryId`, `entryName`, `field`, `before`, `after`, `reason`, `ruleId` and, for `attach`, `offeringIds`. `POST /api/v1/admin/curation/run` applies a plan now and answers the same shape with `enabled` true and `actions` reduced to what was applied; an action whose entry changed under it (a field pinned since, a value no longer the one planned) is left out. `GET /api/v1/admin/curation/changes` lists applied actions as `{"id", "appliedAt", "action"}`, newest first; the server keeps the newest 10,000.
+
+`POST /api/v1/admin/curation/import` takes up to 4 MiB with any of `groupMap`, `aliases`, `equivalents`, `sportsCorrections`, `corrections` and `dryRun` ([shapes](curation.md#import-the-pipelines-data)); fields the rules do not use are ignored. The report has `dryRun`, `created`, `updated`, `existing`, `skipped` and `items`, each `{"source", "item", "outcome", "ruleId", "reason"}` with `outcome` `created`, `updated`, `exists`, `skipped` or `applied-by-import`.
 
 ## Kotlin client
 
@@ -236,8 +270,8 @@ Errors contain `code`, `message` and `retryable`:
 | --- | --- |
 | 400 | `INVALID_REQUEST`, `INVALID_QUERY` |
 | 401 | `AUTH_REQUIRED` |
-| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `RESOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND` |
-| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS` |
+| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `RESOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RULE_NOT_FOUND` |
+| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `RULE_EXISTS` |
 | 410 | `SESSION_EXPIRED`, `STREAM_CHANGED` |
 | 413 | `REQUEST_TOO_LARGE` |
 | 429 | `CAPACITY_EXHAUSTED` |

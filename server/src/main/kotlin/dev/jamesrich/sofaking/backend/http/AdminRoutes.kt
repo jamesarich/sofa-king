@@ -84,6 +84,7 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
             runtime.lineup.delete(call.parameters["id"]!!)
             call.respond(HttpStatusCode.NoContent)
         }
+        curationRoutes(runtime.curation)
     }
 }
 

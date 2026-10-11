@@ -1,0 +1,16 @@
+{
+ "stations": [
+  {
+   "flagship": "KDIN",
+   "pbs_id": "4b65e70a-e262-4290-ae67-45bd0814cafd",
+   "pdp": false,
+   "membership_url": "http://www.iowapbs.org/pledge",
+   "callsign": "KDIN",
+   "confidence": 100,
+   "rank": 1,
+   "common_name": "Iowa PBS",
+   "common_name_short": "Iowa PBS",
+   "address": "Johnston, IA"
+  }
+ ]
+}

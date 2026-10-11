@@ -155,6 +155,7 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             "hallmark" -> HallmarkClient(context)
             "ballysports" -> BallySportsClient(context)
             "adultswim" -> AdultSwimClient(context)
+            "pbs" -> PbsClient(context)
             else -> throw IllegalArgumentException("Unknown native service $service")
         }
     }

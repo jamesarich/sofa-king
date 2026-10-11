@@ -1,0 +1,59 @@
+{
+ "collections": [
+  {
+   "slug": "livestream_now",
+   "content": [
+    {
+     "schedule_type": "live",
+     "date": "2026-10-10T05:00:00Z",
+     "channels": [
+      {
+       "profile": "ga-main",
+       "feed_cid": "9ccb1227-f038-4224-9340-afbf6f98dd3a",
+       "listings": [
+        {
+         "start_time": "2026-10-10T05:00:00Z",
+         "duration": 3600,
+         "show_title": "PBS News Hour",
+         "episode_title": "",
+         "episode_description": "Co-anchors Amna Nawaz and Geoff Bennett and correspondents offer in-depth analysis of current events.",
+         "show_description": "Co-anchors Amna Nawaz and Geoff Bennett and correspondents offer in-depth analysis of current events."
+        },
+        {
+         "start_time": "2026-10-10T06:00:00Z",
+         "duration": 1800,
+         "show_title": "Washington Week With The Atlantic",
+         "episode_title": "",
+         "episode_description": "Carrie Dann, The Cook Political Report with Amy Walter; Adam Harris, Radio Atlantic; Jonathan Karl, ABC News; Annie Linskey, The Wall Street Journal.",
+         "show_description": "Jeffrey Goldberg, editor in chief of The Atlantic, moderates a panel of journalists who report and provide analysis on the major stories emanating from the United States capital. Having first aired in 1967, \"Washington Week\" is the longest-running prime-time news and public affairs program on television. The series has been recognized for its journalism excellence with many honors, including a 2008 Peabody Award."
+        }
+       ]
+      },
+      {
+       "profile": "ga-create",
+       "feed_cid": "63c4db69-0bce-45ed-86c9-b016be29e297",
+       "listings": [
+        {
+         "start_time": "2026-10-10T05:00:00Z",
+         "duration": 1800,
+         "show_title": "A Craftsman's Legacy",
+         "episode_title": "The Shoe Makers",
+         "episode_description": "Making shoes.",
+         "show_description": "Eric Gorges travels across the United States to gain insight into craftsmanship in the 21st century. Focusing on the history of a traditional craft and its importance in the U.S. today, episodes include interviews with master craftsmen and women, who explain why they chose their craft and the importance of keeping these traditions alive. A welder by trade, Gorges also takes on the role of apprentice for various projects, which include building a guitar from scratch, making a ceramic teapot, building a boat and making baskets from bark."
+        },
+        {
+         "start_time": "2026-10-10T05:30:00Z",
+         "duration": 1800,
+         "show_title": "A Craftsman's Legacy",
+         "episode_title": "The Furniture Maker",
+         "episode_description": "Environmentally-conscious approaches to making furniture.",
+         "show_description": "Eric Gorges travels across the United States to gain insight into craftsmanship in the 21st century. Focusing on the history of a traditional craft and its importance in the U.S. today, episodes include interviews with master craftsmen and women, who explain why they chose their craft and the importance of keeping these traditions alive. A welder by trade, Gorges also takes on the role of apprentice for various projects, which include building a guitar from scratch, making a ceramic teapot, building a boat and making baskets from bark."
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

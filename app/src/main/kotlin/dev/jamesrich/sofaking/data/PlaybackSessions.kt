@@ -21,7 +21,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
+import java.io.InterruptedIOException
 import java.util.UUID
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -56,6 +58,7 @@ class PlaybackSessions(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
     private val renewInterval: Duration = 15.seconds,
     private val newIdempotencyKey: () -> String = { UUID.randomUUID().toString() },
+    private val openTimeout: Duration = 12.seconds,
 ) {
     private val mutex = Mutex()
     private var api: SofaKingApi? = null
@@ -136,8 +139,10 @@ class PlaybackSessions(
 
     private suspend fun open(api: SofaKingApi, channelId: String, intent: PlaybackIntent): PlaybackStream {
         // Opened whole: a zap that cancels this mid-request still learns which session it must release.
+        // A timeout is an IOException, not a cancellation: the caller backs off and retries instead of dying silently.
         val opened = withContext(NonCancellable) {
-            withTimeout(OPEN_TIMEOUT_MS) { api.openSession(channelId, intent.wire, newIdempotencyKey()) }
+            withTimeoutOrNull(openTimeout) { api.openSession(channelId, intent.wire, newIdempotencyKey()) }
+                ?: throw InterruptedIOException("session open timed out")
         }
         try {
             currentCoroutineContext().ensureActive()
@@ -197,7 +202,8 @@ class PlaybackSessions(
                     _current.value = null
                     // A reopen that fails leaves no session; the player's own failure path tunes again with backoff.
                     val reopened = try {
-                        withTimeout(OPEN_TIMEOUT_MS) { api.openSession(held.channelId, held.intent.wire, newIdempotencyKey()) }
+                        withTimeoutOrNull(openTimeout) { api.openSession(held.channelId, held.intent.wire, newIdempotencyKey()) }
+                            ?: throw InterruptedIOException("session reopen timed out")
                     } catch (_: IOException) {
                         return
                     }
@@ -212,7 +218,6 @@ class PlaybackSessions(
     }
 
     private companion object {
-        const val OPEN_TIMEOUT_MS = 12_000L
         const val RELEASE_TIMEOUT_MS = 8_000L
     }
 }

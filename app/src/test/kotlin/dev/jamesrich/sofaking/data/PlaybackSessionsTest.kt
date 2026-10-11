@@ -1,7 +1,9 @@
 package dev.jamesrich.sofaking.data
 
+import java.io.InterruptedIOException
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,6 +23,7 @@ import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -97,7 +100,7 @@ class PlaybackSessionsTest {
     fun setUp() {
         server.dispatcher = fake
         server.start()
-        sessions = PlaybackSessions(scope, renewInterval = 100.milliseconds) { "key-${fake.requests.size}" }
+        sessions = PlaybackSessions(scope, renewInterval = 100.milliseconds, newIdempotencyKey = { "key-${fake.requests.size}" })
         runBlocking { sessions.configure(SofaKingApi(server.url("/").toString(), "secret")) }
     }
 
@@ -284,6 +287,19 @@ class PlaybackSessionsTest {
         awaitRequests { requests -> requests.any { it == "DELETE /api/v1/playback-sessions/s1" } }
         assertNull(sessions.current.value)
         assertTrue(fake.sessions.isEmpty())
+    }
+
+    @Test
+    fun `an open that outlasts its timeout fails as an IOException, not a cancellation`() = runBlocking {
+        val slow = PlaybackSessions(scope, renewInterval = 100.milliseconds, newIdempotencyKey = { "slow-key" }, openTimeout = 100.milliseconds)
+        slow.configure(SofaKingApi(server.url("/").toString(), "secret"))
+        fake.openDelayMs = 400
+
+        val failure = runCatching { slow.tune("c1", PlaybackIntent.PREVIEW) }.exceptionOrNull()
+
+        assertTrue("was $failure", failure is InterruptedIOException)
+        assertFalse(failure is CancellationException)
+        assertNull(slow.current.value)
     }
 
     @Test

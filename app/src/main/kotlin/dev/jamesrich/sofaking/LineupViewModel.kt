@@ -87,15 +87,18 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** One repository per server, so its catalog ETag survives every refresh; rebuilt only when the server changes. */
+    private val serverRepository = server.map { s -> s?.let { it to SofaKingRepository(SofaKingApi(it.url, it.token)) } }
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<LineupState> = combine(server, reloads.onStart { emit(Unit) }) { server, _ -> server }
-        .transformLatest { server ->
-            if (server == null) {
+    val state: StateFlow<LineupState> = combine(serverRepository, reloads.onStart { emit(Unit) }) { found, _ -> found }
+        .transformLatest { found ->
+            if (found == null) {
                 emit(LineupState.Unconfigured)
                 return@transformLatest
             }
+            val (server, repository) = found
             val key = server.url
-            val repository = SofaKingRepository(SofaKingApi(server.url, server.token))
             val cache = LineupCache(cacheFile, key)
             // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
             // so the last good lineup shows at once and the network load replaces it below.

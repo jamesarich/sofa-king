@@ -36,7 +36,7 @@ The release APK is optimized with R8 and signed with the local debug key. The se
 
 ## Use
 
-In the guide, move with the D-pad, press OK to watch, and long-press OK to add or remove a favorite. In the player, Up/Down change channels, OK opens the info bar, and Back returns to the guide.
+In the guide, move with the D-pad, press OK to watch, long-press OK to add or remove a favorite, and press Back to go up to the filter chips (Back again exits). In the player, Up/Down change channels, OK opens the info bar, and Back returns to the guide.
 
 See [controls and troubleshooting](docs/USAGE.md) for the full remote controls and caption settings.
 

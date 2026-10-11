@@ -186,6 +186,7 @@ fun GuideScreen(
 
     val scrollState = rememberScrollState()
     val listState = rememberLazyListState()
+    val chipsState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val density = LocalDensity.current
@@ -304,7 +305,19 @@ fun GuideScreen(
     val onSearchToggle: () -> Unit = {
         if (searchOpen) closeSearch() else searchOpen = true
     }
-    BackHandler(enabled = searchOpen) { closeSearch() }
+    // From the grid, Back climbs to the selected chip (scrolled into the row first, since only a composed chip
+    // can take focus); from the chips or the header it leaves the activity to finish.
+    val backAction = guideBackAction(searchOpen, gridFocused)
+    BackHandler(enabled = backAction != GuideBack.EXIT) {
+        when (backAction) {
+            GuideBack.CLOSE_SEARCH -> closeSearch()
+            GuideBack.FOCUS_CHIPS -> scope.launch {
+                chipsState.scrollToItem(selectedChipIndex(filters, activeFilter))
+                requestFocusWhenAttached(selectedChip)
+            }
+            GuideBack.EXIT -> Unit
+        }
+    }
     LaunchedEffect(searchOpen) {
         if (searchOpen) requestFocusWhenAttached(searchField)
     }
@@ -342,6 +355,7 @@ fun GuideScreen(
             searchOpen = searchOpen,
             selectedChip = selectedChip,
             searchChip = searchChip,
+            listState = chipsState,
             onNow = onNow,
             onSearch = onSearchToggle,
             onSelect = { filter = it },

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.TextFieldState
@@ -89,12 +90,14 @@ internal fun FilterChipRow(
     searchOpen: Boolean,
     selectedChip: FocusRequester,
     searchChip: FocusRequester,
+    listState: LazyListState,
     onNow: () -> Unit,
     onSearch: () -> Unit,
     onSelect: (GuideFilter) -> Unit,
     modifier: Modifier,
 ) {
     LazyRow(
+        state = listState,
         modifier = modifier.focusRestorer(selectedChip),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {

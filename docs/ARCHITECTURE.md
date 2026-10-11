@@ -6,7 +6,7 @@ Sofa King is one Android module, `app`, written in Kotlin with Compose for TV an
 
 | Component | Responsibility |
 | --- | --- |
-| `MainActivity` | Screen selection, saved guide state, the shared ExoPlayer and the session's stop/start lifecycle |
+| `MainActivity` | Screen selection and the cold-start decision, saved guide state, the shared ExoPlayer and the session's stop/start lifecycle |
 | `LineupViewModel` | Settings flows, lineup state, refresh, cache ownership and the `PlaybackSessions` instance |
 | `SofaKingApi` | The server's `/api/v1` JSON requests over OkHttp with the bearer token and cancellable calls |
 | `SofaKingRepository`, `SofaKingMapper` | Catalog and guide queries mapped to `Channel` and `Programme` |
@@ -32,6 +32,10 @@ LineupCache ←→ LineupViewModel → GuideScreen / PlayerScreen
 The cache loads first on startup or server change. The catalog publishes channels before the guide query completes. The catalog is fetched with its ETag, so an unchanged lineup is a header round trip. The guide is queried in chunks of at most 200 channels over 24 hours from the half hour containing the load time, pinning the revision the first chunk returned and restarting without one on `409 RESYNC_REQUIRED`. Mapping keeps channels with `playbackEligible` and a numeric `displayNumber`, takes the first tag as the group, and discards programmes with invalid timestamps or nonpositive durations. Successful loads update the cache and repeat every three hours. Failed loads retain the available lineup and retry after one minute. Without a valid server address the lineup state is `Unconfigured`.
 
 Network, decoding and cache work run on IO dispatchers. UI observes StateFlow with lifecycle-aware collection. Canceling a load cancels its OkHttp call, including while reading the response body.
+
+## Launch
+
+A cold start shows the loader until the lineup state and settings are both known, then decides once: the last watched channel opens full screen through the normal session path when the lineup has it; a first run, a channel the lineup lost, an unconfigured or unreachable server open the guide. The guide and its preview do not compose before that decision, so no preview session is opened only to be replaced. Back from that player shows the guide focused on the channel being watched.
 
 ## Guide
 

@@ -18,6 +18,7 @@ Unit tests run against MockWebServer; no server is needed for offline developmen
 - Support the five-way D-pad. Use focusRestorer; request focus from effects or callbacks and wait for lazy nodes with requestFocusWhenAttached. The guide's first focus is retried until a cell reports it landed; the header's buttons must never keep focus once channels are on screen. The unconfigured screen starts on Settings.
 - Preserve 48dp horizontal and 27dp vertical overscan padding.
 - Preserve the guide's 24-hour window, time cursor and saved position across player navigation.
+- A cold start opens the last watched channel full screen through the normal session path, decided once by `launchTarget` after the lineup and settings are in; the guide and preview must not compose before that decision. No last channel opens the guide.
 - Back in the guide: open search closes first, the grid hands focus to the selected chip, the chips and header exit. Decide it in `guideBackAction`, never in a second BackHandler.
 - Keep models immutable. Read time from rememberMinuteNow, not Instant.now during composition.
 - Use theme colors, shared motion and resource strings in US English. UI terminology is "program".

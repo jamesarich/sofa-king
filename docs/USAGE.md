@@ -2,6 +2,8 @@
 
 ## Guide
 
+The app opens full screen on the channel you last watched; Back shows the guide focused on that channel. On a first run, or when that channel is no longer in the lineup, it opens the guide.
+
 The Now chip returns to the current time. Search filters by channel name, number or current program. All, Favorites and category chips select channel groups.
 
 The focused channel plays in a muted preview after a 350 ms delay. OK opens that channel full-screen. Back returns to the same guide position. Long-press OK on a program toggles its channel's favorite status. In the guide, Back moves from the grid to the selected filter chip, and from the chips or the header it exits the app; open search closes first.

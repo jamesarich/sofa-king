@@ -97,6 +97,16 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     }
     val guideState = rememberSaveableStateHolder()
     val lineup = (state as? LineupState.Ready)?.lineup
+    // A cold start opens the channel last watched, full screen, once the lineup and settings are in. Decided
+    // once per process (restored across configuration changes), and before the guide composes, so the preview
+    // never opens a session that the full screen is about to replace.
+    var launchDecided by rememberSaveable { mutableStateOf(false) }
+    val launch = launchTarget(state, settings)
+    LaunchedEffect(launch, launchDecided) {
+        if (launchDecided || launch == LaunchTarget.Undecided) return@LaunchedEffect
+        launchDecided = true
+        if (launch is LaunchTarget.Player) screen = Screen.Player(launch.guideId)
+    }
 
     // One player for the guide preview and the full screen, so OK on the previewed channel continues its stream,
     // and one server session behind it, promoted from preview to watch in place.
@@ -222,7 +232,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
                 val s = state
                 when {
-                    s is LineupState.Loading || settings == null -> MessageScreen(stringResource(R.string.loading), loading = true)
+                    s is LineupState.Loading || settings == null || !launchDecided -> MessageScreen(stringResource(R.string.loading), loading = true)
                     s is LineupState.Unconfigured -> MessageScreen(
                         message = stringResource(R.string.unconfigured),
                         hint = stringResource(R.string.unconfigured_hint),

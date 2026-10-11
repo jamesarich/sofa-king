@@ -41,9 +41,11 @@ private val SofaKingColors: ColorScheme = darkColorScheme(
 
 private val SofaKingTypography: Typography = Typography().let { base ->
     base.copy(
+        headlineMedium = base.headlineMedium.copy(fontSize = 36.sp, lineHeight = 44.sp),
         headlineSmall = base.headlineSmall.copy(fontSize = 32.sp, lineHeight = 40.sp),
         titleLarge = base.titleLarge.copy(fontSize = 26.sp, lineHeight = 34.sp),
         titleMedium = base.titleMedium.copy(fontSize = 22.sp, lineHeight = 30.sp),
+        titleSmall = base.titleSmall.copy(fontSize = 20.sp, lineHeight = 28.sp),
         bodyLarge = base.bodyLarge.copy(fontSize = 22.sp, lineHeight = 30.sp),
         bodyMedium = base.bodyMedium.copy(fontSize = 20.sp, lineHeight = 28.sp),
         bodySmall = base.bodySmall.copy(fontSize = 18.sp, lineHeight = 26.sp),

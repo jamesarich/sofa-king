@@ -1,6 +1,6 @@
 # Sofa King Backend
 
-A Kotlin IPTV server for one household. It imports provider M3U playlists and independent XMLTV guides (plain or gzip), keeps a curated channel lineup in SQLite, serves a JSON API and an M3U/XMLTV output for third-party players, relays HLS and MPEG-TS streams, and quarantines failing sources automatically. It replaces the Dispatcharr curation step: the app sees the lineup, not the raw feeds.
+A Kotlin IPTV server for one household. It imports provider M3U playlists and independent XMLTV guides (plain or gzip), keeps a curated channel lineup in SQLite, serves a JSON API, an M3U/XMLTV output for third-party players and an HDHomeRun emulation for Plex Live TV, relays HLS and MPEG-TS streams, and quarantines failing sources automatically. It replaces the Dispatcharr curation step: the app sees the lineup, not the raw feeds.
 
 The [Sofa King Android app](https://github.com/jamesarich/sofa-king) currently uses M3U/XMLTV endpoints and does not connect to this API yet. This server has no web UI or DVR.
 
@@ -67,6 +67,7 @@ The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contain
 
 - [Configuration, lineup and Dispatcharr migration](docs/live-tv.md)
 - [Third-party players (TiviMate, VLC)](docs/live-tv.md#third-party-players)
+- [Plex Live TV through the HDHomeRun emulation](docs/live-tv.md#plex-live-tv)
 - [Deploy with Docker](docs/deploy.md)
 - [HTTP API, admin API and Kotlin client](docs/api.md)
 - [Source health and automatic recovery](docs/source-health.md)
@@ -76,8 +77,9 @@ The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contain
 
 ## Limitations
 
-- No HDHomeRun emulation or other Plex, Jellyfin or Channels DVR integration; third-party players get the JSON API or the M3U/XMLTV output.
-- The M3U/XMLTV output and its stream URLs are verified with FFmpeg and the Ktor client against local fixtures, not with TiviMate, VLC or another player.
+- Plex reaches the HDHomeRun emulation by address only; SSDP discovery is not implemented. Jellyfin and Channels DVR are not tested against it.
+- The M3U/XMLTV output, the HDHomeRun routes and the FFmpeg remux are verified with FFmpeg and the Ktor client against local fixtures (a live HLS fixture remuxed to MPEG-TS, the process killed on hang-up), not with TiviMate, VLC or a Plex server. CEA-608 captions surviving the remux follows from stream copy and is not verified with a captioned source.
+- An HDHomeRun stream of an HLS source carries one video and one audio stream, and FFmpeg reads the source directly, so a provider whose headers must stay on its origin is sent none.
 - Only MPEG-TS sessions share an upstream connection; each HLS request fetches upstream itself.
 - Guide programmes are kept only for channels the lineup maps, so a newly mapped channel has no guide until the refresh this triggers completes.
 - Feeds with credential or custom headers are never probed, so their sources stay `UNVERIFIED`.

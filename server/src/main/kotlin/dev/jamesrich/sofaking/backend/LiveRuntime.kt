@@ -20,12 +20,14 @@ class LiveRuntime(
     val catalog: CatalogService,
     val sessions: SessionManager,
     val relay: MediaRelay,
+    val remux: TsRemux,
     private val http: HttpClient,
     private val scope: CoroutineScope,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
         sessions.close()
+        remux.close()
         http.close()
     }
     companion object {
@@ -47,7 +49,7 @@ class LiveRuntime(
                 lineup.initialize()
                 val catalog = CatalogService(feeds, guides, lineup, store, clock)
                 val sessions = SessionManager(catalog, store, clock, config.maxSessions)
-                val runtime = LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), http, scope)
+                val runtime = LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), http, scope)
                 feeds.start(scope)
                 guides.start(scope)
                 scope.launch { while (isActive) { sessions.expire(); delay(1000) } }

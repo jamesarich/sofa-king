@@ -22,6 +22,9 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 | GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
 | GET | `/output/guide.xml?days=` | The lineup's programmes as XMLTV |
 | GET | `/output/stream/{channelId}.m3u8` or `.ts` | Opens a player session for the channel and streams it |
+| GET | `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/device.xml` | HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
+| GET, POST | `/lineup.post` | Accepts Plex's channel-scan request; answers 200 |
+| GET | `/auto/v{number}` | MPEG-TS stream of the channel with that lineup number |
 
 Request bodies are limited to 64 KiB, except the lineup import (16 MiB). The [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/) defines the response fields.
 
@@ -102,6 +105,21 @@ http://HOST/output/stream/CHANNEL_UUID.m3u8?token=TOKEN
 `GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3; `?days=1`–`14` overrides). Times are `YYYYMMDDHHMMSS +0000`. Only channels with a guide mapping have programmes. The body is streamed and uncompressed.
 
 `GET /output/stream/{channelId}.m3u8|.ts` opens a watch session for the channel and plays it. An HLS source answers `302` to the session's playlist URL under `/media/sessions/`; the player follows it and fetches playlists, segments and keys through the relay. An MPEG-TS source streams `video/mp2t` in this response through the fan-out. Players never renew, so these sessions live differently from API sessions: a request in flight holds the session, and it is released 60 seconds after its last media request (the player stopped) or when a TS player disconnects. Two players on the same HLS channel share one session; each TS request is its own. At `SOFA_MAX_SESSIONS` the oldest preview session yields first, then an idle player session (a zap left behind), and otherwise the request answers `429 CAPACITY_EXHAUSTED`. When an unprobed source's descriptor says MPEG-TS and the body is HLS, the request switches to the redirect itself instead of answering `410`; the reverse (HLS descriptor, MPEG-TS body) reaches the player as `410` on the media URL once, after which the stored protocol is right. A disabled or unknown channel answers `404 CHANNEL_NOT_FOUND`; a channel with no eligible source `503 SOURCE_UNAVAILABLE`.
+
+## HDHomeRun emulation
+
+With `SOFA_HDHR_ENABLED` (the default) the root serves what a Plex server reads from an HDHomeRun tuner. Nothing here takes a token, because Plex sends none; `SOFA_HDHR_ALLOW` (client IPs or CIDR blocks) answers everyone else `403`. Absolute URLs derive from the request's `Host` header like the player outputs.
+
+| Path | Body |
+| --- | --- |
+| `/discover.json` | `FriendlyName` (`SOFA_HDHR_NAME`), `Manufacturer`, `ModelNumber` `HDTC-2US`, `FirmwareName` `hdhomeruntc_atsc`, `FirmwareVersion`, `DeviceID` (`SOFA_HDHR_DEVICE_ID`, else eight hex digits derived from the server identity), `DeviceAuth`, `BaseURL`, `LineupURL`, `TunerCount` (`SOFA_HDHR_TUNERS`) |
+| `/lineup.json` | One `{"GuideNumber", "GuideName", "URL"}` per enabled lineup entry in lineup order, with the entry number, name and `BASE/auto/vNUMBER`; a second entry with the same number is left out |
+| `/lineup_status.json` | `{"ScanInProgress":0,"ScanPossible":0,"Source":"Cable","SourceList":["Cable"]}` |
+| `/lineup.post` | `200` with no body; there is nothing to scan |
+| `/device.xml` | UPnP root description with the same name, model, `DeviceID` as `serialNumber` and the server identity as `UDN` |
+| `/auto/v{number}` | `video/mp2t` for the enabled entry with that number; `404` when none |
+
+`/auto/v{number}` opens an external session like a player stream URL. An MPEG-TS source goes through the fan-out. An HLS source is remuxed by FFmpeg (`-c copy -f mpegts -mpegts_flags +resend_headers`): FFmpeg reads the source URL itself with the provider's headers when they are portable, takes one video and one audio stream (the highest resolution and the most channels, so other variants are not downloaded), drops subtitle and data tracks, and copies the elementary streams, so CEA-608 captions inside the video pass through. The process is killed and reaped when Plex disconnects or the session ends, and every remux is killed on shutdown. While `SOFA_HDHR_TUNERS` streams are open, or when the session cap or the source refuses one, the request answers `503` with `X-HDHomeRun-Error: 805 All Tuners In Use`, which Plex reports as a busy tuner. A protocol detected on the first fetch of an MPEG-TS descriptor switches to the remux within the request.
 
 ## Admin API
 

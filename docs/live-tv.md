@@ -20,6 +20,11 @@ Set these environment variables before starting the server:
 | `SOFA_ALLOW_LOOPBACK_UPSTREAMS` | `false` | Allow playlist, guide and stream URLs on loopback (`127.0.0.1`, `::1`, `localhost`); for local fixtures only |
 | `SOFA_OUTPUT_TOKEN` | Unset | Token for the [player outputs](#third-party-players) under `/output/*`, at least 32 letters, digits, hyphens or underscores; it goes in the URL, so it is separate from the API token. Unset, only the API token (as a bearer) opens them |
 | `SOFA_XMLTV_DAYS` | `3` | Days ahead the XMLTV output carries, 1–14 |
+| `SOFA_HDHR_ENABLED` | `true` | Serve the [HDHomeRun emulation](#plex-live-tv) (`/discover.json`, `/lineup.json`, `/auto/v*`) at the root |
+| `SOFA_HDHR_TUNERS` | `2` | Tuners Plex sees, which is the number of HDHomeRun streams open at once, 1 to `SOFA_MAX_SESSIONS` |
+| `SOFA_HDHR_DEVICE_ID` | Derived from the server identity | Eight hex digits Plex identifies the tuner by; keep it stable or Plex sees a new device |
+| `SOFA_HDHR_NAME` | `Sofa King` | Friendly name Plex shows, 1–64 characters |
+| `SOFA_HDHR_ALLOW` | Unset | Client IPs or CIDR blocks admitted to the HDHomeRun routes, comma separated (`192.168.1.10,192.168.1.0/24`); unset admits every address that reaches the port |
 
 Relative paths resolve from the server's working directory. Configuration changes require a restart.
 
@@ -158,6 +163,22 @@ VLC: Media → Open Network Stream with the playlist URL lists the channels; a s
 
 Verified against local fixtures with FFmpeg as the client (it follows the HLS redirect and decodes through the session, and a TS hang-up releases the session); TiviMate and VLC themselves are not verified.
 
+## Plex Live TV
+
+Plex Live TV & DVR takes an HDHomeRun tuner and an XMLTV guide. The server emulates the tuner at the root of its port ([API detail](api.md#hdhomerun-emulation)) and the guide is the [player output](#third-party-players) XMLTV, so Plex needs `SOFA_OUTPUT_TOKEN` for the guide URL and nothing for the tuner.
+
+The tuner routes carry no token: anyone who can reach the port can list the lineup and watch through `/auto/vNUMBER`. Keep the port on the LAN and set `SOFA_HDHR_ALLOW` to the Plex server's address. Behind Docker on Linux, a published port keeps the client address with the default iptables setup; where Docker's userland proxy handles the port the server sees the Docker gateway address instead, and the allow-list must name that. Set `SOFA_HDHR_ENABLED=false` when nothing uses Plex.
+
+1. Set `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` (and `SOFA_HDHR_TUNERS` to the number of simultaneous Plex streams and recordings, within `SOFA_MAX_SESSIONS`), restart, and check `curl --fail http://SERVER_HOST:PORT/discover.json` from the Plex host.
+2. In Plex Web: Settings → Live TV & DVR → Set Up Plex DVR (or "Add device" with a DVR already configured). Plex looks for tuners by SSDP broadcast, which this server does not answer, so choose "Don't see your HDHomeRun device? Enter its network address manually" and enter `SERVER_HOST:PORT` (`OMV_HOST:9193` with the compose stack). Plex reads `/discover.json` and `/lineup.json` and lists the device by `SOFA_HDHR_NAME` with the tuner count.
+3. Plex shows the channels from `/lineup.json`; continue. At the guide step choose "Have an XMLTV guide on your server? Click here to use that instead" and enter `http://SERVER_HOST:PORT/output/guide.xml?token=OUTPUT_TOKEN`. Plex fetches it itself and refreshes it on its own schedule; keep `SOFA_XMLTV_DAYS` at 3 or more so a daily refresh never runs dry.
+4. Map channels. The XMLTV lists each channel's name and number as display names and the lineup carries the same name and number, so Plex pairs most of them; pick the rest from the dropdowns. Finish.
+5. Play a channel in Plex. Plex opens `/auto/vNUMBER`: an MPEG-TS source streams through the fan-out, an HLS source is remuxed to MPEG-TS by FFmpeg with stream copy, so CEA-608 captions inside the video reach Plex's caption setting. A busy tuner (every tuner or session slot taken) shows in Plex as "all tuners are in use".
+
+After a lineup change (a new channel, a renumbering) open Settings → Live TV & DVR → the DVR → "Scan channels" in Plex, so it re-reads `/lineup.json`; the server answers the scan request at once with the curated lineup. Renumbering changes the stream URL, so Plex needs that re-scan before the channel plays again.
+
+Verified against local fixtures: the Ktor client and FFmpeg read the HDHomeRun routes and a live HLS fixture remuxed to MPEG-TS, and the FFmpeg process is gone after the client hangs up. A Plex server is not verified.
+
 ## LAN access
 
 Set a token and bind to the LAN address. Replace `TOKEN` with a secret of at least 32 characters:
@@ -202,5 +223,8 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 | `429 CAPACITY_EXHAUSTED` | Every slot holds a watch session. Release unused sessions or wait for their 90-second leases to expire; previews and idle player sessions are evicted automatically. |
 | A player gets `401` on the playlist URL | `SOFA_OUTPUT_TOKEN` is unset or the `token` query differs. The API token opens `/output/*` only as a bearer header. |
 | TiviMate plays a channel as the wrong type after a probe | The stream suffix follows the stored protocol; refresh the playlist in the player. |
+| Plex does not find the tuner | Plex discovers by SSDP, which is not implemented: enter `SERVER_HOST:PORT` manually. `curl http://SERVER_HOST:PORT/discover.json` from the Plex host answers `403` when `SOFA_HDHR_ALLOW` leaves Plex out and `404` when `SOFA_HDHR_ENABLED=false`. |
+| Plex says all tuners are in use | `SOFA_HDHR_TUNERS` streams are open, or every `SOFA_MAX_SESSIONS` slot is taken, or the channel has no eligible source; check `GET /api/v1/admin/lineup/ENTRY_ID`. |
+| A Plex channel plays for a moment and stops | FFmpeg ended the remux; the server log has `remux ended exit=` with FFmpeg's last lines, URLs removed. |
 | `503 SOURCE_UNAVAILABLE` | Inspect `GET /api/v1/admin/lineup/ENTRY_ID` for the entry's source states, or `/api/v1/sources` for quarantine, probation or manual disable. |
 | Sources never qualify | Check FFmpeg availability, `probe`, and whether the feed has credential/custom headers. |

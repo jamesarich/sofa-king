@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.store.IdentityStore
@@ -13,8 +14,8 @@ import kotlinx.coroutines.runBlocking
  * the handler at once, so anything about a response's lifetime, a client hanging up, or an external process
  * reading the server is verified here.
  */
-class RealServer(store: IdentityStore, clock: Clock, runtime: LiveRuntime, token: String, outputs: OutputConfig = OutputConfig()) : AutoCloseable {
-    private val server = embeddedServer(Netty, host = "127.0.0.1", port = 0) { backendModule(store, clock, runtime, token, outputs = outputs) }
+class RealServer(store: IdentityStore, clock: Clock, runtime: LiveRuntime, token: String, outputs: OutputConfig = OutputConfig(), hdhr: HdhrConfig = HdhrConfig()) : AutoCloseable {
+    private val server = embeddedServer(Netty, host = "127.0.0.1", port = 0) { backendModule(store, clock, runtime, token, outputs = outputs, hdhr = hdhr) }
     val base: String
 
     init {

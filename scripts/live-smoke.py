@@ -97,6 +97,37 @@ def check_player_outputs(base, hls_channel, ts_channel, directory):
         time.sleep(0.1)
 
 
+def ffmpeg_children(process):
+    listed = subprocess.run(['pgrep', '-P', str(process.pid), '-x', 'ffmpeg'], capture_output=True, text=True)
+    return len(listed.stdout.split())
+
+
+def check_hdhomerun(base, process, directory):
+    """What Plex reads from the HDHomeRun emulation, then a remuxed stream whose FFmpeg dies with the client."""
+    with urlopen(base + '/discover.json', timeout=5) as response:
+        discover = json.loads(response.read())
+    assert discover['TunerCount'] == 2 and len(discover['DeviceID']) == 8 and discover['LineupURL'] == base + '/lineup.json', discover
+    with urlopen(base + '/lineup.json', timeout=5) as response:
+        lineup = json.loads(response.read())
+    assert [item['GuideNumber'] for item in lineup] == ['5', '6'] and lineup[0]['URL'] == base + '/auto/v5', lineup
+    with urlopen(base + '/lineup_status.json', timeout=5) as response:
+        assert json.loads(response.read())['ScanInProgress'] == 0
+    with urlopen(base + '/device.xml', timeout=5) as response:
+        assert '<friendlyName>Sofa King</friendlyName>' in response.read().decode()
+    with urlopen(base + '/auto/v6', timeout=5) as stream:
+        head = stream.read(188 * 3)
+        assert head[0] == 0x47 and head[188] == 0x47 and head[376] == 0x47, 'HDHomeRun TS stream is not aligned'
+    before = ffmpeg_children(process)
+    # The HLS channel is remuxed to MPEG-TS; FFmpeg as the Plex stand-in decodes video from it.
+    decoded = subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'mpegts', '-i', base + '/auto/v5', '-t', '4', '-map', '0:v:0', '-progress', 'pipe:1', '-f', 'null', '-'],
+                             capture_output=True, timeout=30)
+    assert decoded.returncode == 0 and b'progress=end' in decoded.stdout, 'HDHomeRun remux decode failed: ' + decoded.stderr.decode() + '\n' + (directory / 'server.log').read_text()
+    deadline = time.monotonic() + 10
+    while ffmpeg_children(process) > before:
+        assert time.monotonic() < deadline, 'The remux FFmpeg outlived its client'
+        time.sleep(0.1)
+
+
 def stop(process):
     if process.poll() is None:
         os.killpg(process.pid, signal.SIGTERM)
@@ -227,6 +258,7 @@ def main():
                         assert time.monotonic() < deadline, 'Released TS session retained its upstream'
                         time.sleep(0.1)
                 check_player_outputs(base, channel, ts_channel, directory)
+                check_hdhomerun(base, process, directory)
                 identity = request(base, '/api/v1/bootstrap')['serverId']
                 stop(process)
                 process = subprocess.Popen([str(APP)], env=env, stdout=log, stderr=log, start_new_session=True)
@@ -246,7 +278,7 @@ def main():
                 stop(process)
             fixture.shutdown()
             fixture.server_close()
-        print('Live smoke passed: feed + gzip guide import, lineup curation through the admin API, session promotion, four concurrent HLS video decoders, automatic decode qualification, active TS upstream cancellation, M3U/XMLTV player output with a redirect-following decode and a TS hang-up, release and persistent lineup across restart.')
+        print('Live smoke passed: feed + gzip guide import, lineup curation through the admin API, session promotion, four concurrent HLS video decoders, automatic decode qualification, active TS upstream cancellation, M3U/XMLTV player output with a redirect-following decode and a TS hang-up, HDHomeRun discovery and a remuxed stream whose FFmpeg dies with its client, release and persistent lineup across restart.')
 
 
 if __name__ == '__main__':

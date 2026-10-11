@@ -54,6 +54,21 @@ class ServerConfigTest {
             assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_XMLTV_DAYS" to value)) }
         }
     }
+    @Test fun `HDHomeRun settings are parsed, bounded by the session cap and validated as addresses`() {
+        assertEquals(HdhrConfig(), ServerConfig.fromEnvironment(emptyMap()).hdhr)
+        val config = ServerConfig.fromEnvironment(mapOf(
+            "SOFA_MAX_SESSIONS" to "6", "SOFA_HDHR_TUNERS" to "6", "SOFA_HDHR_DEVICE_ID" to "abcdef01", "SOFA_HDHR_NAME" to "Den TV",
+            "SOFA_HDHR_ALLOW" to " 192.168.1.0/24, 192.168.1.3 ,fd00::/8", "SOFA_HDHR_ENABLED" to "FALSE",
+        ))
+        assertEquals(HdhrConfig(false, 6, "ABCDEF01", "Den TV", listOf("192.168.1.0/24", "192.168.1.3", "fd00::/8")), config.hdhr)
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_TUNERS" to "5")) }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_TUNERS" to "0")) }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_DEVICE_ID" to "1234567")) }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_NAME" to " ")) }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_ALLOW" to "plex.lan")) }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_ALLOW" to "192.168.1.0/33")) }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_ENABLED" to "off")) }
+    }
     @Test fun `invalid port or empty values fail before binding`() {
         for (value in listOf("no", "0", "65536", "-1", "")) {
             assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_PORT" to value)) }

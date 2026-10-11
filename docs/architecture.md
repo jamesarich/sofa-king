@@ -8,7 +8,7 @@ One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provid
 | --- | --- |
 | `api-contract` | Serializable request/response models, including the admin and Dispatcharr export models, JVM 17 |
 | `client` | Ktor client and playback lease handles, JVM 17 |
-| `server` | Ktor Netty server, imports, SQLite storage, lineup, source probes and media relay, JVM 21 |
+| `server` | Ktor Netty server, imports, SQLite storage, lineup, source probes, media relay, player outputs and HDHomeRun emulation, JVM 21 |
 
 ## Data flow
 
@@ -19,6 +19,7 @@ Admin API / Dispatcharr import → LineupService → SQLite lineup tables
 FeedService + GuideService + LineupService → CatalogService → JSON API
 Lineup entry → SessionManager (ordered offerings by health) → MediaRelay → HLS/MPEG-TS player
 Lineup + GuideService → /output M3U + XMLTV → third-party player → /output/stream → SessionManager (external session) → MediaRelay
+Lineup → /discover.json + /lineup.json → Plex → /auto/v{number} → SessionManager (external session) → TsFanout, or TsRemux (FFmpeg stream copy) for HLS
 Stream URL → ProbeWorker → HealthPolicy → SQLite source health
 ```
 
@@ -48,6 +49,10 @@ The HLS relay rewrites variant, audio, subtitle, key, initialization-map and seg
 
 `/output/playlist.m3u` and `/output/guide.xml` are rendered from the catalog and the stored programmes on each request; nothing is cached or stored for them. `/output/stream/{id}` opens an external session: a watch session with no idempotency key whose lease is the player's activity. `SessionManager.acquire` and `finished` move its expiry 60 seconds past each media request, a request still in flight exempts it from reaping, and the request handler releases it when a TS response ends. Capacity eviction prefers a preview, then an external session with no request in flight. An HLS source is answered with a redirect to the session's root playlist, so one session serves every player on that channel; an MPEG-TS source is served through the same fan-out as an API session. The handler catches the relay's protocol-mismatch `410` and switches paths within the request.
 
+## HDHomeRun emulation
+
+`HdhrRoutes` renders the discovery, lineup and status documents from the lineup on each request; the device ID is configured or derived from the server identity, so it survives restarts. `/auto/v{number}` opens an external session per request, never shared, counted against `SOFA_HDHR_TUNERS` separately from the session cap. An MPEG-TS source reuses `MediaRelay`. An HLS source goes to `TsRemux`, which runs one FFmpeg per response reading the source URL directly (the address policy is checked first, provider headers only when portable) with `-c copy` into `pipe:1`, and copies the pipe into the response. The request's job is attached to the session so it counts as in flight; a watchdog coroutine kills the process when the response is cancelled, because a blocked pipe read does not notice cancellation, and the process is always destroyed and waited for before the handler returns. `LiveRuntime.close` kills every remux. The allow-list (`AddressAllowList`) matches IP literals and CIDR blocks against the connection's remote address; IPv4-mapped IPv6 addresses are compared as IPv4.
+
 ## Live MPEG-TS relay
 
 Sessions playing the same MPEG-TS source share one upstream connection. The relay forwards whole 188-byte packets unchanged, so captions and other in-band data pass through. Each session reads through its own bounded buffer of 128 chunks; a session that falls behind is disconnected while the upstream and the other sessions continue. A new media request from a session replaces its previous MPEG-TS request.
@@ -56,7 +61,7 @@ When the upstream ends or fails, the relay reconnects with backoff from 0.5 to 8
 
 ## Supported scope
 
-Configured HTTP(S) feeds and guides, JSON control and admin requests, HLS/MPEG-TS passthrough, M3U/XMLTV output with per-channel stream URLs for third-party players, and FFmpeg source qualification are supported. Recordings, timeshift, transcoding/remuxing, shared HLS upstreams, HDHomeRun emulation, web administration, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
+Configured HTTP(S) feeds and guides, JSON control and admin requests, HLS/MPEG-TS passthrough, M3U/XMLTV output with per-channel stream URLs for third-party players, HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, and FFmpeg source qualification are supported. Recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery, web administration, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
 
 ## Operations
 

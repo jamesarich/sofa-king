@@ -30,6 +30,10 @@ The image sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/data`. 
 | `SOFA_MAX_SESSIONS` | No | Active playback sessions, default 4; player streams count too |
 | `SOFA_OUTPUT_TOKEN` | For players | At least 32 letters, digits, hyphens or underscores; opens the M3U/XMLTV output and its stream URLs under `/output/*` through `?token=` |
 | `SOFA_XMLTV_DAYS` | No | Days ahead in the XMLTV output, default 3 |
+| `SOFA_HDHR_ENABLED` | No | HDHomeRun emulation for Plex at the root of the port, default `true` |
+| `SOFA_HDHR_ALLOW` | For Plex | Client IPs or CIDR blocks allowed on the unauthenticated HDHomeRun routes, for example the Plex server's address; unset admits the whole LAN |
+| `SOFA_HDHR_TUNERS` | No | Tuners Plex sees, default 2, at most `SOFA_MAX_SESSIONS` |
+| `SOFA_HDHR_DEVICE_ID`, `SOFA_HDHR_NAME` | No | The device identity Plex stores; the ID defaults to a value derived from the server identity in the volume |
 
 Every variable in [configuration](live-tv.md#server-settings) can be added to `deploy/.env`. `JAVA_OPTS` reaches the JVM; without it the heap is a quarter of the container's memory limit.
 
@@ -82,7 +86,7 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://OMV_HOST:9193/api/
 
 `/readyz` answers `ready`, the health status is `healthy` once the start period has passed, each provider shows `lastSuccessAt` with its channel and source counts, and sources move from `UNVERIFIED` to `HEALTHY` as probes qualify them. A request without the token answers `401 AUTH_REQUIRED`. With 915 sources, six probes and the five-minute spacing per source, the first qualification pass takes over an hour; the import's protocol carries unqualified sources until then.
 
-`/api/v1/channels` stays empty until the lineup exists. Check the guides with `curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://OMV_HOST:9193/api/v1/admin/guides`, then [migrate the Dispatcharr profile](live-tv.md#migrate-from-dispatcharr) with `scripts/dispatcharr-import.py --server http://OMV_HOST:9193`, or adopt a provider through `/api/v1/admin/lineup/adopt`. Point the TV client at `http://OMV_HOST:9193`. With `SOFA_OUTPUT_TOKEN` set, `curl --fail "http://OMV_HOST:9193/output/playlist.m3u?token=$SOFA_OUTPUT_TOKEN"` prints the playlist [third-party players](live-tv.md#third-party-players) load; its stream URLs carry `OMV_HOST:9193` because they derive from the request's `Host` header.
+`/api/v1/channels` stays empty until the lineup exists. Check the guides with `curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://OMV_HOST:9193/api/v1/admin/guides`, then [migrate the Dispatcharr profile](live-tv.md#migrate-from-dispatcharr) with `scripts/dispatcharr-import.py --server http://OMV_HOST:9193`, or adopt a provider through `/api/v1/admin/lineup/adopt`. Point the TV client at `http://OMV_HOST:9193`. With `SOFA_OUTPUT_TOKEN` set, `curl --fail "http://OMV_HOST:9193/output/playlist.m3u?token=$SOFA_OUTPUT_TOKEN"` prints the playlist [third-party players](live-tv.md#third-party-players) load; its stream URLs carry `OMV_HOST:9193` because they derive from the request's `Host` header. `curl --fail http://OMV_HOST:9193/discover.json` from the Plex host shows the tuner [Plex](live-tv.md#plex-live-tv) is pointed at as `OMV_HOST:9193`; the one published port serves the API, the player outputs and the HDHomeRun routes, and no SSDP (UDP) port is needed because Plex takes the address by hand.
 
 ## Upgrade
 

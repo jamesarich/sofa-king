@@ -1,11 +1,23 @@
 package dev.jamesrich.sofaking.backend
 
+import dev.jamesrich.sofaking.backend.http.AddressAllowList
 import java.nio.file.Path
 
 /** Player outputs: the token the M3U, XMLTV and stream URLs carry, and how far ahead the XMLTV reaches. */
 data class OutputConfig(
     val token: String? = null,
     val guideDays: Int = 3,
+)
+
+/** HDHomeRun emulation for Plex: the device Plex sees, how many streams it may open, and who may reach it. */
+data class HdhrConfig(
+    val enabled: Boolean = true,
+    val tuners: Int = 2,
+    /** Eight hex digits; null derives one from the server identity. */
+    val deviceId: String? = null,
+    val friendlyName: String = "Sofa King",
+    /** Client IPs or CIDR blocks; empty admits every address that reaches the port. */
+    val allow: List<String> = emptyList(),
 )
 
 data class ServerConfig(
@@ -22,6 +34,7 @@ data class ServerConfig(
     val allowLoopbackUpstreams: Boolean = false,
     val adminToken: String? = null,
     val outputs: OutputConfig = OutputConfig(),
+    val hdhr: HdhrConfig = HdhrConfig(),
 ) {
     companion object {
         fun fromEnvironment(environment: Map<String, String>): ServerConfig {
@@ -46,14 +59,22 @@ data class ServerConfig(
             require(retention != null && retention in 1..3650) { "SOFA_OBSERVATION_RETENTION_DAYS must be between 1 and 3650" }
             val adminToken = environment["SOFA_ADMIN_TOKEN"]
             require(adminToken == null || adminToken.length >= 32) { "SOFA_ADMIN_TOKEN must contain at least 32 characters" }
-            val loopback = environment["SOFA_ALLOW_LOOPBACK_UPSTREAMS"]?.lowercase()
-            require(loopback == null || loopback in setOf("true", "false")) { "SOFA_ALLOW_LOOPBACK_UPSTREAMS must be true or false" }
+            val loopback = flag(environment, "SOFA_ALLOW_LOOPBACK_UPSTREAMS", false)
             val outputToken = environment["SOFA_OUTPUT_TOKEN"]
             require(outputToken == null || (outputToken.length >= 32 && outputToken.all { it.isLetterOrDigit() || it == '-' || it == '_' })) {
                 "SOFA_OUTPUT_TOKEN must contain at least 32 letters, digits, hyphens or underscores"
             }
             val guideDays = (environment["SOFA_XMLTV_DAYS"] ?: "3").toIntOrNull()
             require(guideDays != null && guideDays in 1..14) { "SOFA_XMLTV_DAYS must be between 1 and 14" }
+            val hdhrEnabled = flag(environment, "SOFA_HDHR_ENABLED", true)
+            val tuners = (environment["SOFA_HDHR_TUNERS"] ?: "2").toIntOrNull()
+            require(tuners != null && tuners in 1..capacity) { "SOFA_HDHR_TUNERS must be between 1 and SOFA_MAX_SESSIONS" }
+            val deviceId = environment["SOFA_HDHR_DEVICE_ID"]?.uppercase()
+            require(deviceId == null || deviceId.matches(Regex("[0-9A-F]{8}"))) { "SOFA_HDHR_DEVICE_ID must be eight hex digits" }
+            val friendlyName = environment["SOFA_HDHR_NAME"] ?: "Sofa King"
+            require(friendlyName.isNotBlank() && friendlyName.length <= 64 && friendlyName.none { it < ' ' }) { "SOFA_HDHR_NAME must be 1 to 64 printable characters" }
+            val allow = environment["SOFA_HDHR_ALLOW"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
+            AddressAllowList(allow)
             return ServerConfig(
                 host,
                 port,
@@ -65,10 +86,17 @@ data class ServerConfig(
                 parallelism,
                 origins,
                 retention,
-                loopback == "true",
+                loopback,
                 adminToken,
                 OutputConfig(outputToken, guideDays),
+                HdhrConfig(hdhrEnabled, tuners, deviceId, friendlyName, allow),
             )
+        }
+
+        private fun flag(environment: Map<String, String>, name: String, default: Boolean): Boolean {
+            val value = environment[name]?.lowercase() ?: return default
+            require(value in setOf("true", "false")) { "$name must be true or false" }
+            return value == "true"
         }
     }
 }

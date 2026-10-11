@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
+import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
@@ -31,6 +32,7 @@ fun Application.backendModule(
     apiToken: String? = null,
     adminToken: String? = null,
     outputs: OutputConfig = OutputConfig(),
+    hdhr: HdhrConfig = HdhrConfig(),
 ) {
     install(ContentNegotiation) { json(wireJson) }
     install(StatusPages) {
@@ -101,6 +103,7 @@ fun Application.backendModule(
                 runtime.relay.serve(call, call.parameters["id"]!!, epoch, call.parameters["token"]!!)
             }
             outputRoutes(runtime, clock, outputs, apiToken)
+            if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
         }
     }
 }

@@ -102,11 +102,15 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         val states = store.allHealth()
         return channelIds.mapNotNull { id -> catalog.offeringsFor(id)?.let { candidates -> choose(candidates, states) }?.let { id to it } }.toMap()
     }
-    /** Previews are the surfing state and idle player sessions are leftovers of a zap; either yields its slot before the request is refused. */
+    /**
+     * Previews are the surfing state and idle player sessions are leftovers of a zap; either yields its slot before
+     * the request is refused. A playing HLS player is idle between segments too, so the stalest one (least recent
+     * media request, the earliest expiry) goes, never the one still fetching.
+     */
     private fun makeRoom() {
         if (sessions.size < capacity) return
         val victim = sessions.values.firstOrNull { it.intent == "preview" }
-            ?: sessions.values.firstOrNull { it.external && !it.busy }
+            ?: sessions.values.filter { it.external && !it.busy }.minByOrNull { it.expires }
             ?: throw ApiFailure(429, "CAPACITY_EXHAUSTED", "Playback capacity exhausted", true)
         victim.cancel()
         sessions.remove(victim.id)

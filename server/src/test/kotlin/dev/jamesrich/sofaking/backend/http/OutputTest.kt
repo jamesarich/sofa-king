@@ -145,6 +145,29 @@ class OutputTest {
         }
     }
 
+    @Test fun `at capacity the stalest idle player session goes, not the one still fetching`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-output-stalest-")
+        Fixture().use { fixture ->
+            val served = serve(fixture, dir, listOf(fixture.feed, fixture.altFeed, fixture.tsFeed), maxSessions = 2)
+            try {
+                val raw = createClient { followRedirects = false }
+                val (first, second) = served.channels.filter { it.displayNumber == "5" }
+                val ts = served.channels.single { it.displayNumber == "6" }
+                val older = raw.get("/output/stream/${first.id}.m3u8?token=$output").headers[HttpHeaders.Location]!!.removePrefix(base)
+                served.clock.now += Duration.ofSeconds(5)
+                val newer = raw.get("/output/stream/${second.id}.m3u8?token=$output").headers[HttpHeaders.Location]!!.removePrefix(base)
+                // The older session is the one a player is still watching: its media request is the most recent.
+                served.clock.now += Duration.ofSeconds(5)
+                assertEquals(HttpStatusCode.OK, client.get(older).status)
+                withTimeout(20_000) {
+                    client.prepareGet("/output/stream/${ts.id}.ts?token=$output").execute { response -> assertEquals(HttpStatusCode.OK, response.status); response.bodyAsChannel().readHead(188) }
+                }
+                assertEquals(HttpStatusCode.Gone, client.get(newer).status)
+                assertEquals(HttpStatusCode.OK, client.get(older).status)
+            } finally { served.runtime.close(); served.store.close(); dir.toFile().deleteRecursively() }
+        }
+    }
+
     @Test fun `a TS stream URL whose unprobed source serves HLS switches to the playlist instead of answering 410`() = testApplication {
         val dir = Files.createTempDirectory("sofa-output-mismatch-")
         Fixture().use { fixture ->

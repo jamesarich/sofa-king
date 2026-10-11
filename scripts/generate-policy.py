@@ -123,7 +123,7 @@ def replacement_of(value):
     return {'name': value.get('name'), 'sources': value.get('sources', [])}
 
 
-def legacy_stations(channels, replacements, aliases, offered):
+def legacy_stations(channels, replacements, aliases, offered, keep_numbers=False):
     stations = {}
     claimed = {}
     numbers = {}
@@ -151,7 +151,7 @@ def legacy_stations(channels, replacements, aliases, offered):
             claimed[identity] = key
             pins.append({k: v for k, v in pin.items() if v is not None})
         station = {'required': True, 'name': channel['name'], 'sources': pins}
-        if channel.get('number'):
+        if keep_numbers and channel.get('number'):
             number = channel['number']
             if number in numbers:
                 print('legacy %r: number %s already used by %r, left unset' % (channel['name'], number, numbers[number]), file=sys.stderr)
@@ -165,7 +165,7 @@ def legacy_stations(channels, replacements, aliases, offered):
     return stations
 
 
-def generate(providers, lineup, candidates, legacy, replacements, starter, order):
+def generate(providers, lineup, candidates, legacy, replacements, starter, order, keep_legacy_numbers=False):
     """The policy as a dict. [candidates] maps provider id to its candidate items."""
     configured = {p['id'] for p in providers}
     native = [p for p in order if p in configured]
@@ -184,7 +184,7 @@ def generate(providers, lineup, candidates, legacy, replacements, starter, order
         'groups': {'map': group_map, 'default': 'Entertainment'},
         'numbering': {'floor': NUMBER_FLOOR, 'groups': dict(GROUP_BLOCKS), 'groupSize': GROUP_SIZE},
         'health': {'requireVerified': True},
-        'stations': legacy_stations(legacy.get('channels', []), replacements, aliases, offered),
+        'stations': legacy_stations(legacy.get('channels', []), replacements, aliases, offered, keep_legacy_numbers),
     }
 
 
@@ -230,6 +230,7 @@ def main():
     parser.add_argument('--providers', default=NATIVE_ORDER, help='native provider priority, comma separated')
     parser.add_argument('--starter-groups', help='a file with a groupMap, such as deploy/curation-starter.json')
     parser.add_argument('--replacements', help='export channel name to pins, or to {"name", "sources"}')
+    parser.add_argument('--keep-legacy-numbers', action='store_true', help='keep the exported numbers of legacy channels instead of numbering them in their group blocks')
     parser.add_argument('--offline', help='read providers, lineup and candidates from this file instead of the server')
     args = parser.parse_args()
     order = [p.strip() for p in args.providers.split(',') if p.strip()]
@@ -246,7 +247,7 @@ def main():
         providers, lineup, candidates = from_server(args, order, pin_providers)
     else:
         parser.error('give --server or --offline')
-    policy = generate(providers, lineup, candidates, legacy, replacements, starter, order)
+    policy = generate(providers, lineup, candidates, legacy, replacements, starter, order, args.keep_legacy_numbers)
     with open(args.out, 'w', encoding='utf-8') as handle:
         json.dump(policy, handle, indent=2, sort_keys=True, ensure_ascii=False)
         handle.write('\n')

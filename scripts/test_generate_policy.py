@@ -36,6 +36,14 @@ class BaseNameTest(unittest.TestCase):
             self.assertEqual(len(names), len({key(n) for n in names}), names)
 
 
+class LegacyNumbersTest(unittest.TestCase):
+    def test_legacy_numbers_are_left_to_the_group_blocks_unless_kept(self):
+        channels = [{'name': 'Local 5 News', 'number': '5', 'group': 'Local', 'sources': [{'provider': 'masq', 'tvgId': 'l5', 'channelName': 'Local 5 News'}]}]
+        offered = {'masq/tvg-id:l5'}
+        self.assertNotIn('number', generate_policy.legacy_stations(channels, {}, {}, offered)['local5news'])
+        self.assertEqual('5', generate_policy.legacy_stations(channels, {}, {}, offered, keep_numbers=True)['local5news']['number'])
+
+
 class GenerateTest(unittest.TestCase):
     def test_offline_sample(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -44,7 +52,7 @@ class GenerateTest(unittest.TestCase):
                 sys.executable, SCRIPT, '--offline', os.path.join(DATA, 'generate-policy-server.json'),
                 '--legacy', os.path.join(DATA, 'generate-policy-legacy.json'),
                 '--replacements', os.path.join(DATA, 'generate-policy-replacements.json'),
-                '--starter-groups', os.path.join(DATA, 'generate-policy-starter.json'),
+                '--starter-groups', os.path.join(DATA, 'generate-policy-starter.json'), '--keep-legacy-numbers',
                 '--providers', 'whale,samsung,vizio,lg,localnow', '--out', out,
             ], check=True, capture_output=True, text=True)
             with open(out, encoding='utf-8') as handle:

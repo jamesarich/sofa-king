@@ -57,17 +57,27 @@ class GenerateTest(unittest.TestCase):
             {'id': 'localnow', 'include': {'groups': ['More Cities']}, 'enabled': False},
             {'id': 'localnow'},
         ], policy['providers'])
-        self.assertEqual({'bbc news north america': 'bbc news', 'espn 8 the ocho': 'espn8 the ocho'}, policy['names']['aliases'],
-                         'native spellings only; a disabled entry and an aggregator source add nothing')
+        self.assertEqual(2, policy['names']['version'])
+        self.assertEqual({'bbcnewsnorthamerica': 'bbcnews'}, policy['names']['aliases'],
+                         'native spellings only; a disabled entry and an aggregator source add nothing; '
+                         'ESPN 8 and ESPN8 share a version 2 key and need no alias')
         self.assertEqual({'map': {'news': 'News', 'sports': 'Sports'}, 'default': 'Entertainment'}, policy['groups'])
+        self.assertEqual({'requireVerified': True}, policy['health'])
+        numbering = policy['numbering']
+        self.assertEqual(100, numbering['groupSize'])
+        self.assertEqual({'Local': 1, 'News': 100, 'Sports': 200, 'Regional Sports': 300, 'Entertainment': 400, 'Movies': 600,
+                          'Comedy': 800, 'Crime': 900, 'Documentary': 1000, 'Lifestyle': 1100, 'Food & Travel': 1300,
+                          'Kids & Family': 1400, 'Music': 1500, 'Game Shows': 1600, 'Faith': 1700, 'Shopping': 1800,
+                          'Ambiance': 1900}, numbering['groups'])
+        self.assertGreaterEqual(numbering['floor'], max(numbering['groups'].values()) + numbering['groupSize'], 'the floor is clear of every block')
         self.assertEqual({
-            'local 5 news': {'required': True, 'name': 'Local 5 News', 'number': '5', 'group': 'Local',
-                             'sources': [{'provider': 'aggregator', 'tvgId': 'local5', 'name': 'Local 5'}]},
-            'sports one': {'required': True, 'name': 'Sports One', 'number': '227', 'group': 'Sports',
-                           'sources': [{'provider': 'aggregator', 'tvgId': 'real1', 'name': 'Real Sports One'}]},
-            'sports two': {'required': True, 'name': 'The Sports Two', 'number': '228', 'group': 'Sports',
-                           'sources': [{'provider': 'aggregator', 'tvgId': 'real2', 'name': 'Real Sports Two'}]},
-        }, policy['stations'])
+            'local5news': {'required': True, 'name': 'Local 5 News', 'number': '5', 'group': 'Local',
+                           'sources': [{'provider': 'aggregator', 'tvgId': 'local5', 'name': 'Local 5'}]},
+            'sportsone': {'required': True, 'name': 'Sports One', 'number': '227', 'group': 'Sports',
+                          'sources': [{'provider': 'aggregator', 'tvgId': 'real1', 'name': 'Real Sports One'}]},
+            'sportstwo': {'required': True, 'name': 'The Sports Two', 'number': '228', 'group': 'Sports',
+                          'sources': [{'provider': 'aggregator', 'tvgId': 'real2', 'name': 'Real Sports Two'}]},
+        }, policy['stations'], 'legacy stations keep their exported numbers as overrides')
 
 
 if __name__ == '__main__':

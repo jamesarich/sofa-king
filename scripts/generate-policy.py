@@ -12,10 +12,13 @@ Reads `GET /api/v1/providers`, `GET /api/v1/admin/lineup` and `GET /api/v1/admin
   split into an enabled `My City` entry, a disabled `More Cities` entry and an entry for the rest of its channels,
   and `vizio` excludes `Local channels`.
 - `groups.map` from the starter file's `groupMap`, with `Entertainment` as the default.
-- `names.aliases`: for every enabled lineup entry whose native sources carry other base names than the entry's
-  own, each other base name aliased to the entry's. Every alias is printed for review.
-- `stations`: one `required` station per legacy channel, keyed by the base name of its name (or its replacement's
+- `names.version` 2 and `health.requireVerified`, so only stations with a source that has qualified healthy show.
+- `numbering.groups`: one block of 100 numbers per group (`GROUP_BLOCKS`), with the floor after the last block.
+- `names.aliases`: for every enabled lineup entry whose native sources carry other keys than the entry's own,
+  each other key aliased to the entry's. Every alias is printed for review.
+- `stations`: one `required` station per legacy channel, keyed by the key of its name (or its replacement's
   name), pinned to its sources (or its replacement's) by provider and `tvg-id`, with its number, name and group.
+  Those numbers are overrides, so they are reserved before any group block is filled.
 
 The output is sorted JSON with a two-space indent. Review it, then check it with `POST /api/v1/admin/policy/check`.
 Python 3 standard library only. `--offline FILE` reads the three server responses from one JSON file instead
@@ -31,6 +34,17 @@ import urllib.request
 NATIVE_ORDER = (
     'whale,samsung,vizio,lg,pluto,plex,roku,xumo,tubi,tcl,stirr,freelivesports,localnow,pbs,hallmark,ballysports,adultswim'
 )
+
+NAMES_VERSION = 2
+
+GROUP_BLOCKS = {
+    'Local': 1, 'News': 100, 'Sports': 200, 'Regional Sports': 300, 'Entertainment': 400, 'Movies': 600,
+    'Comedy': 800, 'Crime': 900, 'Documentary': 1000, 'Lifestyle': 1100, 'Food & Travel': 1300,
+    'Kids & Family': 1400, 'Music': 1500, 'Game Shows': 1600, 'Faith': 1700, 'Shopping': 1800, 'Ambiance': 1900,
+}
+GROUP_SIZE = 100
+# New stations past a full block number from here, clear of every block.
+NUMBER_FLOOR = 2000
 
 
 def base_name(name):
@@ -80,8 +94,8 @@ def aliases_from_lineup(lineup, native):
     for entry in sorted(lineup, key=lambda e: (e.get('number') or '', e['id'])):
         if not entry.get('enabled', True):
             continue
-        own = base_name(entry['name'])
-        names = sorted({base_name(o['channelName']) for o in entry.get('offerings', [])
+        own = key_name(entry['name'], NAMES_VERSION)
+        names = sorted({key_name(o['channelName'], NAMES_VERSION) for o in entry.get('offerings', [])
                         if o.get('providerId') in native and o.get('channelName')})
         for name in names:
             if name == own or not name:
@@ -114,7 +128,7 @@ def legacy_stations(channels, replacements, aliases, offered):
     numbers = {}
     for channel in channels:
         replacement = replacement_of(replacements.get(channel['name']))
-        key = base_name((replacement or {}).get('name') or channel['name'])
+        key = key_name((replacement or {}).get('name') or channel['name'], NAMES_VERSION)
         key = aliases.get(key, key)
         if key in stations:
             print('legacy %r: key %r already taken by another legacy channel, skipped' % (channel['name'], key), file=sys.stderr)
@@ -164,9 +178,11 @@ def generate(providers, lineup, candidates, legacy, replacements, starter, order
     group_map = {k.strip().lower(): v for k, v in starter.get('groupMap', {}).items()}
     return {
         'version': 1,
-        'names': {'version': 1, 'aliases': aliases},
+        'names': {'version': NAMES_VERSION, 'aliases': aliases},
         'providers': provider_entries(native, configured),
         'groups': {'map': group_map, 'default': 'Entertainment'},
+        'numbering': {'floor': NUMBER_FLOOR, 'groups': dict(GROUP_BLOCKS), 'groupSize': GROUP_SIZE},
+        'health': {'requireVerified': True},
         'stations': legacy_stations(legacy.get('channels', []), replacements, aliases, offered),
     }
 

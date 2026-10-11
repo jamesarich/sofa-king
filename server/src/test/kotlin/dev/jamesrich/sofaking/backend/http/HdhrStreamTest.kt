@@ -69,6 +69,26 @@ class HdhrStreamTest {
         dir.toFile().deleteRecursively()
     }
 
+    @Test fun `a source FFmpeg cannot open ends the response cleanly with the process reaped`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-hdhr-missing-")
+        MediaFixture().use { media ->
+            stack(dir, listOf(media.feed), HdhrConfig(tuners = 2)).use { stack ->
+                HttpClient(CIO).use { http ->
+                    val response = withTimeout(60_000) { http.get("${stack.server.base}/auto/v3") }
+                    assertEquals(HttpStatusCode.OK, response.status)
+                    assertEquals(0, response.bodyAsBytes().size)
+                    withTimeout(15_000) { while (stack.runtime.remux.active() > 0 || stack.runtime.sessions.count() > 0 || ffmpegChildren() > 0) delay(50) }
+                    // The tuner is free again for a channel that works.
+                    val head = withTimeout(60_000) {
+                        http.prepareGet("${stack.server.base}/auto/v2").execute { it.bodyAsChannel().readHead(188 * 3) }
+                    }
+                    assertEquals(0x47.toByte(), head[0])
+                }
+            }
+        }
+        dir.toFile().deleteRecursively()
+    }
+
     @Test fun `a second stream beyond the tuner count is refused the HDHomeRun way while the first plays`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-hdhr-tuners-")
         MediaFixture().use { media ->

@@ -19,7 +19,7 @@ class MediaFixture : AutoCloseable {
     private val executor = Executors.newCachedThreadPool()
     private val startedAt = System.nanoTime()
     val base = "http://127.0.0.1:${server.address.port}"
-    /** Channel 1 plays the VOD playlist, channel 2 the live one. */
+    /** Channel 1 plays the VOD playlist, channel 2 the live one, channel 3 a playlist that answers 404. */
     val feed = FeedConfig("media", "$base/feed.m3u", probe = false)
     val segments: Int
     val liveRequests = AtomicInteger()
@@ -33,7 +33,10 @@ class MediaFixture : AutoCloseable {
             val path = exchange.requestURI.path
             val (type, bytes) = when {
                 path == "/feed.m3u" ->
-                    "audio/x-mpegurl" to "#EXTM3U\n#EXTINF:-1 tvg-id=\"vod\" tvg-chno=\"1\",VOD\n$base/vod.m3u8\n#EXTINF:-1 tvg-id=\"live\" tvg-chno=\"2\",Live\n$base/live.m3u8\n".toByteArray()
+                    "audio/x-mpegurl" to (
+                        "#EXTM3U\n#EXTINF:-1 tvg-id=\"vod\" tvg-chno=\"1\",VOD\n$base/vod.m3u8\n#EXTINF:-1 tvg-id=\"live\" tvg-chno=\"2\",Live\n$base/live.m3u8\n" +
+                            "#EXTINF:-1 tvg-id=\"missing\" tvg-chno=\"3\",Missing\n$base/missing.m3u8\n"
+                    ).toByteArray()
                 path == "/vod.m3u8" -> "application/vnd.apple.mpegurl" to Files.readAllBytes(dir.resolve("vod.m3u8"))
                 path == "/live.m3u8" -> { liveRequests.incrementAndGet(); "application/vnd.apple.mpegurl" to livePlaylist().toByteArray() }
                 path.matches(Regex("/seg\\d+\\.ts")) -> "video/mp2t" to Files.readAllBytes(dir.resolve(path.removePrefix("/")))

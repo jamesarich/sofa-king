@@ -39,13 +39,14 @@ class TsRemux(private val ffmpeg: String) {
         val errors = Files.createTempFile("sofa-remux-", ".log")
         val process = ProcessBuilder(command).redirectError(errors.toFile()).start()
         processes += process
-        var clientGone = false
+        // FFmpeg closing its pipe is the source ending; anything else that stops the copy is the client leaving.
+        var ended = false
         try {
             call.response.header(HttpHeaders.CacheControl, "no-store")
             call.respondBytesWriter(contentType = ContentType.parse("video/mp2t")) {
                 coroutineScope {
                     // A blocked pipe read ignores cancellation; killing the process is what unblocks it when the client leaves.
-                    val watchdog = launch { try { awaitCancellation() } finally { clientGone = true; process.destroy() } }
+                    val watchdog = launch { try { awaitCancellation() } finally { process.destroy() } }
                     withContext(Dispatchers.IO) {
                         val input = process.inputStream
                         val buffer = ByteArray(64 * 1024)
@@ -53,14 +54,10 @@ class TsRemux(private val ffmpeg: String) {
                             val read = input.read(buffer)
                             if (read < 0) break
                             if (read == 0) continue
-                            try {
-                                writeFully(buffer, 0, read)
-                                flush()
-                            } catch (e: Exception) {
-                                clientGone = true
-                                throw e
-                            }
+                            writeFully(buffer, 0, read)
+                            flush()
                         }
+                        ended = true
                     }
                     watchdog.cancel()
                 }
@@ -70,7 +67,7 @@ class TsRemux(private val ffmpeg: String) {
                 reap(process)
                 processes -= process
                 val exit = process.exitValue()
-                if (!clientGone && exit != 0) log.warn("remux ended exit={} tail=\"{}\"", exit, tail(errors))
+                if (ended && exit != 0) log.warn("remux ended exit={} tail=\"{}\"", exit, tail(errors))
                 Files.deleteIfExists(errors)
             }
         }

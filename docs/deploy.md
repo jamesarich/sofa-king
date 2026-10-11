@@ -139,6 +139,7 @@ Without the ownership change the server cannot create its database and `/readyz`
 | Compose refuses to start: `required variable SOFA_API_TOKEN is missing` | Create `deploy/.env` from the example and set the token. |
 | Container exits at once; log says `SOFA_API_TOKEN must contain at least 32 characters` | The token is still the placeholder or too short. The same applies to `SOFA_ADMIN_TOKEN`. |
 | Container exits at once; log says `Source configuration references unset variable` | `deploy/sources.json` uses `${NAME}` for a variable that `deploy/.env` does not set. |
+| Container exits at once; log says `Not an IP address or CIDR block` | `SOFA_HDHR_ALLOW` still holds the placeholder or a hostname; list the Plex server's IP, or remove the line to admit the whole LAN. |
 | Container exits at once; log says `java.io.IOException: Is a directory` | `deploy/sources.json` was missing at first start, so Docker created a directory in its place. Remove that directory, copy the example and start again. |
 | Provider shows `IMPORT_FAILED` for a feed on the same host | Use `host.docker.internal` or the LAN address; loopback is refused. |
 | `/api/v1/channels` is empty | The lineup has not been curated yet; see [lineup](live-tv.md#lineup). |

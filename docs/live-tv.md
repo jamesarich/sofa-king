@@ -80,6 +80,8 @@ Guides are parsed as a stream: a 100 MB guide needs no memory for the document, 
 | Channels per guide | 100,000 |
 | Retained programmes per guide | 1,000,000 |
 
+The XMLTV limit counts decompressed bytes as they stream past the parser, so it caps the download without buffering it; it is an order of magnitude above the largest national guides (around 100 MB), and a guide that crosses it fails with `IMPORT_FAILED` and `Guide exceeds size limit` in the log.
+
 ## Lineup
 
 The app sees the lineup and nothing else: `/api/v1/channels`, `/api/v1/guide/query` and `/api/v1/playback-sessions` work on lineup entry IDs. Feed channels that are not in the lineup are candidates for curation.

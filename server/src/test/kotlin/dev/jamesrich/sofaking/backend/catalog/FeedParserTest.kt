@@ -198,6 +198,64 @@ class FeedParserTest {
         assertFails { FeedParser.guide("<html/>") }
     }
 
+    @Test fun `a guide of more than 100 MB streams without being held in memory`() {
+        val head = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv generator-info-name="synthetic"><channel id="kept"><display-name>Kept</display-name></channel><channel id="bulk"><display-name>Bulk</display-name></channel>
+<programme channel="kept" start="20261010080000 +0000" stop="20261010090000 +0000"><title>Kept programme</title></programme>
+"""
+        val programme = """<programme channel="bulk" start="20261010080000 +0000" stop="20261010090000 +0000"><title>Bulk programme title</title><desc>${"x".repeat(400)}</desc></programme>
+"""
+        val repeats = (110L shl 20) / programme.length + 1
+        val input = SyntheticGuideStream(head.toByteArray(), programme.toByteArray(), repeats, "</tv>\n".toByteArray())
+        val parsed = FeedParser.guide(input) { it == "kept" }
+        assertTrue(input.produced > 110L shl 20, "the stream exceeded 110 MiB: ${input.produced}")
+        assertEquals(listOf("kept", "bulk"), parsed.channels.map { it.id })
+        assertEquals("Kept programme", parsed.programmes.single().title)
+    }
+
+    /** Emits head, then [programme] [repeats] times, then tail, without materializing the document. */
+    private class SyntheticGuideStream(
+        private val head: ByteArray,
+        private val programme: ByteArray,
+        private val repeats: Long,
+        private val tail: ByteArray,
+    ) : java.io.InputStream() {
+        var produced = 0L
+        private var phase = 0
+        private var remaining = repeats
+        private var offset = 0
+
+        private fun current(): ByteArray? = when (phase) { 0 -> head; 1 -> programme; 2 -> tail; else -> null }
+
+        private fun advance() {
+            offset = 0
+            when (phase) {
+                0 -> phase = 1
+                1 -> if (--remaining <= 0) phase = 2
+                2 -> phase = 3
+            }
+        }
+
+        override fun read(): Int {
+            val chunk = current() ?: return -1
+            val byte = chunk[offset++].toInt() and 0xff
+            produced++
+            if (offset == chunk.size) advance()
+            return byte
+        }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int {
+            val chunk = current() ?: return -1
+            val count = minOf(len, chunk.size - offset)
+            System.arraycopy(chunk, offset, b, off, count)
+            offset += count
+            produced += count
+            if (offset == chunk.size) advance()
+            return count
+        }
+    }
+
     @Test fun `invalid calendar dates are discarded instead of normalized`() {
         val invalid = """<tv>
             <programme channel="station" start="20260230080000 +0000" stop="20260230090000 +0000">

@@ -56,7 +56,7 @@ A rule is `{"id", "kind", "position", "enabled", "match": {...}, "set": {...}, "
 | `equivalent` | `entryId` (the target), `name` (candidate name), `providerId` | none |
 | `adopt` | `providerId`, `group`, `groupPattern`, `namePattern`, `tvgId` | `enabled` (default false), `group` |
 
-Regexes are Java patterns matched case-insensitively against the whole value with `find`. A `group` rule needs one match field and `set.group`; an `alias` rule needs two different existing entries.
+Regexes are Java patterns matched case-insensitively against the whole value with `find`. A `group` rule needs one match field and `set.group`; an `alias` rule needs two different existing entries. An `equivalent` rule attaches every matching candidate to its entry, also one another entry already carries, so two entries can share a source; evidence without a rule only takes candidates no entry carries.
 
 ## The pass
 

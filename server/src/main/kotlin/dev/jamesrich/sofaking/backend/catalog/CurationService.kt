@@ -423,6 +423,17 @@ class CurationService(
             }
         }
 
+        // Equivalent rules are the household's own evidence, so a candidate another entry already carries is shared, not refused.
+        for (compiled in equivalentRules) {
+            val target = byId[compiled.rule.match.entryId!!] ?: continue
+            if (target.id in aliasOf) continue
+            for (channel in feeds.channels(compiled.rule.match.providerId)) {
+                val provider = feeds.providerOf(channel.id)
+                if (!compiled.matches(provider, channel.tags.firstOrNull(), channel.name, channel.legacyGuideId)) continue
+                attach(target, feeds.offeringsOf(channel.id).map { it.id }, "equivalent of ${channel.name} from $provider: name, by rule", compiled.id)
+            }
+        }
+
         // Equivalents: an unreferenced candidate joins the one entry it is evidently the same station as.
         val referenced = c.entries.flatMapTo(HashSet()) { it.offeringIds }
         val aliased = aliasOf.keys + c.entries.filter { !it.enabled && it.autoDisabledReason == "alias" }.map { it.id }

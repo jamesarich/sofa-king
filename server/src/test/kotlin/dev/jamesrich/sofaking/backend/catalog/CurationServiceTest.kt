@@ -132,6 +132,21 @@ class CurationServiceTest {
         assertTrue(tied.findings.any { "Twin Sports (twin) matches 2 entries" in it })
     }
 
+    @Test fun `an equivalent rule shares a candidate another entry already carries`() = rig({ listOf(it.twinFeed) }) { r ->
+        r.curation.updateSettings(CurationSettings(enabled = true))
+        val sports = r.channel("twin", "Twin Sports")
+        val holder = r.lineup.create(CreateLineupEntry(channelId = sports.id))
+        val other = r.lineup.create(CreateLineupEntry(number = "60", name = "Sports Too", offerings = emptyList()))
+        r.lineup.update(other.id, UpdateLineupEntry(unpin = listOf("offerings")))
+        assertTrue(r.curation.run().actions.none { it.kind == "attach" }, "without a rule a carried candidate stays where it is")
+        r.curation.createRule(CurationRule("share", "equivalent", match = RuleMatch(entryId = other.id, name = "Twin Sports", providerId = "twin")))
+        val shared = r.curation.run().actions.single { it.kind == "attach" }
+        assertEquals(other.id, shared.entryId); assertEquals("share", shared.ruleId)
+        assertEquals(listOf(r.sourceOf(sports)), r.entry(other.id).offeringIds)
+        assertEquals(listOf(r.sourceOf(sports)), r.entry(holder.id).offeringIds, "the holder keeps it")
+        assertTrue(r.curation.run().actions.isEmpty())
+    }
+
     @Test fun `adopt rules create disabled entries numbered by the policy and never adopt a candidate twice`() = rig({ listOf(it.tsFeed, it.twinFeed) }) { r ->
         r.curation.updateSettings(CurationSettings(enabled = true, numberFloor = 100))
         r.curation.createRule(CurationRule("sports", "group", match = RuleMatch(namePattern = "sport|espn"), set = RuleSet(group = "Sports")))

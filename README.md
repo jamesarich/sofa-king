@@ -83,4 +83,5 @@ The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contain
 - The restream-proxy 502 rule (`SOFA_RESTREAM_ORIGINS`), the MPEG-TS keepalive relay and the Dispatcharr export script are verified against local fixtures and the Dispatcharr source models, not against the household's Dispatcharr container, provider feeds or the Android client.
 - A relay reconnect attempt already in progress finishes before the 30-second grace period is enforced, so a dead source can hold its sessions for up to one connect timeout longer.
 - The probe's protocol detection and its persistence are verified against local fixtures, not against the Dispatcharr feed.
+- The URL-keyed source identity rules and the Dispatcharr stream matcher are verified against sanitized fixtures and one read-only import of the FastChannels playlist, not against the masqueradarr playlist or the household's Dispatcharr export.
 - The Docker image and compose stack are verified on a development host against a local fixture feed, not on OMV or with the Android client.

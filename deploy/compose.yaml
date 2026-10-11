@@ -9,7 +9,10 @@ services:
     container_name: sofa-king-backend
     restart: unless-stopped
     ports:
-      - "9193:8080"
+      - "8080:8080"
+      # One more HDHomeRun device per port listed in SOFA_HDHR_EXTRA_PORTS, see docs/live-tv.md#several-devices-for-a-large-lineup.
+      # - "8081:8081"
+      # - "8082:8082"
     env_file: .env
     environment:
       SOFA_API_TOKEN: ${SOFA_API_TOKEN:?set SOFA_API_TOKEN in deploy/.env}
@@ -18,7 +21,7 @@ services:
       - sofa-data:/data
       - ./sources.json:/config/sources.json:ro
     extra_hosts:
-      # Lets sources.json reach a feed served by this same host as http://host.docker.internal:PORT/...
+      # Lets sources.json reach a feed served by this Docker host as http://host.docker.internal:PORT/...
       - "host.docker.internal:host-gateway"
     stop_grace_period: 20s
 

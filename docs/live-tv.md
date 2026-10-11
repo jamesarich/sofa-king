@@ -143,19 +143,34 @@ Verified against local fixtures with FFmpeg as the client (it follows the HLS re
 
 ## Plex Live TV
 
-Plex Live TV & DVR takes an HDHomeRun tuner and an XMLTV guide. The server emulates the tuner at the root of its port ([API detail](api.md#hdhomerun-emulation)) and the guide is the [player output](#third-party-players) XMLTV, so Plex needs `SOFA_OUTPUT_TOKEN` for the guide URL and nothing for the tuner.
+Plex Live TV & DVR takes an HDHomeRun tuner and an XMLTV guide. The server emulates the tuner at the root of its port ([API detail](api.md#hdhomerun-emulation)). The guide is the [player output](#third-party-players) XMLTV, so Plex needs `SOFA_OUTPUT_TOKEN` for the guide URL and no token for the tuner.
 
-The tuner routes carry no token: anyone who can reach the port can list the lineup and watch through `/auto/vNUMBER`. Keep the port on the LAN and set `SOFA_HDHR_ALLOW` to the Plex server's address. Behind Docker on Linux, a published port keeps the client address with the default iptables setup; where Docker's userland proxy handles the port the server sees the Docker gateway address instead, and the allow-list must name that. Set `SOFA_HDHR_ENABLED=false` when nothing uses Plex.
+The tuner routes carry no token: anyone who can reach the port can list the lineup and watch through `/auto/vNUMBER`. Keep the port on the LAN and set `SOFA_HDHR_ALLOW` to the Plex server's address. Behind Docker on Linux, a published port keeps the client address with the default iptables setup. Where Docker's userland proxy handles the port, the server sees the Docker gateway address instead, and the allow-list must name that address. Set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 
-1. Set `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` (and `SOFA_HDHR_TUNERS` to the number of simultaneous Plex streams and recordings, within `SOFA_MAX_SESSIONS`), restart, and check `curl --fail http://SERVER_HOST:PORT/discover.json` from the Plex host.
-2. In Plex Web: Settings → Live TV & DVR → Set Up Plex DVR (or "Add device" with a DVR already configured). Plex looks for tuners by SSDP broadcast, which this server does not answer, so choose "Don't see your HDHomeRun device? Enter its network address manually" and enter `SERVER_HOST:PORT` (`OMV_HOST:9193` with the compose stack). Plex reads `/discover.json` and `/lineup.json` and lists the device by `SOFA_HDHR_NAME` with the tuner count.
-3. Plex shows the channels from `/lineup.json`; continue. At the guide step choose "Have an XMLTV guide on your server? Click here to use that instead" and enter `http://SERVER_HOST:PORT/output/guide.xml?token=OUTPUT_TOKEN`. Plex fetches it itself and refreshes it on its own schedule; keep `SOFA_XMLTV_DAYS` at 3 or more so a daily refresh never runs dry.
-4. Map channels. The XMLTV lists each channel's name and number as display names and the lineup carries the same name and number, so Plex pairs most of them; pick the rest from the dropdowns. Finish. Plex saves a device's whole channel map in one request URL and answers "There was a problem saving channel mappings" when it is too long; around 900 channels is too many. Split the lineup with `SOFA_HDHR_EXTRA_PORTS` (publish each port), then add each device to the DVR with `SERVER_HOST:PORT` and the same XMLTV URL.
-5. Play a channel in Plex. Plex opens `/auto/vNUMBER`: an MPEG-TS source streams through the fan-out, an HLS source is remuxed to MPEG-TS by FFmpeg with stream copy, so CEA-608 captions inside the video reach Plex's caption setting. A busy tuner (every tuner or session slot taken) shows in Plex as "all tuners are in use".
+1. Set `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` and `SOFA_HDHR_TUNERS` to the number of simultaneous Plex streams and recordings, at most `SOFA_MAX_SESSIONS`. Restart, then check from the Plex host with `curl --fail http://SERVER_HOST:8080/discover.json`.
+2. In Plex Web, open Settings, then Live TV & DVR, then Set Up Plex DVR. The server does not answer SSDP discovery, so choose "Don't see your HDHomeRun device? Enter its network address manually" and enter `SERVER_HOST:8080`. Plex reads `/discover.json` and `/lineup.json` and lists the device by `SOFA_HDHR_NAME` with its tuner count.
+3. Plex shows the channels from `/lineup.json`. At the guide step, choose "Have an XMLTV guide on your server?" and enter `http://SERVER_HOST:8080/output/guide.xml?token=OUTPUT_TOKEN`. Plex fetches the guide on its own schedule. Keep `SOFA_XMLTV_DAYS` at 3 or more so a daily refresh never runs out of programmes.
+4. Map the channels. The XMLTV lists each channel's name and number as display names, and the lineup carries the same values, so Plex pairs most of them. Choose the rest from the dropdowns. Plex saves a device's channel map in one request, and a very large map on one device fails with "There was a problem saving channel mappings". Split a large lineup across devices, as described below.
+5. Play a channel. Plex opens `/auto/vNUMBER`. An MPEG-TS source streams through the fan-out. An HLS source is remuxed to MPEG-TS by FFmpeg with stream copy, so CEA-608 captions inside the video reach Plex's caption setting. When every tuner or session slot is taken, Plex reports "all tuners are in use".
 
-After a lineup change (a new channel, a renumbering) open Settings → Live TV & DVR → the DVR → "Scan channels" in Plex, so it re-reads `/lineup.json`; the server answers the scan request at once with the curated lineup. Renumbering changes the stream URL, so Plex needs that re-scan before the channel plays again.
+After a lineup change, a new channel or a renumbering, run "Scan channels" for the DVR in Plex so it re-reads `/lineup.json`. Renumbering changes the stream URL, so Plex must re-scan before the channel plays again.
 
-Verified against local fixtures: the Ktor client and FFmpeg read the HDHomeRun routes and a live HLS fixture remuxed to MPEG-TS, and the FFmpeg process is gone after the client hangs up. A Plex server is not verified.
+### Several devices for a large lineup
+
+`SOFA_HDHR_EXTRA_PORTS` lists further ports the server listens on, up to seven. Each port is one more HDHomeRun device, named `SOFA_HDHR_NAME 2`, `SOFA_HDHR_NAME 3` and so on, and each carries its share of the lineup.
+
+- The lineup is split by a stable hash of each entry's ID, so a channel stays on its device when other channels change. Changing the number of ports reassigns channels across the devices.
+- Each device has its own `SOFA_HDHR_TUNERS` tuners. All devices share `SOFA_MAX_SESSIONS`, so the total number of concurrent streams is still capped by it.
+- Publish every extra port in `deploy/compose.yaml`, then restart after changing the list.
+- Add each device to the same DVR, with `SERVER_HOST:PORT` for its port and the same XMLTV guide URL.
+
+For two extra devices:
+
+```text
+SOFA_HDHR_EXTRA_PORTS=8081,8082
+```
+
+The extra ports must differ from `SOFA_PORT`, and they are opened only when `SOFA_HDHR_ENABLED` is `true`.
 
 ## LAN access
 

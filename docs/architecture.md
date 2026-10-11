@@ -6,7 +6,7 @@ One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provid
 
 | Module | Contents |
 | --- | --- |
-| `api-contract` | Serializable request/response models, including the admin, curation and Dispatcharr export models, JVM 17 |
+| `api-contract` | Serializable request/response models, including the admin, curation and lineup import models, JVM 17 |
 | `client` | Ktor client and playback lease handles, JVM 17 |
 | `server` | Ktor Netty server, imports, SQLite storage, lineup, source probes, media relay, player outputs and HDHomeRun emulation, JVM 21 |
 
@@ -18,7 +18,7 @@ Service API → ProviderClient (providers/) → ProviderRegistry (svc:// offerin
 XMLTV (gzip ok) → FeedParser.guide (streaming) → SQLite guide tables → GuideService
 Service guide API → ProviderClient.guide → SQLite guide tables → GuideService
 svc:// offering → FeedService.playable → ProviderRegistry.resolve (cached until expiry) → MediaRelay / ProbeWorker / TsRemux
-Admin API / Dispatcharr import → LineupService → SQLite lineup tables
+Admin API (including the lineup import) → LineupService → SQLite lineup tables
 FeedService + GuideService + LineupService → CatalogService → JSON API
 Lineup entry → SessionManager (ordered offerings by health) → MediaRelay → HLS/MPEG-TS player
 Lineup + GuideService → /output M3U + XMLTV → third-party player → /output/stream → SessionManager (external session) → MediaRelay
@@ -38,9 +38,9 @@ An offering's protocol is the one detected in its stream body, by the probe's HT
 
 ## Identity
 
-The app's channel ID is the lineup entry UUID. Entries created from a Dispatcharr export keep Dispatcharr's channel uuid; others get a random UUID. Entries persist independently of feeds: a withdrawn source leaves the entry in place and is skipped for playback.
+The app's channel ID is the lineup entry UUID. Entries imported from a Dispatcharr export keep its channel UUID; others get a random UUID. Entries persist independently of feeds: a withdrawn source leaves the entry in place and is skipped for playback.
 
-Feed channel IDs (candidates) use published `channel-uuid` values, otherwise a UUID derived from the provider ID and the exact `channel-id` or `tvg-id`, otherwise from the provider ID and the source key. The source key is the URL's lowercase scheme and authority, its percent-decoded path and its remaining query parameters sorted, after the provider's renewable parameters are dropped (`SourceIdentity.kt`; the default list and the `renewableQuery` override are in [live TV](live-tv.md#source-identity)). Source IDs use explicit `stream-id` values when supplied, otherwise derive from provider, channel key and source key, so a rotated token changes neither ID and two URLs that differ only by a renewable parameter are one source. The Dispatcharr import matches streams by the same source key, falling back to a lone `scheme://authority/path` match.
+Feed channel IDs (candidates) use published `channel-uuid` values, otherwise a UUID derived from the provider ID and the exact `channel-id` or `tvg-id`, otherwise from the provider ID and the source key. The source key is the URL's lowercase scheme and authority, its percent-decoded path and its remaining query parameters sorted, after the provider's renewable parameters are dropped (`SourceIdentity.kt`; the default list and the `renewableQuery` override are in [live TV](live-tv.md#source-identity)). Source IDs use explicit `stream-id` values when supplied, otherwise derive from provider, channel key and source key, so a rotated token changes neither ID and two URLs that differ only by a renewable parameter are one source. The Dispatcharr import matches streams by the same source key, falling back to a lone `scheme://authority/path` match. See [migrate from Dispatcharr](migrate-from-dispatcharr.md).
 
 Guide programmes belong to a guide ID and XMLTV channel ID; an entry's `legacyGuideId` is its mapped XMLTV channel ID. Programme IDs in the API derive from the entry ID, times and title.
 
@@ -88,4 +88,4 @@ Logs are key=value lines: provider imports (counts, skipped entries, duration, f
 
 On SIGTERM the shutdown hook stops the HTTP server, closes the runtime (imports, probes, relay upstreams and sessions) and then the store, in that order, and logs each step.
 
-The Android app currently uses its separate M3U/XMLTV adapter. [API usage](api.md) and [source-health behavior](source-health.md) describe the server interface.
+[API usage](api.md) and [source-health behavior](source-health.md) describe the server interface.

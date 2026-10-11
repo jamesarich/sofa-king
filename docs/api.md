@@ -1,6 +1,6 @@
 # API
 
-The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_API_TOKEN` is configured, send `Authorization: Bearer TOKEN` on API requests. Routes under `/api/v1/admin` take `SOFA_ADMIN_TOKEN` instead when one is configured.
+The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_API_TOKEN` is configured, send `Authorization: Bearer $TOKEN` on API requests. Routes under `/api/v1/admin` take `SOFA_ADMIN_TOKEN` instead when one is configured, sent as `Authorization: Bearer $ADMIN_TOKEN`. The examples assume these shell variables hold the tokens, and they omit the header when no token is configured. The token model is in [security](../SECURITY.md#credentials-and-the-routes-they-open).
 
 ## Endpoints
 
@@ -38,7 +38,7 @@ Each provider status reports `lastSuccessAt`, `errorCode` (`IMPORT_FAILED` when 
 Replace `CHANNEL_UUID` with a catalog ID. Set `FROM_UTC` and `TO_UTC` to ISO 8601 UTC timestamps (`YYYY-MM-DDTHH:MM:SSZ`):
 
 ```sh
-curl --fail http://127.0.0.1:8080/api/v1/guide/query \
+curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/guide/query \
   -H 'Content-Type: application/json' \
   --data '{
     "channelIds": ["CHANNEL_UUID"],
@@ -47,7 +47,7 @@ curl --fail http://127.0.0.1:8080/api/v1/guide/query \
   }'
 ```
 
-Request 1–200 distinct channels and a positive window of at most 24 hours. Programs overlap when `startsAt < to && endsAt > from`. A disabled or unknown entry answers `404 CHANNEL_NOT_FOUND`.
+Request 1-200 distinct channels and a positive window of at most 24 hours. Programs overlap when `startsAt < to && endsAt > from`. A disabled or unknown entry answers `404 CHANNEL_NOT_FOUND`.
 
 To page through a consistent guide, pass the returned `revision` in subsequent requests. A changed revision (any guide re-imported, or the lineup changed) returns `409 RESYNC_REQUIRED`; query again without the old revision.
 
@@ -56,7 +56,7 @@ To page through a consistent guide, pass the returned `revision` in subsequent r
 Create a session with a catalog channel ID and a unique idempotency key:
 
 ```sh
-curl --fail http://127.0.0.1:8080/api/v1/playback-sessions \
+curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/playback-sessions \
   -H 'Content-Type: application/json' \
   --data '{
     "channelId": "CHANNEL_UUID",
@@ -73,6 +73,7 @@ A watch session expires 90 seconds after its last renewal, a preview after 45 se
 
 ```sh
 curl --fail -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
   http://127.0.0.1:8080/api/v1/playback-sessions/SESSION_ID \
   -H 'Content-Type: application/json' \
   --data '{"intent":"watch"}'
@@ -84,6 +85,7 @@ Release the session when playback ends:
 
 ```sh
 curl --fail -X DELETE \
+  -H "Authorization: Bearer $TOKEN" \
   http://127.0.0.1:8080/api/v1/playback-sessions/SESSION_ID
 ```
 
@@ -91,7 +93,7 @@ Release is idempotent and cancels active upstream requests. Repeating an open re
 
 ## Player outputs
 
-`/output/*` serves the lineup to players that only speak HTTP (TiviMate, VLC). They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer; the API token is accepted as a bearer only, never in a query. With neither token configured (a loopback development server) the routes are open. A URL token lands in player configuration, screenshots and any proxy log between the player and the server, which is why it is a separate token that opens nothing but these routes; this server never logs request URLs. Rotate it by changing the variable and re-adding the playlist in each player. Without `SOFA_OUTPUT_TOKEN` the routes answer `401 AUTH_REQUIRED` to anything but the API bearer.
+`/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer; the API token is accepted as a bearer only, never in a query. With neither token configured (a loopback development server) the routes are open. A URL token lands in player configuration, screenshots and any proxy log between the player and the server, which is why it is a separate token that opens nothing but these routes; this server never logs request URLs. Rotate it by changing the variable and re-adding the playlist in each player. Without `SOFA_OUTPUT_TOKEN` the routes answer `401 AUTH_REQUIRED` to anything but the API bearer.
 
 `GET /output/playlist.m3u` lists the enabled lineup in order, `audio/x-mpegurl`:
 
@@ -103,7 +105,7 @@ http://HOST/output/stream/CHANNEL_UUID.m3u8?token=TOKEN
 
 `tvg-id` is the channel ID, the same value the XMLTV uses, so players match guide and channel without a name lookup. `HOST` is the `Host` header of the request, so the URLs work through a port mapping; `X-Forwarded-Proto: https` switches the scheme. The stream suffix follows the protocol of the source the channel would play now: `.m3u8` for HLS, `.ts` for MPEG-TS and for a channel without an eligible source, which lists but fails at play time. After a source's protocol is detected (a probe or a fetch), the suffix changes on the player's next playlist refresh.
 
-`GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3; `?days=1`–`14` overrides). Times are `YYYYMMDDHHMMSS +0000`. Only channels with a guide mapping have programmes. The body is streamed and uncompressed.
+`GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3; `?days=1`-`14` overrides). Times are `YYYYMMDDHHMMSS +0000`. Only channels with a guide mapping have programmes. The body is streamed and uncompressed.
 
 `tvg-logo` and `<icon>` name the channel's logo at `http://HOST/logos/KEY`, never the feed's own logo host.
 
@@ -117,7 +119,7 @@ The server fetches each source once, in the background after an import or lineup
 
 A cached logo answers `200` with its type, `ETag` (the content hash; `If-None-Match` answers `304`), `Cache-Control: public, max-age=86400` and `X-Content-Type-Options: nosniff`. An unknown key, a refused source or a source that has never answered an image answers `404 RESOURCE_NOT_FOUND`; the listing keeps the URL, the player shows its placeholder, and the server tries the source again an hour later. A logo is refreshed a week after its last fetch, on the next request or sweep; a refresh that fails keeps the stored file. A changed source URL is a new key, so the outputs switch at once and the old file is deleted by the next sweep, like every logo the lineup no longer names.
 
-The admin API (`/api/v1/admin/lineup`, `/api/v1/admin/candidates`) keeps the source URLs, which is what the household edits.
+The admin API (`/api/v1/admin/lineup`, `/api/v1/admin/candidates`) keeps the source URLs, which admins edit.
 
 ## HDHomeRun emulation
 
@@ -140,7 +142,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 
 | Method | Path | Response or action |
 | --- | --- | --- |
-| GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Feed channels with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1–1000 (default 100) |
+| GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Feed channels with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100) |
 | GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`. An empty list means nothing is playing |
 | GET | `/api/v1/admin/guides` | Guide import status: `lastSuccessAt`, `errorCode`, `channels`, retained `programmes` |
 | GET | `/api/v1/admin/guides/{id}/channels?q=&limit=` | XMLTV channels of a guide (`channelId`, `displayName`, `icon`) |
@@ -151,21 +153,21 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | DELETE | `/api/v1/admin/lineup/{id}` | Remove an entry; returns 204 |
 | PUT | `/api/v1/admin/lineup/order` | Reorder: `{"ids": [...]}` listing every entry once; returns the lineup |
 | POST | `/api/v1/admin/lineup/adopt` | `{"providerId": "...", "enabled": true}` adds every channel of the provider whose sources no entry uses; returns `added` and `skipped` |
-| POST | `/api/v1/admin/lineup/import` | Dispatcharr import, see below |
+| POST | `/api/v1/admin/lineup/import` | Import a Dispatcharr export, see [migrate from Dispatcharr](migrate-from-dispatcharr.md#import-api) |
 | GET, PUT | `/api/v1/admin/curation/settings` | Curation settings, see [curation](#curation) |
 | GET, POST | `/api/v1/admin/curation/rules` | List rules; create one (201) |
 | PUT, DELETE | `/api/v1/admin/curation/rules/{id}` | Replace or remove a rule (204) |
-| POST | `/api/v1/admin/curation/import` | Create rules from the pipeline's data files |
+| POST | `/api/v1/admin/curation/import` | Create rules from a pipeline's data files, see [migrate from Dispatcharr](migrate-from-dispatcharr.md#pipeline-data-import) |
 | GET | `/api/v1/admin/curation/preview` | The plan a run would apply now, applying nothing |
 | POST | `/api/v1/admin/curation/run` | Apply a plan now, whether or not automation is enabled; returns what was applied |
-| GET | `/api/v1/admin/curation/changes?limit=` | Applied actions, newest first; `limit` 1–1000 (default 100) |
+| GET | `/api/v1/admin/curation/changes?limit=` | Applied actions, newest first; `limit` 1-1000 (default 100) |
 
-An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `pinned` (the fields the household set, which [curation](curation.md#pins) never changes), `createdBy` (`manual`, `import` or `rule:ID`) and, while curation rather than the household holds the entry disabled, `autoDisabledAt` and `autoDisabledReason` (`unavailable` or `alias`).
+An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `pinned` (the fields an admin set, which [curation](curation.md#pins) never changes), `createdBy` (`manual`, `import` or `rule:ID`) and, while curation rather than the household holds the entry disabled, `autoDisabledAt` and `autoDisabledReason` (`unavailable` or `alias`).
 
 Create from a feed candidate, copying its number, name, logo, group, sources and (when its `tvg-id` is listed by a configured guide) guide mapping:
 
 ```sh
-curl --fail http://127.0.0.1:8080/api/v1/admin/lineup \
+curl --fail -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/v1/admin/lineup \
   -H 'Content-Type: application/json' \
   --data '{"channelId": "FEED_CHANNEL_ID"}'
 ```
@@ -175,40 +177,40 @@ Any field in the body overrides the copied value and is pinned: `id` (a UUID), `
 Update fields with `PATCH`; absent fields keep their value, `clearGroup`, `clearLogo` and `clearGuide` remove optional values, `position` moves the entry. Every field sent or cleared is pinned; `pin` and `unpin` lists change pins alone (`{"unpin": ["group"]}` lets curation manage the group again). Sending `enabled` either way makes the flag the household's: curation stops tracking a disable of its own.
 
 ```sh
-curl --fail -X PATCH http://127.0.0.1:8080/api/v1/admin/lineup/ENTRY_ID \
+curl --fail -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/v1/admin/lineup/ENTRY_ID \
   -H 'Content-Type: application/json' \
   --data '{"number": "501", "offerings": ["SOURCE_ID", "FALLBACK_SOURCE_ID"], "guide": {"guideId": "gracenote", "channelId": "XMLTV_ID"}}'
 ```
 
-Validation: `number` 1–32 characters without spaces, `name` 1–256, `group` 1–128, `logo` an HTTP(S) URL, at most 64 sources per entry, every source ID known to a configured feed, `guideId` a configured guide. An active session keeps its current source until that source stops being selectable or the session ends.
+Validation: `number` 1-32 characters without spaces, `name` 1-256, `group` 1-128, `logo` an HTTP(S) URL, at most 64 sources per entry, every source ID known to a configured feed, `guideId` a configured guide. An active session keeps its current source until that source stops being selectable or the session ends.
 
 ### Curation
 
-The rules and settings that keep the lineup curated without Dispatcharr; what each one does is in [curation](curation.md). Every request takes the admin token.
+The rules and settings that keep the lineup curated; what each one does is in [curation](curation.md). Every request takes the admin token.
 
 `GET /api/v1/admin/curation/settings` returns the settings and `PUT` replaces them; absent fields take their defaults:
 
 ```json
 {
   "enabled": false, "intervalSeconds": 900, "disableAfterHours": 24, "enableOn": "healthy",
-  "equivalentEvidence": "name-and-guide", "numberFloor": 1000, "retiredLogoHosts": ["192.168.1.3:9192"], "defaultGroup": null,
-  "retiredGuides": ["fastchannels"]
+  "equivalentEvidence": "name-and-guide", "numberFloor": 1000, "retiredLogoHosts": ["logos.example.com:9192"], "defaultGroup": null,
+  "retiredGuides": ["old-guide"]
 }
 ```
 
-Validation: `intervalSeconds` 60–86400, `disableAfterHours` 1–720, `enableOn` `healthy` or `eligible`, `equivalentEvidence` `name-and-guide` or `name`, `numberFloor` 1–999999, each retired host `host` or `host:port` (lowercased), `defaultGroup` 1–128 characters. A change triggers a run.
+Validation: `intervalSeconds` 60-86400, `disableAfterHours` 1-720, `enableOn` `healthy` or `eligible`, `equivalentEvidence` `name-and-guide` or `name`, `numberFloor` 1-999999, each retired host `host` or `host:port` (lowercased), `defaultGroup` 1-128 characters. A change triggers a run.
 
 A rule is `{"id", "kind", "position", "enabled", "match", "set", "note"}`; `POST` generates `id` when it is absent and answers `409 RULE_EXISTS` for a taken one, `PUT /rules/{id}` replaces the rule with that id (`404 RULE_NOT_FOUND`), and the list is in position order. `match` takes `providerId`, `group`, `groupPattern`, `name`, `namePattern`, `tvgId` and `entryId`; `set` takes `group`, `name`, `logo`, `enabled` and `canonicalEntryId`. Which fields a kind needs is in [rules](curation.md#rules); a rule that lacks them, names an unknown provider or entry, or carries a pattern that does not compile answers `400 INVALID_REQUEST`.
 
 ```sh
-curl --fail http://127.0.0.1:8080/api/v1/admin/curation/rules \
+curl --fail -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/v1/admin/curation/rules \
   -H 'Content-Type: application/json' \
   --data '{"kind": "group", "match": {"group": "US: Sports"}, "set": {"group": "Sports"}}'
 ```
 
 `GET /api/v1/admin/curation/preview` answers the plan: `generatedAt`, `enabled` (whether a run would apply it), `actions`, `counts` by kind and `findings`. An action has `kind` (`regroup`, `rename`, `relogo`, `clear-logo`, `remap-guide`, `attach`, `disable`, `enable`, `adopt`), `entryId`, `entryName`, `field`, `before`, `after`, `reason`, `ruleId` and, for `attach`, `offeringIds`. `POST /api/v1/admin/curation/run` applies a plan now and answers the same shape with `enabled` true and `actions` reduced to what was applied; an action whose entry changed under it (a field pinned since, a value no longer the one planned) is left out. `GET /api/v1/admin/curation/changes` lists applied actions as `{"id", "appliedAt", "action"}`, newest first; the server keeps the newest 10,000.
 
-`POST /api/v1/admin/curation/import` takes up to 4 MiB with any of `groupMap`, `aliases`, `equivalents`, `sportsCorrections`, `corrections` and `dryRun` ([shapes](curation.md#import-the-pipelines-data)); fields the rules do not use are ignored. The report has `dryRun`, `created`, `updated`, `existing`, `skipped` and `items`, each `{"source", "item", "outcome", "ruleId", "reason"}` with `outcome` `created`, `updated`, `exists`, `skipped` or `applied-by-import`.
+`POST /api/v1/admin/curation/import` takes up to 4 MiB with any of `groupMap`, `aliases`, `equivalents`, `sportsCorrections`, `corrections` and `dryRun` ([shapes](migrate-from-dispatcharr.md#pipeline-data-import)); fields the rules do not use are ignored. The report has `dryRun`, `created`, `updated`, `existing`, `skipped` and `items`, each `{"source", "item", "outcome", "ruleId", "reason"}` with `outcome` `created`, `updated`, `exists`, `skipped` or `applied-by-import`.
 
 ## Kotlin client
 

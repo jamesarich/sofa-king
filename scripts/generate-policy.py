@@ -9,7 +9,8 @@
 Reads `GET /api/v1/providers`, `GET /api/v1/admin/lineup` and `GET /api/v1/admin/candidates` (paged). Writes:
 
 - `providers`: the native order given by --providers, keeping only providers the server has; `localnow` is
-  split into an enabled `My City` entry and a disabled `More Cities` entry, and `vizio` excludes `Local channels`.
+  split into an enabled `My City` entry, a disabled `More Cities` entry and an entry for the rest of its channels,
+  and `vizio` excludes `Local channels`.
 - `groups.map` from the starter file's `groupMap`, with `Entertainment` as the default.
 - `names.aliases`: for every enabled lineup entry whose native sources carry other base names than the entry's
   own, each other base name aliased to the entry's. Every alias is printed for review.
@@ -60,6 +61,7 @@ def provider_entries(order, configured):
         if provider == 'localnow':
             entries.append({'id': 'localnow', 'include': {'groups': ['My City']}})
             entries.append({'id': 'localnow', 'include': {'groups': ['More Cities']}, 'enabled': False})
+            entries.append({'id': 'localnow'})
         elif provider == 'vizio':
             entries.append({'id': 'vizio', 'exclude': {'groups': ['Local channels']}})
         else:

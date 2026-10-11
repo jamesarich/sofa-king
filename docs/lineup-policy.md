@@ -71,11 +71,12 @@ Each entry is `{"id": "...", "include": FILTER, "exclude": FILTER, "enabled": tr
 "providers": [
   { "id": "localnow", "include": { "groups": ["My City"] } },
   { "id": "localnow", "include": { "groups": ["More Cities"] }, "enabled": false },
+  { "id": "localnow" },
   { "id": "vizio", "exclude": { "groups": ["Local channels"] } }
 ]
 ```
 
-A provider with no entry contributes only through pins.
+A provider's narrow entries take the channels they match; end with a plain entry for the rest, or those channels match nothing. A provider with no entry contributes only through pins.
 
 ### Station overrides
 

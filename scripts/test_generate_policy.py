@@ -46,6 +46,7 @@ class GenerateTest(unittest.TestCase):
             {'id': 'whale'}, {'id': 'samsung'}, {'id': 'vizio', 'exclude': {'groups': ['Local channels']}},
             {'id': 'localnow', 'include': {'groups': ['My City']}},
             {'id': 'localnow', 'include': {'groups': ['More Cities']}, 'enabled': False},
+            {'id': 'localnow'},
         ], policy['providers'])
         self.assertEqual({'bbc news north america': 'bbc news', 'espn 8 the ocho': 'espn8 the ocho'}, policy['names']['aliases'],
                          'native spellings only; a disabled entry and an aggregator source add nothing')

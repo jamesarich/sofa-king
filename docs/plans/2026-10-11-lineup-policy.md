@@ -109,7 +109,7 @@ Feeds and native providers, guides, health and probes, sessions and relay, outpu
 1. **Generate** a policy from today's database:
    - native providers in today's priority order, the starter group map;
    - `aliases` from every enabled entry whose sources carry more than one key (BBC News / BBC News North America, Cheddar / Cheddar News, ESPN8 / ESPN 8, TheGrio / The Grio, Ion / Ion USA, the Tennis Channel 2 spellings, and the rest), each checked by hand;
-   - for each of the 38 legacy-only channels, a `required` station keyed by the computed key of its actual sources, with `sources` pins by provider and `tvg-id`, and its number, name and group as overrides. Fox Sports 1 and Fox Sports 2 carry the same five sources today; they become one decision before generation, not two overrides on one key.
+   - for each of the 38 legacy-only channels, a `required` station keyed by the computed key of its actual sources, with `sources` pins by provider and `tvg-id`, and its number, name and group as overrides. Fox Sports 1 and Fox Sports 2 carry the same five sources today, all the free FAST "FOX Sports" channel. Decided: FS1 and FS2 become the real networks, pinned to masqueradarr `Fox Sports 1 USA` (`tvg-id` 82547) and `Fox Sports 2 USA` (59305), required, numbers 227 and 228; the FAST "FOX Sports" channel comes from the native services like any other station.
 2. **Preview** on a copy of the database with the generated policy. The cutover fails unless:
    - every one of the 38 maps to exactly one station whose pinned sources include all of its current `tvg-id`s;
    - no enabled entry maps to more than one station unless the split is intended;

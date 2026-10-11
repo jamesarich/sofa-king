@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.playback.*
+import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
@@ -45,11 +46,12 @@ class LiveRuntime(
                 val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
                 lateinit var logos: LogoCache
                 lateinit var curation: CurationService
+                val providers = ProviderRegistry.create(sources.providers, http, store, clock, policy)
                 // A new snapshot can change what curation would do, so an import triggers a run as well as a logo sweep.
-                val feeds = FeedService(sources.providers, store, http, clock, policy) { logos.requestSweep(); curation.requestRun() }
+                val feeds = FeedService(sources.providers, store, http, clock, policy, providers) { logos.requestSweep(); curation.requestRun() }
                 feeds.initialize()
                 lateinit var lineup: LineupService
-                val guides = GuideService(sources.allGuides, store, http, clock, policy) { lineup.wanted() }
+                val guides = GuideService(sources.allGuides, store, http, clock, policy, providers) { lineup.wanted() }
                 guides.initialize()
                 lineup = LineupService(store, clock, feeds, guides) { logos.requestSweep() }
                 lineup.initialize()

@@ -4,6 +4,10 @@ import dev.jamesrich.sofaking.backend.api.Channel
 import dev.jamesrich.sofaking.backend.api.ProviderStatus
 import dev.jamesrich.sofaking.backend.api.SourceStatus
 import dev.jamesrich.sofaking.backend.api.UpdateSource
+import dev.jamesrich.sofaking.backend.providers.NativeServices
+import dev.jamesrich.sofaking.backend.providers.ProviderFailure
+import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
+import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
@@ -41,6 +45,8 @@ class FeedService(
     private val clock: Clock,
     /** Governs every upstream fetch made for these feeds: playlists, guides, probes and relayed media. */
     val upstream: UpstreamPolicy = UpstreamPolicy(),
+    /** The native service clients behind `type: native` providers; required when any is configured. */
+    private val providers: ProviderRegistry? = null,
     /** Runs after each successful import, once the snapshot is published. */
     private val onImported: () -> Unit = {},
 ) {
@@ -131,6 +137,17 @@ class FeedService(
 
     fun config(providerId: String): FeedConfig = configs.first { it.id == providerId }
 
+    /**
+     * What to fetch for [offering]: its URL with the provider's headers, or for a native `svc://` source the URL
+     * its service client resolves now, with that client's headers. Throws [ProviderFailure] when the service cannot answer.
+     */
+    suspend fun playable(offering: Offering): ResolvedStream =
+        if (NativeServices.isNative(offering.url)) {
+            checkNotNull(providers) { "Native source without a registry" }.resolve(offering)
+        } else {
+            ResolvedStream(offering.url, config(offering.providerId).headers)
+        }
+
     /** Changes when any channel or source is added, changed or withdrawn. */
     fun revision(): String {
         val current = published.get()
@@ -141,8 +158,12 @@ class FeedService(
         mutex.withLock {
             val started = clock.instant()
             try {
-                val playlist = fetch(config.playlistUrl, config.headers, 16 * 1024 * 1024)
-                val parsed = FeedParser.playlist(config.id, playlist, config.defaultProtocol, config.renewable, config.playlistUrl)
+                val parsed = if (config.native) {
+                    checkNotNull(providers) { "Native providers are configured without a registry" }.channels(config)
+                } else {
+                    val playlist = fetch(checkNotNull(config.playlistUrl), config.headers, 16 * 1024 * 1024)
+                    FeedParser.playlist(config.id, playlist, config.defaultProtocol, config.renewable, config.playlistUrl)
+                }
                 val (channels, offerings) = parsed
                 require(channels.isNotEmpty() || config.allowEmpty) { "Empty playlist requires explicit allowEmpty" }
                 val previous = published.get().feeds.find { it.providerId == config.id }
@@ -198,7 +219,7 @@ class FeedService(
             scope.launch {
                 while (isActive) {
                     refresh(config)
-                    delay(config.refreshSeconds * 1000)
+                    delay(config.refreshInterval * 1000)
                 }
             }
         }

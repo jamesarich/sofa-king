@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.backend.providers.NativeServices
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -16,46 +17,76 @@ private fun validateHeaders(headers: Map<String, String>) {
 }
 
 /**
- * One provider playlist. A `guideUrl` is an implicit guide source with this provider's id.
- * [renewableQuery] replaces [DEFAULT_RENEWABLE_QUERY] for this provider's stream URLs.
+ * One provider: an M3U playlist (`type` `m3u`, the default) or a native service client (`type` `native` with
+ * `service`, see [NativeServices]). A `guideUrl` is an implicit guide source with this provider's id; a native
+ * service with a guide of its own gets one without it. [renewableQuery] replaces [DEFAULT_RENEWABLE_QUERY]
+ * for this provider's stream URLs. [refreshSeconds] unset means 900 for a playlist and 3600 for a service.
  */
 @Serializable data class FeedConfig(
-    val id: String, val playlistUrl: String, val guideUrl: String? = null,
-    val headers: Map<String, String> = emptyMap(), val refreshSeconds: Long = 900,
+    val id: String, val playlistUrl: String? = null, val guideUrl: String? = null,
+    val headers: Map<String, String> = emptyMap(), val refreshSeconds: Long? = null,
     val allowEmpty: Boolean = false, val probe: Boolean = true, val defaultProtocol: String? = null,
     val renewableQuery: List<String>? = null,
+    val type: String = "m3u", val service: String? = null, val options: Map<String, String> = emptyMap(),
 ) {
     /** Lowercase query parameter names dropped from this provider's source identities. */
     val renewable: Set<String> get() = renewableQuery(renewableQuery)
 
+    val native: Boolean get() = type == "native"
+
+    /** Seconds between imports. */
+    val refreshInterval: Long get() = refreshSeconds ?: if (native) 3600 else 900
+
+    /** The XMLTV this provider's implicit guide reads, configured or the service's published one. */
+    val effectiveGuideUrl: String? get() = guideUrl ?: service?.let { NativeServices.defaultGuideUrl(it, options) }
+
     fun validate() {
         require(id.matches(idPattern)) { "Invalid provider ID" }
-        httpUri(playlistUrl); guideUrl?.let(::httpUri)
+        require(type in setOf("m3u", "native")) { "Provider type must be m3u or native" }
+        if (native) {
+            require(service != null && service in NativeServices.names) { "Unknown native service; known: ${NativeServices.names.sorted()}" }
+            require(playlistUrl == null) { "A native provider takes no playlistUrl" }
+            require(options.all { (key, value) -> key.matches(Regex("[A-Za-z0-9_-]{1,64}")) && value.length <= 256 }) { "Invalid provider options" }
+        } else {
+            require(service == null && options.isEmpty()) { "service and options apply to native providers" }
+            httpUri(requireNotNull(playlistUrl) { "A playlistUrl is required" })
+        }
+        guideUrl?.let(::httpUri)
         require(defaultProtocol == null || defaultProtocol in setOf("hls", "mpegts")) { "Unsupported default protocol" }
-        require(refreshSeconds >= 60) { "Refresh interval must be at least 60 seconds" }
+        require(refreshInterval >= 60) { "Refresh interval must be at least 60 seconds" }
         validateHeaders(headers)
         renewableQuery?.let(::validateRenewableQuery)
     }
 }
 
-/** One XMLTV guide source, plain or gzip. */
+/** One XMLTV guide source, plain or gzip, or (with [provider]) the guide a native provider's service publishes through its API. */
 @Serializable data class GuideConfig(
-    val id: String, val url: String, val headers: Map<String, String> = emptyMap(), val refreshSeconds: Long = 21_600,
+    val id: String, val url: String? = null, val headers: Map<String, String> = emptyMap(), val refreshSeconds: Long = 21_600,
+    val provider: String? = null,
 ) {
     fun validate() {
         require(id.matches(idPattern)) { "Invalid guide ID" }
-        httpUri(url)
+        require((url == null) != (provider == null)) { "A guide needs a url" }
+        url?.let(::httpUri)
         require(refreshSeconds >= 300) { "Guide refresh interval must be at least 300 seconds" }
         validateHeaders(headers)
     }
 }
 
 data class SourceConfig(val providers: List<FeedConfig> = emptyList(), val guides: List<GuideConfig> = emptyList()) {
-    /** Explicit guides first, then one implicit guide per provider `guideUrl`. */
-    val allGuides: List<GuideConfig> get() = guides + providers.filter { it.guideUrl != null }.map {
-        GuideConfig(it.id, it.guideUrl!!, it.headers, it.refreshSeconds.coerceAtLeast(300))
+    /** Explicit guides first, then one implicit guide per provider: its `guideUrl`, the service's published XMLTV, or the service's own guide. */
+    val allGuides: List<GuideConfig> get() = guides + providers.mapNotNull { provider ->
+        val url = provider.effectiveGuideUrl
+        when {
+            url != null -> GuideConfig(provider.id, url, provider.headers, provider.refreshInterval.coerceAtLeast(300))
+            provider.native && NativeServices.hasGuide(provider.service!!) -> GuideConfig(provider.id, refreshSeconds = NATIVE_GUIDE_REFRESH, provider = provider.id)
+            else -> null
+        }
     }
 }
+
+/** Native guides cover hours to days ahead and some are fetched per channel; an hour keeps every horizon filled. */
+const val NATIVE_GUIDE_REFRESH: Long = 3600
 
 @Serializable private data class SourceFile(val providers: List<FeedConfig> = emptyList(), val guides: List<GuideConfig> = emptyList())
 

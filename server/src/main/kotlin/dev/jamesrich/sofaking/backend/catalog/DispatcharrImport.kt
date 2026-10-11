@@ -89,7 +89,7 @@ class DispatcharrImporter(private val feeds: FeedService, private val guides: Gu
     private fun resolveGuide(source: DispatcharrEpgSource, guideMap: Map<String, String>): String? {
         guideMap[source.id.toString()]?.let { mapped -> return guides.config(mapped)?.id ?: throw ApiFailure(400, "INVALID_REQUEST", "guideMap names unknown guide $mapped") }
         val key = source.url?.let(::pathKey)
-        return guides.configs.firstOrNull { key != null && pathKey(it.url) == key }?.id
+        return guides.configs.firstOrNull { key != null && it.url != null && pathKey(it.url) == key }?.id
             ?: guides.configs.firstOrNull { it.id.equals(source.name, ignoreCase = true) }?.id
     }
 

@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.hash
+import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.store.IdentityStore
 import dev.jamesrich.sofaking.backend.upstream.probeHeadersSafe
 import io.ktor.http.ContentType
@@ -127,9 +128,13 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
                 // FFmpeg reads the source itself, so this request, not media traffic, is what holds the session.
                 runtime.sessions.attach(session.id, coroutineContext.job)
                 val offering = runtime.sessions.offeringOf(session.id)
-                runtime.feeds.upstream.check(URI(offering.url))
-                val headers = runtime.feeds.config(offering.providerId).headers.takeIf(::probeHeadersSafe).orEmpty()
-                runtime.remux.stream(call, offering.url, headers)
+                val stream = try {
+                    runtime.feeds.playable(offering)
+                } catch (e: ProviderFailure) {
+                    throw ApiFailure(503, "SOURCE_UNAVAILABLE", "Source could not be resolved", true)
+                }
+                runtime.feeds.upstream.check(URI(stream.url))
+                runtime.remux.stream(call, stream.url, stream.headers.takeIf(::probeHeadersSafe).orEmpty())
                 false
             }
         } catch (e: ApiFailure) {

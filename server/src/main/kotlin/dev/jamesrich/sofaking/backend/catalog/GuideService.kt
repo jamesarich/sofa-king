@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.GuideChannelInfo
 import dev.jamesrich.sofaking.backend.api.GuideStatus
+import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.StoredGuide
 import dev.jamesrich.sofaking.backend.store.guides
@@ -40,6 +41,8 @@ class GuideService(
     private val http: HttpClient,
     private val clock: Clock,
     private val upstream: UpstreamPolicy = UpstreamPolicy(),
+    /** The native service clients whose own guides back `provider` guides. */
+    private val providers: ProviderRegistry? = null,
     /** Guide id to the XMLTV channel ids the lineup maps onto it. */
     private val wanted: () -> Map<String, Set<String>>,
 ) {
@@ -96,11 +99,17 @@ class GuideService(
         val started = clock.instant()
         try {
             val wantedIds = wanted()[config.id].orEmpty()
-            // Guides run to tens of megabytes; only socket inactivity bounds the download, never a total request timeout.
-            val parsed = http.withUpstreamResponse(config.url, config.url, config.headers, unbounded = true, policy = upstream) { response ->
-                require(response.status.value == 200) { "Guide fetch failed" }
-                val body = response.bodyAsChannel()
-                withContext(Dispatchers.IO) { body.toInputStream().use { FeedParser.guide(it, config.url) { id -> id in wantedIds } } }
+            val parsed = if (config.provider != null) {
+                val client = checkNotNull(providers?.client(config.provider)) { "No client for provider ${config.provider}" }
+                checkNotNull(client.guide(wantedIds)) { "Service has no guide" }
+            } else {
+                val url = checkNotNull(config.url)
+                // Guides run to tens of megabytes; only socket inactivity bounds the download, never a total request timeout.
+                http.withUpstreamResponse(url, url, config.headers, unbounded = true, policy = upstream) { response ->
+                    require(response.status.value == 200) { "Guide fetch failed" }
+                    val body = response.bodyAsChannel()
+                    withContext(Dispatchers.IO) { body.toInputStream().use { FeedParser.guide(it, config.url) { id -> id in wantedIds } } }
+                }
             }
             val importedAt = clock.instant()
             store.saveGuide(config.id, importedAt, parsed.channels, parsed.programmes)

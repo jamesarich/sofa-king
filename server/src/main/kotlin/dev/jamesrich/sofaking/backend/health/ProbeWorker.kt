@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.backend.health
 
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.Offering
+import dev.jamesrich.sofaking.backend.providers.ProviderFailure
+import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.upstream.probeHeadersSafe
 import io.ktor.client.HttpClient
@@ -142,19 +144,30 @@ class ProbeWorker(
         }
 
     private suspend fun probe(offering: Offering) {
-        val headers = feeds.config(offering.providerId).headers
         val before = store.health(offering.id)?.status
+        // A native source is probed at the URL its service resolves; a service that cannot answer is provider evidence.
+        var resolveFailure: FailureClass? = null
+        val stream: ResolvedStream? = try {
+            feeds.playable(offering)
+        } catch (e: ProviderFailure) {
+            resolveFailure = if (e.transient) FailureClass.PROVIDER else FailureClass.OFFERING
+            null
+        }
+        val target = stream?.let { offering.copy(url = it.url) } ?: offering
+        val headers = stream?.headers.orEmpty()
         val failure =
-            if (qualifier != null) {
-                qualifier.invoke(offering, headers)
+            if (resolveFailure != null) {
+                resolveFailure
+            } else if (qualifier != null) {
+                qualifier.invoke(target, headers)
             } else if (fastTier == null) {
-                decode(offering, headers)
+                decode(target, headers)
             } else {
-                val qualification = fastTier.check(offering, headers)
+                val qualification = fastTier.check(target, headers)
                 val protocol = qualification.protocol
                 // The body is the authority on the protocol; the decode tier's reconnect flags depend on it too.
                 if (protocol != null && protocol != offering.protocol) feeds.recordProtocol(offering.id, protocol)
-                qualification.failure ?: decode(if (protocol == null) offering else offering.copy(protocol = protocol), headers)
+                qualification.failure ?: decode(if (protocol == null) target else target.copy(protocol = protocol), headers)
             }
         val at = clock.instant()
         val after = store.recordObservation(offering.id, Observation(UUID.randomUUID().toString(), at, failure == null, failure), at)

@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.FeedService
+import dev.jamesrich.sofaking.backend.providers.ProviderFailure
+import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.upstream.readHead
 import dev.jamesrich.sofaking.backend.upstream.sniffProtocol
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
@@ -47,7 +49,13 @@ class MediaRelay(
         val job = coroutineContext[Job]!!
         val resource = sessions.acquire(id, epoch, token, job)
         try {
-            if (resource.shared) serveShared(call, id, epoch, job, resource) else serveDirect(call, id, epoch, job, resource)
+            // A native source resolves to its playable URL now; the headers it needs go with every request to it.
+            val stream = try {
+                feeds.playable(resource.offering)
+            } catch (_: ProviderFailure) {
+                throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
+            }
+            if (resource.shared) serveShared(call, id, epoch, job, resource, stream) else serveDirect(call, id, epoch, job, resource, stream)
         } finally {
             withContext(NonCancellable) { sessions.finished(id, job) }
         }
@@ -83,12 +91,12 @@ class MediaRelay(
         epoch: Int,
         job: Job,
         resource: MediaResource,
+        stream: ResolvedStream,
     ) {
-        val headers = feeds.config(resource.offering.providerId).headers
         val reader =
             shared.join(resource.offering.id) { consume ->
                 permits.withPermit {
-                    http.withUpstreamResponse(resource.url, resource.offering.url, headers, unbounded = true, policy = feeds.upstream) { response ->
+                    http.withUpstreamResponse(stream.url, stream.url, stream.headers, unbounded = true, policy = feeds.upstream) { response ->
                         if (response.status.value != 200) throw UpstreamStatusException(response.status.value)
                         consume(response.bodyAsChannel())
                     }
@@ -120,12 +128,15 @@ class MediaRelay(
         epoch: Int,
         job: Job,
         resource: MediaResource,
+        stream: ResolvedStream,
     ) {
+        // The root token maps to the offering's own URL, which for a native source is the resolved one; children are absolute already.
+        val url = if (resource.url == resource.offering.url) stream.url else resource.url
         permits.withPermit {
             http.withUpstreamResponse(
-                withDeliveryDirectives(resource.url, call),
-                resource.offering.url,
-                feeds.config(resource.offering.providerId).headers,
+                withDeliveryDirectives(url, call),
+                stream.url,
+                stream.headers,
                 range = call.request.headers[HttpHeaders.Range],
                 unbounded = true,
                 policy = feeds.upstream,

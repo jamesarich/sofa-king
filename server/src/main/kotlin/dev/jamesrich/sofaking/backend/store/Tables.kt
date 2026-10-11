@@ -106,6 +106,14 @@ internal object CurationChanges : Table("curation_change") {
     val actionJson = text("action_json")
     override val primaryKey = PrimaryKey(id)
 }
+internal object ProviderStates : Table("provider_state") {
+    val providerId = text("provider_id")
+    val key = text("key")
+    val value = text("value")
+    val expiresAt = text("expires_at").nullable()
+    val updatedAt = text("updated_at")
+    override val primaryKey = PrimaryKey(providerId, key)
+}
 internal object GuideProgrammes : Table("guide_programme") {
     val guideId = text("guide_id")
     val channelId = text("channel_id")

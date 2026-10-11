@@ -182,25 +182,6 @@ curl --fail -X PATCH http://127.0.0.1:8080/api/v1/admin/lineup/ENTRY_ID \
 
 Validation: `number` 1–32 characters without spaces, `name` 1–256, `group` 1–128, `logo` an HTTP(S) URL, at most 64 sources per entry, every source ID known to a configured feed, `guideId` a configured guide. An active session keeps its current source until that source stops being selectable or the session ends.
 
-### Dispatcharr import
-
-`POST /api/v1/admin/lineup/import` takes up to 16 MiB:
-
-```json
-{
-  "export": { "format": "sofa-dispatcharr-export/1", "profile": "sofaking", "epgSources": [...], "channels": [...] },
-  "guideMap": { "4": "gracenote" },
-  "dryRun": false,
-  "includeUnmatched": false
-}
-```
-
-`export` is the file `scripts/dispatcharr-export.py` writes. Each `epgSources` item has `id`, `name` and `url`; each channel has `uuid`, `number`, `name`, `group`, `logo`, `tvgId`, `epgSourceId`, `epgChannelId`, `enabled` and ordered `streams` (`url`, `name`, `provider`).
-
-Streams match sources by [source key](live-tv.md#source-identity) (URL without the provider's renewable query parameters, tried under every provider's list), then, when exactly one source shares the stream's `scheme://authority/path`, by that path alone. An EPG source matches a configured guide by `scheme://authority/path` with the query ignored, then by a guide ID equal to its name, then by `guideMap` (`epgSourceId` to guide ID), which also overrides the automatic match. Entries take the channel `uuid` as their ID (a derived UUID when absent) and are created or updated in place. A channel with no matching stream is skipped unless `includeUnmatched` is true.
-
-The report has `dryRun`, `created`, `updated`, `skipped`, `matchedStreams`, `unmatchedStreams`, `guideSources` (EPG source ID to guide ID or null) and `entries`, each with `number`, `name`, `uuid`, `action` (`created`, `updated`, `skipped`), `matchedStreams`, `unmatchedStreams` (source keys under the default renewable list), `guide` (`mapped`, `unmapped-source`, `none`) and, for a channel skipped because its number or name is invalid, `error`. `scripts/dispatcharr-import.py` posts a file and prints this report.
-
 ### Curation
 
 The rules and settings that keep the lineup curated without Dispatcharr; what each one does is in [curation](curation.md). Every request takes the admin token.

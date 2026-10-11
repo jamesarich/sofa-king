@@ -119,40 +119,6 @@ Everything from one provider at once: `POST /api/v1/admin/lineup/adopt` with `{"
 
 Every field one of these requests sets is pinned to the household. [Curation](curation.md) fills and corrects the rest by rule (groups, name and logo corrections, equivalent sources from other providers, entries disabled while no source works, candidates adopted by rule) and leaves pinned fields alone; `GET /api/v1/admin/curation/preview` shows what it would change before `settings.enabled` turns it on.
 
-## Migrate from Dispatcharr
-
-The export runs inside the Dispatcharr container and reads its database only. It writes a `sofa-dispatcharr-export/1` JSON file with, per channel: Dispatcharr uuid, number, name, group, logo URL, `tvg-id`, EPG source id and XMLTV channel id, enabled flag, and the ordered stream URLs with their M3U account names. **The file contains tokenized stream URLs. Keep it out of version control and delete it after the import.**
-
-1. Configure this server with the same inputs Dispatcharr uses: each M3U account as a provider and each XMLTV source as a guide, as in the [README](../README.md#run). Start it and wait until `/api/v1/providers` and `/api/v1/admin/guides` show `lastSuccessAt` for every source.
-2. Export the profile (replace `dispatcharr` with the container name and `sofaking` with the profile):
-
-   ```sh
-   docker exec -i -e SOFA_PROFILE=sofaking -e SOFA_OUT=/tmp/sofaking.json \
-     dispatcharr python manage.py shell < scripts/dispatcharr-export.py
-   docker cp dispatcharr:/tmp/sofaking.json ./sofaking.json
-   docker exec dispatcharr rm /tmp/sofaking.json
-   ```
-
-   Standard output shows counts only.
-
-3. Preview the import:
-
-   ```sh
-   SOFA_ADMIN_TOKEN='TOKEN' python3 scripts/dispatcharr-import.py --file sofaking.json --dry-run
-   ```
-
-   Streams match sources by [source key](#source-identity), so renewed tokens do not matter and entries without a `tvg-id` match like any other; a stream whose identity query changed still matches when exactly one source shares its path. A stream whose path the provider no longer lists, as when FastChannels renamed its vidaa ids from `vidaa.11973` (`/play/vidaa/11973.m3u8`) to `vidaa.US:11973` (`/play/vidaa/US%3A11973.m3u8`), is reported unmatched; refresh the Dispatcharr M3U account or replace the entry's source after the import. EPG sources match configured guides by URL (query ignored), then by guide ID equal to the Dispatcharr source name. The report lists every EPG source that did not match and every entry with unmatched streams or an unmapped guide source. Channels whose streams all fail to match are skipped unless `--include-unmatched` is given; a channel without a number or name is skipped with an `error` and never aborts the rest. Household edits stored on Dispatcharr's channel override win over the synced values, and a channel hidden from output exports as disabled.
-
-4. Map the EPG sources the report flags and apply:
-
-   ```sh
-   SOFA_ADMIN_TOKEN='TOKEN' python3 scripts/dispatcharr-import.py --file sofaking.json --guide-map 4=gracenote
-   ```
-
-   Entries keep Dispatcharr's channel uuid as their ID, so running the import again updates them in place. The mapped guides refresh and `GET /api/v1/channels` shows the lineup.
-
-5. Delete `sofaking.json`. Point the app at this server and retire Dispatcharr's `sofaking` M3U/EPG output. If a pipeline curated Dispatcharr, move its rules over as in [cut over from the pipeline](curation.md#cut-over-from-the-pipeline).
-
 ## Third-party players
 
 The lineup is also served as an M3U playlist with an XMLTV guide, for players that take a playlist URL ([API detail](api.md#player-outputs)). Set `SOFA_OUTPUT_TOKEN` (32+ characters, `openssl rand -hex 16`) and restart; the token goes in the URLs because players send no headers. Replace `SERVER_HOST:PORT` with the address the player reaches the server by (`OMV_HOST:9193` with the compose stack):

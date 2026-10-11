@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Sofa King</string>
-    <string name="tagline">Live TV, right where you left it.</string>
-    <string name="loading">Settling in, loading channels…</string>
+    <string name="tagline">Live TV, Sofa King good.</string>
+    <string name="loading">Sofa King close, loading channels…</string>
     <string name="load_failed">Couldn\'t reach the Sofa King server</string>
     <string name="load_failed_hint">Check the server URL and API token in Settings, and that the TV is on the same network as the server.</string>
     <string name="unconfigured">Connect to your Sofa King server</string>
@@ -9,7 +9,7 @@
     <string name="retry">Retry</string>
     <string name="no_listing">No listing</string>
     <string name="up_next">Next: %1$s</string>
-    <string name="no_channels">No channels to play</string>
+    <string name="no_channels">Sofa King empty in here. No channels to play</string>
     <string name="no_channels_hint">The server has no playable channels yet. Check its providers and source health.</string>
     <string name="refresh">Refresh</string>
     <string name="settings">Settings</string>

@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.KeyboardActionHandler
+import androidx.compose.foundation.text.input.OutputTransformation
+import androidx.compose.foundation.text.input.TextFieldBuffer
 import androidx.compose.foundation.text.input.TextFieldDecorator
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
@@ -28,7 +30,11 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 
-/** Single-line text entry with a border that thickens in the primary color when focused. */
+/**
+ * Single-line text entry with a border that thickens in the primary color when focused. [maskUnfocused]
+ * rewrites what is shown while the field is not being edited (a secret's last characters); the text itself
+ * and the edited view are untouched.
+ */
 @Composable
 internal fun TvTextField(
     state: TextFieldState,
@@ -37,8 +43,10 @@ internal fun TvTextField(
     onAction: () -> Unit,
     modifier: Modifier = Modifier,
     hint: String? = null,
+    maskUnfocused: ((String) -> String)? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val mask = if (focused || maskUnfocused == null) null else remember(maskUnfocused) { MaskTransformation(maskUnfocused) }
     val borderColor = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
     val borderWidth = if (focused) 4.dp else 1.dp
     Surface(
@@ -53,6 +61,7 @@ internal fun TvTextField(
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(imeAction = imeAction),
+                outputTransformation = mask,
                 onKeyboardAction = KeyboardActionHandler { onAction() },
                 decorator = TextFieldDecorator { inner ->
                     Box(Modifier.fillMaxWidth()) {
@@ -71,5 +80,11 @@ internal fun TvTextField(
                     .focusRequester(focusRequester),
             )
         }
+    }
+}
+
+private class MaskTransformation(private val mask: (String) -> String) : OutputTransformation {
+    override fun TextFieldBuffer.transformOutput() {
+        replace(0, length, mask(asCharSequence().toString()))
     }
 }

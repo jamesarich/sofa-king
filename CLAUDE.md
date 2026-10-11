@@ -36,7 +36,7 @@ Unit tests run against MockWebServer; no server is needed for offline developmen
 - Preserve CEA-608/708 selection, caption geometry and per-channel timing. Update renderer-thread settings from SideEffect through volatile fields.
 - When wrapping Media3 Java interfaces, forward every required overload explicitly; do not use Kotlin by delegation.
 - Keep sockets and files off the main thread. Preserve cancellation and close owned calls/listeners/resources.
-- Keep DataStore corruption recovery and last-good lineup behavior. Never log or print the API token; `AppSettings.toString` hides it.
+- Keep DataStore corruption recovery and last-good lineup behavior. Never log or print the API token; `AppSettings.toString` hides it and Settings masks all but its last four characters while the field is not being edited.
 - API requests go through `SofaKingApi` with the bearer token; media requests carry none. Guide queries stay within 200 channels and 24 hours.
 - Use kotlinx.serialization with `wireJson` for the server's JSON; unknown fields are ignored.
 

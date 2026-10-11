@@ -37,7 +37,7 @@ Caption timing buffers video so delayed live captions align with speech. Increas
 
 Enter the Sofa King server's absolute HTTP(S) address with a host and optional port, for example `http://192.168.1.3:9193`. Embedded credentials, queries and fragments are not accepted.
 
-The API token is the server's `SOFA_API_TOKEN`: letters, digits and punctuation with no spaces. Leave it empty when the server runs without one. The token is shown as typed; the TV keyboard has no masked entry.
+The API token is the server's `SOFA_API_TOKEN`: letters, digits and punctuation with no spaces. Leave it empty when the server runs without one. The field shows only the token's last four characters until it is focused for editing.
 
 Channels come from the server's catalog. A channel appears when the server reports it as playable and gives it a numeric display number; its first tag is the guide category.
 

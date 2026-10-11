@@ -125,6 +125,7 @@ fun SettingsScreen(
                 focusRequester = tokenFocus,
                 imeAction = ImeAction.Done,
                 onAction = save,
+                maskUnfocused = ::maskToken,
             )
         }
         item { HelpText(stringResource(R.string.settings_api_token_help)) }
@@ -254,6 +255,7 @@ private fun SettingField(
     focusRequester: FocusRequester,
     imeAction: ImeAction,
     onAction: () -> Unit,
+    maskUnfocused: ((String) -> String)? = null,
 ) {
     // Mirror external resets into the field; typing is reported back through onValueChange.
     val state = rememberTextFieldState(value)
@@ -272,6 +274,7 @@ private fun SettingField(
             imeAction = imeAction,
             onAction = onAction,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            maskUnfocused = maskUnfocused,
         )
         if (problem != null) {
             Text(problem, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))

@@ -47,7 +47,10 @@ class ProbeWorker(
     private val ffmpeg: String,
     http: HttpClient? = null,
     private val config: ProbeConfig = ProbeConfig(),
+    /** Fires only when an observation changes the offering's status. */
     private val onHealthChanged: suspend (String) -> Unit = {},
+    /** Fires after every observation, changed or not. */
+    private val onObserved: suspend (String) -> Unit = {},
     private val qualifier: (suspend (Offering, Map<String, String>) -> FailureClass?)? = null,
 ) {
     private val log = LoggerFactory.getLogger(ProbeWorker::class.java)
@@ -172,8 +175,11 @@ class ProbeWorker(
         val at = clock.instant()
         val after = store.recordObservation(offering.id, Observation(UUID.randomUUID().toString(), at, failure == null, failure), at)
         mutex.withLock { outcomes.merge(failure?.name ?: "QUALIFIED", 1, Int::plus) }
-        if (before != after.status) log.info("source health offering={} from={} to={}", offering.id, before, after.status)
-        onHealthChanged(offering.id)
+        onObserved(offering.id)
+        if (before != after.status) {
+            log.info("source health offering={} from={} to={}", offering.id, before, after.status)
+            onHealthChanged(offering.id)
+        }
     }
 
     internal fun classify(error: String): FailureClass =

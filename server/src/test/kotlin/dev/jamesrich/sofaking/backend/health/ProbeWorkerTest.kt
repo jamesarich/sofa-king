@@ -185,4 +185,37 @@ class ProbeWorkerTest {
             assertEquals(setOf("s1", "s2", "s3"), seen.toSet()); assertEquals(3, seen.size)
         } } } finally { dir.toFile().deleteRecursively() }
     }
+    @Test fun `health callback fires only when an observation changes the status`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-probe-callback-")
+        try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            val offering = Offering("source", "station", "p", "http://example.test/live.m3u8", "hls")
+            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("station", "5", "Station")), listOf(offering), emptyList(), clock.now.toString()))
+            val feeds = FeedService(listOf(FeedConfig("p", "http://example.test/feed.m3u")), store, http, clock); feeds.initialize()
+            var success = false
+            val changed = mutableListOf<String>(); val observed = mutableListOf<String>()
+            val worker = ProbeWorker(feeds, store, clock, "unused", onHealthChanged = { changed += it }, onObserved = { observed += it }) { _, _ ->
+                if (success) null else FailureClass.OFFERING
+            }
+            val statusChanges = mutableListOf<Boolean>()
+            suspend fun observe(afterSeconds: Long) {
+                clock.now = clock.now.plusSeconds(afterSeconds)
+                val statusBefore = store.health(offering.id)!!.status
+                val callbacksBefore = changed.size
+                assertTrue(worker.step())
+                val didChange = store.health(offering.id)!!.status != statusBefore
+                assertEquals(if (didChange) 1 else 0, changed.size - callbacksBefore, "callback count for a step that changed=$didChange")
+                statusChanges += didChange
+            }
+            observe(0); observe(300); observe(300)
+            assertEquals(HealthStatus.QUARANTINED, store.health(offering.id)!!.status)
+            success = true
+            observe(900); observe(600)
+            assertEquals(HealthStatus.HEALTHY, store.health(offering.id)!!.status)
+            observe(6 * 3600)
+            assertTrue(statusChanges.any { it } && statusChanges.any { !it }, "the sequence must cover both an unchanged and a changed observation")
+            assertEquals(statusChanges.count { it }, changed.size)
+            assertEquals(List(statusChanges.size) { offering.id }, observed)
+        } } } finally { dir.toFile().deleteRecursively() }
+    }
 }

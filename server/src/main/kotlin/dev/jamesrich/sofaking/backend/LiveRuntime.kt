@@ -76,7 +76,7 @@ class LiveRuntime(
                             restreamOrigins = config.restreamOrigins,
                             observationRetention = java.time.Duration.ofDays(config.observationRetentionDays.toLong()),
                         )
-                    scope.launch { ProbeWorker(feeds, store, clock, config.ffmpeg, http, probes, onHealthChanged = { id -> sessions.healthChanged(id); curation.requestRun() }).run() }
+                    scope.launch { ProbeWorker(feeds, store, clock, config.ffmpeg, http, probes, onObserved = { id -> sessions.healthChanged(id) }, onHealthChanged = { curation.requestRun() }).run() }
                 }
                 return runtime
             } catch (failure: Throwable) { scope.cancel(); http.close(); throw failure }

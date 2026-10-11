@@ -10,7 +10,9 @@ Use JDK 21, the Android SDK with API 37.1 and the checked-in Gradle wrapper. Set
 
 On the shared development host, use `/home/james/.claude/bin/gradle-queue --` in place of `./gradlew`.
 
-Unit tests cover the API client, catalog and guide mapping, the playback session lifecycle, cache, settings, captions, remote-control logic and network cancellation. Server interactions run against MockWebServer, so no server is needed.
+Unit tests cover the API client, catalog and guide mapping, the playback session lifecycle, cache, settings, captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against MockWebServer, so no server is needed.
+
+On a TV, also check the cold start into the last channel, Back to the guide, the Guide, Menu and Search keys (the launcher may claim Guide on some devices), voice search, the preview's sound at 5 s and full screen at 10 s, and captions over the preview.
 
 On a TV, check D-pad focus, rapid preview changes, preview/player/guide handoff, background/foreground transitions, audio, captions and decoder recovery.
 

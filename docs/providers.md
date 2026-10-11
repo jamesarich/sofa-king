@@ -41,7 +41,7 @@ These are unofficial clients. They call the same public endpoints each service's
 
 `headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only; every native source is HLS.
 
-A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider id, refreshed hourly; its channel ids are the service's own, and a lineup entry created from a candidate maps onto it automatically. The guide holds every channel in its index and programmes only for channels the lineup maps, so a service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS, Plex, STIRR) is asked only about mapped channels.
+A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider id, refreshed hourly; its channel ids are the service's own, and a lineup entry created from a candidate maps onto it automatically. The guide holds every channel in its index and programmes only for channels the lineup maps, so a service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS, Plex, STIRR, Pluto TV) is asked only about mapped channels.
 
 ## How a native source plays
 

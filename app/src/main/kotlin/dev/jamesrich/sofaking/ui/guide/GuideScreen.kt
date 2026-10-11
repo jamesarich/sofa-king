@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -72,6 +73,9 @@ import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
 import dev.jamesrich.sofaking.ui.preview.PreviewDwell
+import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
+import dev.jamesrich.sofaking.ui.player.DigitsBadge
+import dev.jamesrich.sofaking.ui.player.digitValue
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
 import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
@@ -114,6 +118,9 @@ private const val INITIAL_FOCUS_ATTEMPTS = 3
 
 /** Rows one Channel or Page key moves in the grid; about one screenful on a 1080p TV. */
 private const val GUIDE_PAGE_ROWS = 4
+
+/** The player's digit entry timeout, so typed channel numbers commit in the same time in both screens. */
+private const val GUIDE_DIGIT_COMMIT_MS = 1_500L
 
 /** Asks the row for [guideId] to focus the cell covering window [minute]. [nonce] keeps each request distinct. */
 internal data class GuideJump(val guideId: String, val minute: Long, val nonce: Int)
@@ -308,6 +315,31 @@ fun GuideScreen(
         if (gridFocused && pendingRow == null) requestJump(current.channel.guideId, cursor)
     }
 
+    // Scrolls the list so row [target] holds the second slot and focuses its cell under the time cursor. The
+    // channels scroll under the focused row, as a cable guide does; the list clamps at either end.
+    val focusRow: (Int) -> Unit = { target ->
+        pendingRow = target
+        scope.launch {
+            listState.scrollToItem((target - FOCUS_ROW_SLOT).coerceAtLeast(0))
+            requestJump(visible[target].guideId, cursor)
+        }
+    }
+
+    // Typed channel digits, as the player takes them. Digits are judged on the rows on screen, and OK or the
+    // entry timeout commits them to the row with that number; no match clears them without a notice.
+    var numberEntry by remember { mutableStateOf(ChannelNumberEntry()) }
+    val commitNumberEntry: () -> Unit = {
+        val pending = numberEntry
+        numberEntry = ChannelNumberEntry()
+        if (!searchOpen) pending.indexIn(visible)?.let(focusRow)
+    }
+    val currentCommit by rememberUpdatedState(commitNumberEntry)
+    LaunchedEffect(numberEntry) {
+        if (numberEntry.digits.isEmpty()) return@LaunchedEffect
+        delay(GUIDE_DIGIT_COMMIT_MS)
+        currentCommit()
+    }
+
     // Up and Down land on the cell under the time cursor. Default focus search treats any cell overlapping a
     // long focused cell (a full-row "No listing") as a candidate and can pick one hours ahead.
     val onGridKey: (KeyEvent) -> Boolean = handler@{ event ->
@@ -334,13 +366,7 @@ fun GuideScreen(
             return@handler false
         }
         if (target == current) return@handler true
-        pendingRow = target
-        scope.launch {
-            // The focused row holds the second slot and the channels scroll under it, as a cable guide does;
-            // the list clamps at either end, so the first and last rows still take focus in place.
-            listState.scrollToItem((target - FOCUS_ROW_SLOT).coerceAtLeast(0))
-            requestJump(visible[target].guideId, cursor)
-        }
+        focusRow(target)
         true
     }
 
@@ -481,103 +507,118 @@ fun GuideScreen(
     // Remote shortcuts answered wherever focus is; everything else goes on to the focused node. Every key
     // press restarts the preview's rest timers.
     val onGuideKey: (KeyEvent) -> Boolean = handler@{ event ->
+        // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
+        val okKey = event.key == Key.DirectionCenter || event.key == Key.Enter
+        if (okKey && numberEntry.digits.isNotEmpty() && !searchOpen) {
+            if (event.type == KeyEventType.KeyUp) commitNumberEntry()
+            return@handler true
+        }
         if (event.type != KeyEventType.KeyDown) return@handler false
         dwell.onKey(SystemClock.uptimeMillis())
         dwellNonce++
         when (event.key.guideShortcut()) {
             GuideShortcut.NOW -> onNow()
             GuideShortcut.SEARCH -> openVoiceSearch()
-            null -> return@handler false
+            null -> {
+                val digit = event.key.digitValue()
+                if (digit == null || searchOpen) return@handler false
+                numberEntry = numberEntry.append(digit)
+            }
         }
         true
     }
 
     // The app header above already carries the top overscan margin; 16dp here is spacing, not overscan.
-    Column(modifier = modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 27.dp).onPreviewKeyEvent(onGuideKey)) {
-        if (PREVIEW_ENABLED) {
-            PreviewBand(
-                focused = focusedState,
-                now = now,
-                searchOpen = searchOpen,
-                chips = chips,
-                searchBar = searchBar,
-                player = previewPlayer,
-                sessions = sessions,
-                captionsEnabled = captionsEnabled,
-                captionStyle = captionStyle,
-                muted = previewMuted,
-                onFailedChanged = { previewFailed = it },
-            )
-        } else {
-            chips(Modifier.fillMaxWidth())
-            if (searchOpen) {
-                Spacer(Modifier.height(8.dp))
-                searchBar(Modifier.fillMaxWidth())
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-
-        Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
-            Box(Modifier.width(PIN_WIDTH).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
-                VisibleRange(
-                    scrollState = scrollState,
-                    viewport = viewport,
-                    minutePx = minutePx,
-                    windowStart = windowStart,
+    Box(modifier.fillMaxSize().onPreviewKeyEvent(onGuideKey)) {
+        Column(modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 27.dp)) {
+            if (PREVIEW_ENABLED) {
+                PreviewBand(
+                    focused = focusedState,
                     now = now,
-                    timeFormat = timeFormat,
-                    dayFormat = dayFormat,
-                    zone = zone,
-                    todayLabel = todayLabel,
-                    rangeFormat = rangeFormat,
+                    searchOpen = searchOpen,
+                    chips = chips,
+                    searchBar = searchBar,
+                    player = previewPlayer,
+                    sessions = sessions,
+                    captionsEnabled = captionsEnabled,
+                    captionStyle = captionStyle,
+                    muted = previewMuted,
+                    onFailedChanged = { previewFailed = it },
                 )
+            } else {
+                chips(Modifier.fillMaxWidth())
+                if (searchOpen) {
+                    Spacer(Modifier.height(8.dp))
+                    searchBar(Modifier.fillMaxWidth())
+                }
             }
-            TimelineStrip(
-                scrollState = scrollState,
-                nowMinute = nowMinute,
-                modifier = Modifier.weight(1f).onSizeChanged { viewport.intValue = it.width },
-            ) {
-                Row(Modifier.fillMaxHeight()) {
-                    repeat((GuideTimeline.WINDOW_MINUTES / GuideTimeline.SLOT_MINUTES).toInt()) { slot ->
-                        val label = timeFormat.format(windowStart.plusSeconds(slot * GuideTimeline.SLOT_MINUTES * 60))
-                        Box(
-                            Modifier.width(MINUTE_WIDTH * GuideTimeline.SLOT_MINUTES.toFloat()).fillMaxHeight().padding(start = 8.dp),
-                            contentAlignment = Alignment.CenterStart,
-                        ) {
-                            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            Spacer(Modifier.height(8.dp))
+
+            Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
+                Box(Modifier.width(PIN_WIDTH).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+                    VisibleRange(
+                        scrollState = scrollState,
+                        viewport = viewport,
+                        minutePx = minutePx,
+                        windowStart = windowStart,
+                        now = now,
+                        timeFormat = timeFormat,
+                        dayFormat = dayFormat,
+                        zone = zone,
+                        todayLabel = todayLabel,
+                        rangeFormat = rangeFormat,
+                    )
+                }
+                TimelineStrip(
+                    scrollState = scrollState,
+                    nowMinute = nowMinute,
+                    modifier = Modifier.weight(1f).onSizeChanged { viewport.intValue = it.width },
+                ) {
+                    Row(Modifier.fillMaxHeight()) {
+                        repeat((GuideTimeline.WINDOW_MINUTES / GuideTimeline.SLOT_MINUTES).toInt()) { slot ->
+                            val label = timeFormat.format(windowStart.plusSeconds(slot * GuideTimeline.SLOT_MINUTES * 60))
+                            Box(
+                                Modifier.width(MINUTE_WIDTH * GuideTimeline.SLOT_MINUTES.toFloat()).fillMaxHeight().padding(start = 8.dp),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if (visible.isEmpty() && query.isNotBlank()) {
-            Text(
-                stringResource(R.string.guide_search_none),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 16.dp),
-            )
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).focusRestorer().onFocusChanged { gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                itemsIndexed(visible, key = { _, channel -> "${channel.guideId}#${channel.number}" }) { index, channel ->
-                    ChannelRow(
-                        channel = channel,
-                        programmes = lineup.guide[channel.guideId].orEmpty(),
-                        isFavorite = channel.guideId in favorites,
-                        windowStart = windowStart,
-                        windowEnd = windowEnd,
-                        nowMinute = nowMinute,
-                        env = env,
-                        initialFocus = initialFocus.takeIf { index == 0 },
-                        jump = jump?.takeIf { it.guideId == channel.guideId },
-                        onJumpHandled = onJumpHandled,
-                    )
+            if (visible.isEmpty() && query.isNotBlank()) {
+                Text(
+                    stringResource(R.string.guide_search_none),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f).focusRestorer().onFocusChanged { gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    itemsIndexed(visible, key = { _, channel -> "${channel.guideId}#${channel.number}" }) { index, channel ->
+                        ChannelRow(
+                            channel = channel,
+                            programmes = lineup.guide[channel.guideId].orEmpty(),
+                            isFavorite = channel.guideId in favorites,
+                            windowStart = windowStart,
+                            windowEnd = windowEnd,
+                            nowMinute = nowMinute,
+                            env = env,
+                            initialFocus = initialFocus.takeIf { index == 0 },
+                            jump = jump?.takeIf { it.guideId == channel.guideId },
+                            onJumpHandled = onJumpHandled,
+                        )
+                    }
                 }
             }
+        }
+        if (numberEntry.digits.isNotEmpty()) {
+            Box(Modifier.align(Alignment.TopEnd)) { DigitsBadge(numberEntry.digits) }
         }
     }
 }

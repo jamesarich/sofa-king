@@ -376,15 +376,13 @@ fun PlayerScreen(
             // lineup and follow the channel by number, then name; with nothing to follow, the guide takes over.
             val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
             recovering = channel
-            val lineup = reloadLineup()
-            if (lineup == null) {
-                // Unreachable or timed out: wait as for any failure, then the tune asks the server again.
-                delay(reconnectDelayMs(current.attempt))
+            var attempt = current.attempt
+            var lineup = reloadLineup()
+            while (lineup == null) {
+                // Unreachable or timed out: the reload, not the dead id, is what backs off and tries again.
+                delay(reconnectDelayMs(attempt++))
                 lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
-                recovering = null
-                failure = current.copy(attempt = current.attempt + 1)
-                load(channel)
-                return@LaunchedEffect
+                lineup = reloadLineup()
             }
             withTimeoutOrNull(LINEUP_SYNC_MS) { snapshotFlow { currentChannels }.first { it == lineup.channels } }
             val target = resolveReplacement(currentChannels, channel)

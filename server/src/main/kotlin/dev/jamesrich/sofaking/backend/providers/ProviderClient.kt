@@ -42,7 +42,7 @@ interface ProviderClient {
 /** Which services exist and whether each carries a guide of its own, known before any client is built. */
 object NativeServices {
     private val guides = mapOf(
-        "whale" to true, "vizio" to true, "lg" to true, "freelivesports" to true,
+        "whale" to true, "vizio" to true, "lg" to true, "freelivesports" to true, "hallmark" to true,
     )
 
     val names: Set<String> get() = guides.keys

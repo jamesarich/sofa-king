@@ -1,7 +1,7 @@
 {
   "providers": [
     { "id": "fastchannels", "playlistUrl": "http://192.168.1.3:5523/feeds/default/m3u" },
-    { "id": "masqueradarr", "playlistUrl": "http://192.168.1.3:3000/${MASQ_PLAYLIST_PATH}.m3u" }
+    { "id": "masqueradarr", "playlistUrl": "http://192.168.1.3:3000/${MASQ_PLAYLIST_PATH}.m3u", "defaultProtocol": "hls" }
   ],
   "guides": [
     { "id": "gracenote", "url": "http://192.168.1.3:3000/DaddyLiveUSGracenote/epg/playlist.xml" },

@@ -51,17 +51,19 @@ class StirrClientTest {
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 
-    @Test fun `guide asks for mapped channels only and drops what has ended`() = runBlocking<Unit> {
+    @Test fun `guide lists listed channels that have programmes and keeps mapped ones that have not ended`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-stirr-")
         try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
             fixture.stirr()
             val clock = MutableClock(Instant.parse("2026-10-11T00:30:00Z"))
             val client = StirrClient(ProviderFixture.context("stirr", mapOf("apiBase" to "${fixture.base}/api"), http, store, clock))
-            assertTrue(client.guide(emptySet()).programmes.isEmpty())
-            assertEquals(0, fixture.hits("/api/epg"))
-            val guide = client.guide(setOf("5735"))
-            assertEquals(2, guide.channels.size)
-            assertEquals("channel_id=5735&tz=UTC", fixture.lastQuery["/api/epg"])
+            val unmapped = client.guide(emptySet())
+            assertTrue(unmapped.programmes.isEmpty())
+            assertEquals(listOf("5735"), unmapped.channels.map { it.id }, "a channel without programmes or outside the list is not offered")
+            val guide = client.guide(setOf("5735", "5407"))
+            assertEquals(listOf("5735"), guide.channels.map { it.id })
+            assertEquals("tz=UTC", fixture.lastQuery["/api/epg"])
+            assertEquals(2, fixture.hits("/api/epg"), "one request per refresh")
             assertEquals(2, guide.programmes.size, "the programme that ended at 00:11 is gone")
             assertEquals("2026-10-11T00:26:42Z", guide.programmes[0].startsAt.toString())
             assertEquals("Just For Laughs Presents: Funny As Hell", guide.programmes[0].title)

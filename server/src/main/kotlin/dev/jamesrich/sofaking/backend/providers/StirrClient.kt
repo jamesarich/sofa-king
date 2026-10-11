@@ -10,8 +10,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
 /**
- * STIRR's live channels as stirr.com uses them: one `videos/list` document of every live channel, the per-channel
- * `epg` endpoint for the guide, and a `playable` POST per resolve that answers an ad-stitched HLS URL carrying a
+ * STIRR's live channels as stirr.com uses them: one `videos/list` document of every live channel, the `epg` endpoint
+ * without a channel for the whole guide (only channels with programmes are listed), and a `playable` POST per resolve that answers an ad-stitched HLS URL carrying a
  * short-lived `vx_token`. Channels marked `drm_protected` are left out.
  */
 class StirrClient(private val context: ProviderContext) : ProviderClient {
@@ -22,13 +22,19 @@ class StirrClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun channels(): List<ProviderChannel> = listed()
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
-        val channels = listed()
-        val index = channels.map { GuideChannel(it.id, it.name, it.logo) }
+        val channels = listed().associateBy { it.id }
+        val rows = context.http.get("$apiBase/epg?tz=UTC", HEADERS).require("STIRR guide").json()["data"]["channels"].array
+        val index = ArrayList<GuideChannel>()
         val now = context.clock.instant()
         val programmes = ArrayList<GuideProgramme>()
-        for (id in channels.map { it.id }.filter { it in wanted }) {
-            val data = context.http.get("$apiBase/epg?channel_id=$id&tz=UTC", HEADERS).require("STIRR guide").json()["data"]
-            for (item in data["programs"].array) {
+        for (row in rows) {
+            val id = row["channel_id"].long?.toString() ?: continue
+            val channel = channels[id] ?: continue
+            val items = row["programs"].array
+            if (items.isEmpty()) continue
+            index += GuideChannel(id, channel.name, channel.logo)
+            if (id !in wanted) continue
+            for (item in items) {
                 val start = item["start_time"].long ?: continue
                 val end = item["end_time"].long ?: continue
                 val title = item.str("title") ?: continue

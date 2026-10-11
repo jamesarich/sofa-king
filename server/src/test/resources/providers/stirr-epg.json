@@ -1,26 +1,42 @@
 {
  "status": 200,
  "data": {
-  "channel_id": 5735,
-  "name": "Gags  - Just for Laughs",
-  "programs": [
+  "channels": [
    {
-    "start_time": 1791677424,
-    "end_time": 1791677484,
-    "title": "Just For Laughs Presents: Funny As Hell",
-    "description": "A stand-up series from Just For Laughs only cooler and hosted by Jon Dore. "
+    "channel_id": 5735,
+    "name": "Gags  - Just for Laughs",
+    "programs": [
+     {
+      "start_time": 1791677424,
+      "end_time": 1791677484,
+      "title": "Just For Laughs Presents: Funny As Hell",
+      "description": "A stand-up series from Just For Laughs only cooler and hosted by Jon Dore. "
+     },
+     {
+      "start_time": 1791678402,
+      "end_time": 1791680838,
+      "title": "Just For Laughs Presents: Funny As Hell",
+      "description": "A stand-up series from Just For Laughs only cooler and hosted by Jon Dore. "
+     },
+     {
+      "start_time": 1791680838,
+      "end_time": 1791682684,
+      "title": "Just for Laughs Gags",
+      "description": "Featuring pranks like a flirty old man, a nasty fart box, a mouse trap on a shelf, and many more."
+     }
+    ]
    },
    {
-    "start_time": 1791678402,
-    "end_time": 1791680838,
-    "title": "Just For Laughs Presents: Funny As Hell",
-    "description": "A stand-up series from Just For Laughs only cooler and hosted by Jon Dore. "
+    "channel_id": 9999,
+    "name": "Not In The Channel List",
+    "programs": [
+     { "start_time": 1791678402, "end_time": 1791680838, "title": "Unlisted" }
+    ]
    },
    {
-    "start_time": 1791680838,
-    "end_time": 1791682684,
-    "title": "Just for Laughs Gags",
-    "description": "Featuring pranks like a flirty old man, a nasty fart box, a mouse trap on a shelf, and many more."
+    "channel_id": 5407,
+    "name": "Drone TV",
+    "programs": null
    }
   ]
  }

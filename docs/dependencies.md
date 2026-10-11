@@ -14,6 +14,13 @@
 
 Versions are defined in [the version catalog](../gradle/libs.versions.toml) and [Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Resolved dependencies are locked. Ktor artifacts come from the official JetBrains EAP repository; other libraries come from Maven Central.
 
-The server targets JVM 21. The contract and client target JVM 17 with preview Kotlin metadata; consumers need a compatible Kotlin compiler.
+The server targets JVM 21. The `api-contract` and `client` modules compile to JVM 17 bytecode with the Kotlin 2.5 beta compiler, so consumers need a compatible Kotlin compiler.
 
-See [development](development.md#change-dependencies) for update commands and the official [Kotlin EAP](https://kotlinlang.org/docs/whatsnew-eap.html), [Ktor EAP](https://ktor.io/eap/) and [Gradle distributions](https://services.gradle.org/distributions/) for published versions.
+## Changing versions
+
+1. Update the exact versions in [the version catalog](../gradle/libs.versions.toml).
+2. Run the build with `--write-locks` and review the lockfile changes.
+3. Run both smoke scripts, as described in [development](development.md#build-and-test).
+4. For a wrapper update, pin the official distribution checksum in `gradle-wrapper.properties`.
+
+Published versions are listed on the official [Kotlin EAP](https://kotlinlang.org/docs/whatsnew-eap.html), [Ktor EAP](https://ktor.io/eap/) and [Gradle distribution](https://services.gradle.org/distributions/) pages.

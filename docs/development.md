@@ -1,5 +1,7 @@
 # Development
 
+The [contributing guide](../CONTRIBUTING.md) covers commit and pull request conventions and the steps to add a native provider. This page covers the build, the test suite and the scripts that exercise a running server.
+
 ## Build and test
 
 Use JDK 21 and FFmpeg. Run from the repository root:
@@ -10,7 +12,19 @@ python3 scripts/smoke.py
 python3 scripts/live-smoke.py
 ```
 
-Unit tests cover persistence, imports, gzip guide parsing, native provider clients (parsing, token handling, macro filling, resolution caching and expiry, the relay and probe paths over `svc://` sources), lineup curation, the Dispatcharr import, health policy, source selection, sessions, relay behavior, the admin API, the M3U/XMLTV player output, the logo cache (content-type and size refusal, cache hits, weekly refresh, eviction, the rewrite in every output, reference normalization), curation (group and correction rules against pins, equivalent attachment by evidence and by rule, adoption and numbering, health-based disable and restore under an injected clock, alias merges, retired logo hosts, the pipeline-file import, persistence and the admin endpoints), the HDHomeRun routes and the FFmpeg remux, and client cleanup. Tests about a response's lifetime or an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job and returns from the handler at once; `MediaFixture` generates real H.264/AAC HLS with FFmpeg, so FFmpeg is needed to run the suite. The smoke scripts start disposable servers; the media smoke generates H.264/AAC fixtures, curates a lineup through the admin API, checks concurrent playback and cancellation, loads the player output with FFmpeg as the player, and runs a curation rule through preview, run and restart.
+The unit tests cover persistence and migrations, feed and guide imports (including gzip guides), the native provider clients, lineup and curation rules, the Dispatcharr import, source health, playback sessions, the relay, the admin API, the player outputs, the logo cache, the HDHomeRun routes and the FFmpeg remux, and client cleanup. Tests that depend on a response's lifetime or on an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job. `MediaFixture` generates H.264 and AAC HLS with FFmpeg, so FFmpeg is needed to run the suite.
+
+The smoke scripts start disposable servers in temporary directories. `smoke.py` verifies the installed application over HTTP, including SIGTERM and restart. `live-smoke.py` generates H.264 and AAC fixtures, curates a lineup through the admin API, checks concurrent playback and cancellation, loads the player output with FFmpeg as the player, and runs a curation rule through preview, run and restart.
+
+## Scripts
+
+| Script | Purpose |
+| --- | --- |
+| `scripts/smoke.py` | Installed-application check over HTTP |
+| `scripts/live-smoke.py` | Fixture feeds through the relay, probes, curation and restart |
+| `scripts/bridge-smoke.py` | Imports one feed into a temporary server, adopts its channels and optionally decodes one |
+| `scripts/provider-smoke.py` | Checks one native provider against its live service |
+| `scripts/dispatcharr-export.py`, `scripts/dispatcharr-import.py` | Export a Dispatcharr profile and import it; see [migrate from Dispatcharr](migrate-from-dispatcharr.md) |
 
 To test a provider feed, replace the URLs and channel name:
 
@@ -27,20 +41,11 @@ To check a [native provider](providers.md) against its live service:
 
 ```sh
 python3 scripts/provider-smoke.py --service whale
-python3 scripts/provider-smoke.py --service pbs --option zip=50309
+python3 scripts/provider-smoke.py --service pbs --option zip=ZIP_CODE
 ```
 
-This starts a temporary server with that one provider, adopts its channels, opens sessions on three of them expecting an HLS master from the relay, and decodes five seconds of two with FFmpeg (`--resolve`, `--decode`, `--seconds` and `--pick NAME,NAME` adjust it). Native provider unit tests run against `ProviderFixture`, a loopback stand-in for each service's API fed by the small sanitized documents under `server/src/test/resources/providers/`; every client takes its base URLs from options so a test can point it there.
+This starts a temporary server with that one provider, adopts its channels, opens sessions on three of them expecting an HLS master from the relay, and decodes five seconds of two with FFmpeg. `--resolve`, `--decode`, `--seconds` and `--pick NAME,NAME` adjust it. Native provider unit tests run against `ProviderFixture`, a loopback stand-in for each service's API fed by the sanitized documents under `server/src/test/resources/providers/`. Every client takes its base URLs from options, so a test can point it there.
 
-`scripts/dispatcharr-export.py` runs inside a Dispatcharr container and `scripts/dispatcharr-import.py` posts its output; see [migrate from Dispatcharr](live-tv.md#migrate-from-dispatcharr).
+## Dependencies
 
-On the shared development host, use `/home/james/.claude/bin/gradle-queue --` in place of `./gradlew`.
-
-## Change dependencies
-
-1. Update exact versions in [the version catalog](../gradle/libs.versions.toml).
-2. Run the build with `--write-locks` and review the lockfile changes.
-3. Run both smoke scripts.
-4. For wrapper updates, pin the official distribution checksum in `gradle-wrapper.properties`.
-
-Use [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html). Keep network and media work outside database transactions, preserve coroutine cancellation, and close owned HTTP clients, jobs and processes. Keep documentation about current behavior; put change rationale in commit or pull-request descriptions.
+Version changes follow [dependencies](dependencies.md#changing-versions). Run the build with `--write-locks` after a change, review the lockfile diff, and run both smoke scripts.

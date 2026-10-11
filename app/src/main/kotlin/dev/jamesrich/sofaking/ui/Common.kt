@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -69,8 +72,11 @@ fun MessageScreen(
                 Text(hint, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
             }
             if (onRetry != null) {
+                // A failed load has no other focus target, so Retry takes focus when the screen shows.
+                val retryFocus = remember { FocusRequester() }
+                LaunchedEffect(Unit) { requestFocusWhenAttached(retryFocus) }
                 Spacer(Modifier.height(4.dp))
-                Button(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+                Button(onClick = onRetry, modifier = Modifier.focusRequester(retryFocus)) { Text(stringResource(R.string.retry)) }
             }
         }
     }

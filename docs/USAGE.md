@@ -49,7 +49,8 @@ Channels come from the server's catalog. A channel appears when the server repor
 | Couldn't reach the Sofa King server | Check the address, token, network access and that the server is running. `AUTH_REQUIRED` means the token does not match. Select Refresh. |
 | No channels to play | The server has no channel with a playable source. Check its providers and source health. |
 | No listing | The channel has no guide data on the server; check its guide assignment there. |
-| Can't play this channel | The server could not open or keep a stream. Press OK to retry or select another channel. `CAPACITY_EXHAUSTED` means every session slot is a watch session. |
+| Can't play this channel | The server could not open or keep a stream. Press OK to retry or select another channel. `CAPACITY_EXHAUSTED` means every session slot is a watch session. `CHANNEL_NOT_FOUND` means the server's lineup changed; the app reloads it and follows the channel by number, then name. |
+| … is no longer on the server | The reloaded lineup has no channel with that number or name. Pick another channel from the guide. |
 | Preview unavailable | The server answered the preview session with an error, or the stream failed; focus another channel and come back. |
 | Guide fills in after channels | Guide data loads after the catalog; the saved lineup remains visible during refresh. |
 | Slow tune with captions | Reduce caption timing if the added buffer is too long. |

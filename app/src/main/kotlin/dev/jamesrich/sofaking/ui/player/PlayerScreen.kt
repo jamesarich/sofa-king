@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -71,7 +72,9 @@ import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val ZAP_OVERLAY_MS = 5_000L
 private const val DIGIT_COMMIT_MS = 1_500L
@@ -80,6 +83,10 @@ private const val CAPTION_TOAST_MS = 2_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
 private const val METADATA_REFRESH_MS = 60_000L
 private const val STREAM_ENDED = "STREAM_ENDED"
+/** The server's answer when a session is asked for a channel id its lineup no longer has. */
+internal const val CHANNEL_NOT_FOUND = "CHANNEL_NOT_FOUND"
+/** How long the player waits for the lineup it asked for to catch up with the one it holds. */
+private const val LINEUP_SYNC_MS = 2_000L
 private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 private const val TAG = "SofaKing"
 
@@ -111,6 +118,8 @@ fun PlayerScreen(
     captionSync: CaptionSync,
     onExit: () -> Unit,
     onChannelChanged: (Channel) -> Unit,
+    reloadLineup: suspend () -> Lineup? = { null },
+    onChannelGone: (Channel) -> Unit = { onExit() },
     captionsEnabled: Boolean = false,
     onCaptionsChanged: (Boolean) -> Unit = {},
     captionAdvanceFor: (Channel) -> Int = { AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
@@ -139,6 +148,8 @@ fun PlayerScreen(
     var playing by remember { mutableStateOf(player.isPlaying) }
     var buffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
     var failure by remember { mutableStateOf<Failure?>(null) }
+    // The channel whose id the server no longer knows, while the lineup is reloaded to find it again.
+    var recovering by remember { mutableStateOf<Channel?>(null) }
     var captionsOn by remember { mutableStateOf(captionsEnabled) }
     var captionToast by remember { mutableStateOf<CaptionToast?>(null) }
     var miniGuideOpen by remember { mutableStateOf(false) }
@@ -245,6 +256,7 @@ fun PlayerScreen(
     fun zapTo(target: Int) {
         entry = ChannelNumberEntry()
         failure = null
+        recovering = null
         if (target != index) {
             previousIndex = index
             previousChannel = currentChannels.getOrNull(index)
@@ -288,13 +300,16 @@ fun PlayerScreen(
     // The lineup refreshes every few hours and may reorder or grow; the tuned channel keeps its stream and
     // its row follows it. A channel that vanished stays playing on the nearest row.
     LaunchedEffect(channels) {
+        if (recovering != null) return@LaunchedEffect
         val current = tuned ?: return@LaunchedEffect
         index = indexAfterRefresh(channels, current) ?: index.coerceIn(0, (channels.size - 1).coerceAtLeast(0))
         previousIndex = previousChannel?.let { indexAfterRefresh(channels, it) }
     }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(index, currentChannel?.guideId, lifecycle) {
+    LaunchedEffect(index, currentChannel?.guideId, lifecycle, recovering) {
+        // While a dead id is being followed, nothing tunes until the row for its replacement is known.
+        if (recovering != null) return@LaunchedEffect
         val channel = currentChannel ?: return@LaunchedEffect
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
             val before = tuned
@@ -350,10 +365,38 @@ fun PlayerScreen(
     // a retry in the background would take the TV's decoder and a session on the server. A 410 skips the
     // first wait: the server asked for the session to be re-read, which is what tuning again does.
     LaunchedEffect(failure) {
-        val current = failure ?: return@LaunchedEffect
+        val current = failure ?: run {
+            recovering = null
+            return@LaunchedEffect
+        }
+        val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
+        if (current.code == CHANNEL_NOT_FOUND) {
+            // The server's lineup has new ids (a re-import): retrying this one would fail forever. Reload the
+            // lineup and follow the channel by number, then name; with nothing to follow, the guide takes over.
+            recovering = channel
+            val lineup = reloadLineup()
+            if (lineup == null) {
+                // Unreachable or timed out: wait as for any failure, then the tune asks the server again.
+                delay(reconnectDelayMs(current.attempt))
+                lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
+                recovering = null
+                failure = current.copy(attempt = current.attempt + 1)
+                load(channel)
+                return@LaunchedEffect
+            }
+            withTimeoutOrNull(LINEUP_SYNC_MS) { snapshotFlow { currentChannels }.first { it == lineup.channels } }
+            val target = resolveReplacement(currentChannels, channel)
+            if (target == null) {
+                onChannelGone(channel)
+            } else {
+                index = target
+                failure = null
+                recovering = null
+            }
+            return@LaunchedEffect
+        }
         if (!(current.immediate && current.attempt == 0)) delay(reconnectDelayMs(current.attempt))
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
-        val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
         failure = current.copy(attempt = current.attempt + 1)
         load(channel)
     }
@@ -423,6 +466,7 @@ fun PlayerScreen(
                         // A failed channel retries on OK, however many automatic retries have run.
                         failure != null && channel != null -> {
                             failure = null
+                            recovering = null
                             load(channel)
                         }
                         else -> overlayVisible = !overlayVisible

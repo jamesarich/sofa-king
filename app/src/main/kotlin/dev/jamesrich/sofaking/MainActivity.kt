@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -49,6 +50,7 @@ import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.SofaLoader
+import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.buildLivePlayer
@@ -60,6 +62,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -85,6 +88,13 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     var screen by rememberSaveable(stateSaver = ScreenSaver) { mutableStateOf<Screen>(Screen.Guide) }
+    // A short word from the player on its way back to the guide: the channel it was asked for is gone.
+    var notice by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(notice) {
+        if (notice == null) return@LaunchedEffect
+        delay(NOTICE_MS)
+        notice = null
+    }
     val guideState = rememberSaveableStateHolder()
     val lineup = (state as? LineupState.Ready)?.lineup
 
@@ -178,6 +188,11 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 captionSync = captionSync,
                 onExit = { screen = Screen.Guide },
                 onChannelChanged = { vm.setLastChannel(it.guideId) },
+                reloadLineup = vm::reloadLineup,
+                onChannelGone = { channel ->
+                    notice = context.getString(R.string.channel_gone, channel.label())
+                    screen = Screen.Guide
+                },
                 captionsEnabled = settings?.captionsEnabled ?: false,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },
                 captionAdvanceFor = { settings?.captionAdvanceFor(it.guideId) ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
@@ -194,6 +209,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 val settingsFocus = remember { FocusRequester() }
                 Header(
                     refreshing = loading && state is LineupState.Ready,
+                    notice = notice,
                     onSettings = { screen = Screen.Settings },
                     onRefresh = vm::refresh,
                     settingsFocus = settingsFocus,
@@ -259,7 +275,7 @@ private fun GuideOrEmpty(
 
 /** App bar above the guide, inside the overscan margins; the mark sits within the buttons' height so no grid row is lost. */
 @Composable
-private fun Header(refreshing: Boolean, onSettings: () -> Unit, onRefresh: () -> Unit, settingsFocus: FocusRequester) {
+private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit, onRefresh: () -> Unit, settingsFocus: FocusRequester) {
     Row(
         Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 27.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -282,10 +298,21 @@ private fun Header(refreshing: Boolean, onSettings: () -> Unit, onRefresh: () ->
                 )
             }
         }
+        AnimatedVisibility(visible = notice != null, enter = PopIn, exit = PopOut) {
+            Text(
+                notice.orEmpty(),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         Button(onClick = onRefresh) { Text(stringResource(R.string.refresh)) }
         Button(onClick = onSettings, modifier = Modifier.focusRequester(settingsFocus)) { Text(stringResource(R.string.settings)) }
     }
 }
+
+private const val NOTICE_MS = 5_000L
 
 private val ScreenSaver = Saver<Screen, String>(
     save = {

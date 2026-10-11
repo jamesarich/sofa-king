@@ -44,4 +44,31 @@ class PlayerChannelsTest {
         assertNull(indexAfterRefresh(listOf(five, twelve), eight))
         assertNull(indexAfterRefresh(emptyList(), eight))
     }
+
+    // resolveReplacement
+
+    @Test
+    fun `a re-imported channel is followed to the new id with its number`() {
+        val reimported = listOf(channel("a", 5.0), channel("b", 8.0, "Renamed"), channel("c", 12.0))
+        assertEquals(1, resolveReplacement(reimported, eight))
+    }
+
+    @Test
+    fun `a renumbered channel is followed by its name ignoring case`() {
+        val reimported = listOf(channel("a", 5.0), channel("b", 9.0, "ch 8"), channel("c", 12.0))
+        assertEquals(1, resolveReplacement(reimported, eight))
+    }
+
+    @Test
+    fun `the number wins over the name`() {
+        val reimported = listOf(channel("x", 8.0, "Other"), channel("y", 9.0, "Ch 8"))
+        assertEquals(0, resolveReplacement(reimported, eight))
+    }
+
+    @Test
+    fun `the dead id itself is not a replacement`() {
+        assertNull(resolveReplacement(listOf(five, eight, twelve), eight))
+        assertNull(resolveReplacement(listOf(five, twelve), eight))
+        assertNull(resolveReplacement(emptyList(), eight))
+    }
 }

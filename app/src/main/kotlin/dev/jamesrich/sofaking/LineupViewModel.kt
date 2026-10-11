@@ -29,10 +29,13 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
 sealed interface LineupState {
@@ -61,6 +64,10 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
     private val cacheFile = File(application.filesDir, "lineup-cache.bin")
+
+    /** Counts of catalogs published and loads finished (either way), so [reloadLineup] can wait for the load it asked for. */
+    private val catalogsLoaded = MutableStateFlow(0)
+    private val loadsFinished = MutableStateFlow(0)
 
     /** The last lineup loaded, with the server key it came from; read and written only inside [state]'s transform. */
     private var lastGood: Pair<String, Lineup>? = null
@@ -113,6 +120,7 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
                     // Channels first so the guide is usable while the programmes arrive. A cached guide stays in
                     // place for channels it still covers; it is replaced once the new guide is in.
                     if (last?.channels != channels) emit(LineupState.Ready(Lineup(channels, last?.guide.orEmpty())))
+                    catalogsLoaded.value++
                     val guide = repository.loadGuide(channels)
                     Log.i(TAG, "guide: ${guide.values.sumOf { it.size }} programmes for ${guide.size} channels in ${started.elapsedNow()}")
                     Result.success(Lineup(channels, guide))
@@ -139,6 +147,7 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 // A failed background refresh keeps showing the lineup we already have.
                 result.onFailure { if (last == null) emit(LineupState.Failed(describe(it))) }
+                loadsFinished.value++
                 delay(if (result.isSuccess) REFRESH_INTERVAL else RETRY_INTERVAL)
             }
         }
@@ -146,6 +155,21 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
 
     fun refresh() {
         reloads.tryEmit(Unit)
+    }
+
+    /**
+     * Asks for a reload and waits for its catalog: the lineup holding the new channels, or null when the load
+     * failed or nothing came back in time. The guide may still be loading when it returns.
+     */
+    suspend fun reloadLineup(): Lineup? {
+        val catalogs = catalogsLoaded.value
+        val loads = loadsFinished.value
+        refresh()
+        val catalogArrived = withTimeoutOrNull(RELOAD_WAIT) {
+            combine(catalogsLoaded, loadsFinished) { c, l -> c > catalogs || l > loads }.first { it }
+            catalogsLoaded.value > catalogs
+        } ?: false
+        return if (catalogArrived) (state.value as? LineupState.Ready)?.lineup else null
     }
 
     fun saveServer(url: String, apiToken: String) = viewModelScope.launch { store.setServer(url, apiToken) }
@@ -179,5 +203,6 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
         const val TAG = "SofaKing"
         val REFRESH_INTERVAL = 3.hours
         val RETRY_INTERVAL = 1.minutes
+        val RELOAD_WAIT = 30.seconds
     }
 }

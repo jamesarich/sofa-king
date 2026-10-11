@@ -31,7 +31,7 @@ Unit tests run against MockWebServer; no server is needed for offline developmen
 - Session opens run under NonCancellable and a canceled tune releases what it opened. Never leak a session: capacity is small and the oldest preview is evicted.
 - Gate tune preparation on STARTED. Stop on ON_STOP and Settings; retain paused-user intent on return.
 - Preserve preview debounce and stream handoff. Zap with stop, resolve the session, setMediaItem, prepare.
-- Reconnect failed/ended streams with the existing backoff. Do not add a watchdog that reconnects stalled-but-open streams.
+- Reconnect failed/ended streams with the existing backoff. Do not add a watchdog that reconnects stalled-but-open streams. A `CHANNEL_NOT_FOUND` session error reloads the lineup and follows the channel by number, then name; never retry a dead id with the backoff.
 - PlayerScreen owns MediaSession; there is no background playback service.
 - Preserve CEA-608/708 selection, caption geometry and per-channel timing. Update renderer-thread settings from SideEffect through volatile fields.
 - When wrapping Media3 Java interfaces, forward every required overload explicitly; do not use Kotlin by delegation.

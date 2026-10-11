@@ -19,7 +19,7 @@ The app shows its saved lineup while refreshing. Channels load before guide data
 | D-pad Left / Right | Move focus | Toggle the info bar; adjust caption timing when captions and the info bar are on |
 | OK | Watch the channel | Toggle the info bar, tune an entered number, or retry a failed stream |
 | Long-press OK | Toggle favorite | Return to the previously watched channel |
-| Channel Up / Down | Move focus | Next / previous channel |
+| Channel Up / Down | — | Next / previous channel |
 | Captions (CC) | — | Toggle captions |
 | Play/Pause | — | Pause or resume; resume after 30 seconds returns to live |
 | Digits | — | Enter a channel number, then press OK |
@@ -39,7 +39,7 @@ Caption timing buffers video so delayed live captions align with speech. Increas
 
 ## Server settings
 
-Enter the Sofa King server's absolute HTTP(S) address with a host and optional port, for example `http://192.168.1.3:9193`. Embedded credentials, queries and fragments are not accepted.
+Enter the Sofa King server's absolute HTTP(S) address with a host and optional port, for example `http://server.example:9193`. Embedded credentials, queries and fragments are not accepted.
 
 The API token is the server's `SOFA_API_TOKEN`: letters, digits and punctuation with no spaces. Leave it empty when the server runs without one. The field shows only the token's last four characters until it is focused for editing.
 

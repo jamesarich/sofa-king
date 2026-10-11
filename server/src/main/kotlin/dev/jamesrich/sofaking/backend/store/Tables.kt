@@ -123,3 +123,10 @@ internal object GuideProgrammes : Table("guide_programme") {
     val description = text("description").nullable()
     override val primaryKey = PrimaryKey(guideId, channelId, startsAt, endsAt, title)
 }
+/** One row per station key a lineup policy run remembers: availability and the pins' last offerings, as JSON. */
+internal object StationAvailabilityRows : Table("station_availability") {
+    val key = text("key")
+    val availabilityJson = text("availability_json")
+    val updatedAt = text("updated_at")
+    override val primaryKey = PrimaryKey(key)
+}

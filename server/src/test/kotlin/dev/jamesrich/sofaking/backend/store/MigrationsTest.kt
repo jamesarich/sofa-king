@@ -61,11 +61,22 @@ class MigrationsTest {
                 assertEquals(LineupEntryRecord("b0f6d2f4-0000-4000-8000-000000000001", "5", "First", "News", null, true, GuideMapping("g", "x"), listOf("o1")), entry)
                 assertTrue(entry.pinned.isEmpty()); assertEquals("manual", entry.createdBy); assertNull(entry.autoDisabledAt); assertNull(entry.autoDisabledReason)
                 assertTrue(store.curationRules().isEmpty()); assertNull(store.curationSettings()); assertTrue(store.unavailableSince().isEmpty())
+                assertTrue(store.stationAvailability().isEmpty())
+                val remembered = mapOf(
+                    "news" to dev.jamesrich.sofaking.backend.catalog.StationAvailability(
+                        java.time.Instant.parse("2026-10-10T00:00:00Z"), true, lastNumber = "5", lastName = "News", pinOfferings = mapOf("p/tvg-id:n" to listOf("o1")),
+                    ),
+                    "gone" to dev.jamesrich.sofaking.backend.catalog.StationAvailability(missingSince = java.time.Instant.parse("2026-10-09T00:00:00Z")),
+                )
+                store.saveStationAvailability(remembered, java.time.Instant.parse("2026-10-10T01:00:00Z"))
+                assertEquals(remembered, store.stationAvailability())
+                store.saveStationAvailability(mapOf("news" to remembered.getValue("news")), java.time.Instant.parse("2026-10-10T02:00:00Z"))
+                assertEquals(setOf("news"), store.stationAvailability().keys, "a save replaces every row")
             }
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT version FROM schema_version ORDER BY version").use { rows ->
-                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50), buildList { while (rows.next()) add(rows.getInt(1)) })
+                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60), buildList { while (rows.next()) add(rows.getInt(1)) })
                     }
                 }
             }
@@ -77,12 +88,12 @@ class MigrationsTest {
         val db = databaseAt(dir)
         try {
             applyMigrations(db, foundationMigrations())
-            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50), foundationMigrations().map { it.version })
+            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60), foundationMigrations().map { it.version })
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").use { rows ->
                         val tables = buildList { while (rows.next()) add(rows.getString(1)) }
-                        assertTrue(tables.containsAll(listOf("lineup_entry", "lineup_offering", "guide_channel", "guide_programme", "guide_import", "logo_cache")), tables.toString())
+                        assertTrue(tables.containsAll(listOf("lineup_entry", "lineup_offering", "guide_channel", "guide_programme", "guide_import", "logo_cache", "station_availability")), tables.toString())
                     }
                 }
             }

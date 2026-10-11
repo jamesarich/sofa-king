@@ -52,6 +52,11 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
     if (policy.names.version !in NAME_VERSIONS) errors += "names.version must be one of ${NAME_VERSIONS.sorted()}"
     if (policy.maxSourcesPerStation !in 1..64) errors += "maxSourcesPerStation must be between 1 and 64"
     if (policy.numbering.floor !in 1..999_999) errors += "numbering.floor must be between 1 and 999999"
+    if (policy.numbering.groupSize !in 1..100_000) errors += "numbering.groupSize must be between 1 and 100000"
+    for ((group, start) in policy.numbering.groups.entries.sortedBy { it.key }) {
+        if (group.isBlank() || group.length > 128) errors += "numbering.groups: group \"$group\" must be 1 to 128 characters"
+        if (start !in 1..999_999) errors += "numbering.groups[\"$group\"]: start must be between 1 and 999999"
+    }
     if (policy.health.disableAfterHours !in 1..720) errors += "health.disableAfterHours must be between 1 and 720"
     if (policy.health.enableOn !in setOf("healthy", "eligible")) errors += "health.enableOn must be healthy or eligible"
     if (policy.health.keepMissingDays !in 0..3650) errors += "health.keepMissingDays must be between 0 and 3650"

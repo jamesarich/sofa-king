@@ -68,6 +68,9 @@ private fun nextFree(used: Set<String>, floor: Int): String {
     return candidate.toString()
 }
 
+/** The first number in [from, until) not in [used]; null when the block is full. */
+private fun nextFreeIn(used: Set<String>, from: Int, until: Int): String? = (from until until).firstOrNull { it.toString() !in used }?.toString()
+
 private class CompiledFilter(filter: CandidateFilter) {
     private val groups = filter.groups.mapTo(HashSet()) { it.trim().lowercase() }
     private val names = filter.names.mapTo(HashSet()) { it.trim().lowercase() }
@@ -261,7 +264,15 @@ object StationBuilder {
             findings += "$key: candidates missing since $missingSince"
         }
 
-        // Pass one reserves override numbers and the numbers missing stations still hold; pass two assigns the rest.
+        val groupPatterns = policy.groups.patterns.map { Triple(it.name?.let { p -> Regex(p, RegexOption.IGNORE_CASE) }, it.rawGroup?.let { p -> Regex(p, RegexOption.IGNORE_CASE) }, it.group) }
+        fun groupOf(name: String?, raw: String?): String? =
+            raw?.let { policy.groups.map[it.trim().lowercase()] }
+                ?: groupPatterns.firstOrNull { (byName, byGroup, _) -> (byName != null && name != null && byName.containsMatchIn(name)) || (byGroup != null && raw != null && byGroup.containsMatchIn(raw)) }?.third
+                ?: policy.groups.default ?: raw
+        fun groupFor(draft: Draft): String? = draft.override?.group ?: draft.leading?.candidate?.channel.let { groupOf(it?.name, it?.tags?.firstOrNull()) }
+
+        // Pass one reserves override numbers and the numbers missing stations still hold; pass two assigns the rest,
+        // in the station's group block when numbering.groups names its group.
         val used = HashSet<String>()
         for (draft in drafts) draft.override?.number?.let { used += canonicalNumber(it) }
         for (draft in drafts.filter { it.number == null && it.missing?.lastNumber != null }.sortedBy { it.key }) {
@@ -272,9 +283,15 @@ object StationBuilder {
         val pending = drafts.filter { it.number == null }.sortedWith(
             compareBy<Draft> { it.leading?.entry ?: Int.MAX_VALUE }.thenBy(NUMBER_ORDER) { it.leading?.number }.thenBy { it.key },
         )
+        val numbering = policy.numbering
         for (draft in pending) {
             val provider = draft.leading?.candidate?.channel?.displayNumber?.takeIf { it.matches(STATION_NUMBER) }?.let(::canonicalNumber)
-            val number = if (policy.numbering.keepProviderNumbers && provider != null && provider !in used) provider else nextFree(used, policy.numbering.floor)
+            val block = numbering.groups[groupFor(draft)]
+            val number = when {
+                block != null -> nextFreeIn(used, block, block + numbering.groupSize) ?: nextFree(used, numbering.floor)
+                numbering.groups.isEmpty() && numbering.keepProviderNumbers && provider != null && provider !in used -> provider
+                else -> nextFree(used, numbering.floor)
+            }
             used += number
             draft.number = number
             assigned[draft.key] = number
@@ -283,12 +300,6 @@ object StationBuilder {
             val record = availability[draft.key] ?: continue
             availability[draft.key] = record.copy(lastNumber = draft.number, lastName = draft.override?.name ?: draft.leading?.candidate?.channel?.name ?: record.lastName)
         }
-
-        val groupPatterns = policy.groups.patterns.map { Triple(it.name?.let { p -> Regex(p, RegexOption.IGNORE_CASE) }, it.rawGroup?.let { p -> Regex(p, RegexOption.IGNORE_CASE) }, it.group) }
-        fun groupOf(name: String?, raw: String?): String? =
-            raw?.let { policy.groups.map[it.trim().lowercase()] }
-                ?: groupPatterns.firstOrNull { (byName, byGroup, _) -> (byName != null && name != null && byName.containsMatchIn(name)) || (byGroup != null && raw != null && byGroup.containsMatchIn(raw)) }?.third
-                ?: policy.groups.default ?: raw
 
         val stations = drafts.map { draft ->
             val override = draft.override
@@ -306,7 +317,7 @@ object StationBuilder {
                 key = draft.key,
                 number = draft.number!!,
                 name = override?.name ?: leading?.name ?: draft.missing?.lastName ?: override?.sources?.firstNotNullOfOrNull { it.name } ?: draft.key,
-                group = override?.group ?: groupOf(leading?.name, leading?.tags?.firstOrNull()),
+                group = groupFor(draft),
                 logo = override?.logo ?: leading?.logo,
                 guide = override?.guide ?: guideFor(draft.sources, input),
                 enabled = reason == null,

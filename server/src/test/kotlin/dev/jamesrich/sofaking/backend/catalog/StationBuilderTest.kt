@@ -183,6 +183,32 @@ class StationBuilderTest {
         assertEquals("10", kept.station("seven").number)
     }
 
+    @Test fun `with numbering groups a station numbers in its group's block, then from the floor`() {
+        val grouped = LineupPolicy(
+            names = PolicyNames(version = 1),
+            providers = listOf(PolicyProvider("a")),
+            groups = PolicyGroups(map = mapOf("news" to "News", "sports" to "Sports"), default = "Entertainment"),
+            numbering = PolicyNumbering(floor = 1000, keepProviderNumbers = true, groups = mapOf("News" to 100, "Sports" to 200), groupSize = 2),
+            stations = mapOf("sport b" to StationOverride(number = "200"), "news four" to StationOverride(number = "55")),
+        )
+        val result = build(grouped, listOf(
+            candidate("a", "n1", "News One", "5", group = "News"),
+            candidate("a", "n2", "News Two", "6", group = "News"),
+            candidate("a", "n3", "News Three", "7", group = "News"),
+            candidate("a", "n4", "News Four", "4", group = "News"),
+            candidate("a", "s1", "Sport A", "8", group = "Sports"),
+            candidate("a", "s2", "Sport B", "10", group = "Sports"),
+            candidate("a", "e1", "Show", "9", group = "Fun"),
+        ))
+        assertEquals(mapOf("news one" to "100", "news two" to "101", "news three" to "1000", "sport a" to "201", "show" to "1001"), result.assigned)
+        assertEquals("55", result.station("news four").number, "a number in the file never moves")
+        assertEquals("200", result.station("sport b").number)
+        assertEquals("News", result.station("news three").group)
+        assertTrue(validatePolicy(grouped.copy(numbering = PolicyNumbering(groups = mapOf("" to 0), groupSize = 0)), setOf("a")).let { errors ->
+            errors.any { "numbering.groupSize" in it } && errors.any { "start must be between" in it } && errors.any { "must be 1 to 128 characters" in it }
+        })
+    }
+
     @Test fun `enabled follows the override, else the leading entry`() {
         val result = build(policy, catalog + candidate("vizio", "v9", "Vizio Only", "30"))
         assertEquals("policy", result.station("vizio only").disabledReason)

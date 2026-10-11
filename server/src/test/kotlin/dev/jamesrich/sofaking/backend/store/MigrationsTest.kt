@@ -1,8 +1,12 @@
 package dev.jamesrich.sofaking.backend.store
 
+import dev.jamesrich.sofaking.backend.api.GuideMapping
+import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import java.nio.file.Files
 import java.sql.DriverManager
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.test.*
 
 class MigrationsTest {
@@ -39,6 +43,33 @@ class MigrationsTest {
             assertFails("an older binary must refuse a newer schema") { applyMigrations(db, listOf(Migration(1, "CREATE TABLE one(v TEXT)"))) }
             assertFails { applyMigrations(db, listOf(Migration(10, ""), Migration(1, ""))) }
         } finally { TransactionManager.closeAndUnregister(db); dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `a lineup written before the curation columns opens with defaults after the upgrade`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-migration-upgrade-")
+        try {
+            val db = databaseAt(dir)
+            try {
+                applyMigrations(db, foundationMigrations().filter { it.version < 40 })
+                transaction(db) {
+                    exec("INSERT INTO lineup_entry(id, position, number, name, group_name, logo, enabled, guide_id, guide_channel, updated_at) VALUES ('b0f6d2f4-0000-4000-8000-000000000001', 0, '5', 'First', 'News', NULL, 1, 'g', 'x', '2026-10-10T00:00:00Z')")
+                    exec("INSERT INTO lineup_offering(entry_id, position, offering_id) VALUES ('b0f6d2f4-0000-4000-8000-000000000001', 0, 'o1')")
+                }
+            } finally { TransactionManager.closeAndUnregister(db) }
+            openStore(dir).use { store ->
+                val entry = store.lineup().single()
+                assertEquals(LineupEntryRecord("b0f6d2f4-0000-4000-8000-000000000001", "5", "First", "News", null, true, GuideMapping("g", "x"), listOf("o1")), entry)
+                assertTrue(entry.pinned.isEmpty()); assertEquals("manual", entry.createdBy); assertNull(entry.autoDisabledAt); assertNull(entry.autoDisabledReason)
+                assertTrue(store.curationRules().isEmpty()); assertNull(store.curationSettings()); assertTrue(store.unavailableSince().isEmpty())
+            }
+            DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
+                connection.createStatement().use { stmt ->
+                    stmt.executeQuery("SELECT version FROM schema_version ORDER BY version").use { rows ->
+                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41), buildList { while (rows.next()) add(rows.getInt(1)) })
+                    }
+                }
+            }
+        } finally { dir.toFile().deleteRecursively() }
     }
 
     @Test fun `shipped migrations open and carry the lineup and guide tables`() {

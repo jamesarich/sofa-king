@@ -18,7 +18,7 @@ This page lists what the Dispatcharr-side pipeline decided (a 15-minute export t
 | Nightly playback sweep: every channel is decoded for two seconds through the proxy, a failure after one retry drops the channel from the curated profile, a pass restores it, a pass older than 36 hours expires | Per-source probes ([source health](source-health.md)) with two tiers, strikes and quarantine replace the channel probe. An entry whose sources are all ineligible (quarantined, in probation, manually disabled or withdrawn) for `disableAfterHours` is disabled by automation and re-enabled when a source is healthy again (`enableOn`). No expiry: an unverified source is eligible, because feeds with credential headers are never probed |
 | Health gate flag (`enforced`) | `settings.enabled`. Off, the server previews and tracks availability but changes nothing |
 | Empty feed: an export with no curated channels publishes an empty profile; the lineup stays | A failed or empty provider import keeps the previous snapshot (`allowEmpty`); withdrawn sources leave the entry in place and skip it for playback |
-| Logo sourcing: Dispatcharr logo rows, served through a Caddy host | Every output serves `/logos/KEY` from the [logo cache](api.md#logos). A channel's logo is the entry's pinned `logo`, else the first of its sources' feed logos, else the guide channel's icon. Logos on `retiredLogoHosts` are ignored by the catalog and cleared from unpinned entries, so the Caddy host can go |
+| Logo sourcing: Dispatcharr logo rows, served through a Caddy host | Every output serves `/logos/KEY` from the [logo cache](api.md#logos), which keeps a fetched copy when its host goes away. A channel's logo is the entry's `logo`, else the first of its sources' feed logos, else the guide channel's icon. A host in `retiredLogoHosts` makes its logos count as absent, so the channel resolves to a provider or guide logo instead and the cached copies are evicted; an entry with no `tvg-logo` on any source and no guide icon then has no logo where it had one |
 | Numbering: Dispatcharr numbers, asserted unique at export | Entries keep their numbers. An adopted candidate takes its own number when it is numeric and free, else the lowest free integer at or above `numberFloor`. Duplicate numbers among enabled entries are a preview finding |
 | New channels: Dispatcharr auto-synced them into the `sofaking-all` profile | Nothing enters the lineup on its own. An `adopt` rule (provider, raw group, name pattern) creates entries for unreferenced candidates, disabled unless the rule says `enabled`, numbered by the policy above, grouped and named through the rules, guide-mapped by `tvg-id`. A candidate that is an equivalent of an existing entry is attached instead. A candidate adopted once is never adopted again, so a deleted adopted entry stays gone |
 | Generations, atomic symlink publish, rollback manifests, `url_utils.py` | Dropped. The lineup is one SQLite transaction and every output renders from it on request; there is no second copy to publish or roll back. Automation writes a change log instead (`GET /api/v1/admin/curation/changes`) |
@@ -81,8 +81,16 @@ Findings in the plan are things automation sees but does not change: duplicate n
 ## Cut over from the pipeline
 
 1. Import the lineup ([migrate from Dispatcharr](live-tv.md#migrate-from-dispatcharr)) and let the probes qualify the sources.
-2. Post the pipeline's data files to the import endpoint with `dryRun`, then without.
-3. Put the Caddy logo host in `retiredLogoHosts`.
-4. Read `GET /api/v1/admin/curation/preview` and pin whatever the plan would change that the household wants kept.
-5. Set `enabled` to `true`.
-6. Remove the pipeline's cron entries and stop its Caddy container; the server no longer reads anything from them.
+2. Post the pipeline's data files to the import endpoint with `dryRun`, then without, `aliases.json` included: the duplicates it names are in the lineup as disabled entries with their canonicals' names and `tvg-id` values, and until the alias rules exist a new candidate for one of those stations matches two entries and is a finding instead of an attachment.
+3. Read `GET /api/v1/admin/curation/preview` and pin whatever the plan would change that the household wants kept.
+4. Set `enabled` to `true`.
+5. Point every client at this server: the app and TiviMate at `/output/*`, Plex at the HDHomeRun routes ([third-party players](live-tv.md#third-party-players), [Plex](live-tv.md#plex-live-tv)). Until then they read the pipeline's Caddy host.
+6. List the logo hosts the lineup names (`GET /api/v1/admin/lineup`, the `logo` fields; the Caddy host and Dispatcharr's own address are both candidates) and put the ones that are going away in `retiredLogoHosts`. Check the preview's `clear-logo` actions against entries whose sources and guide carry no logo of their own.
+7. Remove the feed-refresh cron line and whatever schedules the playback refresh, then stop the Caddy container and Dispatcharr; the server reads nothing from them.
+
+## Limitations
+
+- `enableOn: healthy` never restores an entry whose only sources belong to a provider that is not probed (credential or custom headers), because those stay `UNVERIFIED`; use `eligible` or pin `enabled` on such entries.
+- Every entry that is not alias-disabled, including the entries the Dispatcharr import brought in disabled, is a subject for equivalent attachment, so a new candidate can be drawn to a disabled entry; the preview shows where.
+- An `adopt` action's `entryId` in a preview is assigned per plan and differs from the id the applying run creates.
+- Equivalence is judged on the exact lowercase name and a shared `tvg-id`; two providers naming one station differently are attached only through an `equivalent` rule or by hand.

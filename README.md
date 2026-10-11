@@ -7,7 +7,7 @@ Sofa King is an Android TV and Google TV app for watching live channels from you
 ## Features
 
 - A program guide covering 24 hours, with channel filters, search and voice search
-- Channel previews that play muted, unmute after 5 seconds and open full screen after 10, continuing the same stream
+- Channel previews that play muted, unmute after 5 seconds and open full screen after 10 (or 30, or never), continuing the same stream
 - Favorites, and the last watched channel restored on launch
 - A full-screen player with channel up and down, number entry and a channel list
 - Closed captions for MPEG-TS and HLS streams, with per-channel timing and style settings

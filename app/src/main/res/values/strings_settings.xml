@@ -7,7 +7,7 @@
     <string name="settings_section_captions">Captions</string>
     <string name="settings_section_about">About</string>
     <string name="settings_server_url">Server URL</string>
-    <string name="settings_server_url_invalid">Enter the full address with its port, for example http://192.168.1.3:9193</string>
+    <string name="settings_server_url_invalid">Enter the full address with its port, for example http://192.168.1.10:9193</string>
     <string name="settings_api_token">API token</string>
     <string name="settings_api_token_invalid">Enter the token as letters, digits and punctuation with no spaces.</string>
     <string name="settings_api_token_help">The value of SOFA_API_TOKEN on the server. Leave it empty if the server runs without one.</string>

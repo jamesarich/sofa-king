@@ -335,9 +335,12 @@ private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit,
                 )
             }
         }
+        // The last text is kept so the notice reads while it fades out.
+        var lastNotice by remember { mutableStateOf("") }
+        LaunchedEffect(notice) { if (notice != null) lastNotice = notice }
         AnimatedVisibility(visible = notice != null, enter = PopIn, exit = PopOut) {
             Text(
-                notice.orEmpty(),
+                notice ?: lastNotice,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

@@ -2,6 +2,7 @@
 
 | Guide | What it covers |
 | --- | --- |
+| [Build a starter lineup](starter-lineup.md) | From an empty server to a grouped lineup of the free services with fallbacks across them, plus your local channels |
 | [Live TV](live-tv.md) | Configuration reference, source files, the lineup, logos, player outputs, Plex Live TV, LAN access, and troubleshooting |
 | [Native providers](providers.md) | The built-in clients for free streaming services, their options and their failure modes |
 | [Curation](curation.md) | Rules, settings, automation and the pins that keep manual edits in place |

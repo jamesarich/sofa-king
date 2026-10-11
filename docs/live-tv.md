@@ -39,12 +39,21 @@ Each provider object configures one M3U playlist:
 | `probe` | `true` | Enable automatic source qualification |
 | `defaultProtocol` | Unset | `hls` or `mpegts` for entries without a `stream-type`; otherwise `.m3u8` implies HLS and other paths imply MPEG-TS. Applies until a probe or media fetch detects the protocol in the stream body |
 | `allowEmpty` | `false` | Allow an empty playlist to withdraw all of this provider's sources |
+| `renewableQuery` | Unset | Query parameter names (case-insensitive) that this provider rotates; replaces the [default list](#source-identity) for its stream URLs |
 
 Keep provider IDs stable: they participate in source identity, and lineup entries refer to sources by id. Store credentials under the ignored `data/` directory or in the environment.
 
 Failed imports keep the last complete snapshot. Removed sources become unavailable; lineup entries keep referring to them and skip them for playback until they return. With `allowEmpty: false`, an empty playlist also keeps the previous snapshot.
 
-A malformed entry (no `tvg-id`, `channel-id` or `channel-uuid`; an identity reused with a different name or number; the same source differing only by query string without a `stream-id`; a non-HTTP URL; an unsupported `stream-type`; a URL without `#EXTINF`) is skipped and counted, and the rest of the playlist imports. `/api/v1/providers` reports `skippedEntries` and `skipReasons`, and the server logs the counts at warn level without URLs. A playlist that is not extended M3U, exceeds an import limit, or skips every entry without `allowEmpty` fails the import and keeps the previous snapshot.
+A malformed entry (no name; the same source key twice without a `stream-id`; a non-HTTP URL; an unsupported `stream-type`; a URL without `#EXTINF`) is skipped and counted, and the rest of the playlist imports. `/api/v1/providers` reports `skippedEntries`, `skipReasons` and `notes` (entries imported with a derived identity), and the server logs the counts without URLs. A playlist that is not extended M3U, exceeds an import limit, or skips every entry without `allowEmpty` fails the import and keeps the previous snapshot.
+
+### Source identity
+
+Every stream URL has a source key: the lowercase scheme and authority, the percent-decoded path, and the remaining query parameters sorted by name, after the renewable parameters are dropped. The default renewable names are `token`, `access_token`, `auth`, `sig`, `signature`, `expires`, `exp`, `key`, `hash`, `hmac` and `nonce`, compared case-insensitively; a provider's `renewableQuery` replaces that list for its URLs. Every other parameter carries identity, so `?id=1` and `?id=2` are two sources and `?pl=dlhd&token=A` and `?pl=dlhd&token=B` are one. A restream proxy whose path carries a percent-encoded upstream URL (`.../dlhd/https%3A%2F%2F...%3Fid%3D521?token=...`) keeps the whole upstream URL in the key, so two upstreams that differ anywhere inside it are two sources.
+
+A channel's identity is its `channel-uuid`, else its `channel-id`, else its `tvg-id`, else the source key of its URL. An entry without a published identity is its own channel: the channel ID and source ID derive from the provider ID and the source key, the name, logo and group are display values that may change between refreshes, `legacyGuideId` is empty, and without `tvg-chno` the number is the first eight characters of the channel ID (renumber after adopting). A published identity repeated with another name or number keeps the first entry's name and number and adds the URL as an alternative source. An explicit `stream-id` replaces the source key in the source ID; the same source key twice under one channel is `duplicate-source` and the second URL is dropped.
+
+Source IDs therefore survive token rotation, refreshes and reordering. Entries from before this rule referring to a source whose URL has an identity query parameter (anything outside the renewable list) show that source as `WITHDRAWN`; re-run the [Dispatcharr import](#migrate-from-dispatcharr), which replaces each entry's sources in place, or re-add the source through `PATCH /api/v1/admin/lineup/ENTRY_ID`. Sources whose URL has no query, or only renewable parameters, keep their IDs.
 
 ### Guides
 
@@ -111,7 +120,7 @@ The export runs inside the Dispatcharr container and reads its database only. It
    SOFA_ADMIN_TOKEN='TOKEN' python3 scripts/dispatcharr-import.py --file sofaking.json --dry-run
    ```
 
-   Streams match sources by URL with the query string ignored, so renewed tokens do not matter. EPG sources match configured guides by URL (query ignored), then by guide ID equal to the Dispatcharr source name. The report lists every EPG source that did not match and every entry with unmatched streams or an unmapped guide source. Channels whose streams all fail to match are skipped unless `--include-unmatched` is given; a channel without a number or name is skipped with an `error` and never aborts the rest. Household edits stored on Dispatcharr's channel override win over the synced values, and a channel hidden from output exports as disabled.
+   Streams match sources by [source key](#source-identity), so renewed tokens do not matter and entries without a `tvg-id` match like any other; a stream whose identity query changed still matches when exactly one source shares its path. A stream whose path the provider no longer lists, as when FastChannels renamed its vidaa ids from `vidaa.11973` (`/play/vidaa/11973.m3u8`) to `vidaa.US:11973` (`/play/vidaa/US%3A11973.m3u8`), is reported unmatched; refresh the Dispatcharr M3U account or replace the entry's source after the import. EPG sources match configured guides by URL (query ignored), then by guide ID equal to the Dispatcharr source name. The report lists every EPG source that did not match and every entry with unmatched streams or an unmapped guide source. Channels whose streams all fail to match are skipped unless `--include-unmatched` is given; a channel without a number or name is skipped with an `error` and never aborts the rest. Household edits stored on Dispatcharr's channel override win over the synced values, and a channel hidden from output exports as disabled.
 
 4. Map the EPG sources the report flags and apply:
 

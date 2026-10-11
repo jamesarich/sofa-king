@@ -3,8 +3,8 @@ package dev.jamesrich.sofaking.backend.catalog
 import dev.jamesrich.sofaking.backend.api.*
 
 /**
- * One-time migration of a Dispatcharr channel profile. Streams match offerings by URL without the
- * query string, guide sources match configured guides by URL or by name, and entries upsert by UUID.
+ * One-time migration of a Dispatcharr channel profile. Streams match offerings by source key (URL without
+ * renewable query parameters), guide sources match configured guides by URL or by name, and entries upsert by UUID.
  */
 class DispatcharrImporter(private val feeds: FeedService, private val guides: GuideService, private val lineup: LineupService) {
     suspend fun import(request: ImportLineup): ImportReport {
@@ -82,11 +82,11 @@ class DispatcharrImporter(private val feeds: FeedService, private val guides: Gu
         return ImportReport(request.dryRun, created, updated, skipped, matched, unmatched, guideByExportSource, reports)
     }
 
-    /** Configured guide for a Dispatcharr EPG source: by URL ignoring query tokens, then by name, then by [guideMap]. */
+    /** Configured guide for a Dispatcharr EPG source: by URL ignoring the query, then by name, then by [guideMap]. */
     private fun resolveGuide(source: DispatcharrEpgSource, guideMap: Map<String, String>): String? {
         guideMap[source.id.toString()]?.let { mapped -> return guides.config(mapped)?.id ?: throw ApiFailure(400, "INVALID_REQUEST", "guideMap names unknown guide $mapped") }
-        val key = source.url?.let(::sourceKey)
-        return guides.configs.firstOrNull { key != null && sourceKey(it.url) == key }?.id
+        val key = source.url?.let(::pathKey)
+        return guides.configs.firstOrNull { key != null && pathKey(it.url) == key }?.id
             ?: guides.configs.firstOrNull { it.id.equals(source.name, ignoreCase = true) }?.id
     }
 

@@ -66,12 +66,16 @@ class FeedServiceTest {
             fixture.partial = true; feeds.refresh(fixture.feed)
             val status = feeds.providers().single()
             assertNull(status.errorCode)
-            assertEquals(1, status.channels); assertEquals(1, status.sources)
-            assertEquals(2, status.skippedEntries)
-            assertEquals("duplicate-source=1, missing-id=1", status.skipReasons)
-            assertEquals("Station", feeds.channels().single().name)
+            assertEquals(2, status.channels); assertEquals(2, status.sources)
+            assertEquals(1, status.skippedEntries)
+            assertEquals("duplicate-source=1", status.skipReasons)
+            assertEquals("url-identity=1", status.notes)
+            assertEquals(listOf("Station", "Nameless Id"), feeds.channels().map { it.name })
+            val nameless = feeds.channels().last()
+            assertEquals("9", nameless.displayNumber); assertNull(nameless.legacyGuideId)
+            assertEquals(listOf(nameless.id), feeds.offeringsMatching("${fixture.base}/other.m3u8?token=rotated").map { it.channelId })
             fixture.partial = false; feeds.refresh(fixture.feed)
-            assertEquals(0, feeds.providers().single().skippedEntries); assertNull(feeds.providers().single().skipReasons)
+            assertEquals(0, feeds.providers().single().skippedEntries); assertNull(feeds.providers().single().skipReasons); assertNull(feeds.providers().single().notes)
         } } } } finally { dir.toFile().deleteRecursively() }
     }
     @Test fun `catalog revision is stable until health lineup or guide currency changes`() = runBlocking<Unit> {

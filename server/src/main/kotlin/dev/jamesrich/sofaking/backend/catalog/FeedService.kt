@@ -46,6 +46,7 @@ class FeedService(
     private class Published(
         val feeds: List<FeedSnapshot>,
         val protocols: Map<String, String> = emptyMap(),
+        renewable: Map<String, Set<String>> = emptyMap(),
     ) {
         val channels = feeds.flatMap { feed -> feed.channels.map { it to feed.providerId } }.distinctBy { it.first.id }
         val channelById = channels.associate { it.first.id to it.first }
@@ -53,7 +54,13 @@ class FeedService(
         val offerings = feeds.flatMap { it.offerings }.map { offering -> protocols[offering.id]?.let { offering.copy(protocol = it) } ?: offering }
         val offeringById = offerings.associateBy { it.id }
         val offeringsByChannel = offerings.groupBy { it.channelId }
-        val offeringBySourceKey = offerings.groupBy { sourceKey(it.url) }
+
+        /** Per provider, offerings by the source key computed with that provider's renewable parameters. */
+        val offeringBySourceKey: Map<String, Map<String?, List<Offering>>> = offerings.groupBy { it.providerId }.mapValues { (provider, items) ->
+            val names = renewable[provider] ?: DEFAULT_RENEWABLE_QUERY
+            items.groupBy { sourceKey(it.url, names) }
+        }
+        val offeringByPath = offerings.groupBy { pathKey(it.url) }
         val channelsRevision = hash(Json.encodeToString(channels.map { it.first }))
 
         /** Which sources exist decides playbackEligible, and a withdrawal writes no health row. */
@@ -61,7 +68,8 @@ class FeedService(
     }
 
     private val log = LoggerFactory.getLogger(FeedService::class.java)
-    private val published = AtomicReference(Published(emptyList()))
+    private val renewable = configs.associate { it.id to it.renewable }
+    private val published = AtomicReference(Published(emptyList(), renewable = renewable))
     private val statuses = AtomicReference<List<ProviderStatus>>(configs.map { ProviderStatus(it.id) })
     private val mutex = Mutex()
 
@@ -72,6 +80,7 @@ class FeedService(
                     configs.indexOfFirst { it.id == snapshot.providerId }
                 },
                 store.offeringProtocols(),
+                renewable,
             ),
         )
     }
@@ -85,7 +94,7 @@ class FeedService(
             val current = published.get()
             if (current.protocols[offeringId] == protocol) return
             store.recordProtocol(offeringId, protocol, clock.instant())
-            published.set(Published(current.feeds, current.protocols + (offeringId to protocol)))
+            published.set(Published(current.feeds, current.protocols + (offeringId to protocol), renewable))
             log.info("source protocol offering={} protocol={}", offeringId, protocol)
         }
     }
@@ -98,8 +107,16 @@ class FeedService(
 
     fun offeringsOf(channelId: String): List<Offering> = published.get().offeringsByChannel[channelId].orEmpty()
 
-    /** Offerings whose URL matches [url] ignoring its query string. */
-    fun offeringsMatching(url: String): List<Offering> = sourceKey(url)?.let { published.get().offeringBySourceKey[it] }.orEmpty()
+    /**
+     * Offerings whose source key equals that of [url] under each provider's renewable parameters. When none does,
+     * the one offering sharing its `scheme://authority/path`, so a stream whose identity query changed still matches.
+     */
+    fun offeringsMatching(url: String): List<Offering> {
+        val current = published.get()
+        val exact = configs.flatMap { config -> sourceKey(url, config.renewable)?.let { current.offeringBySourceKey[config.id]?.get(it) }.orEmpty() }
+        if (exact.isNotEmpty()) return exact
+        return pathKey(url)?.let { current.offeringByPath[it] }?.takeIf { it.size == 1 }.orEmpty()
+    }
 
     fun channels(providerId: String? = null): List<Channel> {
         val current = published.get()
@@ -123,7 +140,7 @@ class FeedService(
             val started = clock.instant()
             try {
                 val playlist = fetch(config.playlistUrl, config.headers, 16 * 1024 * 1024)
-                val parsed = FeedParser.playlist(config.id, playlist, config.defaultProtocol)
+                val parsed = FeedParser.playlist(config.id, playlist, config.defaultProtocol, config.renewable)
                 val (channels, offerings) = parsed
                 require(channels.isNotEmpty() || config.allowEmpty) { "Empty playlist requires explicit allowEmpty" }
                 val previous = published.get().feeds.find { it.providerId == config.id }
@@ -137,6 +154,7 @@ class FeedService(
                             configs.indexOfFirst { it.id == item.providerId }
                         },
                         current.protocols,
+                        renewable,
                     ),
                 )
                 statuses.set(
@@ -149,6 +167,7 @@ class FeedService(
                                 sources = offerings.size,
                                 skippedEntries = parsed.skippedCount,
                                 skipReasons = parsed.skipSummary,
+                                notes = parsed.noteSummary,
                             )
                         } else {
                             it
@@ -161,6 +180,7 @@ class FeedService(
                     config.id, channels.size, offerings.size, parsed.skippedCount, durationMs,
                 )
                 if (parsed.skippedCount > 0) log.warn("import provider={} skipped malformed entries: {}", config.id, parsed.skipSummary)
+                parsed.noteSummary?.let { log.info("import provider={} derived identities: {}", config.id, it) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

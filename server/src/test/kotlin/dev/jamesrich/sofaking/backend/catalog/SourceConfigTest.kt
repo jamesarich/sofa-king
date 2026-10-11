@@ -34,6 +34,13 @@ class SourceConfigTest {
         assertEquals(config.guides, config.allGuides)
     }
 
+    @Test fun `renewable query parameters are configurable per provider`() {
+        val config = load("""[{"id":"p","playlistUrl":"http://feeds.test/p.m3u","renewableQuery":["Token","pl"]},{"id":"q","playlistUrl":"http://feeds.test/q.m3u"}]""")
+        assertEquals(setOf("token", "pl"), config.providers[0].renewable)
+        assertEquals(DEFAULT_RENEWABLE_QUERY, config.providers[1].renewable)
+        assertFailsWith<IllegalArgumentException> { load("""[{"id":"p","playlistUrl":"http://feeds.test/p.m3u","renewableQuery":["a b"]}]""") }
+    }
+
     @Test fun `unset variables duplicate ids and short guide intervals are rejected`() {
         assertFailsWith<IllegalArgumentException> { load("""[{"id":"p","playlistUrl":"http://feeds.test/${'$'}{MISSING}.m3u"}]""") }
         assertFailsWith<IllegalArgumentException> {

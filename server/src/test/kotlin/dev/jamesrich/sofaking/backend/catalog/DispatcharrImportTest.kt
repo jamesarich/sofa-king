@@ -10,11 +10,46 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class DispatcharrImportTest {
-    @Test fun `source keys ignore query tokens and case of the authority`() {
+    @Test fun `source keys drop renewable query parameters and keep identity parameters sorted`() {
         assertEquals("http://192.168.1.3:3000/api/ext/v1/p/a b", sourceKey("HTTP://192.168.1.3:3000/api/ext/v1/p/a%20b?token=abc"))
         assertEquals(sourceKey("http://h/x.m3u8?token=1"), sourceKey("http://h/x.m3u8?token=2"))
         assertNotEquals(sourceKey("http://h/x.m3u8"), sourceKey("http://h/y.m3u8"))
         assertNull(sourceKey("not a url"))
+        val dlhd = "http://restream.lan:3000/api/ext/v1/dlhd/https%3A%2F%2Fupstream.example%2Fwatch.php%3Fid%3D521"
+        assertEquals("$dlhd?pl=dlhd".replace("%3A", ":").replace("%2F", "/").replace("%3F", "?").replace("%3D", "="), sourceKey("$dlhd?token=AAAA&pl=dlhd"))
+        assertEquals(sourceKey("$dlhd?token=AAAA&pl=dlhd"), sourceKey("$dlhd?pl=dlhd&Token=BBBB&expires=1&sig=x&key=k"))
+        assertNotEquals(sourceKey("$dlhd?pl=dlhd"), sourceKey("$dlhd?pl=other"))
+        assertNotEquals(sourceKey("$dlhd?pl=dlhd"), sourceKey("${dlhd.dropLast(1)}2?pl=dlhd"), "the identity inside the encoded path tells sources apart")
+        assertEquals(sourceKey("$dlhd?pl=dlhd"), sourceKey("$dlhd?pl=dlhd&token=1", setOf("token")))
+        assertEquals(pathKey("$dlhd?pl=dlhd"), sourceKey("$dlhd?pl=dlhd&token=1", setOf("token", "pl")))
+        assertEquals("http://h/x.m3u8?id=1", sourceKey("http://h/x.m3u8?id=1&token=t"))
+        assertEquals("http://h/x.m3u8", pathKey("http://h/x.m3u8?id=1&token=t"))
+        assertFailsWith<IllegalArgumentException> { validateRenewableQuery(listOf("a b")) }
+    }
+
+    @Test fun `import matches streams without a published identity by source key or by path`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-import-idless-")
+        try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true))
+            fixture.partial = true; feeds.refresh(fixture.feed)
+            val stack = lineupStack(feeds, store, clock, http, guides = emptyList(), adopt = false)
+            val importer = DispatcharrImporter(feeds, stack.guides, stack.lineup)
+            val nameless = feeds.channels().single { it.name == "Nameless Id" }
+            val export = DispatcharrExport(
+                format = DispatcharrImporter.FORMAT, profile = "sofaking", epgSources = emptyList(),
+                channels = listOf(
+                    DispatcharrChannel(null, "9", "Nameless Id", null, null, null, null, null, true, listOf(DispatcharrStream("${fixture.base}/other.m3u8?token=rotated&expires=9"))),
+                    DispatcharrChannel(null, "10", "Path Only", null, null, null, null, null, true, listOf(DispatcharrStream("${fixture.base}/other.m3u8?variant=old"))),
+                ),
+            )
+            val report = importer.import(ImportLineup(export))
+            assertEquals(2, report.created); assertEquals(2, report.matchedStreams); assertEquals(0, report.unmatchedStreams)
+            assertEquals(feeds.offeringsOf(nameless.id).map { it.id }, stack.lineup.entries().single { it.number == "9" }.offeringIds)
+            assertEquals(feeds.offeringsOf(nameless.id).map { it.id }, stack.lineup.entries().single { it.number == "10" }.offeringIds, "a lone path match stands in for a changed identity query")
+            val missing = importer.import(ImportLineup(export.copy(channels = listOf(export.channels.first().copy(streams = listOf(DispatcharrStream("${fixture.base}/gone.m3u8?token=secret"))))), dryRun = true))
+            assertEquals(listOf("${fixture.base}/gone.m3u8"), missing.entries.single().unmatchedStreams, "unmatched keys never carry tokens")
+        } } } } finally { dir.toFile().deleteRecursively() }
     }
 
     @Test fun `import matches streams by URL without tokens maps guides and upserts by uuid`() = runBlocking<Unit> {

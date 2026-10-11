@@ -12,16 +12,25 @@ import javax.xml.stream.XMLInputFactory
 import java.util.zip.GZIPInputStream
 import javax.xml.stream.XMLStreamConstants
 
-/** [skipped] counts malformed entries by short reason; the import still succeeds with the well-formed rest. */
+/**
+ * [skipped] counts malformed entries by short reason; the import still succeeds with the well-formed rest.
+ * [notes] counts imported entries whose identity was derived: `url-identity` and `merged-key`.
+ */
 data class ParsedPlaylist(
     val channels: List<Channel>,
     val offerings: List<Offering>,
     val skipped: Map<String, Int> = emptyMap(),
+    val notes: Map<String, Int> = emptyMap(),
 ) {
     val skippedCount: Int get() = skipped.values.sum()
 
     /** For example `missing-id=3, duplicate-source=1`, or null when nothing was skipped. */
-    val skipSummary: String? get() = skipped.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" }.ifEmpty { null }
+    val skipSummary: String? get() = summary(skipped)
+
+    /** For example `merged-key=2, url-identity=724`, or null when every identity was published. */
+    val noteSummary: String? get() = summary(notes)
+
+    private fun summary(counts: Map<String, Int>) = counts.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" }.ifEmpty { null }
 }
 
 data class ParsedGuide(val channels: List<GuideChannel>, val programmes: List<GuideProgramme>)
@@ -47,14 +56,19 @@ object FeedParser {
         provider: String,
         text: String,
         defaultProtocol: String? = null,
+        renewable: Set<String> = DEFAULT_RENEWABLE_QUERY,
     ): ParsedPlaylist {
         require(text.trimStart('﻿', ' ', '\r', '\n').startsWith("#EXTM3U")) { "Not an extended M3U playlist" }
         val channels = linkedMapOf<String, Channel>()
         val offerings = mutableListOf<Offering>()
         val offeringIds = HashSet<String>()
         val skipped = sortedMapOf<String, Int>()
+        val notes = sortedMapOf<String, Int>()
         fun skip(reason: String) {
             skipped.merge(reason, 1, Int::plus)
+        }
+        fun note(reason: String) {
+            notes.merge(reason, 1, Int::plus)
         }
         var info: String? = null
         for (raw in text.lineSequence()) {
@@ -90,11 +104,15 @@ object FeedParser {
                 skip("missing-name")
                 continue
             }
-            val key = attrs["channel-id"] ?: attrs["tvg-id"]?.takeIf { it.isNotBlank() } ?: attrs["channel-uuid"]
-            if (key == null) {
-                skip("missing-id")
+            val protocol = attrs["stream-type"] ?: defaultProtocol ?: if (uri.path.endsWith(".m3u8", true)) "hls" else "mpegts"
+            if (protocol !in setOf("hls", "mpegts")) {
+                skip("bad-protocol")
                 continue
             }
+            val sourceKey = attrs["stream-id"] ?: checkNotNull(sourceKey(line, renewable))
+            val published = attrs["channel-id"] ?: attrs["tvg-id"]?.takeIf { it.isNotBlank() } ?: attrs["channel-uuid"]
+            // An entry without a published identity is its own channel, keyed by its URL; the name is display only.
+            val key = published ?: "url\u0000$sourceKey"
             val id =
                 try {
                     attrs["channel-uuid"]?.let { java.util.UUID.fromString(it).toString() } ?: stableId("channel:$provider:$key")
@@ -105,33 +123,25 @@ object FeedParser {
             val channel =
                 Channel(
                     id,
-                    attrs["tvg-chno"] ?: attrs["channel-number"] ?: key,
+                    attrs["tvg-chno"] ?: attrs["channel-number"] ?: published ?: id.take(8),
                     name,
                     attrs["tvg-logo"]?.takeIf { it.startsWith("https://") || it.startsWith("http://") },
                     attrs["group-title"]?.takeIf(String::isNotBlank)?.let(::listOf).orEmpty(),
                     attrs["tvg-id"],
                 )
-            // Multiple URLs with one exact provider key are alternatives, never fuzzy name merges.
-            if (channels[id]?.let { it.name == name && it.displayNumber == channel.displayNumber } == false) {
-                skip("duplicate-key")
-                continue
-            }
-            val protocol = attrs["stream-type"] ?: defaultProtocol ?: if (uri.path.endsWith(".m3u8", true)) "hls" else "mpegts"
-            if (protocol !in setOf("hls", "mpegts")) {
-                skip("bad-protocol")
-                continue
-            }
-            val sourceKey = attrs["stream-id"] ?: "${uri.scheme}://${uri.authority}${uri.path}"
             val offeringId = stableId("offering:$provider:$key:$sourceKey")
             if (!offeringIds.add(offeringId)) {
                 skip("duplicate-source")
                 continue
             }
+            if (published == null) note("url-identity")
+            // Multiple URLs with one exact provider key are alternatives of the first entry, never fuzzy name merges.
+            if (channels[id]?.let { it.name == name && it.displayNumber == channel.displayNumber } == false) note("merged-key")
             channels.putIfAbsent(id, channel)
             offerings += Offering(offeringId, id, provider, line, protocol)
             require(channels.size <= 10_000 && offerings.size <= 20_000) { "Playlist exceeds import limits" }
         }
-        return ParsedPlaylist(channels.values.toList(), offerings, skipped)
+        return ParsedPlaylist(channels.values.toList(), offerings, skipped, notes)
     }
 
     /** Parses XMLTV from [input] (plain or gzip), keeping only programmes whose channel [wanted] accepts. */

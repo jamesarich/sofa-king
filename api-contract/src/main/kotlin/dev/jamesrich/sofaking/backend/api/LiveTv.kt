@@ -21,7 +21,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class PlaybackSession(val id: String, val channelId: String, val intent: String, val expiresAt: String, val descriptor: PlaybackDescriptor)
 @Serializable data class ProviderStatus(
     val id: String, val lastSuccessAt: String? = null, val errorCode: String? = null, val channels: Int = 0,
-    val sources: Int = 0, val skippedEntries: Int = 0, val skipReasons: String? = null,
+    val sources: Int = 0, val skippedEntries: Int = 0, val skipReasons: String? = null, val notes: String? = null,
 )
 @Serializable data class SourceStatus(val id: String, val channelId: String, val providerId: String, val status: String, val manuallyDisabled: Boolean, val lastQualifiedAt: String? = null, val nextCheckAt: String? = null)
 @Serializable data class UpdateSource(val manuallyDisabled: Boolean)

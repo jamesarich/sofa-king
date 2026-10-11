@@ -15,18 +15,26 @@ private fun validateHeaders(headers: Map<String, String>) {
     require(headers.keys.none { it.lowercase() in setOf("host", "content-length", "connection", "transfer-encoding") })
 }
 
-/** One provider playlist. A `guideUrl` is an implicit guide source with this provider's id. */
+/**
+ * One provider playlist. A `guideUrl` is an implicit guide source with this provider's id.
+ * [renewableQuery] replaces [DEFAULT_RENEWABLE_QUERY] for this provider's stream URLs.
+ */
 @Serializable data class FeedConfig(
     val id: String, val playlistUrl: String, val guideUrl: String? = null,
     val headers: Map<String, String> = emptyMap(), val refreshSeconds: Long = 900,
     val allowEmpty: Boolean = false, val probe: Boolean = true, val defaultProtocol: String? = null,
+    val renewableQuery: List<String>? = null,
 ) {
+    /** Lowercase query parameter names dropped from this provider's source identities. */
+    val renewable: Set<String> get() = renewableQuery(renewableQuery)
+
     fun validate() {
         require(id.matches(idPattern)) { "Invalid provider ID" }
         httpUri(playlistUrl); guideUrl?.let(::httpUri)
         require(defaultProtocol == null || defaultProtocol in setOf("hls", "mpegts")) { "Unsupported default protocol" }
         require(refreshSeconds >= 60) { "Refresh interval must be at least 60 seconds" }
         validateHeaders(headers)
+        renewableQuery?.let(::validateRenewableQuery)
     }
 }
 
@@ -107,11 +115,3 @@ data class LineupEntryRecord(
     val id: String, val number: String, val name: String, val group: String? = null, val logo: String? = null,
     val enabled: Boolean = true, val guide: GuideMapping? = null, val offeringIds: List<String> = emptyList(),
 )
-
-/** `scheme://authority/path` with the path percent-decoded; renewable query tokens never take part. */
-fun sourceKey(url: String): String? = try {
-    val uri = URI(url)
-    if (uri.scheme == null || uri.authority == null) null else "${uri.scheme.lowercase()}://${uri.authority.lowercase()}${uri.path.orEmpty()}"
-} catch (_: Exception) {
-    null
-}

@@ -116,13 +116,14 @@ private data class FocusedCell(val channel: Channel, val cell: GuideCell)
 /**
  * The guide grid. Filter, search, time cursor, scroll and the focused channel are saveable, so a trip to the
  * player and back lands where the user left; [initialChannelId] (the last channel watched) is where a fresh
- * guide starts.
+ * guide starts, and [startAtNow] puts the cursor at the current time instead of where it was.
  */
 @Composable
 fun GuideScreen(
     lineup: Lineup,
     favorites: Set<String>,
     initialChannelId: String?,
+    startAtNow: Boolean,
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     previewPlayer: ExoPlayer,
@@ -238,6 +239,7 @@ fun GuideScreen(
 
     LaunchedEffect(visible.isNotEmpty(), initialFocusAttempt) {
         if (initialFocusDone || visible.isEmpty() || initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) return@LaunchedEffect
+        if (startAtNow) cursor = nowMinute ?: nowClamped
         val row = initialGuideRow(visible, lastFocusedGuideId, initialChannelId)
         if (row >= 0) {
             // Before the first measure the layout info is empty; a restored scroll position must not be thrown away.
@@ -293,8 +295,9 @@ fun GuideScreen(
         true
     }
 
+    // Now goes to the focused channel's row, which the chips keep, else the first row on screen.
     val onNow: () -> Unit = {
-        val guideId = visible.getOrNull(listState.firstVisibleItemIndex)?.guideId
+        val guideId = focused?.channel?.guideId ?: visible.getOrNull(listState.firstVisibleItemIndex)?.guideId
         if (guideId != null) requestJump(guideId, nowMinute ?: 0L)
     }
     val closeSearch: () -> Unit = {
@@ -372,8 +375,18 @@ fun GuideScreen(
         )
     }
 
+    // Remote shortcuts answered wherever focus is; everything else goes on to the focused node.
+    val onGuideKey: (KeyEvent) -> Boolean = handler@{ event ->
+        if (event.type != KeyEventType.KeyDown) return@handler false
+        when (event.key.guideShortcut()) {
+            GuideShortcut.NOW -> onNow()
+            null -> return@handler false
+        }
+        true
+    }
+
     // The app header above already carries the top overscan margin; 16dp here is spacing, not overscan.
-    Column(modifier = modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 27.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 27.dp).onPreviewKeyEvent(onGuideKey)) {
         if (PREVIEW_ENABLED) {
             PreviewBand(focused = focusedState, now = now, searchOpen = searchOpen, chips = chips, searchBar = searchBar, player = previewPlayer, sessions = sessions)
         } else {

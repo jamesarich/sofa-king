@@ -77,7 +77,8 @@ class MainActivity : ComponentActivity() {
 }
 
 private sealed interface Screen {
-    data object Guide : Screen
+    /** [atNow] moves the guide's cursor to the current time on arrival (the Guide key from the player). */
+    data class Guide(val atNow: Boolean = false) : Screen
     data class Player(val guideId: String) : Screen
     data object Settings : Screen
 }
@@ -87,7 +88,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
-    var screen by rememberSaveable(stateSaver = ScreenSaver) { mutableStateOf<Screen>(Screen.Guide) }
+    var screen by rememberSaveable(stateSaver = ScreenSaver) { mutableStateOf<Screen>(Screen.Guide()) }
     // A short word from the player on its way back to the guide: the channel it was asked for is gone.
     var notice by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(notice) {
@@ -140,7 +141,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     // the server, so it releases the session outright rather than keeping it to reopen.
     LaunchedEffect(screen) {
         when (screen) {
-            Screen.Guide -> captionSync.advanceUs = 0L
+            is Screen.Guide -> captionSync.advanceUs = 0L
             Screen.Settings -> {
                 player.stop()
                 sessions.release(forget = true)
@@ -179,8 +180,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
         Screen.Settings -> settings?.let { s ->
             SettingsScreen(
                 settings = s,
-                onSave = { url, token -> vm.saveServer(url, token); screen = Screen.Guide },
-                onBack = { screen = Screen.Guide },
+                onSave = { url, token -> vm.saveServer(url, token); screen = Screen.Guide() },
+                onBack = { screen = Screen.Guide() },
                 channelCount = lineup?.channels?.size ?: 0,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },
                 onCaptionAdvanceChanged = { vm.setCaptionAdvanceMs(it) },
@@ -196,12 +197,13 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 player = player,
                 sessions = sessions,
                 captionSync = captionSync,
-                onExit = { screen = Screen.Guide },
+                onExit = { screen = Screen.Guide() },
+                onGuide = { screen = Screen.Guide(atNow = true) },
                 onChannelChanged = { vm.setLastChannel(it.guideId) },
                 reloadLineup = vm::reloadLineup,
                 onChannelGone = { channel ->
                     notice = context.getString(R.string.channel_gone, channel.label())
-                    screen = Screen.Guide
+                    screen = Screen.Guide()
                 },
                 captionsEnabled = settings?.captionsEnabled ?: false,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },
@@ -211,10 +213,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 smoothCaptions = settings?.smoothCaptions ?: true,
             )
         } else {
-            LaunchedEffect(Unit) { screen = Screen.Guide }
+            LaunchedEffect(Unit) { screen = Screen.Guide() }
         }
         // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
-        Screen.Guide -> guideState.SaveableStateProvider("guide") {
+        is Screen.Guide -> guideState.SaveableStateProvider("guide") {
             Column {
                 val settingsFocus = remember { FocusRequester() }
                 Header(
@@ -247,6 +249,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                         lineup = s.lineup,
                         favorites = settings?.favorites.orEmpty(),
                         lastChannel = settings?.lastChannel,
+                        startAtNow = current.atNow,
                         onPlay = { screen = Screen.Player(it) },
                         onToggleFavorite = vm::toggleFavorite,
                         previewPlayer = player,
@@ -263,6 +266,7 @@ private fun GuideOrEmpty(
     lineup: Lineup,
     favorites: Set<String>,
     lastChannel: String?,
+    startAtNow: Boolean,
     onPlay: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
     previewPlayer: ExoPlayer,
@@ -275,6 +279,7 @@ private fun GuideOrEmpty(
             lineup = lineup,
             favorites = favorites,
             initialChannelId = lastChannel,
+            startAtNow = startAtNow,
             onPlay = { onPlay(it.guideId) },
             onToggleFavorite = { onToggleFavorite(it.guideId) },
             previewPlayer = previewPlayer,
@@ -327,7 +332,7 @@ private const val NOTICE_MS = 5_000L
 private val ScreenSaver = Saver<Screen, String>(
     save = {
         when (it) {
-            Screen.Guide -> "guide"
+            is Screen.Guide -> if (it.atNow) "guide:now" else "guide"
             Screen.Settings -> "settings"
             is Screen.Player -> "player:${it.guideId}"
         }
@@ -336,7 +341,8 @@ private val ScreenSaver = Saver<Screen, String>(
         when {
             it == "settings" -> Screen.Settings
             it.startsWith("player:") -> Screen.Player(it.removePrefix("player:"))
-            else -> Screen.Guide
+            it == "guide:now" -> Screen.Guide(atNow = true)
+            else -> Screen.Guide()
         }
     },
 )

@@ -118,6 +118,7 @@ fun PlayerScreen(
     captionSync: CaptionSync,
     onExit: () -> Unit,
     onChannelChanged: (Channel) -> Unit,
+    onGuide: () -> Unit = onExit,
     reloadLineup: suspend () -> Lineup? = { null },
     onChannelGone: (Channel) -> Unit = { onExit() },
     captionsEnabled: Boolean = false,
@@ -480,6 +481,13 @@ fun PlayerScreen(
 
     fun handleKey(key: Key): Boolean {
         if (currentChannels.isEmpty()) return false
+        when (key.playerExit()) {
+            PlayerExit.GUIDE_AT_NOW -> {
+                onGuide()
+                return true
+            }
+            null -> Unit
+        }
         key.digitValue()?.let { digit ->
             entry = entry.append(digit)
             return true

@@ -15,3 +15,12 @@ internal fun Key.digitValue(): Int? = when (this) {
     Key.Nine, Key.NumPad9 -> 9
     else -> null
 }
+
+/** A key that leaves the player for the guide, and where in the guide it lands. */
+internal enum class PlayerExit { GUIDE_AT_NOW }
+
+/** The Guide key, or Menu on remotes without one, opens the guide at the current time. */
+internal fun Key.playerExit(): PlayerExit? = when (this) {
+    Key.Guide, Key.Menu -> PlayerExit.GUIDE_AT_NOW
+    else -> null
+}

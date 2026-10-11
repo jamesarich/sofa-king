@@ -19,6 +19,7 @@ Unit tests run against MockWebServer; no server is needed for offline developmen
 - Preserve 48dp horizontal and 27dp vertical overscan padding.
 - Preserve the guide's 24-hour window, time cursor and saved position across player navigation.
 - A cold start opens the last watched channel full screen through the normal session path, decided once by `launchTarget` after the lineup and settings are in; the guide and preview must not compose before that decision. No last channel opens the guide.
+- Guide and Menu are one shortcut: in the player they open the guide at Now (`Screen.Guide(atNow)`), in the guide they jump to Now. Map remote keys in `playerExit` and `guideShortcut`, not in ad-hoc `when` branches.
 - Back in the guide: open search closes first, the grid hands focus to the selected chip, the chips and header exit. Decide it in `guideBackAction`, never in a second BackHandler.
 - Keep models immutable. Read time from rememberMinuteNow, not Instant.now during composition.
 - Use theme colors, shared motion and resource strings in US English. UI terminology is "program".

@@ -61,6 +61,7 @@ import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
+import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -94,8 +95,20 @@ private val GuideFilterSaver = Saver<GuideFilter, String>(
     },
 )
 
+/** How often the initial focus is retried after the row refused it, before the header keeps focus. */
+private const val INITIAL_FOCUS_ATTEMPTS = 3
+
 /** Asks the row for [guideId] to focus the cell covering window [minute]. [nonce] keeps each request distinct. */
 internal data class GuideJump(val guideId: String, val minute: Long, val nonce: Int)
+
+/**
+ * The row a fresh guide starts on: back from the player, or on a cold start, the channel last focused
+ * ([lastFocused]) or watched ([lastWatched]); -1 when neither is in [visible], so the first row takes focus.
+ */
+internal fun initialGuideRow(visible: List<Channel>, lastFocused: String?, lastWatched: String?): Int {
+    val wanted = lastFocused ?: lastWatched ?: return -1
+    return visible.indexOfFirst { it.guideId == wanted }
+}
 
 /** The cell most recently focused in the grid, shown by the preview pane. */
 private data class FocusedCell(val channel: Channel, val cell: GuideCell)
@@ -193,7 +206,9 @@ fun GuideScreen(
     val searchChip = remember { FocusRequester() }
     val searchField = remember { FocusRequester() }
     val initialFocus = remember { FocusRequester() }
+    // True once a cell has taken focus; until then the header's buttons hold it, so the request is retried.
     var initialFocusDone by remember { mutableStateOf(false) }
+    var initialFocusAttempt by remember { mutableIntStateOf(0) }
     var returnToSearchChip by remember { mutableStateOf(false) }
 
     // Scrolls the timeline so [minute] is inside the visible strip, leaving a half hour of room on the left.
@@ -207,6 +222,7 @@ fun GuideScreen(
     }
     val onCellFocused: (Channel, GuideCell) -> Unit = { channel, cell ->
         focused = FocusedCell(channel, cell)
+        initialFocusDone = true
         lastFocusedGuideId = channel.guideId
         pendingRow = null
         if (cursor !in cell.startMinute until cell.endMinute) cursor = cell.startMinute
@@ -219,21 +235,22 @@ fun GuideScreen(
         revealMinute(minute)
     }
 
-    LaunchedEffect(visible.isNotEmpty()) {
-        if (initialFocusDone || visible.isEmpty()) return@LaunchedEffect
-        initialFocusDone = true
-        // Back from the player, or a cold start, lands on the channel last focused or watched; else the first row.
-        val wanted = lastFocusedGuideId ?: initialChannelId
-        val row = wanted?.let { id -> visible.indexOfFirst { it.guideId == id } } ?: -1
+    LaunchedEffect(visible.isNotEmpty(), initialFocusAttempt) {
+        if (initialFocusDone || visible.isEmpty() || initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) return@LaunchedEffect
+        val row = initialGuideRow(visible, lastFocusedGuideId, initialChannelId)
         if (row >= 0) {
             // Before the first measure the layout info is empty; a restored scroll position must not be thrown away.
             withFrameNanos { }
             if (listState.layoutInfo.visibleItemsInfo.none { it.index == row }) listState.scrollToItem(row)
+            // The row reports through onJumpHandled whether its cell took focus.
             requestJump(visible[row].guideId, cursor)
-        } else {
-            // The first row may need a few frames to attach before its cell can take focus.
-            requestFocusWhenAttached(initialFocus)
+        } else if (!requestFocusWhenAttached(initialFocus, FIRST_FOCUS_FRAMES)) {
+            initialFocusAttempt++
         }
+    }
+    val onJumpHandled: (Boolean) -> Unit = { landed ->
+        jump = null
+        if (landed) initialFocusDone = true else if (!initialFocusDone) initialFocusAttempt++
     }
 
     // The guide fills in after the channels, so the focused cell's programmes change under it without a focus
@@ -411,7 +428,7 @@ fun GuideScreen(
                         env = env,
                         initialFocus = initialFocus.takeIf { index == 0 },
                         jump = jump?.takeIf { it.guideId == channel.guideId },
-                        onJumpHandled = { jump = null },
+                        onJumpHandled = onJumpHandled,
                     )
                 }
             }

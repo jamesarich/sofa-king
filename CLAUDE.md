@@ -15,7 +15,7 @@ Unit tests run against MockWebServer; no server is needed for offline developmen
 ## UI
 
 - Use androidx.tv.material3 and foundation lazy layouts. Do not mix mobile Material 3 into TV screens.
-- Support the five-way D-pad. Use focusRestorer; request focus from effects or callbacks and wait for lazy nodes with requestFocusWhenAttached.
+- Support the five-way D-pad. Use focusRestorer; request focus from effects or callbacks and wait for lazy nodes with requestFocusWhenAttached. The guide's first focus is retried until a cell reports it landed; the header's buttons must never keep focus once channels are on screen. The unconfigured screen starts on Settings.
 - Preserve 48dp horizontal and 27dp vertical overscan padding.
 - Preserve the guide's 24-hour window, time cursor and saved position across player navigation.
 - Keep models immutable. Read time from rememberMinuteNow, not Instant.now during composition.

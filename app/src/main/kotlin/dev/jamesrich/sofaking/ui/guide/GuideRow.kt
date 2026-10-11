@@ -19,9 +19,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -41,8 +44,8 @@ import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
 import dev.jamesrich.sofaking.ui.range
-import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
@@ -74,7 +77,7 @@ internal fun ChannelRow(
     env: GuideRowEnv,
     initialFocus: FocusRequester?,
     jump: GuideJump?,
-    onJumpHandled: () -> Unit,
+    onJumpHandled: (landed: Boolean) -> Unit,
 ) {
     val cells = remember(programmes, windowStart, windowEnd) {
         GuideTimeline.cellsFor(programmes, windowStart, windowEnd)
@@ -83,12 +86,23 @@ internal fun ChannelRow(
         cells.indexOfFirst { it.programme != null && it.covers(nowMinute) }.coerceAtLeast(0)
     }
     val cellFocus = remember(cells) { List(cells.size) { FocusRequester() } }
+    val currentCells by rememberUpdatedState(cells)
+    val currentCellFocus by rememberUpdatedState(cellFocus)
 
     LaunchedEffect(jump) {
         if (jump == null) return@LaunchedEffect
-        val index = GuideTimeline.cellIndexAt(cells, jump.minute)
-        if (index >= 0) requestFocusWhenAttached(cellFocus[index])
-        onJumpHandled()
+        // The guide can fill in while the request waits, replacing the cells and their requesters, so the
+        // cell under the minute is looked up again on every frame.
+        var landed = false
+        for (frame in 0 until FIRST_FOCUS_FRAMES) {
+            withFrameNanos { }
+            val index = GuideTimeline.cellIndexAt(currentCells, jump.minute)
+            if (index >= 0 && currentCellFocus[index].requestFocus(FocusDirection.Enter)) {
+                landed = true
+                break
+            }
+        }
+        onJumpHandled(landed)
     }
 
     Row(Modifier.fillMaxWidth().height(ROW_HEIGHT)) {

@@ -5,7 +5,8 @@
 | [Build a starter lineup](starter-lineup.md) | From an empty server to a grouped lineup of the free services with fallbacks across them, plus your local channels |
 | [Live TV](live-tv.md) | Configuration reference, source files, the lineup, logos, player outputs, Plex Live TV, LAN access, and troubleshooting |
 | [Native providers](providers.md) | The built-in clients for free streaming services, their options and their failure modes |
-| [Curation](curation.md) | Rules, settings, automation and the pins that keep manual edits in place |
+| [Lineup policy](lineup-policy.md) | The policy file that rebuilds the whole lineup, its fields, runs, required stations, findings, API and cutover |
+| [Curation](curation.md) | The legacy engine used without a policy: rules, settings, automation and the pins that keep manual edits in place |
 | [Migrate from Dispatcharr](migrate-from-dispatcharr.md) | Importing a Dispatcharr profile, its curation mapping, and cutting over from the old pipeline |
 | [HTTP API](api.md) | Endpoints for clients, the player outputs, the HDHomeRun routes, the admin API and the Kotlin client |
 | [Deploy with Docker](deploy.md) | The image, Compose files, environment files and first start |

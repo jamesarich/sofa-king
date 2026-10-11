@@ -17,9 +17,12 @@ services:
     environment:
       SOFA_API_TOKEN: ${SOFA_API_TOKEN:?set SOFA_API_TOKEN in deploy/.env}
       SOFA_SOURCES: /config/sources.json
+      # Builds the lineup from a policy file, see docs/lineup-policy.md. The server writes it, so mount its directory read-write.
+      # SOFA_POLICY: /config/policy/policy.json
     volumes:
       - sofa-data:/data
       - ./sources.json:/config/sources.json:ro
+      # - ./policy:/config/policy
     extra_hosts:
       # Lets sources.json reach a feed served by this Docker host as http://host.docker.internal:PORT/...
       - "host.docker.internal:host-gateway"

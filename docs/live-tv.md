@@ -12,7 +12,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_PORT` | `8080` | Listen port, 1-65535 |
 | `SOFA_DATA_DIR` | `data` | Database and logo cache directory |
 | `SOFA_SOURCES` | Unset | Path to the source configuration JSON file; unset starts with no providers or guides |
-| `SOFA_POLICY` | Unset | Path to a lineup policy JSON file, loaded and validated at start (any error stops the server); read by the policy preview routes only, the lineup is not built from it |
+| `SOFA_POLICY` | Unset | Path to a [lineup policy](lineup-policy.md) JSON file in a writable directory, loaded and validated at start (any error stops the server). When set, the lineup is built from it and curation does not run |
 | `SOFA_API_TOKEN` | Unset | API bearer token, at least 32 characters; required for non-loopback binding |
 | `SOFA_ADMIN_TOKEN` | Unset | Bearer token for `/api/v1/admin/*`, at least 32 characters; unset means the API token administers the lineup too |
 | `SOFA_MAX_SESSIONS` | `4` | Maximum active playback sessions, 1-16 |
@@ -29,6 +29,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_HDHR_NAME` | `Sofa King` | Friendly name Plex shows, 1-64 characters |
 | `SOFA_HDHR_ALLOW` | Unset | Client IPs or CIDR blocks admitted to the HDHomeRun routes, comma separated (for example `PLEX_SERVER_IP` or `LAN_CIDR`); required when `SOFA_HOST` is not loopback and HDHomeRun is enabled; on loopback, unset admits every address that reaches the port |
 | `SOFA_HDHR_EXTRA_PORTS` | Unset | Further ports the server listens on, comma separated, up to 7. Each is one more HDHomeRun device (`SOFA_HDHR_NAME 2`, and so on) carrying its share of the lineup. See [several devices](#several-devices-for-a-large-lineup) |
+| `SOFA_HDHR_DEVICE_SIZE` | `250` | With a lineup policy, channels per HDHomeRun device; devices hold consecutive ranges of the lineup. 1 to 5000 |
 
 ## Source settings
 
@@ -167,6 +168,7 @@ After a lineup change, a new channel or a renumbering, run "Scan channels" for t
 `SOFA_HDHR_EXTRA_PORTS` lists further ports the server listens on, up to seven. Each port is one more HDHomeRun device, named `SOFA_HDHR_NAME 2`, `SOFA_HDHR_NAME 3` and so on, and each carries its share of the lineup.
 
 - The lineup is split by a stable hash of each entry's ID, so a channel stays on its device when other channels change. Changing the number of ports reassigns channels across the devices.
+- With a [lineup policy](lineup-policy.md#hdhomerun-devices), devices hold consecutive ranges instead: the first `SOFA_HDHR_DEVICE_SIZE` enabled channels in number order on the first device, the next on the second. Channels beyond the last device's range stay on it, and the server logs that more ports are needed.
 - Each device has its own `SOFA_HDHR_TUNERS` tuners. All devices share `SOFA_MAX_SESSIONS`, so the total number of concurrent streams is still capped by it.
 - Publish every extra port in `deploy/compose.yaml`, then restart after changing the list.
 - Add each device to the same DVR, with `SERVER_HOST:PORT` for its port and the same XMLTV guide URL.

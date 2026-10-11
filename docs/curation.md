@@ -1,5 +1,7 @@
 # Curation
 
+Curation is the legacy lineup engine, used when `SOFA_POLICY` is unset. With a [lineup policy](lineup-policy.md) configured the server builds the lineup from the policy instead, curation does not run, and its routes answer `410 Gone` except the change log.
+
 The lineup is curated inside the server. Rules and settings live in SQLite and are edited through the [admin API](api.md#curation). The automation they drive runs after every provider import and health change, and on an interval. Admin edits are authoritative: a field an admin set is pinned, and automation never changes it. `GET /api/v1/admin/curation/preview` shows what a run would do before automation applies anything.
 
 ## Pins

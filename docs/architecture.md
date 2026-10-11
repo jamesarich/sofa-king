@@ -26,6 +26,7 @@ Lineup → /discover.json + /lineup.json → Plex → /auto/v{number} → Sessio
 Stream URL → ProbeWorker → HealthPolicy → SQLite source health
 Lineup logo URLs → LogoCache (fetch, validate, data/logos/<key>) → /logos/{key} in the JSON API, M3U and XMLTV
 Rules + settings (SQLite) + lineup + feeds + health → CurationService.plan → apply (one lineup transaction) → curation_change log
+Policy file + feeds + guides + health + station_availability → StationBuilder.build → PolicyService.apply (one lineup transaction) → curation_change log, numbers written back to the file
 ```
 
 Provider imports publish complete snapshots; invalid imports retain the previous snapshot. Guide imports replace one guide's rows atomically and keep only programs for channels the lineup maps onto that guide; the channel index is kept whole. Immutable in-memory indexes serve catalog requests; guide programs are read from SQLite by guide, channel and window. SQLite uses WAL, foreign keys, bounded blocking transactions and versioned atomic migrations whose versions may have gaps.
@@ -47,6 +48,10 @@ Guide programs belong to a guide ID and XMLTV channel ID; an entry's `legacyGuid
 ## Lineup
 
 `LineupService` keeps the entries in memory and writes the whole lineup in one transaction on each change, under a mutex. Each entry carries its ordered offering IDs and optional guide mapping. When a change maps channels a guide did not retain before, the guide's loop is asked to refresh; repeated requests before it runs coalesce. `CatalogService` resolves entries against current offerings, health and guide coverage; disabled entries are not served and are unknown to guide queries and playback.
+
+## Lineup policy
+
+With `SOFA_POLICY` set, `PolicyService` builds the lineup and `CurationService` is constructed but never started. `StationBuilder` is pure: it turns one snapshot of feed channels, guide listings, health and the remembered `station_availability` rows into stations, findings and the numbers it assigned. `apply` writes the stations through `LineupService.mutate` only when they differ, replaces the availability rows, logs field changes as `kind: "policy"` actions, then writes assigned numbers into the file. `PolicyFile` serializes every write behind one mutex, checks the on-disk SHA-256 against the loaded revision, and writes a temp file, fsyncs and renames. The loop runs on feed, guide and health triggers after a quiet period, and every 900 seconds. [Lineup policy](lineup-policy.md) describes the file and the run.
 
 ## Curation
 

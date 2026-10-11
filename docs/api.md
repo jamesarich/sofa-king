@@ -149,8 +149,8 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/lineup` | Every entry in lineup order |
 | POST | `/api/v1/admin/lineup` | Create an entry; returns 201 |
 | GET | `/api/v1/admin/lineup/{id}` | One entry |
-| PATCH | `/api/v1/admin/lineup/{id}` | Update an entry |
-| DELETE | `/api/v1/admin/lineup/{id}` | Remove an entry; returns 204 |
+| PATCH | `/api/v1/admin/lineup/{id}` | Update an entry; with a policy, writes the station override instead and applies (`If-Match` optional) |
+| DELETE | `/api/v1/admin/lineup/{id}` | Remove an entry; returns 204. With a policy, writes `enabled: false` into the station override instead |
 | PUT | `/api/v1/admin/lineup/order` | Reorder: `{"ids": [...]}` listing every entry once; returns the lineup |
 | POST | `/api/v1/admin/lineup/adopt` | `{"providerId": "...", "enabled": true}` adds every channel of the provider whose sources no entry uses; returns `added` and `skipped` |
 | POST | `/api/v1/admin/lineup/import` | Import a Dispatcharr export, see [migrate from Dispatcharr](migrate-from-dispatcharr.md#import-api) |
@@ -160,12 +160,18 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | POST | `/api/v1/admin/curation/import` | Create rules from a pipeline's data files, see [migrate from Dispatcharr](migrate-from-dispatcharr.md#pipeline-data-import) |
 | GET | `/api/v1/admin/curation/preview` | The plan a run would apply now, applying nothing |
 | POST | `/api/v1/admin/curation/run` | Apply a plan now, whether or not automation is enabled; returns what was applied |
-| GET | `/api/v1/admin/curation/changes?limit=` | Applied actions, newest first; `limit` 1-1000 (default 100) |
-| GET | `/api/v1/admin/policy` | The [lineup policy](plans/2026-10-11-lineup-policy.md) `SOFA_POLICY` names, as `policy` with `revision` (the file's SHA-256) and `path`; 404 `POLICY_NOT_CONFIGURED` when unset |
-| GET | `/api/v1/admin/policy/preview` | The stations the policy builds now against the served lineup: `added` keys, `removed` entries, field `changes`, `merges`, `splits`, `counts` and `findings`; writes nothing |
+| GET | `/api/v1/admin/curation/changes?limit=` | Applied actions, newest first; `limit` 1-1000 (default 100). Policy runs log here too, as `kind: "policy"` with the station `key` and the cause in `reason` |
+| GET | `/api/v1/admin/policy` | The [lineup policy](lineup-policy.md) `SOFA_POLICY` names, as `policy` with `revision` (the file's SHA-256, also the `ETag`) and `path`; 404 `POLICY_NOT_CONFIGURED` when unset |
+| PUT | `/api/v1/admin/policy` | Replace the policy with the body; `If-Match: <revision>` required (428 without it, 409 `POLICY_CHANGED` when stale or the file changed on disk, 400 `INVALID_POLICY` with every error). Writes atomically, applies, and returns `document` and `apply` |
+| GET | `/api/v1/admin/policy/preview` | The stations the policy builds now against the served lineup: `added` keys, `removed` entries, field `changes`, `merges`, `splits`, `counts`, `findings` and `suggestedAliases`; writes nothing |
+| POST | `/api/v1/admin/policy/apply` | Run the policy now: writes the lineup when it differs, logs each change, writes assigned numbers back to the file; returns `changed`, `changes`, `assigned` and `findings` |
+| GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current feeds, and `suggestedAliases` |
+| POST | `/api/v1/admin/policy/check` | The cutover check: body `{"channels": [...], "replacements": {...}}` from a legacy export; returns `pass` and a verdict per channel, see [cut over](lineup-policy.md#cut-over-from-a-curated-lineup) |
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
 
-An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `pinned` (the fields an admin set, which [curation](curation.md#pins) never changes), `createdBy` (`manual`, `import` or `rule:ID`) and, while curation rather than an admin holds the entry disabled, `autoDisabledAt` and `autoDisabledReason` (`unavailable` or `alias`).
+While `SOFA_POLICY` is set, `POST /lineup`, `PUT /lineup/order`, `POST /lineup/adopt`, `POST /lineup/import` and every `/curation/*` route except `GET /curation/changes` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api).
+
+An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `pinned` (the fields an admin set, which [curation](curation.md#pins) never changes), `createdBy` (`manual`, `import`, `rule:ID` or `policy`) and, while curation rather than an admin holds the entry disabled, `autoDisabledAt` and `autoDisabledReason` (`unavailable` or `alias`).
 
 Create from a feed candidate, copying its number, name, logo, group, sources and (when its `tvg-id` is listed by a configured guide) guide mapping:
 

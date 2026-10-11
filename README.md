@@ -12,7 +12,7 @@ The server relays HLS and MPEG-TS streams, caches channel logos so every output 
 - Native clients for 17 free streaming services, including their guides ([providers](docs/providers.md))
 - A numbered lineup with groups, logos, failover order and guide mapping, stored in SQLite
 - Source health with probes, quarantine and automatic failover between sources
-- Curation rules that preview their changes before they apply
+- A [lineup policy](docs/lineup-policy.md) file that rebuilds the whole lineup the same way on any server, or curation rules that preview their changes before they apply
 - HLS and MPEG-TS playback sessions with leases, relayed through the server
 - M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
 - A logo cache served from this server

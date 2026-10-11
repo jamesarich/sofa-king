@@ -55,6 +55,9 @@ class DispatcharrImporter(private val feeds: FeedService, private val guides: Gu
                         enabled = channel.enabled,
                         guide = mapping,
                         offeringIds = offerings,
+                        // The import is a household action: the entry's pins stay, and its enabled flag is the export's.
+                        pinned = existing?.pinned.orEmpty(),
+                        createdBy = existing?.createdBy ?: "import",
                     ),
                 )
             } catch (e: ApiFailure) {

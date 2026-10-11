@@ -55,6 +55,18 @@ class LineupService(
         val index = entries.indexOfFirst { it.id == id }
         if (index < 0) throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
         val current = entries[index]
+        for (field in request.pin + request.unpin) if (field !in PINNABLE_FIELDS) throw ApiFailure(400, "INVALID_REQUEST", "Unknown pin $field")
+        val touched = buildSet {
+            if (request.number != null) add("number")
+            if (request.name != null) add("name")
+            if (request.group != null || request.clearGroup) add("group")
+            if (request.logo != null || request.clearLogo) add("logo")
+            if (request.enabled != null) add("enabled")
+            if (request.offerings != null) add("offerings")
+            if (request.guide != null || request.clearGuide) add("guide")
+        }
+        // The household now owns the enabled flag, whichever way it set it; automation stops tracking its own disable.
+        val household = request.enabled != null
         val next = validated(
             current.copy(
                 number = request.number ?: current.number,
@@ -64,6 +76,9 @@ class LineupService(
                 enabled = request.enabled ?: current.enabled,
                 guide = if (request.clearGuide) null else request.guide ?: current.guide,
                 offeringIds = request.offerings?.also(::requireKnownOfferings) ?: current.offeringIds,
+                pinned = current.pinned + touched + request.pin - request.unpin.toSet(),
+                autoDisabledAt = if (household) null else current.autoDisabledAt,
+                autoDisabledReason = if (household) null else current.autoDisabledReason,
             ),
         )
         entries.removeAt(index)
@@ -122,6 +137,15 @@ class LineupService(
         if (entries.any { it.id == id }) throw ApiFailure(409, "LINEUP_ENTRY_EXISTS", "Lineup entry already exists")
         val offerings = request.offerings?.also(::requireKnownOfferings) ?: candidate?.let { feeds.offeringsOf(it.id).map { o -> o.id } }.orEmpty()
         val guide = request.guide ?: candidate?.legacyGuideId?.let { tvgId -> guides.guidesListing(tvgId).firstOrNull()?.let { GuideMapping(it, tvgId) } }
+        val pinned = buildSet {
+            if (request.number != null) add("number")
+            if (request.name != null) add("name")
+            if (request.group != null) add("group")
+            if (request.logo != null) add("logo")
+            if (request.enabled != null) add("enabled")
+            if (request.offerings != null) add("offerings")
+            if (request.guide != null) add("guide")
+        }
         return validated(
             LineupEntryRecord(
                 id = id,
@@ -129,9 +153,10 @@ class LineupService(
                 name = request.name ?: candidate?.name ?: throw ApiFailure(400, "INVALID_REQUEST", "A name is required"),
                 group = request.group ?: candidate?.tags?.firstOrNull(),
                 logo = request.logo ?: candidate?.logo,
-                enabled = request.enabled,
+                enabled = request.enabled ?: true,
                 guide = guide,
                 offeringIds = offerings,
+                pinned = pinned,
             ),
         )
     }

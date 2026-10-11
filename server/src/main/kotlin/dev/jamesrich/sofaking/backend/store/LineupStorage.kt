@@ -25,6 +25,10 @@ suspend fun BackendStore.lineup(): List<LineupEntryRecord> = query {
             enabled = row[LineupEntries.enabled],
             guide = if (guideId != null && guideChannel != null) GuideMapping(guideId, guideChannel) else null,
             offeringIds = offerings[row[LineupEntries.id]].orEmpty(),
+            pinned = row[LineupEntries.pinned].split(',').filter { it.isNotEmpty() }.toSet(),
+            createdBy = row[LineupEntries.createdBy],
+            autoDisabledAt = row[LineupEntries.autoDisabledAt]?.let(Instant::parse),
+            autoDisabledReason = row[LineupEntries.autoDisabledReason],
         )
     }
 }
@@ -45,6 +49,10 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
             this[LineupEntries.guideId] = entry.guide?.guideId
             this[LineupEntries.guideChannel] = entry.guide?.channelId
             this[LineupEntries.updatedAt] = at.toString()
+            this[LineupEntries.pinned] = entry.pinned.sorted().joinToString(",")
+            this[LineupEntries.createdBy] = entry.createdBy
+            this[LineupEntries.autoDisabledAt] = entry.autoDisabledAt?.toString()
+            this[LineupEntries.autoDisabledReason] = entry.autoDisabledReason
         }
     }
     entries.flatMap { entry -> entry.offeringIds.withIndex().map { (position, offeringId) -> Triple(entry.id, position, offeringId) } }

@@ -43,6 +43,11 @@ internal object LineupEntries : Table("lineup_entry") {
     val guideId = text("guide_id").nullable()
     val guideChannel = text("guide_channel").nullable()
     val updatedAt = text("updated_at")
+    /** Comma-separated field names the household set; automation leaves them alone. */
+    val pinned = text("pinned")
+    val createdBy = text("created_by")
+    val autoDisabledAt = text("auto_disabled_at").nullable()
+    val autoDisabledReason = text("auto_disabled_reason").nullable()
     override val primaryKey = PrimaryKey(id)
 }
 internal object LineupOfferings : Table("lineup_offering") {

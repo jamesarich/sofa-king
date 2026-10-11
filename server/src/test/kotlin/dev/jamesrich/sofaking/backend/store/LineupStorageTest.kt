@@ -18,6 +18,10 @@ class LineupStorageTest {
             val entries = listOf(
                 LineupEntryRecord("b0f6d2f4-0000-4000-8000-000000000002", "7", "Second", null, null, false, null, listOf("o3")),
                 LineupEntryRecord("b0f6d2f4-0000-4000-8000-000000000001", "5", "First", "News", "https://img.test/1.png", true, GuideMapping("g", "x"), listOf("o2", "o1")),
+                LineupEntryRecord(
+                    "b0f6d2f4-0000-4000-8000-000000000003", "9", "Third", enabled = false, pinned = setOf("name", "group"), createdBy = "rule:adopt-1",
+                    autoDisabledAt = t, autoDisabledReason = "unavailable",
+                ),
             )
             openStore(dir).use { it.saveLineup(entries, t) }
             openStore(dir).use { store ->

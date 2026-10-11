@@ -107,5 +107,6 @@ private fun LineupEntryRecord.info(runtime: LiveRuntime, states: Map<String, Hea
             coverage > Instant.now() -> "available"
             else -> "stale"
         },
+        pinned.sorted(), createdBy, autoDisabledAt?.toString(), autoDisabledReason,
     )
 }

@@ -95,7 +95,7 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
                     } else {
                         val bytes = response.bodyAsChannel().readBuffer(limit.toLong() + 1).readByteArray()
                         if (bytes.size > limit) throw ProviderFailure("Provider response exceeds ${limit / 1024} KiB")
-                        Fetched(status, gunzipped(bytes), response.headers[HttpHeaders.ContentType], hop.toString(), location, cookies)
+                        Fetched(status, gunzipped(bytes, limit), response.headers[HttpHeaders.ContentType], hop.toString(), location, cookies)
                     }
                 }
             } catch (e: CancellationException) {
@@ -118,9 +118,12 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
         const val DEFAULT_LIMIT = 32 * 1024 * 1024
         private val REDIRECTS = setOf(301, 302, 303, 307, 308)
 
-        internal fun gunzipped(bytes: ByteArray): ByteArray =
+        /** The inflated size is bounded by [limit] too: a small gzip can expand far past the compressed cap. */
+        internal fun gunzipped(bytes: ByteArray, limit: Int = DEFAULT_LIMIT): ByteArray =
             if (bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()) {
-                GZIPInputStream(ByteArrayInputStream(bytes)).use { it.readBytes() }
+                val inflated = GZIPInputStream(ByteArrayInputStream(bytes)).use { it.readNBytes(limit + 1) }
+                if (inflated.size > limit) throw ProviderFailure("Provider response exceeds ${limit / 1024} KiB once inflated")
+                inflated
             } else {
                 bytes
             }

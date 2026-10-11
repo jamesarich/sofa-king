@@ -64,11 +64,11 @@ class GenerateTest(unittest.TestCase):
         self.assertEqual({'map': {'news': 'News', 'sports': 'Sports'}, 'default': 'Entertainment'}, policy['groups'])
         self.assertEqual({'requireVerified': True}, policy['health'])
         numbering = policy['numbering']
-        self.assertEqual(100, numbering['groupSize'])
-        self.assertEqual({'Local': 1, 'News': 100, 'Sports': 200, 'Regional Sports': 300, 'Entertainment': 400, 'Movies': 600,
-                          'Comedy': 800, 'Crime': 900, 'Documentary': 1000, 'Lifestyle': 1100, 'Food & Travel': 1300,
-                          'Kids & Family': 1400, 'Music': 1500, 'Game Shows': 1600, 'Faith': 1700, 'Shopping': 1800,
-                          'Ambiance': 1900}, numbering['groups'])
+        self.assertEqual(400, numbering['groupSize'])
+        self.assertEqual({'Local': 1, 'News': 100, 'Sports': 300, 'Regional Sports': 600, 'Entertainment': 700, 'Movies': 1200,
+                          'Comedy': 1500, 'Crime': 1600, 'Documentary': 1700, 'Lifestyle': 1850, 'Food & Travel': 2100,
+                          'Kids & Family': 2200, 'Music': 2350, 'Game Shows': 2500, 'Faith': 2550, 'Shopping': 2580,
+                          'Ambiance': 2600}, numbering['groups'])
         self.assertGreaterEqual(numbering['floor'], max(numbering['groups'].values()) + numbering['groupSize'], 'the floor is clear of every block')
         self.assertEqual({
             'local5news': {'required': True, 'name': 'Local 5 News', 'number': '5', 'group': 'Local',

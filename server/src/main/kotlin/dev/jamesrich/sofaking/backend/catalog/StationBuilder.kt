@@ -292,7 +292,8 @@ object StationBuilder {
         fun blockEnd(start: Int): Int = minOf(start + numbering.groupSize, starts.firstOrNull { it > start } ?: Int.MAX_VALUE)
         for (draft in pending) {
             val provider = draft.leading?.candidate?.channel?.displayNumber?.takeIf { it.matches(STATION_NUMBER) }?.let(::canonicalNumber)
-            val block = numbering.groups[groupFor(draft)]
+            // Stations the policy keeps off number from the floor, so group blocks hold only what viewers can see.
+            val block = if (draft.baseEnabled) numbering.groups[groupFor(draft)] else null
             val number = when {
                 block != null -> nextFreeIn(used, block, blockEnd(block)) ?: nextFree(used, numbering.floor)
                 numbering.groups.isEmpty() && numbering.keepProviderNumbers && provider != null && provider !in used -> provider

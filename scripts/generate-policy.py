@@ -37,14 +37,15 @@ NATIVE_ORDER = (
 
 NAMES_VERSION = 2
 
+# Each block runs to the next block's start, sized for the free services' catalogs with room to grow.
 GROUP_BLOCKS = {
-    'Local': 1, 'News': 100, 'Sports': 200, 'Regional Sports': 300, 'Entertainment': 400, 'Movies': 600,
-    'Comedy': 800, 'Crime': 900, 'Documentary': 1000, 'Lifestyle': 1100, 'Food & Travel': 1300,
-    'Kids & Family': 1400, 'Music': 1500, 'Game Shows': 1600, 'Faith': 1700, 'Shopping': 1800, 'Ambiance': 1900,
+    'Local': 1, 'News': 100, 'Sports': 300, 'Regional Sports': 600, 'Entertainment': 700, 'Movies': 1200,
+    'Comedy': 1500, 'Crime': 1600, 'Documentary': 1700, 'Lifestyle': 1850, 'Food & Travel': 2100,
+    'Kids & Family': 2200, 'Music': 2350, 'Game Shows': 2500, 'Faith': 2550, 'Shopping': 2580, 'Ambiance': 2600,
 }
-GROUP_SIZE = 100
-# New stations past a full block number from here, clear of every block.
-NUMBER_FLOOR = 2000
+GROUP_SIZE = 400
+# Stations the policy keeps off, and new stations past a full block, number from here, clear of every block.
+NUMBER_FLOOR = 3000
 
 
 def base_name(name):

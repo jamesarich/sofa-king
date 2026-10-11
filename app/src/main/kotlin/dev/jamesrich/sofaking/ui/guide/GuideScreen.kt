@@ -112,6 +112,9 @@ private val GuideFilterSaver = Saver<GuideFilter, String>(
 /** How often the initial focus is retried after the row refused it, before the header keeps focus. */
 private const val INITIAL_FOCUS_ATTEMPTS = 3
 
+/** Rows one Channel or Page key moves in the grid; about one screenful on a 1080p TV. */
+private const val GUIDE_PAGE_ROWS = 4
+
 /** Asks the row for [guideId] to focus the cell covering window [minute]. [nonce] keeps each request distinct. */
 internal data class GuideJump(val guideId: String, val minute: Long, val nonce: Int)
 
@@ -308,9 +311,11 @@ fun GuideScreen(
     // Up and Down land on the cell under the time cursor. Default focus search treats any cell overlapping a
     // long focused cell (a full-row "No listing") as a candidate and can pick one hours ahead.
     val onGridKey: (KeyEvent) -> Boolean = handler@{ event ->
-        val step = when (event.key) {
-            Key.DirectionDown -> 1
-            Key.DirectionUp -> -1
+        val (step, paged) = when (event.key) {
+            Key.DirectionDown -> 1 to false
+            Key.DirectionUp -> -1 to false
+            Key.ChannelDown, Key.PageDown -> GUIDE_PAGE_ROWS to true
+            Key.ChannelUp, Key.PageUp -> -GUIDE_PAGE_ROWS to true
             else -> return@handler false
         }
         if (event.type != KeyEventType.KeyDown) return@handler true
@@ -318,12 +323,17 @@ fun GuideScreen(
         val current = pendingRow
             ?: focused?.channel?.let { c -> visible.indexOfFirst { it.guideId == c.guideId && it.number == c.number } }
             ?: -1
-        val target = current + step
-        // Up from the first row leaves the grid for the chips.
-        if (current < 0 || target !in visible.indices) {
+        if (current < 0 || visible.isEmpty()) {
             pendingRow = null
             return@handler false
         }
+        // A page stops at the grid's ends and never leaves it for the chips; a row step does.
+        val target = (current + step).let { if (paged) it.coerceIn(0, visible.lastIndex) else it }
+        if (target !in visible.indices) {
+            pendingRow = null
+            return@handler false
+        }
+        if (target == current) return@handler true
         pendingRow = target
         scope.launch {
             // The focused row holds the second slot and the channels scroll under it, as a cable guide does;

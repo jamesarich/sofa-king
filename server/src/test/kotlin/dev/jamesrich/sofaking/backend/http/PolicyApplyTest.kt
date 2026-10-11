@@ -21,7 +21,7 @@ class PolicyApplyTest {
     private val json = Json { encodeDefaults = true }
     private val token = "secret".repeat(8)
     private val admin = "curator".repeat(6)
-    private val basePolicy = """{"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
+    private val basePolicy = """{"names":{"version":1},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
 
     private class Setup(val dir: Path, val policyFile: Path, val runtime: LiveRuntime, val fixture: Fixture)
 
@@ -198,7 +198,7 @@ class PolicyApplyTest {
     }
 
     @Test fun `findings report a required station without a source, and the preview carries the same suggestions`() = testApplication {
-        withPolicy("""{"providers":[{"id":"fixture"}],"stations":{"nfl network":{"required":true,"sources":[{"provider":"alt","tvgId":"nfl"}]}}}""") {
+        withPolicy("""{"names":{"version":1},"providers":[{"id":"fixture"}],"stations":{"nfl network":{"required":true,"sources":[{"provider":"alt","tvgId":"nfl"}]}}}""") {
             val findings = Json.decodeFromString<PolicyFindings>(client.get("/api/v1/admin/policy/findings") { asAdmin() }.bodyAsText())
             assertEquals(runtime.policy!!.document().revision, findings.revision)
             assertTrue("nfl network: required source missing: alt/tvg-id:nfl" in findings.findings, "${findings.findings}")

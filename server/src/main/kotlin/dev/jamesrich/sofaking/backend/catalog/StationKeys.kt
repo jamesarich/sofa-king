@@ -3,7 +3,7 @@ package dev.jamesrich.sofaking.backend.catalog
 import java.text.Normalizer
 
 /** The name normalization versions this build implements. */
-val NAME_VERSIONS: Set<Int> = setOf(1)
+val NAME_VERSIONS: Set<Int> = setOf(1, 2)
 
 private val combiningMarks = Regex("\\p{Mn}+")
 private val separators = Regex("[^\\p{L}\\p{Nd}\\p{Mc}]+")
@@ -21,14 +21,17 @@ fun baseName(name: String): String {
     return words.joinToString(" ")
 }
 
-/** Station keys: `aliases[baseName(name)] ?: baseName(name)`. */
+/** The normalized name under [version]: version 1 is [baseName]; version 2 is [baseName] without spaces. */
+fun normalizedName(name: String, version: Int): String = baseName(name).let { if (version >= 2) it.replace(" ", "") else it }
+
+/** Station keys: `aliases[normalizedName(name)] ?: normalizedName(name)`. */
 class StationKeys(private val aliases: Map<String, String> = emptyMap(), val version: Int = 1) {
     init {
         require(version in NAME_VERSIONS) { "Unknown names.version $version" }
     }
 
     /** The normalized name, before aliases. */
-    fun normalize(name: String): String = baseName(name)
+    fun normalize(name: String): String = normalizedName(name, version)
 
     fun key(name: String): String = normalize(name).let { aliases[it] ?: it }
 }

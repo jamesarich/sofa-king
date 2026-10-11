@@ -73,10 +73,28 @@ class StationKeysTest {
         assertTrue(suggestedAliases(listOf("tennis channel", "tennis tv", "tennis plus")).isEmpty(), "two suffixes without the bare name suggest nothing")
     }
 
-    /** Any change to normalization shows up here as a diff of this file; delete it and rerun to accept one. */
-    @Test fun `version 1 keys over the corpus are pinned`() {
+    @Test fun `version 2 drops every space, so spellings that differ only by spaces meet`() {
+        val v2 = StationKeys(version = 2)
+        assertEquals(v2.key("WeatherSpy"), v2.key("Weather Spy"))
+        assertEquals(v2.key("123GO!"), v2.key("123 GO!"))
+        assertEquals("bobrosschannel", v2.key("The Bob Ross Channel"))
+        fun distinct(vararg names: String) = assertEquals(names.size, names.map(v2::key).toSet().size, names.joinToString())
+        distinct("Tennis Channel", "Tennis TV", "Tennis+")
+        distinct("Bloomberg TV", "Bloomberg TV+")
+        distinct("MLB", "MLB Channel")
+        distinct("NFL Network", "NFL Channel")
+        val merged = corpus.groupBy(v2::key).filterValues { names -> names.map(keys::key).toSet().size > 1 }
+        assertTrue(merged.size > 20, "the corpus has spaces-only variants: ${merged.size}")
+    }
+
+    @Test fun `version 1 keys over the corpus are pinned`() = assertGolden(keys, "keys-v1.txt")
+
+    @Test fun `version 2 keys over the corpus are pinned`() = assertGolden(StationKeys(version = 2), "keys-v2.txt")
+
+    /** Any change to normalization shows up here as a diff of the golden file; delete it and rerun to accept one. */
+    private fun assertGolden(keys: StationKeys, file: String) {
         val rendered = corpus.joinToString("\n", postfix = "\n") { "$it\t${keys.key(it)}" }
-        val golden = Path.of("src/test/resources/policy/keys-v1.txt")
+        val golden = Path.of("src/test/resources/policy/$file")
         if (!Files.exists(golden)) {
             Files.writeString(golden, rendered)
             fail("Wrote ${golden.toAbsolutePath()}; review it and run again")

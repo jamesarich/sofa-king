@@ -19,12 +19,21 @@ spec.loader.exec_module(generate_policy)
 
 class BaseNameTest(unittest.TestCase):
     def test_matches_the_server_over_the_golden_corpus(self):
-        golden = os.path.join(ROOT, 'server/src/test/resources/policy/keys-v1.txt')
-        with open(golden, encoding='utf-8') as handle:
-            rows = [line.rstrip('\n').split('\t') for line in handle if line.strip()]
-        mismatches = [(name, key, generate_policy.base_name(name)) for name, key in rows if generate_policy.base_name(name) != key]
-        self.assertEqual([], mismatches[:10])
-        self.assertGreater(len(rows), 3000)
+        for version in (1, 2):
+            golden = os.path.join(ROOT, 'server/src/test/resources/policy/keys-v%d.txt' % version)
+            with open(golden, encoding='utf-8') as handle:
+                rows = [line.rstrip('\n').split('\t') for line in handle if line.strip()]
+            mismatches = [(name, key, generate_policy.key_name(name, version)) for name, key in rows
+                          if generate_policy.key_name(name, version) != key]
+            self.assertEqual([], mismatches[:10], 'names.version %d' % version)
+            self.assertGreater(len(rows), 3000)
+
+    def test_version_2_drops_spaces_and_keeps_near_namesakes_apart(self):
+        key = lambda name: generate_policy.key_name(name, 2)
+        self.assertEqual(key('Weather Spy'), key('WeatherSpy'))
+        self.assertEqual(key('123 GO!'), key('123GO!'))
+        for names in (('Tennis Channel', 'Tennis TV', 'Tennis+'), ('Bloomberg TV', 'Bloomberg TV+'), ('MLB', 'MLB Channel'), ('NFL Network', 'NFL Channel')):
+            self.assertEqual(len(names), len({key(n) for n in names}), names)
 
 
 class GenerateTest(unittest.TestCase):

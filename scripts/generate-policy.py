@@ -46,6 +46,12 @@ def base_name(name):
     return ' '.join(words)
 
 
+def key_name(name, version):
+    """The normalized name under names.version, a port of `normalizedName` in StationKeys.kt."""
+    base = base_name(name)
+    return base.replace(' ', '') if version >= 2 else base
+
+
 def pin_identity(pin):
     if pin.get('tvgId') is not None:
         return '%s/tvg-id:%s' % (pin['provider'], pin['tvgId'])

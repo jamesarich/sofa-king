@@ -49,6 +49,7 @@ class StationBuilderTest {
     )
 
     private val policy = LineupPolicy(
+        names = PolicyNames(version = 1),
         providers = listOf(PolicyProvider("whale"), PolicyProvider("samsung"), PolicyProvider("vizio", enabled = false)),
         groups = PolicyGroups(map = mapOf("news" to "Headlines"), patterns = listOf(GroupPattern(name = "tennis", group = "Sports")), default = "Entertainment"),
         numbering = PolicyNumbering(floor = 1000),
@@ -159,6 +160,7 @@ class StationBuilderTest {
 
     @Test fun `numbers come from overrides first, then provider numbers in priority order, then the floor`() {
         val numbered = LineupPolicy(
+            names = PolicyNames(version = 1),
             providers = listOf(PolicyProvider("a"), PolicyProvider("b")),
             numbering = PolicyNumbering(floor = 1000),
             stations = mapOf("reserved" to StationOverride(number = "5"), "pinned high" to StationOverride(number = "1000")),
@@ -240,13 +242,24 @@ class StationBuilderTest {
     }
 
     @Test fun `an alias joins two spellings into one station`() {
-        val aliased = policy.copy(names = PolicyNames(aliases = mapOf("espn 8" to "espn8")), stations = emptyMap())
+        val aliased = policy.copy(names = PolicyNames(version = 1, aliases = mapOf("espn 8" to "espn8")), stations = emptyMap())
         val result = build(aliased, listOf(candidate("whale", "e1", "ESPN 8", "8"), candidate("samsung", "e2", "ESPN8", "1008")))
         assertEquals(listOf("e1-o1", "e2-o1"), result.station("espn8").offeringIds)
         assertEquals(1, result.stations.size)
         assertTrue(result.suggestedAliases.isEmpty())
 
-        val unaliased = build(aliased.copy(names = PolicyNames()), listOf(candidate("whale", "e1", "ESPN 8", "8"), candidate("samsung", "e2", "ESPN8", "1008")))
+        val unaliased = build(aliased.copy(names = PolicyNames(version = 1)), listOf(candidate("whale", "e1", "ESPN 8", "8"), candidate("samsung", "e2", "ESPN8", "1008")))
         assertEquals(listOf("espn 8: possible alias of espn8"), unaliased.suggestedAliases)
+    }
+
+    @Test fun `version 2 keys join spellings that differ only by spaces without an alias`() {
+        val v2 = policy.copy(names = PolicyNames(version = 2), stations = emptyMap())
+        val result = build(v2, listOf(
+            candidate("whale", "e1", "ESPN 8", "8"), candidate("samsung", "e2", "ESPN8", "1008"),
+            candidate("whale", "n1", "NFL Network", "9"), candidate("samsung", "n2", "NFL Channel", "1009"),
+        ))
+        assertEquals(listOf("e1-o1", "e2-o1"), result.station("espn8").offeringIds)
+        assertEquals(setOf("espn8", "nflnetwork", "nflchannel"), result.stations.map { it.key }.toSet())
+        assertTrue(result.suggestedAliases.isEmpty())
     }
 }

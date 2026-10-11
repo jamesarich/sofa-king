@@ -85,6 +85,14 @@ class LineupPolicyTest {
         assertTrue(validatePolicy(policy.copy(maxSourcesPerStation = 0), providers).any { "maxSourcesPerStation" in it })
     }
 
+    @Test fun `aliases are normalized under the policy's names version, and version 2 is the default`() {
+        assertEquals(2, LineupPolicy().names.version)
+        val v2 = LineupPolicy(names = PolicyNames(aliases = mapOf("espn 8" to "espn8x")))
+        assertTrue(validatePolicy(v2, providers).any { "\"espn 8\" is not a normalized name (it normalizes to \"espn8\")" in it })
+        assertEquals(emptyList(), validatePolicy(v2.copy(names = PolicyNames(version = 1, aliases = mapOf("espn 8" to "espn8x"))), providers))
+        assertTrue(validatePolicy(LineupPolicy(names = PolicyNames(version = 3)), providers).any { "names.version must be one of [1, 2]" in it })
+    }
+
     @Test fun `an override id may not take another station's generated id`() {
         val policy = LineupPolicy(stations = mapOf("a" to StationOverride(id = stationId("b")), "b" to StationOverride()))
         assertEquals(listOf("id ${stationId("b")} is the generated id of \"b\""), validatePolicy(policy, providers))

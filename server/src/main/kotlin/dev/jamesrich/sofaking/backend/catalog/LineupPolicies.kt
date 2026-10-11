@@ -87,7 +87,8 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
     for ((from, to) in aliases.entries.sortedBy { it.key }) {
         if (from == to) errors += "names.aliases: \"$from\" aliases itself"
         else if (to in aliases) errors += "names.aliases: \"$from\" -> \"$to\" chains through another alias"
-        if (baseName(from) != from) errors += "names.aliases: \"$from\" is not a normalized name (it normalizes to \"${baseName(from)}\")"
+        val normalized = normalizedName(from, policy.names.version)
+        if (normalized != from) errors += "names.aliases: \"$from\" is not a normalized name (it normalizes to \"$normalized\")"
     }
 
     val numbers = HashMap<String, MutableList<String>>()

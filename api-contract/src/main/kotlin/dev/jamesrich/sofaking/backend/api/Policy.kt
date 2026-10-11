@@ -17,8 +17,8 @@ import kotlinx.serialization.Serializable
     val stations: Map<String, StationOverride> = emptyMap(),
 )
 
-/** [version] selects the name normalization; [aliases] map one normalized name onto another station's key. */
-@Serializable data class PolicyNames(val version: Int = 1, val aliases: Map<String, String> = emptyMap())
+/** [version] selects the name normalization (1 or 2); [aliases] map one normalized name onto another station's key. */
+@Serializable data class PolicyNames(val version: Int = 2, val aliases: Map<String, String> = emptyMap())
 
 /**
  * One provider entry. A candidate takes the first entry whose [id] is its provider and whose filters pass it.

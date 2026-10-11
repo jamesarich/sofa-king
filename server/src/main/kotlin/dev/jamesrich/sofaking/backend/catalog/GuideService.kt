@@ -115,10 +115,12 @@ class GuideService(
             store.saveGuide(config.id, importedAt, parsed.channels, parsed.programmes)
             val ends = parsed.programmes.groupBy { it.channelId }.mapValues { (_, rows) -> rows.maxOf { it.endsAt } }
             val stored = StoredGuide(config.id, importedAt, parsed.channels, ends, parsed.programmes.size)
-            published.set(Published(published.get().guides + (config.id to stored)))
-            statuses.set(statuses.get().map {
-                if (it.id == config.id) GuideStatus(config.id, importedAt.toString(), channels = parsed.channels.size, programmes = parsed.programmes.size) else it
-            })
+            published.updateAndGet { Published(it.guides + (config.id to stored)) }
+            statuses.updateAndGet { list ->
+                list.map {
+                    if (it.id == config.id) GuideStatus(config.id, importedAt.toString(), channels = parsed.channels.size, programmes = parsed.programmes.size) else it
+                }
+            }
             log.info(
                 "guide import guide={} channels={} programmes={} wanted={} controlChars={} durationMs={}",
                 config.id, parsed.channels.size, parsed.programmes.size, wantedIds.size, parsed.controlCharacters, Duration.between(started, clock.instant()).toMillis(),
@@ -126,7 +128,7 @@ class GuideService(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            statuses.set(statuses.get().map { if (it.id == config.id) it.copy(errorCode = "IMPORT_FAILED") else it })
+            statuses.updateAndGet { list -> list.map { if (it.id == config.id) it.copy(errorCode = "IMPORT_FAILED") else it } }
             log.warn(
                 "guide import guide={} failed class={} message=\"{}\" durationMs={}",
                 config.id, e.javaClass.simpleName, redactedMessage(e), Duration.between(started, clock.instant()).toMillis(),

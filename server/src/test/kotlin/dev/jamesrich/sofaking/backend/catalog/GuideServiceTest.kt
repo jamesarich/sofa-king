@@ -89,4 +89,21 @@ class GuideServiceTest {
             } finally { scope.coroutineContext[Job]!!.cancelAndJoin() }
         } } } } finally { dir.toFile().deleteRecursively() }
     }
+
+    @Test fun `concurrent imports of different guides both stay published`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-guides-concurrent-")
+        try { Fixture().use { fixture -> HttpClient(CIO) { followRedirects = false }.use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            val feeds = FeedService(emptyList(), store, http, clock, UpstreamPolicy(allowLoopback = true))
+            val stack = lineupStack(feeds, store, clock, http, guides = listOf(fixture.gzipGuide, fixture.doctypeGuide))
+            repeat(20) { round ->
+                coroutineScope {
+                    launch(Dispatchers.Default) { stack.guides.refresh(fixture.gzipGuide) }
+                    launch(Dispatchers.Default) { stack.guides.refresh(fixture.doctypeGuide) }
+                }
+                assertEquals(setOf("gz", "tvapp2"), stack.guides.coverage().keys, "round $round lost a concurrent import")
+                assertEquals(setOf("gz", "tvapp2"), stack.guides.statuses().filter { it.errorCode == null && it.lastSuccessAt != null }.map { it.id }.toSet(), "round $round status lost")
+            }
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
 }

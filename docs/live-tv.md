@@ -99,7 +99,7 @@ Playback walks an entry's sources in order within each health rank: healthy sour
 
 ### Logos
 
-The app, the M3U, the XMLTV and Plex see every logo at `http://SERVER_HOST:PORT/logos/KEY` on this server, not on the host the feed names ([API detail](api.md#logos)). The server fetches each lineup logo once after an import or lineup change, stores it under `SOFA_DATA_DIR/logos/`, serves it with a day of cache headers and an `ETag`, and refreshes it a week later; a refresh that fails keeps the old file, so retiring a logo host or a Dispatcharr instance leaves the logos in place. Only image content types up to 2 MiB are accepted, fetched under the [upstream address policy](#upstream-addresses) without provider headers. A `tvg-logo` or guide `<icon>` written with spaces or other unencoded characters is percent-encoded, and a relative one resolves against the playlist or guide URL; a reference that is no HTTP(S) URL after that counts as no logo. A logo the source never answered stays in the listings and answers `404`, which players show as their placeholder; the source is retried an hour later. Logos no longer named by any entry are deleted on the next sweep.
+The app, the M3U, the XMLTV and Plex see every logo at `http://SERVER_HOST:PORT/logos/KEY` on this server, not on the host the feed names ([API detail](api.md#logos)). A channel's logo is the entry's own, else the first of its sources' `tvg-logo` values, else the mapped guide channel's `<icon>`; a logo on a host listed in the curation settings' `retiredLogoHosts` counts as absent. The server fetches each lineup logo once after an import or lineup change, stores it under `SOFA_DATA_DIR/logos/`, serves it with a day of cache headers and an `ETag`, and refreshes it a week later; a refresh that fails keeps the old file, so retiring a logo host or a Dispatcharr instance leaves the logos in place. Only image content types up to 2 MiB are accepted, fetched under the [upstream address policy](#upstream-addresses) without provider headers. A `tvg-logo` or guide `<icon>` written with spaces or other unencoded characters is percent-encoded, and a relative one resolves against the playlist or guide URL; a reference that is no HTTP(S) URL after that counts as no logo. A logo the source never answered stays in the listings and answers `404`, which players show as their placeholder; the source is retried an hour later. Logos no longer named by any entry are deleted on the next sweep.
 
 Curate with the [admin API](api.md#admin-api). The common steps:
 
@@ -110,6 +110,8 @@ Curate with the [admin API](api.md#admin-api). The common steps:
 5. Renumber, rename or hide: `PATCH` with `number`, `name`, `group`, `logo` or `enabled`; `clearGroup`, `clearLogo` and `clearGuide` remove optional values. Reorder with `PUT /api/v1/admin/lineup/order` listing every entry ID once.
 
 Everything from one provider at once: `POST /api/v1/admin/lineup/adopt` with `{"providerId": "fastchannels"}` adds every channel of that provider whose sources no entry uses yet.
+
+Every field one of these requests sets is pinned to the household. [Curation](curation.md) fills and corrects the rest by rule (groups, name and logo corrections, equivalent sources from other providers, entries disabled while no source works, candidates adopted by rule) and leaves pinned fields alone; `GET /api/v1/admin/curation/preview` shows what it would change before `settings.enabled` turns it on.
 
 ## Migrate from Dispatcharr
 
@@ -143,7 +145,7 @@ The export runs inside the Dispatcharr container and reads its database only. It
 
    Entries keep Dispatcharr's channel uuid as their ID, so running the import again updates them in place. The mapped guides refresh and `GET /api/v1/channels` shows the lineup.
 
-5. Delete `sofaking.json`. Point the app at this server and retire Dispatcharr's `sofaking` M3U/EPG output.
+5. Delete `sofaking.json`. Point the app at this server and retire Dispatcharr's `sofaking` M3U/EPG output. If a pipeline curated Dispatcharr, move its rules over as in [cut over from the pipeline](curation.md#cut-over-from-the-pipeline).
 
 ## Third-party players
 
@@ -232,4 +234,6 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 | Plex says all tuners are in use | `SOFA_HDHR_TUNERS` streams are open, or every `SOFA_MAX_SESSIONS` slot is taken, or the channel has no eligible source; check `GET /api/v1/admin/lineup/ENTRY_ID`. |
 | A Plex channel plays for a moment and stops | FFmpeg ended the remux; the server log has `remux ended exit=` with FFmpeg's last lines, URLs removed. |
 | `503 SOURCE_UNAVAILABLE` | Inspect `GET /api/v1/admin/lineup/ENTRY_ID` for the entry's source states, or `/api/v1/sources` for quarantine, probation or manual disable. |
+| A channel vanished from the lineup | `GET /api/v1/admin/lineup/ENTRY_ID`: `autoDisabledAt` set means curation disabled it (`autoDisabledReason` `unavailable` or `alias`); `GET /api/v1/admin/curation/changes` has the action. `PATCH` with `{"enabled": true}` takes the flag back for the household. |
+| Curation changed a field the household wanted | `PATCH` the entry with the value, which pins the field; `pin` and `unpin` lists adjust pins without a value change. `GET /api/v1/admin/curation/preview` shows what the next run would do. |
 | Sources never qualify | Check FFmpeg availability, `probe`, and whether the feed has credential/custom headers. |

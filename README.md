@@ -1,6 +1,6 @@
 # Sofa King Backend
 
-A Kotlin IPTV server for one household. It imports provider M3U playlists and independent XMLTV guides (plain or gzip), keeps a curated channel lineup in SQLite, serves a JSON API, an M3U/XMLTV output for third-party players and an HDHomeRun emulation for Plex Live TV, relays HLS and MPEG-TS streams, caches the lineup's channel logos so every output points at this server, and quarantines failing sources automatically. It replaces the Dispatcharr curation step: the app sees the lineup, not the raw feeds.
+A Kotlin IPTV server for one household. It imports provider M3U playlists and independent XMLTV guides (plain or gzip), keeps a curated channel lineup in SQLite, serves a JSON API, an M3U/XMLTV output for third-party players and an HDHomeRun emulation for Plex Live TV, relays HLS and MPEG-TS streams, caches the lineup's channel logos so every output points at this server, quarantines failing sources automatically, and keeps the lineup curated by rules (groups, name corrections, equivalent sources across providers, health-based disabling, candidate adoption) that live in its database and never override a household edit. It replaces Dispatcharr and the pipeline that curated it: the app sees the lineup, not the raw feeds.
 
 The [Sofa King Android app](https://github.com/jamesarich/sofa-king) currently uses M3U/XMLTV endpoints and does not connect to this API yet. This server has no web UI or DVR.
 
@@ -61,11 +61,14 @@ Requires JDK 21, FFmpeg, and HTTP(S) playlist and guide URLs. Run commands from 
    curl --fail http://127.0.0.1:8080/api/v1/channels
    ```
 
-The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contains the database (lineup, guides, source health), the server identity and `logos/`, the cached channel logos ([logos](docs/api.md#logos)). Providers refresh every 15 minutes and guides every 6 hours by default.
+6. Curate by rule. `GET /api/v1/admin/curation/preview` shows what automation would change; rules and settings are JSON under `/api/v1/admin/curation/` ([curation](docs/curation.md)). Automation is off until `settings.enabled` is set, and never changes a field the household set.
+
+The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contains the database (lineup, guides, source health, curation rules and change log), the server identity and `logos/`, the cached channel logos ([logos](docs/api.md#logos)). Providers refresh every 15 minutes and guides every 6 hours by default; curation runs after each import and health change and every 15 minutes.
 
 ## Documentation
 
 - [Configuration, lineup and Dispatcharr migration](docs/live-tv.md)
+- [Curation rules, automation and the cutover from the Dispatcharr pipeline](docs/curation.md)
 - [Third-party players (TiviMate, VLC)](docs/live-tv.md#third-party-players)
 - [Plex Live TV through the HDHomeRun emulation](docs/live-tv.md#plex-live-tv)
 - [Deploy with Docker](docs/deploy.md)
@@ -84,6 +87,7 @@ The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contain
 - Guide programmes are kept only for channels the lineup maps, so a newly mapped channel has no guide until the refresh this triggers completes.
 - Feeds with credential or custom headers are never probed, so their sources stay `UNVERIFIED`.
 - Lineup curation is JSON over HTTP; there is no web UI.
+- Curation automation is verified against fixture feeds (three providers carrying one station, a mislabeled twin, quarantine and recovery under an injected clock) and the pipeline's data shapes with synthetic values, not against the household's 6,305-entry lineup or its real rule files. Equivalent sources are attached, never promoted by startup speed, and an entry is disabled only after `disableAfterHours` without an eligible source.
 - The restream-proxy 502 rule (`SOFA_RESTREAM_ORIGINS`), the MPEG-TS keepalive relay and the Dispatcharr export script are verified against local fixtures and the Dispatcharr source models, not against the household's Dispatcharr container, provider feeds or the Android client.
 - A relay reconnect attempt already in progress finishes before the 30-second grace period is enforced, so a dead source can hold its sessions for up to one connect timeout longer.
 - The probe's protocol detection and its persistence are verified against local fixtures, not against the Dispatcharr feed.

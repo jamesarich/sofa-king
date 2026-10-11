@@ -126,6 +126,44 @@ def check_player_outputs(base, upstream, hls_channel, ts_channel, directory):
         time.sleep(0.1)
 
 
+def check_curation(base, entry):
+    """A group rule through preview, run, the change log and the pipeline-file import; a household edit pins the field."""
+    settings = request(base, '/api/v1/admin/curation/settings')
+    assert settings['enabled'] is False and settings['enableOn'] == 'healthy', settings
+    rule = request(base, '/api/v1/admin/curation/rules', 'POST', {'id': 'smoke-group', 'kind': 'group', 'match': {'group': 'test'}, 'set': {'group': 'Fixtures'}})
+    assert rule['id'] == 'smoke-group' and rule['position'] == 0, rule
+    preview = request(base, '/api/v1/admin/curation/preview')
+    assert preview['enabled'] is False and preview['counts'] == {'regroup': 1}, preview
+    regroup = preview['actions'][0]
+    assert regroup['entryId'] == entry['id'] and regroup['before'] == 'Test' and regroup['after'] == 'Fixtures' and regroup['ruleId'] == 'smoke-group', regroup
+    assert request(base, '/api/v1/admin/lineup/' + entry['id'])['group'] == 'Test', 'A preview changed the lineup'
+    assert request(base, '/api/v1/admin/curation/changes') == []
+    run = request(base, '/api/v1/admin/curation/run', 'POST', {})
+    assert run['enabled'] is True and [a['kind'] for a in run['actions']] == ['regroup'], run
+    changed = request(base, '/api/v1/admin/lineup/' + entry['id'])
+    # The entry was created with an explicit guide, so that field is the household's; the group was not.
+    assert changed['group'] == 'Fixtures' and changed['pinned'] == ['guide'] and changed['createdBy'] == 'manual', changed
+    changes = request(base, '/api/v1/admin/curation/changes?limit=5')
+    assert len(changes) == 1 and changes[0]['action']['kind'] == 'regroup' and changes[0]['action']['entryId'] == entry['id'], changes
+    assert request(base, '/api/v1/channels')['channels'][0]['tags'] == ['Fixtures']
+    # The pipeline's files become rules; records carry fields the rules ignore.
+    report = request(base, '/api/v1/admin/curation/import', 'POST', {
+        'groupMap': {'test': 'Fixtures', 'us: sports': 'Sports'},
+        'sportsCorrections': [{'id': 1, 'beforeOverride': {'name': None}, 'beforeName': 'Ball Network', 'afterName': 'Ball Channel'}, {'splitPaid': 1}],
+        'corrections': {'relabelled': 1},
+        'dryRun': True,
+    })
+    assert report['dryRun'] is True and report['created'] == 2 and report['existing'] == 1, report
+    assert sorted(i['outcome'] for i in report['items']) == ['applied-by-import', 'applied-by-import', 'created', 'created', 'exists'], report
+    assert [r['id'] for r in request(base, '/api/v1/admin/curation/rules')] == ['smoke-group'], 'A dry run created rules'
+    # The household's own group is pinned and wins over the rule.
+    pinned = request(base, '/api/v1/admin/lineup/' + entry['id'], 'PATCH', {'group': 'Fixtures'})
+    assert pinned['pinned'] == ['group', 'guide'], pinned
+    enabled = request(base, '/api/v1/admin/curation/settings', 'PUT', {'enabled': True, 'retiredLogoHosts': ['Logos.Retired.test:9192']})
+    assert enabled['enabled'] is True and enabled['retiredLogoHosts'] == ['logos.retired.test:9192'], enabled
+    assert request(base, '/api/v1/admin/curation/preview')['actions'] == []
+
+
 def ffmpeg_children(process):
     listed = subprocess.run(['pgrep', '-P', str(process.pid), '-x', 'ffmpeg'], capture_output=True, text=True)
     return len(listed.stdout.split())
@@ -290,6 +328,7 @@ def main():
                         time.sleep(0.1)
                 check_player_outputs(base, upstream, channel, ts_channel, directory)
                 check_hdhomerun(base, process, directory)
+                check_curation(base, entry)
                 identity = request(base, '/api/v1/bootstrap')['serverId']
                 stop(process)
                 process = subprocess.Popen([str(APP)], env=env, stdout=log, stderr=log, start_new_session=True)
@@ -303,13 +342,16 @@ def main():
                         time.sleep(0.1)
                 assert restarted['channels'][0]['id'] == channel['id'] and len(restarted['channels']) == 2, 'Lineup did not survive restart'
                 assert request(base, '/api/v1/bootstrap')['serverId'] == identity
+                assert [r['id'] for r in request(base, '/api/v1/admin/curation/rules')] == ['smoke-group'], 'Curation rule did not survive restart'
+                assert request(base, '/api/v1/admin/curation/settings')['enabled'] is True
+                assert restarted['channels'][0]['tags'] == ['Fixtures'] and request(base, '/api/v1/admin/lineup/' + entry['id'])['pinned'] == ['group', 'guide']
                 stop(process)
         finally:
             if process is not None:
                 stop(process)
             fixture.shutdown()
             fixture.server_close()
-        print('Live smoke passed: feed + gzip guide import, lineup curation through the admin API, session promotion, four concurrent HLS video decoders, automatic decode qualification, active TS upstream cancellation, M3U/XMLTV player output with a redirect-following decode and a TS hang-up, a cached logo served from this server in every output, HDHomeRun discovery and a remuxed stream whose FFmpeg dies with its client, release and persistent lineup across restart.')
+        print('Live smoke passed: feed + gzip guide import, lineup curation through the admin API, session promotion, four concurrent HLS video decoders, automatic decode qualification, active TS upstream cancellation, M3U/XMLTV player output with a redirect-following decode and a TS hang-up, a cached logo served from this server in every output, HDHomeRun discovery and a remuxed stream whose FFmpeg dies with its client, a curation rule through preview, run, the change log, a dry-run import and a pinned household edit, release, and persistent lineup and rules across restart.')
 
 
 if __name__ == '__main__':

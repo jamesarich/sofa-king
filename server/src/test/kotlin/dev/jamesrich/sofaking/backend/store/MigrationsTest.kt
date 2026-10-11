@@ -46,12 +46,12 @@ class MigrationsTest {
         val db = databaseAt(dir)
         try {
             applyMigrations(db, foundationMigrations())
-            assertEquals(listOf(1, 2, 3, 4, 10), foundationMigrations().map { it.version })
+            assertEquals(listOf(1, 2, 3, 4, 10, 30), foundationMigrations().map { it.version })
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").use { rows ->
                         val tables = buildList { while (rows.next()) add(rows.getString(1)) }
-                        assertTrue(tables.containsAll(listOf("lineup_entry", "lineup_offering", "guide_channel", "guide_programme", "guide_import")), tables.toString())
+                        assertTrue(tables.containsAll(listOf("lineup_entry", "lineup_offering", "guide_channel", "guide_programme", "guide_import", "logo_cache")), tables.toString())
                     }
                 }
             }

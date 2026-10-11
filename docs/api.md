@@ -22,13 +22,14 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 | GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
 | GET | `/output/guide.xml?days=` | The lineup's programmes as XMLTV |
 | GET | `/output/stream/{channelId}.m3u8` or `.ts` | Opens a player session for the channel and streams it |
+| GET | `/logos/{key}` | A cached lineup logo, public, see [logos](#logos) |
 | GET | `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/device.xml` | HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
 | GET, POST | `/lineup.post` | Accepts Plex's channel-scan request; answers 200 |
 | GET | `/auto/v{number}` | MPEG-TS stream of the channel with that lineup number |
 
 Request bodies are limited to 64 KiB, except the lineup import (16 MiB). The [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/) defines the response fields.
 
-Channel IDs are lineup entry IDs. A channel's `displayNumber`, `name`, `tags` (the group) and `logo` come from its entry; `legacyGuideId` is the mapped XMLTV channel ID; `guideStatus` is `unassigned`, `empty`, `available` or `stale`; `playbackEligible` is true when any of the entry's sources is selectable. Channels are listed in lineup order.
+Channel IDs are lineup entry IDs. A channel's `displayNumber`, `name` and `tags` (the group) come from its entry; `logo` is the entry's logo served from this server, `http://HOST/logos/KEY` (see [logos](#logos)), with `HOST` taken from the request's `Host` header; `legacyGuideId` is the mapped XMLTV channel ID; `guideStatus` is `unassigned`, `empty`, `available` or `stale`; `playbackEligible` is true when any of the entry's sources is selectable. Channels are listed in lineup order.
 
 Each provider status reports `lastSuccessAt`, `errorCode` (`IMPORT_FAILED` when the last import kept the previous snapshot), `channels` and `sources` from the last successful import, `skippedEntries`, `skipReasons` and `notes`. Skip reasons are counts by short key, for example `duplicate-source=1, missing-name=3`: `missing-name`, `invalid-url`, `invalid-uuid`, `duplicate-source` (the same source key twice, see [source identity](live-tv.md#source-identity)), `bad-protocol` and `no-extinf`. Notes count imported entries whose identity was derived, for example `merged-key=2, url-identity=724`: `url-identity` (no `channel-id`, `tvg-id` or `channel-uuid`, so the URL is the identity) and `merged-key` (a published identity repeated with another name or number, kept as an alternative source of the first entry). Both are null when empty.
 
@@ -104,7 +105,19 @@ http://HOST/output/stream/CHANNEL_UUID.m3u8?token=TOKEN
 
 `GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3; `?days=1`–`14` overrides). Times are `YYYYMMDDHHMMSS +0000`. Only channels with a guide mapping have programmes. The body is streamed and uncompressed.
 
+`tvg-logo` and `<icon>` name the channel's logo at `http://HOST/logos/KEY`, never the feed's own logo host.
+
 `GET /output/stream/{channelId}.m3u8|.ts` opens a watch session for the channel and plays it. An HLS source answers `302` to the session's playlist URL under `/media/sessions/`; the player follows it and fetches playlists, segments and keys through the relay. An MPEG-TS source streams `video/mp2t` in this response through the fan-out. Players never renew, so these sessions live differently from API sessions: a request in flight holds the session, and it is released 60 seconds after its last media request (the player stopped) or when a TS player disconnects. Two players on the same HLS channel share one session; each TS request is its own. At `SOFA_MAX_SESSIONS` the oldest preview session yields first, then an idle player session (a zap left behind), and otherwise the request answers `429 CAPACITY_EXHAUSTED`. When an unprobed source's descriptor says MPEG-TS and the body is HLS, the request switches to the redirect itself instead of answering `410`; the reverse (HLS descriptor, MPEG-TS body) reaches the player as `410` on the media URL once, after which the stored protocol is right. A disabled or unknown channel answers `404 CHANNEL_NOT_FOUND`; a channel with no eligible source `503 SOURCE_UNAVAILABLE`.
+
+## Logos
+
+Every logo URL a lineup entry carries (its own `logo`, else the first source's `tvg-logo`) is served from this server as `/logos/KEY`, where `KEY` is the lowercase hex SHA-256 of the source URL. `/api/v1/channels`, the M3U `tvg-logo` and the XMLTV `<icon>` all name that path with the request's `Host`. The route takes no token: players, Plex and browsers fetch logos with no credentials, and a key is only ever the hash of a URL the lineup names, so nothing else is fetched or served through it.
+
+The server fetches each source once, in the background after an import or lineup change (four at a time) or within the first request for a key nothing has fetched yet, and keeps the file under `SOFA_DATA_DIR/logos/`. A fetch follows the [upstream address policy](live-tv.md#upstream-addresses) and sends no provider headers; it must answer `200` with a `Content-Type` of `image/png`, `image/jpeg`, `image/webp`, `image/gif` or `image/svg+xml`, a body of at most 2 MiB whose bytes are that kind of image (the signature decides the stored type; an SVG must be XML), and anything else is refused. An SVG is stored and served byte for byte with a `Content-Security-Policy` that forbids scripts.
+
+A cached logo answers `200` with its type, `ETag` (the content hash; `If-None-Match` answers `304`), `Cache-Control: public, max-age=86400` and `X-Content-Type-Options: nosniff`. An unknown key, a refused source or a source that has never answered an image answers `404 RESOURCE_NOT_FOUND`; the listing keeps the URL, the player shows its placeholder, and the server tries the source again an hour later. A logo is refreshed a week after its last fetch, on the next request or sweep; a refresh that fails keeps the stored file. A changed source URL is a new key, so the outputs switch at once and the old file is deleted by the next sweep, like every logo the lineup no longer names.
+
+The admin API (`/api/v1/admin/lineup`, `/api/v1/admin/candidates`) keeps the source URLs, which is what the household edits.
 
 ## HDHomeRun emulation
 

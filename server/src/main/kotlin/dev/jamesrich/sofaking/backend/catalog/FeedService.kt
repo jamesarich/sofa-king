@@ -41,6 +41,8 @@ class FeedService(
     private val clock: Clock,
     /** Governs every upstream fetch made for these feeds: playlists, guides, probes and relayed media. */
     val upstream: UpstreamPolicy = UpstreamPolicy(),
+    /** Runs after each successful import, once the snapshot is published. */
+    private val onImported: () -> Unit = {},
 ) {
     /** [protocols] holds the protocol a stream body was seen to carry; it replaces the protocol the import assigned. */
     private class Published(
@@ -181,6 +183,7 @@ class FeedService(
                 )
                 if (parsed.skippedCount > 0) log.warn("import provider={} skipped malformed entries: {}", config.id, parsed.skipSummary)
                 parsed.noteSummary?.let { log.info("import provider={} derived identities: {}", config.id, it) }
+                onImported()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

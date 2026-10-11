@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Import fixture feeds, decode video through the relay, verify probe health and restart."""
+import base64
 import functools
 import gzip
 import http.server
@@ -64,7 +65,34 @@ def free_port():
         return listener.getsockname()[1]
 
 
-def check_player_outputs(base, hls_channel, ts_channel, directory):
+PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==')
+
+
+def check_logos(base, upstream, hls_channel, playlist, guide, data):
+    """Every output names the cached copy on this server; the logo route serves it without a token."""
+    assert hls_channel['logo'].startswith(base + '/logos/'), hls_channel
+    logo_url = hls_channel['logo']
+    assert f'tvg-logo="{logo_url}"' in playlist and upstream not in playlist, playlist
+    assert f'<icon src="{logo_url}"/>' in guide and upstream not in guide, guide
+    with urlopen(logo_url, timeout=5) as response:
+        assert response.headers['Content-Type'] == 'image/png' and response.headers['Cache-Control'] == 'public, max-age=86400', dict(response.headers)
+        etag = response.headers['ETag']
+        assert response.read() == PNG
+    try:
+        urlopen(Request(logo_url, headers={'If-None-Match': etag}), timeout=5)
+        raise AssertionError('A matching ETag was not answered 304')
+    except HTTPError as error:
+        assert error.code == 304
+    try:
+        urlopen(base + '/logos/' + '0' * 64, timeout=5)
+        raise AssertionError('An unknown logo key was served')
+    except HTTPError as error:
+        assert error.code == 404
+    cached = list((data / 'logos').iterdir())
+    assert len(cached) == 1 and cached[0].read_bytes() == PNG, cached
+
+
+def check_player_outputs(base, upstream, hls_channel, ts_channel, directory):
     """The M3U/XMLTV output a third-party player loads, with FFmpeg standing in for the player."""
     try:
         urlopen(base + '/output/playlist.m3u', timeout=5)
@@ -82,6 +110,7 @@ def check_player_outputs(base, hls_channel, ts_channel, directory):
     with urlopen(f'{base}/output/guide.xml?token={OUTPUT_TOKEN}&days=1', timeout=5) as response:
         guide = response.read().decode()
     assert f'<channel id="{hls_channel["id"]}">' in guide and '<title>Real fixture programme</title>' in guide, guide
+    check_logos(base, upstream, hls_channel, playlist, guide, directory / 'data')
     # A player following the redirect decodes video through the session.
     decoded = subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', hls_url, '-t', '4', '-map', '0:v:0', '-progress', 'pipe:1', '-f', 'null', '-'],
                              capture_output=True, timeout=25)
@@ -155,7 +184,8 @@ def main():
         fixture = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(Handler, directory=str(media)))
         threading.Thread(target=fixture.serve_forever, daemon=True).start()
         upstream = f'http://127.0.0.1:{fixture.server_port}'
-        (media / 'feed.m3u').write_text(f'#EXTM3U\n#EXTINF:-1 tvg-id="fixture" tvg-chno="5" group-title="Test",Fixture TV\n{upstream}/live.m3u8\n')
+        (media / 'logo.png').write_bytes(PNG)
+        (media / 'feed.m3u').write_text(f'#EXTM3U\n#EXTINF:-1 tvg-id="fixture" tvg-chno="5" tvg-logo="{upstream}/logo.png" group-title="Test",Fixture TV\n{upstream}/live.m3u8\n')
         now = datetime.now(timezone.utc).replace(microsecond=0)
         start = now.strftime('%Y%m%d%H%M%S +0000')
         end = (now + timedelta(hours=1)).strftime('%Y%m%d%H%M%S +0000')
@@ -210,6 +240,7 @@ def main():
                     time.sleep(0.1)
                 channel = catalog['channels'][0]
                 assert channel['id'] == entry['id'] and channel['legacyGuideId'] == 'fixture'
+                assert entry['logo'] == f'{upstream}/logo.png', entry
                 guide = request(base, '/api/v1/guide/query', 'POST', {'channelIds': [channel['id']], 'from': now.isoformat(), 'to': (now + timedelta(hours=1)).isoformat()})
                 assert guide['channels'][0]['programmes'][0]['title'] == 'Real fixture programme'
                 session = request(base, '/api/v1/playback-sessions', 'POST', {'channelId': channel['id'], 'intent': 'preview', 'idempotencyKey': 'smoke'})
@@ -257,7 +288,7 @@ def main():
                     while Handler.active_streams:
                         assert time.monotonic() < deadline, 'Released TS session retained its upstream'
                         time.sleep(0.1)
-                check_player_outputs(base, channel, ts_channel, directory)
+                check_player_outputs(base, upstream, channel, ts_channel, directory)
                 check_hdhomerun(base, process, directory)
                 identity = request(base, '/api/v1/bootstrap')['serverId']
                 stop(process)
@@ -278,7 +309,7 @@ def main():
                 stop(process)
             fixture.shutdown()
             fixture.server_close()
-        print('Live smoke passed: feed + gzip guide import, lineup curation through the admin API, session promotion, four concurrent HLS video decoders, automatic decode qualification, active TS upstream cancellation, M3U/XMLTV player output with a redirect-following decode and a TS hang-up, HDHomeRun discovery and a remuxed stream whose FFmpeg dies with its client, release and persistent lineup across restart.')
+        print('Live smoke passed: feed + gzip guide import, lineup curation through the admin API, session promotion, four concurrent HLS video decoders, automatic decode qualification, active TS upstream cancellation, M3U/XMLTV player output with a redirect-following decode and a TS hang-up, a cached logo served from this server in every output, HDHomeRun discovery and a remuxed stream whose FFmpeg dies with its client, release and persistent lineup across restart.')
 
 
 if __name__ == '__main__':

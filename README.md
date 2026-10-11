@@ -1,6 +1,6 @@
 # Sofa King Backend
 
-A Kotlin IPTV server for one household. It imports provider M3U playlists and independent XMLTV guides (plain or gzip), keeps a curated channel lineup in SQLite, serves a JSON API, an M3U/XMLTV output for third-party players and an HDHomeRun emulation for Plex Live TV, relays HLS and MPEG-TS streams, and quarantines failing sources automatically. It replaces the Dispatcharr curation step: the app sees the lineup, not the raw feeds.
+A Kotlin IPTV server for one household. It imports provider M3U playlists and independent XMLTV guides (plain or gzip), keeps a curated channel lineup in SQLite, serves a JSON API, an M3U/XMLTV output for third-party players and an HDHomeRun emulation for Plex Live TV, relays HLS and MPEG-TS streams, caches the lineup's channel logos so every output points at this server, and quarantines failing sources automatically. It replaces the Dispatcharr curation step: the app sees the lineup, not the raw feeds.
 
 The [Sofa King Android app](https://github.com/jamesarich/sofa-king) currently uses M3U/XMLTV endpoints and does not connect to this API yet. This server has no web UI or DVR.
 
@@ -61,7 +61,7 @@ Requires JDK 21, FFmpeg, and HTTP(S) playlist and guide URLs. Run commands from 
    curl --fail http://127.0.0.1:8080/api/v1/channels
    ```
 
-The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contains the database (lineup, guides, source health) and server identity. Providers refresh every 15 minutes and guides every 6 hours by default.
+The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contains the database (lineup, guides, source health), the server identity and `logos/`, the cached channel logos ([logos](docs/api.md#logos)). Providers refresh every 15 minutes and guides every 6 hours by default.
 
 ## Documentation
 
@@ -89,3 +89,4 @@ The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contain
 - The probe's protocol detection and its persistence are verified against local fixtures, not against the Dispatcharr feed.
 - The URL-keyed source identity rules and the Dispatcharr stream matcher are verified against sanitized fixtures and one read-only import of the FastChannels playlist, not against the masqueradarr playlist or the household's Dispatcharr export.
 - The Docker image and compose stack are verified on a development host against a local fixture feed, not on OMV or with the Android client.
+- The logo cache is verified against local fixtures (PNG, SVG, a mislabeled PNG, an HTML decoy, an oversized body, a failing refresh), not against the household's logo host, Dispatcharr's logo cache or provider CDNs. `/logos/*` is public, like the HDHomeRun routes.

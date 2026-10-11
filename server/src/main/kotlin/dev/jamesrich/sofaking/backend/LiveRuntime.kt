@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
+import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.playback.*
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
@@ -21,6 +22,7 @@ class LiveRuntime(
     val sessions: SessionManager,
     val relay: MediaRelay,
     val remux: TsRemux,
+    val logos: LogoCache,
     private val http: HttpClient,
     private val scope: CoroutineScope,
 ) {
@@ -40,18 +42,23 @@ class LiveRuntime(
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             try {
                 val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
-                val feeds = FeedService(sources.providers, store, http, clock, policy)
+                lateinit var logos: LogoCache
+                val feeds = FeedService(sources.providers, store, http, clock, policy) { logos.requestSweep() }
                 feeds.initialize()
                 lateinit var lineup: LineupService
                 val guides = GuideService(sources.allGuides, store, http, clock, policy) { lineup.wanted() }
                 guides.initialize()
-                lineup = LineupService(store, clock, feeds, guides)
+                lineup = LineupService(store, clock, feeds, guides) { logos.requestSweep() }
                 lineup.initialize()
                 val catalog = CatalogService(feeds, guides, lineup, store, clock)
+                logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) })
+                logos.initialize()
                 val sessions = SessionManager(catalog, store, clock, config.maxSessions)
-                val runtime = LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), http, scope)
+                val runtime = LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope)
                 feeds.start(scope)
                 guides.start(scope)
+                logos.start(scope)
+                logos.requestSweep()
                 scope.launch { while (isActive) { sessions.expire(); delay(1000) } }
                 if (sources.providers.any { it.probe }) {
                     val probes =

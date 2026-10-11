@@ -97,6 +97,10 @@ A lineup entry has a stable UUID (the app's channel ID), a number, a name, an op
 
 Playback walks an entry's sources in order within each health rank: healthy sources first, then unverified, then suspect, lineup order inside each rank. Quarantined, probation, archived, manually disabled and withdrawn sources are skipped. The channel's `logo` is the override or the first source's feed logo; `tags` carries the group; `legacyGuideId` carries the mapped XMLTV channel ID.
 
+### Logos
+
+The app, the M3U, the XMLTV and Plex see every logo at `http://SERVER_HOST:PORT/logos/KEY` on this server, not on the host the feed names ([API detail](api.md#logos)). The server fetches each lineup logo once after an import or lineup change, stores it under `SOFA_DATA_DIR/logos/`, serves it with a day of cache headers and an `ETag`, and refreshes it a week later; a refresh that fails keeps the old file, so retiring a logo host or a Dispatcharr instance leaves the logos in place. Only image content types up to 2 MiB are accepted, fetched under the [upstream address policy](#upstream-addresses) without provider headers. A logo the source never answered stays in the listings and answers `404`, which players show as their placeholder; the source is retried an hour later. Logos no longer named by any entry are deleted on the next sweep.
+
 Curate with the [admin API](api.md#admin-api). The common steps:
 
 1. Find candidates: `GET /api/v1/admin/candidates?q=espn` lists feed channels with their sources and which entries already use them.
@@ -223,6 +227,7 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 | `429 CAPACITY_EXHAUSTED` | Every slot holds a watch session. Release unused sessions or wait for their 90-second leases to expire; previews and idle player sessions are evicted automatically. |
 | A player gets `401` on the playlist URL | `SOFA_OUTPUT_TOKEN` is unset or the `token` query differs. The API token opens `/output/*` only as a bearer header. |
 | TiviMate plays a channel as the wrong type after a probe | The stream suffix follows the stored protocol; refresh the playlist in the player. |
+| A channel shows no logo | `curl -i http://SERVER_HOST:PORT/logos/KEY` with the key from the playlist: `404` means the source was refused (loopback or link-local address, a non-image content type, over 2 MiB, or an error), and the log has `logo fetch failed key=KEY class=`. The source is retried an hour later; `GET /api/v1/admin/lineup/ENTRY_ID` shows the source URL. |
 | Plex does not find the tuner | Plex discovers by SSDP, which is not implemented: enter `SERVER_HOST:PORT` manually. `curl http://SERVER_HOST:PORT/discover.json` from the Plex host answers `403` when `SOFA_HDHR_ALLOW` leaves Plex out and `404` when `SOFA_HDHR_ENABLED=false`. |
 | Plex says all tuners are in use | `SOFA_HDHR_TUNERS` streams are open, or every `SOFA_MAX_SESSIONS` slot is taken, or the channel has no eligible source; check `GET /api/v1/admin/lineup/ENTRY_ID`. |
 | A Plex channel plays for a moment and stops | FFmpeg ended the remux; the server log has `remux ended exit=` with FFmpeg's last lines, URLs removed. |

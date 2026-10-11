@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.store.IdentityStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
 import io.ktor.http.*
@@ -79,11 +80,16 @@ fun Application.backendModule(
         if (runtime != null) {
             get("/api/v1/channels") {
                 // The revision is cheap; the body is not, so answer a matching If-None-Match before building it.
+                // Logo URLs derive from the request Host, so the ETag covers it too.
                 val revision = runtime.catalog.catalogRevision()
-                val etag = "\"$revision\""
+                val base = publicBase(call)
+                val etag = "\"${hash("$revision:$base")}\""
                 call.response.header(HttpHeaders.ETag, etag)
                 if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) call.respond(HttpStatusCode.NotModified)
-                else call.respond(runtime.catalog.catalog(revision))
+                else {
+                    val catalog = runtime.catalog.catalog(revision)
+                    call.respond(catalog.copy(channels = catalog.channels.map { channel -> channel.copy(logo = channel.logo?.let { runtime.logos.publicUrl(base, it) }) }))
+                }
             }
             get("/api/v1/providers") { call.respond(runtime.feeds.providers()) }
             get("/api/v1/sources") { call.respond(runtime.feeds.sources()) }
@@ -103,6 +109,7 @@ fun Application.backendModule(
                 runtime.relay.serve(call, call.parameters["id"]!!, epoch, call.parameters["token"]!!)
             }
             outputRoutes(runtime, clock, outputs, apiToken)
+            logoRoutes(runtime.logos)
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
         }
     }

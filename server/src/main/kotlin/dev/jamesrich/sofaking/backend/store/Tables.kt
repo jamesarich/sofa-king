@@ -63,6 +63,17 @@ internal object GuideChannels : Table("guide_channel") {
     val icon = text("icon").nullable()
     override val primaryKey = PrimaryKey(guideId, channelId)
 }
+internal object LogoCacheRows : Table("logo_cache") {
+    val key = text("key")
+    val sourceUrl = text("source_url")
+    val contentType = text("content_type").nullable()
+    val size = long("size")
+    val contentHash = text("content_hash").nullable()
+    val fetchedAt = text("fetched_at").nullable()
+    val failedAt = text("failed_at").nullable()
+    val failures = integer("failures")
+    override val primaryKey = PrimaryKey(key)
+}
 internal object GuideProgrammes : Table("guide_programme") {
     val guideId = text("guide_id")
     val channelId = text("channel_id")

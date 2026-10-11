@@ -1,6 +1,6 @@
 # Deploy with Docker
 
-The image runs the installed distribution on `eclipse-temurin:21-jre-noble` with Ubuntu's FFmpeg and curl, as the non-root user `sofa` (uid 10001). The database lives in the `/data` volume, the server listens on container port 8080, and a `HEALTHCHECK` polls `/readyz` every 30 seconds after a 30-second start period. `deploy/compose.yaml` publishes host port 9193 and targets an amd64 host such as OMV with Docker Compose v2.
+The image runs the installed distribution on `eclipse-temurin:21-jre-noble` with Ubuntu's FFmpeg and curl, as the non-root user `sofa` (uid 10001). The database and the logo cache live in the `/data` volume, the server listens on container port 8080, and a `HEALTHCHECK` polls `/readyz` every 30 seconds after a 30-second start period. `deploy/compose.yaml` publishes host port 9193 and targets an amd64 host such as OMV with Docker Compose v2.
 
 The server is built on the host and copied into the image. The build pulls a Gradle milestone and Kotlin and Ktor prereleases from JetBrains' EAP repository with a locked dependency set, so building inside Docker would repeat those downloads on every image build and fail whenever an artifact is unavailable; the host build uses the local Gradle cache and the image build only needs the base image and Ubuntu packages.
 
@@ -71,7 +71,11 @@ docker compose -f deploy/compose.yaml logs -f
 docker compose -f deploy/compose.yaml down
 ```
 
-`down` keeps the `sofa-king-backend_sofa-data` volume; `down -v` deletes the database and server identity.
+`down` keeps the `sofa-king-backend_sofa-data` volume; `down -v` deletes the database, the server identity and the logo cache.
+
+### Data volume growth
+
+`/data` holds `backend.sqlite` (with its WAL and shared-memory files) and `logos/`, one file per logo the lineup names. A logo is at most 2 MiB and most are tens of kilobytes, so a thousand-channel lineup stays well under 100 MB in practice; the hard bound is the entry count times 2 MiB. Logos the lineup no longer names are deleted on the next sweep (after an import or lineup change), so the directory tracks the lineup rather than growing without bound. The database keeps seven days of health observations by default (`SOFA_OBSERVATION_RETENTION_DAYS`) and the retained guide programmes of the mapped channels. The backup `tar` in [upgrade](#upgrade) includes the logos; a `/data` restored without `logos/` refetches them on the first sweep.
 
 ## Verify
 

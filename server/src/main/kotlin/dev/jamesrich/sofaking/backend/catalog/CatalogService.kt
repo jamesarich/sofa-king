@@ -45,7 +45,7 @@ class CatalogService(
             id = entry.id,
             displayNumber = entry.number,
             name = entry.name,
-            logo = entry.logo ?: offerings.firstNotNullOfOrNull { feeds.channel(it.channelId)?.logo },
+            logo = logoSource(entry),
             tags = listOfNotNull(entry.group),
             legacyGuideId = entry.guide?.channelId,
             guideStatus = when {
@@ -57,6 +57,10 @@ class CatalogService(
             playbackEligible = offerings.any { states[it.id]?.let(::eligible) == true },
         )
     }
+
+    /** The logo URL a channel shows: the entry's override, else the first of its sources' feed logos. */
+    fun logoSource(entry: LineupEntryRecord): String? =
+        entry.logo ?: entry.offeringIds.mapNotNull(feeds::offering).firstNotNullOfOrNull { feeds.channel(it.channelId)?.logo }
 
     /** The entry's sources in failover order; the session manager ranks them by health. */
     fun offeringsFor(channelId: String): List<Offering>? =

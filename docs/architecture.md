@@ -1,6 +1,6 @@
 # Architecture
 
-One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programmes, server identity, source health, probe attempt times and observation history. Playback sessions exist in memory.
+One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programmes, server identity, source health, probe attempt times, observation history and the logo cache index; the logo files sit beside it in the data directory. Playback sessions exist in memory.
 
 ## Modules
 
@@ -21,6 +21,7 @@ Lineup entry → SessionManager (ordered offerings by health) → MediaRelay →
 Lineup + GuideService → /output M3U + XMLTV → third-party player → /output/stream → SessionManager (external session) → MediaRelay
 Lineup → /discover.json + /lineup.json → Plex → /auto/v{number} → SessionManager (external session) → TsFanout, or TsRemux (FFmpeg stream copy) for HLS
 Stream URL → ProbeWorker → HealthPolicy → SQLite source health
+Lineup logo URLs → LogoCache (fetch, validate, data/logos/<key>) → /logos/{key} in the JSON API, M3U and XMLTV
 ```
 
 Provider imports publish complete snapshots; invalid imports retain the previous snapshot. Guide imports replace one guide's rows atomically and keep only programmes for channels the lineup maps onto that guide; the channel index is kept whole. Immutable in-memory indexes serve catalog requests; guide programmes are read from SQLite by guide, channel and window. SQLite uses WAL, foreign keys, bounded blocking transactions and versioned atomic migrations whose versions may have gaps.
@@ -49,6 +50,10 @@ The HLS relay rewrites variant, audio, subtitle, key, initialization-map and seg
 
 `/output/playlist.m3u` and `/output/guide.xml` are rendered from the catalog and the stored programmes on each request; nothing is cached or stored for them. `/output/stream/{id}` opens an external session: a watch session with no idempotency key whose lease is the player's activity. `SessionManager.acquire` and `finished` move its expiry 60 seconds past each media request, a request still in flight exempts it from reaping, and the request handler releases it when a TS response ends. Capacity eviction prefers a preview, then an external session with no request in flight. An HLS source is answered with a redirect to the session's root playlist, so one session serves every player on that channel; an MPEG-TS source is served through the same fan-out as an API session. The handler catches the relay's protocol-mismatch `410` and switches paths within the request.
 
+## Logos
+
+`LogoCache` keys each lineup logo by the SHA-256 of its source URL and keeps an in-memory index of the `logo_cache` rows, which name the stored content type, size, content hash, last fetch and last failure. Files live at `data/logos/<key>`, written to a temporary name and moved into place. A fetch goes through `withUpstreamResponse` with the feed address policy and no provider headers, requires an image content type, caps the body at 2 MiB (`Content-Length` first, then the read), and types the body by its signature, so a mislabeled PNG is stored as PNG and a declared SVG must be markup; anything else is a failure row. Fetches are single-flight per key and share a semaphore of four. `FeedService` and `LineupService` signal a conflated trigger after each import or change; the sweep loop in the runtime scope then fetches every wanted key that is missing, or a week old and not failed within the hour, and deletes rows and files the lineup no longer names. A request for a key with no usable file fetches it inline when the lineup names it. The catalog and output routes rewrite a channel's logo to `BASE/logos/<key>` from the request `Host`, so the channels ETag covers the base as well as the catalog revision.
+
 ## HDHomeRun emulation
 
 `HdhrRoutes` renders the discovery, lineup and status documents from the lineup on each request; the device ID is configured or derived from the server identity, so it survives restarts. `/auto/v{number}` opens an external session per request, never shared, counted against `SOFA_HDHR_TUNERS` separately from the session cap. An MPEG-TS source reuses `MediaRelay`. An HLS source goes to `TsRemux`, which runs one FFmpeg per response reading the source URL directly (the address policy is checked first, provider headers only when portable) with `-c copy` into `pipe:1`, and copies the pipe into the response. The request's job is attached to the session so it counts as in flight; a watchdog coroutine kills the process when the response is cancelled, because a blocked pipe read does not notice cancellation, and the process is always destroyed and waited for before the handler returns. `LiveRuntime.close` kills every remux. The allow-list (`AddressAllowList`) matches IP literals and CIDR blocks against the connection's remote address; IPv4-mapped IPv6 addresses are compared as IPv4.
@@ -61,13 +66,13 @@ When the upstream ends or fails, the relay reconnects with backoff from 0.5 to 8
 
 ## Supported scope
 
-Configured HTTP(S) feeds and guides, JSON control and admin requests, HLS/MPEG-TS passthrough, M3U/XMLTV output with per-channel stream URLs for third-party players, HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, and FFmpeg source qualification are supported. Recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery, web administration, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
+Configured HTTP(S) feeds and guides, JSON control and admin requests, HLS/MPEG-TS passthrough, M3U/XMLTV output with per-channel stream URLs for third-party players, cached lineup logos served from this server, HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, and FFmpeg source qualification are supported. Recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery, web administration, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
 
 ## Operations
 
 Health observation history is pruned to `SOFA_OBSERVATION_RETENTION_DAYS` (default 7) at the start of each probe batch; source health, strikes and probe attempt times are separate rows and are never pruned. The channels ETag derives from the lineup, the published channels and offerings, each guide's import time, the health table's row count and latest update, and which entries' guides are still current, so a matching `If-None-Match` is answered without building the body.
 
-Logs are key=value lines: provider imports (counts, skipped entries, duration, failure class), guide imports (channels, retained programmes, duration; on failure the exception class and its message with every URL replaced by `<url>`), probe batches (outcome counts, duration) and health transitions (source ID, old and new state), relay upstream reconnects and failures (source ID, attempt, exception class, HTTP status). A request that fails with a closed channel, broken pipe or connection reset, as when a player switches channels mid-body, logs at debug with the exception class; other request failures log at error. Stream URLs, guide URLs, query tokens and provider exception messages are never logged; a guide failure message is logged only after URL redaction.
+Logs are key=value lines: provider imports (counts, skipped entries, duration, failure class), logo fetch failures (key, exception class, whether a stale file remains), guide imports (channels, retained programmes, duration; on failure the exception class and its message with every URL replaced by `<url>`), probe batches (outcome counts, duration) and health transitions (source ID, old and new state), relay upstream reconnects and failures (source ID, attempt, exception class, HTTP status). A request that fails with a closed channel, broken pipe or connection reset, as when a player switches channels mid-body, logs at debug with the exception class; other request failures log at error. Stream URLs, guide URLs, query tokens and provider exception messages are never logged; a guide failure message is logged only after URL redaction.
 
 On SIGTERM the shutdown hook stops the HTTP server, closes the runtime (imports, probes, relay upstreams and sessions) and then the store, in that order, and logs each step.
 

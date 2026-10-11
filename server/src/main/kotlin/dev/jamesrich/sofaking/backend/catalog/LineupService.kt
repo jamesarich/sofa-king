@@ -19,6 +19,8 @@ class LineupService(
     private val clock: Clock,
     private val feeds: FeedService,
     private val guides: GuideService,
+    /** Runs after each change, once the new lineup is published. */
+    private val onChanged: () -> Unit = {},
 ) {
     private class Published(val entries: List<LineupEntryRecord>) {
         val byId = entries.associateBy { it.id }
@@ -109,6 +111,7 @@ class LineupService(
         val next = Published(entries)
         published.set(next)
         for ((guideId, channels) in next.wanted) if (!before[guideId].orEmpty().containsAll(channels)) guides.requestRefresh(guideId)
+        onChanged()
         result
     }
 

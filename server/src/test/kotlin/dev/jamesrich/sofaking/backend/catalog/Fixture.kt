@@ -48,6 +48,13 @@ class Fixture : AutoCloseable {
     val proxyFeed = FeedConfig("proxy", "$base/proxy-feed.m3u", probe = false)
     val proxyStreamUrl = "$base/dlhd/https%3A%2F%2Fexample.test%2Fstream%3Fid%3D521?token=abc"
     val proxyRequests = AtomicInteger()
+    /** The station with a `tvg-logo` naming this fixture's PNG, for the logo cache. */
+    val logoFeed = FeedConfig("logo", "$base/branded-feed.m3u", probe = false)
+    val logoUrl = "$base/logo.png"
+    /** Requests for any `/logo*` or `/decoy*` path. */
+    val logoRequests = AtomicInteger()
+    /** While set, `/logo.png` answers 503. */
+    @Volatile var logoBroken = false
     val tsConnections = AtomicInteger()
     val tsClosed = AtomicInteger()
     /** Raw query string of the last media playlist request, for delivery-directive checks. */
@@ -84,6 +91,27 @@ class Fixture : AutoCloseable {
                 } catch (_: IOException) {
                 } catch (_: InterruptedException) {
                 } finally { tsClosed.incrementAndGet() }
+                return@createContext
+            }
+            if (path.startsWith("/logo") || path.startsWith("/decoy")) {
+                logoRequests.incrementAndGet()
+                val (type, bytes) = when (path) {
+                    "/logo.png", "/logo-copy.png" -> "image/png" to PNG
+                    "/logo.svg" -> "image/svg+xml; charset=utf-8" to SVG.toByteArray()
+                    // A PNG labeled JPEG is stored as what it is.
+                    "/logo-mislabeled.jpg" -> "image/jpeg" to PNG
+                    // One byte over the cap, chunked, so only the body read can refuse it.
+                    "/logo-huge.png" -> "image/png" to ByteArray(2 * 1024 * 1024 + 1).also { PNG.copyInto(it) }
+                    // An HTML page where a logo should be.
+                    "/decoy.png" -> "text/html" to "<html><body>moved</body></html>".toByteArray()
+                    // An image type whose body is not an image.
+                    "/decoy-script.png" -> "image/png" to "<script>alert(1)</script>".toByteArray()
+                    else -> { exchange.sendResponseHeaders(404, -1); exchange.close(); return@createContext }
+                }
+                if (path == "/logo.png" && logoBroken) { exchange.sendResponseHeaders(503, -1); exchange.close(); return@createContext }
+                exchange.responseHeaders.set("Content-Type", type)
+                exchange.sendResponseHeaders(200, if (path == "/logo-huge.png") 0 else bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
                 return@createContext
             }
             if (path == "/guide.xml.gz") {
@@ -137,6 +165,7 @@ class Fixture : AutoCloseable {
                 "/ext-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ext-station\" tvg-chno=\"7\",Extensionless\n$base/resolve?id=1\n"
                 "/fake-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"fake-station\" tvg-chno=\"8\",Mislabeled\n$base/fake.m3u8\n"
                 "/proxy-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"proxy-station\" tvg-chno=\"9\",Proxied\n$proxyStreamUrl\n"
+                "/branded-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"logo-station\" tvg-chno=\"11\" tvg-logo=\"$logoUrl\" group-title=\"News\",Logo Station\n$base/master.m3u8\n"
                 "/resolve" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100000\nmedia.m3u8\n"
                 "/guide.xml" -> guideXml(false)
                 "/master.m3u8" -> "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\",URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,AUDIO=\"audio\"\nmedia.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200000\nloop\n"
@@ -164,6 +193,13 @@ class Fixture : AutoCloseable {
     }
     companion object {
         fun resource(name: String): ByteArray = Fixture::class.java.classLoader.getResourceAsStream(name)!!.use { it.readBytes() }
+
+        /** A 1x1 opaque PNG. */
+        val PNG: ByteArray = java.util.Base64.getDecoder().decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+        )
+        /** An SVG with a script element, which the server must store and serve byte for byte and never run. */
+        const val SVG = "<?xml version=\"1.0\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"><script>alert(1)</script><rect width=\"1\" height=\"1\"/></svg>"
 
         /** A PID 0x100 packet whose payload is the packet number. */
         fun tsPacket(number: Int): ByteArray = ByteArray(188) { index ->

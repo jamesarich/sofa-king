@@ -46,7 +46,7 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
                     // Players infer the stream type from the suffix; a channel with no eligible source lists as TS and fails at play time.
                     val suffix = if (preferred[channel.id]?.protocol == "hls") "m3u8" else "ts"
                     write("#EXTINF:-1 tvg-id=\"${channel.id}\" tvg-chno=\"${attribute(channel.displayNumber)}\" tvg-name=\"${attribute(channel.name)}\"")
-                    channel.logo?.let { write(" tvg-logo=\"${attribute(it)}\"") }
+                    channel.logo?.let { write(" tvg-logo=\"${runtime.logos.publicUrl(base, it)}\"") }
                     entries[channel.id]?.group?.let { write(" group-title=\"${attribute(it)}\"") }
                     write(",${attribute(channel.name)}\n$base/output/stream/${channel.id}.$suffix$query\n")
                 }
@@ -67,12 +67,13 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
                 val rows = runtime.guides.programmes(guideId, group.map { it.second.channelId }, from, to)
                 for ((entryId, mapping) in group) programmes[entryId] = rows[mapping.channelId].orEmpty()
             }
+            val base = publicBase(call)
             call.response.header(HttpHeaders.CacheControl, "no-store")
             call.respondTextWriter(ContentType.Application.Xml.withCharset(Charsets.UTF_8)) {
                 write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tv generator-info-name=\"sofa-king-backend\">\n")
                 for (channel in channels) {
                     write("<channel id=\"${xml(channel.id)}\"><display-name>${xml(channel.name)}</display-name><display-name>${xml(channel.displayNumber)}</display-name>")
-                    channel.logo?.let { write("<icon src=\"${xml(it)}\"/>") }
+                    channel.logo?.let { write("<icon src=\"${xml(runtime.logos.publicUrl(base, it))}\"/>") }
                     write("</channel>\n")
                 }
                 for (channel in channels) {

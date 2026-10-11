@@ -78,6 +78,14 @@ internal fun DigitsBadge(text: String) {
     )
 }
 
+/** Plain-English headline for a playback error; [code] is the ExoPlayer error name or a session code. */
+internal fun failureReasonRes(code: String): Int = when {
+    "NETWORK_CONNECTION" in code -> R.string.cant_reach_stream
+    "BAD_HTTP_STATUS" in code -> R.string.stream_refused
+    "PARSING" in code || "UNSUPPORTED" in code -> R.string.stream_unsupported
+    else -> R.string.cant_play
+}
+
 @Composable
 internal fun BoxScope.FailureCard(code: String) {
     Column(
@@ -88,7 +96,7 @@ internal fun BoxScope.FailureCard(code: String) {
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(stringResource(R.string.cant_play), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
+        Text(stringResource(failureReasonRes(code)), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
         Text(stringResource(R.string.cant_play_retry), style = MaterialTheme.typography.bodyMedium, color = SofaDusk)
         Text(code, style = MaterialTheme.typography.bodySmall, color = SofaMauve)
     }

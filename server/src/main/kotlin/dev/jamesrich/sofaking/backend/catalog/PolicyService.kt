@@ -97,11 +97,14 @@ class PolicyService(
     suspend fun apply(cause: String): PolicyApplyResult = runMutex.withLock {
         val started = clock.instant()
         val loaded = file.current()
-        if (feeds.channels().none { feeds.offeringsOf(it.id).isNotEmpty() }) {
-            log.info("lineup policy run skipped: no feed has a live channel yet")
+        // Numbers assigned now are written into the policy for good, so a partial catalog must never be built from.
+        val waiting = feeds.providers().filter { it.lastSuccessAt == null && it.errorCode == null }.map { it.id }.sorted()
+        if (waiting.isNotEmpty() || feeds.channels().none { feeds.offeringsOf(it.id).isNotEmpty() }) {
+            val reason = if (waiting.isNotEmpty()) "waiting for the first import of ${waiting.joinToString()}" else "no feed has a live channel yet"
+            log.info("lineup policy run skipped: {}", reason)
             return@withLock PolicyApplyResult(
                 started.toString(), loaded.revision, false, lineup.entries().size, lineup.entries().count { it.enabled },
-                findings = listOf("feeds: no feed has a live channel yet; the lineup is left as it is"),
+                findings = listOf("feeds: $reason; the lineup is left as it is"),
             )
         }
         val result = run(loaded)

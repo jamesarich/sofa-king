@@ -155,4 +155,38 @@ class RelayTest {
             } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
         }
     }
+
+    @Test fun `a chunked HLS media playlist behind an unprobed proxy path answers 410 on the TS path and is stored as hls`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-relay-proxy-protocol-")
+        val token = "secret".repeat(8)
+        Fixture().use { fixture ->
+            val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(listOf(fixture.proxyFeed)))
+            val store = openStore(dir)
+            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
+            try {
+                runtime.feeds.refresh(fixture.proxyFeed); runtime.adoptAll()
+                val offering = runtime.feeds.offerings().single()
+                assertEquals("mpegts", offering.protocol); assertEquals(fixture.proxyStreamUrl, offering.url)
+                application { backendModule(store, MutableClock(), runtime, token) }
+                val channel = Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single()
+                val opened = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "proxy"))) }.bodyAsText())
+                assertEquals("mpegts", opened.descriptor.protocol); assertTrue(opened.descriptor.url.endsWith(".ts"))
+                val mismatch = withTimeout(20_000) { client.get(opened.descriptor.url) }
+                assertEquals(HttpStatusCode.Gone, mismatch.status)
+                assertEquals("STREAM_CHANGED", Json.decodeFromString<ApiError>(mismatch.bodyAsText()).code)
+                assertEquals(mapOf(offering.id to "hls"), store.offeringProtocols())
+                assertEquals(0, runtime.relay.shared.active())
+                val corrected = Json.decodeFromString<PlaybackSession>(client.get("/api/v1/playback-sessions/${opened.id}") { bearerAuth(token) }.bodyAsText())
+                assertEquals(2, corrected.descriptor.epoch); assertEquals("hls", corrected.descriptor.protocol); assertTrue(corrected.descriptor.url.endsWith(".m3u8"))
+                val playlist = client.get(corrected.descriptor.url)
+                assertEquals(HttpStatusCode.OK, playlist.status)
+                val lines = playlist.bodyAsText().lines()
+                assertTrue(lines.contains("#EXT-X-MEDIA-SEQUENCE:7"))
+                assertTrue(lines.any { it.startsWith("/media/sessions/${opened.id}/2/") && it.endsWith(".ts") })
+                assertEquals(2, fixture.proxyRequests.get())
+                val later = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "proxy-later"))) }.bodyAsText())
+                assertEquals("hls", later.descriptor.protocol); assertEquals(1, later.descriptor.epoch)
+            } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+        }
+    }
 }

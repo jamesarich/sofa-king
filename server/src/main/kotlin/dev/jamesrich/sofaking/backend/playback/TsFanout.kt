@@ -173,7 +173,9 @@ internal class TsFanout(
             throw e
         } catch (e: Exception) {
             cause = e
-            log.warn("relay upstream failed offering={} class={} status={}", key, e.javaClass.simpleName, (e as? UpstreamStatusException)?.status)
+            // A body that carries the other protocol is a detection the reader turns into 410 STREAM_CHANGED, not a failure.
+            if (e is UpstreamProtocolException) log.info("relay upstream protocol offering={} protocol={}", key, e.protocol)
+            else log.warn("relay upstream failed offering={} class={} status={}", key, e.javaClass.simpleName, (e as? UpstreamStatusException)?.status)
         } finally {
             withContext(NonCancellable) { stop(cause) }
         }

@@ -41,6 +41,13 @@ class Fixture : AutoCloseable {
     val extensionlessFeed = FeedConfig("ext", "$base/ext-feed.m3u", probe = false)
     /** A live MPEG-TS body behind a `.m3u8` path. */
     val mislabeledFeed = FeedConfig("fake", "$base/fake-feed.m3u", probe = false)
+    /**
+     * The masqueradarr shape: a percent-encoded upstream URL in an extensionless proxy path with a `token` query,
+     * answered with a chunked media playlist whose first chunk is shorter than `#EXTM3U`.
+     */
+    val proxyFeed = FeedConfig("proxy", "$base/proxy-feed.m3u", probe = false)
+    val proxyStreamUrl = "$base/dlhd/https%3A%2F%2Fexample.test%2Fstream%3Fid%3D521?token=abc"
+    val proxyRequests = AtomicInteger()
     val tsConnections = AtomicInteger()
     val tsClosed = AtomicInteger()
     /** Raw query string of the last media playlist request, for delivery-directive checks. */
@@ -53,6 +60,16 @@ class Fixture : AutoCloseable {
             if (path == "/loop") {
                 exchange.responseHeaders.set("Location", "$base/loop")
                 exchange.sendResponseHeaders(302, -1); exchange.close()
+                return@createContext
+            }
+            if (exchange.requestURI.rawPath.startsWith("/dlhd/")) {
+                proxyRequests.incrementAndGet()
+                exchange.responseHeaders.set("Content-Type", "application/vnd.apple.mpegurl")
+                exchange.sendResponseHeaders(200, 0)
+                exchange.responseBody.use { out ->
+                    out.write("#EX".toByteArray()); out.flush(); Thread.sleep(100)
+                    out.write("TM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:7\n#EXTINF:4,\nsegment.ts\n".toByteArray())
+                }
                 return@createContext
             }
             if (path == "/live.ts" || path == "/fake.m3u8") {
@@ -119,6 +136,7 @@ class Fixture : AutoCloseable {
                 "/ts-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ts-station\" tvg-chno=\"6\",TS Station\n$base/live.ts\n"
                 "/ext-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ext-station\" tvg-chno=\"7\",Extensionless\n$base/resolve?id=1\n"
                 "/fake-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"fake-station\" tvg-chno=\"8\",Mislabeled\n$base/fake.m3u8\n"
+                "/proxy-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"proxy-station\" tvg-chno=\"9\",Proxied\n$proxyStreamUrl\n"
                 "/resolve" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100000\nmedia.m3u8\n"
                 "/guide.xml" -> guideXml(false)
                 "/master.m3u8" -> "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\",URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,AUDIO=\"audio\"\nmedia.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200000\nloop\n"

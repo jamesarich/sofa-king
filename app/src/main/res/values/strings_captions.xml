@@ -5,6 +5,9 @@
     <string name="captions_unavailable">No captions on this channel</string>
     <string name="captions_setting">Closed captions</string>
     <string name="captions_indicator_timing">CC %1$s s early ◀ ▶</string>
+    <string name="captions_indicator_timing_description">Captions %1$s seconds early. Left or right to adjust.</string>
+    <string name="now_playing">Now playing %1$s, %2$s</string>
+    <string name="now_playing_channel">Now playing %1$s</string>
     <string name="cant_reach_stream">Can\'t reach the stream</string>
     <string name="stream_refused">The stream refused the connection</string>
     <string name="stream_unsupported">This stream format isn\'t supported</string>

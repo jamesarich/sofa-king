@@ -40,6 +40,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -64,6 +66,7 @@ import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.RiseIn
 import dev.jamesrich.sofaking.ui.SinkOut
+import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
@@ -558,6 +561,16 @@ fun PlayerScreen(
             .background(SofaScrim)
             .focusRequester(focus)
             .focusable()
+            .semantics {
+                currentChannels.getOrNull(index)?.let { channel ->
+                    val title = lineup.nowAndNext(channel, now).first?.title
+                    contentDescription = if (title == null) {
+                        context.getString(R.string.now_playing_channel, channel.label())
+                    } else {
+                        context.getString(R.string.now_playing, channel.label(), title)
+                    }
+                }
+            }
             .onPreviewKeyEvent { event -> handleKeyEvent(event) },
     ) {
         LiveVideo(player, Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }

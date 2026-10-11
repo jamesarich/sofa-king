@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -127,11 +128,16 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             Text(channel.label(), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
             if (captionsOn) {
                 Spacer(Modifier.width(16.dp))
+                val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)
+                val advanceDescription = stringResource(R.string.captions_indicator_timing_description, advance)
                 Text(
-                    stringResource(R.string.captions_indicator_timing, CaptionPolicy.advanceLabel(captionAdvanceMs)),
+                    stringResource(R.string.captions_indicator_timing, advance),
                     style = MaterialTheme.typography.labelLarge,
                     color = SofaPlum,
-                    modifier = Modifier.background(SofaAmber, OverlayShape).padding(horizontal = 8.dp, vertical = 2.dp),
+                    modifier = Modifier
+                        .background(SofaAmber, OverlayShape)
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .semantics { contentDescription = advanceDescription },
                 )
             }
         }

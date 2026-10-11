@@ -2,45 +2,319 @@ package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.recordCurationChanges
+import dev.jamesrich.sofaking.backend.store.saveStationAvailability
+import dev.jamesrich.sofaking.backend.store.stationAvailability
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel as Trigger
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.*
+import org.slf4j.LoggerFactory
+
+private val checkJson = Json { ignoreUnknownKeys = true }
 
 /**
- * The loaded lineup policy, read-only: runs the [StationBuilder] over the current feeds, guides and health, and
- * compares the result with the lineup the server serves. Nothing here writes the lineup.
+ * Builds the lineup from the policy file: runs the [StationBuilder] over the current feeds, guides, health and the
+ * remembered availability, writes the lineup when it differs, and writes pass-two numbers back into the policy.
  */
 class PolicyService(
-    private val loaded: LoadedPolicy,
+    val file: PolicyFile,
     private val feeds: FeedService,
     private val guides: GuideService,
     private val lineup: LineupService,
     private val store: BackendStore,
     private val clock: Clock,
+    /** Channels the HDHomeRun devices hold together when they split the lineup by range; null when they do not. */
+    private val hdhrCapacity: Int? = null,
+    /** Quiet time after a trigger before the run, so a burst of changes is one run. */
+    private val debounceMillis: Long = 10_000,
+    private val intervalSeconds: Long = 900,
 ) {
-    val policy: LineupPolicy get() = loaded.policy
+    private val log = LoggerFactory.getLogger(PolicyService::class.java)
+    private val runMutex = Mutex()
+    private val trigger = Trigger<String>(Trigger.CONFLATED)
 
-    fun document(): PolicyDocument = PolicyDocument(loaded.revision, loaded.path.toString(), loaded.policy)
+    val policy: LineupPolicy get() = file.current().policy
 
-    /** One run over the current snapshot, with no remembered availability. */
-    suspend fun run(): BuildResult {
+    fun document(): PolicyDocument = file.current().let { PolicyDocument(it.revision, it.path.toString(), it.policy) }
+
+    /** One run over the current snapshot and the remembered availability; writes nothing. */
+    suspend fun run(loaded: LoadedPolicy = file.current()): BuildResult {
         val candidates = feeds.channels().map { channel -> FeedCandidate(channel, feeds.providerOf(channel.id).orEmpty(), feeds.offeringsOf(channel.id)) }
         return StationBuilder.build(
-            BuildInput(loaded.policy, candidates, guides::guidesListing, feeds.configs.mapTo(HashSet()) { it.id }, store.allHealth(), emptyMap(), clock.instant()),
+            BuildInput(
+                loaded.policy, candidates, guides::guidesListing, feeds.configs.mapTo(HashSet()) { it.id }, store.allHealth(), store.stationAvailability(), clock.instant(),
+            ),
         )
     }
 
-    suspend fun preview(): PolicyPreview = previewDiff(run(), lineup.entries(), clock.instant(), loaded.revision)
+    suspend fun preview(): PolicyPreview {
+        val loaded = file.current()
+        val result = run(loaded)
+        return previewDiff(result, lineup.entries(), clock.instant(), loaded.revision).copy(findings = findingsOf(result))
+    }
+
+    suspend fun findings(): PolicyFindings {
+        val loaded = file.current()
+        val result = run(loaded)
+        return PolicyFindings(clock.instant().toString(), loaded.revision, findingsOf(result), result.suggestedAliases)
+    }
 
     suspend fun explain(key: String): StationExplanation {
         val result = run()
         return StationExplanation(
             key,
             result.stations.firstOrNull { it.key == key },
-            loaded.policy.stations[key]?.sources.orEmpty(),
+            file.current().policy.stations[key]?.sources.orEmpty(),
             result.candidates.filter { it.key == key || it.station == key },
             result.findings.filter { it.startsWith("$key: ") },
         )
     }
+
+    private fun findingsOf(result: BuildResult): List<String> {
+        val capacity = hdhrCapacity ?: return result.findings
+        val enabled = result.stations.filter { it.enabled }.distinctBy { it.number }.size
+        if (enabled <= capacity) return result.findings
+        return (result.findings + "hdhr: $enabled enabled stations exceed the $capacity channels the HDHomeRun devices hold; add ports to SOFA_HDHR_EXTRA_PORTS").sorted()
+    }
+
+    /**
+     * Builds and writes the lineup in one transaction when it differs, remembers availability, logs each change with
+     * [cause], then writes the numbers pass two assigned into the policy so a rebuild needs nothing else.
+     */
+    suspend fun apply(cause: String): PolicyApplyResult = runMutex.withLock {
+        val started = clock.instant()
+        val loaded = file.current()
+        if (feeds.channels().none { feeds.offeringsOf(it.id).isNotEmpty() }) {
+            log.info("lineup policy run skipped: no feed has a live channel yet")
+            return@withLock PolicyApplyResult(
+                started.toString(), loaded.revision, false, lineup.entries().size, lineup.entries().count { it.enabled },
+                findings = listOf("feeds: no feed has a live channel yet; the lineup is left as it is"),
+            )
+        }
+        val result = run(loaded)
+        val findings = findingsOf(result).toMutableList()
+        val current = lineup.entries()
+        val currentById = current.associateBy { it.id }
+        val next = ArrayList<LineupEntryRecord>()
+        val keyById = HashMap<String, String>()
+        val reasonById = HashMap<String, String?>()
+        for (station in result.stations) {
+            if (station.id in keyById) continue
+            keyById[station.id] = station.key
+            reasonById[station.id] = station.disabledReason
+            val unavailable = station.disabledReason == "unavailable"
+            val record = LineupEntryRecord(
+                station.id, station.number, station.name, station.group, station.logo, station.enabled, station.guide, station.offeringIds,
+                createdBy = "policy",
+                autoDisabledAt = if (unavailable) result.availability[station.key]?.unavailableSince else null,
+                autoDisabledReason = if (unavailable) "unavailable" else null,
+            )
+            next += try {
+                lineup.validated(record)
+            } catch (e: ApiFailure) {
+                findings += "${station.key}: left as it was: ${e.message}"
+                currentById[station.id] ?: continue
+            }
+        }
+        val changes = changesBetween(current, next, keyById, reasonById, result.keys, cause)
+        val changed = next != current
+        if (changed) lineup.mutate { entries -> entries.clear(); entries.addAll(next) }
+        val now = clock.instant()
+        store.saveStationAvailability(result.availability, now)
+        store.recordCurationChanges(changes, now)
+
+        val numbers = result.assigned.filterKeys { loaded.policy.stations[it]?.number == null }
+        var revision = loaded.revision
+        if (numbers.isNotEmpty()) {
+            try {
+                revision = file.edit(null) { tree -> withNumbers(tree, numbers) }.revision
+            } catch (e: ApiFailure) {
+                findings += "policy: ${numbers.size} assigned numbers not written back: ${e.message}"
+                log.warn("lineup policy number write-back failed code={} numbers={}", e.code, numbers.size)
+            } catch (e: java.io.IOException) {
+                findings += "policy: ${numbers.size} assigned numbers not written back: ${e.javaClass.simpleName}"
+                log.warn("lineup policy number write-back failed class={} numbers={}", e.javaClass.simpleName, numbers.size)
+            }
+        }
+        log.info(
+            "lineup policy run cause={} stations={} changed={} changes={} assigned={} findings={} durationMs={}",
+            cause, next.size, changed, changes.size, numbers.size, findings.size, Duration.between(started, clock.instant()).toMillis(),
+        )
+        PolicyApplyResult(
+            now.toString(), revision, changed, next.size, next.count { it.enabled }, changes.size, numbers.toSortedMap(), findings.sorted(), result.suggestedAliases,
+        )
+    }
+
+    /** Writes [bytes] as the whole policy when [ifMatch] is the loaded revision, then applies it. */
+    suspend fun replace(ifMatch: String, bytes: ByteArray): PolicyWriteResult {
+        file.replace(ifMatch, bytes)
+        val applied = apply("policy")
+        return PolicyWriteResult(document(), applied)
+    }
+
+    /** The station key a lineup entry stands for: the station with its ID, else the key its name gives. */
+    private suspend fun keyOf(entryId: String): String {
+        run().stations.firstOrNull { it.id == entryId }?.let { return it.key }
+        val entry = lineup.entry(entryId) ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
+        return StationKeys(policy.names.aliases, policy.names.version).key(entry.name)
+    }
+
+    /** Writes [request] as the override of the entry's station, then applies. */
+    suspend fun updateStation(entryId: String, request: UpdateLineupEntry, ifMatch: String?): LineupEntryRecord? {
+        if (request.position != null || request.pin.isNotEmpty() || request.unpin.isNotEmpty()) {
+            throw ApiFailure(400, "INVALID_REQUEST", "position, pin and unpin do not apply to a lineup built from the policy")
+        }
+        val key = keyOf(entryId)
+        val pins = request.offerings?.let { ids ->
+            ids.map { id ->
+                val offering = feeds.offering(id) ?: throw ApiFailure(404, "SOURCE_NOT_FOUND", "Unknown source $id")
+                val channel = feeds.channel(offering.channelId)
+                SourcePin(offering.providerId, channel?.legacyGuideId, channel?.name)
+            }.distinctBy(::pinIdentity)
+        }
+        file.edit(ifMatch) { tree ->
+            editStation(tree, key) { station ->
+                request.name?.let { station["name"] = JsonPrimitive(it) }
+                request.number?.let { station["number"] = JsonPrimitive(it) }
+                if (request.clearGroup) station.remove("group") else request.group?.let { station["group"] = JsonPrimitive(it) }
+                if (request.clearLogo) station.remove("logo") else request.logo?.let { station["logo"] = JsonPrimitive(it) }
+                if (request.clearGuide) station.remove("guide") else request.guide?.let { station["guide"] = Json.encodeToJsonElement(GuideMapping.serializer(), it) }
+                request.enabled?.let { station["enabled"] = JsonPrimitive(it) }
+                pins?.let { station["sources"] = JsonArray(it.map(::pinJson)) }
+            }
+        }
+        apply("patch")
+        return lineup.entry(entryId)
+    }
+
+    /** Writes `enabled: false` for the entry's station, then applies. */
+    suspend fun disableStation(entryId: String, ifMatch: String?) {
+        val key = keyOf(entryId)
+        file.edit(ifMatch) { tree -> editStation(tree, key) { it["enabled"] = JsonPrimitive(false) } }
+        apply("delete")
+    }
+
+    /**
+     * The cutover gate over a preview build. A legacy channel passes when exactly one station carries every one of its
+     * sources (or of its replacement pins), counting a station's live sources and its override pins.
+     */
+    suspend fun check(request: PolicyCheckRequest): PolicyCheckReport {
+        val loaded = file.current()
+        val result = run(loaded)
+        val carried = HashMap<String, MutableSet<String>>()
+        for (station in result.stations) {
+            val identities = carried.getOrPut(station.key) { HashSet() }
+            for (id in station.offeringIds) {
+                val offering = feeds.offering(id) ?: continue
+                val channel = feeds.channel(offering.channelId) ?: continue
+                channel.legacyGuideId?.let { identities += pinIdentity(SourcePin(offering.providerId, it)) }
+                identities += pinIdentity(SourcePin(offering.providerId, name = channel.name))
+            }
+            loaded.policy.stations[station.key]?.sources?.forEach { identities += pinIdentity(it) }
+        }
+        val everywhere = carried.values.flatten().toSet()
+        val channels = request.channels.map { channel ->
+            val replacement = request.replacements[channel.name]?.let(::replacementOf)
+            val wanted = (replacement?.sources?.map(::pinIdentity) ?: channel.sources.map { pinIdentity(SourcePin(it.provider, it.tvgId, it.channelName)) }).distinct()
+            val stations = if (wanted.isEmpty()) emptyList() else carried.filterValues { it.containsAll(wanted) }.keys.sorted()
+            val missing = wanted.filter { it !in everywhere }.sorted()
+            val reason = when {
+                wanted.isEmpty() -> "the channel lists no source"
+                stations.size == 1 -> "carried by ${stations.single()}" + if (replacement != null) " (replacement pins)" else ""
+                stations.isEmpty() -> "no station carries every source"
+                else -> "${stations.size} stations carry every source"
+            }
+            PolicyCheckChannel(channel.name, channel.number, stations.size == 1, stations, missing, reason)
+        }
+        val duplicateNumbers = result.stations.groupBy { canonicalNumber(it.number) }.filterValues { it.size > 1 }.keys.sorted()
+        val duplicateIds = result.stations.groupBy { it.id }.filterValues { it.size > 1 }.keys.sorted()
+        return PolicyCheckReport(channels.all { it.pass } && duplicateNumbers.isEmpty() && duplicateIds.isEmpty(), loaded.revision, channels, duplicateNumbers, duplicateIds)
+    }
+
+    /** Asks the loop to run soon; requests before it runs coalesce into one. */
+    fun requestRun(cause: String) {
+        trigger.trySend(cause)
+    }
+
+    fun start(scope: CoroutineScope): Job = scope.launch {
+        while (isActive) {
+            val cause = select<String> {
+                trigger.onReceive { it }
+                onTimeout(intervalSeconds * 1000) { "interval" }
+            }
+            delay(debounceMillis)
+            val coalesced = trigger.tryReceive().getOrNull()
+            try { apply(coalesced ?: cause) } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                log.warn("lineup policy run failed class={} message=\"{}\"", e.javaClass.simpleName, redactedMessage(e))
+            }
+        }
+    }
+}
+
+private fun replacementOf(element: JsonElement): PolicyReplacement = when (element) {
+    is JsonArray -> PolicyReplacement(sources = checkJson.decodeFromJsonElement(ListSerializer(SourcePin.serializer()), element))
+    else -> checkJson.decodeFromJsonElement(PolicyReplacement.serializer(), element)
+}
+
+private fun pinJson(pin: SourcePin): JsonObject = buildJsonObject {
+    put("provider", pin.provider)
+    pin.tvgId?.let { put("tvgId", it) }
+    pin.name?.let { put("name", it) }
+}
+
+private fun editStation(tree: JsonObject, key: String, edit: (MutableMap<String, JsonElement>) -> Unit): JsonObject {
+    val stations = (tree["stations"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+    val station = (stations[key] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+    edit(station)
+    stations[key] = JsonObject(station)
+    return JsonObject(tree.toMutableMap().apply { put("stations", JsonObject(stations.toSortedMap())) })
+}
+
+/** [tree] with `stations.<key>.number` set for each of [numbers] that has none. */
+internal fun withNumbers(tree: JsonObject, numbers: Map<String, String>): JsonObject {
+    var next = tree
+    for ((key, number) in numbers.toSortedMap()) next = editStation(next, key) { station -> if ("number" !in station) station["number"] = JsonPrimitive(number) }
+    return next
+}
+
+/** One change-log action per field that differs between the lineup before and after a run, matched by entry ID. */
+internal fun changesBetween(
+    before: List<LineupEntryRecord>, after: List<LineupEntryRecord>, keyById: Map<String, String>, reasonById: Map<String, String?>,
+    keys: StationKeys, cause: String,
+): List<CurationAction> {
+    val old = before.associateBy { it.id }
+    val new = after.associateBy { it.id }
+    val actions = ArrayList<CurationAction>()
+    for (entry in after) {
+        val key = keyById[entry.id] ?: keys.key(entry.name)
+        val previous = old[entry.id]
+        fun change(field: String, from: String?, to: String?, why: String = cause) {
+            if (from != to) actions += CurationAction("policy", entry.id, entry.name, field, from, to, why, key = key)
+        }
+        if (previous == null) { change("station", null, entry.number); continue }
+        change("number", previous.number, entry.number)
+        change("name", previous.name, entry.name)
+        change("group", previous.group, entry.group)
+        change("logo", previous.logo, entry.logo)
+        change("enabled", previous.enabled.toString(), entry.enabled.toString(), reasonById[entry.id]?.let { "$cause: $it" } ?: cause)
+        change("guide", previous.guide?.let { "${it.guideId}/${it.channelId}" }, entry.guide?.let { "${it.guideId}/${it.channelId}" })
+        change("sources", previous.offeringIds.joinToString(","), entry.offeringIds.joinToString(","))
+    }
+    for (entry in before) if (entry.id !in new) actions += CurationAction("policy", entry.id, entry.name, "station", entry.number, null, cause, key = keys.key(entry.name))
+    return actions
 }
 
 /**
@@ -88,6 +362,6 @@ internal fun previewDiff(result: BuildResult, entries: List<LineupEntryRecord>, 
     for ((field, items) in changes.groupBy { it.field }) counts["changed:$field"] = items.size
     return PolicyPreview(
         now.toString(), revision, result.stations.size, result.stations.count { it.enabled },
-        added, removed, changes, merges, splits, counts, result.findings,
+        added, removed, changes, merges, splits, counts, result.findings, result.suggestedAliases,
     )
 }

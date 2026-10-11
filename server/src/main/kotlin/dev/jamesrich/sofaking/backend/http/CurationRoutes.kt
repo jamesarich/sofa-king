@@ -17,9 +17,17 @@ import kotlinx.serialization.json.Json
 private val importJson = Json { encodeDefaults = true; ignoreUnknownKeys = true }
 private const val CURATION_IMPORT_LIMIT = 4 * 1024 * 1024L
 
-/** Curation settings, rules, the dry-run preview, a run on demand and the change log, under the admin route. */
-fun Route.curationRoutes(curation: CurationService) {
+/**
+ * Curation settings, rules, the dry-run preview, a run on demand and the change log, under the admin route. With a
+ * lineup policy every route but the change log answers 410.
+ */
+fun Route.curationRoutes(curation: CurationService, managedByPolicy: Boolean = false) {
     route("/curation") {
+        get("/changes") { call.respond(curation.changes((call.request.queryParameters["limit"]?.toIntOrNull() ?: 100).coerceIn(1, 1000))) }
+        if (managedByPolicy) {
+            route("{path...}") { handle { throw policyManaged() } }
+            return@route
+        }
         get("/settings") { call.respond(curation.settings()) }
         put("/settings") { call.respond(curation.updateSettings(call.body<CurationSettings>())) }
         get("/rules") { call.respond(curation.rules()) }
@@ -36,6 +44,5 @@ fun Route.curationRoutes(curation: CurationService) {
         }
         get("/preview") { call.respond(curation.preview()) }
         post("/run") { call.respond(curation.run(force = true)) }
-        get("/changes") { call.respond(curation.changes((call.request.queryParameters["limit"]?.toIntOrNull() ?: 100).coerceIn(1, 1000))) }
     }
 }

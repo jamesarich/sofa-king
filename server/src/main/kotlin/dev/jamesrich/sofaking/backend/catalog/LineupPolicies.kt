@@ -13,11 +13,19 @@ class LoadedPolicy(val path: Path, val policy: LineupPolicy, val revision: Strin
 
 /** Reads and parses [path]; unknown keys fail. The file is never variable-expanded. */
 fun readPolicy(path: Path): LoadedPolicy {
-    require(Files.size(path) <= 4 * 1_048_576) { "Lineup policy is too large" }
+    require(Files.size(path) <= POLICY_LIMIT) { "Lineup policy is too large" }
     val bytes = Files.readAllBytes(path)
-    val policy = policyJson.decodeFromString<LineupPolicy>(bytes.toString(Charsets.UTF_8))
-    return LoadedPolicy(path, policy, java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) })
+    return LoadedPolicy(path, parsePolicy(bytes), policyRevision(bytes))
 }
+
+internal const val POLICY_LIMIT = 4 * 1_048_576
+
+/** Parses policy bytes; unknown keys fail. */
+internal fun parsePolicy(bytes: ByteArray): LineupPolicy = policyJson.decodeFromString<LineupPolicy>(bytes.toString(Charsets.UTF_8))
+
+/** The SHA-256 of the file bytes, hex. */
+internal fun policyRevision(bytes: ByteArray): String =
+    java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
 /** Reads [path] and fails with every validation error at once. */
 fun loadPolicy(path: Path, providerIds: Set<String>): LoadedPolicy {

@@ -43,6 +43,8 @@ class GuideService(
     private val upstream: UpstreamPolicy = UpstreamPolicy(),
     /** The native service clients whose own guides back `provider` guides. */
     private val providers: ProviderRegistry? = null,
+    /** Runs after each successful import. */
+    private val onImported: () -> Unit = {},
     /** Guide id to the XMLTV channel ids the lineup maps onto it. */
     private val wanted: () -> Map<String, Set<String>>,
 ) {
@@ -125,6 +127,7 @@ class GuideService(
                 "guide import guide={} channels={} programmes={} wanted={} controlChars={} durationMs={}",
                 config.id, parsed.channels.size, parsed.programmes.size, wantedIds.size, parsed.controlCharacters, Duration.between(started, clock.instant()).toMillis(),
             )
+            onImported()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

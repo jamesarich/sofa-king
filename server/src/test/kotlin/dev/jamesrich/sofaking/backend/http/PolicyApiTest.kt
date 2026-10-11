@@ -27,7 +27,7 @@ class PolicyApiTest {
             Files.writeString(policyFile, policyText)
             val store = openStore(dir)
             val config = ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin, policyFile = policyFile)
-            val runtime = LiveRuntime.create(store, config, MutableClock())
+            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000)
             try {
                 for (provider in runtime.feeds.configs) runtime.feeds.refresh(provider)
                 runtime.adoptAll()
@@ -72,6 +72,7 @@ class PolicyApiTest {
             val store = openStore(dir)
             val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
             try {
+                assertNotNull(runtime.curationLoop, "without a policy curation runs as before")
                 application { backendModule(store, MutableClock(), runtime, token) }
                 val response = client.get("/api/v1/admin/policy/preview") { bearerAuth(token) }
                 assertEquals(HttpStatusCode.NotFound, response.status)

@@ -34,11 +34,14 @@ import kotlinx.serialization.json.JsonElement
     val match: RuleMatch = RuleMatch(), val set: RuleSet = RuleSet(), val note: String? = null,
 )
 
-/** One change automation would make or made. [kind] is `regroup`, `rename`, `relogo`, `clear-logo`, `attach`, `disable`, `enable` or `adopt`. */
+/**
+ * One change automation would make or made. [kind] is `regroup`, `rename`, `relogo`, `clear-logo`, `attach`, `disable`,
+ * `enable` or `adopt`, or `policy` for a lineup policy run, which also names the station [key] and gives the cause as [reason].
+ */
 @Serializable data class CurationAction(
     val kind: String, val entryId: String? = null, val entryName: String, val field: String? = null,
     val before: String? = null, val after: String? = null, val reason: String, val ruleId: String? = null,
-    val offeringIds: List<String> = emptyList(),
+    val offeringIds: List<String> = emptyList(), val key: String? = null,
 )
 @Serializable data class CurationPlan(
     val generatedAt: String, val enabled: Boolean, val actions: List<CurationAction>, val counts: Map<String, Int> = emptyMap(),

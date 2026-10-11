@@ -27,8 +27,10 @@ class LiveRuntime(
     val curation: CurationService,
     private val http: HttpClient,
     private val scope: CoroutineScope,
-    /** The lineup policy when `SOFA_POLICY` names one; read-only, the lineup is not built from it. */
+    /** The lineup policy when `SOFA_POLICY` names one; it then builds the lineup and curation does not run. */
     val policy: PolicyService? = null,
+    /** The curation loop, running only without a policy. */
+    val curationLoop: Job? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -37,9 +39,10 @@ class LiveRuntime(
         http.close()
     }
     companion object {
-        suspend fun create(store: BackendStore, config: ServerConfig, clock: Clock): LiveRuntime {
+        suspend fun create(store: BackendStore, config: ServerConfig, clock: Clock, policyDebounceMillis: Long = 10_000): LiveRuntime {
             val sources = loadSources(config.sourcesFile)
-            val loadedPolicy = config.policyFile?.let { loadPolicy(it, sources.providers.mapTo(HashSet()) { provider -> provider.id }) }
+            val providerIds = sources.providers.mapTo(HashSet()) { provider -> provider.id }
+            val loadedPolicy = config.policyFile?.let { loadPolicy(it, providerIds) }
             val http = HttpClient(CIO) {
                 followRedirects = false
                 install(HttpTimeout) { requestTimeoutMillis = 60_000; connectTimeoutMillis = 5000; socketTimeoutMillis = 15_000 }
@@ -49,32 +52,45 @@ class LiveRuntime(
                 val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
                 lateinit var logos: LogoCache
                 lateinit var curation: CurationService
+                var policyService: PolicyService? = null
+                // A new snapshot, guide or health state can change the lineup: with a policy it triggers a policy run, else curation.
+                fun lineupInputsChanged(cause: String) {
+                    val service = policyService
+                    if (service != null) service.requestRun(cause) else curation.requestRun()
+                }
                 val providers = ProviderRegistry.create(sources.providers, http, store, clock, policy)
-                // A new snapshot can change what curation would do, so an import triggers a run as well as a logo sweep.
-                val feeds = FeedService(sources.providers, store, http, clock, policy, providers) { logos.requestSweep(); curation.requestRun() }
+                val feeds = FeedService(sources.providers, store, http, clock, policy, providers) { logos.requestSweep(); lineupInputsChanged("feeds") }
                 feeds.initialize()
                 lateinit var lineup: LineupService
-                val guides = GuideService(sources.allGuides, store, http, clock, policy, providers) { lineup.wanted() }
+                val guides = GuideService(sources.allGuides, store, http, clock, policy, providers, onImported = { policyService?.requestRun("guides") }) { lineup.wanted() }
                 guides.initialize()
                 lineup = LineupService(store, clock, feeds, guides) { logos.requestSweep() }
                 lineup.initialize()
                 curation = CurationService(store, clock, feeds, guides, lineup, onSettingsChanged = { logos.requestSweep() })
                 curation.initialize()
-                val catalog = CatalogService(feeds, guides, lineup, store, clock, curation::retiredLogoHosts)
+                val retiredLogoHosts: () -> Set<String> = if (loadedPolicy == null) curation::retiredLogoHosts else { { emptySet() } }
+                val catalog = CatalogService(feeds, guides, lineup, store, clock, retiredLogoHosts)
                 logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) })
                 logos.initialize()
                 val sessions = SessionManager(catalog, store, clock, config.maxSessions)
-                val policyService = loadedPolicy?.let { PolicyService(it, feeds, guides, lineup, store, clock) }
-                val runtime = LiveRuntime(
-                    store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, curation, http, scope,
-                    policyService,
-                )
+                policyService = loadedPolicy?.let { loaded ->
+                    lateinit var service: PolicyService
+                    val capacity = if (config.hdhr.enabled) config.hdhr.devices * config.hdhr.deviceSize else null
+                    val file = PolicyFile(loaded, providerIds) { service.requestRun("policy") }
+                    service = PolicyService(file, feeds, guides, lineup, store, clock, capacity, policyDebounceMillis)
+                    service
+                }
                 feeds.start(scope)
                 guides.start(scope)
                 logos.start(scope)
                 logos.requestSweep()
-                curation.start(scope)
-                curation.requestRun()
+                val curationLoop = if (policyService == null) curation.start(scope).also { curation.requestRun() } else null
+                policyService?.start(scope)
+                policyService?.requestRun("startup")
+                val runtime = LiveRuntime(
+                    store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, curation, http, scope,
+                    policyService, curationLoop,
+                )
                 scope.launch { while (isActive) { sessions.expire(); delay(1000) } }
                 if (sources.providers.any { it.probe }) {
                     val probes =
@@ -83,7 +99,7 @@ class LiveRuntime(
                             restreamOrigins = config.restreamOrigins,
                             observationRetention = java.time.Duration.ofDays(config.observationRetentionDays.toLong()),
                         )
-                    scope.launch { ProbeWorker(feeds, store, clock, config.ffmpeg, http, probes, onObserved = { id -> sessions.healthChanged(id) }, onHealthChanged = { curation.requestRun() }).run() }
+                    scope.launch { ProbeWorker(feeds, store, clock, config.ffmpeg, http, probes, onObserved = { id -> sessions.healthChanged(id) }, onHealthChanged = { lineupInputsChanged("health") }).run() }
                 }
                 return runtime
             } catch (failure: Throwable) { scope.cancel(); http.close(); throw failure }

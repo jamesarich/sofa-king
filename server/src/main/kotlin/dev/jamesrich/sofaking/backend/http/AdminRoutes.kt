@@ -26,6 +26,8 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
         val states = store.allHealth()
         return entry.info(runtime, states, runtime.lineup.entries().indexOfFirst { it.id == entry.id })
     }
+    val policy = runtime.policy
+    fun manual() { if (policy != null) throw policyManaged() }
     route("/api/v1/admin") {
         get("/sessions") { call.respond(runtime.sessions.snapshot()) }
         get("/candidates") {
@@ -62,14 +64,16 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
             val states = store.allHealth()
             call.respond(runtime.lineup.entries().mapIndexed { index, entry -> entry.info(runtime, states, index) })
         }
-        post("/lineup") { call.respond(HttpStatusCode.Created, entryInfo(runtime.lineup.create(call.body<CreateLineupEntry>()))) }
+        post("/lineup") { manual(); call.respond(HttpStatusCode.Created, entryInfo(runtime.lineup.create(call.body<CreateLineupEntry>()))) }
         put("/lineup/order") {
+            manual()
             runtime.lineup.reorder(call.body<ReorderLineup>().ids)
             val states = store.allHealth()
             call.respond(runtime.lineup.entries().mapIndexed { index, entry -> entry.info(runtime, states, index) })
         }
-        post("/lineup/adopt") { call.respond(runtime.lineup.adopt(call.body<AdoptProvider>())) }
+        post("/lineup/adopt") { manual(); call.respond(runtime.lineup.adopt(call.body<AdoptProvider>())) }
         post("/lineup/import") {
+            manual()
             val bytes = call.receiveChannel().readBuffer(IMPORT_LIMIT + 1).readByteArray()
             if (bytes.size > IMPORT_LIMIT) throw ApiFailure(413, "REQUEST_TOO_LARGE", "Import exceeds 16 MiB")
             call.respond(importer.import(adminJson.decodeFromString<ImportLineup>(bytes.toString(Charsets.UTF_8))))
@@ -79,18 +83,25 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
             call.respond(entryInfo(entry))
         }
         patch("/lineup/{id}") {
-            call.respond(entryInfo(runtime.lineup.update(call.parameters["id"]!!, call.body<UpdateLineupEntry>())))
+            val id = call.parameters["id"]!!
+            val request = call.body<UpdateLineupEntry>()
+            if (policy == null) call.respond(entryInfo(runtime.lineup.update(id, request)))
+            else call.respond(entryInfo(policy.updateStation(id, request, call.ifMatch()) ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "The station left the lineup")))
         }
         delete("/lineup/{id}") {
-            runtime.lineup.delete(call.parameters["id"]!!)
+            val id = call.parameters["id"]!!
+            if (policy == null) runtime.lineup.delete(id) else policy.disableStation(id, call.ifMatch())
             call.respond(HttpStatusCode.NoContent)
         }
-        curationRoutes(runtime.curation)
+        curationRoutes(runtime.curation, managedByPolicy = policy != null)
         policyRoutes(runtime.policy)
     }
 }
 
 private const val IMPORT_LIMIT = 16 * 1024 * 1024L
+
+/** What a route the lineup policy replaces answers while a policy is configured. */
+internal fun policyManaged() = ApiFailure(410, "POLICY_MANAGED", "The lineup is built from the lineup policy; change it through /api/v1/admin/policy")
 
 private fun LineupEntryRecord.info(runtime: LiveRuntime, states: Map<String, HealthState>, position: Int): LineupEntry {
     val coverage = guide?.let { runtime.guides.coverage()[it.guideId]?.get(it.channelId) }

@@ -33,7 +33,75 @@ data class ParsedPlaylist(
     private fun summary(counts: Map<String, Int>) = counts.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" }.ifEmpty { null }
 }
 
-data class ParsedGuide(val channels: List<GuideChannel>, val programmes: List<GuideProgramme>)
+/** [controlCharacters] counts bytes XML 1.0 forbids (C0 controls other than tab, LF and CR) that were dropped before parsing. */
+data class ParsedGuide(val channels: List<GuideChannel>, val programmes: List<GuideProgramme>, val controlCharacters: Int = 0)
+
+/**
+ * Drops the C0 control bytes XML 1.0 forbids, which real guides carry in titles (a raw backspace, for
+ * one) and which would otherwise fail the whole import. Those bytes are never part of a multi-byte
+ * sequence in UTF-8 or a single-byte encoding; a UTF-16 or UTF-32 document, recognized by a BOM or a
+ * NUL in its first bytes, passes through untouched.
+ */
+private class ControlCharacterStrippingInputStream(input: InputStream) : FilterInputStream(input) {
+    var dropped = 0
+        private set
+    private var active = true
+    /** The first four bytes, read ahead for the encoding decision and served before the rest. */
+    private var head: ByteArray? = null
+    private var headOffset = 0
+
+    override fun read(): Int {
+        val one = ByteArray(1)
+        while (true) {
+            val count = read(one, 0, 1)
+            if (count < 0) return -1
+            if (count == 1) return one[0].toInt() and 0xff
+        }
+    }
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
+        if (len == 0) return 0
+        while (true) {
+            val count = fill(b, off, len)
+            if (count <= 0 || !active) return count
+            var kept = 0
+            for (index in off until off + count) {
+                val byte = b[index].toInt() and 0xff
+                if (forbidden(byte)) dropped++ else b[off + kept++] = b[index]
+            }
+            if (kept > 0) return kept
+        }
+    }
+
+    private fun fill(b: ByteArray, off: Int, len: Int): Int {
+        val pending = head ?: sniff()
+        if (headOffset < pending.size) {
+            val count = minOf(len, pending.size - headOffset)
+            System.arraycopy(pending, headOffset, b, off, count)
+            headOffset += count
+            return count
+        }
+        return super.read(b, off, len)
+    }
+
+    /** The parser reads the prolog a byte at a time, so the decision needs its own read-ahead. */
+    private fun sniff(): ByteArray {
+        val bytes = ByteArray(4)
+        var read = 0
+        while (read < 4) {
+            val count = super.read(bytes, read, 4 - read)
+            if (count < 0) break
+            read += count
+        }
+        val first = bytes.copyOf(read)
+        val bom16 = read >= 2 && ((first[0] == 0xfe.toByte() && first[1] == 0xff.toByte()) || (first[0] == 0xff.toByte() && first[1] == 0xfe.toByte()))
+        active = !bom16 && first.none { it == 0.toByte() }
+        head = first
+        return first
+    }
+
+    private fun forbidden(byte: Int) = byte < 0x20 && byte != 0x09 && byte != 0x0a && byte != 0x0d
+}
 
 /** Fails once more than [limit] decompressed bytes have been read, so a hostile guide cannot run unbounded. */
 private class BoundedInputStream(input: InputStream, private val limit: Long) : FilterInputStream(input) {
@@ -161,7 +229,8 @@ object FeedParser {
                 setProperty("javax.xml.stream.isSupportingExternalEntities", false)
                 setXMLResolver { _, _, _, _ -> throw IllegalArgumentException("External XML entities are forbidden") }
             }
-        val reader = factory.createXMLStreamReader(BoundedInputStream(decompressed(input), GUIDE_BYTE_LIMIT))
+        val stripped = ControlCharacterStrippingInputStream(BoundedInputStream(decompressed(input), GUIDE_BYTE_LIMIT))
+        val reader = factory.createXMLStreamReader(stripped)
         val channels = linkedMapOf<String, GuideChannel>()
         val seen = HashSet<String>()
         val programmes = ArrayList<GuideProgramme>()
@@ -234,7 +303,7 @@ object FeedParser {
             reader.close()
         }
         for (id in seen) channels.putIfAbsent(id, GuideChannel(id, id))
-        return ParsedGuide(channels.values.toList(), programmes.sortedWith(compareBy({ it.channelId }, { it.startsAt })))
+        return ParsedGuide(channels.values.toList(), programmes.sortedWith(compareBy({ it.channelId }, { it.startsAt })), stripped.dropped)
     }
 
     fun guide(

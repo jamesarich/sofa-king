@@ -109,8 +109,8 @@ class GuideService(
                 if (it.id == config.id) GuideStatus(config.id, importedAt.toString(), channels = parsed.channels.size, programmes = parsed.programmes.size) else it
             })
             log.info(
-                "guide import guide={} channels={} programmes={} wanted={} durationMs={}",
-                config.id, parsed.channels.size, parsed.programmes.size, wantedIds.size, Duration.between(started, clock.instant()).toMillis(),
+                "guide import guide={} channels={} programmes={} wanted={} controlChars={} durationMs={}",
+                config.id, parsed.channels.size, parsed.programmes.size, wantedIds.size, parsed.controlCharacters, Duration.between(started, clock.instant()).toMillis(),
             )
         } catch (e: CancellationException) {
             throw e

@@ -177,6 +177,20 @@ class FeedParserTest {
         assertEquals("48 Hours", mjh.programmes.single().title, "the mapped channel's programme survives a rating block")
     }
 
+    @Test fun `control characters XML forbids are dropped and counted, and UTF-16 passes through`() {
+        val parsed = FeedParser.guide(Fixture.resource("guides/tvapp2-control-char.xml").inputStream()) { true }
+        assertEquals(3, parsed.controlCharacters)
+        assertEquals("Bebefinn 2 - Ep6", parsed.programmes.single().title)
+        assertEquals("Explore a diverse range of sandwiches and burgers, each a delightful culinary adventure.", parsed.programmes.single().description)
+
+        val utf16 = ("﻿" + """<?xml version="1.0" encoding="UTF-16"?><tv><channel id="ü"><display-name>Ünïcode</display-name></channel></tv>""").toByteArray(Charsets.UTF_16BE)
+        val wide = FeedParser.guide(java.io.ByteArrayInputStream(utf16)) { true }
+        assertEquals(GuideChannel("ü", "Ünïcode", null), wide.channels.single())
+        assertEquals(0, wide.controlCharacters, "UTF-16 code units are never mistaken for control bytes")
+
+        assertEquals(0, FeedParser.guide(Fixture.resource("guides/tvapp2-doctype.xml").inputStream()) { true }.controlCharacters)
+    }
+
     @Test fun `XMLTV never fetches the DTD or resolves external entities`() {
         Fixture().use { fixture ->
             val external = FeedParser.guide("""<!DOCTYPE tv SYSTEM "${fixture.base}/xmltv.dtd"><tv><channel id="a"><display-name>A</display-name></channel></tv>""")

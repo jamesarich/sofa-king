@@ -52,6 +52,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -423,6 +426,13 @@ fun GuideScreen(
     }
 
     // Observed from the snapshot, not read in composition, so a focus move still recomposes only the band.
+    // Nothing opens while the app is stopped (Home, the speech recognizer, screen off); coming back starts
+    // the rest over, muted, so a channel is never found open on return.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+        dwell.onKey(SystemClock.uptimeMillis())
+        dwellNonce++
+    }
     LaunchedEffect(Unit) {
         snapshotFlow { DwellInput(focused?.channel?.guideId?.takeIf { gridFocused && !searchOpen }, dwellNonce, previewFailed) }
             .collectLatest { input ->
@@ -434,7 +444,7 @@ fun GuideScreen(
                         // The same handoff as OK: the preview session is promoted, nothing reloads. A preview
                         // without a picture is not opened; it would only carry its failure to the full screen.
                         val channel = focused?.channel?.takeIf { it.guideId == dwell.channelId }
-                        if (channel != null && !input.failed) onPlay(channel)
+                        if (channel != null && !input.failed && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) onPlay(channel)
                         return@collectLatest
                     }
                     delay(dwell.nextTransitionMs(now) ?: return@collectLatest)

@@ -1,0 +1,17 @@
+# Documentation
+
+| Guide | What it covers |
+| --- | --- |
+| [Live TV](live-tv.md) | Configuration reference, source files, the lineup, logos, player outputs, Plex Live TV, LAN access, and troubleshooting |
+| [Native providers](providers.md) | The built-in clients for free streaming services, their options and their failure modes |
+| [Curation](curation.md) | Rules, settings, automation and the pins that keep manual edits in place |
+| [Migrate from Dispatcharr](migrate-from-dispatcharr.md) | Importing a Dispatcharr profile, its curation mapping, and cutting over from the old pipeline |
+| [HTTP API](api.md) | Endpoints for clients, the player outputs, the HDHomeRun routes, the admin API and the Kotlin client |
+| [Deploy with Docker](deploy.md) | The image, Compose files, environment files and first start |
+| [Operations](operations.md) | State and backups, restore, upgrades and rollback, monitoring, native provider failures and token rotation |
+| [Source health](source-health.md) | Probes, failure classes, quarantine and recovery, and manual disables |
+| [Architecture](architecture.md) | Modules, data flow, storage, playback and the logic behind each subsystem |
+| [Development](development.md) | Build, test and the smoke scripts |
+| [Dependencies](dependencies.md) | Pinned versions and how to change them |
+
+The top-level [README](../README.md) covers the quick start. [CONTRIBUTING](../CONTRIBUTING.md) and [SECURITY](../SECURITY.md) are at the repository root.

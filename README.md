@@ -1,12 +1,26 @@
 # Sofa King Backend
 
-A Kotlin IPTV server for one household. It imports provider M3U playlists and independent XMLTV guides (plain or gzip), lists free streaming services through built-in [native provider clients](docs/providers.md) (Whale TV+, WatchFree+, LG Channels, FreeLiveSports, Hallmark+, Bally Sports, Adult Swim, PBS, Samsung TV Plus, Plex, STIRR, TCL TV+, The Roku Channel, Local Now, Xumo Play, Pluto TV, Tubi), keeps a curated channel lineup in SQLite, serves a JSON API, an M3U/XMLTV output for third-party players and an HDHomeRun emulation for Plex Live TV, relays HLS and MPEG-TS streams, caches the lineup's channel logos so every output points at this server, quarantines failing sources automatically, and keeps the lineup curated by rules (groups, name corrections, equivalent sources across providers, health-based disabling, candidate adoption) that live in its database and never override a household edit. It replaces Dispatcharr, the pipeline that curated it and the aggregator containers that scraped the services: the app sees the lineup, not the raw feeds.
+Live TV, Sofa King good.
 
-The [Sofa King Android app](https://github.com/jamesarich/sofa-king) currently uses M3U/XMLTV endpoints and does not connect to this API yet. This server has no web UI or DVR.
+Sofa King Backend is a self-hosted IPTV server written in Kotlin. It imports M3U playlists and XMLTV guides, lists free streaming services through built-in native provider clients, and keeps a curated channel lineup in SQLite. It serves that lineup to the Sofa King app over a JSON API, to M3U and XMLTV players, and to Plex through an HDHomeRun emulation.
 
-## Run
+The server relays HLS and MPEG-TS streams, caches channel logos so every output points at this server, and takes failing sources out of rotation automatically. Curation rules keep the lineup in shape (groups, names, logos, equivalent sources across providers, channels disabled when nothing can play them). Rules never override a value an admin set. The server has no web UI and no DVR.
 
-Requires JDK 21, FFmpeg, and HTTP(S) playlist and guide URLs. Run commands from the repository root.
+## Features
+
+- Imports M3U playlists and XMLTV guides, plain or gzip
+- Native clients for 17 free streaming services, including their guides ([providers](docs/providers.md))
+- A numbered lineup with groups, logos, failover order and guide mapping, stored in SQLite
+- Source health with probes, quarantine and automatic failover between sources
+- Curation rules that preview their changes before they apply
+- HLS and MPEG-TS playback sessions with leases, relayed through the server
+- M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
+- A logo cache served from this server
+- A JSON API, with a Kotlin client module
+
+## Sofa King fast setup
+
+You need JDK 21 and FFmpeg. Run the commands from the repository root. For Docker, see [deploy](docs/deploy.md).
 
 1. Build the server:
 
@@ -14,7 +28,7 @@ Requires JDK 21, FFmpeg, and HTTP(S) playlist and guide URLs. Run commands from 
    ./gradlew :server:installDist
    ```
 
-2. Create `data/sources.json` with your providers and guides. `${NAME}` is replaced from the environment, so a tokenized path stays out of the file:
+2. Create `data/sources.json`. Native providers need no account. Inside any string, `${NAME}` is replaced from the environment, so a tokenized URL stays out of the file:
 
    ```sh
    mkdir -p data
@@ -23,78 +37,81 @@ Requires JDK 21, FFmpeg, and HTTP(S) playlist and guide URLs. Run commands from 
    ```json
    {
      "providers": [
-       { "id": "masqueradarr", "playlistUrl": "http://192.168.1.3:3000/${MASQ_PLAYLIST_PATH}.m3u" },
        { "id": "whale", "type": "native", "service": "whale" },
-       { "id": "samsung", "type": "native", "service": "samsung", "options": { "region": "us" } },
-       { "id": "pbs", "type": "native", "service": "pbs", "options": { "zip": "50309" } }
+       { "id": "tubi", "type": "native", "service": "tubi" },
+       { "id": "pluto", "type": "native", "service": "pluto" }
      ],
-     "guides": [
-       { "id": "gracenote", "url": "http://192.168.1.3:3000/DaddyLiveUSGracenote/epg/playlist.xml" },
-       { "id": "plex", "url": "https://i.mjh.nz/Plex/us.xml.gz" }
-     ]
+     "guides": []
    }
    ```
 
-3. Start the server:
+   [`deploy/sources.example.json`](deploy/sources.example.json) lists every native provider and an M3U provider example. The PBS and M3U entries need your values.
+
+3. Start the server. It listens on `127.0.0.1:8080` by default:
 
    ```sh
-   MASQ_PLAYLIST_PATH='SECRET_PATH' SOFA_SOURCES=./data/sources.json \
-     SOFA_RESTREAM_ORIGINS=192.168.1.3:3000 \
-     server/build/install/server/bin/server
+   SOFA_SOURCES=./data/sources.json server/build/install/server/bin/server
    ```
 
-4. Check the imports:
+   To serve other machines, set `SOFA_HOST=0.0.0.0` and `SOFA_API_TOKEN` to a value of at least 32 characters (`openssl rand -hex 32`). The server refuses a non-loopback bind without it.
+
+4. Check the imports. The examples below assume `TOKEN` holds `SOFA_API_TOKEN`. Leave out the header when no token is set:
 
    ```sh
-   curl --fail http://127.0.0.1:8080/api/v1/providers
-   curl --fail http://127.0.0.1:8080/api/v1/admin/guides
+   curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/providers
+   curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/admin/guides
    ```
 
-5. Build the lineup. A fresh server serves no channels until you curate. Either adopt a whole provider:
+5. Build the lineup. A new server serves no channels until you add some. Adopt a whole provider:
 
    ```sh
-   curl --fail -X POST http://127.0.0.1:8080/api/v1/admin/lineup/adopt \
+   curl --fail -X POST -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/admin/lineup/adopt \
      -H 'Content-Type: application/json' --data '{"providerId":"whale"}'
+   curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/channels
    ```
 
-   or [migrate your Dispatcharr profile](docs/live-tv.md#migrate-from-dispatcharr). Then:
+   Or [migrate a Dispatcharr profile](docs/migrate-from-dispatcharr.md).
 
-   ```sh
-   curl --fail http://127.0.0.1:8080/api/v1/channels
-   ```
+6. Curate by rule. `GET /api/v1/admin/curation/preview` shows what automation would change. Automation stays off until `settings.enabled` is set, and it never changes a field an admin set. See [curation](docs/curation.md).
 
-6. Curate by rule. `GET /api/v1/admin/curation/preview` shows what automation would change; rules and settings are JSON under `/api/v1/admin/curation/` ([curation](docs/curation.md)). Automation is off until `settings.enabled` is set, and never changes a field the household set.
+Keep `data/` across restarts. It holds the database and the logo cache. [Operations](docs/operations.md) covers backups, upgrades and token rotation.
 
-The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contains the database (lineup, guides, source health, curation rules and change log, native provider device ids and tokens), the server identity and `logos/`, the cached channel logos ([logos](docs/api.md#logos)). Playlist providers refresh every 15 minutes, native providers every hour, and guides every 6 hours by default (native guides hourly); curation runs after each import and health change and every 15 minutes.
+## Configuration
+
+Every environment variable is listed in one table in [live TV configuration](docs/live-tv.md#server-settings). The source file, provider and guide fields, and the native provider options are in [source settings](docs/live-tv.md#source-settings) and [native providers](docs/providers.md#configuration).
+
+## Clients
+
+- **Sofa King Android TV app**: the [app](https://github.com/jamesarich/sofa-king) reads the lineup, guide and playback sessions through `/api/v1` and `/media`.
+- **Plex**: through the [HDHomeRun emulation](docs/live-tv.md#plex-live-tv).
+- **Any M3U/XMLTV player**: through the [player outputs](docs/live-tv.md#third-party-players).
 
 ## Documentation
 
-- [Configuration, lineup and Dispatcharr migration](docs/live-tv.md)
-- [Curation rules, automation and the cutover from the Dispatcharr pipeline](docs/curation.md)
-- [Native providers: the built-in service clients](docs/providers.md)
-- [Third-party players (TiviMate, VLC)](docs/live-tv.md#third-party-players)
-- [Plex Live TV through the HDHomeRun emulation](docs/live-tv.md#plex-live-tv)
+The [documentation index](docs/README.md) lists every guide. The most used are:
+
+- [Live TV: configuration, lineup and sources](docs/live-tv.md)
+- [Native providers](docs/providers.md)
+- [Curation](docs/curation.md)
+- [HTTP API](docs/api.md)
 - [Deploy with Docker](docs/deploy.md)
-- [HTTP API, admin API and Kotlin client](docs/api.md)
-- [Source health and automatic recovery](docs/source-health.md)
-- [Architecture](docs/architecture.md)
-- [Build and test](docs/development.md)
-- [Dependencies](docs/dependencies.md)
+- [Operations](docs/operations.md)
+
+## Contributing
+
+Build and test with `./gradlew test`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the commit conventions, the test scripts and how to add a native provider.
+
+## Security
+
+[SECURITY.md](SECURITY.md) describes which token opens which routes, the outbound address policy, and how to report a vulnerability.
 
 ## Limitations
 
-- Plex reaches the HDHomeRun emulation by address only; SSDP discovery is not implemented. Jellyfin and Channels DVR are not tested against it.
-- The M3U/XMLTV output, the HDHomeRun routes and the FFmpeg remux are verified with FFmpeg and the Ktor client against local fixtures (a live HLS fixture remuxed to MPEG-TS, the process killed on hang-up), not with TiviMate, VLC or a Plex server. CEA-608 captions surviving the remux follows from stream copy and is not verified with a captioned source.
-- An HDHomeRun stream of an HLS source carries one video and one audio stream, and FFmpeg reads the source directly, so a provider whose headers must stay on its origin is sent none.
-- Only MPEG-TS sessions share an upstream connection; each HLS request fetches upstream itself.
-- Guide programmes are kept only for channels the lineup maps, so a newly mapped channel has no guide until the refresh this triggers completes.
-- Feeds with credential or custom headers are never probed, so their sources stay `UNVERIFIED`.
-- Lineup curation is JSON over HTTP; there is no web UI.
-- Curation automation is verified against fixture feeds (three providers carrying one station, a mislabeled twin, quarantine and recovery under an injected clock) and the pipeline's data shapes with synthetic values, not against the household's 6,305-entry lineup or its real rule files. Equivalent sources are attached, never promoted by startup speed, and an entry is disabled only after `disableAfterHours` without an eligible source.
-- The restream-proxy 502 rule (`SOFA_RESTREAM_ORIGINS`), the MPEG-TS keepalive relay and the Dispatcharr export script are verified against local fixtures and the Dispatcharr source models, not against the household's Dispatcharr container, provider feeds or the Android client.
-- A relay reconnect attempt already in progress finishes before the 30-second grace period is enforced, so a dead source can hold its sessions for up to one connect timeout longer.
-- The probe's protocol detection and its persistence are verified against local fixtures, not against the Dispatcharr feed.
-- The URL-keyed source identity rules and the Dispatcharr stream matcher are verified against sanitized fixtures and one read-only import of the FastChannels playlist, not against the masqueradarr playlist or the household's Dispatcharr export.
-- The Docker image and compose stack are verified on a development host against a local fixture feed, not on OMV or with the Android client.
-- The logo cache is verified against local fixtures (PNG, SVG, a mislabeled PNG, an HTML decoy, an oversized body, a failing refresh), not against the household's logo host, Dispatcharr's logo cache or provider CDNs. `/logos/*` is public, like the HDHomeRun routes.
-- The native providers are unofficial clients of each service's public endpoints and stop working when a service changes them. They are verified from the development host by listing channels, opening three sessions per service through the relay and decoding a few seconds of two with FFmpeg, and against sanitized fixtures; not with the Android client or Plex, across a token rotation (Whale's token lives about a day) or over a guide refresh cycle. Samsung lists some CMAF channels that carry DRM without a `license_url` and do not decode; PBS for the household's zip yields only Create and World, because the station's main and Kids feeds are DRM. Roku lists only the channels in Matt Huisman's mirror, which leaves out the DRM ones; Tubi's list comes from its live page's server-rendered state; Local Now's guide is five programmes deep per channel.
+- Plex reaches the HDHomeRun emulation by address only. SSDP discovery is not implemented.
+- The HDHomeRun remux of an HLS source carries one video stream and one audio stream.
+- The native providers are unofficial clients of public service endpoints. They stop working when a service changes them.
+- DRM channels are skipped by the native providers. M3U playlists are not filtered for DRM.
+
+## License
+
+Licensed under the GNU General Public License v3.0.

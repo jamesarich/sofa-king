@@ -371,10 +371,10 @@ fun PlayerScreen(
             recovering = null
             return@LaunchedEffect
         }
-        val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
         if (current.code == CHANNEL_NOT_FOUND) {
             // The server's lineup has new ids (a re-import): retrying this one would fail forever. Reload the
             // lineup and follow the channel by number, then name; with nothing to follow, the guide takes over.
+            val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
             recovering = channel
             val lineup = reloadLineup()
             if (lineup == null) {
@@ -399,6 +399,7 @@ fun PlayerScreen(
         }
         if (!(current.immediate && current.attempt == 0)) delay(reconnectDelayMs(current.attempt))
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
+        val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
         failure = current.copy(attempt = current.attempt + 1)
         load(channel)
     }

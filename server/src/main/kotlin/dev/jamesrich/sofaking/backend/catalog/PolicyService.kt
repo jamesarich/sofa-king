@@ -67,7 +67,9 @@ class PolicyService(
         val health = store.allHealth()
         val previous = store.stationAvailability()
         val now = clock.instant()
-        fun build(policy: LineupPolicy) = StationBuilder.build(BuildInput(policy, candidates, guides::guidesListing, providerIds, health, previous, now))
+        // A first policy run counts the lineup it replaces as verified, so a cutover never hides channels already watched.
+        val seed = if (previous.isEmpty()) lineup.entries().filter { it.enabled && it.createdBy != "policy" }.flatMapTo(HashSet()) { it.offeringIds } else emptySet()
+        fun build(policy: LineupPolicy) = StationBuilder.build(BuildInput(policy, candidates, guides::guidesListing, providerIds, health, previous, now, seed))
         val first = build(loaded.policy)
         val learning = learnAliases(first, loaded.policy, schedules(first, loaded.policy, now))
         return if (learning.learned.isEmpty()) first.with(learning) else build(withLearned(loaded.policy, learning.learned)).with(learning)

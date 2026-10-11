@@ -26,10 +26,11 @@ class StationBuilderTest {
         previous: Map<String, StationAvailability> = emptyMap(),
         listing: (String) -> List<String> = { emptyList() },
         providers: Set<String> = candidates.mapTo(HashSet()) { it.providerId },
+        seed: Set<String> = emptySet(),
     ): BuildResult = StationBuilder.build(
         BuildInput(
             policy, candidates, listing, providers,
-            health ?: candidates.flatMap { it.offerings }.associate { it.id to HealthState(HealthStatus.HEALTHY) }, previous, now,
+            health ?: candidates.flatMap { it.offerings }.associate { it.id to HealthState(HealthStatus.HEALTHY) }, previous, now, seed,
         ),
     )
 
@@ -306,8 +307,21 @@ class StationBuilderTest {
         val stale = mapOf("bob ross channel" to StationAvailability(unavailableSince = now.minus(Duration.ofHours(25)), verifiedAt = now.minus(Duration.ofDays(3))))
         assertEquals("unavailable", build(verifying, two, health = mapOf("w1-o1" to HealthState(HealthStatus.QUARANTINED)), previous = stale).station("bob ross channel").disabledReason)
 
+        val seeded = build(verifying, two, health = unverified, seed = setOf("w1-o2"))
+        assertTrue(seeded.station("bob ross channel").enabled, "a source the replaced lineup carried counts as verified")
+        assertEquals(now, seeded.availability.getValue("bob ross channel").verifiedAt)
+
         val off = build(verifying.copy(stations = mapOf("bob ross channel" to StationOverride(enabled = false))), two, health = unverified)
         assertEquals(mapOf("w1-o1" to 2, "w1-o2" to 2), probeTiers(off), "a station the policy turns off is not probed first")
+    }
+
+    @Test fun `a group block ends where the next group's block starts`() {
+        val ranged = policy.copy(
+            stations = emptyMap(), groups = PolicyGroups(default = "Local"),
+            numbering = PolicyNumbering(floor = 2000, groups = mapOf("Local" to 1, "News" to 3), groupSize = 100),
+        )
+        val three = listOf(candidate("whale", "a", "Alpha", "1"), candidate("whale", "b", "Bravo", "2"), candidate("whale", "c", "Charlie", "3"))
+        assertEquals(listOf("1", "2", "2000"), build(ranged, three).stations.map { it.number }.sorted(), "Local takes 1 and 2; 3 is News's, so the third falls to the floor")
     }
 
     @Test fun `version 2 keys join spellings that differ only by spaces without an alias`() {

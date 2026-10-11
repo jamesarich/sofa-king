@@ -33,6 +33,8 @@ class BuildInput(
     val health: Map<String, HealthState>,
     val previous: Map<String, StationAvailability>,
     val now: Instant,
+    /** Offerings that count as verified without a probe: the enabled lineup a first policy run replaces. */
+    val seedVerified: Set<String> = emptySet(),
 )
 
 /**
@@ -245,7 +247,8 @@ object StationBuilder {
             if (!off && since != null && Duration.between(since, input.now) >= disableAfter) off = true
             else if (off && (healthyNow || (policy.health.enableOn == "eligible" && eligibleNow))) off = false
             if (off) autoOff += draft.key
-            val qualified = states.any { it.status == HealthStatus.HEALTHY || it.lastQualifiedAt != null }
+            val qualified = states.any { it.status == HealthStatus.HEALTHY || it.lastQualifiedAt != null } ||
+                draft.offeringIds.any { it in input.seedVerified }
             val verifiedAt = previous?.verifiedAt ?: if (qualified) input.now else null
             if (policy.health.requireVerified && verifiedAt == null) unverified += draft.key
             availability[draft.key] = StationAvailability(since, off, pinOfferings = draft.pinOfferings, verifiedAt = verifiedAt)
@@ -284,11 +287,14 @@ object StationBuilder {
             compareBy<Draft> { it.leading?.entry ?: Int.MAX_VALUE }.thenBy(NUMBER_ORDER) { it.leading?.number }.thenBy { it.key },
         )
         val numbering = policy.numbering
+        val starts = numbering.groups.values.sorted()
+        // A block ends at its size or where the next group's block starts, whichever is first.
+        fun blockEnd(start: Int): Int = minOf(start + numbering.groupSize, starts.firstOrNull { it > start } ?: Int.MAX_VALUE)
         for (draft in pending) {
             val provider = draft.leading?.candidate?.channel?.displayNumber?.takeIf { it.matches(STATION_NUMBER) }?.let(::canonicalNumber)
             val block = numbering.groups[groupFor(draft)]
             val number = when {
-                block != null -> nextFreeIn(used, block, block + numbering.groupSize) ?: nextFree(used, numbering.floor)
+                block != null -> nextFreeIn(used, block, blockEnd(block)) ?: nextFree(used, numbering.floor)
                 numbering.groups.isEmpty() && numbering.keepProviderNumbers && provider != null && provider !in used -> provider
                 else -> nextFree(used, numbering.floor)
             }

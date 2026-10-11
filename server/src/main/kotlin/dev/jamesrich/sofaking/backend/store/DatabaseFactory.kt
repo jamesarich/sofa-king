@@ -12,6 +12,8 @@ internal fun databaseAt(directory: Path): Database {
         enforceForeignKeys(true)
         setBusyTimeout(5000)
         setJournalMode(SQLiteConfig.JournalMode.WAL)
+        setSynchronous(SQLiteConfig.SynchronousMode.NORMAL)
+        setJournalSizeLimit(64 * 1024 * 1024)
     }
     val source = SQLiteDataSource(config).apply {
         url = "jdbc:sqlite:${directory.toAbsolutePath().resolve("backend.sqlite")}"

@@ -40,6 +40,9 @@ Every field an admin request sets on an entry is pinned: `number`, `name`, `grou
 | `numberFloor` | `1000` | First number assigned when a candidate's own number is taken or not numeric |
 | `retiredLogoHosts` | `[]` | `host` or `host:port` values whose logos count as absent |
 | `defaultGroup` | unset | Group for an adopted candidate with no raw group and no matching rule |
+| `retiredGuides` | `[]` | Guide IDs going away; an enabled entry mapped to one, or to no guide, moves to a guide its sources list |
+
+An entry the `retiredGuides` pass maps takes the first source, in the entry's order, whose `tvg-id` a guide that is not retired lists: that source's provider guide first, then a guide that is no provider's own, since a provider guide keys channels by that provider's IDs. A pinned guide, a disabled entry and an entry whose sources no live guide lists keep their mapping. A provider guide fetches programmes only for the channels the lineup maps to it, so each remap adds its channel to the next guide refresh.
 
 ## Rules
 
@@ -57,7 +60,7 @@ Regexes are Java patterns matched case-insensitively against the whole value wit
 
 ## The pass
 
-Each run computes a plan over the current lineup, feeds, health and guides, in this order: availability (disable and enable), alias merges, equivalent attachment, adoption, groups, corrections, retired logos. With `enabled` the plan is applied in one lineup transaction, each action re-checked against the entry as it stands (the field unpinned, the old value unchanged), and recorded in the change log; without it the plan is only reported. `GET /api/v1/admin/curation/preview` computes the same plan without applying it, and `POST /api/v1/admin/curation/run` applies one now regardless of the interval. Availability is tracked whether or not automation is enabled, so the first run after enabling knows how long an entry has had no source.
+Each run computes a plan over the current lineup, feeds, health and guides, in this order: availability (disable and enable), alias merges, equivalent attachment, adoption, groups, corrections, retired logos, retired guides. With `enabled` the plan is applied in one lineup transaction, each action re-checked against the entry as it stands (the field unpinned, the old value unchanged), and recorded in the change log; without it the plan is only reported. `GET /api/v1/admin/curation/preview` computes the same plan without applying it, and `POST /api/v1/admin/curation/run` applies one now regardless of the interval. Availability is tracked whether or not automation is enabled, so the first run after enabling knows how long an entry has had no source.
 
 Findings in the plan are things automation sees but does not change: duplicate numbers among enabled entries, enabled entries that share a name and a guide identity without an alias rule, candidates that match several entries none or more than one of which is enabled (a single enabled match takes the candidate), and attachments the 64-source cap refused.
 
@@ -86,7 +89,8 @@ Findings in the plan are things automation sees but does not change: duplicate n
 4. Set `enabled` to `true`.
 5. Point every client at this server: the app and TiviMate at `/output/*`, Plex at the HDHomeRun routes ([third-party players](live-tv.md#third-party-players), [Plex](live-tv.md#plex-live-tv)). Until then they read the pipeline's Caddy host.
 6. List the logo hosts the lineup names (`GET /api/v1/admin/lineup`, the `logo` fields; the Caddy host and Dispatcharr's own address are both candidates) and put the ones that are going away in `retiredLogoHosts`. Check the preview's `clear-logo` actions against entries whose sources and guide carry no logo of their own.
-7. Remove the feed-refresh cron line and whatever schedules the playback refresh, then stop the Caddy container and Dispatcharr; the server reads nothing from them.
+7. Put the guides fed by the retiring services in `retiredGuides` and run. After the next guide refresh, compare each channel's `guideStatus` (`available`, `empty`, `unassigned`) with the count before; a channel still mapped to a retired guide has no source another guide lists.
+8. Remove the feed-refresh cron line and whatever schedules the playback refresh, then stop the Caddy container and Dispatcharr; the server reads nothing from them.
 
 ## Limitations
 

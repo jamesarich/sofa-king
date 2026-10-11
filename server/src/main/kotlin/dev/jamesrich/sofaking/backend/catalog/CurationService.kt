@@ -83,6 +83,13 @@ internal sealed class Step(val entryId: String, val action: CurationAction) {
         }
     }
 
+    class SetGuide(entryId: String, val before: GuideMapping?, val after: GuideMapping, action: CurationAction) : Step(entryId, action) {
+        override fun applyTo(current: LineupEntryRecord, now: Instant, feeds: FeedService): LineupEntryRecord? {
+            if (current.pinned("guide") || current.guide != before) return null
+            return current.copy(guide = after)
+        }
+    }
+
     class Disable(entryId: String, val reason: String, action: CurationAction) : Step(entryId, action) {
         override fun applyTo(current: LineupEntryRecord, now: Instant, feeds: FeedService): LineupEntryRecord? {
             if (current.pinned("enabled") || !current.enabled) return null
@@ -162,10 +169,15 @@ class CurationService(
         if (hosts.any { !it.matches(Regex("[a-z0-9.\\-\\[\\]:]+")) }) invalid("retiredLogoHosts entries must be host or host:port")
         val group = request.defaultGroup?.trim()
         if (group != null && (group.isEmpty() || group.length > 128)) invalid("defaultGroup must be 1 to 128 characters")
-        val next = request.copy(retiredLogoHosts = hosts, defaultGroup = group)
+        val retiredGuides = request.retiredGuides.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (retiredGuides.any { !it.matches(Regex("[A-Za-z0-9_.:-]{1,64}")) }) invalid("retiredGuides entries must be guide IDs")
+        val next = request.copy(retiredLogoHosts = hosts, defaultGroup = group, retiredGuides = retiredGuides)
         store.saveCurationSettings(next)
         settings.set(next)
-        log.info("curation settings enabled={} disableAfterHours={} enableOn={} equivalentEvidence={} retiredLogoHosts={}", next.enabled, next.disableAfterHours, next.enableOn, next.equivalentEvidence, hosts.size)
+        log.info(
+            "curation settings enabled={} disableAfterHours={} enableOn={} equivalentEvidence={} retiredLogoHosts={} retiredGuides={}",
+            next.enabled, next.disableAfterHours, next.enableOn, next.equivalentEvidence, hosts.size, retiredGuides,
+        )
         onSettingsChanged()
         requestRun()
         next
@@ -322,6 +334,23 @@ class CurationService(
     private fun candidatesOf(entry: LineupEntryRecord): List<Channel> =
         entry.offeringIds.mapNotNull(feeds::offering).mapNotNull { feeds.channel(it.channelId) }.distinctBy { it.id }
 
+    /**
+     * The first source, in the entry's order, whose `tvg-id` a live guide lists: its provider's own guide first, then a
+     * guide that is not another provider's. Provider guides key channels by that provider's ids, so another
+     * provider's guide listing the same id names a different channel.
+     */
+    private fun guideFor(candidates: List<Channel>, retired: Set<String>): GuideMapping? {
+        val providerIds = feeds.configs.mapTo(HashSet()) { it.id }
+        for (channel in candidates) {
+            val tvg = channel.legacyGuideId ?: continue
+            val provider = feeds.providerOf(channel.id)
+            val listing = guides.guidesListing(tvg).filter { it !in retired }
+            val guideId = listing.firstOrNull { it == provider } ?: listing.firstOrNull { it !in providerIds } ?: continue
+            return GuideMapping(guideId, tvg)
+        }
+        return null
+    }
+
     private fun eligibleNow(entry: LineupEntryRecord, states: Map<String, HealthState>, healthyOnly: Boolean): Boolean =
         entry.offeringIds.any { id ->
             feeds.offering(id) != null && states[id]?.let { if (healthyOnly) !it.manuallyDisabled && it.status == HealthStatus.HEALTHY else eligible(it) } == true
@@ -332,6 +361,7 @@ class CurationService(
         val findings = ArrayList<String>()
         val byId = c.entries.associateBy { it.id }
         val retired = c.settings.retiredLogoHosts.toSet()
+        val retiredGuides = c.settings.retiredGuides.toSet()
         val aliasRules = c.rules.filter { it.kind == "alias" && it.rule.enabled }
         val aliasOf = aliasRules.associateBy { it.rule.match.entryId!! }
         val groupRules = c.rules.filter { it.kind == "group" && it.rule.enabled }
@@ -486,6 +516,15 @@ class CurationService(
                     steps += Step.SetField(entry.id, "logo", entry.logo, corrected, CurationAction("relogo", entry.id, entry.name, "logo", entry.logo, corrected, "correction", correction.id))
                 } else if (entry.logo != null && onRetiredHost(entry.logo, retired)) {
                     steps += Step.SetField(entry.id, "logo", entry.logo, null, CurationAction("clear-logo", entry.id, entry.name, "logo", entry.logo, null, "logo host retired"))
+                }
+            }
+            val current = entry.guide
+            if (entry.enabled && !entry.pinned("guide") && (current == null || current.guideId in retiredGuides)) {
+                val target = guideFor(candidates, retiredGuides)
+                if (target != null && target != current) {
+                    val shown = { m: GuideMapping? -> m?.let { "${it.guideId}/${it.channelId}" } }
+                    val reason = if (current == null) "unassigned" else "guide ${current.guideId} retired"
+                    steps += Step.SetGuide(entry.id, current, target, CurationAction("remap-guide", entry.id, entry.name, "guide", shown(current), shown(target), reason))
                 }
             }
         }

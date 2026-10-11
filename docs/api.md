@@ -209,7 +209,8 @@ The rules and settings that keep the lineup curated without Dispatcharr; what ea
 ```json
 {
   "enabled": false, "intervalSeconds": 900, "disableAfterHours": 24, "enableOn": "healthy",
-  "equivalentEvidence": "name-and-guide", "numberFloor": 1000, "retiredLogoHosts": ["192.168.1.3:9192"], "defaultGroup": null
+  "equivalentEvidence": "name-and-guide", "numberFloor": 1000, "retiredLogoHosts": ["192.168.1.3:9192"], "defaultGroup": null,
+  "retiredGuides": ["fastchannels"]
 }
 ```
 
@@ -223,7 +224,7 @@ curl --fail http://127.0.0.1:8080/api/v1/admin/curation/rules \
   --data '{"kind": "group", "match": {"group": "US: Sports"}, "set": {"group": "Sports"}}'
 ```
 
-`GET /api/v1/admin/curation/preview` answers the plan: `generatedAt`, `enabled` (whether a run would apply it), `actions`, `counts` by kind and `findings`. An action has `kind` (`regroup`, `rename`, `relogo`, `clear-logo`, `attach`, `disable`, `enable`, `adopt`), `entryId`, `entryName`, `field`, `before`, `after`, `reason`, `ruleId` and, for `attach`, `offeringIds`. `POST /api/v1/admin/curation/run` applies a plan now and answers the same shape with `enabled` true and `actions` reduced to what was applied; an action whose entry changed under it (a field pinned since, a value no longer the one planned) is left out. `GET /api/v1/admin/curation/changes` lists applied actions as `{"id", "appliedAt", "action"}`, newest first; the server keeps the newest 10,000.
+`GET /api/v1/admin/curation/preview` answers the plan: `generatedAt`, `enabled` (whether a run would apply it), `actions`, `counts` by kind and `findings`. An action has `kind` (`regroup`, `rename`, `relogo`, `clear-logo`, `remap-guide`, `attach`, `disable`, `enable`, `adopt`), `entryId`, `entryName`, `field`, `before`, `after`, `reason`, `ruleId` and, for `attach`, `offeringIds`. `POST /api/v1/admin/curation/run` applies a plan now and answers the same shape with `enabled` true and `actions` reduced to what was applied; an action whose entry changed under it (a field pinned since, a value no longer the one planned) is left out. `GET /api/v1/admin/curation/changes` lists applied actions as `{"id", "appliedAt", "action"}`, newest first; the server keeps the newest 10,000.
 
 `POST /api/v1/admin/curation/import` takes up to 4 MiB with any of `groupMap`, `aliases`, `equivalents`, `sportsCorrections`, `corrections` and `dryRun` ([shapes](curation.md#import-the-pipelines-data)); fields the rules do not use are ignored. The report has `dryRun`, `created`, `updated`, `existing`, `skipped` and `items`, each `{"source", "item", "outcome", "ruleId", "reason"}` with `outcome` `created`, `updated`, `exists`, `skipped` or `applied-by-import`.
 

@@ -5,7 +5,8 @@ import kotlinx.serialization.json.JsonElement
 
 /**
  * How automation curates the lineup. With [enabled] false every run is a preview. [enableOn] is `healthy` or
- * `eligible`; [equivalentEvidence] is `name-and-guide` or `name`; [retiredLogoHosts] are `host` or `host:port`.
+ * `eligible`; [equivalentEvidence] is `name-and-guide` or `name`; [retiredLogoHosts] are `host` or `host:port`;
+ * [retiredGuides] are guide IDs whose mappings move to a guide that one of the entry's sources lists.
  */
 @Serializable data class CurationSettings(
     val enabled: Boolean = false,
@@ -16,6 +17,7 @@ import kotlinx.serialization.json.JsonElement
     val numberFloor: Int = 1000,
     val retiredLogoHosts: List<String> = emptyList(),
     val defaultGroup: String? = null,
+    val retiredGuides: List<String> = emptyList(),
 )
 
 /** Every field given must match. [group] and [name] are exact and case-insensitive; the patterns are regexes. */

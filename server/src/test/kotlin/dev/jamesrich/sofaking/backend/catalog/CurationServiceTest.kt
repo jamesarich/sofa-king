@@ -253,6 +253,29 @@ class CurationServiceTest {
         assertFalse(onRetiredHost("not a url", setOf("old.host")))
     }
 
+    @Test fun `retired guides move unpinned enabled entries to a guide their sources list, the provider's own first`() = rig({ listOf(it.feed) }, { listOf(it.gzipGuide, GuideConfig("fixture", it.feed.guideUrl!!)) }) { r ->
+        val entry = r.lineup.create(CreateLineupEntry(channelId = r.channel("fixture").id))
+        assertEquals(GuideMapping("gz", "station"), entry.guide)
+        r.curation.updateSettings(CurationSettings(enabled = true, retiredGuides = listOf("gz")))
+        val remap = r.curation.run().actions.single()
+        assertEquals("remap-guide", remap.kind); assertEquals("gz/station", remap.before); assertEquals("fixture/station", remap.after)
+        assertEquals(GuideMapping("fixture", "station"), r.entry(entry.id).guide)
+        assertTrue(r.curation.run().actions.isEmpty())
+
+        r.curation.updateSettings(CurationSettings(enabled = true, retiredGuides = listOf("gz", "fixture")))
+        assertTrue(r.curation.run().actions.isEmpty(), "with every listing guide retired the mapping stays")
+
+        r.lineup.update(entry.id, UpdateLineupEntry(guide = GuideMapping("gz", "station")))
+        r.curation.updateSettings(CurationSettings(enabled = true, retiredGuides = listOf("gz")))
+        assertTrue(r.curation.run().actions.isEmpty(), "a pinned guide is the household's")
+        r.lineup.update(entry.id, UpdateLineupEntry(enabled = false, unpin = listOf("guide")))
+        assertTrue(r.curation.run().actions.isEmpty(), "disabled entries keep their mapping")
+        r.lineup.update(entry.id, UpdateLineupEntry(enabled = true, clearGuide = true, unpin = listOf("guide")))
+        assertEquals("unassigned", r.curation.run().actions.single().reason)
+        assertEquals(GuideMapping("fixture", "station"), r.entry(entry.id).guide)
+        assertEquals("INVALID_REQUEST", assertFailsWith<ApiFailure> { r.curation.updateSettings(CurationSettings(retiredGuides = listOf("bad id"))) }.code)
+    }
+
     @Test fun `the import translates the pipeline's files into rules that survive a restart`() = rig({ listOf(it.feed, it.altFeed) }) { r ->
         val a = r.lineup.create(CreateLineupEntry(channelId = r.channel("fixture").id))
         val b = r.lineup.create(CreateLineupEntry(channelId = r.channel("alt").id, number = "6"))

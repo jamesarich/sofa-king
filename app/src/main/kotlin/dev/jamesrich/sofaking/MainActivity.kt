@@ -23,6 +23,8 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -54,6 +56,7 @@ import dev.jamesrich.sofaking.ui.player.captionParameters
 import dev.jamesrich.sofaking.ui.player.currentChannelId
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.withStream
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.CancellationException
@@ -188,7 +191,18 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
         // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
         Screen.Guide -> guideState.SaveableStateProvider("guide") {
             Column {
-                Header(refreshing = loading && state is LineupState.Ready, onSettings = { screen = Screen.Settings }, onRefresh = vm::refresh)
+                val settingsFocus = remember { FocusRequester() }
+                Header(
+                    refreshing = loading && state is LineupState.Ready,
+                    onSettings = { screen = Screen.Settings },
+                    onRefresh = vm::refresh,
+                    settingsFocus = settingsFocus,
+                )
+                // With no server to talk to, Settings is the only thing to do, so it takes focus over Refresh.
+                val homeFocus = homeFocusFor(state)
+                LaunchedEffect(homeFocus) {
+                    if (homeFocus == HomeFocus.SETTINGS) requestFocusWhenAttached(settingsFocus)
+                }
                 // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
                 val s = state
                 when {
@@ -245,7 +259,7 @@ private fun GuideOrEmpty(
 
 /** App bar above the guide, inside the overscan margins; the mark sits within the buttons' height so no grid row is lost. */
 @Composable
-private fun Header(refreshing: Boolean, onSettings: () -> Unit, onRefresh: () -> Unit) {
+private fun Header(refreshing: Boolean, onSettings: () -> Unit, onRefresh: () -> Unit, settingsFocus: FocusRequester) {
     Row(
         Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 27.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -269,7 +283,7 @@ private fun Header(refreshing: Boolean, onSettings: () -> Unit, onRefresh: () ->
             }
         }
         Button(onClick = onRefresh) { Text(stringResource(R.string.refresh)) }
-        Button(onClick = onSettings) { Text(stringResource(R.string.settings)) }
+        Button(onClick = onSettings, modifier = Modifier.focusRequester(settingsFocus)) { Text(stringResource(R.string.settings)) }
     }
 }
 

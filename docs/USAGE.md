@@ -45,7 +45,7 @@ Channels come from the server's catalog. A channel appears when the server repor
 
 | Symptom | Action |
 | --- | --- |
-| Connect to your Sofa King server | Open Settings and enter the server address and API token. |
+| Connect to your Sofa King server | Focus starts on Settings; press OK and enter the server address and API token. |
 | Couldn't reach the Sofa King server | Check the address, token, network access and that the server is running. `AUTH_REQUIRED` means the token does not match. Select Refresh. |
 | No channels to play | The server has no channel with a playable source. Check its providers and source health. |
 | No listing | The channel has no guide data on the server; check its guide assignment there. |

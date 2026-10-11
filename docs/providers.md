@@ -23,7 +23,8 @@ These are unofficial clients. They call the same public endpoints each service's
     { "id": "tcl", "type": "native", "service": "tcl" },
     { "id": "roku", "type": "native", "service": "roku" },
     { "id": "localnow", "type": "native", "service": "localnow", "options": { "dma": "679", "market": "iaDesMoines" } },
-    { "id": "xumo", "type": "native", "service": "xumo" }
+    { "id": "xumo", "type": "native", "service": "xumo" },
+    { "id": "pluto", "type": "native", "service": "pluto" }
   ]
 }
 ```
@@ -31,7 +32,7 @@ These are unofficial clients. They call the same public endpoints each service's
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto` |
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `dma` and `market` for `localnow` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
@@ -140,6 +141,12 @@ Fragility: five programmes per channel cover as little as an hour on some channe
 The play.xumo.com web API on valencia-app-mds.xumo.com, market `10006`, sent with the install's device id. The channel list is the market's `proxy/channels/list`, keyed by the channel's guid, with number, first genre as group and the color logo; live channels whose call sign ends in `-DRM` or `DRM-CMS` are Widevine and left out (18 of 451 today), as are channels not marked live. The guide is the EPG in six-hour blocks (`epg/MARKET/DATE/BLOCK.json`, 50 channels a page) from the current block for 18 hours, keeping programmes only for mapped channels; a block not yet published (HTTP 400) ends it. A resolve reads the channel's `broadcast` document for the current hour and takes its `ssaiStreamUrl`, or else the live asset's HLS source, fills the `[IFA]`, `[PLATFORM]`, `[CCPA_Value]` and similar macros (blanking the rest), follows the one-hop JSON pointer a few channels use instead of a manifest, and hands the URL to the relay for an hour.
 
 Fragility: the DRM filter is a call-sign convention, not a flag; a DRM channel named otherwise lists and fails to decode. About ten guide requests per block.
+
+### pluto (Pluto TV)
+
+The pluto.tv web client's own API. `boot.pluto.tv/v4/start`, with the install's device id as `clientID`, answers a session JWT (valid a day, kept four hours, replaced on a 401 or 403), the channels and stitcher hosts and the stitcher query parameters. The channel list is the channels service's `v2/guide/channels`, keyed by Pluto's channel id, with number, color logo and the name of the channel's first category from `v2/guide/categories`; channels with `entitlements` (today 29, all `Registered`) need a Pluto account and are left out. The guide is `v2/guide/timelines` for mapped channels, 25 per request, twelve hours from the current hour. A resolve is the stitcher host, `/v2` and the channel's stitched path, with the boot's parameters, the JWT and `masterJWTPassthrough`, handed to the relay for an hour.
+
+Fragility: the boot's `appVersion` is the web client's and may be refused when Pluto retires it. The stitcher parameters carry the location Pluto derives from the server's address.
 
 ## Checking a provider
 

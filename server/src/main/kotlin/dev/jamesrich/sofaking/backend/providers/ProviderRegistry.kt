@@ -163,6 +163,7 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             "roku" -> RokuClient(context)
             "localnow" -> LocalNowClient(context)
             "xumo" -> XumoClient(context)
+            "pluto" -> PlutoClient(context)
             else -> throw IllegalArgumentException("Unknown native service $service")
         }
     }

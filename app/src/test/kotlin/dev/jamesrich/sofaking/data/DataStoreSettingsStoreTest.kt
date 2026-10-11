@@ -218,6 +218,33 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `auto open defaults to ten seconds and round trips every option`() = runTest {
+        val store = newStore()
+        assertEquals(AutoOpenDelay.AFTER_10_SECONDS, store.settings.first().autoOpenDelay)
+
+        for (delay in AutoOpenDelay.entries) {
+            store.setAutoOpenDelay(delay)
+            assertEquals(delay, store.settings.first { it.autoOpenDelay == delay }.autoOpenDelay)
+        }
+    }
+
+    @Test
+    fun `an unrecognised stored auto open delay falls back to ten seconds`() = runTest {
+        dataStore.edit { it[stringPreferencesKey("auto_open_delay")] = "NO_SUCH_DELAY" }
+
+        assertEquals(AutoOpenDelay.AFTER_10_SECONDS, newStore().settings.first().autoOpenDelay)
+    }
+
+    @Test
+    fun `preview sound is on by default and can be turned off`() = runTest {
+        val store = newStore()
+        assertTrue(store.settings.first().previewSound)
+
+        store.setPreviewSound(false)
+        assertFalse(store.settings.first().previewSound)
+    }
+
+    @Test
     fun `settings flow emits each update`() = runTest {
         val store = newStore()
 

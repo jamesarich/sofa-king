@@ -13,6 +13,13 @@
     <string name="settings_api_token_help">The value of SOFA_API_TOKEN on the server. Leave it empty if the server runs without one.</string>
     <string name="settings_caption_timing_less">Show captions later</string>
     <string name="settings_caption_timing_more">Show captions earlier</string>
+    <string name="settings_section_guide">Guide</string>
+    <string name="settings_auto_open">Open focused channel automatically</string>
+    <string name="settings_auto_open_off">Off</string>
+    <string name="settings_auto_open_10">After 10 seconds</string>
+    <string name="settings_auto_open_30">After 30 seconds</string>
+    <string name="settings_auto_open_help">A channel that keeps focus opens full screen after this long. TalkBack touch exploration turns this off.</string>
+    <string name="settings_preview_sound">Play preview sound</string>
     <string name="settings_version">Version %1$s</string>
     <plurals name="settings_channels_loaded">
         <item quantity="one">%1$d channel loaded</item>

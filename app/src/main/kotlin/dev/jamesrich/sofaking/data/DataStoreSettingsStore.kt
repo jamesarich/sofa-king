@@ -40,6 +40,10 @@ class DataStoreSettingsStore(
             captionStyle = prefs[CAPTION_STYLE]?.let { name ->
                 CaptionStyle.entries.firstOrNull { it.name == name }
             } ?: CaptionStyle.SYSTEM,
+            autoOpenDelay = prefs[AUTO_OPEN_DELAY]?.let { name ->
+                AutoOpenDelay.entries.firstOrNull { it.name == name }
+            } ?: AutoOpenDelay.AFTER_10_SECONDS,
+            previewSound = prefs[PREVIEW_SOUND] ?: true,
         )
     }
 
@@ -89,6 +93,14 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[CAPTION_STYLE] = style.name }
     }
 
+    override suspend fun setAutoOpenDelay(delay: AutoOpenDelay) {
+        dataStore.edit { prefs -> prefs[AUTO_OPEN_DELAY] = delay.name }
+    }
+
+    override suspend fun setPreviewSound(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[PREVIEW_SOUND] = enabled }
+    }
+
     /** The old whole-seconds default is deliberately not migrated: the default is now 0 and per-channel values carry the tuning. */
     private fun advanceMs(prefs: Preferences): Int =
         (prefs[CAPTION_ADVANCE_MS] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
@@ -122,6 +134,8 @@ class DataStoreSettingsStore(
         private val CHANNEL_CAPTION_ADVANCE_MS = stringSetPreferencesKey("channel_caption_advance_ms")
         private val SMOOTH_CAPTIONS = booleanPreferencesKey("smooth_captions")
         private val CAPTION_STYLE = stringPreferencesKey("caption_style")
+        private val AUTO_OPEN_DELAY = stringPreferencesKey("auto_open_delay")
+        private val PREVIEW_SOUND = booleanPreferencesKey("preview_sound")
         private val LEGACY_CHANNEL_CAPTION_ADVANCE = stringSetPreferencesKey("channel_caption_advance")
         private val LEGACY_SERVER_URL = stringPreferencesKey("server_url")
         private val LEGACY_PROFILE = stringPreferencesKey("profile")

@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -38,12 +40,15 @@ import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.BuildConfig
 import dev.jamesrich.sofaking.R
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import kotlinx.coroutines.launch
 
 private val FIELD_WIDTH = 640.dp
 
@@ -65,6 +70,13 @@ fun SettingsScreen(
     var serverUrl by remember(settings.serverUrl) { mutableStateOf(settings.serverUrl) }
     var apiToken by remember(settings.apiToken) { mutableStateOf(settings.apiToken) }
     var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
+    // The guide's rest timers read these from the store, so the rows write there directly rather than through
+    // the activity's callbacks.
+    val context = LocalContext.current
+    val store = remember(context) { DataStoreSettingsStore.create(context) }
+    val scope = rememberCoroutineScope()
+    var autoOpen by remember(settings.autoOpenDelay) { mutableStateOf(settings.autoOpenDelay) }
+    var previewSound by remember(settings.previewSound) { mutableStateOf(settings.previewSound) }
     val serverFocus = remember { FocusRequester() }
     val tokenFocus = remember { FocusRequester() }
     // Save only takes an address the server's API paths can be appended to and a token a header can carry;
@@ -200,6 +212,40 @@ fun SettingsScreen(
             }
         }
         item { HelpText(stringResource(R.string.caption_timing_help)) }
+        item { SectionHeader(stringResource(R.string.settings_section_guide)) }
+        item {
+            val offLabel = stringResource(R.string.settings_auto_open_off)
+            val tenLabel = stringResource(R.string.settings_auto_open_10)
+            val thirtyLabel = stringResource(R.string.settings_auto_open_30)
+            SettingRow(label = stringResource(R.string.settings_auto_open)) {
+                Button(
+                    onClick = {
+                        autoOpen = AutoOpenDelay.entries[(autoOpen.ordinal + 1) % AutoOpenDelay.entries.size]
+                        scope.launch { store.setAutoOpenDelay(autoOpen) }
+                    },
+                ) {
+                    Text(
+                        when (autoOpen) {
+                            AutoOpenDelay.OFF -> offLabel
+                            AutoOpenDelay.AFTER_10_SECONDS -> tenLabel
+                            AutoOpenDelay.AFTER_30_SECONDS -> thirtyLabel
+                        },
+                    )
+                }
+            }
+        }
+        item { HelpText(stringResource(R.string.settings_auto_open_help)) }
+        item {
+            SettingRow(label = stringResource(R.string.settings_preview_sound)) {
+                Switch(
+                    checked = previewSound,
+                    onCheckedChange = {
+                        previewSound = it
+                        scope.launch { store.setPreviewSound(it) }
+                    },
+                )
+            }
+        }
         item { SectionHeader(stringResource(R.string.settings_section_about)) }
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {

@@ -1,0 +1,102 @@
+{
+ "success": true,
+ "channels": [
+  {
+   "_id": "22A7F880-7B2C-4658-B1C4-33F996DA38A9",
+   "slug": "epg-local-now-des-moines",
+   "name": "Local Now Des Moines",
+   "channel_number": 3057,
+   "logo": "https://image-resizer-cloud-cdn.api.cms.amdvids.com/image/22A7F880-7B2C-4658-B1C4-33F996DA38A9/3-1x1.png",
+   "genres": [
+    "My City"
+   ],
+   "video_id": "22A7F880-7B2C-4658-B1C4-33F996DA38A9",
+   "program": [
+    {
+     "program_title": "Local Now Tonight",
+     "program_description": "News and Information",
+     "starts_at": 1791691200,
+     "ends_at": 1791694800
+    },
+    {
+     "program_title": "Your News & Weather",
+     "program_description": "Stay informed with the latest breaking news and headlines.",
+     "starts_at": 1791694800,
+     "ends_at": 1791698400
+    }
+   ],
+   "subscription_access": {
+    "unlocked": true,
+    "ads_enabled": true
+   }
+  },
+  {
+   "_id": "8CA12BB0-5B8F-4696-9B09-42C1D0D4F366",
+   "slug": "pure-flix-tv",
+   "name": "Pure Flix TV",
+   "channel_number": 1064,
+   "logo": "https://image-resizer-cloud-cdn.api.cms.amdvids.com/image/8CA12BB0-5B8F-4696-9B09-42C1D0D4F366/3-1x1.png",
+   "genres": [
+    "Family and Faith"
+   ],
+   "video_id": "8CA12BB0-5B8F-4696-9B09-42C1D0D4F366",
+   "program": [
+    {
+     "program_title": "Making Him Famous",
+     "program_description": "Inspirational speaker Mario King pursues fame, but temptation leads him down a path of destruction. When forced to take community service work at a homeless shelter, Mario finds his faith and calling.",
+     "starts_at": 1791688675,
+     "ends_at": 1791696005
+    }
+   ],
+   "subscription_access": {
+    "unlocked": true,
+    "ads_enabled": true
+   }
+  },
+  {
+   "_id": "41E6152D-2E5D-47B1-B910-6C069D7FDCD1",
+   "slug": "history-warfare-now",
+   "name": "Locked Channel",
+   "channel_number": 862,
+   "logo": "https://image-resizer-cloud-cdn.api.cms.amdvids.com/image/41E6152D-2E5D-47B1-B910-6C069D7FDCD1/3-1x1.png",
+   "genres": [
+    "Recommended"
+   ],
+   "video_id": "41E6152D-2E5D-47B1-B910-6C069D7FDCD1",
+   "program": [],
+   "subscription_access": {
+    "unlocked": false,
+    "ads_enabled": true
+   }
+  },
+  {
+   "_id": "22A7F880-7B2C-4658-B1C4-33F996DA38A9",
+   "slug": "epg-local-now-des-moines",
+   "name": "Local Now Des Moines",
+   "channel_number": 3057,
+   "logo": "https://image-resizer-cloud-cdn.api.cms.amdvids.com/image/22A7F880-7B2C-4658-B1C4-33F996DA38A9/3-1x1.png",
+   "genres": [
+    "My City"
+   ],
+   "video_id": "22A7F880-7B2C-4658-B1C4-33F996DA38A9",
+   "program": [
+    {
+     "program_title": "Local Now Tonight",
+     "program_description": "News and Information",
+     "starts_at": 1791691200,
+     "ends_at": 1791694800
+    },
+    {
+     "program_title": "Your News & Weather",
+     "program_description": "Stay informed with the latest breaking news and headlines.",
+     "starts_at": 1791694800,
+     "ends_at": 1791698400
+    }
+   ],
+   "subscription_access": {
+    "unlocked": true,
+    "ads_enabled": true
+   }
+  }
+ ]
+}

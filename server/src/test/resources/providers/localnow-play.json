@@ -1,0 +1,8 @@
+{
+ "_id": "22A7F880-7B2C-4658-B1C4-33F996DA38A9",
+ "title": "Local Now Des Moines",
+ "drm_config": null,
+ "locked": false,
+ "video_m3u8": "BASE/ln/playlist.m3u8?ads.playbackid=22A7F880-7B2C-4658-B1C4-33F996DA38A9",
+ "session_m3u8": "BASE/ln/session.m3u8"
+}

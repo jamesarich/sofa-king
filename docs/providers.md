@@ -21,7 +21,8 @@ These are unofficial clients. They call the same public endpoints each service's
     { "id": "plex", "type": "native", "service": "plex" },
     { "id": "stirr", "type": "native", "service": "stirr" },
     { "id": "tcl", "type": "native", "service": "tcl" },
-    { "id": "roku", "type": "native", "service": "roku" }
+    { "id": "roku", "type": "native", "service": "roku" },
+    { "id": "localnow", "type": "native", "service": "localnow", "options": { "dma": "679", "market": "iaDesMoines" } }
   ]
 }
 ```
@@ -29,8 +30,8 @@ These are unofficial clients. They call the same public endpoints each service's
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku` |
-| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow` |
+| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `dma` and `market` for `localnow` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
 | `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source |
@@ -126,6 +127,12 @@ Fragility: about 35 category requests per refresh. Seasonal rows (Happy Hallowee
 The channel list is Matt Huisman's mirror (i.mjh.nz `Roku/.channels.json.gz`), keyed by Roku's station id with number, logo and first group. The mirror leaves out the channels that need DRM: it lists about 260 of the roughly 840 the web client shows, ABC News Live (which it omits) is FairPlay, and a sample of five listed channels was clear or AES-128. Its XMLTV (`Roku/all.xml.gz`, the same ids) is the provider's implicit guide through the ordinary guide pipeline; set `guideUrl` to override. A resolve runs the therokuchannel.roku.com web client's steps: an anonymous session (the home page's cookies and the `csrf` token, kept 55 minutes), the content proxy for the channel's `playId` (kept six hours), and a POST to `playback`, which answers an `osm.sr.roku.com` HLS URL the relay uses for five hours. A playback answer that names DRM fails as the channel's fault; a 401 or 403 boots a new session and retries once.
 
 Fragility: CloudFront in front of the web client sometimes answers 403 for a while, which fails resolves as provider evidence. The channel list depends on a third party's mirror.
+
+### localnow (Local Now)
+
+The localnow.com web client. The page's `__NEXT_DATA__` runtime config carries the data-store host and a public app token (`DSP_TOKEN`, a JWT valid about a month, re-read every 12 hours or on a 401 or 403). One `live/epg/US/website` request lists every channel for the configured `dma` and `market` (`679` and `iaDesMoines` add Local Now Des Moines and the Des Moines station channels; without them the national lineup comes back), keyed by `video_id`, with number, logo, first genre as group and the next five programmes, which are the whole guide; the snapshot is kept 15 minutes. Channels whose `subscription_access` is not `unlocked` are left out (none today). A resolve asks `video/play/ID/1920/1080` and hands its MediaTailor `video_m3u8` to the relay for an hour; an answer with a `drm_config` fails as the channel's fault.
+
+Fragility: five programmes per channel cover as little as an hour on some channels, so the guide is only as deep as the last refresh. The app token is the web client's and changes with it.
 
 ## Checking a provider
 

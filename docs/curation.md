@@ -59,7 +59,7 @@ Regexes are Java patterns matched case-insensitively against the whole value wit
 
 Each run computes a plan over the current lineup, feeds, health and guides, in this order: availability (disable and enable), alias merges, equivalent attachment, adoption, groups, corrections, retired logos. With `enabled` the plan is applied in one lineup transaction, each action re-checked against the entry as it stands (the field unpinned, the old value unchanged), and recorded in the change log; without it the plan is only reported. `GET /api/v1/admin/curation/preview` computes the same plan without applying it, and `POST /api/v1/admin/curation/run` applies one now regardless of the interval. Availability is tracked whether or not automation is enabled, so the first run after enabling knows how long an entry has had no source.
 
-Findings in the plan are things automation sees but does not change: duplicate numbers among enabled entries, enabled entries that share a name and a guide identity without an alias rule, candidates that match several entries, and attachments the 64-source cap refused.
+Findings in the plan are things automation sees but does not change: duplicate numbers among enabled entries, enabled entries that share a name and a guide identity without an alias rule, candidates that match several entries none or more than one of which is enabled (a single enabled match takes the candidate), and attachments the 64-source cap refused.
 
 ## Import the pipeline's data
 

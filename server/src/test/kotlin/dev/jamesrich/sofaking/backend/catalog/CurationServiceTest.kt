@@ -116,6 +116,22 @@ class CurationServiceTest {
         assertEquals(listOf(r.sourceOf(r.channel("twin", "Twin Sports"))), r.entry(sports.id).offeringIds)
     }
 
+    @Test fun `a candidate matching several entries joins the one enabled entry, and stays a finding when that is not unique`() = rig({ listOf(it.twinFeed) }) { r ->
+        r.curation.updateSettings(CurationSettings(enabled = true, equivalentEvidence = "name"))
+        val stale = r.lineup.create(CreateLineupEntry(number = "50", name = "Twin Sports", enabled = false, offerings = emptyList()))
+        val live = r.lineup.create(CreateLineupEntry(number = "51", name = "Twin Sports", offerings = emptyList()))
+        r.lineup.update(stale.id, UpdateLineupEntry(unpin = listOf("offerings")))
+        r.lineup.update(live.id, UpdateLineupEntry(unpin = listOf("offerings")))
+        val preview = r.curation.preview()
+        assertEquals(live.id, preview.actions.single { it.kind == "attach" }.entryId)
+        assertTrue(preview.findings.none { "Twin Sports" in it })
+
+        r.lineup.update(stale.id, UpdateLineupEntry(enabled = true))
+        val tied = r.curation.preview()
+        assertTrue(tied.actions.none { it.kind == "attach" })
+        assertTrue(tied.findings.any { "Twin Sports (twin) matches 2 entries" in it })
+    }
+
     @Test fun `adopt rules create disabled entries numbered by the policy and never adopt a candidate twice`() = rig({ listOf(it.tsFeed, it.twinFeed) }) { r ->
         r.curation.updateSettings(CurationSettings(enabled = true, numberFloor = 100))
         r.curation.createRule(CurationRule("sports", "group", match = RuleMatch(namePattern = "sport|espn"), set = RuleSet(group = "Sports")))

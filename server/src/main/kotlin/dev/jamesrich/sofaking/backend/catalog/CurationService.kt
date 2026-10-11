@@ -423,10 +423,12 @@ class CurationService(
                     else -> null
                 }
             }
-            when (matching.size) {
-                0 -> {}
-                1 -> {
-                    val (subject, evidence) = matching.single()
+            // Several matches resolve to the one enabled entry; disabled duplicates are what the Dispatcharr import leaves.
+            val chosen = matching.singleOrNull() ?: matching.filter { it.first.entry.enabled }.singleOrNull()
+            when {
+                matching.isEmpty() -> {}
+                chosen != null -> {
+                    val (subject, evidence) = chosen
                     attach(subject.entry, feeds.offeringsOf(candidate.id).map { it.id }, "equivalent of ${candidate.name} from $provider: ${evidence.first}", evidence.second)
                     attachedChannels += candidate.id
                 }

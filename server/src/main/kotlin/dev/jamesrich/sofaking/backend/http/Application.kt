@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
+import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.store.IdentityStore
@@ -23,7 +24,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 
 private val wireJson = Json { encodeDefaults = true }
-fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveRuntime? = null, apiToken: String? = null, adminToken: String? = null) {
+fun Application.backendModule(
+    store: IdentityStore,
+    clock: Clock,
+    runtime: LiveRuntime? = null,
+    apiToken: String? = null,
+    adminToken: String? = null,
+    outputs: OutputConfig = OutputConfig(),
+) {
     install(ContentNegotiation) { json(wireJson) }
     install(StatusPages) {
         status(HttpStatusCode.NotFound) { call, status -> call.respond(status, ApiError("NOT_FOUND", "Resource not found", false)) }
@@ -92,6 +100,7 @@ fun Application.backendModule(store: IdentityStore, clock: Clock, runtime: LiveR
                 val epoch = call.parameters["epoch"]?.toIntOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid stream epoch")
                 runtime.relay.serve(call, call.parameters["id"]!!, epoch, call.parameters["token"]!!)
             }
+            outputRoutes(runtime, clock, outputs, apiToken)
         }
     }
 }

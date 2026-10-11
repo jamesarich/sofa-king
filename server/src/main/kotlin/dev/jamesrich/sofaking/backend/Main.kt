@@ -21,7 +21,7 @@ fun main(): Unit = runBlocking<Unit> {
             throw failure
         }
     val server = embeddedServer(Netty, host = config.host, port = config.port) {
-        backendModule(store, Clock.systemUTC(), runtime, config.apiToken, config.adminToken)
+        backendModule(store, Clock.systemUTC(), runtime, config.apiToken, config.adminToken, config.outputs)
     }
     // The JVM halts as soon as its shutdown hooks return, so the hook itself runs the whole ordered close.
     val closed = AtomicBoolean(false)

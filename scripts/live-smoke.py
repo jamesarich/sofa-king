@@ -18,6 +18,7 @@ from urllib.request import Request, urlopen
 
 APP = Path(__file__).resolve().parents[1] / 'server/build/install/server/bin/server'
 TOKEN = 'local-fixture-token-' * 3
+OUTPUT_TOKEN = 'local-player-token-' + 'x' * 32
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -61,6 +62,39 @@ def free_port():
     with socket.socket() as listener:
         listener.bind(('127.0.0.1', 0))
         return listener.getsockname()[1]
+
+
+def check_player_outputs(base, hls_channel, ts_channel, directory):
+    """The M3U/XMLTV output a third-party player loads, with FFmpeg standing in for the player."""
+    try:
+        urlopen(base + '/output/playlist.m3u', timeout=5)
+        raise AssertionError('Player output served without a token')
+    except HTTPError as error:
+        assert error.code == 401
+    with urlopen(f'{base}/output/playlist.m3u?token={OUTPUT_TOKEN}', timeout=5) as response:
+        playlist = response.read().decode()
+    lines = playlist.splitlines()
+    assert lines[0].startswith('#EXTM3U url-tvg="') and f'/output/guide.xml?token={OUTPUT_TOKEN}' in lines[0], lines[0]
+    hls_url = f'{base}/output/stream/{hls_channel["id"]}.m3u8?token={OUTPUT_TOKEN}'
+    ts_url = f'{base}/output/stream/{ts_channel["id"]}.ts?token={OUTPUT_TOKEN}'
+    assert hls_url in lines and ts_url in lines, playlist
+    assert f'tvg-id="{hls_channel["id"]}" tvg-chno="5"' in playlist and 'group-title="Test"' in playlist, playlist
+    with urlopen(f'{base}/output/guide.xml?token={OUTPUT_TOKEN}&days=1', timeout=5) as response:
+        guide = response.read().decode()
+    assert f'<channel id="{hls_channel["id"]}">' in guide and '<title>Real fixture programme</title>' in guide, guide
+    # A player following the redirect decodes video through the session.
+    decoded = subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', hls_url, '-t', '4', '-map', '0:v:0', '-progress', 'pipe:1', '-f', 'null', '-'],
+                             capture_output=True, timeout=25)
+    assert decoded.returncode == 0 and b'progress=end' in decoded.stdout, 'Player output decode failed: ' + decoded.stderr.decode() + '\n' + (directory / 'server.log').read_text()
+    # A TS player gets the fan-out for as long as it stays connected; hanging up releases the upstream.
+    with urlopen(ts_url, timeout=5) as stream:
+        head = stream.read(188 * 3)
+        assert len(head) == 188 * 3 and head[0] == 0x47 and head[188] == 0x47, 'TS player output is not aligned MPEG-TS'
+        assert Handler.active_streams == 1
+    deadline = time.monotonic() + 10
+    while Handler.active_streams:
+        assert time.monotonic() < deadline, 'TS player hang-up left the upstream open'
+        time.sleep(0.1)
 
 
 def stop(process):
@@ -110,7 +144,7 @@ def main():
         base = f'http://127.0.0.1:{port}'
         # The fixture serves from loopback, which the server refuses unless told it is a development fixture.
         env = dict(os.environ, SOFA_HOST='127.0.0.1', SOFA_PORT=str(port), SOFA_DATA_DIR=str(data), SOFA_SOURCES=str(sources), SOFA_API_TOKEN=TOKEN,
-                   SOFA_ALLOW_LOOPBACK_UPSTREAMS='true')
+                   SOFA_ALLOW_LOOPBACK_UPSTREAMS='true', SOFA_OUTPUT_TOKEN=OUTPUT_TOKEN)
         process = None
         try:
             with (directory / 'server.log').open('w') as log:
@@ -192,6 +226,7 @@ def main():
                     while Handler.active_streams:
                         assert time.monotonic() < deadline, 'Released TS session retained its upstream'
                         time.sleep(0.1)
+                check_player_outputs(base, channel, ts_channel, directory)
                 identity = request(base, '/api/v1/bootstrap')['serverId']
                 stop(process)
                 process = subprocess.Popen([str(APP)], env=env, stdout=log, stderr=log, start_new_session=True)
@@ -211,7 +246,7 @@ def main():
                 stop(process)
             fixture.shutdown()
             fixture.server_close()
-        print('Live smoke passed: feed + gzip guide import, lineup curation through the admin API, session promotion, four concurrent HLS video decoders, automatic decode qualification, active TS upstream cancellation, release and persistent lineup across restart.')
+        print('Live smoke passed: feed + gzip guide import, lineup curation through the admin API, session promotion, four concurrent HLS video decoders, automatic decode qualification, active TS upstream cancellation, M3U/XMLTV player output with a redirect-following decode and a TS hang-up, release and persistent lineup across restart.')
 
 
 if __name__ == '__main__':

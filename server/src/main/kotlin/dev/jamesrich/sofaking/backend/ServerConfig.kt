@@ -2,6 +2,12 @@ package dev.jamesrich.sofaking.backend
 
 import java.nio.file.Path
 
+/** Player outputs: the token the M3U, XMLTV and stream URLs carry, and how far ahead the XMLTV reaches. */
+data class OutputConfig(
+    val token: String? = null,
+    val guideDays: Int = 3,
+)
+
 data class ServerConfig(
     val host: String,
     val port: Int,
@@ -15,6 +21,7 @@ data class ServerConfig(
     val observationRetentionDays: Int = 7,
     val allowLoopbackUpstreams: Boolean = false,
     val adminToken: String? = null,
+    val outputs: OutputConfig = OutputConfig(),
 ) {
     companion object {
         fun fromEnvironment(environment: Map<String, String>): ServerConfig {
@@ -41,6 +48,12 @@ data class ServerConfig(
             require(adminToken == null || adminToken.length >= 32) { "SOFA_ADMIN_TOKEN must contain at least 32 characters" }
             val loopback = environment["SOFA_ALLOW_LOOPBACK_UPSTREAMS"]?.lowercase()
             require(loopback == null || loopback in setOf("true", "false")) { "SOFA_ALLOW_LOOPBACK_UPSTREAMS must be true or false" }
+            val outputToken = environment["SOFA_OUTPUT_TOKEN"]
+            require(outputToken == null || (outputToken.length >= 32 && outputToken.all { it.isLetterOrDigit() || it == '-' || it == '_' })) {
+                "SOFA_OUTPUT_TOKEN must contain at least 32 letters, digits, hyphens or underscores"
+            }
+            val guideDays = (environment["SOFA_XMLTV_DAYS"] ?: "3").toIntOrNull()
+            require(guideDays != null && guideDays in 1..14) { "SOFA_XMLTV_DAYS must be between 1 and 14" }
             return ServerConfig(
                 host,
                 port,
@@ -54,6 +67,7 @@ data class ServerConfig(
                 retention,
                 loopback == "true",
                 adminToken,
+                OutputConfig(outputToken, guideDays),
             )
         }
     }

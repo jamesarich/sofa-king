@@ -43,6 +43,17 @@ class ServerConfigTest {
         assertEquals("a".repeat(32), ServerConfig.fromEnvironment(mapOf("SOFA_ADMIN_TOKEN" to "a".repeat(32))).adminToken)
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_ADMIN_TOKEN" to "short")) }
     }
+    @Test fun `output token and XMLTV depth are parsed and bounded`() {
+        assertEquals(OutputConfig(), ServerConfig.fromEnvironment(emptyMap()).outputs)
+        val config = ServerConfig.fromEnvironment(mapOf("SOFA_OUTPUT_TOKEN" to "p-_".repeat(11), "SOFA_XMLTV_DAYS" to "7"))
+        assertEquals(OutputConfig("p-_".repeat(11), 7), config.outputs)
+        for (value in listOf("short", "a b".repeat(16), "token/".repeat(8))) {
+            assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_OUTPUT_TOKEN" to value)) }
+        }
+        for (value in listOf("0", "15", "week")) {
+            assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_XMLTV_DAYS" to value)) }
+        }
+    }
     @Test fun `invalid port or empty values fail before binding`() {
         for (value in listOf("no", "0", "65536", "-1", "")) {
             assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_PORT" to value)) }

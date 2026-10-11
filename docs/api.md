@@ -19,6 +19,9 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 | PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent |
 | DELETE | `/api/v1/playback-sessions/{id}` | Release the session; returns 204 |
 | GET | `/media/sessions/{id}/{epoch}/{resource}` | Session-authorized HLS or MPEG-TS media |
+| GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
+| GET | `/output/guide.xml?days=` | The lineup's programmes as XMLTV |
+| GET | `/output/stream/{channelId}.m3u8` or `.ts` | Opens a player session for the channel and streams it |
 
 Request bodies are limited to 64 KiB, except the lineup import (16 MiB). The [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/) defines the response fields.
 
@@ -81,6 +84,24 @@ curl --fail -X DELETE \
 ```
 
 Release is idempotent and cancels active upstream requests. Repeating an open request with the same key returns the same session while it remains active. A reused key with different parameters returns `409 IDEMPOTENCY_CONFLICT`.
+
+## Player outputs
+
+`/output/*` serves the lineup to players that only speak HTTP (TiviMate, VLC). They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer; the API token is accepted as a bearer only, never in a query. With neither token configured (a loopback development server) the routes are open. A URL token lands in player configuration, screenshots and any proxy log between the player and the server, which is why it is a separate token that opens nothing but these routes; this server never logs request URLs. Rotate it by changing the variable and re-adding the playlist in each player. Without `SOFA_OUTPUT_TOKEN` the routes answer `401 AUTH_REQUIRED` to anything but the API bearer.
+
+`GET /output/playlist.m3u` lists the enabled lineup in order, `audio/x-mpegurl`:
+
+```text
+#EXTM3U url-tvg="http://HOST/output/guide.xml?token=TOKEN" x-tvg-url="http://HOST/output/guide.xml?token=TOKEN"
+#EXTINF:-1 tvg-id="CHANNEL_UUID" tvg-chno="5" tvg-name="Station" tvg-logo="https://..." group-title="News",Station
+http://HOST/output/stream/CHANNEL_UUID.m3u8?token=TOKEN
+```
+
+`tvg-id` is the channel ID, the same value the XMLTV uses, so players match guide and channel without a name lookup. `HOST` is the `Host` header of the request, so the URLs work through a port mapping; `X-Forwarded-Proto: https` switches the scheme. The stream suffix follows the protocol of the source the channel would play now: `.m3u8` for HLS, `.ts` for MPEG-TS and for a channel without an eligible source, which lists but fails at play time. After a source's protocol is detected (a probe or a fetch), the suffix changes on the player's next playlist refresh.
+
+`GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3; `?days=1`–`14` overrides). Times are `YYYYMMDDHHMMSS +0000`. Only channels with a guide mapping have programmes. The body is streamed and uncompressed.
+
+`GET /output/stream/{channelId}.m3u8|.ts` opens a watch session for the channel and plays it. An HLS source answers `302` to the session's playlist URL under `/media/sessions/`; the player follows it and fetches playlists, segments and keys through the relay. An MPEG-TS source streams `video/mp2t` in this response through the fan-out. Players never renew, so these sessions live differently from API sessions: a request in flight holds the session, and it is released 60 seconds after its last media request (the player stopped) or when a TS player disconnects. Two players on the same HLS channel share one session; each TS request is its own. At `SOFA_MAX_SESSIONS` the oldest preview session yields first, then an idle player session (a zap left behind), and otherwise the request answers `429 CAPACITY_EXHAUSTED`. When an unprobed source's descriptor says MPEG-TS and the body is HLS, the request switches to the redirect itself instead of answering `410`; the reverse (HLS descriptor, MPEG-TS body) reaches the player as `410` on the media URL once, after which the stored protocol is right. A disabled or unknown channel answers `404 CHANNEL_NOT_FOUND`; a channel with no eligible source `503 SOURCE_UNAVAILABLE`.
 
 ## Admin API
 

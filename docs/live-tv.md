@@ -18,6 +18,8 @@ Set these environment variables before starting the server:
 | `SOFA_RESTREAM_ORIGINS` | Unset | Comma-separated `host[:port]` list of LAN restream proxies whose 502 counts as source evidence, for example `192.168.1.3:3000` |
 | `SOFA_OBSERVATION_RETENTION_DAYS` | `7` | Days of health observation history to keep, 1–3650 |
 | `SOFA_ALLOW_LOOPBACK_UPSTREAMS` | `false` | Allow playlist, guide and stream URLs on loopback (`127.0.0.1`, `::1`, `localhost`); for local fixtures only |
+| `SOFA_OUTPUT_TOKEN` | Unset | Token for the [player outputs](#third-party-players) under `/output/*`, at least 32 letters, digits, hyphens or underscores; it goes in the URL, so it is separate from the API token. Unset, only the API token (as a bearer) opens them |
+| `SOFA_XMLTV_DAYS` | `3` | Days ahead the XMLTV output carries, 1–14 |
 
 Relative paths resolve from the server's working directory. Configuration changes require a restart.
 
@@ -134,6 +136,28 @@ The export runs inside the Dispatcharr container and reads its database only. It
 
 5. Delete `sofaking.json`. Point the app at this server and retire Dispatcharr's `sofaking` M3U/EPG output.
 
+## Third-party players
+
+The lineup is also served as an M3U playlist with an XMLTV guide, for players that take a playlist URL ([API detail](api.md#player-outputs)). Set `SOFA_OUTPUT_TOKEN` (32+ characters, `openssl rand -hex 16`) and restart; the token goes in the URLs because players send no headers. Replace `SERVER_HOST:PORT` with the address the player reaches the server by (`OMV_HOST:9193` with the compose stack):
+
+```text
+http://SERVER_HOST:PORT/output/playlist.m3u?token=OUTPUT_TOKEN
+http://SERVER_HOST:PORT/output/guide.xml?token=OUTPUT_TOKEN
+```
+
+The playlist names the guide URL (`url-tvg`), uses the lineup channel ID as `tvg-id` on both sides, and lists each channel's stream as `/output/stream/CHANNEL_ID.m3u8` (HLS source) or `.ts` (MPEG-TS source) with the token. Opening a stream URL opens a watch session, which ends when the player disconnects (TS) or 60 seconds after its last request (HLS). Players count against `SOFA_MAX_SESSIONS`; an idle player session gives way to the next channel change, and a busy server answers `429`.
+
+TiviMate (Android TV):
+
+1. Settings → Playlists → Add playlist → Enter URL. Paste the playlist URL above, Next.
+2. Name the playlist and finish. TiviMate reads the `url-tvg` attribute and offers the guide URL as the EPG source; accept it. If it does not, Settings → EPG → Add source → Enter URL with the guide URL.
+3. Settings → Playlists → the playlist → Update interval: set it to a few hours, so a changed stream suffix or a renumbered channel reaches the player. Channels match the guide by `tvg-id`, so no manual mapping is needed.
+4. To change the token, update `SOFA_OUTPUT_TOKEN`, restart, and edit the playlist and EPG URLs in TiviMate.
+
+VLC: Media → Open Network Stream with the playlist URL lists the channels; a single stream URL opens directly.
+
+Verified against local fixtures with FFmpeg as the client (it follows the HLS redirect and decodes through the session, and a TS hang-up releases the session); TiviMate and VLC themselves are not verified.
+
 ## LAN access
 
 Set a token and bind to the LAN address. Replace `TOKEN` with a secret of at least 32 characters:
@@ -175,6 +199,8 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 | Extensionless HLS answers `410 STREAM_CHANGED` once | The source has not been probed yet and the first fetch detects HLS, stores it and bumps the epoch; fetch the session again. The source keeps the detected protocol across restarts. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, so unprobed sources start right. |
 | Startup rejects LAN binding | Set `SOFA_API_TOKEN` to at least 32 characters. |
 | `401 AUTH_REQUIRED` | Send the configured token in the Authorization header; admin routes need the admin token when one is configured. |
-| `429 CAPACITY_EXHAUSTED` | Every slot holds a watch session. Release unused sessions or wait for their 90-second leases to expire; previews are evicted automatically. |
+| `429 CAPACITY_EXHAUSTED` | Every slot holds a watch session. Release unused sessions or wait for their 90-second leases to expire; previews and idle player sessions are evicted automatically. |
+| A player gets `401` on the playlist URL | `SOFA_OUTPUT_TOKEN` is unset or the `token` query differs. The API token opens `/output/*` only as a bearer header. |
+| TiviMate plays a channel as the wrong type after a probe | The stream suffix follows the stored protocol; refresh the playlist in the player. |
 | `503 SOURCE_UNAVAILABLE` | Inspect `GET /api/v1/admin/lineup/ENTRY_ID` for the entry's source states, or `/api/v1/sources` for quarantine, probation or manual disable. |
 | Sources never qualify | Check FFmpeg availability, `probe`, and whether the feed has credential/custom headers. |

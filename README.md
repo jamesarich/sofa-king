@@ -1,6 +1,6 @@
 # Sofa King Backend
 
-A Kotlin IPTV server for one household. It imports provider M3U playlists and independent XMLTV guides (plain or gzip), keeps a curated channel lineup in SQLite, serves a JSON API, relays HLS and MPEG-TS streams, and quarantines failing sources automatically. It replaces the Dispatcharr curation step: the app sees the lineup, not the raw feeds.
+A Kotlin IPTV server for one household. It imports provider M3U playlists and independent XMLTV guides (plain or gzip), keeps a curated channel lineup in SQLite, serves a JSON API and an M3U/XMLTV output for third-party players, relays HLS and MPEG-TS streams, and quarantines failing sources automatically. It replaces the Dispatcharr curation step: the app sees the lineup, not the raw feeds.
 
 The [Sofa King Android app](https://github.com/jamesarich/sofa-king) currently uses M3U/XMLTV endpoints and does not connect to this API yet. This server has no web UI or DVR.
 
@@ -66,6 +66,7 @@ The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contain
 ## Documentation
 
 - [Configuration, lineup and Dispatcharr migration](docs/live-tv.md)
+- [Third-party players (TiviMate, VLC)](docs/live-tv.md#third-party-players)
 - [Deploy with Docker](docs/deploy.md)
 - [HTTP API, admin API and Kotlin client](docs/api.md)
 - [Source health and automatic recovery](docs/source-health.md)
@@ -75,7 +76,8 @@ The server listens on `127.0.0.1:8080`. Keep `data/` across restarts; it contain
 
 ## Limitations
 
-- No HDHomeRun emulation, M3U/XMLTV output or other Plex, Jellyfin or Channels DVR integration; only the JSON API and session media URLs.
+- No HDHomeRun emulation or other Plex, Jellyfin or Channels DVR integration; third-party players get the JSON API or the M3U/XMLTV output.
+- The M3U/XMLTV output and its stream URLs are verified with FFmpeg and the Ktor client against local fixtures, not with TiviMate, VLC or another player.
 - Only MPEG-TS sessions share an upstream connection; each HLS request fetches upstream itself.
 - Guide programmes are kept only for channels the lineup maps, so a newly mapped channel has no guide until the refresh this triggers completes.
 - Feeds with credential or custom headers are never probed, so their sources stay `UNVERIFIED`.

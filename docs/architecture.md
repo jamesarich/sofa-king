@@ -18,6 +18,7 @@ XMLTV (gzip ok) → FeedParser.guide (streaming) → SQLite guide tables → Gui
 Admin API / Dispatcharr import → LineupService → SQLite lineup tables
 FeedService + GuideService + LineupService → CatalogService → JSON API
 Lineup entry → SessionManager (ordered offerings by health) → MediaRelay → HLS/MPEG-TS player
+Lineup + GuideService → /output M3U + XMLTV → third-party player → /output/stream → SessionManager (external session) → MediaRelay
 Stream URL → ProbeWorker → HealthPolicy → SQLite source health
 ```
 
@@ -43,6 +44,10 @@ Sessions select from the entry's offerings: healthy before unverified before sus
 
 The HLS relay rewrites variant, audio, subtitle, key, initialization-map and segment URLs into opaque session paths. It preserves playlist tags and byte ranges, and forwards the LL-HLS delivery directives `_HLS_msn`, `_HLS_part` and `_HLS_skip` from a playlist request to the upstream playlist. Token lookups are O(1) in both directions. Root and playlist tokens are pinned for the session's epoch; segments and keys share a 4,096-entry LRU. Limits are 12 active requests per session and 32 concurrent upstream connections across the server. Upstream addresses follow the [address policy](live-tv.md#upstream-addresses); a refused address answers `502 UPSTREAM_REJECTED`.
 
+## Player outputs
+
+`/output/playlist.m3u` and `/output/guide.xml` are rendered from the catalog and the stored programmes on each request; nothing is cached or stored for them. `/output/stream/{id}` opens an external session: a watch session with no idempotency key whose lease is the player's activity. `SessionManager.acquire` and `finished` move its expiry 60 seconds past each media request, a request still in flight exempts it from reaping, and the request handler releases it when a TS response ends. Capacity eviction prefers a preview, then an external session with no request in flight. An HLS source is answered with a redirect to the session's root playlist, so one session serves every player on that channel; an MPEG-TS source is served through the same fan-out as an API session. The handler catches the relay's protocol-mismatch `410` and switches paths within the request.
+
 ## Live MPEG-TS relay
 
 Sessions playing the same MPEG-TS source share one upstream connection. The relay forwards whole 188-byte packets unchanged, so captions and other in-band data pass through. Each session reads through its own bounded buffer of 128 chunks; a session that falls behind is disconnected while the upstream and the other sessions continue. A new media request from a session replaces its previous MPEG-TS request.
@@ -51,7 +56,7 @@ When the upstream ends or fails, the relay reconnects with backoff from 0.5 to 8
 
 ## Supported scope
 
-Configured HTTP(S) feeds and guides, JSON control and admin requests, HLS/MPEG-TS passthrough and FFmpeg source qualification are supported. Recordings, timeshift, transcoding/remuxing, shared HLS upstreams, HDHomeRun or M3U/XMLTV output for other clients, web administration, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
+Configured HTTP(S) feeds and guides, JSON control and admin requests, HLS/MPEG-TS passthrough, M3U/XMLTV output with per-channel stream URLs for third-party players, and FFmpeg source qualification are supported. Recordings, timeshift, transcoding/remuxing, shared HLS upstreams, HDHomeRun emulation, web administration, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
 
 ## Operations
 

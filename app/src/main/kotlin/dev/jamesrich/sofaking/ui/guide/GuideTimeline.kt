@@ -51,6 +51,16 @@ internal object GuideTimeline {
         cells.indexOfFirst { minute >= it.startMinute && minute < it.endMinute }
 
     /**
+     * The cell standing in for [previous] once its row's programmes changed: the one covering [cursor] when
+     * the cursor was inside [previous] (focus keeps it there), else the one at the previous cell's start.
+     * Null when the new [cells] are empty.
+     */
+    fun cellAfterUpdate(cells: List<GuideCell>, previous: GuideCell, cursor: Long): GuideCell? {
+        val minute = if (previous.covers(cursor)) cursor else previous.startMinute
+        return cells.getOrNull(cellIndexAt(cells, minute))
+    }
+
+    /**
      * The window minutes visible in a strip scrolled by [scrollPx] and [viewportPx] wide, where
      * [pxPerMinute] is the width of one minute. Partly visible minutes at either edge count as visible.
      */

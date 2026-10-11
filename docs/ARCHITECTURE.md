@@ -37,7 +37,7 @@ Network, decoding and cache work run on IO dispatchers. UI observes StateFlow wi
 
 The grid covers 24 hours from the half-hour at which it opens. It moves the window when the current time leaves that range. Rows share a horizontal scroll position; Up/Down preserve the time cursor. Filter, search, cursor, scroll and focused channel are saved across full-screen playback.
 
-Models are immutable. A shared minute clock updates the guide and current-program displays. Focus requests for lazy items wait until their nodes attach.
+Models are immutable. A shared minute clock updates the guide and current-program displays. Focus requests for lazy items wait until their nodes attach. When guide data arrives after the channels, the focused cell's details are refreshed from the new row and focus returns to the cell at the time cursor.
 
 ## Playback
 

@@ -29,6 +29,31 @@ class GuideJumpTest {
         assertEquals(-1, GuideTimeline.cellIndexAt(cells, 1440))
     }
 
+    // cellAfterUpdate
+
+    @Test
+    fun `a filled-in row replaces the gap cell with the programme under the cursor`() {
+        val window = base.plusSeconds(1440 * 60)
+        val before = GuideTimeline.cellsFor(emptyList(), base, window).single()
+        val after = GuideTimeline.cellsFor(listOf(programme(0, 15), programme(15, 60)), base, window)
+        assertEquals(after[1], GuideTimeline.cellAfterUpdate(after, before, cursor = 25))
+        assertEquals(after[0], GuideTimeline.cellAfterUpdate(after, before, cursor = 0))
+    }
+
+    @Test
+    fun `a cursor outside the previous cell falls back to the cell at its start`() {
+        val window = base.plusSeconds(1440 * 60)
+        val before = GuideCell(programme(60, 120), 60, 120)
+        val after = GuideTimeline.cellsFor(listOf(programme(0, 90), programme(90, 150)), base, window)
+        assertEquals(after[0], GuideTimeline.cellAfterUpdate(after, before, cursor = 500))
+    }
+
+    @Test
+    fun `an emptied row has no cell to stand in`() {
+        val before = GuideCell(programme(60, 120), 60, 120)
+        assertEquals(null, GuideTimeline.cellAfterUpdate(emptyList(), before, cursor = 70))
+    }
+
     // visibleSpan
 
     @Test

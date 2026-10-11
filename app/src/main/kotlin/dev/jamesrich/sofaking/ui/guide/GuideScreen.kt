@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -182,6 +183,7 @@ fun GuideScreen(
     // Read only by the preview band, so a focus move recomposes the band and not the whole grid.
     val focusedState = remember { mutableStateOf<FocusedCell?>(null) }
     var focused by focusedState
+    var gridFocused by remember { mutableStateOf(false) }
     var lastFocusedGuideId by rememberSaveable { mutableStateOf<String?>(null) }
     var jump by remember { mutableStateOf<GuideJump?>(null) }
     var jumpCount by remember { mutableIntStateOf(0) }
@@ -232,6 +234,16 @@ fun GuideScreen(
             // The first row may need a few frames to attach before its cell can take focus.
             requestFocusWhenAttached(initialFocus)
         }
+    }
+
+    // The guide fills in after the channels, so the focused cell's programmes change under it without a focus
+    // event: the band is refreshed from the new row, and focus is put back on the cell at the cursor.
+    LaunchedEffect(lineup.guide) {
+        val current = focused ?: return@LaunchedEffect
+        val cells = GuideTimeline.cellsFor(lineup.guide[current.channel.guideId].orEmpty(), windowStart, windowEnd)
+        val cell = GuideTimeline.cellAfterUpdate(cells, current.cell, cursor) ?: return@LaunchedEffect
+        if (cell != current.cell) focused = FocusedCell(current.channel, cell)
+        if (gridFocused) requestJump(current.channel.guideId, cursor)
     }
 
     // Up and Down land on the cell under the time cursor. Default focus search treats any cell overlapping a
@@ -385,7 +397,7 @@ fun GuideScreen(
         } else {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f).focusRestorer().onPreviewKeyEvent(onGridKey),
+                modifier = Modifier.weight(1f).focusRestorer().onFocusChanged { gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 itemsIndexed(visible, key = { _, channel -> "${channel.guideId}#${channel.number}" }) { index, channel ->

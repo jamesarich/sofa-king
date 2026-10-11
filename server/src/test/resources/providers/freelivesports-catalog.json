@@ -1,0 +1,43 @@
+[
+ {
+  "_id": "6902789463cbad62d1ce4a43",
+  "id": "6902789463cbad62d1ce4a43",
+  "name": "MSG Sports Zone",
+  "channelNumber": 2,
+  "thumbnail": "https://media.unreel.me/prod/freelivesports/logo/82d206b8-354b-4f3b-b9be-c144bc2c7183",
+  "url": "BASE/fls/master.m3u8?ads.us_privacy=[US_PRIVACY]&ads.device_id=[DEVICE_ID]&ads.cb=[CB]&ads.ref=[REF]",
+  "status": "live",
+  "accessType": "public",
+  "epg": {
+   "entries": [
+    {
+     "title": "UMass-Lowell at Binghamton",
+     "start": "2026-10-10T21:00:00.000Z",
+     "stop": "2026-10-10T23:00:00.000Z",
+     "description": "From Bearcats Sports Complex in Binghamton, N.Y."
+    },
+    {
+     "title": "Poker Go: US Poker Open 2023 - Episode 4",
+     "start": "2026-10-10T23:00:00.000Z",
+     "stop": "2026-10-10T23:52:00.000Z",
+     "description": "Expert players from around the U.S. gather to face off in a high stakes game of Poker. Who walks away with the grand prize in the 2023 U.S. Poker Open?"
+    }
+   ],
+   "stop": "2026-10-12T00:00:00.000Z"
+  }
+ },
+ {
+  "_id": "69658066975ee235f015da2b",
+  "id": "69658066975ee235f015da2b",
+  "name": "Overtime",
+  "channelNumber": 1,
+  "thumbnail": "https://media.unreel.me/prod/freelivesports/logo/e23d456b-edc1-44c6-a4e0-b90fe7bf967e",
+  "url": "BASE/fls/other.m3u8?ads.device_id=[DEVICE_ID]",
+  "status": "live",
+  "accessType": "public",
+  "epg": {
+   "entries": [],
+   "stop": "2026-10-12T00:00:00.000Z"
+  }
+ }
+]

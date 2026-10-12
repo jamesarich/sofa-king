@@ -6,6 +6,6 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
-# The directory with compose.yaml, .env and sources.json.
+# The directory with compose.yaml, .env and config/.
 Environment=SOFA_UPDATE_DIR=/srv/sofa-king-backend
 ExecStart=/srv/sofa-king-backend/sofa-king-update.sh

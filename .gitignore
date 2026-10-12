@@ -7,7 +7,9 @@
 # Runtime state and credentials
 /data/
 /deploy/data/
+/deploy/config/
 /deploy/sources.json
+secrets.json
 .env
 .env.*
 !.env.example

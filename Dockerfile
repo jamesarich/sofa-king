@@ -17,24 +17,26 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates tini \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 sofa \
-    && useradd --system --uid 10001 --gid sofa --home-dir /data --shell /usr/sbin/nologin sofa \
-    && mkdir -p /data /config \
-    && chown sofa:sofa /data
+    && useradd --system --uid 10001 --gid sofa --home-dir /config --shell /usr/sbin/nologin sofa \
+    && mkdir -p /config \
+    && chown sofa:sofa /config
 
 COPY --from=split /dist/lib /opt/sofa/lib
 COPY --from=split /app/bin /opt/sofa/bin
 COPY --from=split /app/lib /opt/sofa/lib
 
-# SOFA_API_TOKEN (32+ characters) and SOFA_HDHR_ALLOW are required for the LAN bind unless SOFA_HDHR_ENABLED=false; SOFA_SOURCES unset starts an empty catalog.
+# /config holds the database, the logo cache, the generated tokens, and sources.json and policy.json when present.
+# Any uid that owns a bind-mounted /config can run the image (user: "UID:GID"); it writes nothing else but /tmp.
+# SOFA_HDHR_ALLOW is required for the LAN bind unless SOFA_HDHR_ENABLED=false; unset API and admin tokens are generated.
 # The start script reads SERVER_OPTS (APP_NAME + _OPTS) and JAVA_OPTS; the image sets the former so JAVA_OPTS stays the operator's knob.
 ENV SOFA_HOST=0.0.0.0 \
     SOFA_PORT=8080 \
-    SOFA_DATA_DIR=/data \
+    SOFA_DATA_DIR=/config \
     SERVER_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 
 USER sofa
 WORKDIR /opt/sofa
-VOLUME /data
+VOLUME /config
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \

@@ -44,7 +44,23 @@ from=$(revision "$running")
 to=$(revision "$candidate")
 log "updating $from to $to"
 
-data=$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' "$container")
+# The database is in the container's SOFA_DATA_DIR; its host path is the source of the deepest mount holding that directory.
+data_dir=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container" | sed -n 's/^SOFA_DATA_DIR=//p' | tail -n 1)
+[ -n "$data_dir" ] || { log "$container sets no SOFA_DATA_DIR"; exit 1; }
+data=""
+deepest=""
+while IFS=$'\t' read -r destination source; do
+  [ -n "$destination" ] || continue
+  case "$data_dir/" in
+    "${destination%/}/"*)
+      if [ -z "$deepest" ] || [ "${#destination}" -gt "${#deepest}" ]; then
+        deepest=$destination
+        data=$source${data_dir#"${destination%/}"}
+      fi
+      ;;
+  esac
+done < <(docker inspect --format '{{range .Mounts}}{{.Destination}}{{"\t"}}{{.Source}}{{"\n"}}{{end}}' "$container")
+[ -n "$data" ] || { log "no mount of $container holds $data_dir"; exit 1; }
 backup="$state/backend-$(date -u +%Y%m%dT%H%M%SZ)-$from.sqlite"
 python3 - "$data/backend.sqlite" "$backup" <<'EOF'
 import sqlite3, sys

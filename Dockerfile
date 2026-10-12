@@ -1,7 +1,16 @@
 # Runs the installed distribution built on the host: ./gradlew :server:installDist
 # The build context only admits server/build/install/server (see .dockerignore).
-# Pinned by digest so a rebuild gets the same base; bump the digest deliberately.
-FROM eclipse-temurin:21-jre-noble@sha256:000fd431958bc81a24abe1e8e5f0f0fd3ae365a594bd50aadb20696805f9408c
+
+# Splits the distribution so the third-party jars, which change rarely, get a layer of their own.
+FROM busybox:1.37 AS split
+COPY server/build/install/server /dist
+RUN mkdir -p /app/lib \
+    && mv /dist/lib/server-*.jar /dist/lib/api-contract-*.jar /app/lib/ \
+    && mv /dist/bin /app/bin \
+    && rm /app/bin/*.bat
+
+# Pinned by digest so a rebuild gets the same base; the tag names the JRE it holds.
+FROM eclipse-temurin:21.0.12.1_1-jre-noble@sha256:000fd431958bc81a24abe1e8e5f0f0fd3ae365a594bd50aadb20696805f9408c
 
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="Sofa King backend" \
@@ -10,15 +19,18 @@ LABEL org.opencontainers.image.title="Sofa King backend" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.version="${REVISION}"
 
+# tini reaps the FFmpeg processes the server starts for probes and remuxing, under any container runtime.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates \
+    && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates tini \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 sofa \
     && useradd --system --uid 10001 --gid sofa --home-dir /data --shell /usr/sbin/nologin sofa \
     && mkdir -p /data /config \
     && chown sofa:sofa /data
 
-COPY server/build/install/server /opt/sofa
+COPY --from=split /dist/lib /opt/sofa/lib
+COPY --from=split /app/bin /opt/sofa/bin
+COPY --from=split /app/lib /opt/sofa/lib
 
 # SOFA_API_TOKEN (32+ characters) and SOFA_HDHR_ALLOW are required for the LAN bind unless SOFA_HDHR_ENABLED=false; SOFA_SOURCES unset starts an empty catalog.
 # The start script reads SERVER_OPTS (APP_NAME + _OPTS) and JAVA_OPTS; the image sets the former so JAVA_OPTS stays the operator's knob.
@@ -35,4 +47,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${SOFA_PORT}/readyz" || exit 1
 
-ENTRYPOINT ["/opt/sofa/bin/server"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/opt/sofa/bin/server"]

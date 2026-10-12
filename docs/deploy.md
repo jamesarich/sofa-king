@@ -68,7 +68,7 @@ docker compose down
 
 ### Container limits
 
-The Compose file runs the server under `tini` (`init: true`), which reaps the FFmpeg processes it starts for probes and remuxing. The root filesystem is read-only; the server writes only `/data`, the policy directory and temporary files in a 64 MiB `/tmp`. The container drops every capability and cannot gain privileges.
+The image runs the server under `tini`, which reaps the FFmpeg processes it starts for probes and remuxing. Third-party jars sit in their own layer below the server's two, so a rebuild after a code change reuses it. In the Compose file the root filesystem is read-only; the server writes only `/data`, the policy directory and temporary files in a 64 MiB `/tmp`. The container drops every capability and cannot gain privileges.
 
 `mem_limit` (4 GiB) covers the JVM and its FFmpeg processes, and the heap is 75% of it. Raise it with `SOFA_MAX_SESSIONS` or `SOFA_PROBE_PARALLELISM`; each FFmpeg process takes tens of megabytes. Pass `REVISION=$(git rev-parse --short HEAD)` to the build to stamp the image's `org.opencontainers.image.revision` label.
 
@@ -95,9 +95,17 @@ With `SOFA_OUTPUT_TOKEN` set, `curl --fail "http://SERVER_HOST:8080/output/playl
 
 Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rollback).
 
-## Transfer the image to a host without a JDK
+## Deploy to a host without a JDK
 
-Build on a workstation, then move the image and the `deploy/` files:
+Run `installDist` on a workstation and let the host's Docker build the image over SSH. Only the distribution (about 50 MB) crosses the network, and the host reuses its cached base, package and third-party jar layers, so a code change rebuilds one small layer:
+
+```sh
+./gradlew :server:installDist
+DOCKER_HOST=ssh://HOST REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml build
+ssh HOST 'cd /srv/sofa-king-backend && docker compose up -d --no-build'
+```
+
+The host directory holds `compose.yaml`, `.env` and `sources.json`. To move a finished image instead, save it on the workstation and load it on the host:
 
 ```sh
 docker save sofa-king-backend:local | gzip > sofa-king-backend.tar.gz

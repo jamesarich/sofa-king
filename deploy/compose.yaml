@@ -10,8 +10,6 @@ services:
         REVISION: ${REVISION:-unknown}
     container_name: sofa-king-backend
     restart: unless-stopped
-    # tini reaps the FFmpeg processes the server starts for probes and remuxing.
-    init: true
     # The server writes only /data, the policy directory and temporary files.
     read_only: true
     # exec: sqlite-jdbc loads its native library from the temporary directory.

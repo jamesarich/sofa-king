@@ -41,10 +41,6 @@ internal fun buildLivePlayer(context: Context, captions: CaptionSync, captionsOn
         }
 }
 
-/** The stream URL of the item the player holds, if any. */
-internal val Player.currentStreamUrl: String?
-    get() = currentMediaItem?.localConfiguration?.uri?.toString()
-
 /** The channel whose stream the player holds: items are tagged with the channel's guide id. */
 internal val Player.currentChannelId: String?
     get() = currentMediaItem?.mediaId?.takeIf { it.isNotEmpty() }

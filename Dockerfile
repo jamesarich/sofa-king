@@ -12,13 +12,6 @@ RUN mkdir -p /app/lib \
 # Pinned by digest so a rebuild gets the same base; the tag names the JRE it holds.
 FROM eclipse-temurin:21.0.12.1_1-jre-noble@sha256:000fd431958bc81a24abe1e8e5f0f0fd3ae365a594bd50aadb20696805f9408c
 
-ARG REVISION=unknown
-LABEL org.opencontainers.image.title="Sofa King backend" \
-      org.opencontainers.image.source="https://github.com/jamesarich/sofa-king-backend" \
-      org.opencontainers.image.licenses="GPL-3.0-only" \
-      org.opencontainers.image.revision="${REVISION}" \
-      org.opencontainers.image.version="${REVISION}"
-
 # tini reaps the FFmpeg processes the server starts for probes and remuxing, under any container runtime.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates tini \
@@ -48,3 +41,11 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${SOFA_PORT}/readyz" || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/opt/sofa/bin/server"]
+
+# Last, so a new revision invalidates no layer above it.
+ARG REVISION=unknown
+LABEL org.opencontainers.image.title="Sofa King backend" \
+      org.opencontainers.image.source="https://github.com/jamesarich/sofa-king-backend" \
+      org.opencontainers.image.licenses="GPL-3.0-only" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.version="${REVISION}"

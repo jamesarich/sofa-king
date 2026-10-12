@@ -15,6 +15,10 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.compression.Compression
+import io.ktor.server.plugins.compression.condition
+import io.ktor.server.plugins.compression.deflate
+import io.ktor.server.plugins.compression.gzip
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.*
@@ -42,6 +46,11 @@ fun Application.backendModule(
     // The portal signs in with the admin token, or the API token when no admin token is set.
     val portal = runtime?.let { AdminPortal(it, adminToken ?: apiToken, outputs, hdhr, clock, plexStatus) }
     install(ContentNegotiation) { json(wireJson) }
+    install(Compression) {
+        gzip { priority = 1.0 }
+        deflate { priority = 0.9 }
+        condition { compressible(routedPath(request.path())) }
+    }
     install(StatusPages) {
         status(HttpStatusCode.NotFound) { call, status -> call.respond(status, ApiError("NOT_FOUND", "Resource not found", false)) }
         exception<Throwable> { call, cause ->
@@ -139,6 +148,12 @@ internal fun routedPath(raw: String): String? {
     if (segments.any { it == "." || it == ".." || it.contains('/') }) return null
     return segments.joinToString("/", prefix = "/")
 }
+
+/** Responses worth compressing: API documents, the portal, the playlist and the guide. Media and logos never are. */
+internal fun compressible(path: String?): Boolean = path != null && (
+    path.startsWith("/api/") || path == "/admin" || path.startsWith("/admin/") ||
+        path == "/output/playlist.m3u" || path == "/output/guide.xml" || path == "/lineup.json"
+    )
 /** A write or read that failed because the client's connection is gone, as Ktor, Netty and the JDK each report it. */
 internal fun clientAbort(cause: Throwable): Boolean {
     val causes = generateSequence(cause) { it.cause }.take(4)

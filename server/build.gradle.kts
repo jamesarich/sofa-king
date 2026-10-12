@@ -13,6 +13,7 @@ dependencies {
     implementation(libs.ktor.json)
     implementation(libs.ktor.negotiation)
     implementation(libs.ktor.status)
+    implementation(libs.ktor.compression)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite)

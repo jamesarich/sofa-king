@@ -78,6 +78,12 @@ class OutputTest {
                 ))
                 assertFalse(xml.contains("Elsewhere"))
                 assertTrue(xml.trimEnd().endsWith("</tv>"))
+                for (path in listOf("/output/guide.xml?token=$output", "/output/playlist.m3u?token=$output")) {
+                    val gzipped = client.get(path) { header(HttpHeaders.AcceptEncoding, "gzip") }
+                    assertEquals("gzip", gzipped.headers[HttpHeaders.ContentEncoding], path)
+                    val plain = java.util.zip.GZIPInputStream(gzipped.bodyAsBytes().inputStream()).use { it.readAllBytes().decodeToString() }
+                    assertEquals(client.get(path).bodyAsText().substringBefore('\n'), plain.substringBefore('\n'), path)
+                }
                 assertEquals(HttpStatusCode.BadRequest, client.get("/output/guide.xml?token=$output&days=0").status)
                 assertEquals(HttpStatusCode.BadRequest, client.get("/output/guide.xml?token=$output&days=15").status)
 
@@ -190,6 +196,12 @@ class OutputTest {
                 assertTrue(client.get("/output/playlist.m3u?token=$output").bodyAsText().contains("/output/stream/${channel.id}.m3u8?token="))
             } finally { served.runtime.close(); served.store.close(); dir.toFile().deleteRecursively() }
         }
+    }
+
+    @Test fun `documents compress and media, streams and logos never do`() {
+        for (path in listOf("/api/v1/channels", "/admin/lineup", "/output/guide.xml", "/output/playlist.m3u", "/lineup.json")) assertTrue(compressible(routedPath(path)), path)
+        for (path in listOf("/media/sessions/a/1/seg.ts", "/auto/v5", "/output/stream/x.ts", "/logos/abc", "/output/stream/x.m3u8", "/healthz")) assertFalse(compressible(routedPath(path)), path)
+        assertFalse(compressible(null))
     }
 
     @Test fun `a station's group gives its programmes the kind Plex sorts by, then the group itself`() {

@@ -24,6 +24,8 @@ The [admin portal](admin.md) serves htmx from `server/src/main/resources/admin/h
 
 ## Changing versions
 
+[Renovate](../renovate.json) proposes updates for the version catalog, the Gradle wrapper, the Dockerfile base images, Compose and the workflow actions, pinning images and actions by digest. It follows Kotlin, Ktor, kotlinx.serialization and kotlinx.coroutines prereleases, as the dependency policy in `AGENTS.md` asks, and takes Ktor from the EAP repository. Its Gradle manager rewrites the lockfiles in the same pull request and runs a weekly lock file maintenance. By hand:
+
 1. Update the exact versions in [the version catalog](../gradle/libs.versions.toml).
 2. Run the build with `--write-locks` and review the lockfile changes.
 3. Run both smoke scripts, as described in [development](development.md#build-and-test).

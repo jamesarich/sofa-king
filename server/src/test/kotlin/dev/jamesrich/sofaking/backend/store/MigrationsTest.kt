@@ -1,7 +1,11 @@
 package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.api.GuideMapping
+import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
+import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
+import dev.jamesrich.sofaking.backend.catalog.PreviouslyShown
+import dev.jamesrich.sofaking.backend.catalog.ProgrammeRating
 import java.nio.file.Files
 import java.sql.DriverManager
 import kotlinx.coroutines.runBlocking
@@ -75,7 +79,7 @@ class MigrationsTest {
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT version FROM schema_version ORDER BY version").use { rows ->
-                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70), buildList { while (rows.next()) add(rows.getInt(1)) })
+                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80), buildList { while (rows.next()) add(rows.getInt(1)) })
                     }
                 }
             }
@@ -122,12 +126,47 @@ class MigrationsTest {
         } finally { dir.toFile().deleteRecursively() }
     }
 
+    @Test fun `programmes stored before the details column read with no metadata, and new ones keep theirs`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-migration-details-")
+        try {
+            val db = databaseAt(dir)
+            try {
+                applyMigrations(db, foundationMigrations().filter { it.version < 80 })
+                transaction(db) {
+                    exec("INSERT INTO guide_import(guide_id, imported_at) VALUES ('g', '2026-10-10T00:00:00Z')")
+                    exec("INSERT INTO guide_programme(guide_id, channel_id, starts_at, ends_at, title, description) VALUES ('g', 'c', 1791640800, 1791644400, 'Old', 'Kept')")
+                }
+            } finally { closeDatabase(db) }
+            val start = java.time.Instant.ofEpochSecond(1791640800)
+            val end = java.time.Instant.ofEpochSecond(1791644400)
+            openStore(dir).use { store ->
+                assertEquals(GuideProgramme("c", start, end, "Old", "Kept"), store.programmes("g", listOf("c"), start, end).getValue("c").single())
+                val rich = GuideProgramme(
+                    "c", start, end, "New", subTitle = "Part One", episodeNumbers = listOf(EpisodeNumber("xmltv_ns", "0.1.")),
+                    icon = "https://img.test/p.jpg", categories = listOf("News"), rating = ProgrammeRating("TV-G", "VCHIP"), isNew = true,
+                    previouslyShown = PreviouslyShown(), date = "2026", language = "en",
+                )
+                val plain = GuideProgramme("c", end, end.plusSeconds(3600), "Plain")
+                store.saveGuide("g", java.time.Instant.parse("2026-10-11T00:00:00Z"), emptyList(), listOf(rich, plain))
+                assertEquals(listOf(rich, plain), store.programmes("g", listOf("c"), start, end.plusSeconds(3600)).getValue("c"))
+            }
+            DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
+                connection.createStatement().use { stmt ->
+                    stmt.executeQuery("SELECT title, details_json FROM guide_programme ORDER BY starts_at").use { rows ->
+                        assertTrue(rows.next()); assertEquals("New", rows.getString(1)); assertTrue(rows.getString(2).startsWith("{"))
+                        assertTrue(rows.next()); assertEquals("Plain", rows.getString(1)); assertNull(rows.getString(2), "a programme without metadata stores none")
+                    }
+                }
+            }
+        } finally { dir.toFile().deleteRecursively() }
+    }
+
     @Test fun `shipped migrations open and carry the lineup and guide tables`() {
         val dir = Files.createTempDirectory("sofa-migration-shipped-")
         val db = databaseAt(dir)
         try {
             applyMigrations(db, foundationMigrations())
-            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70), foundationMigrations().map { it.version })
+            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80), foundationMigrations().map { it.version })
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").use { rows ->

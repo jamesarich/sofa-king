@@ -109,6 +109,11 @@ Guides are parsed as a stream. The server keeps the `<channel>` index (and every
 | Sources per provider | 20,000 |
 | Channels per guide | 100,000 |
 | Retained programs per guide | 1,000,000 |
+| Program title and sub-title | 4,096 characters |
+| Program description | 16,384 characters |
+| Categories, episode numbers per program | 8 each |
+
+Of each program the server keeps the title, sub-title, description, every `<episode-num>` with its `system` (64 characters at most), the `<icon>` (resolved like a channel icon), the `<category>` values (128 characters each), the first `<rating>` value and system, `<new/>`, `<previously-shown>` and its `start`, the `<date>` (as `YYYY`, `YYYYMM` or `YYYYMMDD`) and the title's `lang` (else the description's, else `<language>`). Only the program's own children count, so an icon inside credits or a star rating is not the program's. Titles, descriptions and categories over their length are cut; an episode number, rating, date or language that is too long or malformed, and every category or episode number past the eighth, is dropped without dropping the program.
 
 The XMLTV limit counts decompressed bytes as they stream past the parser, so it caps the download without buffering it. A guide that crosses it fails with `IMPORT_FAILED` and `Guide exceeds size limit` in the log.
 

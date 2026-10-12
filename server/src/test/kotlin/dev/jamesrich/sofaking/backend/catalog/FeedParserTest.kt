@@ -295,4 +295,51 @@ class FeedParserTest {
         assertEquals(listOf("http://g.test/icons/a%20b.png", "http://i.test/b.png", "http://g.test/epg/c.png"), guide.channels.map { it.icon })
         assertEquals(listOf(null, "http://i.test/b.png", null), FeedParser.guide(xml.byteInputStream()) { true }.channels.map { it.icon })
     }
+
+    @Test fun `XMLTV programme metadata is kept from the programme's own elements`() {
+        val guide = FeedParser.guide(Fixture.resource("guides/metadata.xml").inputStream(), "https://g.test/epg/guide.xml") { true }
+        val (show, new, film) = guide.programmes
+        assertEquals("The Show", show.title)
+        assertEquals("Pilot & Plans", show.subTitle)
+        assertEquals("The first one.", show.description)
+        assertEquals(
+            listOf(
+                EpisodeNumber("xmltv_ns", "1.4.0/1"), EpisodeNumber("onscreen", "S02E05"), EpisodeNumber("dd_progid", "EP01234567.0005"),
+                EpisodeNumber("onscreen", "Episode Five"),
+            ),
+            show.episodeNumbers,
+            "every system is kept, and an episode-num without one is onscreen",
+        )
+        assertEquals("https://g.test/posters/the%20show.jpg", show.icon, "the programme's own icon, resolved against the guide, never a credit's or a rating's")
+        assertEquals(listOf("Series", "Comedy"), show.categories)
+        assertEquals(ProgrammeRating("TV-PG", "VCHIP"), show.rating, "the first rating")
+        assertFalse(show.isNew)
+        assertEquals(PreviouslyShown("20190304200000 +0000"), show.previouslyShown)
+        assertEquals("20190304", show.date)
+        assertEquals("en", show.language, "the title's lang wins over the language element")
+
+        assertEquals("Brand New", new.title)
+        assertTrue(new.isNew)
+        assertNull(new.icon, "a star rating's icon is not the programme's")
+        assertNull(new.rating, "a star rating is not a content rating")
+        assertEquals("es", new.language)
+        assertTrue(new.episodeNumbers.isEmpty())
+        assertNull(new.previouslyShown)
+
+        assertEquals(listOf("Movie"), film.categories)
+        assertEquals("1999", film.date)
+        assertNull(film.subTitle)
+        assertNull(film.language)
+    }
+
+    @Test fun `programme metadata is capped while parsing`() {
+        val many = (1..20).joinToString("") { "<category>C$it</category><episode-num system=\"s$it\">$it</episode-num>" }
+        val xml = "<tv><programme channel=\"a\" start=\"20261010080000 +0000\" stop=\"20261010090000 +0000\"><title>T</title>" +
+            "<sub-title>${"s".repeat(5000)}</sub-title><episode-num system=\"onscreen\">${"9".repeat(65)}</episode-num>$many</programme></tv>"
+        val programme = FeedParser.guide(xml).programmes.single()
+        assertEquals(GuideProgramme.TITLE_LIMIT, programme.subTitle!!.length)
+        assertEquals(GuideProgramme.CATEGORY_LIMIT, programme.categories.size)
+        assertEquals(GuideProgramme.EPISODE_NUMBER_LIMIT, programme.episodeNumbers.size)
+        assertEquals("s1", programme.episodeNumbers.first().system, "a value longer than the cap is dropped")
+    }
 }

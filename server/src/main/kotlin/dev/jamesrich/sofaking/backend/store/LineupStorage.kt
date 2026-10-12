@@ -2,9 +2,15 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
+import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
+import dev.jamesrich.sofaking.backend.catalog.PreviouslyShown
+import dev.jamesrich.sofaking.backend.catalog.ProgrammeRating
 import java.time.Instant
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 
@@ -102,16 +108,51 @@ private suspend fun BackendStore.replaceGuide(guideId: String, importedAt: Insta
         }
     }
     programmes.chunked(INSERT_CHUNK).forEach { chunk ->
-        GuideProgrammes.batchInsert(chunk, ignore = true) { programme ->
+        GuideProgrammes.batchInsert(chunk.map(GuideProgramme::bounded), ignore = true) { programme ->
             this[GuideProgrammes.guideId] = guideId
             this[GuideProgrammes.channelId] = programme.channelId
             this[GuideProgrammes.startsAt] = programme.startsAt.epochSecond
             this[GuideProgrammes.endsAt] = programme.endsAt.epochSecond
             this[GuideProgrammes.title] = programme.title
             this[GuideProgrammes.description] = programme.description
+            this[GuideProgrammes.detailsJson] = detailsJson(programme)
         }
     }
     Unit
+}
+
+private val programmeJson = Json { encodeDefaults = false; ignoreUnknownKeys = true; explicitNulls = false }
+
+/** A programme's metadata beyond title and description, under short keys to keep a million rows small. */
+@Serializable private data class StoredDetails(
+    @SerialName("s") val subTitle: String? = null,
+    @SerialName("e") val episodeNumbers: List<EpisodeNumber> = emptyList(),
+    @SerialName("i") val icon: String? = null,
+    @SerialName("c") val categories: List<String> = emptyList(),
+    @SerialName("r") val rating: ProgrammeRating? = null,
+    @SerialName("n") val isNew: Boolean = false,
+    @SerialName("p") val previouslyShown: PreviouslyShown? = null,
+    @SerialName("d") val date: String? = null,
+    @SerialName("l") val language: String? = null,
+)
+
+private fun detailsJson(programme: GuideProgramme): String? {
+    val details = StoredDetails(
+        programme.subTitle, programme.episodeNumbers, programme.icon, programme.categories, programme.rating, programme.isNew,
+        programme.previouslyShown, programme.date, programme.language,
+    )
+    return if (details == StoredDetails()) null else programmeJson.encodeToString(details)
+}
+
+private fun programmeAt(row: ResultRow): GuideProgramme {
+    val details = row[GuideProgrammes.detailsJson]?.let { stored ->
+        runCatching { programmeJson.decodeFromString<StoredDetails>(stored) }.getOrNull()
+    } ?: StoredDetails()
+    return GuideProgramme(
+        row[GuideProgrammes.channelId], Instant.ofEpochSecond(row[GuideProgrammes.startsAt]), Instant.ofEpochSecond(row[GuideProgrammes.endsAt]),
+        row[GuideProgrammes.title], row[GuideProgrammes.description], details.subTitle, details.episodeNumbers, details.icon, details.categories,
+        details.rating, details.isNew, details.previouslyShown, details.date, details.language,
+    )
 }
 
 /** Programmes overlapping [from, to) for the given guide channels, grouped by channel and ordered by start. */
@@ -122,11 +163,6 @@ suspend fun BackendStore.programmes(guideId: String, channelIds: Collection<Stri
         GuideProgrammes.selectAll().where {
             (GuideProgrammes.guideId eq guideId) and (GuideProgrammes.channelId inList channelIds.toSet()) and
                 (GuideProgrammes.startsAt less to.epochSecond) and (GuideProgrammes.endsAt greater from.epochSecond)
-        }.orderBy(GuideProgrammes.startsAt).groupBy({ it[GuideProgrammes.channelId] }) {
-            GuideProgramme(
-                it[GuideProgrammes.channelId], Instant.ofEpochSecond(it[GuideProgrammes.startsAt]), Instant.ofEpochSecond(it[GuideProgrammes.endsAt]),
-                it[GuideProgrammes.title], it[GuideProgrammes.description],
-            )
-        }
+        }.orderBy(GuideProgrammes.startsAt).groupBy({ it[GuideProgrammes.channelId] }, ::programmeAt)
     }
 }

@@ -43,7 +43,7 @@ The app's channel ID is the lineup entry UUID: under a lineup policy the station
 
 Feed channel IDs (candidates) use published `channel-uuid` values, otherwise a UUID derived from the provider ID and the exact `channel-id` or `tvg-id`, otherwise from the provider ID and the source key. The source key is the URL's lowercase scheme and authority, its percent-decoded path and its remaining query parameters sorted, after the provider's renewable parameters are dropped (`SourceIdentity.kt`; the default list and the `renewableQuery` override are in [live TV](live-tv.md#source-identity)). Source IDs use explicit `stream-id` values when supplied, otherwise derive from provider, channel key and source key, so a rotated token changes neither ID and two URLs that differ only by a renewable parameter are one source.
 
-Guide programs belong to a guide ID and XMLTV channel ID; an entry's `legacyGuideId` is its mapped XMLTV channel ID. Program IDs in the API derive from the entry ID, times and title.
+Guide programs belong to a guide ID and XMLTV channel ID. A program's metadata beyond title and description (sub-title, episode numbers, icon, categories, rating, new and repeat flags, date, language) is stored as one compact JSON column, null when the source gave none. An entry's `legacyGuideId` is its mapped XMLTV channel ID. Program IDs in the API derive from the entry ID, times and title.
 
 ## Lineup
 

@@ -99,6 +99,8 @@ internal object GuideProgrammes : Table("guide_programme") {
     val endsAt = long("ends_at")
     val title = text("title")
     val description = text("description").nullable()
+    /** The programme's metadata beyond title and description as compact JSON; null when the source gave none. */
+    val detailsJson = text("details_json").nullable()
     override val primaryKey = PrimaryKey(guideId, channelId, startsAt, endsAt, title)
 }
 /** One row per station key a lineup policy run remembers: availability and the pins' last offerings, as JSON. */

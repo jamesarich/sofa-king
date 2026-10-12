@@ -136,7 +136,81 @@ fun stableId(value: String): String = java.util.UUID.nameUUIDFromBytes(value.toB
 
 /** An XMLTV `<channel>`, or a channel id seen only on programmes (then [displayName] is the id). */
 data class GuideChannel(val id: String, val displayName: String, val icon: String? = null)
-data class GuideProgramme(val channelId: String, val startsAt: Instant, val endsAt: Instant, val title: String, val description: String? = null)
+/** One XMLTV `<episode-num>`: its `system` (`xmltv_ns`, `onscreen`, `dd_progid` and so on) and its value as the source wrote it. */
+@Serializable data class EpisodeNumber(val system: String, val value: String)
+
+/** A content rating such as `TV-14`, with the rating system (`VCHIP`, `MPAA`) when the source names one. */
+@Serializable data class ProgrammeRating(val value: String, val system: String? = null)
+
+/** An XMLTV `<previously-shown>`: the airing is a repeat, first shown at [start] (XMLTV time text) when known. */
+@Serializable data class PreviouslyShown(val start: String? = null)
+
+/**
+ * A guide programme and the metadata its source provides. [date] is the XMLTV original date, `YYYY`, `YYYYMM` or
+ * `YYYYMMDD`; [language] is the language code of the title. [bounded] applies the storage caps.
+ */
+data class GuideProgramme(
+    val channelId: String,
+    val startsAt: Instant,
+    val endsAt: Instant,
+    val title: String,
+    val description: String? = null,
+    val subTitle: String? = null,
+    val episodeNumbers: List<EpisodeNumber> = emptyList(),
+    val icon: String? = null,
+    val categories: List<String> = emptyList(),
+    val rating: ProgrammeRating? = null,
+    val isNew: Boolean = false,
+    val previouslyShown: PreviouslyShown? = null,
+    val date: String? = null,
+    val language: String? = null,
+) {
+    /** This programme with every metadata field cut to what storage keeps; a field that fails its check is dropped. */
+    fun bounded(): GuideProgramme = copy(
+        title = title.take(TITLE_LIMIT),
+        description = description?.take(DESCRIPTION_LIMIT),
+        subTitle = subTitle?.trim()?.take(TITLE_LIMIT)?.takeIf { it.isNotEmpty() && it != title },
+        episodeNumbers = episodeNumbers.mapNotNull { number ->
+            val system = number.system.trim().takeIf { it.matches(SYSTEM) } ?: return@mapNotNull null
+            val value = number.value.trim().takeIf { it.isNotEmpty() && it.length <= EPISODE_VALUE_LIMIT } ?: return@mapNotNull null
+            EpisodeNumber(system, value)
+        }.distinct().take(EPISODE_NUMBER_LIMIT),
+        icon = normalizeLogoUrl(icon),
+        categories = categories.map { it.trim().take(CATEGORY_LENGTH_LIMIT) }.filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase() }.take(CATEGORY_LIMIT),
+        rating = rating?.let { r ->
+            val value = r.value.trim().takeIf { it.isNotEmpty() && it.length <= RATING_LIMIT } ?: return@let null
+            ProgrammeRating(value, r.system?.trim()?.takeIf { it.isNotEmpty() && it.length <= RATING_LIMIT })
+        },
+        previouslyShown = previouslyShown?.let { PreviouslyShown(it.start?.trim()?.takeIf { start -> start.matches(XMLTV_TIME) }) },
+        date = date?.let(::xmltvDate),
+        language = language?.trim()?.takeIf { it.matches(LANGUAGE) },
+    )
+
+    companion object {
+        const val TITLE_LIMIT = 4096
+        const val DESCRIPTION_LIMIT = 16384
+        const val EPISODE_NUMBER_LIMIT = 8
+        const val EPISODE_VALUE_LIMIT = 64
+        const val CATEGORY_LIMIT = 8
+        const val CATEGORY_LENGTH_LIMIT = 128
+        const val RATING_LIMIT = 32
+        private val SYSTEM = Regex("[A-Za-z0-9_.:-]{1,32}")
+        private val LANGUAGE = Regex("[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,2}")
+        private val XMLTV_TIME = Regex("\\d{4,14}( ?[+-]\\d{4})?")
+
+        /** The first four, six or eight digits of an XMLTV date (`2024`, `20240115`, `2024-01-15`), or null. */
+        fun xmltvDate(raw: String): String? {
+            val digits = raw.trim().takeWhile { it.isDigit() || it == '-' }.filter(Char::isDigit)
+            val date = when {
+                digits.length >= 8 -> digits.take(8)
+                digits.length == 6 || digits.length == 4 -> digits
+                else -> return null
+            }
+            return date.takeIf { it.take(4).toInt() in 1800..2999 }
+        }
+    }
+}
 
 /**
  * A household channel: the app sees these, in this order, and nothing else. [offeringIds] is the failover order.

@@ -11,6 +11,7 @@ import java.time.format.DateTimeFormatter
 import javax.xml.stream.XMLInputFactory
 import java.util.zip.GZIPInputStream
 import javax.xml.stream.XMLStreamConstants
+import javax.xml.stream.XMLStreamReader
 
 /**
  * [skipped] counts malformed entries by short reason; the import still succeeds with the well-formed rest.
@@ -275,27 +276,15 @@ object FeedParser {
                                 val start = reader.getAttributeValue(null, "start")
                                 val stop = reader.getAttributeValue(null, "stop")
                                 val keep = channel.isNotEmpty() && wanted(channel)
-                                var title = ""
-                                var description: String? = null
-                                while (reader.hasNext()) {
-                                    val event = reader.next()
-                                    if (event == XMLStreamConstants.END_ELEMENT && reader.localName == "programme") break
-                                    if (event != XMLStreamConstants.START_ELEMENT) continue
-                                    if (reader.localName == "title") {
-                                        val text = reader.elementText.take(4096)
-                                        if (title.isBlank()) title = text
-                                    } else if (reader.localName == "desc") {
-                                        val text = reader.elementText.take(16384)
-                                        if (description == null) description = text
-                                    }
-                                }
+                                val read = readProgramme(reader, baseUrl, keep)
+                                val title = read.title
                                 if (channel.isNotEmpty() && seen.add(channel)) require(seen.size <= GUIDE_CHANNEL_LIMIT) { "Guide exceeds import limits" }
                                 if (!keep) continue
                                 val from = xmlTime(start)
                                 val to = xmlTime(stop)
                                 if (from == null || to == null || !to.isAfter(from) || title.isBlank()) continue
                                 if (!keys.add("$channel\u0000$from\u0000$to\u0000$title")) continue
-                                programmes += GuideProgramme(channel, from, to, title.trim(), description)
+                                programmes += read.copy(channelId = channel, startsAt = from, endsAt = to, title = title.trim()).bounded()
                                 require(programmes.size <= GUIDE_PROGRAMME_LIMIT) { "Guide exceeds import limits" }
                             }
                         }
@@ -314,6 +303,126 @@ object FeedParser {
         text: String,
         wanted: (String) -> Boolean = { true },
     ): ParsedGuide = guide(ByteArrayInputStream(text.toByteArray(Charsets.UTF_8)), wanted = wanted)
+
+    /**
+     * Reads a `<programme>`'s children up to its end tag. Only direct children count, so an `<icon>` or `<value>`
+     * inside credits or a star rating is never taken for the programme's own. Without [collect] the element is only
+     * consumed. The result carries no channel or times; the caller sets them.
+     */
+    private fun readProgramme(reader: XMLStreamReader, baseUrl: String?, collect: Boolean): GuideProgramme {
+        var title = ""
+        var description: String? = null
+        var subTitle: String? = null
+        val numbers = ArrayList<EpisodeNumber>()
+        var icon: String? = null
+        val categories = ArrayList<String>()
+        var rating: ProgrammeRating? = null
+        var isNew = false
+        var previouslyShown: PreviouslyShown? = null
+        var date: String? = null
+        var titleLanguage: String? = null
+        var descLanguage: String? = null
+        var languageElement: String? = null
+        var depth = 0
+        while (reader.hasNext()) {
+            val event = reader.next()
+            if (event == XMLStreamConstants.END_ELEMENT) {
+                if (depth == 0) break
+                depth--
+                continue
+            }
+            if (event != XMLStreamConstants.START_ELEMENT) continue
+            if (depth > 0 || !collect) {
+                depth++
+                continue
+            }
+            // Each branch either reads the element through its end tag or counts it as open.
+            when (reader.localName) {
+                "title" -> {
+                    val lang = reader.getAttributeValue(null, "lang")
+                    val text = reader.elementText.take(GuideProgramme.TITLE_LIMIT)
+                    if (title.isBlank()) {
+                        title = text
+                        titleLanguage = lang
+                    }
+                }
+                "sub-title" -> {
+                    val text = reader.elementText.take(GuideProgramme.TITLE_LIMIT).trim()
+                    if (subTitle == null && text.isNotEmpty()) subTitle = text
+                }
+                "desc" -> {
+                    val lang = reader.getAttributeValue(null, "lang")
+                    val text = reader.elementText.take(GuideProgramme.DESCRIPTION_LIMIT)
+                    if (description == null) {
+                        description = text
+                        descLanguage = lang
+                    }
+                }
+                "episode-num" -> {
+                    val system = reader.getAttributeValue(null, "system")?.trim()?.ifEmpty { null } ?: "onscreen"
+                    val text = reader.elementText.trim()
+                    if (numbers.size < GuideProgramme.EPISODE_NUMBER_LIMIT && text.isNotEmpty() && text.length <= GuideProgramme.EPISODE_VALUE_LIMIT) {
+                        numbers += EpisodeNumber(system.take(64), text)
+                    }
+                }
+                "category" -> {
+                    val text = reader.elementText.trim().take(GuideProgramme.CATEGORY_LENGTH_LIMIT)
+                    if (categories.size < GuideProgramme.CATEGORY_LIMIT && text.isNotEmpty()) categories += text
+                }
+                "date" -> {
+                    val text = reader.elementText.take(64)
+                    if (date == null) date = text
+                }
+                "language" -> {
+                    val text = reader.elementText.trim().take(16)
+                    if (languageElement == null && text.isNotEmpty()) languageElement = text
+                }
+                "rating" -> {
+                    val system = reader.getAttributeValue(null, "system")?.take(64)
+                    val value = ratingValue(reader)
+                    if (rating == null && value != null) rating = ProgrammeRating(value, system)
+                }
+                "icon" -> {
+                    if (icon == null) icon = normalizeLogoUrl(reader.getAttributeValue(null, "src"), baseUrl)
+                    depth++
+                }
+                "new" -> {
+                    isNew = true
+                    depth++
+                }
+                "previously-shown" -> {
+                    if (previouslyShown == null) previouslyShown = PreviouslyShown(reader.getAttributeValue(null, "start")?.take(64))
+                    depth++
+                }
+                else -> depth++
+            }
+        }
+        return GuideProgramme(
+            "", Instant.EPOCH, Instant.EPOCH, title, description, subTitle, numbers, icon, categories, rating, isNew, previouslyShown, date,
+            titleLanguage ?: descLanguage ?: languageElement,
+        )
+    }
+
+    /** The text of a `<rating>`'s direct `<value>` child, reading the rating through its end tag. */
+    private fun ratingValue(reader: XMLStreamReader): String? {
+        var value: String? = null
+        var depth = 0
+        while (reader.hasNext()) {
+            val event = reader.next()
+            if (event == XMLStreamConstants.END_ELEMENT) {
+                if (depth == 0) break
+                depth--
+                continue
+            }
+            if (event != XMLStreamConstants.START_ELEMENT) continue
+            if (depth == 0 && reader.localName == "value" && value == null) {
+                value = reader.elementText.trim().take(64).ifEmpty { null }
+            } else {
+                depth++
+            }
+        }
+        return value
+    }
 
     /** Gzip is recognized by its magic bytes, whatever the URL or content type says. */
     private fun decompressed(input: InputStream): InputStream {

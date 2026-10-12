@@ -638,9 +638,15 @@ fun GuideScreen(
                 }
             }
 
-            if (visible.isEmpty() && query.isNotBlank()) {
+            val emptyMessage = when {
+                visible.isNotEmpty() -> null
+                query.isNotBlank() -> R.string.guide_search_none
+                activeFilter == GuideFilter.Favorites -> R.string.guide_favorites_none
+                else -> null
+            }
+            if (emptyMessage != null) {
                 Text(
-                    stringResource(R.string.guide_search_none),
+                    stringResource(emptyMessage),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.padding(top = 16.dp),
                 )

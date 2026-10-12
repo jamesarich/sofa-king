@@ -29,6 +29,7 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.receiveParameters
 import io.ktor.server.response.*
+import kotlinx.coroutines.CancellationException
 import io.ktor.server.routing.*
 import io.ktor.util.AttributeKey
 import io.ktor.util.date.GMTDate
@@ -102,7 +103,7 @@ class AdminPortal(
             }
             post("/login") {
                 val expected = secret ?: throw ApiFailure(404, "NOT_FOUND", "Resource not found")
-                val presented = call.receiveParameters()["token"]
+                val presented = call.formOrEmpty()["token"]
                 if (!sameSecret(presented, expected)) {
                     call.html(signInPage(enabled = true, error = "That token is not the admin token."), HttpStatusCode.Unauthorized)
                     return@post
@@ -185,11 +186,15 @@ class AdminPortal(
         }
     }
 
+    /** The posted form; a body that is not a form reads as an empty one, so it fails the token checks instead of erroring. */
+    private suspend fun ApplicationCall.formOrEmpty(): Parameters =
+        try { receiveParameters() } catch (e: CancellationException) { throw e } catch (_: Exception) { Parameters.Empty }
+
     /** A POST that needs the session and its CSRF token, from the form or the `X-CSRF-Token` header. */
     private fun Route.action(path: String, body: suspend RoutingContext.(AdminSession, Parameters) -> Unit) {
         post(path) {
             val session = call.session()
-            val form = call.receiveParameters()
+            val form = call.formOrEmpty()
             if (!sameSecret(form["csrf"] ?: call.request.headers["X-CSRF-Token"], session.csrf)) {
                 call.respondText("The form expired; reload the page and try again", status = HttpStatusCode.Forbidden)
                 return@post

@@ -391,7 +391,11 @@ class AdminPortalTest {
             for (path in listOf("/admin/groups/edit", "/admin/providers/edit")) {
                 val refused = browser.post(path, "op" to "block", "group" to "News", "start" to "500", "revision" to field(page, "revision"), "confirm" to "yes")
                 assertEquals(HttpStatusCode.Forbidden, refused.status, path)
+                val notAForm = browser.post(path) { contentType(ContentType.Text.Plain); setBody("op=block") }
+                assertEquals(HttpStatusCode.Forbidden, notAForm.status, "a body that is not a form is refused, not an error: $path")
             }
+            val signIn = browser.post("/admin/login") { contentType(ContentType.Application.Json); setBody("""{"token":"$admin"}""") }
+            assertEquals(HttpStatusCode.Unauthorized, signIn.status, "sign-in takes only a form")
             assertEquals(before, Files.readString(policyFile), "a refused edit writes nothing")
         }
     }

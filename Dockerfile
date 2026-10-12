@@ -2,7 +2,8 @@
 # The build context only admits server/build/install/server (see .dockerignore).
 
 # Splits the distribution so the third-party jars, which change rarely, get a layer of their own.
-FROM busybox:1.37 AS split
+# It only moves platform-independent files, so it runs natively on the build host.
+FROM --platform=$BUILDPLATFORM busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e AS split
 COPY server/build/install/server /dist
 RUN mkdir -p /app/lib \
     && mv /dist/lib/server-*.jar /dist/lib/api-contract-*.jar /app/lib/ \

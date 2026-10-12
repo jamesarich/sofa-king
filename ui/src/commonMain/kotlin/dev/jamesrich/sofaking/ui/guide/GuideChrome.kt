@@ -1,4 +1,3 @@
-@file:OptIn(ExperimentalTvMaterial3Api::class)
 
 package dev.jamesrich.sofaking.ui.guide
 
@@ -28,20 +27,21 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.FilterChip
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
-import dev.jamesrich.sofaking.R
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.TvTextField
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import dev.jamesrich.sofaking.ui.formatTemplate
+import dev.jamesrich.sofaking.ui.theme.tvFocus
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
 
 /** Visible time range above the channel names, for example "Today 1:00 PM - 2:30 PM". Reads scroll in its own scope. */
 @Composable
@@ -51,9 +51,7 @@ internal fun VisibleRange(
     minutePx: Float,
     windowStart: Instant,
     now: Instant,
-    timeFormat: DateTimeFormatter,
-    dayFormat: DateTimeFormatter,
-    zone: ZoneId,
+    timeFormat: TimeFormatter,
     todayLabel: String,
     rangeFormat: String,
 ) {
@@ -67,11 +65,10 @@ internal fun VisibleRange(
                     viewportPx = viewport.intValue.toFloat(),
                     pxPerMinute = minutePx,
                 )
-                val start = windowStart.plusSeconds(startMinute * 60)
-                val end = windowStart.plusSeconds(endMinute * 60)
-                val sameDay = start.atZone(zone).toLocalDate() == now.atZone(zone).toLocalDate()
-                val day = if (sameDay) todayLabel else dayFormat.format(start)
-                String.format(Locale.getDefault(), rangeFormat, day, timeFormat.format(start), timeFormat.format(end))
+                val start = windowStart + startMinute.minutes
+                val end = windowStart + endMinute.minutes
+                val day = if (timeFormat.sameDay(start, now)) todayLabel else timeFormat.day(start)
+                formatTemplate(rangeFormat, day, timeFormat.format(start), timeFormat.format(end))
             }
         }
     }
@@ -103,30 +100,37 @@ internal fun FilterChipRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "now") {
-            FilterChip(selected = false, onClick = onNow) {
-                Text(stringResource(R.string.guide_now))
-            }
+            GuideChip(selected = false, onClick = onNow, label = stringResource(Res.string.guide_now))
         }
         item(key = "search") {
-            FilterChip(
+            GuideChip(
                 selected = searchOpen,
                 onClick = onSearch,
+                label = stringResource(Res.string.guide_search),
                 modifier = Modifier.focusRequester(searchChip),
-            ) {
-                Text(stringResource(R.string.guide_search))
-            }
+            )
         }
         items(filters, key = { it.toString() }) { option ->
             val selected = activeFilter == option
-            FilterChip(
+            GuideChip(
                 selected = selected,
                 onClick = { onSelect(option) },
+                label = stringResource(Res.string.guide_filter_count, option.label(), counts[option] ?: 0),
                 modifier = if (selected) Modifier.focusRequester(selectedChip) else Modifier,
-            ) {
-                Text(stringResource(R.string.guide_filter_count, option.label(), counts[option] ?: 0))
-            }
+            )
         }
     }
+}
+
+/** A Material 3 filter chip in the guide's label type, with the D-pad focus cue. */
+@Composable
+private fun GuideChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+        modifier = modifier.tvFocus(FilterChipDefaults.shape),
+    )
 }
 
 @Composable
@@ -148,6 +152,7 @@ internal fun SearchField(
 }
 
 /** One horizontally scrolled strip; the header and every row share [scrollState] so columns stay aligned. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun TimelineStrip(
     scrollState: ScrollState,
@@ -190,7 +195,7 @@ private fun TimelineStripContent(
 
 @Composable
 internal fun GuideFilter.label(): String = when (this) {
-    GuideFilter.All -> stringResource(R.string.filter_all)
-    GuideFilter.Favorites -> stringResource(R.string.filter_favorites)
+    GuideFilter.All -> stringResource(Res.string.filter_all)
+    GuideFilter.Favorites -> stringResource(Res.string.filter_favorites)
     is GuideFilter.Group -> name
 }

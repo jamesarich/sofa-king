@@ -1,0 +1,247 @@
+package dev.jamesrich.sofaking.ui.player
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asComposeImageBitmap
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.data.PlaybackStream
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import org.jetbrains.skia.Bitmap
+import org.jetbrains.skia.ColorAlphaType
+import org.jetbrains.skia.ColorType
+import org.jetbrains.skia.ImageInfo
+import uk.co.caprica.vlcj.factory.MediaPlayerFactory
+import uk.co.caprica.vlcj.player.base.MediaPlayer
+import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
+import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback
+import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat
+import java.nio.ByteBuffer
+import kotlin.math.min
+import kotlin.math.roundToInt
+
+private val log = Logger.withTag("SofaKing")
+
+@Composable
+actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
+    val player = remember(captionSync) {
+        try {
+            VlcLivePlayer(captionSync)
+        } catch (e: Throwable) {
+            // libVLC is a system install on desktops; without it every tune fails with a clear code.
+            log.w(e) { "libVLC not found; playback is unavailable" }
+            UnavailableLivePlayer(captionSync, code = "VLC_NOT_INSTALLED")
+        }
+    }
+    DisposableEffect(player) { onDispose { player.release() } }
+    return player
+}
+
+/**
+ * The desktop player on libVLC, which plays the relay's MPEG-TS and HLS alike and draws the stream's CEA-608
+ * captions into the picture itself. Frames arrive as BGRA buffers and are copied into a Skia bitmap, so Compose
+ * draws overlays above the video as on every other platform. libVLC demuxes by content; it has no MIME hint.
+ */
+internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer {
+    private val factory = MediaPlayerFactory("--no-video-title-show", "--network-caching=1500", "--quiet")
+    private val vlc: EmbeddedMediaPlayer = factory.mediaPlayers().newEmbeddedMediaPlayer()
+    private val pauseClock = LivePauseClock()
+
+    private val _status = MutableStateFlow(PlayerStatus())
+    private val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
+    override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
+    override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
+    override val cues: StateFlow<List<CaptionCue>> = MutableStateFlow(emptyList<CaptionCue>()).asStateFlow()
+
+    private var stream: PlaybackStream? = null
+    private var captionsOn = false
+
+    /** The latest frame, swapped in under [frameLock]; [frameCount] invalidates the canvas without recomposing. */
+    private val frameLock = Any()
+    private var bitmap: Bitmap? = null
+    private var image: ImageBitmap? = null
+    private var pixels = ByteArray(0)
+    private val frameCount = mutableIntStateOf(0)
+    private var hasFrame by mutableStateOf(false)
+
+    init {
+        vlc.videoSurface().set(factory.videoSurfaces().newVideoSurface(Formats(), Frames(), true))
+        vlc.events().addMediaPlayerEventListener(Events())
+    }
+
+    override val currentChannelId: String? get() = stream?.channelId
+    override val currentStreamUrl: String? get() = stream?.url
+    override val hasItem: Boolean get() = stream != null
+    override val bufferedMs: Long get() = 0L
+    override val hasTextTrack: Boolean get() = vlc.subpictures().trackCount() > 0
+
+    override var volume: Float = 1f
+        set(value) {
+            field = value
+            vlc.audio().setVolume((value * 100).roundToInt())
+        }
+
+    override var playWhenReady: Boolean
+        get() = _status.value.playWhenReady
+        set(value) {
+            _status.update { it.copy(playWhenReady = value) }
+            if (vlc.status().isPlayable) vlc.controls().setPause(!value)
+        }
+
+    override fun setCaptionsEnabled(enabled: Boolean) {
+        captionsOn = enabled
+        applyCaptions()
+    }
+
+    override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
+        this.stream = stream
+    }
+
+    override fun replaceStream(stream: PlaybackStream) {
+        stop()
+        this.stream = stream
+    }
+
+    override fun prepare() {
+        val url = stream?.url ?: return
+        _status.update { it.copy(state = PlaybackState.BUFFERING) }
+        if (playWhenReady) vlc.media().play(url) else vlc.media().startPaused(url)
+    }
+
+    override fun stop() {
+        vlc.controls().stop()
+        hasFrame = false
+        _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+    }
+
+    override fun play() {
+        val toLive = pauseClock.onPlay(System.currentTimeMillis())
+        playWhenReady = true
+        // A live relay has no seekable past: rejoining the edge is reopening the stream.
+        if (toLive) {
+            stop()
+            prepare()
+        }
+    }
+
+    override fun pause() {
+        pauseClock.onPause(System.currentTimeMillis())
+        playWhenReady = false
+    }
+
+    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = NoMediaSession
+
+    @Composable
+    override fun Video(modifier: Modifier, shutter: @Composable () -> Unit) {
+        Box(modifier) {
+            Canvas(Modifier.matchParentSize()) {
+                frameCount.intValue
+                val frame = synchronized(frameLock) { image } ?: return@Canvas
+                val scale = min(size.width / frame.width, size.height / frame.height)
+                val drawn = Size(frame.width * scale, frame.height * scale)
+                val origin = Offset((size.width - drawn.width) / 2, (size.height - drawn.height) / 2)
+                drawImage(
+                    frame,
+                    dstOffset = IntOffset(origin.x.roundToInt(), origin.y.roundToInt()),
+                    dstSize = IntSize(drawn.width.roundToInt(), drawn.height.roundToInt()),
+                )
+            }
+            if (!hasFrame) shutter()
+        }
+    }
+
+    override fun release() {
+        vlc.release()
+        factory.release()
+    }
+
+    private fun applyCaptions() {
+        val subs = vlc.subpictures()
+        if (!captionsOn) {
+            subs.setTrack(-1)
+            return
+        }
+        subs.trackDescriptions().firstOrNull { it.id() >= 0 }?.let { subs.setTrack(it.id()) }
+    }
+
+    private inner class Formats : BufferFormatCallback {
+        override fun getBufferFormat(sourceWidth: Int, sourceHeight: Int): BufferFormat {
+            synchronized(frameLock) {
+                val info = ImageInfo(sourceWidth, sourceHeight, ColorType.BGRA_8888, ColorAlphaType.PREMUL)
+                bitmap = Bitmap().apply { allocPixels(info) }
+                image = bitmap?.asComposeImageBitmap()
+                pixels = ByteArray(sourceWidth * sourceHeight * 4)
+            }
+            return RV32BufferFormat(sourceWidth, sourceHeight)
+        }
+
+        override fun allocatedBuffers(buffers: Array<out ByteBuffer>) = Unit
+    }
+
+    private inner class Frames : RenderCallback {
+        override fun display(mediaPlayer: MediaPlayer, nativeBuffers: Array<out ByteBuffer>, bufferFormat: BufferFormat) {
+            synchronized(frameLock) {
+                val target = bitmap ?: return
+                val source = nativeBuffers[0]
+                source.rewind()
+                source.get(pixels, 0, min(pixels.size, source.remaining()))
+                target.installPixels(pixels)
+                target.notifyPixelsChanged()
+            }
+            hasFrame = true
+            frameCount.intValue++
+        }
+    }
+
+    private inner class Events : MediaPlayerEventAdapter() {
+        override fun playing(mediaPlayer: MediaPlayer) {
+            _status.update { it.copy(state = PlaybackState.READY, isPlaying = true) }
+            applyCaptions()
+        }
+
+        override fun paused(mediaPlayer: MediaPlayer) {
+            _status.update { it.copy(state = PlaybackState.READY, isPlaying = false) }
+        }
+
+        override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) {
+            if (newCache < 100f) _status.update { it.copy(state = PlaybackState.BUFFERING) }
+        }
+
+        override fun finished(mediaPlayer: MediaPlayer) {
+            _status.update { it.copy(state = PlaybackState.ENDED, isPlaying = false) }
+        }
+
+        override fun error(mediaPlayer: MediaPlayer) {
+            _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+            _errors.tryEmit(PlayerError("ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"))
+        }
+    }
+}
+
+/** No system media session on desktops yet; metadata goes nowhere and media keys reach the window as keys. */
+internal object NoMediaSession : MediaSessionHandle {
+    override fun publish(nowPlaying: NowPlaying) = Unit
+
+    override fun close() = Unit
+}

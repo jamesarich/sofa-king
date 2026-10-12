@@ -17,26 +17,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Button
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
-import dev.jamesrich.sofaking.R
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.data.Channel
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.ui.theme.SofaButton
 
 /** The crown-on-sofa mark, decorative wherever the app name is printed beside it. */
 @Composable
 internal fun LogoMark(size: Dp, modifier: Modifier = Modifier) {
     Image(
-        painter = painterResource(R.drawable.banner_logo),
+        painter = painterResource(Res.drawable.banner_logo),
         contentDescription = null,
         modifier = modifier.size(size),
     )
@@ -61,7 +57,7 @@ fun MessageScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             LogoMark(96.dp)
-            Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(Res.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
             if (loading) SofaLoader(size = 56.dp)
             Text(message, style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
@@ -76,7 +72,7 @@ fun MessageScreen(
                 val retryFocus = remember { FocusRequester() }
                 LaunchedEffect(Unit) { requestFocusWhenAttached(retryFocus) }
                 Spacer(Modifier.height(4.dp))
-                Button(onClick = onRetry, modifier = Modifier.focusRequester(retryFocus)) { Text(stringResource(R.string.retry)) }
+                SofaButton(onClick = onRetry, modifier = Modifier.focusRequester(retryFocus)) { Text(stringResource(Res.string.retry)) }
             }
         }
     }
@@ -86,11 +82,3 @@ internal fun Double.formatNumber(): String = if (this % 1.0 == 0.0) toLong().toS
 
 /** "<number>  <name>", as every list and overlay shows a channel. */
 internal fun Channel.label(): String = "${number.formatNumber()}  $name"
-
-/** Wall-clock time in the device zone, for example "1:30 PM". */
-@Composable
-internal fun rememberTimeFormatter(): DateTimeFormatter = remember {
-    DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()).withZone(ZoneId.systemDefault())
-}
-
-internal fun DateTimeFormatter.range(start: Instant, stop: Instant): String = "${format(start)} - ${format(stop)}"

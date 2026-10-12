@@ -16,21 +16,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
-import dev.jamesrich.sofaking.R
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.label
-import dev.jamesrich.sofaking.ui.range
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.SofaAmber
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
@@ -38,14 +38,14 @@ import dev.jamesrich.sofaking.ui.theme.SofaMauve
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import dev.jamesrich.sofaking.ui.theme.SofaPlum
-import java.time.Instant
+import kotlin.time.Instant
 
 private val OverlayShape = RoundedCornerShape(8.dp)
 
-internal fun CaptionToggleOutcome.labelRes(): Int = when (this) {
-    CaptionToggleOutcome.ON -> R.string.captions_on
-    CaptionToggleOutcome.OFF -> R.string.captions_off
-    CaptionToggleOutcome.NO_CAPTIONS_ON_CHANNEL -> R.string.captions_unavailable
+internal fun CaptionToggleOutcome.labelRes(): StringResource = when (this) {
+    CaptionToggleOutcome.ON -> Res.string.captions_on
+    CaptionToggleOutcome.OFF -> Res.string.captions_off
+    CaptionToggleOutcome.NO_CAPTIONS_ON_CHANNEL -> Res.string.captions_unavailable
 }
 
 /** A short status over the video, announced to screen readers; stack several in a Column. [busy] leads with the loader. */
@@ -80,11 +80,11 @@ internal fun DigitsBadge(text: String) {
 }
 
 /** Plain-English headline for a playback error; [code] is the ExoPlayer error name or a session code. */
-internal fun failureReasonRes(code: String): Int = when {
-    "NETWORK_CONNECTION" in code -> R.string.cant_reach_stream
-    "BAD_HTTP_STATUS" in code -> R.string.stream_refused
-    "PARSING" in code || "UNSUPPORTED" in code -> R.string.stream_unsupported
-    else -> R.string.cant_play
+internal fun failureReasonRes(code: String): StringResource = when {
+    "NETWORK_CONNECTION" in code -> Res.string.cant_reach_stream
+    "BAD_HTTP_STATUS" in code -> Res.string.stream_refused
+    "PARSING" in code || "UNSUPPORTED" in code -> Res.string.stream_unsupported
+    else -> Res.string.cant_play
 }
 
 @Composable
@@ -98,7 +98,7 @@ internal fun BoxScope.FailureCard(code: String) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(stringResource(failureReasonRes(code)), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
-        Text(stringResource(R.string.cant_play_retry), style = MaterialTheme.typography.bodyMedium, color = SofaDusk)
+        Text(stringResource(Res.string.cant_play_retry), style = MaterialTheme.typography.bodyMedium, color = SofaDusk)
         Text(code, style = MaterialTheme.typography.bodySmall, color = SofaMauve)
     }
 }
@@ -133,9 +133,9 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             if (captionsOn) {
                 Spacer(Modifier.width(16.dp))
                 val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)
-                val advanceDescription = stringResource(R.string.captions_indicator_timing_description, advance)
+                val advanceDescription = stringResource(Res.string.captions_indicator_timing_description, advance)
                 Text(
-                    stringResource(R.string.captions_indicator_timing, advance),
+                    stringResource(Res.string.captions_indicator_timing, advance),
                     style = MaterialTheme.typography.labelLarge,
                     color = SofaPlum,
                     modifier = Modifier
@@ -146,7 +146,7 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             }
         }
         if (current == null) {
-            Text(stringResource(R.string.no_listing), style = MaterialTheme.typography.titleMedium, color = SofaDusk)
+            Text(stringResource(Res.string.no_listing), style = MaterialTheme.typography.titleMedium, color = SofaDusk)
         } else {
             Text(current.title, style = MaterialTheme.typography.titleMedium, color = SofaDusk)
             Text(
@@ -157,8 +157,8 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             Spacer(Modifier.height(8.dp))
             ProgressBar(programmeProgress(current.start, current.stop, now))
         }
-        next?.let { Text(stringResource(R.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = SofaMauve) }
+        next?.let { Text(stringResource(Res.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = SofaMauve) }
         Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.channel_list_hint), style = MaterialTheme.typography.bodySmall, color = SofaMauve)
+        Text(stringResource(Res.string.channel_list_hint), style = MaterialTheme.typography.bodySmall, color = SofaMauve)
     }
 }

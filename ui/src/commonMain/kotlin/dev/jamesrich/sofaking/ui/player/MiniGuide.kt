@@ -28,12 +28,12 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
-import dev.jamesrich.sofaking.R
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Programme
@@ -44,7 +44,7 @@ import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaMauve
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrimDense
 import dev.jamesrich.sofaking.ui.theme.SofaPlum
-import java.time.Instant
+import kotlin.time.Instant
 
 /**
  * Bottom 40% channel list over the video. OK tunes and closes it through [onTune]; Back and the idle
@@ -75,7 +75,7 @@ internal fun BoxScope.MiniGuide(
     ) {
         Column(Modifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 48.dp, vertical = 27.dp)) {
             Text(
-                stringResource(R.string.mini_guide_title),
+                stringResource(Res.string.mini_guide_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = SofaAmber,
             )
@@ -132,7 +132,7 @@ private fun MiniGuideRowItem(
         Column(Modifier.weight(1f)) {
             if (row.pinnedLast) {
                 Text(
-                    stringResource(R.string.mini_guide_last_channel),
+                    stringResource(Res.string.mini_guide_last_channel),
                     style = MaterialTheme.typography.labelLarge,
                     color = if (focused) SofaPlum else SofaAmber,
                 )
@@ -145,7 +145,7 @@ private fun MiniGuideRowItem(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                programme?.title ?: stringResource(R.string.no_listing),
+                programme?.title ?: stringResource(Res.string.no_listing),
                 style = MaterialTheme.typography.bodyMedium,
                 color = secondary,
                 maxLines = 1,

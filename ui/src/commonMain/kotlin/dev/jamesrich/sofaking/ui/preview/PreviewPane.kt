@@ -1,8 +1,6 @@
-@file:kotlin.OptIn(ExperimentalTvMaterial3Api::class)
 
 package dev.jamesrich.sofaking.ui.preview
 
-import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -25,21 +23,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.Tracks
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
-import dev.jamesrich.sofaking.R
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.PlaybackIntent
@@ -50,19 +43,14 @@ import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.player.Captions
-import dev.jamesrich.sofaking.ui.player.LiveVideo
-import dev.jamesrich.sofaking.ui.player.currentChannelId
-import dev.jamesrich.sofaking.ui.player.isStreamGone
-import dev.jamesrich.sofaking.ui.player.mediaItemFor
-import dev.jamesrich.sofaking.ui.player.preferCaptionTrack
-import dev.jamesrich.sofaking.ui.player.recoverIfBehindLive
-import dev.jamesrich.sofaking.ui.range
+import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
-import java.time.Instant
+import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
@@ -103,7 +91,7 @@ internal fun PreviewDetails(
         )
         if (programme == null) {
             Text(
-                stringResource(R.string.no_listing),
+                stringResource(Res.string.no_listing),
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -121,7 +109,7 @@ internal fun PreviewDetails(
             if (live) {
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    stringResource(R.string.preview_live),
+                    stringResource(Res.string.preview_live),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimary,
                     maxLines = 1,
@@ -154,10 +142,9 @@ internal fun PreviewDetails(
  * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
  * [muted] follows the guide's rest timers; [onFailedChanged] tells the guide when the preview has no picture.
  */
-@OptIn(UnstableApi::class)
 @Composable
 internal fun PreviewVideo(
-    player: ExoPlayer,
+    player: LivePlayer,
     sessions: PlaybackSessions,
     channel: Channel?,
     captionsEnabled: Boolean,
@@ -166,7 +153,8 @@ internal fun PreviewVideo(
     onFailedChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var buffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
+    val status by player.status.collectAsStateWithLifecycle()
+    val buffering = status.state == PlaybackState.BUFFERING
     var failed by remember { mutableStateOf(false) }
     LaunchedEffect(failed) { onFailedChanged(failed) }
     LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
@@ -176,31 +164,21 @@ internal fun PreviewVideo(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(player) {
         player.volume = 0f
-        // The caption choice is made here as on the full screen, so the preview's cues come from the preferred track.
-        preferCaptionTrack(player)
         // Back from a paused full screen: rejoin the live edge rather than play from where it paused.
         if (!player.playWhenReady) {
             player.playWhenReady = true
             player.stop()
             if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) player.prepare()
         }
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                buffering = playbackState == Player.STATE_BUFFERING
-                if (playbackState == Player.STATE_READY) failed = false
-            }
-
-            override fun onTracksChanged(tracks: Tracks) {
-                preferCaptionTrack(player)
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                if (player.recoverIfBehindLive(error)) return
-                if (error.isStreamGone() && retune < MAX_STREAM_GONE_RETUNES) retune++ else failed = true
-            }
+        onDispose {}
+    }
+    LaunchedEffect(player) {
+        player.status.collect { if (it.state == PlaybackState.READY) failed = false }
+    }
+    LaunchedEffect(player) {
+        player.errors.collect { error ->
+            if (error.streamGone && retune < MAX_STREAM_GONE_RETUNES) retune++ else failed = true
         }
-        player.addListener(listener)
-        onDispose { player.removeListener(listener) }
     }
 
     val guideId = channel?.guideId
@@ -208,7 +186,7 @@ internal fun PreviewVideo(
     LaunchedEffect(guideId, retune, lifecycle) {
         if (guideId == null) return@LaunchedEffect
         val held = player.currentChannelId == guideId
-        if (held && retune == 0 && player.playbackState != Player.STATE_IDLE) {
+        if (held && retune == 0 && player.status.value.state != PlaybackState.IDLE) {
             // Back from the full screen with its stream still playing: keep it, as a preview again.
             try {
                 sessions.setIntent(guideId, PlaybackIntent.PREVIEW)
@@ -235,14 +213,14 @@ internal fun PreviewVideo(
             return@LaunchedEffect
         }
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
-            player.setMediaItem(mediaItemFor(stream))
+            player.setStream(stream)
             player.prepare()
         }
     }
 
     Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).background(SofaScrim)) {
         // One surface for the life of the preview; the card covers it from a reset until the next first frame.
-        LiveVideo(player, Modifier.fillMaxSize()) { PreviewCard(channel, failed) }
+        player.Video(Modifier.fillMaxSize()) { PreviewCard(channel, failed) }
         // No overscan inset: the box sits inside the guide's margins already.
         if (showPreviewCaptions(captionsEnabled, channel != null, failed)) Captions(player, captionStyle, bottomFraction = 0f, Modifier.fillMaxSize())
         if (failed) PreviewCard(channel, failed = true)
@@ -260,7 +238,7 @@ internal fun PreviewVideo(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 SofaLoader(size = 16.dp)
-                Text(stringResource(R.string.tuning), style = MaterialTheme.typography.labelLarge, color = SofaDusk)
+                Text(stringResource(Res.string.tuning), style = MaterialTheme.typography.labelLarge, color = SofaDusk)
             }
         }
     }
@@ -275,7 +253,7 @@ private fun PreviewCard(channel: Channel?, failed: Boolean) {
     ) {
         if (channel == null) {
             Text(
-                stringResource(R.string.preview_hint),
+                stringResource(Res.string.preview_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -289,7 +267,7 @@ private fun PreviewCard(channel: Channel?, failed: Boolean) {
             )
             if (failed) {
                 Text(
-                    stringResource(R.string.preview_unavailable),
+                    stringResource(Res.string.preview_unavailable),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

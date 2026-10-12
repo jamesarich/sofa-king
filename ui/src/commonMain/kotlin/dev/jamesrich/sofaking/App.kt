@@ -1,23 +1,23 @@
 package dev.jamesrich.sofaking
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -25,9 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -35,47 +32,51 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
-import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.tv.material3.Button
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Surface
-import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.SofaLoader
-import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
+import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.player.CaptionSync
-import dev.jamesrich.sofaking.ui.player.buildLivePlayer
-import dev.jamesrich.sofaking.ui.player.captionParameters
-import dev.jamesrich.sofaking.ui.player.currentChannelId
+import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.ZapScope
-import dev.jamesrich.sofaking.ui.player.withStream
+import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
+import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.viewmodel.koinViewModel
+import org.koin.core.context.startKoin
 
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            SofaKingTheme {
-                Surface(Modifier) { SofaKingApp() }
-            }
-        }
+/**
+ * Starts the app's object graph over [storage]; each platform's entry point calls it once per process, before
+ * the first [App], because DataStore allows one instance per file and composition can be recreated.
+ */
+fun initSofaKing(storage: AppStorage) {
+    startKoin { modules(appModule(storage)) }
+}
+
+/** The whole app, the same on every platform: the theme, then the screen the user is on. */
+@Composable
+fun App() {
+    SofaKingTheme {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { SofaKingApp() }
     }
 }
 
@@ -92,7 +93,7 @@ private sealed interface Screen {
 }
 
 @Composable
-private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
+private fun SofaKingApp(vm: LineupViewModel = koinViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
@@ -122,24 +123,20 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
 
     // One player for the guide preview and the full screen, so OK on the previewed channel continues its stream,
     // and one server session behind it, promoted from preview to watch in place.
-    val context = LocalContext.current
-    val resources = LocalResources.current
     val captionSync = remember { CaptionSync() }
-    val player = remember { buildLivePlayer(context, captionSync) }
+    val player = rememberLivePlayer(captionSync)
     val sessions = vm.sessions
     val scope = rememberCoroutineScope()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(player) { onDispose { player.release() } }
+    val channelGone = stringResource(Res.string.channel_gone)
     // The server replaced the stream under the held session (new epoch, or a session it dropped and the app
     // reopened): the player reopens the item it holds for that channel at the new URL, metadata intact.
     LaunchedEffect(sessions, player) {
         sessions.replaced.collect { stream ->
             lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
-                val item = player.currentMediaItem ?: return@withStateAtLeast
-                if (item.mediaId != stream.channelId || item.localConfiguration?.uri?.toString() == stream.url) return@withStateAtLeast
-                player.stop()
+                if (player.currentChannelId != stream.channelId || player.currentStreamUrl == stream.url) return@withStateAtLeast
                 captionSync.effectiveUs = captionSync.advanceUs
-                player.setMediaItem(item.withStream(stream))
+                player.replaceStream(stream)
                 player.prepare()
             }
         }
@@ -147,7 +144,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     // Before the first prepare: switching text tracks on a playing live stream restarts it.
     val captionsEnabled = settings?.captionsEnabled
     LaunchedEffect(captionsEnabled) {
-        if (captionsEnabled != null) player.trackSelectionParameters = captionParameters(player.trackSelectionParameters, captionsEnabled)
+        if (captionsEnabled != null) player.setCaptionsEnabled(captionsEnabled)
     }
     // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
     // the server, so it releases the session outright rather than keeping it to reopen.
@@ -170,21 +167,9 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
         sessions.releaseAsync()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (currentScreen != Screen.Settings && player.mediaItemCount > 0 && player.playbackState == Player.STATE_IDLE) {
+        if (currentScreen != Screen.Settings && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
             captionSync.effectiveUs = captionSync.advanceUs
-            scope.launch {
-                val stream = try {
-                    sessions.reopen()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    // Preparing the stale item fails on the player, where the screen's own reconnect takes over.
-                    null
-                }
-                val item = player.currentMediaItem ?: return@launch
-                if (stream != null && stream.channelId == player.currentChannelId) player.setMediaItem(item.withStream(stream))
-                if (player.playbackState == Player.STATE_IDLE) player.prepare()
-            }
+            scope.launch { resume(player, sessions) }
         }
     }
 
@@ -213,7 +198,6 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 zapScope = current.scope,
                 player = player,
                 sessions = sessions,
-                captionSync = captionSync,
                 onExit = { screen = Screen.Guide(returnedFrom = history.watching) },
                 onGuide = { screen = Screen.Guide(atNow = true, returnedFrom = history.watching) },
                 onSearch = { screen = Screen.Guide(search = true, returnedFrom = history.watching) },
@@ -223,7 +207,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 },
                 reloadLineup = vm::reloadLineup,
                 onChannelGone = { channel ->
-                    notice = resources.getString(R.string.channel_gone, channel.label())
+                    notice = formatTemplate(channelGone, channel.label())
                     screen = Screen.Guide(returnedFrom = history.watching)
                 },
                 captionsEnabled = settings?.captionsEnabled ?: false,
@@ -255,15 +239,15 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
                 val s = state
                 when {
-                    s is LineupState.Loading || settings == null || !launchDecided -> MessageScreen(stringResource(R.string.loading), loading = true)
+                    s is LineupState.Loading || settings == null || !launchDecided -> MessageScreen(stringResource(Res.string.loading), loading = true)
                     s is LineupState.Unconfigured -> MessageScreen(
-                        message = stringResource(R.string.unconfigured),
-                        hint = stringResource(R.string.unconfigured_hint),
+                        message = stringResource(Res.string.unconfigured),
+                        hint = stringResource(Res.string.unconfigured_hint),
                     )
                     s is LineupState.Failed -> MessageScreen(
-                        message = stringResource(R.string.load_failed),
+                        message = stringResource(Res.string.load_failed),
                         detail = s.message,
-                        hint = stringResource(R.string.load_failed_hint),
+                        hint = stringResource(Res.string.load_failed_hint),
                         onRetry = vm::refresh,
                     )
                     s is LineupState.Ready -> GuideOrEmpty(
@@ -288,6 +272,21 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     }
 }
 
+/** Back in front: a fresh session for the channel and intent released on stop, at the URL the player holds for it. */
+private suspend fun resume(player: LivePlayer, sessions: PlaybackSessions) {
+    val stream = try {
+        sessions.reopen()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        // Preparing the stale item fails on the player, where the screen's own reconnect takes over.
+        null
+    }
+    if (!player.hasItem) return
+    if (stream != null && stream.channelId == player.currentChannelId) player.replaceStream(stream)
+    if (player.status.value.state == PlaybackState.IDLE) player.prepare()
+}
+
 @Composable
 private fun GuideOrEmpty(
     lineup: Lineup,
@@ -298,7 +297,7 @@ private fun GuideOrEmpty(
     returnedFrom: String?,
     onPlay: (String, ZapScope?) -> Unit,
     onToggleFavorite: (String) -> Unit,
-    previewPlayer: ExoPlayer,
+    previewPlayer: LivePlayer,
     sessions: PlaybackSessions,
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
@@ -306,7 +305,7 @@ private fun GuideOrEmpty(
     previewSound: Boolean,
 ) {
     if (lineup.channels.isEmpty()) {
-        MessageScreen(stringResource(R.string.no_channels), hint = stringResource(R.string.no_channels_hint))
+        MessageScreen(stringResource(Res.string.no_channels), hint = stringResource(Res.string.no_channels_hint))
     } else {
         GuideScreen(
             lineup = lineup,
@@ -336,7 +335,7 @@ private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LogoMark(40.dp)
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+        Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
         // The lineup on screen stays usable while it refreshes; the loader only says new data is on its way.
         AnimatedVisibility(
             visible = refreshing,
@@ -346,7 +345,7 @@ private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit,
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SofaLoader(size = 28.dp)
                 Text(
-                    stringResource(R.string.refreshing),
+                    stringResource(Res.string.refreshing),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -364,8 +363,8 @@ private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Button(onClick = onRefresh) { Text(stringResource(R.string.refresh)) }
-        Button(onClick = onSettings, modifier = Modifier.focusRequester(settingsFocus)) { Text(stringResource(R.string.settings)) }
+        SofaButton(onClick = onRefresh) { Text(stringResource(Res.string.refresh)) }
+        SofaButton(onClick = onSettings, modifier = Modifier.focusRequester(settingsFocus)) { Text(stringResource(Res.string.settings)) }
     }
 }
 

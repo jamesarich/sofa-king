@@ -1,8 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import android.os.SystemClock
-import android.view.accessibility.AccessibilityManager
-import androidx.activity.compose.BackHandler
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,19 +47,16 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
-import dev.jamesrich.sofaking.R
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
@@ -83,10 +78,12 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.util.Locale
+import kotlin.time.Instant
+import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.rememberScreenReaderActive
+import dev.jamesrich.sofaking.ui.rememberVoiceSearch
+import dev.jamesrich.sofaking.ui.uptimeMs
+import kotlin.time.Duration.Companion.minutes
 import kotlin.math.roundToInt
 
 internal sealed interface GuideFilter {
@@ -167,7 +164,7 @@ fun GuideScreen(
     returnedFrom: String?,
     onPlay: (Channel, ZapScope?) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
-    previewPlayer: ExoPlayer,
+    previewPlayer: LivePlayer,
     sessions: PlaybackSessions,
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
@@ -178,8 +175,8 @@ fun GuideScreen(
     val now by rememberMinuteNow()
     // The window holds while now is inside it, so the grid does not jump every half hour; it rolls over
     // once the clock leaves it (a TV left on the guide for a day), along with the time cursor.
-    var windowStartSecond by rememberSaveable { mutableLongStateOf(GuideTimeline.windowStart(now).epochSecond) }
-    val windowStart = remember(windowStartSecond) { Instant.ofEpochSecond(windowStartSecond) }
+    var windowStartSecond by rememberSaveable { mutableLongStateOf(GuideTimeline.windowStart(now).epochSeconds) }
+    val windowStart = remember(windowStartSecond) { Instant.fromEpochSeconds(windowStartSecond) }
     val windowEnd = remember(windowStart) { GuideTimeline.windowEnd(windowStart) }
     val nowMinute = GuideTimeline.offsetMinutes(windowStart, now).takeIf { now >= windowStart && now < windowEnd }
     val nowClamped = GuideTimeline.offsetMinutes(windowStart, now)
@@ -187,17 +184,13 @@ fun GuideScreen(
     LaunchedEffect(now) {
         val next = GuideTimeline.windowStartFor(windowStart, now)
         if (next != windowStart) {
-            windowStartSecond = next.epochSecond
+            windowStartSecond = next.epochSeconds
             cursor = GuideTimeline.offsetMinutes(next, now)
         }
     }
-    val zone = remember { ZoneId.systemDefault() }
     val timeFormat = rememberTimeFormatter()
-    val dayFormat = remember {
-        DateTimeFormatter.ofPattern("EEE", Locale.getDefault()).withZone(zone)
-    }
-    val todayLabel = stringResource(R.string.guide_today)
-    val rangeFormat = stringResource(R.string.guide_range)
+    val todayLabel = stringResource(Res.string.guide_today)
+    val rangeFormat = stringResource(Res.string.guide_range)
 
     val filters = remember(lineup.channels) { guideFilters(lineup.channels) }
     val filterCounts = remember(lineup.channels, favorites) { guideFilterCounts(lineup.channels, favorites) }
@@ -254,11 +247,8 @@ fun GuideScreen(
     var gridFocused by remember { mutableStateOf(false) }
     // The preview's rest timers: muted on tune, sound after five seconds, full screen after the chosen delay,
     // restarted by any key. Both run only while a cell holds focus with search closed, so typing never opens a channel.
-    val context = LocalContext.current
     // TalkBack reads the grid aloud as focus moves; a channel opening full screen would cut that off.
-    val touchExploration = remember(context) {
-        context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
-    }
+    val touchExploration = rememberScreenReaderActive()
     val fullScreenAfterMs = autoOpenDelay.afterMs.takeUnless { touchExploration }
     val currentPreviewSound by rememberUpdatedState(previewSound)
     val dwell = remember(fullScreenAfterMs) { PreviewDwell(suppressedChannelId = returnedFrom, fullScreenAfterMs = fullScreenAfterMs) }
@@ -445,7 +435,7 @@ fun GuideScreen(
     // recognizer, or when it is dismissed, the text field takes focus as the Search chip's does.
     var searchFocusRequest by remember { mutableIntStateOf(0) }
     var focusResults by remember { mutableStateOf(false) }
-    val startVoiceSearch = rememberVoiceSearch { spoken ->
+    val startVoiceSearch = rememberVoiceSearch(stringResource(Res.string.guide_search_voice_prompt)) { spoken ->
         searchOpen = true
         if (spoken != null) {
             searchState.setTextAndPlaceCursorAtEnd(spoken)
@@ -489,13 +479,20 @@ fun GuideScreen(
         }
     }
 
-    val resources = LocalResources.current
-    val noListing = stringResource(R.string.no_listing)
-    val favoriteLabel = stringResource(R.string.guide_favorite)
-    val toggleFavoriteLabel = stringResource(R.string.guide_toggle_favorite)
-    val env = remember(resources, timeFormat, noListing, favoriteLabel, toggleFavoriteLabel, minutePx, minStickyTextPx, scrollState, onCellFocused, play, onToggleFavorite) {
+    val cellAiring = stringResource(Res.string.guide_cell_airing)
+    val cellLater = stringResource(Res.string.guide_cell_later)
+    val cellNone = stringResource(Res.string.guide_cell_none)
+    val noListing = stringResource(Res.string.no_listing)
+    val favoriteLabel = stringResource(Res.string.guide_favorite)
+    val toggleFavoriteLabel = stringResource(Res.string.guide_toggle_favorite)
+    val env = remember(
+        cellAiring, cellLater, cellNone, timeFormat, noListing, favoriteLabel, toggleFavoriteLabel,
+        minutePx, minStickyTextPx, scrollState, onCellFocused, play, onToggleFavorite,
+    ) {
         GuideRowEnv(
-            resources = resources,
+            cellAiring = cellAiring,
+            cellLater = cellLater,
+            cellNone = cellNone,
             timeFormat = timeFormat,
             noListing = noListing,
             favoriteLabel = favoriteLabel,
@@ -528,7 +525,7 @@ fun GuideScreen(
         SearchField(
             state = searchState,
             focusRequester = searchField,
-            hint = stringResource(R.string.guide_search_hint),
+            hint = stringResource(Res.string.guide_search_hint),
             onDone = { focusManager.moveFocus(FocusDirection.Down) },
             modifier = barModifier,
         )
@@ -539,7 +536,7 @@ fun GuideScreen(
     // the rest over, muted, so a channel is never found open on return.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        dwell.onKey(SystemClock.uptimeMillis())
+        dwell.onKey(uptimeMs())
         dwellNonce++
     }
     LaunchedEffect(dwell) {
@@ -547,9 +544,9 @@ fun GuideScreen(
             DwellInput(focused?.channel?.guideId?.takeIf { gridFocused && !searchOpen }, dwellNonce, previewFailed, currentPreviewSound)
         }
             .collectLatest { input ->
-                if (dwell.channelId != input.channelId) dwell.onFocus(input.channelId, SystemClock.uptimeMillis())
+                if (dwell.channelId != input.channelId) dwell.onFocus(input.channelId, uptimeMs())
                 while (true) {
-                    val now = SystemClock.uptimeMillis()
+                    val now = uptimeMs()
                     previewMuted = !input.sound || dwell.isMuted(now)
                     if (dwell.opensFullScreen(now)) {
                         // The same handoff as OK: the preview session is promoted, nothing reloads. A preview
@@ -573,7 +570,7 @@ fun GuideScreen(
             return@handler true
         }
         if (event.type != KeyEventType.KeyDown) return@handler false
-        dwell.onKey(SystemClock.uptimeMillis())
+        dwell.onKey(uptimeMs())
         dwellNonce++
         when (event.key.guideShortcut()) {
             GuideShortcut.NOW -> onNow()
@@ -622,8 +619,6 @@ fun GuideScreen(
                         windowStart = windowStart,
                         now = now,
                         timeFormat = timeFormat,
-                        dayFormat = dayFormat,
-                        zone = zone,
                         todayLabel = todayLabel,
                         rangeFormat = rangeFormat,
                     )
@@ -635,7 +630,7 @@ fun GuideScreen(
                 ) {
                     Row(Modifier.fillMaxHeight()) {
                         repeat((GuideTimeline.WINDOW_MINUTES / GuideTimeline.SLOT_MINUTES).toInt()) { slot ->
-                            val label = timeFormat.format(windowStart.plusSeconds(slot * GuideTimeline.SLOT_MINUTES * 60))
+                            val label = timeFormat.format(windowStart + (slot * GuideTimeline.SLOT_MINUTES).minutes)
                             Box(
                                 Modifier.width(MINUTE_WIDTH * GuideTimeline.SLOT_MINUTES.toFloat()).fillMaxHeight().padding(start = 8.dp),
                                 contentAlignment = Alignment.CenterStart,
@@ -649,8 +644,8 @@ fun GuideScreen(
 
             val emptyMessage = when {
                 visible.isNotEmpty() -> null
-                query.isNotBlank() -> R.string.guide_search_none
-                activeFilter == GuideFilter.Favorites -> R.string.guide_favorites_none
+                query.isNotBlank() -> Res.string.guide_search_none
+                activeFilter == GuideFilter.Favorites -> Res.string.guide_favorites_none
                 else -> null
             }
             if (emptyMessage != null) {
@@ -686,7 +681,7 @@ fun GuideScreen(
         if (numberEntry.digits.isNotEmpty()) {
             Box(Modifier.align(Alignment.TopEnd)) { DigitsBadge(numberEntry.digits) }
         } else if (miss != null) {
-            Box(Modifier.align(Alignment.TopEnd)) { DigitsBadge(stringResource(R.string.no_channel_number, miss)) }
+            Box(Modifier.align(Alignment.TopEnd)) { DigitsBadge(stringResource(Res.string.no_channel_number, miss)) }
         }
     }
 }
@@ -699,7 +694,7 @@ private fun PreviewBand(
     searchOpen: Boolean,
     chips: @Composable (Modifier) -> Unit,
     searchBar: @Composable (Modifier) -> Unit,
-    player: ExoPlayer,
+    player: LivePlayer,
     sessions: PlaybackSessions,
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,

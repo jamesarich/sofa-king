@@ -1,7 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import androidx.media3.common.C
-import androidx.media3.common.MimeTypes
 import dev.jamesrich.sofaking.data.AppSettings
 
 /** What the caption toggle announces after a press. */
@@ -18,12 +16,14 @@ internal data class TextTrackInfo(
 internal object CaptionPolicy {
     const val PREFERRED_LANGUAGE = "en"
 
+    /** Media3's sample MIME types for the two caption standards the relays carry. */
+    const val MIME_CEA608 = "application/cea-608"
+    const val MIME_CEA708 = "application/cea-708"
+
     /** Bottom overscan on full-screen content, the same vertical margin every screen keeps. */
     const val OVERSCAN_BOTTOM_DP = 27
 
     private const val SERVICE_ONE = 1
-
-    fun hasTextTrack(trackTypes: Iterable<Int>): Boolean = trackTypes.any { it == C.TRACK_TYPE_TEXT }
 
     /** A channel without text tracks is reported even when captions are switched on; the preference still flips. */
     fun toggleOutcome(enabledAfter: Boolean, channelHasText: Boolean): CaptionToggleOutcome = when {
@@ -43,9 +43,9 @@ internal object CaptionPolicy {
             ?: tracks.firstOrNull { it.isCea608() }
             ?: tracks.firstOrNull()
 
-    private fun TextTrackInfo.isCea708() = mimeType == MimeTypes.APPLICATION_CEA708
+    private fun TextTrackInfo.isCea708() = mimeType == MIME_CEA708
 
-    private fun TextTrackInfo.isCea608() = mimeType == MimeTypes.APPLICATION_CEA608
+    private fun TextTrackInfo.isCea608() = mimeType == MIME_CEA608
 
     /** Bottom inset for captions as a fraction of the height, so cues clear the overscan band. */
     fun bottomPaddingFraction(screenHeightDp: Int): Float {

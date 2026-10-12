@@ -1,9 +1,9 @@
 package dev.jamesrich.sofaking.ui.guide
 
 import androidx.compose.runtime.Immutable
+import dev.jamesrich.sofaking.data.GuideWindow
 import dev.jamesrich.sofaking.data.Programme
-import java.time.Duration
-import java.time.Instant
+import kotlin.time.Instant
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
@@ -23,16 +23,13 @@ internal data class GuideCell(
 }
 
 internal object GuideTimeline {
-    const val SLOT_MINUTES = 30L
-    const val WINDOW_MINUTES = 1440L
+    const val SLOT_MINUTES = GuideWindow.SLOT_MINUTES
+    const val WINDOW_MINUTES = GuideWindow.WINDOW_MINUTES
 
     /** Floors [now] to the previous half hour on the UTC epoch grid. */
-    fun windowStart(now: Instant): Instant {
-        val slotSeconds = SLOT_MINUTES * 60
-        return Instant.ofEpochSecond(Math.floorDiv(now.epochSecond, slotSeconds) * slotSeconds)
-    }
+    fun windowStart(now: Instant): Instant = GuideWindow.start(now)
 
-    fun windowEnd(windowStart: Instant): Instant = windowStart.plusSeconds(WINDOW_MINUTES * 60)
+    fun windowEnd(windowStart: Instant): Instant = GuideWindow.end(windowStart)
 
     /**
      * The window to show at [now] given the [current] one: the same window while [now] is inside it, so the
@@ -43,7 +40,7 @@ internal object GuideTimeline {
 
     /** Whole minutes from [windowStart] to [instant], clamped to 0..[WINDOW_MINUTES]. */
     fun offsetMinutes(windowStart: Instant, instant: Instant): Long =
-        Duration.between(windowStart, instant).toMinutes().coerceIn(0L, WINDOW_MINUTES)
+        (instant - windowStart).inWholeMinutes.coerceIn(0L, WINDOW_MINUTES)
 
 
     /** Index of the cell covering [minute], or -1 when none does. */

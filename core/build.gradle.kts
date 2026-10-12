@@ -11,7 +11,7 @@ kotlin {
 
     android {
         namespace = "dev.jamesrich.sofaking.core"
-        compileSdk = 37
+        compileSdk { version = release(37) { minorApiLevel = 1 } }
         minSdk = 28
         withHostTest {}
     }
@@ -44,9 +44,9 @@ kotlin {
             api(libs.kotlinx.coroutines.core)
             api(libs.lifecycle.viewmodel)
             implementation(libs.kotlinx.serialization.json)
-            implementation(libs.kotlinx.io.core)
+            api(libs.kotlinx.io.core)
             implementation(libs.ktor.client.core)
-            implementation(libs.datastore.preferences.core)
+            api(libs.datastore.preferences.core)
             implementation(libs.okio)
             implementation(libs.kermit)
         }

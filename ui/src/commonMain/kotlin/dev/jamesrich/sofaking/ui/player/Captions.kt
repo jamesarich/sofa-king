@@ -1,69 +1,31 @@
 package dev.jamesrich.sofaking.ui.player
 
-import android.content.Context
-import android.graphics.Typeface
-import android.text.Spanned
-import android.text.style.BackgroundColorSpan
-import android.text.style.ForegroundColorSpan
-import android.text.style.StyleSpan
-import android.text.style.UnderlineSpan
-import android.view.accessibility.CaptioningManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Constraints
-import androidx.media3.common.Player
-import androidx.media3.common.text.Cue
-import androidx.media3.common.text.CueGroup
-import androidx.tv.material3.Text
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.data.CaptionStyle
 import kotlin.math.roundToInt
-
-/** The player's current cues as Compose state; the shape of Media3's upcoming `CuesState`, so it can swap in. */
-@Stable
-private class CuesHolder(player: Player) : Player.Listener {
-    var cues: List<Cue> by mutableStateOf(player.currentCues.cues)
-        private set
-
-    override fun onCues(cueGroup: CueGroup) {
-        cues = cueGroup.cues
-    }
-}
-
-@Composable
-private fun rememberCues(player: Player): List<Cue> {
-    val holder = remember(player) { CuesHolder(player) }
-    DisposableEffect(player) {
-        player.addListener(holder)
-        onDispose { player.removeListener(holder) }
-    }
-    return holder.cues
-}
 
 internal enum class CaptionEdge { NONE, OUTLINE, DROP_SHADOW, RAISED, DEPRESSED }
 
@@ -88,42 +50,25 @@ internal data class CaptionAppearance(
     }
 }
 
-internal fun captionAppearance(context: Context, style: CaptionStyle): CaptionAppearance = when (style) {
-    CaptionStyle.LARGE_HIGH_CONTRAST -> CaptionAppearance.LARGE_HIGH_CONTRAST
-    CaptionStyle.SYSTEM -> {
-        val manager = context.getSystemService(CaptioningManager::class.java)
-        if (manager == null || !manager.isEnabled) {
-            CaptionAppearance.DEFAULT
-        } else {
-            val user = manager.userStyle
-            val typeface = user.typeface
-            CaptionAppearance(
-                foreground = if (user.hasForegroundColor()) Color(user.foregroundColor) else Color.White,
-                background = if (user.hasBackgroundColor()) Color(user.backgroundColor) else Color.Black,
-                window = if (user.hasWindowColor()) Color(user.windowColor) else Color.Transparent,
-                edge = if (user.hasEdgeType()) edgeOf(user.edgeType) else CaptionEdge.NONE,
-                edgeColor = if (user.hasEdgeColor()) Color(user.edgeColor) else Color.White,
-                fontFamily = typeface?.let { FontFamily(it) },
-                bold = typeface?.isBold == true || typeface?.style == Typeface.BOLD,
-                scale = manager.fontScale,
-                embeddedStyles = true,
-            )
+/** The viewer's system caption settings, or null where the platform has none or they are off. */
+@Composable
+internal expect fun rememberSystemCaptionAppearance(): CaptionAppearance?
+
+@Composable
+internal fun rememberCaptionAppearance(style: CaptionStyle): CaptionAppearance {
+    val system = rememberSystemCaptionAppearance()
+    return remember(style, system) {
+        when (style) {
+            CaptionStyle.LARGE_HIGH_CONTRAST -> CaptionAppearance.LARGE_HIGH_CONTRAST
+            CaptionStyle.SYSTEM -> system ?: CaptionAppearance.DEFAULT
         }
     }
 }
 
-private fun edgeOf(type: Int): CaptionEdge = when (type) {
-    CaptioningManager.CaptionStyle.EDGE_TYPE_OUTLINE -> CaptionEdge.OUTLINE
-    CaptioningManager.CaptionStyle.EDGE_TYPE_DROP_SHADOW -> CaptionEdge.DROP_SHADOW
-    CaptioningManager.CaptionStyle.EDGE_TYPE_RAISED -> CaptionEdge.RAISED
-    CaptioningManager.CaptionStyle.EDGE_TYPE_DEPRESSED -> CaptionEdge.DEPRESSED
-    else -> CaptionEdge.NONE
-}
-
 /**
- * Where a cue goes, by the rules Media3's subtitle painter applies: [Cue.line] counts text lines from
- * the top (0 and up) or the bottom (-1 and down) for [Cue.LINE_TYPE_NUMBER], or is a fraction of the
- * height; [Cue.position] is a fraction of the width at the cue's anchor. An unset line sits at the bottom.
+ * Where a cue goes, by the rules Media3's subtitle painter applies: [CaptionCue.line] counts text lines from
+ * the top (0 and up) or the bottom (-1 and down) for [CaptionCue.LINE_TYPE_NUMBER], or is a fraction of the
+ * height; [CaptionCue.position] is a fraction of the width at the cue's anchor. An unset line sits at the bottom.
  */
 internal object CaptionGeometry {
     /** Caption text size as a fraction of the video height, Media3's default. */
@@ -133,11 +78,11 @@ internal object CaptionGeometry {
     const val LINE_SPACING = 1.2f
 
     fun left(position: Float, positionAnchor: Int, textWidth: Int, parentWidth: Int): Int {
-        if (position == Cue.DIMEN_UNSET) return (parentWidth - textWidth) / 2
+        if (position == CaptionCue.DIMEN_UNSET) return (parentWidth - textWidth) / 2
         val anchor = position * parentWidth
         val left = when (positionAnchor) {
-            Cue.ANCHOR_TYPE_END -> anchor - textWidth
-            Cue.ANCHOR_TYPE_MIDDLE -> anchor - textWidth / 2f
+            CaptionCue.ANCHOR_TYPE_END -> anchor - textWidth
+            CaptionCue.ANCHOR_TYPE_MIDDLE -> anchor - textWidth / 2f
             else -> anchor
         }
         return left.roundToInt().coerceIn(0, (parentWidth - textWidth).coerceAtLeast(0))
@@ -145,14 +90,14 @@ internal object CaptionGeometry {
 
     fun top(line: Float, lineType: Int, lineAnchor: Int, lineHeight: Float, textHeight: Int, parentHeight: Int): Int {
         val top = when {
-            line == Cue.DIMEN_UNSET -> (parentHeight - textHeight).toFloat()
-            lineType == Cue.LINE_TYPE_NUMBER && line >= 0 -> line * lineHeight
-            lineType == Cue.LINE_TYPE_NUMBER -> parentHeight + (line + 1) * lineHeight - textHeight
+            line == CaptionCue.DIMEN_UNSET -> (parentHeight - textHeight).toFloat()
+            lineType == CaptionCue.LINE_TYPE_NUMBER && line >= 0 -> line * lineHeight
+            lineType == CaptionCue.LINE_TYPE_NUMBER -> parentHeight + (line + 1) * lineHeight - textHeight
             else -> {
                 val anchor = line * parentHeight
                 when (lineAnchor) {
-                    Cue.ANCHOR_TYPE_END -> anchor - textHeight
-                    Cue.ANCHOR_TYPE_MIDDLE -> anchor - textHeight / 2f
+                    CaptionCue.ANCHOR_TYPE_END -> anchor - textHeight
+                    CaptionCue.ANCHOR_TYPE_MIDDLE -> anchor - textHeight / 2f
                     else -> anchor
                 }
             }
@@ -162,14 +107,13 @@ internal object CaptionGeometry {
 }
 
 /**
- * Text captions drawn in Compose: each cue at its 608/708 row and column, in [appearance], clear of the
- * overscan band ([bottomFraction] of the height) at the top and bottom. Bitmap cues are skipped; the streams here carry none.
+ * Text captions drawn in Compose: each cue at its 608/708 row and column, in [style]'s appearance, clear of the
+ * overscan band ([bottomFraction] of the height) at the top and bottom.
  */
 @Composable
-internal fun Captions(player: Player, style: CaptionStyle, bottomFraction: Float, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val appearance = remember(style) { captionAppearance(context, style) }
-    val cues = rememberCues(player)
+internal fun Captions(player: LivePlayer, style: CaptionStyle, bottomFraction: Float, modifier: Modifier = Modifier) {
+    val appearance = rememberCaptionAppearance(style)
+    val cues by player.cues.collectAsStateWithLifecycle()
     if (cues.isEmpty()) return
     val density = LocalDensity.current
     BoxWithConstraints(modifier) {
@@ -191,9 +135,8 @@ internal fun Captions(player: Player, style: CaptionStyle, bottomFraction: Float
             )
         }
         for (cue in cues) {
-            val text = cue.text ?: continue
             Layout(
-                content = { CueText(cueString(text, appearance), textStyle, appearance, fontPx) },
+                content = { CueText(cueString(cue.text, appearance), textStyle, appearance, fontPx) },
             ) { measurables, constraints ->
                 val placeable = measurables.first().measure(Constraints(maxWidth = parentWidth, maxHeight = parentHeight))
                 layout(constraints.maxWidth, constraints.maxHeight) {
@@ -230,10 +173,10 @@ private fun edgeShadow(appearance: CaptionAppearance, fontPx: Float): Shadow? {
 
 /**
  * The cue's text with a padding space on both ends of every line and the background behind each line,
- * as a TV caption box; embedded stream styles are kept only when [CaptionAppearance.embeddedStyles].
+ * as a TV caption box; the stream's own styles are kept only when [CaptionAppearance.embeddedStyles].
  */
-internal fun cueString(text: CharSequence, appearance: CaptionAppearance): AnnotatedString = buildAnnotatedString {
-    val lines = text.split('\n')
+internal fun cueString(text: AnnotatedString, appearance: CaptionAppearance): AnnotatedString = buildAnnotatedString {
+    val lines = text.text.split('\n')
     var sourceOffset = 0
     lines.forEachIndexed { index, line ->
         if (index > 0) append('\n')
@@ -249,33 +192,17 @@ internal fun cueString(text: CharSequence, appearance: CaptionAppearance): Annot
         append(PAD)
         // The box goes on first so a background color carried in the stream draws over it.
         addStyle(SpanStyle(background = appearance.background), lineStart, length)
-        if (appearance.embeddedStyles && text is Spanned) {
-            addEmbeddedStyles(text, sourceOffset, sourceOffset + line.length, textStart - sourceOffset)
+        if (appearance.embeddedStyles) {
+            val from = sourceOffset
+            val to = sourceOffset + line.length
+            for (span in text.spanStyles) {
+                val start = span.start.coerceAtLeast(from)
+                val end = span.end.coerceAtMost(to)
+                if (start < end) addStyle(span.item, start - from + textStart, end - from + textStart)
+            }
         }
         sourceOffset += line.length + 1
     }
 }
 
-private const val PAD = ' '
-
-private fun AnnotatedString.Builder.addEmbeddedStyles(text: Spanned, from: Int, to: Int, shift: Int) {
-    fun <T> each(type: Class<T>, style: (T) -> SpanStyle?) {
-        for (span in text.getSpans(from, to, type)) {
-            val start = text.getSpanStart(span).coerceAtLeast(from)
-            val end = text.getSpanEnd(span).coerceAtMost(to)
-            if (start < end) style(span)?.let { addStyle(it, start + shift, end + shift) }
-        }
-    }
-    each(ForegroundColorSpan::class.java) { SpanStyle(color = Color(it.foregroundColor)) }
-    each(BackgroundColorSpan::class.java) { SpanStyle(background = Color(it.backgroundColor)) }
-    each(UnderlineSpan::class.java) { SpanStyle(textDecoration = TextDecoration.Underline) }
-    each(StyleSpan::class.java) {
-        when (it.style) {
-            Typeface.ITALIC -> SpanStyle(fontStyle = FontStyle.Italic)
-            Typeface.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
-            Typeface.BOLD_ITALIC -> SpanStyle(fontStyle = FontStyle.Italic, fontWeight = FontWeight.Bold)
-            else -> null
-        }
-    }
-}
-
+private const val PAD = ' '

@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.ui.settings
 
-import androidx.activity.compose.BackHandler
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,18 +25,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Button
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Switch
-import androidx.tv.material3.Text
-import dev.jamesrich.sofaking.BuildConfig
-import dev.jamesrich.sofaking.R
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import dev.jamesrich.sofaking.BuildInfo
+import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.theme.SofaSwitch
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
@@ -92,7 +92,7 @@ fun SettingsScreen(
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 LogoMark(40.dp)
-                Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.headlineMedium)
+                Text(stringResource(Res.string.settings_title), style = MaterialTheme.typography.headlineMedium)
             }
         }
         // Above the fields: always on screen, and one Up from the URL field, with the keyboard closed.
@@ -101,21 +101,21 @@ fun SettingsScreen(
                 modifier = Modifier.focusGroup(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Button(onClick = save, enabled = canSave) {
-                    Text(stringResource(R.string.settings_save))
+                SofaButton(onClick = save, enabled = canSave) {
+                    Text(stringResource(Res.string.settings_save))
                 }
-                Button(onClick = onBack) {
-                    Text(stringResource(R.string.settings_back))
+                SofaButton(onClick = onBack) {
+                    Text(stringResource(Res.string.settings_back))
                 }
             }
         }
-        item { SectionHeader(stringResource(R.string.settings_section_server)) }
+        item { SectionHeader(stringResource(Res.string.settings_section_server)) }
         item {
             SettingField(
-                label = stringResource(R.string.settings_server_url),
+                label = stringResource(Res.string.settings_server_url),
                 value = serverUrl,
                 onValueChange = { serverUrl = it },
-                problem = stringResource(R.string.settings_server_url_invalid).takeIf { validUrl == null },
+                problem = stringResource(Res.string.settings_server_url_invalid).takeIf { validUrl == null },
                 focusRequester = serverFocus,
                 imeAction = ImeAction.Next,
                 onAction = { tokenFocus.requestFocus(FocusDirection.Enter) },
@@ -123,21 +123,21 @@ fun SettingsScreen(
         }
         item {
             SettingField(
-                label = stringResource(R.string.settings_api_token),
+                label = stringResource(Res.string.settings_api_token),
                 value = apiToken,
                 onValueChange = { apiToken = it },
-                problem = stringResource(R.string.settings_api_token_invalid).takeIf { validToken == null },
+                problem = stringResource(Res.string.settings_api_token_invalid).takeIf { validToken == null },
                 focusRequester = tokenFocus,
                 imeAction = ImeAction.Done,
                 onAction = save,
                 maskUnfocused = ::maskToken,
             )
         }
-        item { HelpText(stringResource(R.string.settings_api_token_help)) }
-        item { SectionHeader(stringResource(R.string.settings_section_captions)) }
+        item { HelpText(stringResource(Res.string.settings_api_token_help)) }
+        item { SectionHeader(stringResource(Res.string.settings_section_captions)) }
         item {
-            SettingRow(label = stringResource(R.string.captions_setting)) {
-                Switch(
+            SettingRow(label = stringResource(Res.string.captions_setting)) {
+                SofaSwitch(
                     checked = captionsOn,
                     onCheckedChange = {
                         captionsOn = it
@@ -147,8 +147,8 @@ fun SettingsScreen(
             }
         }
         item {
-            SettingRow(label = stringResource(R.string.caption_smooth)) {
-                Switch(
+            SettingRow(label = stringResource(Res.string.caption_smooth)) {
+                SofaSwitch(
                     checked = smoothCaptions,
                     onCheckedChange = {
                         smoothCaptions = it
@@ -157,10 +157,10 @@ fun SettingsScreen(
                 )
             }
         }
-        item { HelpText(stringResource(R.string.caption_smooth_help)) }
+        item { HelpText(stringResource(Res.string.caption_smooth_help)) }
         item {
-            SettingRow(label = stringResource(R.string.caption_style)) {
-                Button(
+            SettingRow(label = stringResource(Res.string.caption_style)) {
+                SofaButton(
                     onClick = {
                         captionStyle = if (captionStyle == CaptionStyle.SYSTEM) {
                             CaptionStyle.LARGE_HIGH_CONTRAST
@@ -172,17 +172,17 @@ fun SettingsScreen(
                 ) {
                     Text(
                         stringResource(
-                            if (captionStyle == CaptionStyle.SYSTEM) R.string.caption_style_system else R.string.caption_style_large,
+                            if (captionStyle == CaptionStyle.SYSTEM) Res.string.caption_style_system else Res.string.caption_style_large,
                         ),
                     )
                 }
             }
         }
         item {
-            val lessLabel = stringResource(R.string.settings_caption_timing_less)
-            val moreLabel = stringResource(R.string.settings_caption_timing_more)
-            SettingRow(label = stringResource(R.string.caption_timing)) {
-                Button(
+            val lessLabel = stringResource(Res.string.settings_caption_timing_less)
+            val moreLabel = stringResource(Res.string.settings_caption_timing_more)
+            SettingRow(label = stringResource(Res.string.caption_timing)) {
+                SofaButton(
                     onClick = {
                         captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = -1)
                         onCaptionAdvanceChanged(captionAdvance)
@@ -191,10 +191,10 @@ fun SettingsScreen(
                     modifier = Modifier.semantics { contentDescription = lessLabel },
                 ) { Text("−") }
                 Text(
-                    stringResource(R.string.caption_timing_value, CaptionPolicy.advanceLabel(captionAdvance)),
+                    stringResource(Res.string.caption_timing_value, CaptionPolicy.advanceLabel(captionAdvance)),
                     style = MaterialTheme.typography.bodyLarge,
                 )
-                Button(
+                SofaButton(
                     onClick = {
                         captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = 1)
                         onCaptionAdvanceChanged(captionAdvance)
@@ -204,14 +204,14 @@ fun SettingsScreen(
                 ) { Text("+") }
             }
         }
-        item { HelpText(stringResource(R.string.caption_timing_help)) }
-        item { SectionHeader(stringResource(R.string.settings_section_guide)) }
+        item { HelpText(stringResource(Res.string.caption_timing_help)) }
+        item { SectionHeader(stringResource(Res.string.settings_section_guide)) }
         item {
-            val offLabel = stringResource(R.string.settings_auto_open_off)
-            val tenLabel = stringResource(R.string.settings_auto_open_10)
-            val thirtyLabel = stringResource(R.string.settings_auto_open_30)
-            SettingRow(label = stringResource(R.string.settings_auto_open)) {
-                Button(
+            val offLabel = stringResource(Res.string.settings_auto_open_off)
+            val tenLabel = stringResource(Res.string.settings_auto_open_10)
+            val thirtyLabel = stringResource(Res.string.settings_auto_open_30)
+            SettingRow(label = stringResource(Res.string.settings_auto_open)) {
+                SofaButton(
                     onClick = {
                         autoOpen = AutoOpenDelay.entries[(autoOpen.ordinal + 1) % AutoOpenDelay.entries.size]
                         onAutoOpenDelayChanged(autoOpen)
@@ -227,10 +227,10 @@ fun SettingsScreen(
                 }
             }
         }
-        item { HelpText(stringResource(R.string.settings_auto_open_help)) }
+        item { HelpText(stringResource(Res.string.settings_auto_open_help)) }
         item {
-            SettingRow(label = stringResource(R.string.settings_preview_sound)) {
-                Switch(
+            SettingRow(label = stringResource(Res.string.settings_preview_sound)) {
+                SofaSwitch(
                     checked = previewSound,
                     onCheckedChange = {
                         previewSound = it
@@ -239,20 +239,20 @@ fun SettingsScreen(
                 )
             }
         }
-        item { SectionHeader(stringResource(R.string.settings_section_about)) }
+        item { SectionHeader(stringResource(Res.string.settings_section_about)) }
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 LogoMark(64.dp)
                 Column {
-                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(Res.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
+                        stringResource(Res.string.settings_version, BuildInfo.VERSION),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        pluralStringResource(R.plurals.settings_channels_loaded, channelCount, channelCount),
+                        pluralStringResource(Res.plurals.settings_channels_loaded, channelCount, channelCount),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

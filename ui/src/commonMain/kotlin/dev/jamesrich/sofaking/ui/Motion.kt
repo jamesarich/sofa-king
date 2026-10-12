@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui
 
-import android.os.SystemClock
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Spring
@@ -44,9 +43,9 @@ fun rememberSettled(target: Boolean, showAfterMs: Long = 250, holdMs: Long = 700
         if (target && !shown) {
             delay(showAfterMs)
             shown = true
-            shownAt = SystemClock.uptimeMillis()
+            shownAt = uptimeMs()
         } else if (!target && shown) {
-            delay((holdMs - (SystemClock.uptimeMillis() - shownAt)).coerceAtLeast(0))
+            delay((holdMs - (uptimeMs() - shownAt)).coerceAtLeast(0))
             shown = false
         }
     }

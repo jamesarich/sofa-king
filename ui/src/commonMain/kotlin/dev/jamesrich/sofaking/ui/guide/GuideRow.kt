@@ -1,9 +1,9 @@
-@file:OptIn(ExperimentalTvMaterial3Api::class)
 
 package dev.jamesrich.sofaking.ui.guide
 
-import android.content.res.Resources
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,26 +37,28 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.ClickableSurfaceDefaults
-import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Surface
-import androidx.tv.material3.Text
-import dev.jamesrich.sofaking.R
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Programme
-import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
-import dev.jamesrich.sofaking.ui.range
-import java.time.Instant
-import java.time.format.DateTimeFormatter
+import dev.jamesrich.sofaking.ui.TimeFormatter
+import dev.jamesrich.sofaking.ui.formatTemplate
+import dev.jamesrich.sofaking.ui.label
 import kotlin.math.roundToInt
+import kotlin.time.Instant
 
-/** Everything a row's cells need that is the same for every cell on screen; one instance per guide, so cells skip. */
+/**
+ * Everything a row's cells need that is the same for every cell on screen; one instance per guide, so cells skip.
+ * The `cell*` strings are resource templates, filled only when the semantics tree is read.
+ */
 @Immutable
 internal class GuideRowEnv(
-    val resources: Resources,
-    val timeFormat: DateTimeFormatter,
+    val cellAiring: String,
+    val cellLater: String,
+    val cellNone: String,
+    val timeFormat: TimeFormatter,
     val noListing: String,
     val favoriteLabel: String,
     val toggleFavoriteLabel: String,
@@ -156,9 +158,16 @@ private fun GuideCellItem(
     val programme = cell.programme
     val colors = MaterialTheme.colorScheme
     val cellStartPx = cell.startMinute * env.minutePx
+    val interactions = remember { MutableInteractionSource() }
+    // No focus scale: a cell that starts before the visible edge would grow past the pinned column and clip its text.
     Surface(
-        onClick = { env.onPlay(channel) },
-        onLongClick = { env.onToggleFavorite(channel) },
+        shape = MaterialTheme.shapes.small,
+        color = when {
+            focused -> colors.primary
+            airing -> colors.primaryContainer
+            else -> colors.surfaceVariant
+        },
+        contentColor = if (focused) colors.onPrimary else colors.onSurface,
         modifier = modifier
             .padding(horizontal = 1.dp, vertical = 2.dp)
             .focusRequester(focusRequester)
@@ -175,15 +184,14 @@ private fun GuideCellItem(
                         true
                     },
                 )
-            },
-        // No focus scale: a cell that starts before the visible edge would grow past the pinned column and clip its text.
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (airing) colors.primaryContainer else colors.surfaceVariant,
-            contentColor = colors.onSurface,
-            focusedContainerColor = colors.primary,
-            focusedContentColor = colors.onPrimary,
-        ),
+            }
+            // OK plays and a held OK toggles the favorite, from the D-pad, a keyboard, touch or a mouse.
+            .combinedClickable(
+                interactionSource = interactions,
+                indication = null,
+                onLongClick = { env.onToggleFavorite(channel) },
+                onClick = { env.onPlay(channel) },
+            ),
     ) {
         Column(
             Modifier
@@ -214,9 +222,9 @@ private fun GuideCellItem(
 }
 
 private fun cellDescription(env: GuideRowEnv, channel: Channel, programme: Programme?, airing: Boolean): String = when {
-    programme == null -> env.resources.getString(R.string.guide_cell_none, channel.name, env.noListing)
-    else -> env.resources.getString(
-        if (airing) R.string.guide_cell_airing else R.string.guide_cell_later,
+    programme == null -> formatTemplate(env.cellNone, channel.name, env.noListing)
+    else -> formatTemplate(
+        if (airing) env.cellAiring else env.cellLater,
         channel.name,
         programme.title,
         env.timeFormat.format(programme.start),
@@ -238,4 +246,4 @@ private fun Modifier.stickyStart(scrollState: ScrollState, cellStartPx: Float, m
     }
 
 internal fun isAiring(programme: Programme, now: Instant): Boolean =
-    !programme.start.isAfter(now) && programme.stop.isAfter(now)
+    programme.start <= now && programme.stop > now

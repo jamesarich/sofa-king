@@ -1,8 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
-import android.util.Log
-import androidx.activity.compose.BackHandler
-import androidx.annotation.OptIn
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExitTransition
@@ -36,26 +34,25 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withStateAtLeast
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.Tracks
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.session.MediaSession
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.Text
-import dev.jamesrich.sofaking.R
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.ui.KeepScreenOn
+import dev.jamesrich.sofaking.ui.formatTemplate
+import dev.jamesrich.sofaking.ui.isLongPress
+import dev.jamesrich.sofaking.ui.repeatCountOrNull
+import kotlin.time.Clock
+import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
@@ -72,7 +69,6 @@ import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
-import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -92,7 +88,7 @@ internal const val CHANNEL_NOT_FOUND = "CHANNEL_NOT_FOUND"
 /** How long the player waits for the lineup it asked for to catch up with the one it holds. */
 private const val LINEUP_SYNC_MS = 2_000L
 private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
-private const val TAG = "SofaKing"
+private val log = Logger.withTag("SofaKing")
 
 /** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
 private class Notice(val digits: String)
@@ -119,7 +115,11 @@ private class TuneJob {
 }
 
 
-@OptIn(UnstableApi::class)
+/** The zap the system media session asks for, pointed at the current composition's handler. */
+private class ZapRelay {
+    var onStep: (Int) -> Unit = {}
+}
+
 @Composable
 fun PlayerScreen(
     lineup: Lineup,
@@ -128,9 +128,8 @@ fun PlayerScreen(
     previousGuideId: String? = null,
     /** The guide filter the channel was picked from; null cycles the whole lineup. */
     zapScope: ZapScope? = null,
-    player: ExoPlayer,
+    player: LivePlayer,
     sessions: PlaybackSessions,
-    captionSync: CaptionSync,
     onExit: () -> Unit,
     onChannelChanged: (Channel) -> Unit,
     onGuide: () -> Unit = onExit,
@@ -144,8 +143,9 @@ fun PlayerScreen(
     captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
     smoothCaptions: Boolean = true,
 ) {
-    val context = LocalContext.current
-    val resources = LocalResources.current
+    val captionSync = player.captionSync
+    val nowPlayingTemplate = stringResource(Res.string.now_playing)
+    val nowPlayingChannelTemplate = stringResource(Res.string.now_playing_channel)
     val startChannel = lineup.channels.getOrNull(startIndex)
     // Up, Down and the channel list stay in the guide's filter until a number typed outside it, or a channel
     // being followed after a re-import, widens them to the whole lineup.
@@ -171,8 +171,10 @@ fun PlayerScreen(
     var overlayVisible by remember { mutableStateOf(true) }
     var overlayRequest by remember { mutableIntStateOf(0) }
     // The shared player may arrive already playing the channel from the guide preview.
-    var playing by remember { mutableStateOf(player.isPlaying) }
-    var buffering by remember { mutableStateOf(player.playbackState == Player.STATE_BUFFERING) }
+    val status by player.status.collectAsStateWithLifecycle()
+    val playing = status.isPlaying
+    val buffering = status.state == PlaybackState.BUFFERING
+    val paused = !status.playWhenReady
     var failure by remember { mutableStateOf<Failure?>(null) }
     // The channel whose id the server no longer knows, while the lineup is reloaded to find it again.
     var recovering by remember { mutableStateOf<Channel?>(null) }
@@ -181,7 +183,6 @@ fun PlayerScreen(
     var miniGuideOpen by remember { mutableStateOf(false) }
     // Bumped on every key while the mini-guide is open, so its idle timer restarts.
     var miniGuideActivity by remember { mutableIntStateOf(0) }
-    var paused by remember { mutableStateOf(!player.playWhenReady) }
     val centerGesture = remember { CenterKeyGesture() }
     val now by rememberMinuteNow()
     val scope = rememberCoroutineScope()
@@ -197,56 +198,40 @@ fun PlayerScreen(
         captionSync.smoothingEnabled = smoothCaptions
     }
 
-    // The session and the system's next/previous/play/pause go through this wrapper; the view and listeners use the ExoPlayer.
-    val wrapper = remember(player) { LivePlayerWrapper(player) }
-    DisposableEffect(player) {
+    // The system's next/previous/play/pause (MediaSession, media keys) reach the player through this session.
+    val zapRelay = remember { ZapRelay() }
+    val mediaSession = remember(player) { player.openMediaSession { step -> zapRelay.onStep(step) } }
+    DisposableEffect(mediaSession) {
         player.volume = 1f
-        // The preview never watched track changes, so the caption choice is made again on arrival.
-        preferCaptionTrack(player)
-        val session = MediaSession.Builder(context, wrapper).build()
-        val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                playing = isPlaying
-                if (isPlaying) failure = null
-            }
-
-            override fun onTracksChanged(tracks: Tracks) {
-                preferCaptionTrack(player)
-            }
-
-            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                paused = !playWhenReady
-            }
-
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                buffering = playbackState == Player.STATE_BUFFERING
-                if (playbackState == Player.STATE_READY) failure = null
-                // A live stream never ends; the server closed the connection, so treat it as a failure and reconnect.
-                if (playbackState == Player.STATE_ENDED) failure = Failure(STREAM_ENDED, attempt = failure?.attempt ?: 0)
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                if (player.recoverIfBehindLive(error)) return
-                failure = Failure(error.errorCodeName, attempt = failure?.attempt ?: 0, immediate = error.isStreamGone())
-            }
+        onDispose { mediaSession.close() }
+    }
+    LaunchedEffect(player) {
+        player.status.collect { s ->
+            if (s.isPlaying || s.state == PlaybackState.READY) failure = null
+            // A live stream never ends; the server closed the connection, so treat it as a failure and reconnect.
+            if (s.state == PlaybackState.ENDED) failure = Failure(STREAM_ENDED, attempt = failure?.attempt ?: 0)
         }
-        player.addListener(listener)
-        onDispose {
-            player.removeListener(listener)
-            session.release()
+    }
+    LaunchedEffect(player) {
+        player.errors.collect { error ->
+            failure = Failure(error.code, attempt = failure?.attempt ?: 0, immediate = error.streamGone)
         }
     }
 
-    fun nowPlayingFor(channel: Channel) =
-        nowPlayingMetadata(channel, lineup.nowAndNext(channel, Instant.now()).first?.title)
+    fun nowPlayingFor(channel: Channel) = NowPlaying(
+        title = lineup.nowAndNext(channel, Clock.System.now()).first?.title ?: channel.name,
+        subtitle = channel.label(),
+        artworkUrl = channel.logo,
+    )
 
     fun load(channel: Channel) {
         val metadata = nowPlayingFor(channel)
-        wrapper.publishNowPlaying(metadata)
+        mediaSession.publish(metadata)
         tuneJob.job?.cancel()
         // Handed over from the guide preview mid-stream: keep it, and let the caption lead grow back from zero.
         // The same session is promoted to watch, so the stream continues and its lease grows to 90 s.
-        if (player.currentChannelId == channel.guideId && (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING)) {
+        val state = player.status.value.state
+        if (player.currentChannelId == channel.guideId && (state == PlaybackState.READY || state == PlaybackState.BUFFERING)) {
             captionSync.effectiveUs = 0L
             tuneJob.job = scope.launch {
                 try {
@@ -254,7 +239,7 @@ fun PlayerScreen(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Log.w(TAG, "session: promote failed", e)
+                    log.w(e) { "session: promote failed" }
                 }
             }
             return
@@ -274,7 +259,7 @@ fun PlayerScreen(
                 failure = Failure((e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE, attempt = failure?.attempt ?: 0)
                 return@launch
             }
-            player.setMediaItem(mediaItemFor(stream, metadata))
+            player.setStream(stream, metadata)
             player.prepare()
         }
     }
@@ -295,7 +280,7 @@ fun PlayerScreen(
 
     fun zapStep(step: Int) {
         val size = currentChannels.size
-        if (size > 0) zapTo(Math.floorMod(index + step, size))
+        if (size > 0) zapTo((index + step).mod(size))
     }
 
     /** Last-channel recall; with nothing watched before, it just shows the info overlay. */
@@ -309,7 +294,7 @@ fun PlayerScreen(
         }
     }
 
-    SideEffect { wrapper.onZapStep = { step -> zapStep(step) } }
+    SideEffect { zapRelay.onStep = { step -> zapStep(step) } }
 
     fun commitEntry() {
         val pending = entry
@@ -366,7 +351,7 @@ fun PlayerScreen(
         while (true) {
             delay(METADATA_REFRESH_MS)
             val channel = currentChannels.getOrNull(index) ?: continue
-            wrapper.publishNowPlaying(nowPlayingFor(channel))
+            mediaSession.publish(nowPlayingFor(channel))
         }
     }
 
@@ -388,14 +373,14 @@ fun PlayerScreen(
         while (true) {
             delay(250)
             // While (re)buffering the start gate guards the lead; clamping then would collapse it to zero.
-            if (!player.isPlaying) continue
+            if (!player.status.value.isPlaying) continue
             captionSync.effectiveUs = CaptionSync.nextEffectiveUs(
                 currentUs = captionSync.effectiveUs,
                 advanceUs = captionSync.advanceUs,
-                bufferedUs = player.totalBufferedDuration * 1_000L,
+                bufferedUs = player.bufferedMs * 1_000L,
             )
             if (++tick % 8 == 0) {
-                Log.d(TAG, "captions: buffered=${player.totalBufferedDuration}ms lead=${captionSync.effectiveUs / 1000}ms of ${captionSync.advanceUs / 1000}ms")
+                log.d { "captions: buffered=${player.bufferedMs}ms lead=${captionSync.effectiveUs / 1000}ms of ${captionSync.advanceUs / 1000}ms" }
             }
         }
     }
@@ -479,8 +464,8 @@ fun PlayerScreen(
     fun toggleCaptions() {
         val enabled = !captionsOn
         captionsOn = enabled
-        player.trackSelectionParameters = captionParameters(player.trackSelectionParameters, enabled)
-        val channelHasText = CaptionPolicy.hasTextTrack(player.currentTracks.groups.map { it.type })
+        player.setCaptionsEnabled(enabled)
+        val channelHasText = player.hasTextTrack
         captionToast = CaptionToast(CaptionPolicy.toggleOutcome(enabled, channelHasText))
         currentOnCaptionsChanged(enabled)
     }
@@ -495,10 +480,9 @@ fun PlayerScreen(
     fun handleCenter(event: KeyEvent): Boolean {
         // With the mini-guide open, its focused row takes OK.
         if (miniGuideOpen || currentChannels.isEmpty()) return false
-        val native = event.nativeKeyEvent
         return when (event.type) {
             KeyEventType.KeyDown -> {
-                if (centerGesture.onKeyDown(native.isLongPress, native.repeatCount) == CenterPress.LONG) recallLastChannel()
+                if (centerGesture.onKeyDown(event.isLongPress, event.repeatCountOrNull) == CenterPress.LONG) recallLastChannel()
                 true
             }
             KeyEventType.KeyUp -> {
@@ -547,9 +531,9 @@ fun PlayerScreen(
             Key.DirectionUp, Key.ChannelUp -> { zapStep(1); true }
             Key.DirectionDown, Key.ChannelDown -> { zapStep(-1); true }
             Key.MediaPrevious, Key.LastChannel -> { recallLastChannel(); true }
-            Key.MediaPlayPause -> { if (wrapper.playWhenReady) wrapper.pause() else wrapper.play(); true }
-            Key.MediaPlay -> { wrapper.play(); true }
-            Key.MediaPause -> { wrapper.pause(); true }
+            Key.MediaPlayPause -> { if (player.playWhenReady) player.pause() else player.play(); true }
+            Key.MediaPlay -> { player.play(); true }
+            Key.MediaPause -> { player.pause(); true }
             Key.Info -> { if (entry.digits.isEmpty()) overlayVisible = !overlayVisible; true }
             Key.DirectionLeft, Key.DirectionRight -> {
                 val channel = currentChannels.getOrNull(index)
@@ -606,21 +590,21 @@ fun PlayerScreen(
                 currentChannels.getOrNull(index)?.let { channel ->
                     val title = lineup.nowAndNext(channel, now).first?.title
                     contentDescription = if (title == null) {
-                        resources.getString(R.string.now_playing_channel, channel.label())
+                        formatTemplate(nowPlayingChannelTemplate, channel.label())
                     } else {
-                        resources.getString(R.string.now_playing, channel.label(), title)
+                        formatTemplate(nowPlayingTemplate, channel.label(), title)
                     }
                 }
             }
             .onPreviewKeyEvent { event -> handleKeyEvent(event) },
     ) {
-        LiveVideo(player, Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
+        player.Video(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         Captions(player, captionStyle, captionBottomFraction, Modifier.fillMaxSize())
         KeepScreenOn(playing)
 
         val channel = currentChannels.getOrNull(index)
         if (channel == null) {
-            Text(stringResource(R.string.no_channels), style = MaterialTheme.typography.titleLarge, color = SofaDusk, modifier = Modifier.align(Alignment.Center))
+            Text(stringResource(Res.string.no_channels), style = MaterialTheme.typography.titleLarge, color = SofaDusk, modifier = Modifier.align(Alignment.Center))
         } else {
             // Status pills stack top left so a caption toast never covers "Paused" or "Tuning".
             Column(
@@ -628,10 +612,10 @@ fun PlayerScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 AnimatedVisibility(rememberSettled(buffering && failure == null), enter = PopIn, exit = PopOut) {
-                    StatusPill(stringResource(R.string.tuning), busy = true)
+                    StatusPill(stringResource(Res.string.tuning), busy = true)
                 }
                 AnimatedVisibility(paused && failure == null, enter = PopIn, exit = PopOut) {
-                    StatusPill(stringResource(R.string.player_paused))
+                    StatusPill(stringResource(Res.string.player_paused))
                 }
                 AnimatedContent(
                     targetState = captionToast,
@@ -643,7 +627,7 @@ fun PlayerScreen(
             }
             failure?.let { FailureCard(it.code) }
             val pendingDigits = entry.digits
-            val noticeText = notice?.let { stringResource(R.string.no_channel_number, it.digits) }
+            val noticeText = notice?.let { stringResource(Res.string.no_channel_number, it.digits) }
             // Keyed on presence, so each typed digit updates the badge in place instead of popping it again.
             AnimatedContent(
                 targetState = pendingDigits.ifEmpty { noticeText.orEmpty() },
@@ -670,7 +654,7 @@ fun PlayerScreen(
             }
             AnimatedVisibility(overlayVisible && !miniGuideOpen, enter = RiseIn, exit = SinkOut) {
                 Box(Modifier.fillMaxSize()) {
-                    val scopeLabel = zapScope?.takeIf { scoped }?.let { stringResource(R.string.zap_scope, it.label, index + 1, channels.size) }
+                    val scopeLabel = zapScope?.takeIf { scoped }?.let { stringResource(Res.string.zap_scope, it.label, index + 1, channels.size) }
                     InfoOverlay(lineup = lineup, channel = channel, now = now, captionsOn = captionsOn, captionAdvanceMs = channelAdvance, scope = scopeLabel)
                 }
             }

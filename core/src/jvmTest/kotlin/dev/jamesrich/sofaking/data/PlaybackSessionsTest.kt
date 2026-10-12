@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.data
 
-import java.io.InterruptedIOException
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
@@ -297,7 +296,7 @@ class PlaybackSessionsTest {
 
         val failure = runCatching { slow.tune("c1", PlaybackIntent.PREVIEW) }.exceptionOrNull()
 
-        assertTrue("was $failure", failure is InterruptedIOException)
+        assertTrue("was $failure", failure is SessionTimeoutException)
         assertFalse(failure is CancellationException)
         assertNull(slow.current.value)
     }

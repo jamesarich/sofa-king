@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.data
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.Test
 
 class ServerAddressTest {
     @Test
@@ -33,6 +33,19 @@ class ServerAddressTest {
         assertNull(ServerAddress.normalizeUrl("ftp://host"))
         assertNull(ServerAddress.normalizeUrl("http://"))
         assertNull(ServerAddress.normalizeUrl("http:///api"))
+    }
+
+    @Test
+    fun `an IPv6 literal with a port and an empty port are accepted`() {
+        assertEquals("http://[fd00::1]:9193", ServerAddress.normalizeUrl("http://[fd00::1]:9193"))
+        assertEquals("http://sofa.lan:", ServerAddress.normalizeUrl("http://sofa.lan:"))
+    }
+
+    @Test
+    fun `a host with spaces or an unclosed IPv6 bracket is rejected`() {
+        assertNull(ServerAddress.normalizeUrl("http://my server:9193"))
+        assertNull(ServerAddress.normalizeUrl("http://[fd00::1:9193"))
+        assertNull(ServerAddress.normalizeUrl("http://sofa.lan:91x3"))
     }
 
     @Test

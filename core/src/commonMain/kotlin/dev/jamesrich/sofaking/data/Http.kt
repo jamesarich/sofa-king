@@ -1,39 +1,23 @@
 package dev.jamesrich.sofaking.data
 
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import java.util.concurrent.TimeUnit
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.HttpClientEngineFactory
+import io.ktor.client.plugins.HttpTimeout
 
-/** The app's one connection pool; clients with other timeouts are derived from it with `newBuilder()`. */
-internal val sharedHttp: OkHttpClient by lazy {
-    OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .callTimeout(90, TimeUnit.SECONDS)
-        .build()
-}
+/** The platform's HTTP engine: OkHttp on Android and the JVM, Darwin on Apple, curl on Linux, fetch on the web. */
+internal expect val httpEngine: HttpClientEngineFactory<*>
 
-/** Runs [request] on [ioDispatcher] and hands the open response to [read]; cancellation closes the socket even mid-body. */
-internal suspend fun <T> OkHttpClient.fetch(request: Request, ioDispatcher: CoroutineDispatcher, read: (Response) -> T): T = coroutineScope {
-    val call = newCall(request)
-    val cancellation = launch(start = CoroutineStart.UNDISPATCHED) {
-        try {
-            awaitCancellation()
-        } finally {
-            call.cancel()
+/**
+ * The app's one connection pool for API calls. Cancellation closes the call's socket mid-body; the timeouts
+ * keep a server that went quiet from holding a tune or a guide load forever.
+ */
+internal val apiHttpClient: HttpClient by lazy {
+    HttpClient(httpEngine) {
+        expectSuccess = false
+        install(HttpTimeout) {
+            connectTimeoutMillis = 5_000
+            socketTimeoutMillis = 20_000
+            requestTimeoutMillis = 30_000
         }
-    }
-    try {
-        withContext(ioDispatcher) { call.execute().use(read) }
-    } finally {
-        cancellation.cancelAndJoin()
     }
 }

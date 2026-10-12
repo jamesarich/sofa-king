@@ -22,11 +22,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
-import java.io.IOException
-import java.io.InterruptedIOException
-import java.util.UUID
+import kotlinx.io.IOException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.uuid.Uuid
+
+/** The server did not answer a session open in time; an [IOException], so the caller backs off and retries. */
+class SessionTimeoutException(message: String) : IOException(message)
 
 /** What a playback session is for; a preview holds a 45 s lease and is the first evicted at capacity, a watch holds 90 s. */
 enum class PlaybackIntent(internal val wire: String) {
@@ -55,9 +57,9 @@ data class PlaybackStream(
  * Renewal publishes a replaced stream on [replaced] when the server bumps the epoch or dropped the session.
  */
 class PlaybackSessions(
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val renewInterval: Duration = 15.seconds,
-    private val newIdempotencyKey: () -> String = { UUID.randomUUID().toString() },
+    private val newIdempotencyKey: () -> String = { Uuid.random().toString() },
     private val openTimeout: Duration = 12.seconds,
 ) {
     private val mutex = Mutex()
@@ -147,7 +149,7 @@ class PlaybackSessions(
         // A timeout is an IOException, not a cancellation: the caller backs off and retries instead of dying silently.
         val opened = withContext(NonCancellable) {
             withTimeoutOrNull(openTimeout) { api.openSession(channelId, intent.wire, newIdempotencyKey()) }
-                ?: throw InterruptedIOException("session open timed out")
+                ?: throw SessionTimeoutException("session open timed out")
         }
         try {
             currentCoroutineContext().ensureActive()
@@ -208,7 +210,7 @@ class PlaybackSessions(
                     // A reopen that fails leaves no session; the player's own failure path tunes again with backoff.
                     val reopened = try {
                         withTimeoutOrNull(openTimeout) { api.openSession(held.channelId, held.intent.wire, newIdempotencyKey()) }
-                            ?: throw InterruptedIOException("session reopen timed out")
+                            ?: throw SessionTimeoutException("session reopen timed out")
                     } catch (_: IOException) {
                         return
                     }

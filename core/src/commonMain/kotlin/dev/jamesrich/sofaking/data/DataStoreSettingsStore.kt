@@ -1,51 +1,50 @@
 package dev.jamesrich.sofaking.data
 
-import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
-import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-import androidx.datastore.preferences.preferencesDataStoreFile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
-import java.io.IOException
+import okio.Path.Companion.toPath
 
+/** [SettingsStore] on a preferences [DataStore]; there must be only one per file, which the DI graph's single instance guarantees. */
 class DataStoreSettingsStore(
     private val dataStore: DataStore<Preferences>,
 ) : SettingsStore {
 
-    // An unreadable file reads as defaults rather than failing the flow, which would take the whole app down.
+    // An unreadable store reads as defaults rather than failing the flow, which would take the whole app down.
     override val settings: Flow<AppSettings> = dataStore.data
-        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .catch { if (it is CancellationException) throw it else emit(emptyPreferences()) }
         .map { prefs ->
-        AppSettings(
-            serverUrl = prefs[SERVER_URL].orEmpty(),
-            apiToken = prefs[API_TOKEN].orEmpty(),
-            favorites = prefs[FAVORITES] ?: emptySet(),
-            lastChannel = prefs[LAST_CHANNEL],
-            captionsEnabled = prefs[CAPTIONS_ENABLED] ?: false,
-            captionAdvanceMs = advanceMs(prefs),
-            captionAdvanceByChannel = channelAdvances(prefs),
-            smoothCaptions = prefs[SMOOTH_CAPTIONS] ?: true,
-            captionStyle = prefs[CAPTION_STYLE]?.let { name ->
-                CaptionStyle.entries.firstOrNull { it.name == name }
-            } ?: CaptionStyle.SYSTEM,
-            autoOpenDelay = prefs[AUTO_OPEN_DELAY]?.let { name ->
-                AutoOpenDelay.entries.firstOrNull { it.name == name }
-            } ?: AutoOpenDelay.AFTER_10_SECONDS,
-            previewSound = prefs[PREVIEW_SOUND] ?: true,
-        )
-    }
+            AppSettings(
+                serverUrl = prefs[SERVER_URL].orEmpty(),
+                apiToken = prefs[API_TOKEN].orEmpty(),
+                favorites = prefs[FAVORITES] ?: emptySet(),
+                lastChannel = prefs[LAST_CHANNEL],
+                captionsEnabled = prefs[CAPTIONS_ENABLED] ?: false,
+                captionAdvanceMs = advanceMs(prefs),
+                captionAdvanceByChannel = channelAdvances(prefs),
+                smoothCaptions = prefs[SMOOTH_CAPTIONS] ?: true,
+                captionStyle = prefs[CAPTION_STYLE]?.let { name ->
+                    CaptionStyle.entries.firstOrNull { it.name == name }
+                } ?: CaptionStyle.SYSTEM,
+                autoOpenDelay = prefs[AUTO_OPEN_DELAY]?.let { name ->
+                    AutoOpenDelay.entries.firstOrNull { it.name == name }
+                } ?: AutoOpenDelay.AFTER_10_SECONDS,
+                previewSound = prefs[PREVIEW_SOUND] ?: true,
+            )
+        }
 
     override suspend fun setServer(serverUrl: String, apiToken: String) {
         val server = ServerAddress.normalizeUrl(serverUrl) ?: serverUrl.trim().trimEnd('/')
@@ -108,33 +107,25 @@ class DataStoreSettingsStore(
         if (id.isEmpty() || value == null) null else id to value.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
     }.toMap()
 
-    companion object {
-        private val SERVER_URL = stringPreferencesKey("backend_url")
-        private val API_TOKEN = stringPreferencesKey("api_token")
-        private val FAVORITES = stringSetPreferencesKey("favorites")
-        private val LAST_CHANNEL = stringPreferencesKey("last_channel")
-        private val CAPTIONS_ENABLED = booleanPreferencesKey("captions_enabled")
-        private val CAPTION_ADVANCE_MS = intPreferencesKey("caption_advance_ms")
-        private val CHANNEL_CAPTION_ADVANCE_MS = stringSetPreferencesKey("channel_caption_advance_ms")
-        private val SMOOTH_CAPTIONS = booleanPreferencesKey("smooth_captions")
-        private val CAPTION_STYLE = stringPreferencesKey("caption_style")
-        private val AUTO_OPEN_DELAY = stringPreferencesKey("auto_open_delay")
-        private val PREVIEW_SOUND = booleanPreferencesKey("preview_sound")
-        private const val SEPARATOR = '\t'
-
-        private val lock = Any()
-        private var sharedDataStore: DataStore<Preferences>? = null
-
-        /** One DataStore per process: creating two for the same file throws. A corrupt file is replaced with defaults. */
-        fun create(context: Context): DataStoreSettingsStore {
-            val appContext = context.applicationContext
-            val store = synchronized(lock) {
-                sharedDataStore ?: PreferenceDataStoreFactory.create(
-                    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
-                    scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
-                ) { appContext.preferencesDataStoreFile("settings") }.also { sharedDataStore = it }
-            }
-            return DataStoreSettingsStore(store)
-        }
+    private companion object {
+        val SERVER_URL = stringPreferencesKey("backend_url")
+        val API_TOKEN = stringPreferencesKey("api_token")
+        val FAVORITES = stringSetPreferencesKey("favorites")
+        val LAST_CHANNEL = stringPreferencesKey("last_channel")
+        val CAPTIONS_ENABLED = booleanPreferencesKey("captions_enabled")
+        val CAPTION_ADVANCE_MS = intPreferencesKey("caption_advance_ms")
+        val CHANNEL_CAPTION_ADVANCE_MS = stringSetPreferencesKey("channel_caption_advance_ms")
+        val SMOOTH_CAPTIONS = booleanPreferencesKey("smooth_captions")
+        val CAPTION_STYLE = stringPreferencesKey("caption_style")
+        val AUTO_OPEN_DELAY = stringPreferencesKey("auto_open_delay")
+        val PREVIEW_SOUND = booleanPreferencesKey("preview_sound")
+        const val SEPARATOR = '\t'
     }
 }
+
+/** A preferences store in [file]; a corrupt file is replaced with defaults. Create one per file, as a DI single. */
+fun preferencesDataStore(file: String): DataStore<Preferences> =
+    PreferenceDataStoreFactory.createWithPath(
+        corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+        scope = CoroutineScope(ioDispatcher + SupervisorJob()),
+    ) { file.toPath() }

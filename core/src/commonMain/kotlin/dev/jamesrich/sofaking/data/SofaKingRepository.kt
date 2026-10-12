@@ -1,12 +1,12 @@
 package dev.jamesrich.sofaking.data
 
-import dev.jamesrich.sofaking.ui.guide.GuideTimeline
-import java.time.Instant
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * The lineup from a Sofa King server. The catalog is fetched with its ETag, so an unchanged lineup costs one
@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.withPermit
  */
 class SofaKingRepository(
     private val api: SofaKingApi,
-    private val now: () -> Instant = Instant::now,
+    private val now: () -> Instant = Clock.System::now,
 ) {
     private var etag: String? = null
     private var channels: List<Channel>? = null
@@ -37,8 +37,8 @@ class SofaKingRepository(
 
     /** Programmes for [channels] over the guide window. Chunks share one catalog revision; a revision that moves under them restarts without one. */
     suspend fun loadGuide(channels: List<Channel>): Map<String, List<Programme>> {
-        val from = GuideTimeline.windowStart(now())
-        val to = GuideTimeline.windowEnd(from)
+        val from = GuideWindow.start(now())
+        val to = GuideWindow.end(from)
         val chunks = channels.map { it.guideId }.distinct().chunked(GUIDE_CHUNK)
         return try {
             query(chunks, from, to, pinRevision = true)

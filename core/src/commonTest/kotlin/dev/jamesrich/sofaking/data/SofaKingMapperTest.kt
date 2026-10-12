@@ -1,9 +1,9 @@
 package dev.jamesrich.sofaking.data
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
-import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.Test
+import kotlin.time.Instant
 
 class SofaKingMapperTest {
     private fun channel(
@@ -36,7 +36,7 @@ class SofaKingMapperTest {
     }
 
     @Test
-    fun `every tag is a group, trimmed and once each, in tag order`() {
+    fun `every tag is a group trimmed and once each in tag order`() {
         val channels = SofaKingMapper.channels(
             CatalogDto(listOf(channel("a", "1", tags = listOf(" Local ", "", "News", "Local")))),
         )
@@ -58,7 +58,7 @@ class SofaKingMapperTest {
         val channels = SofaKingMapper.channels(catalog)
 
         assertEquals(listOf("ok"), channels.map { it.guideId })
-        assertNull("an empty logo reads as none", channels.single().logo)
+        assertNull(channels.single().logo, "an empty logo reads as none")
     }
 
     @Test
@@ -119,6 +119,6 @@ class SofaKingMapperTest {
         val guide = SofaKingMapper.programmes(window)
 
         assertEquals(listOf("Kept"), guide["a"]?.map { it.title })
-        assertNull("a channel with nothing valid has no entry", guide["b"])
+        assertNull(guide["b"], "a channel with nothing valid has no entry")
     }
 }

@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.data
 
-import java.time.Instant
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -15,6 +14,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import kotlin.time.Instant
 
 class SofaKingRepositoryTest {
     private val server = MockWebServer()

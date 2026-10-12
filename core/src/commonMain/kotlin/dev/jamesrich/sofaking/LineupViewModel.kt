@@ -1,13 +1,12 @@
 package dev.jamesrich.sofaking
 
-import android.app.Application
-import android.util.Log
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
+import dev.jamesrich.sofaking.data.ByteStore
 import dev.jamesrich.sofaking.data.CaptionStyle
-import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
 import dev.jamesrich.sofaking.data.PlaybackSessions
@@ -16,7 +15,6 @@ import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.SofaKingRepository
-import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -51,9 +49,17 @@ sealed interface LineupState {
 /** A server address and token the API can be built from. */
 private data class Server(val url: String, val token: String)
 
-class LineupViewModel(application: Application) : AndroidViewModel(application) {
-    private val store: SettingsStore = DataStoreSettingsStore.create(application)
-
+/**
+ * The lineup, the settings and the one playback session, for every screen. [newApi] builds the API client for a
+ * server address and token; tests swap it for one aimed at a fake server.
+ */
+class LineupViewModel(
+    private val store: SettingsStore,
+    private val cacheStore: ByteStore,
+    /** The one playback session the app holds; screens tune through it and the host releases it when stopped. */
+    val sessions: PlaybackSessions = PlaybackSessions(),
+    private val newApi: (url: String, token: String) -> SofaKingApi = ::SofaKingApi,
+) : ViewModel() {
     val settings: StateFlow<AppSettings?> = store.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -64,17 +70,12 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
     /** True while the catalog and guide are being fetched, including a background or manual refresh. */
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
-    private val cacheFile = File(application.filesDir, "lineup-cache.bin")
-
     /** Counts of catalogs published and loads finished (either way), so [reloadLineup] can wait for the load it asked for. */
     private val catalogsLoaded = MutableStateFlow(0)
     private val loadsFinished = MutableStateFlow(0)
 
     /** The last lineup loaded, with the server key it came from; read and written only inside [state]'s transform. */
     private var lastGood: Pair<String, Lineup>? = null
-
-    /** The one playback session the app holds; screens tune through it and the activity releases it when stopped. */
-    val sessions = PlaybackSessions()
 
     /** The server as Settings has it, or null while the address is not a usable URL. */
     private val server = store.settings
@@ -84,12 +85,12 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
     init {
         // A new address or token releases the session held on the old server before anything tunes on the new one.
         viewModelScope.launch {
-            server.collect { sessions.configure(it?.let { s -> SofaKingApi(s.url, s.token) }) }
+            server.collect { sessions.configure(it?.let { s -> newApi(s.url, s.token) }) }
         }
     }
 
     /** One repository per server, so its catalog ETag survives every refresh; rebuilt only when the server changes. */
-    private val serverRepository = server.map { s -> s?.let { it to SofaKingRepository(SofaKingApi(it.url, it.token)) } }
+    private val serverRepository = server.map { s -> s?.let { it to SofaKingRepository(newApi(it.url, it.token)) } }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: StateFlow<LineupState> = combine(serverRepository, reloads.onStart { emit(Unit) }) { found, _ -> found }
@@ -100,14 +101,14 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
             }
             val (server, repository) = found
             val key = server.url
-            val cache = LineupCache(cacheFile, key)
+            val cache = LineupCache(cacheStore, key)
             // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
             // so the last good lineup shows at once and the network load replaces it below.
             var last: Lineup? = lastGood?.takeIf { it.first == key }?.second
             if (last == null) {
                 val cacheStarted = TimeSource.Monotonic.markNow()
                 cache.read()?.let { cached ->
-                    Log.i(TAG, "cache: ${cached.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}")
+                    log.i { "cache: ${cached.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}" }
                     last = cached
                     lastGood = key to cached
                     emit(LineupState.Ready(cached))
@@ -120,13 +121,13 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
                 val result = try {
                     val started = TimeSource.Monotonic.markNow()
                     val channels = repository.loadChannels()
-                    Log.i(TAG, "lineup: ${channels.size} channels in ${started.elapsedNow()}")
+                    log.i { "lineup: ${channels.size} channels in ${started.elapsedNow()}" }
                     // Channels first so the guide is usable while the programmes arrive. A cached guide stays in
                     // place for channels it still covers; it is replaced once the new guide is in.
                     if (last?.channels != channels) emit(LineupState.Ready(Lineup(channels, last?.guide.orEmpty())))
                     catalogsLoaded.value++
                     val guide = repository.loadGuide(channels)
-                    Log.i(TAG, "guide: ${guide.values.sumOf { it.size }} programmes for ${guide.size} channels in ${started.elapsedNow()}")
+                    log.i { "guide: ${guide.values.sumOf { it.size }} programmes for ${guide.size} channels in ${started.elapsedNow()}" }
                     Result.success(Lineup(channels, guide))
                 } catch (e: CancellationException) {
                     throw e
@@ -146,7 +147,7 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        Log.w(TAG, "lineup cache write failed", e)
+                        log.w(e) { "lineup cache write failed" }
                     }
                 }
                 // A failed background refresh keeps showing the lineup we already have.
@@ -208,7 +209,7 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private companion object {
-        const val TAG = "SofaKing"
+        val log = Logger.withTag("SofaKing")
         val REFRESH_INTERVAL = 3.hours
         val RETRY_INTERVAL = 1.minutes
         val RELOAD_WAIT = 30.seconds

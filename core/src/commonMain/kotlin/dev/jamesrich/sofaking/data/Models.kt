@@ -1,10 +1,8 @@
 package dev.jamesrich.sofaking.data
 
-import androidx.compose.runtime.Immutable
-import java.time.Instant
+import kotlin.time.Instant
 
-/** Models are immutable values; the annotation lets Compose skip rows and cells whose inputs are equal. */
-@Immutable
+/** Models are immutable values; the UI module's stability configuration lets Compose skip rows and cells whose inputs are equal. */
 data class Channel(
     /** The server's channel id: the key for guide data, favorites, caption timing and playback sessions. */
     val guideId: String,
@@ -15,7 +13,6 @@ data class Channel(
     val groups: List<String>,
 )
 
-@Immutable
 data class Programme(
     val channelId: String,
     val start: Instant,
@@ -24,7 +21,6 @@ data class Programme(
     val description: String?,
 )
 
-@Immutable
 data class Lineup(
     val channels: List<Channel>,
     /** Programmes per [Channel.guideId], sorted by start. */
@@ -32,8 +28,8 @@ data class Lineup(
 ) {
     fun nowAndNext(channel: Channel, at: Instant): Pair<Programme?, Programme?> {
         val programmes = guide[channel.guideId].orEmpty()
-        val index = programmes.indexOfFirst { !it.start.isAfter(at) && it.stop.isAfter(at) }
-        if (index < 0) return null to programmes.firstOrNull { it.start.isAfter(at) }
+        val index = programmes.indexOfFirst { it.start <= at && it.stop > at }
+        if (index < 0) return null to programmes.firstOrNull { it.start > at }
         return programmes[index] to programmes.getOrNull(index + 1)
     }
 }

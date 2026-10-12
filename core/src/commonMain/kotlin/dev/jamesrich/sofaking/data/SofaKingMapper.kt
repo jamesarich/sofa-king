@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.data
 
-import java.time.Instant
-import java.time.format.DateTimeParseException
+import kotlin.time.Instant
 
 /** The server's catalog and guide shapes as the app's [Channel] and [Programme] models. */
 internal object SofaKingMapper {
@@ -28,9 +27,9 @@ internal object SofaKingMapper {
     }
 
     private fun toProgramme(channelId: String, dto: ProgrammeDto): Programme? {
-        val start = parseInstant(dto.startsAt) ?: return null
-        val stop = parseInstant(dto.endsAt) ?: return null
-        if (!stop.isAfter(start)) return null
+        val start = Instant.parseOrNull(dto.startsAt) ?: return null
+        val stop = Instant.parseOrNull(dto.endsAt) ?: return null
+        if (stop <= start) return null
         return Programme(
             channelId = channelId,
             start = start,
@@ -38,12 +37,6 @@ internal object SofaKingMapper {
             title = dto.title,
             description = dto.description?.takeIf { it.isNotBlank() },
         )
-    }
-
-    private fun parseInstant(text: String): Instant? = try {
-        Instant.parse(text)
-    } catch (_: DateTimeParseException) {
-        null
     }
 
     const val DEFAULT_GROUP = "Other"

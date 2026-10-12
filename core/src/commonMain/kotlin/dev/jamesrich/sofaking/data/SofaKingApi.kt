@@ -1,17 +1,26 @@
 package dev.jamesrich.sofaking.data
 
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
+import io.ktor.client.HttpClient
+import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.delete
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.patch
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.URLBuilder
+import io.ktor.http.Url
+import io.ktor.http.appendPathSegments
+import io.ktor.http.content.TextContent
+import io.ktor.http.isSuccess
+import io.ktor.http.takeFrom
+import kotlinx.coroutines.CancellationException
+import kotlinx.io.IOException
 import kotlinx.serialization.SerializationException
-import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
-import java.io.IOException
-import java.util.concurrent.TimeUnit
 
 /** An error answer from the server: HTTP [status] with the API's [code], or `HTTP_<status>` when the body was not one. */
 class SofaKingException(
@@ -28,64 +37,71 @@ internal sealed interface CatalogResult {
 
 /**
  * The Sofa King server's JSON API under `/api/v1`. Every call carries the bearer [token] unless it is empty;
- * media URLs from a descriptor are resolved against the base and carry no token.
+ * media URLs from a descriptor are resolved against the base and carry no token. Transport failures surface as
+ * [IOException] on every platform, whatever the engine throws, so callers retry them the same way.
  */
 class SofaKingApi(
     baseUrl: String,
     private val token: String,
-    http: OkHttpClient = sharedHttp,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val http: HttpClient = apiHttpClient,
 ) {
-    private val base: HttpUrl = baseUrl.trimEnd('/').toHttpUrl()
-    private val http: OkHttpClient = http.newBuilder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .callTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val base: Url = Url(baseUrl.trimEnd('/'))
 
-    internal suspend fun catalog(etag: String?): CatalogResult {
-        val request = request("channels").apply { if (etag != null) header("If-None-Match", etag) }.get().build()
-        return http.fetch(request, ioDispatcher) { response ->
-            if (response.code == 304) return@fetch CatalogResult.NotModified
-            CatalogResult.Changed(decode<CatalogDto>(response), response.header("ETag"))
+    internal suspend fun catalog(etag: String?): CatalogResult = call {
+        val response = http.get(endpoint("channels")) {
+            authorize()
+            if (etag != null) header(HttpHeaders.IfNoneMatch, etag)
         }
+        if (response.status.value == 304) return@call CatalogResult.NotModified
+        CatalogResult.Changed(decode<CatalogDto>(response), response.headers[HttpHeaders.ETag])
     }
 
-    internal suspend fun guide(query: GuideQueryDto): GuideWindowDto =
-        execute(request("guide", "query").post(json(wireJson.encodeToString(GuideQueryDto.serializer(), query))).build())
+    internal suspend fun guide(query: GuideQueryDto): GuideWindowDto = call {
+        decode(http.post(endpoint("guide", "query")) { json(wireJson.encodeToString(GuideQueryDto.serializer(), query)) })
+    }
 
-    internal suspend fun openSession(channelId: String, intent: String, idempotencyKey: String): PlaybackSessionDto {
+    internal suspend fun openSession(channelId: String, intent: String, idempotencyKey: String): PlaybackSessionDto = call {
         val body = wireJson.encodeToString(OpenPlaybackDto.serializer(), OpenPlaybackDto(channelId, intent, idempotencyKey))
-        return execute(request("playback-sessions").post(json(body)).build())
+        decode(http.post(endpoint("playback-sessions")) { json(body) })
     }
 
-    internal suspend fun session(id: String): PlaybackSessionDto = execute(request("playback-sessions", id).get().build())
+    internal suspend fun session(id: String): PlaybackSessionDto = call {
+        decode(http.get(endpoint("playback-sessions", id)) { authorize() })
+    }
 
     /** Renews the lease; [intent] changes preview to watch (or back) without replacing the stream. */
-    internal suspend fun updateSession(id: String, intent: String?): PlaybackSessionDto {
+    internal suspend fun updateSession(id: String, intent: String?): PlaybackSessionDto = call {
         val body = wireJson.encodeToString(UpdatePlaybackDto.serializer(), UpdatePlaybackDto(intent))
-        return execute(request("playback-sessions", id).patch(json(body)).build())
+        decode(http.patch(endpoint("playback-sessions", id)) { json(body) })
     }
 
-    internal suspend fun releaseSession(id: String) {
-        http.fetch(request("playback-sessions", id).delete().build(), ioDispatcher) { response -> response.checkSuccess() }
+    internal suspend fun releaseSession(id: String) = call {
+        http.delete(endpoint("playback-sessions", id)) { authorize() }.checkSuccess()
     }
 
     /** The absolute media URL for a descriptor, whose [PlaybackDescriptorDto.url] is relative to the server. */
-    internal fun mediaUrl(descriptor: PlaybackDescriptorDto): String =
-        base.resolve(descriptor.url)?.toString() ?: throw IOException("Unusable media URL")
-
-    private fun request(vararg segments: String): Request.Builder {
-        val url = base.newBuilder().addPathSegments("api/v1").apply { segments.forEach(::addPathSegment) }.build()
-        return Request.Builder().url(url).apply { if (token.isNotEmpty()) header("Authorization", "Bearer $token") }
+    internal fun mediaUrl(descriptor: PlaybackDescriptorDto): String = try {
+        URLBuilder(base).takeFrom(descriptor.url).buildString()
+    } catch (e: IllegalArgumentException) {
+        throw IOException("Unusable media URL", e)
     }
 
-    private suspend inline fun <reified T> execute(request: Request): T = http.fetch(request, ioDispatcher) { decode<T>(it) }
+    private fun endpoint(vararg segments: String): Url =
+        URLBuilder(base).appendPathSegments("api", "v1").appendPathSegments(*segments).build()
 
-    private inline fun <reified T> decode(response: Response): T {
+    private fun HttpRequestBuilder.authorize() {
+        if (token.isNotEmpty()) header(HttpHeaders.Authorization, "Bearer $token")
+    }
+
+    private fun HttpRequestBuilder.json(text: String) {
+        authorize()
+        setBody(TextContent(text, JSON))
+    }
+
+    private suspend inline fun <reified T> decode(response: HttpResponse): T {
         response.checkSuccess()
         return try {
-            wireJson.decodeFromString(response.body.string())
+            wireJson.decodeFromString(response.bodyAsText())
         } catch (e: SerializationException) {
             throw IOException("Unreadable answer from the server", e)
         } catch (e: IllegalArgumentException) {
@@ -93,21 +109,32 @@ class SofaKingApi(
         }
     }
 
-    private fun Response.checkSuccess() {
-        if (isSuccessful) return
-        val text = body.string()
+    private suspend fun HttpResponse.checkSuccess() {
+        if (status.isSuccess()) return
+        val code = status.value
         val error = try {
-            wireJson.decodeFromString(ApiErrorDto.serializer(), text)
+            wireJson.decodeFromString(ApiErrorDto.serializer(), bodyAsText())
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             ApiErrorDto("HTTP_$code", "Server returned HTTP $code")
         }
         throw SofaKingException(code, error.code, error.message)
     }
 
-    private fun json(text: String) = text.toRequestBody(JSON)
+    /** Engines throw their own transport errors (Darwin's NSError, a browser's TypeError); every one becomes an [IOException]. */
+    private suspend inline fun <T> call(block: () -> T): T = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: IOException) {
+        throw e
+    } catch (e: Exception) {
+        throw IOException(e.message ?: e.toString(), e)
+    }
 
     private companion object {
-        val JSON = "application/json; charset=utf-8".toMediaType()
+        val JSON = ContentType.parse("application/json; charset=utf-8")
     }
 }
 
@@ -116,7 +143,8 @@ class SofaKingApi(
  * `application/vnd.apple.mpegurl` is translated; anything else, including `video/mp2t`, is passed through.
  */
 internal fun mediaMimeType(descriptor: PlaybackDescriptorDto): String =
-    if (descriptor.protocol == "hls" || descriptor.mimeType.lowercase() in HLS_MIME_TYPES) MEDIA3_HLS_MIME_TYPE else descriptor.mimeType
+    if (descriptor.protocol == "hls" || descriptor.mimeType.lowercase() in HLS_MIME_TYPES) HLS_MIME_TYPE else descriptor.mimeType
 
-internal const val MEDIA3_HLS_MIME_TYPE = "application/x-mpegURL"
+/** The HLS MIME type the players are handed; Media3 matches it exactly, and the other players compare it case-insensitively. */
+const val HLS_MIME_TYPE = "application/x-mpegURL"
 private val HLS_MIME_TYPES = setOf("application/vnd.apple.mpegurl", "application/x-mpegurl")

@@ -1,63 +1,64 @@
 package dev.jamesrich.sofaking.data
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.BufferedInputStream
-import java.io.BufferedOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.IOException
-import java.time.Instant
+import kotlinx.io.Buffer
+import kotlinx.io.Sink
+import kotlinx.io.Source
+import kotlinx.io.readByteArray
+import kotlinx.io.readDouble
+import kotlinx.io.readString
+import kotlinx.io.writeDouble
+import kotlinx.io.writeString
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * The last successfully loaded [Lineup], kept in app-private storage so a cold start can show it before the network answers.
- * [key] identifies the server; a file written for another key is ignored and left in place.
+ * [key] identifies the server; a cache written for another key is ignored and left in place. The layout is the one
+ * `DataOutputStream` wrote before the multiplatform port (big-endian numbers, length-prefixed UTF-8), so caches
+ * already on a TV stay readable.
  */
 class LineupCache(
-    private val file: File,
+    private val store: ByteStore,
     private val key: String,
-    private val now: () -> Instant = Instant::now,
+    private val now: () -> Instant = Clock.System::now,
 ) {
     /** The cached lineup without programmes that have already ended, or null if there is none usable. */
-    suspend fun read(): Lineup? = withContext(Dispatchers.IO) {
-        if (!file.exists()) return@withContext null
-        try {
-            DataInputStream(BufferedInputStream(FileInputStream(file), BUFFER_SIZE)).use { input ->
-                if (input.readInt() != VERSION) {
-                    file.delete()
-                    return@withContext null
-                }
-                if (input.readText() != key) return@withContext null
-                readLineup(input, now())
-            }
+    suspend fun read(): Lineup? = withContext(ioDispatcher) {
+        val bytes = try {
+            store.read()
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            file.delete()
+        } catch (_: Exception) {
+            null
+        } ?: return@withContext null
+        try {
+            val input = Buffer().apply { write(bytes) }
+            if (input.readInt() != VERSION) {
+                store.delete()
+                return@withContext null
+            }
+            if (input.readText() != key) return@withContext null
+            readLineup(input, now())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            store.delete()
             null
         }
     }
 
-    /** Replaces the cache atomically: a crash mid-write leaves the previous file intact. */
-    suspend fun write(lineup: Lineup): Unit = withContext(Dispatchers.IO) {
-        val temp = File(file.parentFile, file.name + ".tmp")
-        try {
-            DataOutputStream(BufferedOutputStream(FileOutputStream(temp), BUFFER_SIZE)).use { out ->
-                out.writeInt(VERSION)
-                out.writeText(key)
-                writeLineup(out, lineup)
-            }
-            if (!temp.renameTo(file)) throw IOException("could not replace ${file.name}")
-        } finally {
-            temp.delete()
-        }
+    /** Replaces the cache whole: a crash mid-write leaves the previous one intact. */
+    suspend fun write(lineup: Lineup): Unit = withContext(ioDispatcher) {
+        val out = Buffer()
+        out.writeInt(VERSION)
+        out.writeText(key)
+        writeLineup(out, lineup)
+        store.write(out.readByteArray())
     }
 
-    private fun writeLineup(out: DataOutputStream, lineup: Lineup) {
+    private fun writeLineup(out: Sink, lineup: Lineup) {
         out.writeInt(lineup.channels.size)
         for (channel in lineup.channels) {
             out.writeText(channel.guideId)
@@ -75,15 +76,15 @@ class LineupCache(
             out.writeInt(programmes.size)
             for (programme in programmes) {
                 // The channel id is the map key, so it is not repeated per programme.
-                out.writeLong(programme.start.epochSecond)
-                out.writeLong(programme.stop.epochSecond)
+                out.writeLong(programme.start.epochSeconds)
+                out.writeLong(programme.stop.epochSeconds)
                 out.writeText(programme.title)
                 out.writeNullableText(programme.description)
             }
         }
     }
 
-    private fun readLineup(input: DataInputStream, at: Instant): Lineup {
+    private fun readLineup(input: Source, at: Instant): Lineup {
         val channelCount = input.readCount()
         val channels = List(channelCount) {
             val guideId = input.readText()
@@ -101,11 +102,11 @@ class LineupCache(
             val count = input.readCount()
             val programmes = ArrayList<Programme>()
             repeat(count) {
-                val start = Instant.ofEpochSecond(input.readLong())
-                val stop = Instant.ofEpochSecond(input.readLong())
+                val start = Instant.fromEpochSeconds(input.readLong())
+                val stop = Instant.fromEpochSeconds(input.readLong())
                 val title = input.readText()
                 val description = input.readNullableText()
-                if (stop.isAfter(at)) {
+                if (stop > at) {
                     programmes.add(Programme(channelId, start, stop, title, description))
                 }
             }
@@ -114,37 +115,34 @@ class LineupCache(
         return Lineup(channels, guide)
     }
 
-    private fun DataOutputStream.writeText(value: String) {
-        val bytes = value.toByteArray(Charsets.UTF_8)
+    private fun Sink.writeText(value: String) {
+        val bytes = value.encodeToByteArray()
         writeInt(bytes.size)
         write(bytes)
     }
 
-    private fun DataOutputStream.writeNullableText(value: String?) {
-        writeBoolean(value != null)
+    private fun Sink.writeNullableText(value: String?) {
+        writeByte(if (value != null) 1 else 0)
         if (value != null) writeText(value)
     }
 
-    private fun DataInputStream.readCount(): Int {
+    private fun Source.readCount(): Int {
         val count = readInt()
         require(count in 0..MAX_COUNT) { "corrupt count $count" }
         return count
     }
 
-    private fun DataInputStream.readText(): String {
+    private fun Source.readText(): String {
         val length = readInt()
         require(length in 0..MAX_TEXT_BYTES) { "corrupt text length $length" }
-        val bytes = ByteArray(length)
-        readFully(bytes)
-        return String(bytes, Charsets.UTF_8)
+        return readString(length.toLong())
     }
 
-    private fun DataInputStream.readNullableText(): String? = if (readBoolean()) readText() else null
+    private fun Source.readNullableText(): String? = if (readByte() != 0.toByte()) readText() else null
 
     private companion object {
-        /** Bump when the layout changes; a file with any other version is deleted on read and the lineup refetched. */
+        /** Bump when the layout changes; a cache with any other version is deleted on read and the lineup refetched. */
         const val VERSION = 4
-        const val BUFFER_SIZE = 64 * 1024
         const val MAX_COUNT = 1_000_000
         const val MAX_TEXT_BYTES = 1 shl 20
     }

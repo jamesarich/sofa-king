@@ -184,24 +184,30 @@ class FeedService(
                 require(channels.isNotEmpty() || config.allowEmpty) { "Empty playlist requires explicit allowEmpty" }
                 val previous = published.get().feeds.find { it.providerId == config.id }
                 val retainedChannels = (channels + previous?.channels.orEmpty()).distinctBy { it.id }
-                val snapshot = FeedSnapshot(config.id, retainedChannels, offerings, importedAt = clock.instant().toString())
-                store.saveSnapshot(snapshot)
-                val current = published.get()
-                published.set(
-                    Published(
-                        (current.feeds.filterNot { it.providerId == config.id } + snapshot).sortedBy { item ->
-                            configs.indexOfFirst { it.id == item.providerId }
-                        },
-                        current.protocols,
-                        renewable,
-                    ),
-                )
+                // An import that changes nothing rewrites nothing and wakes nothing downstream.
+                val unchanged = previous != null && previous.channels.toSet() == retainedChannels.toSet() && previous.offerings.toSet() == offerings.toSet()
+                val succeededAt = clock.instant().toString()
+                val firstSinceStart = statuses.get().firstOrNull { it.id == config.id }?.lastSuccessAt == null
+                val snapshot = if (unchanged) previous!! else FeedSnapshot(config.id, retainedChannels, offerings, importedAt = succeededAt)
+                if (!unchanged) {
+                    store.saveSnapshot(snapshot)
+                    val current = published.get()
+                    published.set(
+                        Published(
+                            (current.feeds.filterNot { it.providerId == config.id } + snapshot).sortedBy { item ->
+                                configs.indexOfFirst { it.id == item.providerId }
+                            },
+                            current.protocols,
+                            renewable,
+                        ),
+                    )
+                }
                 statuses.set(
                     statuses.get().map {
                         if (it.id == config.id) {
                             ProviderStatus(
                                 config.id,
-                                snapshot.importedAt,
+                                succeededAt,
                                 channels = channels.size,
                                 sources = offerings.size,
                                 skippedEntries = parsed.skippedCount,
@@ -215,12 +221,13 @@ class FeedService(
                 )
                 val durationMs = Duration.between(started, clock.instant()).toMillis()
                 log.info(
-                    "import provider={} channels={} sources={} skipped={} durationMs={}",
-                    config.id, channels.size, offerings.size, parsed.skippedCount, durationMs,
+                    "import provider={} channels={} sources={} skipped={} unchanged={} durationMs={}",
+                    config.id, channels.size, offerings.size, parsed.skippedCount, unchanged, durationMs,
                 )
                 if (parsed.skippedCount > 0) log.warn("import provider={} skipped malformed entries: {}", config.id, parsed.skipSummary)
                 parsed.noteSummary?.let { log.info("import provider={} derived identities: {}", config.id, it) }
-                onImported()
+                // The first success since start still wakes a lineup run that waits for every provider's first import.
+                if (!unchanged || firstSinceStart) onImported()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

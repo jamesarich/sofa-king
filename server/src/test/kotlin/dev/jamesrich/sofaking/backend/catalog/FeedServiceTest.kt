@@ -119,6 +119,29 @@ class FeedServiceTest {
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 
+    @Test fun `an import that changes nothing rewrites nothing and wakes nothing after the first`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-feed-unchanged-")
+        try { Fixture().use { fixture -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            var imported = 0
+            val feeds = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)) { imported++ }
+            feeds.initialize()
+            feeds.refresh(fixture.feed)
+            val first = store.snapshots().single().importedAt
+            assertEquals(1, imported)
+            clock.now = clock.now.plusSeconds(3600)
+            feeds.refresh(fixture.feed)
+            assertEquals(first, store.snapshots().single().importedAt, "the stored snapshot is not rewritten")
+            assertEquals(1, imported)
+            assertEquals(clock.now.toString(), feeds.providers().single().lastSuccessAt, "the import still counts as a success")
+
+            val restarted = FeedService(listOf(fixture.feed), store, http, clock, UpstreamPolicy(allowLoopback = true)) { imported++ }
+            restarted.initialize()
+            restarted.refresh(fixture.feed)
+            assertEquals(2, imported, "the first success after a start wakes the lineup even when nothing changed")
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
+
     @Test fun `a provider retired for 30 days and sources no feed lists lose their stored data, hand edits stay`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-feed-retired-")
         try { HttpClient(CIO).use { http -> openStore(dir).use { store ->

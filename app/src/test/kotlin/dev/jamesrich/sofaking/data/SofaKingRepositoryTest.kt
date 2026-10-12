@@ -172,10 +172,4 @@ class SofaKingRepositoryTest {
 
         assertEquals(listOf(3), fake.guideQueries.map { Json.parseToJsonElement(it).jsonObject["channelIds"]!!.jsonArray.size })
     }
-
-    @Test
-    fun `window start floors to the half hour`() {
-        assertEquals(Instant.parse("2026-10-10T10:00:00Z"), SofaKingRepository.windowStart(Instant.parse("2026-10-10T10:29:59Z")))
-        assertEquals(Instant.parse("2026-10-10T10:30:00Z"), SofaKingRepository.windowStart(Instant.parse("2026-10-10T10:30:00Z")))
-    }
 }

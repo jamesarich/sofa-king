@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.SecretOrigin
+import dev.jamesrich.sofaking.backend.SecretsFile
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.api.LineupPolicy
 import dev.jamesrich.sofaking.backend.api.PolicyApplyResult
@@ -21,16 +23,30 @@ internal class PolicySummary(val path: String, val revision: String, val policy:
 internal class SettingsView(
     val groups: List<SettingGroup>, val providers: List<SourceSummary>, val guides: List<SourceSummary>, val policy: PolicySummary?,
     val changes: List<PolicyChangeEntry>, val changeLimit: Int,
+    val apiTokenSet: Boolean = false,
+    /** The API token, only on the page answering the reveal action. */
+    val revealedApiToken: String? = null,
 )
 
 private const val SET = "set"
+private const val GENERATED = "generated"
 private const val UNSET = "not set"
 
-/** The settings as the server runs with them. Tokens are reported only as set or not set. */
+/** The settings as the server runs with them. Tokens are reported only as set, generated or not set. */
 internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
     fun s(name: String, value: Any?, default: Any?, note: String? = null) =
         Setting(name, value?.toString()?.takeIf { it.isNotEmpty() } ?: UNSET, value == default || (value is Collection<*> && value.isEmpty() && default == null), note)
-    fun secret(name: String, value: String?, note: String) = Setting(name, if (value != null) SET else UNSET, value == null, note)
+    fun secret(name: String, value: String?, note: String): Setting {
+        val origin = config.secretOrigins[name]
+        val from = when (origin) {
+            SecretOrigin.GENERATED -> "Generated and stored in ${config.secretsFile ?: SecretsFile.NAME}. "
+            SecretOrigin.FILE -> "Read from the file ${name}_FILE names. "
+            SecretOrigin.ENVIRONMENT -> "Set in the environment. "
+            null -> ""
+        }
+        return Setting(name, if (value == null) UNSET else if (origin == SecretOrigin.GENERATED) GENERATED else SET, value == null, from + note)
+    }
+    fun found(name: String) = if (name in config.foundInDataDirectory) "Found in SOFA_DATA_DIR; $name is unset" else null
     val hdhr = config.hdhr
     val plex = config.plex
     return listOf(
@@ -38,8 +54,8 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
             s("SOFA_HOST", config.host, "127.0.0.1"),
             s("SOFA_PORT", config.port, 8080),
             s("SOFA_DATA_DIR", config.dataDirectory, java.nio.file.Path.of("data")),
-            s("SOFA_SOURCES", config.sourcesFile, null),
-            s("SOFA_POLICY", config.policyFile, null),
+            s("SOFA_SOURCES", config.sourcesFile, null, found("SOFA_SOURCES")),
+            s("SOFA_POLICY", config.policyFile, null, found("SOFA_POLICY")),
             s("SOFA_MAX_SESSIONS", config.maxSessions, 4),
             s("SOFA_FFMPEG", config.ffmpeg, "ffmpeg"),
             s("SOFA_PROBE_PARALLELISM", config.probeParallelism, 6),
@@ -48,7 +64,7 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
             s("SOFA_ALLOW_LOOPBACK_UPSTREAMS", config.allowLoopbackUpstreams, false),
         )),
         SettingGroup("Tokens", listOf(
-            secret("SOFA_API_TOKEN", config.apiToken, "Opens /api/v1"),
+            secret("SOFA_API_TOKEN", config.apiToken, "Opens /api/v1; the Sofa King app needs it"),
             secret("SOFA_ADMIN_TOKEN", config.adminToken, if (config.adminToken == null) "The API token signs in here and opens the admin API" else "Signs in here and opens the admin API"),
             secret("SOFA_OUTPUT_TOKEN", config.outputs.token, "Players and Plex fetch /output with it; reveal it on the Plex page"),
             secret("SOFA_PLEX_TOKEN", plex?.token, "Sent to Plex only"),
@@ -104,7 +120,7 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
     pageHead("Settings", "How this server is configured right now: environment variables, the source file and the lineup policy. Change a variable in the server's environment (.env) and restart; edit groups and providers on their pages.")
     panel("Lineup policy", id = "policy") {
         val policy = view.policy
-        if (policy == null) { p("muted") { +"No lineup policy. Set SOFA_POLICY to a policy file in a writable directory and restart; the server then builds the lineup from it." }; return@panel }
+        if (policy == null) { p("muted") { +"No lineup policy. Add policy.json to the data directory, or set SOFA_POLICY to a policy file in a writable directory, and restart; the server then builds the lineup from it." }; return@panel }
         dl("kv") {
             dt { +"File" }; dd { code { +policy.path } }
             dt { +"Revision" }; dd { span("mono") { attributes["title"] = policy.revision; +policy.revision.take(12) } }
@@ -140,16 +156,31 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
                 for (setting in group.settings) div("setting") {
                     div("name mono") { +setting.name }
                     div("val") {
-                        if (setting.value == SET) chip("set", Tone.OK) else if (setting.value == UNSET) span("muted") { +UNSET } else +setting.value
-                        if (setting.isDefault && setting.value != UNSET && setting.value != SET) span("muted small") { +" · default" }
+                        when (setting.value) {
+                            SET -> chip(SET, Tone.OK)
+                            GENERATED -> chip(GENERATED, Tone.OK)
+                            UNSET -> span("muted") { +UNSET }
+                            else -> +setting.value
+                        }
+                        if (setting.isDefault && setting.value !in setOf(UNSET, SET, GENERATED)) span("muted small") { +" · default" }
                         if (setting.note != null) div("muted small") { +setting.note }
+                    }
+                }
+                if (group.title == "Tokens" && view.apiTokenSet) div {
+                    attributes["id"] = "api-token"
+                    attributes["style"] = "margin-top:12px"
+                    val token = view.revealedApiToken
+                    if (token == null) postForm("/admin/settings/reveal-api-token", chrome.session) { button(type = ButtonType.submit) { +"Reveal the API token" } }
+                    else {
+                        div("muted small") { +"API token, for the Sofa King app and API clients:" }
+                        code { +token }
                     }
                 }
             }
         }
     }
     panel("Source file", id = "sources", aside = { span("muted") { +"URL paths, queries and header values are not shown" } }) {
-        if (view.providers.isEmpty() && view.guides.isEmpty()) { p("muted") { +"No providers or guides. Set SOFA_SOURCES to a source file." }; return@panel }
+        if (view.providers.isEmpty() && view.guides.isEmpty()) { p("muted") { +"No providers or guides. Add sources.json to the data directory, or set SOFA_SOURCES to a source file, and restart." }; return@panel }
         div("scroll") {
             table {
                 thead { tr { th { +"ID" }; th { +"Kind" }; th { +"From" }; th { +"Refresh" }; th { +"Notes" } } }

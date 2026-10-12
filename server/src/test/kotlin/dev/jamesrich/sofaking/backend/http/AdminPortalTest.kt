@@ -31,6 +31,7 @@ class AdminPortalTest {
         policy: String? = null,
         feeds: (Fixture) -> List<FeedConfig> = { listOf(it.feed, it.altFeed, it.twinFeed, it.tsFeed) },
         guides: (Fixture) -> List<GuideConfig> = { emptyList() },
+        show: (ServerConfig) -> ServerConfig = { it },
         block: suspend Setup.() -> Unit,
     ) {
         val dir = Files.createTempDirectory("sofa-admin-portal-")
@@ -43,7 +44,7 @@ class AdminPortalTest {
             val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000, probes = false)
             try {
                 // The portal is told of a Plex token and the output token the runtime never uses, so redaction is checked against them.
-                val shown = config.copy(outputs = OutputConfig(outputToken), plex = PlexConfig("http://127.0.0.1:32400", plexToken))
+                val shown = show(config.copy(outputs = OutputConfig(outputToken), plex = PlexConfig("http://127.0.0.1:32400", plexToken)))
                 application { backendModule(store, MutableClock(), runtime, token, admin, OutputConfig(outputToken), config = shown) }
                 for (provider in runtime.feeds.configs) runtime.feeds.refresh(provider)
                 val extraGuides = guides(fixture).map { it.id }.toSet()
@@ -297,6 +298,45 @@ class AdminPortalTest {
             for (secret in listOf(admin, token, outputToken, plexToken, query)) assertFalse(html.contains(secret), "a secret reached the page")
             for (shown in listOf("SOFA_ADMIN_TOKEN", "SOFA_PLEX_URL", "http://127.0.0.1:32400", "policy.json", "headers: X-Key", "Change log")) assertTrue(html.contains(shown), shown)
             assertTrue(html.contains("Twin Sports"), "the change log lists the stations the run added")
+        }
+    }
+
+    @Test fun `settings say which tokens were generated, read from a file or set in the environment`() = testApplication {
+        val origins = mapOf(
+            "SOFA_API_TOKEN" to SecretOrigin.GENERATED, "SOFA_ADMIN_TOKEN" to SecretOrigin.GENERATED,
+            "SOFA_OUTPUT_TOKEN" to SecretOrigin.FILE, "SOFA_PLEX_TOKEN" to SecretOrigin.ENVIRONMENT,
+        )
+        portal(show = { it.copy(secretOrigins = origins, secretsFile = Path.of("/config/secrets.json"), foundInDataDirectory = setOf("SOFA_SOURCES")) }) {
+            browser.signIn()
+            val html = browser.get("/admin/settings").bodyAsText()
+            fun row(name: String) = html.substringAfter(">$name<").substringBefore("class=\"setting\"")
+            for (name in listOf("SOFA_API_TOKEN", "SOFA_ADMIN_TOKEN")) {
+                assertTrue(row(name).contains(">generated<"), "$name: ${row(name)}")
+                assertTrue(row(name).contains("Generated and stored in /config/secrets.json"), name)
+            }
+            assertTrue(row("SOFA_OUTPUT_TOKEN").contains(">set<") && row("SOFA_OUTPUT_TOKEN").contains("SOFA_OUTPUT_TOKEN_FILE"))
+            assertTrue(row("SOFA_PLEX_TOKEN").contains(">set<") && row("SOFA_PLEX_TOKEN").contains("Set in the environment"))
+            assertTrue(row("SOFA_SOURCES").contains("Found in SOFA_DATA_DIR"))
+            for (secret in listOf(admin, token, outputToken, plexToken)) assertFalse(html.contains(secret), "a secret reached the page")
+        }
+    }
+
+    @Test fun `the API token is revealed only by a signed-in POST with the CSRF token`() = testApplication {
+        portal {
+            assertEquals(HttpStatusCode.Unauthorized, browser.post("/admin/settings/reveal-api-token").status)
+            browser.signIn()
+            val html = browser.get("/admin/settings").bodyAsText()
+            assertFalse(html.contains(token))
+            assertTrue(html.contains("Reveal the API token"))
+            val refused = browser.post("/admin/settings/reveal-api-token")
+            assertEquals(HttpStatusCode.Forbidden, refused.status)
+            assertFalse(refused.bodyAsText().contains(token))
+            val revealed = browser.post("/admin/settings/reveal-api-token", "csrf" to field(html, "csrf"))
+            assertEquals(HttpStatusCode.OK, revealed.status)
+            val page = revealed.bodyAsText()
+            assertTrue(page.contains(token))
+            for (secret in listOf(admin, outputToken, plexToken)) assertFalse(page.contains(secret), "only the API token is revealed")
+            assertFalse(browser.get("/admin/settings").bodyAsText().contains(token), "the next page hides it again")
         }
     }
 

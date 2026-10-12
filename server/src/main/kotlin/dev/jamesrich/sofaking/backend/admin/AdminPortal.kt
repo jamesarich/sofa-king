@@ -170,6 +170,7 @@ class AdminPortal(
                 val limit = call.request.queryParameters["changes"]?.toIntOrNull()?.coerceIn(1, 1000) ?: 50
                 call.html(settingsPage(chrome(call.session()), settingsView(limit)))
             }
+            action("/settings/reveal-api-token") { session, _ -> call.html(settingsPage(chrome(session), settingsView(50, revealApiToken = true))) }
             action("/policy/apply") { session, _ ->
                 val policy = runtime.policy
                 if (policy == null) {
@@ -468,7 +469,7 @@ class AdminPortal(
         return ProvidersView(rows, runtime.guides.statuses(), entries, document?.revision, led)
     }
 
-    private suspend fun settingsView(changeLimit: Int): SettingsView {
+    private suspend fun settingsView(changeLimit: Int, revealApiToken: Boolean = false): SettingsView {
         val policy = runtime.policy
         val document = policy?.document()
         return SettingsView(
@@ -478,6 +479,8 @@ class AdminPortal(
             document?.let { PolicySummary(it.path, it.revision, it.policy, policy.lastApplied()?.result) },
             policy?.changes(changeLimit).orEmpty(),
             changeLimit,
+            apiTokenSet = config?.apiToken != null,
+            revealedApiToken = config?.apiToken?.takeIf { revealApiToken },
         )
     }
 

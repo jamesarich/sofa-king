@@ -432,7 +432,7 @@ internal fun goneStationPage(chrome: Chrome): String = layout("Channel not found
 }
 
 private fun MAIN.noPolicy(what: String) {
-    div("notice warn") { +"$what needs a lineup policy. Set SOFA_POLICY to a policy file and restart; without one the lineup is edited entry by entry through the admin API." }
+    div("notice warn") { +"$what needs a lineup policy. Add policy.json to the data directory, or set SOFA_POLICY, and restart; without one the lineup is edited entry by entry through the admin API." }
 }
 
 internal fun mergesPage(chrome: Chrome, view: MergesView?, error: String? = null): String = layout("Merges", chrome, "/admin/merges") {

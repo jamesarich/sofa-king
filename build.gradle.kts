@@ -20,6 +20,7 @@ plugins {
 
 // Node, Yarn and Binaryen resolve through the repositories declared in settings, which forbids project repositories.
 allprojects {
+    dependencyLocking { lockAllConfigurations() }
     plugins.withType<NodeJsPlugin> { the<NodeJsEnvSpec>().downloadBaseUrl = null }
     plugins.withType<WasmNodeJsPlugin> { the<WasmNodeJsEnvSpec>().downloadBaseUrl = null }
     plugins.withType<YarnPlugin> { the<YarnRootEnvSpec>().downloadBaseUrl = null }

@@ -1,10 +1,10 @@
 # Contributing
 
-Sofa King is an Android TV and Google TV app in Kotlin with Compose for TV and Media3. [Architecture](docs/ARCHITECTURE.md) describes how the code is organized, and [development](docs/DEVELOPMENT.md) covers the toolchain.
+Sofa King is a Kotlin Multiplatform app: one Compose Multiplatform UI on Material 3 Expressive for Android TV, Google TV, phones, desktops, iOS and the web. [Architecture](docs/ARCHITECTURE.md) describes how the code is organized, and [development](docs/DEVELOPMENT.md) covers the toolchain.
 
 ## Build and test
 
-Run the checks in [build and test](docs/DEVELOPMENT.md#build-and-test). Unit tests run against MockWebServer, so no Sofa King server is needed. A change that touches playback, focus or the remote also needs the [checks on a TV](docs/DEVELOPMENT.md#test-on-a-tv).
+Run the checks in [build and test](docs/DEVELOPMENT.md#build-and-test). Unit tests run against MockWebServer and fakes, so no Sofa King server is needed. A change that touches playback, focus or the remote also needs the [checks on a TV](docs/DEVELOPMENT.md#test-on-a-tv).
 
 ## Commits
 

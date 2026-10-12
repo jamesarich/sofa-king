@@ -2,24 +2,55 @@
 
 Live TV, Sofa King good.
 
-Sofa King Backend is a self-hosted IPTV server written in Kotlin. It imports M3U playlists and XMLTV guides, lists free streaming services through built-in native provider clients, and builds a channel lineup from them with a lineup policy. It serves that lineup to the Sofa King app over a JSON API, to M3U and XMLTV players, and to Plex through an HDHomeRun emulation.
+Sofa King Backend is a self-hosted live TV server for a home network. It builds one channel lineup from free streaming services, M3U playlists and XMLTV guides, and serves it to Plex as an HDHomeRun tuner, to M3U and XMLTV players, and to the Sofa King Android TV app.
 
-The server relays HLS and MPEG-TS streams, caches channel logos so every output points at this server, and takes failing sources out of rotation automatically. The lineup policy keeps the lineup in shape: one station per channel with the other services' copies as fallbacks, groups, stable numbers, and stations turned off while nothing can play them. The server has no DVR.
+## Why
+
+- **One container does the whole job.** Native clients for 17 free streaming (FAST) services sit beside an HDHomeRun emulation for Plex, so no separate playlist tool or tuner proxy is needed.
+- **The service clients run on your server.** Hosted FAST playlists have been taken down after DMCA notices. Here the server talks to the services itself; only Samsung TV Plus and The Roku Channel take their channel lists from a published mirror.
+- **One station per channel.** The same channel from several services becomes one station with the others as fallbacks. Channels whose names only roughly match are merged when their schedules agree, and kept apart otherwise.
+- **Numbers stay put.** Every number the server assigns is written back to the lineup policy file, so a channel keeps its number through rebuilds and on a new server.
+- **Failing sources step aside.** FFmpeg probes every source continuously, quarantines the ones that fail, and playback fails over to the next source, from any service.
+- **Plex stays in step.** The server saves Plex's channel maps itself, adds tuners Plex is missing, and splits a large lineup into devices of 250 channels, the size Plex can save.
+- **Easy to run.** An admin portal works from a phone browser, with or without JavaScript. A host can update itself from the published image, with a database backup and a rollback when the new image is unhealthy.
 
 ## Features
 
-- Imports M3U playlists and XMLTV guides, plain or gzip
-- Native clients for 17 free streaming services, including their guides ([providers](docs/providers.md))
-- A numbered lineup with groups, logos, failover order and guide mapping, stored in SQLite
-- Source health with probes, quarantine and automatic failover between sources
-- A [lineup policy](docs/lineup-policy.md) file that rebuilds the whole lineup the same way on any server, with a preview before any change
-- HLS and MPEG-TS playback sessions with leases, relayed through the server
+- Native clients for 17 free streaming services, with their guides ([providers](docs/providers.md))
+- M3U playlists and XMLTV guides, plain or gzip
+- A [lineup policy](docs/lineup-policy.md) file that rebuilds the same lineup on any server, with a preview before any change
+- Groups, stable numbers, logos, guide mapping and failover order, stored in SQLite
+- [Source health](docs/source-health.md) probes, quarantine and automatic failover between sources
+- HLS and MPEG-TS relayed through the server, and an MPEG-TS remux for Plex
 - M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
-- A logo cache served from this server
-- A JSON API, with a Kotlin client module
+- A logo cache, so every client loads logos from this server
+- A JSON API with a Kotlin client module ([API](docs/api.md))
 - An [admin portal](docs/admin.md) at `/admin` that shows what needs attention and edits channels, merges, groups and provider priority
+- A Docker image for `linux/amd64` and `linux/arm64`, with an SBOM and a build attestation
 
-## Sofa King fast setup
+The server has no DVR of its own.
+
+## Clients
+
+Only Plex and the Sofa King app have been tested. The others speak the same HDHomeRun or M3U and XMLTV interfaces and should work. Replace `SERVER_HOST` with the server's LAN address and `OUTPUT_TOKEN` with `SOFA_OUTPUT_TOKEN`.
+
+| Client | Status | Connect with |
+| --- | --- | --- |
+| Plex Live TV & DVR | Tested | HDHomeRun at `SERVER_HOST:9193`, guide `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` ([Plex setup](docs/live-tv.md#plex-live-tv)) |
+| [Sofa King Android TV app](https://github.com/jamesarich/sofa-king) | Tested | Server `http://SERVER_HOST:9193` and the API token |
+| Jellyfin, Emby | Should work, untested | HDHomeRun tuner at `http://SERVER_HOST:9193`, or an M3U tuner with the playlist below; the XMLTV guide below |
+| Channels DVR | Should work, untested | Custom channels source with the M3U playlist and XMLTV guide below |
+| TiviMate, Kodi (IPTV Simple Client) | Should work, untested | The M3U playlist and XMLTV guide below |
+| VLC | Should work, untested | Open the M3U playlist as a network stream; VLC shows no guide |
+
+```text
+http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN
+http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN
+```
+
+The HDHomeRun routes admit only the addresses in `SOFA_HDHR_ALLOW`, so list every client that uses them. [Player outputs](docs/live-tv.md#third-party-players) has the details.
+
+## Quick start
 
 With Docker and JDK 21, from the repository root:
 
@@ -30,88 +61,21 @@ cd deploy && docker compose up -d --build
 docker compose exec sofa-king-backend cat /config/secrets.json
 ```
 
-Open `http://SERVER_HOST:9193/admin` and sign in with the `adminToken` from that file. Everything the server keeps, including the generated tokens, is in `deploy/config`; drop a `sources.json` and a `policy.json` there to add channels. [Deploy](docs/deploy.md) covers the config folder, running as your own user, secrets, reverse proxies and a host that updates itself from the published image.
+Open `http://SERVER_HOST:9193/admin` and sign in with the `adminToken` from that file. A new server has no channels until you add a `sources.json` and a lineup policy to `deploy/config`. [Getting started](docs/getting-started.md) walks from here to watching a channel. [Deploy with Docker](docs/deploy.md) covers the config folder, secrets, reverse proxies, the published image and automatic updates.
 
-Without Docker you need JDK 21 and FFmpeg. Run the commands from the repository root:
-
-1. Build the server:
-
-   ```sh
-   ./gradlew :server:installDist
-   ```
-
-2. Create `data/sources.json`. The server reads it from its data directory, `data`, at start. Native providers need no account. Inside any string, `${NAME}` is replaced from the environment, so a tokenized URL stays out of the file:
-
-   ```sh
-   mkdir -p data
-   ```
-
-   ```json
-   {
-     "providers": [
-       { "id": "whale", "type": "native", "service": "whale" },
-       { "id": "tubi", "type": "native", "service": "tubi" },
-       { "id": "pluto", "type": "native", "service": "pluto" }
-     ],
-     "guides": []
-   }
-   ```
-
-   [`deploy/sources.example.json`](deploy/sources.example.json) lists every native provider and an M3U provider example. The PBS and M3U entries need your values.
-
-3. Start the server. It listens on `127.0.0.1:8080` by default:
-
-   ```sh
-   server/build/install/server/bin/server
-   ```
-
-   On loopback the API needs no token. To serve other machines, set `SOFA_HOST=0.0.0.0`, and either `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` or `SOFA_HDHR_ENABLED=false`: on a LAN bind the server refuses to start without one of them. The first start then generates an API token and an admin token and keeps them in `data/secrets.json`; no token is logged. `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` set your own values instead.
-
-4. Check the imports. On a LAN bind, `/api/v1/admin/*` takes only the admin token and refuses the API token. The examples below assume `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` hold the tokens, for example from `jq -r .apiToken data/secrets.json`. Leave out the header when no token is set:
-
-   ```sh
-   curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://127.0.0.1:8080/api/v1/providers
-   curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://127.0.0.1:8080/api/v1/admin/guides
-   ```
-
-5. Build the lineup. A new server serves no channels until a [lineup policy](docs/lineup-policy.md) builds them. Write a policy that takes every channel of the three services, Whale first, to `data/policy.json`:
-
-   ```sh
-   echo '{"providers": [{"id": "whale"}, {"id": "tubi"}, {"id": "pluto"}], "groups": {"default": "Entertainment"}}' > data/policy.json
-   ```
-
-   Restart the server. It logs which sources and policy files it picked, and stations come on as the probes verify one of their sources:
-
-   ```sh
-   server/build/install/server/bin/server
-   curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://127.0.0.1:8080/api/v1/channels
-   ```
-
-   For a full lineup of every free service, grouped, with fallbacks across services and your local channels, follow [build a starter lineup](docs/starter-lineup.md).
-
-Keep `data/` across restarts. It holds the database, the logo cache, the generated tokens and the two files you wrote. `SOFA_SOURCES` and `SOFA_POLICY` point at files elsewhere. [Operations](docs/operations.md) covers backups, upgrades and token rotation.
-
-## Configuration
-
-Every environment variable is listed in one table in [live TV configuration](docs/live-tv.md#server-settings). The source file, provider and guide fields, and the native provider options are in [source settings](docs/live-tv.md#source-settings) and [native providers](docs/providers.md#configuration).
-
-## Clients
-
-- **Sofa King Android TV app**: the [app](https://github.com/jamesarich/sofa-king) reads the lineup, guide and playback sessions through `/api/v1` and `/media`.
-- **Plex**: through the [HDHomeRun emulation](docs/live-tv.md#plex-live-tv).
-- **Any M3U/XMLTV player**: through the [player outputs](docs/live-tv.md#third-party-players).
+To run without Docker, see [development](docs/development.md#run-without-docker).
 
 ## Documentation
 
-The [documentation index](docs/README.md) lists every guide. The most used are:
+The [documentation index](docs/README.md) lists every page. The most used are:
 
+- [Getting started](docs/getting-started.md)
+- [Deploy with Docker](docs/deploy.md)
 - [Build a starter lineup](docs/starter-lineup.md)
 - [Live TV: configuration, lineup and sources](docs/live-tv.md)
-- [Native providers](docs/providers.md)
+- [Troubleshooting and FAQ](docs/troubleshooting.md)
 - [Lineup policy](docs/lineup-policy.md)
 - [HTTP API](docs/api.md)
-- [Deploy with Docker](docs/deploy.md)
-- [Operations](docs/operations.md)
 
 ## Contributing
 
@@ -119,7 +83,7 @@ Build and test with `./gradlew test`. [CONTRIBUTING.md](CONTRIBUTING.md) covers 
 
 ## Security
 
-[SECURITY.md](SECURITY.md) describes which token opens which routes, the outbound address policy, and how to report a vulnerability.
+[SECURITY.md](SECURITY.md) describes which token opens which routes, the request limits, the outbound address policy, and how to report a vulnerability.
 
 ## Limitations
 
@@ -127,6 +91,7 @@ Build and test with `./gradlew test`. [CONTRIBUTING.md](CONTRIBUTING.md) covers 
 - The HDHomeRun remux of an HLS source carries one video stream and one audio stream.
 - The native providers are unofficial clients of public service endpoints. They stop working when a service changes them.
 - DRM channels are skipped by the native providers. M3U playlists are not filtered for DRM.
+- The repository and its image are private. Pulling the image needs access to the package.
 
 ## License
 

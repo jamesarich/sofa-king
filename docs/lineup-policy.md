@@ -200,7 +200,7 @@ All routes are under `/api/v1/admin` and take the admin token.
 
 Every write holds one lock, writes a temp file in the policy's directory, syncs it to disk and renames it over the policy. When the file changed on disk since the server read it, the server reloads it and the write fails with `409 POLICY_CHANGED`; read the policy again and retry. `PATCH` and `DELETE` accept `If-Match` too.
 
-While a policy is configured, routes that edit the lineup by hand answer `410 Gone` with code `POLICY_MANAGED`: `POST /lineup`, `PUT /lineup/order`, `POST /lineup/adopt`, `POST /lineup/import`, and every `/curation/*` route except `GET /curation/changes`, which also lists policy changes (`kind: "policy"`).
+While a policy is configured, routes that edit the lineup by hand answer `410 Gone` with code `POLICY_MANAGED`: `POST /lineup`, `PUT /lineup/order`, `POST /lineup/adopt`, and every `/curation/*` route except `GET /curation/changes`, which also lists policy changes (`kind: "policy"`).
 
 ## HDHomeRun devices
 

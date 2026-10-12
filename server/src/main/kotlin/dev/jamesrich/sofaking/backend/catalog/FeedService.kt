@@ -57,7 +57,6 @@ class FeedService(
     private class Published(
         val feeds: List<FeedSnapshot>,
         val protocols: Map<String, String> = emptyMap(),
-        renewable: Map<String, Set<String>> = emptyMap(),
     ) {
         val channels = feeds.flatMap { feed -> feed.channels.map { it to feed.providerId } }.distinctBy { it.first.id }
         val channelById = channels.associate { it.first.id to it.first }
@@ -65,13 +64,6 @@ class FeedService(
         val offerings = feeds.flatMap { it.offerings }.map { offering -> protocols[offering.id]?.let { offering.copy(protocol = it) } ?: offering }
         val offeringById = offerings.associateBy { it.id }
         val offeringsByChannel = offerings.groupBy { it.channelId }
-
-        /** Per provider, offerings by the source key computed with that provider's renewable parameters. */
-        val offeringBySourceKey: Map<String, Map<String?, List<Offering>>> = offerings.groupBy { it.providerId }.mapValues { (provider, items) ->
-            val names = renewable[provider] ?: DEFAULT_RENEWABLE_QUERY
-            items.groupBy { sourceKey(it.url, names) }
-        }
-        val offeringByPath = offerings.groupBy { pathKey(it.url) }
         val channelsRevision = hash(Json.encodeToString(channels.map { it.first }))
 
         /** Which sources exist decides playbackEligible, and a withdrawal writes no health row. */
@@ -79,8 +71,7 @@ class FeedService(
     }
 
     private val log = LoggerFactory.getLogger(FeedService::class.java)
-    private val renewable = configs.associate { it.id to it.renewable }
-    private val published = AtomicReference(Published(emptyList(), renewable = renewable))
+    private val published = AtomicReference(Published(emptyList()))
     private val statuses = AtomicReference<List<ProviderStatus>>(configs.map { ProviderStatus(it.id) })
     private val mutex = Mutex()
 
@@ -91,7 +82,6 @@ class FeedService(
             Published(
                 stored.filter { it.providerId in configured }.sortedBy { snapshot -> configs.indexOfFirst { it.id == snapshot.providerId } },
                 store.offeringProtocols(),
-                renewable,
             ),
         )
         // With no provider configured nothing tells live data from retired data, so nothing is pruned.
@@ -118,7 +108,7 @@ class FeedService(
             val current = published.get()
             if (current.protocols[offeringId] == protocol) return
             store.recordProtocol(offeringId, protocol, clock.instant())
-            published.set(Published(current.feeds, current.protocols + (offeringId to protocol), renewable))
+            published.set(Published(current.feeds, current.protocols + (offeringId to protocol)))
             log.info("source protocol offering={} protocol={}", offeringId, protocol)
         }
     }
@@ -130,17 +120,6 @@ class FeedService(
     fun offerings(): List<Offering> = published.get().offerings
 
     fun offeringsOf(channelId: String): List<Offering> = published.get().offeringsByChannel[channelId].orEmpty()
-
-    /**
-     * Offerings whose source key equals that of [url] under each provider's renewable parameters. When none does,
-     * the one offering sharing its `scheme://authority/path`, so a stream whose identity query changed still matches.
-     */
-    fun offeringsMatching(url: String): List<Offering> {
-        val current = published.get()
-        val exact = configs.flatMap { config -> sourceKey(url, config.renewable)?.let { current.offeringBySourceKey[config.id]?.get(it) }.orEmpty() }
-        if (exact.isNotEmpty()) return exact
-        return pathKey(url)?.let { current.offeringByPath[it] }?.takeIf { it.size == 1 }.orEmpty()
-    }
 
     fun channels(providerId: String? = null): List<Channel> {
         val current = published.get()
@@ -198,7 +177,6 @@ class FeedService(
                                 configs.indexOfFirst { it.id == item.providerId }
                             },
                             current.protocols,
-                            renewable,
                         ),
                     )
                 }

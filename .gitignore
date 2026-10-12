@@ -8,8 +8,6 @@
 /data/
 /deploy/data/
 /deploy/sources.json
-*-export.json
-sofaking.json
 .env
 .env.*
 !.env.example

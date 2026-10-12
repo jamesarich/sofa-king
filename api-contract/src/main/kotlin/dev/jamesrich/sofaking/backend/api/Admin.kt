@@ -56,29 +56,3 @@ import kotlinx.serialization.Serializable
 @Serializable data class ReorderLineup(val ids: List<String>)
 @Serializable data class AdoptProvider(val providerId: String, val enabled: Boolean = true)
 @Serializable data class AdoptResult(val added: Int, val skipped: Int)
-
-/** The JSON that `scripts/dispatcharr-export.py` writes for one channel profile. */
-@Serializable data class DispatcharrExport(
-    val format: String, val profile: String? = null, val exportedAt: String? = null,
-    val epgSources: List<DispatcharrEpgSource> = emptyList(), val channels: List<DispatcharrChannel>,
-)
-@Serializable data class DispatcharrEpgSource(val id: Int, val name: String, val url: String? = null)
-@Serializable data class DispatcharrStream(val url: String, val name: String? = null, val provider: String? = null)
-@Serializable data class DispatcharrChannel(
-    val uuid: String? = null, val number: String, val name: String, val group: String? = null, val logo: String? = null,
-    val tvgId: String? = null, val epgSourceId: Int? = null, val epgChannelId: String? = null, val enabled: Boolean = true,
-    val streams: List<DispatcharrStream> = emptyList(),
-)
-/** [guideMap] maps a Dispatcharr EPG source id to a configured guide id when URL matching is not enough. */
-@Serializable data class ImportLineup(
-    val export: DispatcharrExport, val guideMap: Map<String, String> = emptyMap(), val dryRun: Boolean = false,
-    val includeUnmatched: Boolean = false,
-)
-@Serializable data class ImportEntryReport(
-    val number: String, val name: String, val uuid: String? = null, val action: String, val matchedStreams: Int,
-    val unmatchedStreams: List<String> = emptyList(), val guide: String, val error: String? = null,
-)
-@Serializable data class ImportReport(
-    val dryRun: Boolean, val created: Int, val updated: Int, val skipped: Int, val matchedStreams: Int, val unmatchedStreams: Int,
-    val guideSources: Map<String, String?> = emptyMap(), val entries: List<ImportEntryReport> = emptyList(),
-)

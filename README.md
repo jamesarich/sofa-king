@@ -71,7 +71,7 @@ You need JDK 21 and FFmpeg. Run the commands from the repository root. For Docke
    curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/channels
    ```
 
-   For a full lineup of every free service, grouped, with fallbacks across services and your local channels, follow [build a starter lineup](docs/starter-lineup.md). Or [migrate a Dispatcharr profile](docs/migrate-from-dispatcharr.md).
+   For a full lineup of every free service, grouped, with fallbacks across services and your local channels, follow [build a starter lineup](docs/starter-lineup.md).
 
 6. Curate by rule. `GET /api/v1/admin/curation/preview` shows what automation would change. Automation stays off until `settings.enabled` is set, and it never changes a field an admin set. See [curation](docs/curation.md).
 

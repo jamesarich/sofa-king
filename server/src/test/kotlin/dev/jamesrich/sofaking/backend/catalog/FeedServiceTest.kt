@@ -73,7 +73,6 @@ class FeedServiceTest {
             assertEquals(listOf("Station", "Nameless Id"), feeds.channels().map { it.name })
             val nameless = feeds.channels().last()
             assertEquals("9", nameless.displayNumber); assertNull(nameless.legacyGuideId)
-            assertEquals(listOf(nameless.id), feeds.offeringsMatching("${fixture.base}/other.m3u8?token=rotated").map { it.channelId })
             fixture.partial = false; feeds.refresh(fixture.feed)
             assertEquals(0, feeds.providers().single().skippedEntries); assertNull(feeds.providers().single().skipReasons); assertNull(feeds.providers().single().notes)
         } } } } finally { dir.toFile().deleteRecursively() }

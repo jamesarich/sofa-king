@@ -77,7 +77,7 @@ Every stream URL has a source key: the lowercase scheme and authority, the perce
 
 A channel's identity is its `channel-uuid`, else its `channel-id`, else its `tvg-id`, else the source key of its URL. An entry without a published identity is its own channel: the channel ID and source ID derive from the provider ID and the source key. The name, logo and group are display values that may change between refreshes, `legacyGuideId` is empty, and without `tvg-chno` the number is the first eight characters of the channel ID, so renumber after adopting. A published identity repeated with another name or number keeps the first entry's name and number and adds the URL as an alternative source. An explicit `stream-id` replaces the source key in the source ID. The same source key twice under one channel is `duplicate-source`, and the second URL is dropped.
 
-Source IDs survive token rotation, refreshes and reordering. An entry that refers to a source whose URL has an identity query parameter (anything outside the renewable list) from before this rule shows that source as `WITHDRAWN`. Re-run the [Dispatcharr import](migrate-from-dispatcharr.md), which replaces each entry's sources in place, or re-add the source through `PATCH /api/v1/admin/lineup/ENTRY_ID`. Sources whose URL has a lowercase scheme and host and no query, or only renewable parameters, keep their IDs.
+Source IDs survive token rotation, refreshes and reordering.
 
 A native provider's sources have `svc://SERVICE/CHANNEL_ID` URLs. These are stable identities that the server resolves to a playable URL when a session, a probe or the HDHomeRun remux needs one ([how a native source plays](providers.md#how-a-native-source-plays)). A native candidate's `tvg-id` is the service's channel ID, which the service's implicit guide lists, so adding a candidate maps the guide.
 
@@ -234,7 +234,7 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 
 | Symptom | Check |
 | --- | --- |
-| `/api/v1/channels` is empty | The lineup is empty or every entry is disabled. Adopt a provider or [migrate from Dispatcharr](migrate-from-dispatcharr.md). `GET /api/v1/admin/lineup` shows the entries. |
+| `/api/v1/channels` is empty | The lineup is empty or every entry is disabled. Set a [lineup policy](lineup-policy.md) or adopt a provider. `GET /api/v1/admin/lineup` shows the entries. |
 | No candidates | Set `SOFA_SOURCES`, inspect `/api/v1/providers` for `IMPORT_FAILED`, and check the playlist URL and format. |
 | Import stays unchanged | A failed or empty import preserves the previous snapshot. Check provider status and `allowEmpty`. |
 | Channel has no guide | Check the entry's `guide` mapping against `GET /api/v1/admin/guides/GUIDE_ID/channels`. A mapping changed moments ago is filled on the next guide fetch. `IMPORT_FAILED` on `/api/v1/admin/guides` means that guide's fetch or parse failed. |

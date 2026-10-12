@@ -165,7 +165,7 @@ class PolicyApplyTest {
         withPolicy {
             for ((method, path) in listOf(
                 HttpMethod.Post to "/api/v1/admin/lineup", HttpMethod.Put to "/api/v1/admin/lineup/order", HttpMethod.Post to "/api/v1/admin/lineup/adopt",
-                HttpMethod.Post to "/api/v1/admin/lineup/import", HttpMethod.Get to "/api/v1/admin/curation/settings", HttpMethod.Put to "/api/v1/admin/curation/settings",
+                HttpMethod.Get to "/api/v1/admin/curation/settings", HttpMethod.Put to "/api/v1/admin/curation/settings",
                 HttpMethod.Get to "/api/v1/admin/curation/rules", HttpMethod.Post to "/api/v1/admin/curation/run", HttpMethod.Get to "/api/v1/admin/curation/preview",
                 HttpMethod.Post to "/api/v1/admin/curation/import", HttpMethod.Delete to "/api/v1/admin/curation/rules/x",
             )) {

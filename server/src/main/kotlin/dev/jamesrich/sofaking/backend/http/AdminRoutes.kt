@@ -3,25 +3,17 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
-import dev.jamesrich.sofaking.backend.catalog.DispatcharrImporter
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LineupService
 import dev.jamesrich.sofaking.backend.health.HealthState
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.respond
 import io.ktor.server.routing.*
-import io.ktor.utils.io.readBuffer
 import java.time.Instant
-import kotlinx.io.readByteArray
-import kotlinx.serialization.json.Json
 
-private val adminJson = Json { encodeDefaults = true }
-
-/** Curation under `/api/v1/admin`: feed candidates, guide channels and the household lineup. JSON only. */
+/** The admin API under `/api/v1/admin`: feed candidates, guide channels and the household lineup. JSON only. */
 fun Route.adminRoutes(runtime: LiveRuntime) {
     val store = runtime.store
-    val importer = DispatcharrImporter(runtime.feeds, runtime.guides, runtime.lineup)
     suspend fun entryInfo(entry: LineupEntryRecord): LineupEntry {
         val states = store.allHealth()
         return entry.info(runtime, states, runtime.lineup.entries().indexOfFirst { it.id == entry.id })
@@ -72,12 +64,6 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
             call.respond(runtime.lineup.entries().mapIndexed { index, entry -> entry.info(runtime, states, index) })
         }
         post("/lineup/adopt") { manual(); call.respond(runtime.lineup.adopt(call.body<AdoptProvider>())) }
-        post("/lineup/import") {
-            manual()
-            val bytes = call.receiveChannel().readBuffer(IMPORT_LIMIT + 1).readByteArray()
-            if (bytes.size > IMPORT_LIMIT) throw ApiFailure(413, "REQUEST_TOO_LARGE", "Import exceeds 16 MiB")
-            call.respond(importer.import(adminJson.decodeFromString<ImportLineup>(bytes.toString(Charsets.UTF_8))))
-        }
         get("/lineup/{id}") {
             val entry = runtime.lineup.entry(call.parameters["id"]!!) ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "Unknown lineup entry")
             call.respond(entryInfo(entry))
@@ -98,8 +84,6 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
         plexRoutes(runtime.plex)
     }
 }
-
-private const val IMPORT_LIMIT = 16 * 1024 * 1024L
 
 /** What a route the lineup policy replaces answers while a policy is configured. */
 internal fun policyManaged() = ApiFailure(410, "POLICY_MANAGED", "The lineup is built from the lineup policy; change it through /api/v1/admin/policy")

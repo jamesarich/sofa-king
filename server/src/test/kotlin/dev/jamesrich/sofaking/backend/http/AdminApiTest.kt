@@ -92,14 +92,6 @@ class AdminApiTest {
                 assertEquals(HttpStatusCode.NotFound, client.delete("/api/v1/admin/lineup/${second.id}") { bearerAuth(admin) }.status)
                 val adopt = Json.decodeFromString<AdoptResult>(client.post("/api/v1/admin/lineup/adopt") { asAdmin(); setBody(json.encodeToString(AdoptProvider("alt"))) }.bodyAsText())
                 assertEquals(AdoptResult(0, 1), adopt)
-
-                val export = DispatcharrExport(
-                    DispatcharrImporter.FORMAT, "sofaking", null, listOf(DispatcharrEpgSource(1, "gz", null)),
-                    listOf(DispatcharrChannel("2a2a2a2a-0000-4000-8000-000000000001", "9", "Imported", null, null, "station", 1, "station", true, listOf(DispatcharrStream("${fixture.base}/master.m3u8?token=x")))),
-                )
-                val report = Json.decodeFromString<ImportReport>(client.post("/api/v1/admin/lineup/import") { asAdmin(); setBody(json.encodeToString(ImportLineup(export))) }.bodyAsText())
-                assertEquals(1, report.created); assertEquals("mapped", report.entries.single().guide)
-                assertEquals(listOf("501", "9"), Json.decodeFromString<List<LineupEntry>>(client.get("/api/v1/admin/lineup") { bearerAuth(admin) }.bodyAsText()).map { it.number })
                 assertEquals(HttpStatusCode.PayloadTooLarge, client.post("/api/v1/admin/lineup") { asAdmin(); setBody("""{"name":"${"x".repeat(70_000)}"}""") }.status)
             } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
         }

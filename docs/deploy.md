@@ -83,7 +83,7 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:8080/a
 
 `/readyz` answers `ready`, and the health status becomes `healthy` after the start period. Each provider shows `lastSuccessAt` with its channel and source counts. Sources move from `UNVERIFIED` to `HEALTHY` as probes qualify them. A request without the token answers `401 AUTH_REQUIRED`. Qualifying a large source list takes a while, and until a source is probed its protocol comes from the import.
 
-`/api/v1/channels` stays empty until the lineup exists. Check the guides with `GET /api/v1/admin/guides`, then either adopt a provider through `POST /api/v1/admin/lineup/adopt` or [migrate a Dispatcharr profile](migrate-from-dispatcharr.md). The [Sofa King app](../README.md#clients) connects to `http://SERVER_HOST:8080`.
+`/api/v1/channels` stays empty until the lineup exists. Check the guides with `GET /api/v1/admin/guides`, then [build a starter lineup](starter-lineup.md) or adopt a provider through `POST /api/v1/admin/lineup/adopt`. The [Sofa King app](../README.md#clients) connects to `http://SERVER_HOST:8080`.
 
 With `SOFA_OUTPUT_TOKEN` set, `curl --fail "http://SERVER_HOST:8080/output/playlist.m3u?token=$SOFA_OUTPUT_TOKEN"` prints the playlist that [M3U and XMLTV players](live-tv.md#third-party-players) load. Its stream URLs carry the address the request used, so they work through a port mapping. For Plex, `curl --fail http://SERVER_HOST:8080/discover.json` from the Plex host shows the tuner that [Plex](live-tv.md#plex-live-tv) is pointed at. Plex finds the device by its address, so no SSDP (UDP) port is needed.
 

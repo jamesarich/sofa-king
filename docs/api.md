@@ -27,7 +27,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 | GET, POST | `/lineup.post` | Accepts Plex's channel-scan request; answers 200 |
 | GET | `/auto/v{number}` | MPEG-TS stream of the channel with that lineup number |
 
-Request bodies are limited to 64 KiB, except the lineup import (16 MiB). Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams and logos never are. The [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/) defines the response fields.
+Request bodies are limited to 64 KiB, except a policy write (4 MiB). Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams and logos never are. The [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/) defines the response fields.
 
 Channel IDs are lineup entry IDs. A channel's `displayNumber`, `name` and `tags` (the group) come from its entry; `logo` is the entry's logo served from this server, `http://HOST/logos/KEY` (see [logos](#logos)), with `HOST` taken from the request's `Host` header; `legacyGuideId` is the mapped XMLTV channel ID; `guideStatus` is `unassigned`, `empty`, `available` or `stale`; `playbackEligible` is true when any of the entry's sources is selectable. Channels are listed in lineup order.
 
@@ -153,7 +153,6 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | DELETE | `/api/v1/admin/lineup/{id}` | Remove an entry; returns 204. With a policy, writes `enabled: false` into the station override instead |
 | PUT | `/api/v1/admin/lineup/order` | Reorder: `{"ids": [...]}` listing every entry once; returns the lineup |
 | POST | `/api/v1/admin/lineup/adopt` | `{"providerId": "...", "enabled": true}` adds every channel of the provider whose sources no entry uses; returns `added` and `skipped` |
-| POST | `/api/v1/admin/lineup/import` | Import a Dispatcharr export, see [migrate from Dispatcharr](migrate-from-dispatcharr.md#import-api) |
 | GET, PUT | `/api/v1/admin/curation/settings` | Curation settings, see [curation](#curation) |
 | GET, POST | `/api/v1/admin/curation/rules` | List rules; create one (201) |
 | PUT, DELETE | `/api/v1/admin/curation/rules/{id}` | Replace or remove a rule (204) |
@@ -170,7 +169,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `curation`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`; 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
 | POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |
 
-While `SOFA_POLICY` is set, `POST /lineup`, `PUT /lineup/order`, `POST /lineup/adopt`, `POST /lineup/import` and every `/curation/*` route except `GET /curation/changes` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api).
+While `SOFA_POLICY` is set, `POST /lineup`, `PUT /lineup/order`, `POST /lineup/adopt` and every `/curation/*` route except `GET /curation/changes` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api).
 
 An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `pinned` (the fields an admin set, which [curation](curation.md#pins) never changes), `createdBy` (`manual`, `import`, `rule:ID` or `policy`) and, while curation rather than an admin holds the entry disabled, `autoDisabledAt` and `autoDisabledReason` (`unavailable` or `alias`).
 

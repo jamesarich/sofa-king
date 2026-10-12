@@ -116,7 +116,7 @@ class LineupService(
         AdoptResult(added, skipped)
     }
 
-    /** Applies the entries [block] produces; the import matcher decides what they are. */
+    /** Writes and publishes the entries [block] leaves, and refreshes any guide that gains a mapped channel. */
     internal suspend fun <R> mutate(block: (MutableList<LineupEntryRecord>) -> R): R = mutex.withLock {
         val entries = published.get().entries.toMutableList()
         val result = block(entries)

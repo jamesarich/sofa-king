@@ -38,7 +38,7 @@ A rule is `{"id", "kind", "position", "enabled", "match": {...}, "set": {...}, "
 
 Regexes are Java patterns matched case-insensitively against the whole value with `find`. A `group` rule needs one match field and `set.group`. An `alias` rule needs two different existing entries. An `equivalent` rule attaches every matching candidate to its entry, including candidates another entry already carries, so two entries can share a source. Evidence without a rule only takes candidates no entry carries. `adopt` rules apply in position order, which is provider priority: a candidate the first matching rule adopts becomes an entry, and a later candidate in the same run with the same name (under `equivalentEvidence: name`, or the same `tvg-id` otherwise) joins that entry as a fallback source instead of becoming a duplicate. [Build a starter lineup](starter-lineup.md) uses this to assemble a lineup from every native service.
 
-Rules are created through the [admin API](api.md#curation), and an existing lineup's group, correction and alias decisions can be imported in bulk; see [migrate from Dispatcharr](migrate-from-dispatcharr.md#pipeline-data-import).
+Rules are created through the [admin API](api.md#curation).
 
 ## The pass
 

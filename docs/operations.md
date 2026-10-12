@@ -125,7 +125,7 @@ Tokens come from the environment (`deploy/.env` for Docker), from the file a `_F
 | Token | Rotate by | Update |
 | --- | --- | --- |
 | API token (`SOFA_API_TOKEN`) | Set a new value from `openssl rand -hex 32` and restart. When it is generated, delete `apiToken` from `secrets.json` and restart, and a new one is generated | Every API client, including the Sofa King app |
-| Admin token (`SOFA_ADMIN_TOKEN`) | Same, with `adminToken`; the start that generates it logs the new value once | Whatever calls `/api/v1/admin`, and the admin portal sign-in |
+| Admin token (`SOFA_ADMIN_TOKEN`) | Same, with `adminToken`; read the new value from `secrets.json` | Whatever calls `/api/v1/admin`, and the admin portal sign-in |
 | Output token (`SOFA_OUTPUT_TOKEN`) | Set a new value from `openssl rand -hex 16` and restart | Each player's playlist and guide URL, and the Plex guide URL |
 
 The output token goes in URLs, so changing it means editing every player and Plex. Logo URLs carry no token and need no change. Native provider session tokens are renewed by the server, so nothing is needed for those.

@@ -11,10 +11,10 @@ Run from the repository root with JDK 21 installed:
 mkdir -p deploy/config
 cd deploy
 docker compose up -d --build
-docker compose logs | grep 'generated SOFA_ADMIN_TOKEN'
+docker compose exec sofa-king-backend cat /config/secrets.json
 ```
 
-1. The first start generates the API and admin tokens, stores them in `config/secrets.json`, and prints the admin token once in a log line like `secrets: generated SOFA_ADMIN_TOKEN=<token> and stored it in /config/secrets.json`. Later starts never print it. To see it again, run `jq -r .adminToken config/secrets.json`.
+1. The first start generates the API and admin tokens and stores them in `config/secrets.json`. The log names the file and the command above, never a token. To read the admin token alone, run `jq -r .adminToken config/secrets.json`.
 2. Open `http://SERVER_HOST:9193/admin` and sign in with the admin token. **Settings** reveals the API token the [Sofa King app](../README.md#clients) needs.
 3. Add your channels. Copy [`sources.example.json`](../deploy/sources.example.json) to `config/sources.json`, edit it as [configure the sources](starter-lineup.md#1-configure-the-sources) describes, and run `docker compose restart`. To build the lineup, put a [lineup policy](lineup-policy.md) in `config/policy.json` too, or follow [build a starter lineup](starter-lineup.md).
 

@@ -6,7 +6,7 @@ The portal calls the server's services directly. It changes nothing the [admin A
 
 ## Sign in
 
-Open `http://SERVER_HOST:PORT/admin` (port 9193 with the [Compose file](deploy.md)) and enter the admin token: `SOFA_ADMIN_TOKEN`, or `SOFA_API_TOKEN` when there is no admin token. On a non-loopback bind the server generates an unset admin token at the first start and logs it once; after that, read `adminToken` from `secrets.json` in the data directory. On loopback with neither token set, nobody can sign in, and the page says so.
+Open `http://SERVER_HOST:PORT/admin` (port 9193 with the [Compose file](deploy.md)) and enter the admin token: `SOFA_ADMIN_TOKEN`, or `SOFA_API_TOKEN` when there is no admin token. On a non-loopback bind the server generates an unset admin token at the first start; read `adminToken` from `secrets.json` in the data directory (`docker compose exec sofa-king-backend cat /config/secrets.json` with the Compose file). On loopback with neither token set, nobody can sign in, and the page says so.
 
 A session lasts 12 hours from sign-in, or until you sign out. Sessions are held in memory, so a restart signs everyone out. Up to 32 sessions are kept; a new one replaces the one closest to expiry.
 

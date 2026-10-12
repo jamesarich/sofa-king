@@ -21,7 +21,7 @@ class ConfigLoadTest {
 
     private val hex64 = Regex("[0-9a-f]{64}")
 
-    @Test fun `a LAN bind without tokens generates both, stores them owner-only and logs only the admin token once`() {
+    @Test fun `a LAN bind without tokens generates both, stores them owner-only and logs where to read them, never a token`() {
         val first = load(lan())
         val api = assertNotNull(first.apiToken)
         val admin = assertNotNull(first.adminToken)
@@ -33,9 +33,11 @@ class ConfigLoadTest {
         assertEquals("rw-------", PosixFilePermissions.toString(Files.getPosixFilePermissions(file)))
         assertEquals(listOf("secrets.json"), Files.list(dir).use { files -> files.map { it.fileName.toString() }.toList() }, "no temporary file is left")
         assertTrue(Files.readString(file).contains(api) && Files.readString(file).contains(admin))
-        assertEquals(1, lines.count { admin in it }, "the admin token is logged once: $lines")
-        assertTrue(lines.single { admin in it }.contains(file.toString()), "the line says where it is stored")
-        assertTrue(lines.none { api in it }, "the API token is never logged")
+        assertTrue(lines.none { admin in it || api in it }, "no token is logged: $lines")
+        val generated = lines.single { it.startsWith("secrets: generated SOFA_ADMIN_TOKEN") }
+        assertTrue(generated.contains("stored it in $file"), "the line says where it is stored: $generated")
+        assertTrue(generated.contains("docker compose exec sofa-king-backend cat /config/secrets.json"), "and how to read it: $generated")
+        assertTrue(generated.contains("Settings"), "and that the portal reveals the API token: $generated")
 
         lines.clear()
         val second = load(lan())

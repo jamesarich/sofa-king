@@ -81,7 +81,7 @@ data class ServerConfig(
          * The configuration the server starts with: [fromEnvironment] after reading `NAME_FILE` secrets, then the source
          * and policy files found in the data directory when their variables are unset, and, on a non-loopback bind, the
          * API and admin tokens the environment leaves unset from [SecretsFile], generated on first use. [log] gets one
-         * line per decision, and the admin token only on the start that generates it.
+         * line per decision and never a token.
          */
         fun load(
             environment: Map<String, String>,
@@ -131,8 +131,9 @@ data class ServerConfig(
                     allOrigins["SOFA_ADMIN_TOKEN"] = SecretOrigin.GENERATED
                     if ("adminToken" in generated) {
                         log(
-                            "secrets: generated SOFA_ADMIN_TOKEN=$token and stored it in ${file.path}. Sign in at /admin with it. " +
-                                "It is not logged again; read adminToken from that file to see it later",
+                            "secrets: generated SOFA_ADMIN_TOKEN and stored it in ${file.path}. To read it: " +
+                                "docker compose exec sofa-king-backend cat /config/secrets.json (outside Docker: cat ${file.path}). " +
+                                "Sign in at /admin with adminToken; Settings there reveals the API token",
                         )
                     } else log("secrets: SOFA_ADMIN_TOKEN from ${file.path}")
                 }

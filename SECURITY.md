@@ -23,7 +23,7 @@ The server is designed for a private network. It has no accounts, no per-user ac
 Notes on the table:
 
 - On a non-loopback bind, an API or admin token that the environment leaves unset is generated: 32 random bytes from the JVM's `SecureRandom`, as 64 hex characters. Both are kept in `secrets.json` in the data directory, created with mode `600` and replaced by an atomic rename, and reused on later starts. A token set in the environment, or read from the file its `_FILE` variable names, always wins and is never written there.
-- The start that generates the admin token logs it once, with the path of `secrets.json`. No later start logs a token. A signed-in admin can reveal the API token on the portal's Settings page and the output token on its Plex page, each through a `POST` with the session's CSRF token.
+- No token is ever logged. The start that generates the admin token logs the path of `secrets.json` and the command that reads it. A signed-in admin can reveal the API token on the portal's Settings page and the output token on its Plex page, each through a `POST` with the session's CSRF token.
 - On a loopback bind, a token that is not configured leaves its routes open. With no API token, every `/api/` route is open, and with neither output nor API token, `/output/*` is open. This is for local development.
 - Tokens are compared in constant time. The API token is never accepted in a query string.
 - A token in a URL lands in player configuration, screenshots and proxy logs. That is why the output token is separate from the API token and opens nothing but `/output/*`.

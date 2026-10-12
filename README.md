@@ -27,10 +27,10 @@ With Docker and JDK 21, from the repository root:
 ./gradlew :server:installDist
 mkdir -p deploy/config
 cd deploy && docker compose up -d --build
-docker compose logs | grep 'generated SOFA_ADMIN_TOKEN'
+docker compose exec sofa-king-backend cat /config/secrets.json
 ```
 
-Open `http://SERVER_HOST:9193/admin` and sign in with the admin token from that log line. Everything the server keeps, including the generated tokens, is in `deploy/config`; drop a `sources.json` and a `policy.json` there to add channels. [Deploy](docs/deploy.md) covers the config folder, running as your own user, secrets, reverse proxies and a host that updates itself from the published image.
+Open `http://SERVER_HOST:9193/admin` and sign in with the `adminToken` from that file. Everything the server keeps, including the generated tokens, is in `deploy/config`; drop a `sources.json` and a `policy.json` there to add channels. [Deploy](docs/deploy.md) covers the config folder, running as your own user, secrets, reverse proxies and a host that updates itself from the published image.
 
 Without Docker you need JDK 21 and FFmpeg. Run the commands from the repository root:
 

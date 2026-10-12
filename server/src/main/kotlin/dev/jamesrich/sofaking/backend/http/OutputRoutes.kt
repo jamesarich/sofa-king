@@ -80,7 +80,9 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
                 for (channel in channels) {
                     val categories = xmltvCategories(entries[channel.id]?.group)
                     val categoryXml = categories.joinToString("") { "<category lang=\"en\">${xml(it)}</category>" }
-                    for (programme in programmes[channel.id].orEmpty()) {
+                    // A channel with nothing in the window gets hourly placeholders, so Plex lists and records it like the rest.
+                    val listed = programmes[channel.id].orEmpty().ifEmpty { placeholders(channel.id, channel.name, from, to) }
+                    for (programme in listed) {
                         write("<programme start=\"${xmltvTime(programme.startsAt)}\" stop=\"${xmltvTime(programme.endsAt)}\" channel=\"${xml(channel.id)}\">")
                         write("<title>${xml(programme.title)}</title>")
                         programme.description?.let { write("<desc>${xml(it)}</desc>") }
@@ -174,6 +176,13 @@ private fun xmltvTime(instant: Instant): String = xmltvFormat.format(instant) + 
 private val airDateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC)
 
 private fun airDate(instant: Instant): String = airDateFormat.format(instant)
+
+/** One programme titled [name] for each hour from the hour [from] falls in up to [to]. */
+internal fun placeholders(channelId: String, name: String, from: Instant, to: Instant): List<GuideProgramme> =
+    generateSequence(from.truncatedTo(java.time.temporal.ChronoUnit.HOURS)) { it.plus(Duration.ofHours(1)) }
+        .takeWhile { it < to }
+        .map { start -> GuideProgramme(channelId, start, start.plus(Duration.ofHours(1)), name) }
+        .toList()
 
 internal const val XMLTV_MOVIE = "Movie"
 

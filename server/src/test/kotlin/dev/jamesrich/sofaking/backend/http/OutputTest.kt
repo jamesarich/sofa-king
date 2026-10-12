@@ -77,6 +77,11 @@ class OutputTest {
                         "<category lang=\"en\">News</category><episode-num system=\"original-air-date\">2026-10-10 13:00:00</episode-num></programme>",
                 ))
                 assertFalse(xml.contains("Elsewhere"))
+                assertTrue(xml.contains(
+                    "<programme start=\"20261010100000 +0000\" stop=\"20261010110000 +0000\" channel=\"${ts.id}\"><title>TS Station</title>" +
+                        "<category lang=\"en\">Series</category><episode-num system=\"original-air-date\">2026-10-10 10:00:00</episode-num></programme>",
+                ), "a channel with no programmes gets hourly placeholders")
+                assertFalse(xml.contains("channel=\"${hls.id}\"><title>Station</title>"), "a channel with programmes gets none")
                 assertTrue(xml.trimEnd().endsWith("</tv>"))
                 for (path in listOf("/output/guide.xml?token=$output", "/output/playlist.m3u?token=$output")) {
                     val gzipped = client.get(path) { header(HttpHeaders.AcceptEncoding, "gzip") }

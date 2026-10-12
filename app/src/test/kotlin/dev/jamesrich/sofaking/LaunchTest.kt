@@ -7,7 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class LaunchTest {
-    private val lineup = Lineup(listOf(Channel("1", 1.0, "One", null, "Test"), Channel("2", 2.0, "Two", null, "Test")), emptyMap())
+    private val lineup = Lineup(listOf(Channel("1", 1.0, "One", null, listOf("Test")), Channel("2", 2.0, "Two", null, listOf("Test"))), emptyMap())
     private val ready = LineupState.Ready(lineup)
 
     @Test

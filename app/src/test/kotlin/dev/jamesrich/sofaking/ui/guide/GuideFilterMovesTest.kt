@@ -6,15 +6,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class GuideFilterMovesTest {
-    private fun channel(id: String, group: String = "News") = Channel(id, id.toDouble(), "Ch $id", null, group)
+    private fun channel(id: String, group: String = "News") = Channel(id, id.toDouble(), "Ch $id", null, listOf(group))
     private val all = listOf(channel("100"), channel("101"), channel("300", "Sports"), channel("301", "Sports"))
-    private val news = all.filter { it.group == "News" }
+    private val news = all.filter { "News" in it.groups }
 
     private fun typed(digits: String) = digits.fold(ChannelNumberEntry()) { entry, c -> entry.append(c.digitToInt()) }
 
     @Test
     fun `chips list every group once, in the order its first channel appears`() {
-        val local = Channel("5", 5.0, "KSNV", null, "Local", listOf("Local", "News"))
+        val local = Channel("5", 5.0, "KSNV", null, listOf("Local", "News"))
         val filters = guideFilters(listOf(local) + all)
         assertEquals(
             listOf(GuideFilter.All, GuideFilter.Favorites, GuideFilter.Group("Local"), GuideFilter.Group("News"), GuideFilter.Group("Sports")),
@@ -24,7 +24,7 @@ class GuideFilterMovesTest {
 
     @Test
     fun `counts include a channel in each of its groups`() {
-        val local = Channel("5", 5.0, "KSNV", null, "Local", listOf("Local", "News"))
+        val local = Channel("5", 5.0, "KSNV", null, listOf("Local", "News"))
         val counts = guideFilterCounts(listOf(local) + all, favorites = setOf("300", "gone"))
         assertEquals(5, counts[GuideFilter.All])
         assertEquals(1, counts[GuideFilter.Favorites])
@@ -56,7 +56,7 @@ class GuideFilterMovesTest {
 
     @Test
     fun `a filter change that hides the focused channel starts at the top`() {
-        val sports = all.filter { it.group == "Sports" }
+        val sports = all.filter { "Sports" in it.groups }
         assertEquals(0, firstItemAfterFilter(sports, "101"))
         assertEquals(0, firstItemAfterFilter(sports, null))
     }

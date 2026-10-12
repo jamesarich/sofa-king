@@ -65,6 +65,6 @@ class ChannelNumberEntryTest {
         number = number,
         name = name,
         logo = null,
-        group = "Test",
+        groups = listOf("Test"),
     )
 }

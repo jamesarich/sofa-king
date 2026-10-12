@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ZapSettleTest {
-    private fun channel(id: String) = Channel(id, id.toDouble(), "Ch $id", null, "Test")
+    private fun channel(id: String) = Channel(id, id.toDouble(), "Ch $id", null, listOf("Test"))
 
     @Test
     fun `the first tune starts at once so the preview's stream is taken over without a gap`() {

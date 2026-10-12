@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class HomeFocusTest {
-    private val channel = Channel("1", 1.0, "One", null, "Test")
+    private val channel = Channel("1", 1.0, "One", null, listOf("Test"))
 
     @Test
     fun `an unconfigured server starts on Settings`() {

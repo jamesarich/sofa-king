@@ -81,7 +81,7 @@ class SofaKingRepositoryTest {
 
     private fun repository() = SofaKingRepository(SofaKingApi(server.url("/").toString(), "t")) { now }
 
-    private fun channels(count: Int) = List(count) { Channel("c$it", it.toDouble(), "Channel $it", null, "Other") }
+    private fun channels(count: Int) = List(count) { Channel("c$it", it.toDouble(), "Channel $it", null, listOf("Other")) }
 
     @Test
     fun `an unchanged catalog is answered from the ETag without a second body`() = runTest {
@@ -90,7 +90,7 @@ class SofaKingRepositoryTest {
         val first = repository.loadChannels()
         val second = repository.loadChannels()
 
-        assertEquals(listOf(Channel("c1", 1.0, "One", null, "Other")), first)
+        assertEquals(listOf(Channel("c1", 1.0, "One", null, listOf("Other"))), first)
         assertEquals(first, second)
         assertEquals(2, fake.catalogRequests)
     }

@@ -5,7 +5,7 @@ import java.time.format.DateTimeParseException
 
 /** The server's catalog and guide shapes as the app's [Channel] and [Programme] models. */
 internal object SofaKingMapper {
-    /** Channels the server can play, with a numeric display number, sorted by it; every tag is a group, the first the main one. */
+    /** Channels the server can play, with a numeric display number, sorted by it; every tag is a group, [DEFAULT_GROUP] when there is none. */
     fun channels(catalog: CatalogDto): List<Channel> = catalog.channels.mapNotNull { dto ->
         if (!dto.playbackEligible) return@mapNotNull null
         val number = dto.displayNumber.trim().toDoubleOrNull() ?: return@mapNotNull null
@@ -15,7 +15,6 @@ internal object SofaKingMapper {
             number = number,
             name = dto.name,
             logo = dto.logo?.takeIf { it.isNotEmpty() },
-            group = groups.first(),
             groups = groups,
         )
     }.sortedBy { it.number }

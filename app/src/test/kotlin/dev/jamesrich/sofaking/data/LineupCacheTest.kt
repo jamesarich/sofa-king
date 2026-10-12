@@ -25,9 +25,9 @@ class LineupCacheTest {
 
     private fun cache(key: String = KEY, at: Instant = now) = LineupCache(cacheFile(), key) { at }
 
-    private val channelOne = Channel("1", 1.0, "One", "http://logo/1.png", "Local", listOf("Local", "News"))
-    private val channelTwo = Channel("2", 2.5, "Café ☃", null, "Other")
-    private val channelThree = Channel("3", 3.0, "Quiet", null, "Other")
+    private val channelOne = Channel("1", 1.0, "One", "http://logo/1.png", listOf("Local", "News"))
+    private val channelTwo = Channel("2", 2.5, "Café ☃", null, listOf("Other"))
+    private val channelThree = Channel("3", 3.0, "Quiet", null, listOf("Other"))
 
     private fun programme(channel: String, start: String, stop: String, title: String, subtitle: String? = null, description: String? = null) =
         Programme(channel, Instant.parse(start), Instant.parse(stop), title, subtitle, description)

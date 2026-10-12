@@ -93,7 +93,7 @@ class LineupCache(
             val logo = input.readNullableText()
             val groups = List(input.readCount()) { input.readText() }
             require(groups.isNotEmpty()) { "channel without a group" }
-            Channel(guideId = guideId, number = number, name = name, logo = logo, group = groups.first(), groups = groups)
+            Channel(guideId = guideId, number = number, name = name, logo = logo, groups = groups)
         }
         val channelIds = input.readCount()
         val guide = HashMap<String, List<Programme>>()

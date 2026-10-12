@@ -29,20 +29,19 @@ class SofaKingMapperTest {
 
         assertEquals(
             listOf(
-                Channel("a", 5.1, "Five", "http://logo/5.png", "Other"),
-                Channel("b", 12.0, "Twelve", null, "News", listOf("News", "HD")),
+                Channel("a", 5.1, "Five", "http://logo/5.png", listOf("Other")),
+                Channel("b", 12.0, "Twelve", null, listOf("News", "HD")),
             ),
             channels,
         )
     }
 
     @Test
-    fun `every tag is a group, trimmed and once each, the first the main one`() {
+    fun `every tag is a group, trimmed and once each, in tag order`() {
         val channels = SofaKingMapper.channels(
             CatalogDto("r1", listOf(channel("a", "1", tags = listOf(" Local ", "", "News", "Local")))),
         )
 
-        assertEquals("Local", channels.single().group)
         assertEquals(listOf("Local", "News"), channels.single().groups)
     }
 
@@ -65,10 +64,12 @@ class SofaKingMapperTest {
     }
 
     @Test
-    fun `a blank first tag falls through to the next one`() {
-        val channels = SofaKingMapper.channels(CatalogDto("r1", listOf(channel("a", "1", tags = listOf(" ", "Sports")))))
+    fun `blank tags are skipped and a channel left with none is filed under Other`() {
+        val channels = SofaKingMapper.channels(
+            CatalogDto("r1", listOf(channel("a", "1", tags = listOf(" ", "Sports")), channel("b", "2", tags = listOf(" ")))),
+        )
 
-        assertEquals("Sports", channels.single().group)
+        assertEquals(listOf(listOf("Sports"), listOf("Other")), channels.map { it.groups })
     }
 
     @Test

@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GuideFocusTest {
-    private fun channel(id: String) = Channel(id, id.toDouble(), "Ch $id", null, "Test")
+    private fun channel(id: String) = Channel(id, id.toDouble(), "Ch $id", null, listOf("Test"))
     private val visible = listOf(channel("1"), channel("2"), channel("3"))
 
     @Test

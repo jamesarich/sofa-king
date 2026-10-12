@@ -44,6 +44,22 @@ class LegacyNumbersTest(unittest.TestCase):
         self.assertEqual('5', generate_policy.legacy_stations(channels, {}, {}, offered, keep_numbers=True)['local5news']['number'])
 
 
+class StarterGroupsTest(unittest.TestCase):
+    def test_the_local_pattern_comes_first_and_weak_keys_are_lowercased(self):
+        starter = {'groupMap': {' TV ': 'Entertainment'}, 'weak': ['TV'], 'patterns': [{'name': 'kids', 'group': 'Kids & Family'}]}
+        self.assertEqual({
+            'map': {'tv': 'Entertainment'}, 'weak': ['tv'], 'default': 'Entertainment',
+            'patterns': [{'name': 'des moines', 'group': 'Local'}, {'name': 'kids', 'group': 'Kids & Family'}],
+        }, generate_policy.starter_groups(starter, 'des moines'))
+
+    def test_every_group_the_starter_names_has_a_block(self):
+        with open(os.path.join(ROOT, 'deploy/curation-starter.json'), encoding='utf-8') as handle:
+            starter = json.load(handle)
+        named = set(starter['groupMap'].values()) | {p['group'] for p in starter['patterns']} | {'Local'}
+        self.assertEqual(set(), named - set(generate_policy.GROUP_BLOCKS))
+        self.assertEqual(set(), set(starter['weak']) - set(starter['groupMap']) - {'us'}, 'a weak bucket still maps, except a region')
+
+
 class GenerateTest(unittest.TestCase):
     def test_offline_sample(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -73,11 +89,12 @@ class GenerateTest(unittest.TestCase):
         self.assertEqual({'requireVerified': True}, policy['health'])
         numbering = policy['numbering']
         self.assertEqual(400, numbering['groupSize'])
-        self.assertEqual({'Local': 1, 'News': 100, 'Sports': 300, 'Regional Sports': 600, 'Entertainment': 700, 'Movies': 1200,
-                          'Comedy': 1500, 'Crime': 1600, 'Documentary': 1700, 'Lifestyle': 1850, 'Food & Travel': 2100,
-                          'Kids & Family': 2200, 'Music': 2350, 'Game Shows': 2500, 'Faith': 2550, 'Shopping': 2580,
-                          'Ambiance': 2600}, numbering['groups'])
+        self.assertEqual({'Local': 1, 'Local News (US)': 30, 'News': 100, 'Sports': 300, 'En Español': 600, 'Entertainment': 700,
+                          'Drama': 900, 'Classic TV': 1050, 'Movies': 1200, 'Sci-Fi & Horror': 1400, 'Comedy': 1500, 'Crime': 1600,
+                          'Documentary': 1700, 'Lifestyle': 1850, 'Food & Travel': 2100, 'Kids & Family': 2200, 'Anime': 2300,
+                          'Music': 2350, 'Game Shows': 2500, 'Faith': 2550, 'Shopping': 2580, 'Ambiance': 2600}, numbering['groups'])
         self.assertGreaterEqual(numbering['floor'], max(numbering['groups'].values()) + numbering['groupSize'], 'the floor is clear of every block')
+        self.assertTrue(numbering['followGroup'])
         self.assertEqual({
             'local5news': {'required': True, 'name': 'Local 5 News', 'number': '5', 'group': 'Local',
                            'sources': [{'provider': 'aggregator', 'tvgId': 'local5', 'name': 'Local 5'}]},

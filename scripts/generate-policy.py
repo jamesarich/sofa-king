@@ -11,9 +11,12 @@ Reads `GET /api/v1/providers`, `GET /api/v1/admin/lineup` and `GET /api/v1/admin
 - `providers`: the native order given by --providers, keeping only providers the server has; `localnow` is
   split into an enabled `My City` entry, a disabled `More Cities` entry and an entry for the rest of its channels,
   and `vizio` excludes `Local channels`.
-- `groups.map` from the starter file's `groupMap`, with `Entertainment` as the default.
+- `groups.map`, `groups.weak` and `groups.patterns` from the starter file's `groupMap`, `weak` and `patterns`, with
+  `Entertainment` as the default. `--local-pattern REGEX` puts a name pattern for the household's own market first,
+  so its stations group as `Local`.
 - `names.version` 2 and `health.requireVerified`, so only stations with a source that has qualified healthy show.
-- `numbering.groups`: one block of 100 numbers per group (`GROUP_BLOCKS`), with the floor after the last block.
+- `numbering.groups`: one block per group (`GROUP_BLOCKS`), each running to the next block's start, with the floor
+  after the last block, and `numbering.followGroup`, so a station the server numbered follows its group's block.
 - `names.aliases`: for every enabled lineup entry whose native sources carry other keys than the entry's own,
   each other key aliased to the entry's. Every alias is printed for review.
 - `stations`: one `required` station per legacy channel, keyed by the key of its name (or its replacement's
@@ -39,9 +42,10 @@ NAMES_VERSION = 2
 
 # Each block runs to the next block's start, sized for the free services' catalogs with room to grow.
 GROUP_BLOCKS = {
-    'Local': 1, 'News': 100, 'Sports': 300, 'Regional Sports': 600, 'Entertainment': 700, 'Movies': 1200,
-    'Comedy': 1500, 'Crime': 1600, 'Documentary': 1700, 'Lifestyle': 1850, 'Food & Travel': 2100,
-    'Kids & Family': 2200, 'Music': 2350, 'Game Shows': 2500, 'Faith': 2550, 'Shopping': 2580, 'Ambiance': 2600,
+    'Local': 1, 'Local News (US)': 30, 'News': 100, 'Sports': 300, 'En Español': 600, 'Entertainment': 700,
+    'Drama': 900, 'Classic TV': 1050, 'Movies': 1200, 'Sci-Fi & Horror': 1400, 'Comedy': 1500, 'Crime': 1600,
+    'Documentary': 1700, 'Lifestyle': 1850, 'Food & Travel': 2100, 'Kids & Family': 2200, 'Anime': 2300,
+    'Music': 2350, 'Game Shows': 2500, 'Faith': 2550, 'Shopping': 2580, 'Ambiance': 2600,
 }
 GROUP_SIZE = 400
 # Stations the policy keeps off, and new stations past a full block, number from here, clear of every block.
@@ -165,7 +169,19 @@ def legacy_stations(channels, replacements, aliases, offered, keep_numbers=False
     return stations
 
 
-def generate(providers, lineup, candidates, legacy, replacements, starter, order, keep_legacy_numbers=False):
+def starter_groups(starter, local_pattern=None):
+    """`groups` from a starter file: its map and weak list lowercased, a local-market name pattern ahead of its patterns."""
+    groups = {'map': {k.strip().lower(): v for k, v in starter.get('groupMap', {}).items()}, 'default': 'Entertainment'}
+    weak = sorted({w.strip().lower() for w in starter.get('weak', [])})
+    patterns = ([{'name': local_pattern, 'group': 'Local'}] if local_pattern else []) + list(starter.get('patterns', []))
+    if weak:
+        groups['weak'] = weak
+    if patterns:
+        groups['patterns'] = patterns
+    return groups
+
+
+def generate(providers, lineup, candidates, legacy, replacements, starter, order, keep_legacy_numbers=False, local_pattern=None):
     """The policy as a dict. [candidates] maps provider id to its candidate items."""
     configured = {p['id'] for p in providers}
     native = [p for p in order if p in configured]
@@ -176,13 +192,12 @@ def generate(providers, lineup, candidates, legacy, replacements, starter, order
                 offered.add(pin_identity({'provider': item['providerId'], 'tvgId': item['tvgId']}))
             offered.add(pin_identity({'provider': item['providerId'], 'name': item['name']}))
     aliases = aliases_from_lineup(lineup, set(native))
-    group_map = {k.strip().lower(): v for k, v in starter.get('groupMap', {}).items()}
     return {
         'version': 1,
         'names': {'version': NAMES_VERSION, 'aliases': aliases},
         'providers': provider_entries(native, configured),
-        'groups': {'map': group_map, 'default': 'Entertainment'},
-        'numbering': {'floor': NUMBER_FLOOR, 'groups': dict(GROUP_BLOCKS), 'groupSize': GROUP_SIZE},
+        'groups': starter_groups(starter, local_pattern),
+        'numbering': {'floor': NUMBER_FLOOR, 'groups': dict(GROUP_BLOCKS), 'groupSize': GROUP_SIZE, 'followGroup': True},
         'health': {'requireVerified': True},
         'stations': legacy_stations(legacy.get('channels', []), replacements, aliases, offered, keep_legacy_numbers),
     }
@@ -228,7 +243,8 @@ def main():
     parser.add_argument('--legacy', help='legacy export: {"channels": [{"name", "number", "group", "sources": [{"provider", "channelName", "tvgId"}]}]}')
     parser.add_argument('--out', required=True)
     parser.add_argument('--providers', default=NATIVE_ORDER, help='native provider priority, comma separated')
-    parser.add_argument('--starter-groups', help='a file with a groupMap, such as deploy/curation-starter.json')
+    parser.add_argument('--starter-groups', help='a file with a groupMap, weak and patterns, such as deploy/curation-starter.json')
+    parser.add_argument('--local-pattern', help='a name regex for the household\'s own market, grouped as Local ahead of every other rule')
     parser.add_argument('--replacements', help='export channel name to pins, or to {"name", "sources"}')
     parser.add_argument('--keep-legacy-numbers', action='store_true', help='keep the exported numbers of legacy channels instead of numbering them in their group blocks')
     parser.add_argument('--offline', help='read providers, lineup and candidates from this file instead of the server')
@@ -247,7 +263,7 @@ def main():
         providers, lineup, candidates = from_server(args, order, pin_providers)
     else:
         parser.error('give --server or --offline')
-    policy = generate(providers, lineup, candidates, legacy, replacements, starter, order, args.keep_legacy_numbers)
+    policy = generate(providers, lineup, candidates, legacy, replacements, starter, order, args.keep_legacy_numbers, args.local_pattern)
     with open(args.out, 'w', encoding='utf-8') as handle:
         json.dump(policy, handle, indent=2, sort_keys=True, ensure_ascii=False)
         handle.write('\n')

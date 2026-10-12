@@ -32,7 +32,7 @@ A provider with an `errorCode` is skipped and the rest carry on; see [when a nat
 
 ## 2. Import the starter groups
 
-`deploy/curation-starter.json` maps the raw category names the native services use (`Crime TV`, `More Cities`, `News And Opinion`, …) to 17 groups: Entertainment, Movies, Sports, Regional Sports, News, Local, Lifestyle, Documentary, Crime, Comedy, Kids & Family, Food & Travel, Music, Game Shows, Faith, Shopping and Ambiance.
+`deploy/curation-starter.json` maps the raw category names the native services use (`Crime TV`, `More Cities`, `News And Opinion`, …) to 22 groups: Local, Local News (US), News, Sports, En Español, Entertainment, Drama, Classic TV, Movies, Sci-Fi & Horror, Comedy, Crime, Documentary, Lifestyle, Food & Travel, Kids & Family, Anime, Music, Game Shows, Faith, Shopping and Ambiance. Its `weak` list and name `patterns` are for a [lineup policy](lineup-policy.md#groups); the curation import reads only `groupMap`.
 
 ```sh
 curl -s "${auth[@]}" -H 'Content-Type: application/json' \

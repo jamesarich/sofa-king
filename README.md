@@ -17,7 +17,7 @@ The server relays HLS and MPEG-TS streams, caches channel logos so every output 
 - M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
 - A logo cache served from this server
 - A JSON API, with a Kotlin client module
-- An [admin portal](docs/admin.md) at `/admin` for the lineup, station merges and Plex setup
+- An [admin portal](docs/admin.md) at `/admin` that shows what needs attention and edits channels, merges, groups and provider priority
 
 ## Sofa King fast setup
 

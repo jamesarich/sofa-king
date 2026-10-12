@@ -30,6 +30,11 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_HDHR_ALLOW` | Unset | Client IPs or CIDR blocks admitted to the HDHomeRun routes, comma separated (for example `PLEX_SERVER_IP` or `LAN_CIDR`); required when `SOFA_HOST` is not loopback and HDHomeRun is enabled; on loopback, unset admits every address that reaches the port |
 | `SOFA_HDHR_EXTRA_PORTS` | Unset | Further ports the server listens on, comma separated, up to 7. Each is one more HDHomeRun device (`SOFA_HDHR_NAME 2`, and so on) carrying its share of the lineup. See [several devices](#several-devices-for-a-large-lineup) |
 | `SOFA_HDHR_DEVICE_SIZE` | `250` | With a lineup policy, channels per HDHomeRun device; devices hold consecutive ranges of the lineup. 1 to 5000 |
+| `SOFA_HDHR_PUBLIC_PORTS` | `SOFA_PORT`, then `SOFA_HDHR_EXTRA_PORTS` | The host ports Plex reaches each device on, comma separated, one per device in device order. Set it when Docker publishes the ports under other numbers |
+| `SOFA_PLEX_URL` | Unset | The Plex server to [keep in step](#keep-plex-in-step) with the lineup, as `http://HOST:32400` (for example `http://host.docker.internal:32400`). Set it with `SOFA_PLEX_TOKEN`; requires `SOFA_HDHR_ENABLED` |
+| `SOFA_PLEX_TOKEN` | Unset | The Plex server's `X-Plex-Token`, at least 8 characters. A secret: it is sent only as a request header and never logged |
+| `SOFA_PLEX_SYNC_MINUTES` | `60` | Minutes between Plex syncs when the lineup does not change, 5 to 1440 |
+| `SOFA_PLEX_TUNER_BASE` | Unset | Scheme and host Plex reaches this server's tuners on, without a port, for example `http://192.168.1.3`. When set, a sync adds devices Plex lacks |
 
 ## Source settings
 
@@ -161,7 +166,22 @@ The tuner routes carry no token: anyone who can reach the port can list the line
 4. Map the channels. The XMLTV lists each channel's name and number as display names, and the lineup carries the same values, so Plex pairs most of them. Choose the rest from the dropdowns. Plex saves a device's channel map in one request, and a very large map on one device fails with "There was a problem saving channel mappings". Split a large lineup across devices, as described below.
 5. Play a channel. Plex opens `/auto/vNUMBER`. An MPEG-TS source streams through the fan-out. An HLS source is remuxed to MPEG-TS by FFmpeg with stream copy, so CEA-608 captions inside the video reach Plex's caption setting. When every tuner or session slot is taken, Plex reports "all tuners are in use".
 
-After a lineup change, a new channel or a renumbering, run "Scan channels" for the DVR in Plex so it re-reads `/lineup.json`. Renumbering changes the stream URL, so Plex must re-scan before the channel plays again.
+After a lineup change, a new channel or a renumbering, Plex must re-read `/lineup.json` and save the channel map again before the channel plays. Renumbering changes the stream URL. With [Plex sync](#keep-plex-in-step) the server does this; without it, run "Scan channels" for the DVR in Plex.
+
+### Keep Plex in step
+
+With `SOFA_PLEX_URL` and `SOFA_PLEX_TOKEN` set, the server keeps the channel maps of its devices in Plex in step with the lineup. A sync runs 2 minutes after a lineup policy apply or a curation run changes the lineup, every `SOFA_PLEX_SYNC_MINUTES`, 2 minutes after start, and on `POST /api/v1/admin/plex/sync`.
+
+A sync reads Plex's DVRs and picks out the devices whose DeviceID is one of this server's. For each, it takes the channel map Plex proposes against the DVR's guide, saves it with every proposed channel enabled, then reloads that DVR's guide once. Other tuners in the same DVR are left alone. A channel Plex proposes no guide channel for stays out of the map.
+
+- A device this server serves that no DVR holds is reported as a finding, `plex: device DEVICEID (device N) is not added to Plex`, where N counts from 0 on `SOFA_PORT`. With `SOFA_PLEX_TUNER_BASE` set, the sync adds it instead, at `SOFA_PLEX_TUNER_BASE:PORT` with the port from `SOFA_HDHR_PUBLIC_PORTS`, to the first DVR that holds one of this server's devices, then maps it. A device that answers with another DeviceID is not added.
+- Plex refuses a channel map whose request runs past about 30 KB, roughly 250 channels. A device over that is skipped with the finding `plex: device DEVICEID has N channels, too many for Plex to save; lower SOFA_HDHR_DEVICE_SIZE or add ports`.
+- A failed request is reported in `lastError` and as the finding `plex: sync failed: ...`; the other devices are still mapped.
+- `GET /api/v1/admin/plex` returns the last sync ([API detail](api.md#admin-api)). With a lineup policy, the findings also appear in `GET /api/v1/admin/policy/findings`.
+
+Plex must already reach the server: the URL is used as configured, without the upstream address rules, and redirects are not followed. `deploy/compose.yaml` maps `host.docker.internal` to the Docker host, so a Plex server on the same host is `http://host.docker.internal:32400`.
+
+The token is the Plex server's `X-Plex-Token`, and anyone holding it administers the Plex server. Take it from the `PlexOnlineToken` attribute in the server's `Preferences.xml`, or in Plex Web open any item's "Get Info", then "View XML", and copy the `X-Plex-Token` value from the address. Keep it in `deploy/.env` with the other secrets.
 
 ### Several devices for a large lineup
 
@@ -229,6 +249,7 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 | Plex does not find the tuner | Plex discovers devices by SSDP, which is not implemented. Enter `SERVER_HOST:PORT` manually. `curl http://SERVER_HOST:PORT/discover.json` from the Plex host answers `403` when `SOFA_HDHR_ALLOW` leaves Plex out, and `404` when `SOFA_HDHR_ENABLED=false`. |
 | Plex says all tuners are in use | `SOFA_HDHR_TUNERS` streams are open, every `SOFA_MAX_SESSIONS` slot is taken, or the channel has no eligible source. Check `GET /api/v1/admin/lineup/ENTRY_ID`. |
 | A Plex channel plays for a moment and stops | FFmpeg ended the remux. The server log has `remux ended exit=` with FFmpeg's last lines, URLs removed. |
+| Plex channels lag the lineup | Check `lastError` and `findings` in `GET /api/v1/admin/plex`. `answered 401` means `SOFA_PLEX_TOKEN` is wrong; a device listed in `missingDevices` is not in any DVR. `POST /api/v1/admin/plex/sync` runs a sync now. |
 | `503 SOURCE_UNAVAILABLE` | Inspect `GET /api/v1/admin/lineup/ENTRY_ID` for the entry's source states, or `/api/v1/sources` for quarantine, probation or manual disable. |
 | A channel vanished from the lineup | `GET /api/v1/admin/lineup/ENTRY_ID`: `autoDisabledAt` set means curation disabled it (`autoDisabledReason` `unavailable` or `alias`). `GET /api/v1/admin/curation/changes` has the action. `PATCH` with `{"enabled": true}` takes the flag back as a manual setting. |
 | Curation changed a field an admin set | `PATCH` the entry with the value, which pins the field. `pin` and `unpin` lists adjust pins without a value change. `GET /api/v1/admin/curation/preview` shows what the next run would do. |

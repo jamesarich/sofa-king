@@ -73,10 +73,7 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
     /** The device a request reached: 0 on the main port, then one per extra port in order. */
     fun device(call: ApplicationCall): Int = config.extraPorts.indexOf(call.request.local.localPort) + 1
 
-    suspend fun deviceId(device: Int): String {
-        val first = config.deviceId ?: hash(store.serverId()).take(8).uppercase()
-        return if (device == 0) first else hash("$first:$device").take(8).uppercase()
-    }
+    suspend fun deviceId(device: Int): String = hdhrDeviceId(config, store.serverId(), device)
 
     fun name(device: Int): String = if (device == 0) config.friendlyName else "${config.friendlyName} ${device + 1}"
 
@@ -171,6 +168,12 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
             tuners.decrementAndGet()
         }
     }
+}
+
+/** The DeviceID Plex knows [device] by: the configured or server-derived ID for device 0, then one derived from it per extra port. */
+fun hdhrDeviceId(config: HdhrConfig, serverId: String, device: Int): String {
+    val first = config.deviceId ?: hash(serverId).take(8).uppercase()
+    return if (device == 0) first else hash("$first:$device").take(8).uppercase()
 }
 
 private suspend fun tunersBusy(call: ApplicationCall) {

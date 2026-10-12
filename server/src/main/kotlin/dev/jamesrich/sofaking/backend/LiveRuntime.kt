@@ -3,7 +3,10 @@ package dev.jamesrich.sofaking.backend
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
+import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
 import dev.jamesrich.sofaking.backend.logos.LogoCache
+import dev.jamesrich.sofaking.backend.plex.HdhrDevice
+import dev.jamesrich.sofaking.backend.plex.PlexSync
 import dev.jamesrich.sofaking.backend.playback.*
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -31,6 +34,8 @@ class LiveRuntime(
     val policy: PolicyService? = null,
     /** The curation loop, running only without a policy. */
     val curationLoop: Job? = null,
+    /** Plex sync when `SOFA_PLEX_URL` is set. */
+    val plex: PlexSync? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -40,7 +45,9 @@ class LiveRuntime(
     }
     companion object {
         /** [probes] false keeps the probe worker from starting, for tests over fixtures. */
-        suspend fun create(store: BackendStore, config: ServerConfig, clock: Clock, policyDebounceMillis: Long = 10_000, probes: Boolean = true): LiveRuntime {
+        suspend fun create(
+            store: BackendStore, config: ServerConfig, clock: Clock, policyDebounceMillis: Long = 10_000, probes: Boolean = true, plexDebounceMillis: Long = 120_000,
+        ): LiveRuntime {
             val sources = loadSources(config.sourcesFile)
             val providerIds = sources.providers.mapTo(HashSet()) { provider -> provider.id }
             val loadedPolicy = config.policyFile?.let { loadPolicy(it, providerIds) }
@@ -67,7 +74,11 @@ class LiveRuntime(
                 guides.initialize()
                 lineup = LineupService(store, clock, feeds, guides) { logos.requestSweep() }
                 lineup.initialize()
-                curation = CurationService(store, clock, feeds, guides, lineup, onSettingsChanged = { logos.requestSweep() })
+                val plex = config.plex?.let { plexConfig ->
+                    val ports = config.hdhr.publicPorts(config.port)
+                    PlexSync(plexConfig, http, clock, { val serverId = store.serverId(); List(config.hdhr.devices) { n -> HdhrDevice(n, hdhrDeviceId(config.hdhr, serverId, n), ports[n]) } }, plexDebounceMillis)
+                }
+                curation = CurationService(store, clock, feeds, guides, lineup, onSettingsChanged = { logos.requestSweep() }, onLineupChanged = { plex?.requestSync("curation") })
                 curation.initialize()
                 val retiredLogoHosts: () -> Set<String> = if (loadedPolicy == null) curation::retiredLogoHosts else { { emptySet() } }
                 val catalog = CatalogService(feeds, guides, lineup, store, clock, retiredLogoHosts)
@@ -78,7 +89,10 @@ class LiveRuntime(
                     lateinit var service: PolicyService
                     val sizing = if (config.hdhr.enabled) HdhrSizing(config.hdhr.devices, config.hdhr.deviceSize) else null
                     val file = PolicyFile(loaded, providerIds) { service.requestRun("policy") }
-                    service = PolicyService(file, feeds, guides, lineup, store, clock, sizing, policyDebounceMillis)
+                    service = PolicyService(
+                        file, feeds, guides, lineup, store, clock, sizing, policyDebounceMillis,
+                        onLineupChanged = { plex?.requestSync("policy") }, extraFindings = { plex?.findings().orEmpty() },
+                    )
                     service
                 }
                 feeds.start(scope)
@@ -88,9 +102,11 @@ class LiveRuntime(
                 val curationLoop = if (policyService == null) curation.start(scope).also { curation.requestRun() } else null
                 policyService?.start(scope)
                 policyService?.requestRun("startup")
+                plex?.start(scope)
+                plex?.requestSync("startup")
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, curation, http, scope,
-                    policyService, curationLoop,
+                    policyService, curationLoop, plex,
                 )
                 scope.launch { while (isActive) { sessions.expire(); delay(1000) } }
                 // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.

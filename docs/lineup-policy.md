@@ -154,7 +154,7 @@ A source whose provider configures `headers` other than `User-Agent`, `Accept`, 
 
 ## Findings
 
-Each run reports findings, each starting with the station key (the `groups:` summary of unmapped categories is the exception): required or pinned sources missing, stations over the source cap, missing stations, stations left as they were, and schedule matches the policy kept from merging (an override holding more than a number, or a `names.never` pair). With HDHomeRun range devices, a lineup that needs more devices than are configured adds an `hdhr:` finding. `GET /api/v1/admin/policy/findings` returns the open findings of a run over the current feeds, and the suggested aliases.
+Each run reports findings, each starting with the station key (the `groups:` summary of unmapped categories is the exception): required or pinned sources missing, stations over the source cap, missing stations, stations left as they were, and schedule matches the policy kept from merging (an override holding more than a number, or a `names.never` pair). With HDHomeRun range devices, a lineup that needs more devices than are configured adds an `hdhr:` finding. `GET /api/v1/admin/policy/findings` returns the open findings of a run over the current feeds, and the suggested aliases. With [Plex sync](live-tv.md#keep-plex-in-step) configured, it also carries the last sync's `plex:` findings.
 
 ### Unmapped categories
 

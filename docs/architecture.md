@@ -23,6 +23,7 @@ FeedService + GuideService + LineupService → CatalogService → JSON API
 Lineup entry → SessionManager (ordered offerings by health) → MediaRelay → HLS/MPEG-TS player
 Lineup + GuideService → /output M3U + XMLTV → third-party player → /output/stream → SessionManager (external session) → MediaRelay
 Lineup → /discover.json + /lineup.json → Plex → /auto/v{number} → SessionManager (external session) → TsFanout, or TsRemux (FFmpeg stream copy) for HLS
+PolicyService.apply or CurationService.run that changed the lineup → PlexSync (debounced) → Plex channel maps + guide reload
 Stream URL → ProbeWorker → HealthPolicy → SQLite source health
 Lineup logo URLs → LogoCache (fetch, validate, data/logos/<key>) → /logos/{key} in the JSON API, M3U and XMLTV
 Rules + settings (SQLite) + lineup + feeds + health → CurationService.plan → apply (one lineup transaction) → curation_change log
@@ -52,6 +53,10 @@ Guide programs belong to a guide ID and XMLTV channel ID; an entry's `legacyGuid
 ## Lineup policy
 
 With `SOFA_POLICY` set, `PolicyService` builds the lineup and `CurationService` is constructed but never started. `StationBuilder` is pure: it turns one snapshot of feed channels, guide listings, health and the remembered `station_availability` rows into stations, findings and the numbers it assigned. `apply` writes the stations through `LineupService.mutate` only when they differ, replaces the availability rows, logs field changes as `kind: "policy"` actions, then writes assigned numbers into the file. `PolicyFile` serializes every write behind one mutex, checks the on-disk SHA-256 against the loaded revision, and writes a temp file, fsyncs and renames. The loop runs on feed, guide and health triggers after a quiet period, and every 900 seconds. [Lineup policy](lineup-policy.md) describes the file and the run.
+
+## Plex sync
+
+With `SOFA_PLEX_URL` set, `PlexSync` keeps Plex's channel maps for this server's HDHomeRun devices in step with the lineup. A policy apply or curation run that changed the lineup requests a sync, which runs after a 120-second quiet period; the loop also runs every `SOFA_PLEX_SYNC_MINUTES`. It shares the runtime's HTTP client, sends the token only as the `X-Plex-Token` header, follows no redirects, and keeps its status in memory. The DeviceIDs come from the same `hdhrDeviceId` the HDHomeRun routes report. [Keep Plex in step](live-tv.md#keep-plex-in-step) describes what a sync does.
 
 ## Curation
 

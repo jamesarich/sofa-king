@@ -41,6 +41,10 @@ class PolicyService(
     /** Quiet time after a trigger before the run, so a burst of changes is one run. */
     private val debounceMillis: Long = 10_000,
     private val intervalSeconds: Long = 900,
+    /** Runs after an apply that changed the lineup. */
+    private val onLineupChanged: () -> Unit = {},
+    /** Findings from outside the policy, such as Plex sync, appended to [findings]. */
+    private val extraFindings: () -> List<String> = { emptyList() },
 ) {
     private val log = LoggerFactory.getLogger(PolicyService::class.java)
     private val runMutex = Mutex()
@@ -96,7 +100,7 @@ class PolicyService(
     suspend fun findings(): PolicyFindings {
         val loaded = file.current()
         val result = run(loaded)
-        return PolicyFindings(clock.instant().toString(), loaded.revision, findingsOf(result), result.suggestedAliases, result.unmappedCategories)
+        return PolicyFindings(clock.instant().toString(), loaded.revision, findingsOf(result) + extraFindings(), result.suggestedAliases, result.unmappedCategories)
     }
 
     suspend fun explain(key: String): StationExplanation {
@@ -169,7 +173,10 @@ class PolicyService(
         }
         val changes = changesBetween(current, next, keyById, reasonById, result.keys, cause)
         val changed = next != current
-        if (changed) lineup.mutate { entries -> entries.clear(); entries.addAll(next) }
+        if (changed) {
+            lineup.mutate { entries -> entries.clear(); entries.addAll(next) }
+            onLineupChanged()
+        }
         val now = clock.instant()
         store.saveStationAvailability(result.availability, now)
         store.recordCurationChanges(changes, now)

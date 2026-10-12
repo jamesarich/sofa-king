@@ -136,6 +136,8 @@ class CurationService(
     private val onSettingsChanged: () -> Unit = {},
     /** Quiet time after a trigger before the run, so a burst of health changes is one run. */
     private val debounceMillis: Long = 10_000,
+    /** Runs after a run that applied changes to the lineup. */
+    private val onLineupChanged: () -> Unit = {},
 ) {
     private val log = LoggerFactory.getLogger(CurationService::class.java)
     private val mutex = Mutex()
@@ -219,6 +221,7 @@ class CurationService(
         }
         val enabled = context.settings.enabled || force
         val applied = if (enabled) apply(plan) else emptyList()
+        if (applied.isNotEmpty()) onLineupChanged()
         log.info(
             "curation run planned={} applied={} findings={} enabled={} durationMs={}",
             plan.steps.size, applied.size, plan.findings.size, enabled, Duration.between(started, clock.instant()).toMillis(),

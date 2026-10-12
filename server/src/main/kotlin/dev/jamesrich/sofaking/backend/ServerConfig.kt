@@ -25,8 +25,25 @@ data class HdhrConfig(
     val extraPorts: List<Int> = emptyList(),
     /** Channels per device when the lineup policy splits devices by range. */
     val deviceSize: Int = 250,
+    /** The host ports Plex reaches each device on, in device order; empty means the listening ports. */
+    val publicPorts: List<Int> = emptyList(),
 ) {
     val devices: Int get() = 1 + extraPorts.size
+
+    /** The port Plex reaches each device on, in device order. */
+    fun publicPorts(port: Int): List<Int> = publicPorts.ifEmpty { listOf(port) + extraPorts }
+}
+
+/** Plex Live TV sync: the Plex server, its token, how often to sync, and where Plex reaches the tuners when it must add one. */
+class PlexConfig(
+    /** Scheme, host and port, without a trailing slash. */
+    val url: String,
+    val token: String,
+    val syncMinutes: Int = 60,
+    /** Scheme and host Plex reaches this server's tuners on; null leaves adding devices to an admin. */
+    val tunerBase: String? = null,
+) {
+    override fun toString(): String = "PlexConfig(url=$url, syncMinutes=$syncMinutes, tunerBase=$tunerBase)"
 }
 
 data class ServerConfig(
@@ -46,6 +63,8 @@ data class ServerConfig(
     val hdhr: HdhrConfig = HdhrConfig(),
     /** The lineup policy file; when set it is loaded and validated at start. */
     val policyFile: Path? = null,
+    /** Plex sync when `SOFA_PLEX_URL` and `SOFA_PLEX_TOKEN` are set. */
+    val plex: PlexConfig? = null,
 ) {
     companion object {
         fun fromEnvironment(environment: Map<String, String>): ServerConfig {
@@ -95,6 +114,11 @@ data class ServerConfig(
             }
             val deviceSize = (environment["SOFA_HDHR_DEVICE_SIZE"] ?: "250").toIntOrNull()
             require(deviceSize != null && deviceSize in 1..5000) { "SOFA_HDHR_DEVICE_SIZE must be between 1 and 5000" }
+            val publicPorts = environment["SOFA_HDHR_PUBLIC_PORTS"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }.map { it.toIntOrNull() ?: 0 }
+            require(publicPorts.isEmpty() || (publicPorts.size == 1 + extraPorts.size && publicPorts.all { it in 1..65535 } && publicPorts.distinct().size == publicPorts.size)) {
+                "SOFA_HDHR_PUBLIC_PORTS must list one distinct port per device: SOFA_PORT's, then each of SOFA_HDHR_EXTRA_PORTS"
+            }
+            val plex = plexConfig(environment, hdhrEnabled)
             return ServerConfig(
                 host,
                 port,
@@ -109,9 +133,32 @@ data class ServerConfig(
                 loopback,
                 adminToken,
                 OutputConfig(outputToken, guideDays),
-                HdhrConfig(hdhrEnabled, tuners, deviceId, friendlyName, allow, extraPorts, deviceSize),
+                HdhrConfig(hdhrEnabled, tuners, deviceId, friendlyName, allow, extraPorts, deviceSize, publicPorts),
                 policy,
+                plex,
             )
+        }
+
+        private fun plexConfig(environment: Map<String, String>, hdhrEnabled: Boolean): PlexConfig? {
+            val url = environment["SOFA_PLEX_URL"]
+            val token = environment["SOFA_PLEX_TOKEN"]
+            require((url == null) == (token == null)) { "SOFA_PLEX_URL and SOFA_PLEX_TOKEN must be set together" }
+            if (url == null || token == null) return null
+            require(hdhrEnabled) { "SOFA_PLEX_URL requires SOFA_HDHR_ENABLED" }
+            require(token.length >= 8 && token.none { it <= ' ' || it == '\u007f' }) { "SOFA_PLEX_TOKEN must contain at least 8 printable characters without spaces" }
+            val minutes = (environment["SOFA_PLEX_SYNC_MINUTES"] ?: "60").toIntOrNull()
+            require(minutes != null && minutes in 5..1440) { "SOFA_PLEX_SYNC_MINUTES must be between 5 and 1440" }
+            val base = environment["SOFA_PLEX_TUNER_BASE"]?.let { origin(it, "SOFA_PLEX_TUNER_BASE", withPort = false) }
+            return PlexConfig(origin(url, "SOFA_PLEX_URL", withPort = true), token, minutes, base)
+        }
+
+        /** [value] as `scheme://host[:port]`, rejecting paths, queries and credentials. */
+        private fun origin(value: String, name: String, withPort: Boolean): String {
+            val uri = runCatching { java.net.URI(value.trim().removeSuffix("/")) }.getOrNull()
+            val valid = uri != null && uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrEmpty() && uri.rawUserInfo == null &&
+                uri.rawPath.isNullOrEmpty() && uri.rawQuery == null && uri.rawFragment == null && (withPort || uri.port == -1)
+            require(valid) { if (withPort) "$name must be http(s)://host[:port]" else "$name must be http(s)://host without a port" }
+            return "${uri!!.scheme.lowercase()}://${uri.rawAuthority}"
         }
 
         private fun flag(environment: Map<String, String>, name: String, default: Boolean): Boolean {

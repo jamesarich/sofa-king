@@ -168,6 +168,8 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current feeds, and `suggestedAliases` |
 | POST | `/api/v1/admin/policy/check` | The cutover check: body `{"channels": [...], "replacements": {...}}` from a legacy export; returns `pass` and a verdict per channel, see [cut over](lineup-policy.md#cut-over-from-a-curated-lineup) |
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
+| GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `curation`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`; 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
+| POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |
 
 While `SOFA_POLICY` is set, `POST /lineup`, `PUT /lineup/order`, `POST /lineup/adopt`, `POST /lineup/import` and every `/curation/*` route except `GET /curation/changes` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api).
 

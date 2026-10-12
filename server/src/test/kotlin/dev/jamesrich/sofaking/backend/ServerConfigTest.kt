@@ -33,6 +33,44 @@ class ServerConfigTest {
         assertEquals(emptyList(), ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_ALLOW" to "")).hdhr.allow)
         ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "::1"))
     }
+    @Test fun `Plex sync is off unless URL and token are set together, and the token never prints`() {
+        assertNull(ServerConfig.fromEnvironment(emptyMap()).plex)
+        val token = "plexTOKEN-123"
+        val config = ServerConfig.fromEnvironment(
+            mapOf("SOFA_PLEX_URL" to "http://host.docker.internal:32400/", "SOFA_PLEX_TOKEN" to token, "SOFA_PLEX_TUNER_BASE" to "http://192.168.1.3"),
+        )
+        val plex = assertNotNull(config.plex)
+        assertEquals("http://host.docker.internal:32400", plex.url)
+        assertEquals(60, plex.syncMinutes)
+        assertEquals("http://192.168.1.3", plex.tunerBase)
+        assertFalse(token in config.toString())
+        assertEquals(15, ServerConfig.fromEnvironment(mapOf("SOFA_PLEX_URL" to "https://plex.lan", "SOFA_PLEX_TOKEN" to token, "SOFA_PLEX_SYNC_MINUTES" to "15")).plex!!.syncMinutes)
+        val invalid = listOf(
+            mapOf("SOFA_PLEX_URL" to "http://plex.lan:32400"),
+            mapOf("SOFA_PLEX_TOKEN" to token),
+            mapOf("SOFA_PLEX_URL" to "http://plex.lan:32400", "SOFA_PLEX_TOKEN" to "short"),
+            mapOf("SOFA_PLEX_URL" to "http://plex.lan:32400", "SOFA_PLEX_TOKEN" to "has a space"),
+            mapOf("SOFA_PLEX_URL" to "ftp://plex.lan", "SOFA_PLEX_TOKEN" to token),
+            mapOf("SOFA_PLEX_URL" to "http://plex.lan:32400/web", "SOFA_PLEX_TOKEN" to token),
+            mapOf("SOFA_PLEX_URL" to "http://plex.lan:32400?X-Plex-Token=x", "SOFA_PLEX_TOKEN" to token),
+            mapOf("SOFA_PLEX_URL" to "http://plex.lan:32400", "SOFA_PLEX_TOKEN" to token, "SOFA_PLEX_SYNC_MINUTES" to "4"),
+            mapOf("SOFA_PLEX_URL" to "http://plex.lan:32400", "SOFA_PLEX_TOKEN" to token, "SOFA_PLEX_SYNC_MINUTES" to "1441"),
+            mapOf("SOFA_PLEX_URL" to "http://plex.lan:32400", "SOFA_PLEX_TOKEN" to token, "SOFA_PLEX_TUNER_BASE" to "http://192.168.1.3:8080"),
+            mapOf("SOFA_PLEX_URL" to "http://plex.lan:32400", "SOFA_PLEX_TOKEN" to token, "SOFA_HDHR_ENABLED" to "false"),
+        )
+        for (environment in invalid) {
+            val message = assertFailsWith<IllegalArgumentException>(environment.toString()) { ServerConfig.fromEnvironment(environment) }.message.orEmpty()
+            assertFalse(token in message)
+        }
+    }
+    @Test fun `public ports default to the listening ports and otherwise name one per device`() {
+        assertEquals(listOf(8080, 8081), ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "8081")).let { it.hdhr.publicPorts(it.port) })
+        val mapped = ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "8081", "SOFA_HDHR_PUBLIC_PORTS" to "9080, 9081"))
+        assertEquals(listOf(9080, 9081), mapped.hdhr.publicPorts(mapped.port))
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "8081", "SOFA_HDHR_PUBLIC_PORTS" to "9080")) }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_EXTRA_PORTS" to "8081", "SOFA_HDHR_PUBLIC_PORTS" to "9080,9080")) }
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_PUBLIC_PORTS" to "0")) }
+    }
     @Test fun `probe parallelism and restream origins are parsed and bounded`() {
         val config = ServerConfig.fromEnvironment(mapOf("SOFA_PROBE_PARALLELISM" to "3", "SOFA_RESTREAM_ORIGINS" to " 192.168.1.3:3000, Proxy.LAN ,"))
         assertEquals(3, config.probeParallelism)

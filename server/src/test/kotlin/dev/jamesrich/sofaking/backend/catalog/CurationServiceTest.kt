@@ -20,6 +20,7 @@ class CurationServiceTest {
     private class Rig(
         val fixture: Fixture, val store: BackendStore, val clock: MutableClock, val feeds: FeedService, val guides: GuideService,
         val lineup: LineupService, val catalog: CatalogService, val curation: CurationService,
+        val lineupChanges: java.util.concurrent.atomic.AtomicInteger,
     ) {
         fun channel(provider: String, name: String? = null): Channel = feeds.channels(provider).single { name == null || it.name == name }
         fun sourceOf(channel: Channel): String = feeds.offeringsOf(channel.id).single().id
@@ -44,11 +45,12 @@ class CurationServiceTest {
                 guideService.initialize()
                 lineup = LineupService(store, clock, feedService, guideService)
                 lineup.initialize()
-                val curation = CurationService(store, clock, feedService, guideService, lineup)
+                val lineupChanges = java.util.concurrent.atomic.AtomicInteger()
+                val curation = CurationService(store, clock, feedService, guideService, lineup, onLineupChanged = { lineupChanges.incrementAndGet() })
                 curation.initialize()
                 val catalog = CatalogService(feedService, guideService, lineup, store, clock, curation::retiredLogoHosts)
                 for (guide in guideService.configs) guideService.refresh(guide)
-                block(Rig(fixture, store, clock, feedService, guideService, lineup, catalog, curation))
+                block(Rig(fixture, store, clock, feedService, guideService, lineup, catalog, curation, lineupChanges))
             } } }
         } finally { dir.toFile().deleteRecursively() }
     }
@@ -73,7 +75,9 @@ class CurationServiceTest {
         assertEquals("Headlines", r.entry(entry.id).group); assertEquals("Station HD", r.entry(entry.id).name)
         assertEquals(setOf("regroup", "rename"), r.curation.changes(10).map { it.action.kind }.toSet())
         assertEquals(entry.id, r.curation.changes(10).first().action.entryId)
+        assertEquals(1, r.lineupChanges.get(), "only the run that applied steps reports a lineup change")
         assertTrue(r.curation.run().actions.isEmpty(), "a second run has nothing left to do")
+        assertEquals(1, r.lineupChanges.get())
         assertEquals(listOf("Headlines"), r.catalog.catalog().channels.single().tags)
 
         r.lineup.update(entry.id, UpdateLineupEntry(group = "Mine"))

@@ -95,6 +95,7 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
         }
         curationRoutes(runtime.curation, managedByPolicy = policy != null)
         policyRoutes(runtime.policy)
+        plexRoutes(runtime.plex)
     }
 }
 

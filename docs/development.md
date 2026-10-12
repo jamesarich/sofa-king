@@ -24,7 +24,7 @@ The smoke scripts start disposable servers in temporary directories. `smoke.py` 
 | `scripts/live-smoke.py` | Fixture feeds through the relay, probes, curation and restart |
 | `scripts/bridge-smoke.py` | Imports one feed into a temporary server, adopts its channels and optionally decodes one |
 | `scripts/provider-smoke.py` | Checks one native provider against its live service |
-| `scripts/generate-policy.py` | Generates a [lineup policy](lineup-policy.md) from a running server and a legacy export; `python3 -m unittest discover -s scripts -p 'test_*.py'` tests it, including its normalization against the server's golden keys |
+| `scripts/generate-policy.py` | Generates a [lineup policy](lineup-policy.md#generate-a-policy) from a running server; `python3 -m unittest discover -s scripts -p 'test_*.py'` tests it, including its normalization against the server's golden keys |
 | `scripts/dispatcharr-export.py`, `scripts/dispatcharr-import.py` | Export a Dispatcharr profile and import it; see [migrate from Dispatcharr](migrate-from-dispatcharr.md) |
 
 To test a provider feed, replace the URLs and channel name:

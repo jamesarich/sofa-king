@@ -194,7 +194,6 @@ All routes are under `/api/v1/admin` and take the admin token.
 | GET | `/policy/preview` | What a run would change against the served lineup, the aliases it would learn (`learned`), the `unmappedCategories`, and with range devices `devicesNeeded` and `devicesConfigured`; writes nothing |
 | POST | `/policy/apply` | Run now and write the result; reports `enabledStations`, the numbers it `assigned`, the aliases it `learned`, the `unmappedCategories`, and with range devices `devicesNeeded` and `devicesConfigured` |
 | GET | `/policy/findings` | Open findings, suggested aliases and `unmappedCategories` |
-| POST | `/policy/check` | The cutover check, see below |
 | GET | `/stations/{key}` | One station: its pins and every channel that names the key or joins it, with why |
 | PATCH | `/lineup/{id}` | Writes `name`, `number`, `group`, `logo`, `guide`, `enabled` and `offerings` (as pins by provider and `tvg-id`) into the station's override, then applies |
 | DELETE | `/lineup/{id}` | Writes `enabled: false` into the station's override, then applies |
@@ -207,29 +206,17 @@ While a policy is configured, routes that edit the lineup by hand answer `410 Go
 
 With a policy, the HDHomeRun devices split the lineup by range instead of by hash: the first `SOFA_HDHR_DEVICE_SIZE` enabled channels (default 250) in number order go on the first device, the next on the second, and so on. Adding a channel moves only the channels after it in its range. There are `SOFA_HDHR_EXTRA_PORTS` plus one devices; channels beyond their capacity go on the last device, and the server logs it and reports an `hdhr:` finding. Preview and apply report `devicesNeeded`, the enabled channels divided by `SOFA_HDHR_DEVICE_SIZE` and rounded up, beside `devicesConfigured`; add ports until the two agree, then add the new devices in Plex.
 
-## Cut over from a curated lineup
+## Generate a policy
 
-1. **Export** the channels the policy must keep, as `{"channels": [{"name", "number", "group", "sources": [{"provider", "channelName", "tvgId"}]}]}`, typically the channels whose only sources are aggregator playlists no native service carries.
-2. **Generate** a policy from the running server:
+1. **Generate** a policy from the running server:
 
    ```sh
    scripts/generate-policy.py --server http://127.0.0.1:8080 \
      --admin-token "$SOFA_ADMIN_TOKEN" --api-token "$SOFA_API_TOKEN" \
-     --legacy legacy.json --replacements replacements.json \
      --starter-groups deploy/curation-starter.json --local-pattern '\b(des moines|kcci)\b' \
      --out policy/policy.json
    ```
 
-   It writes `names.version` 2, `health.requireVerified`, the native providers in priority order (`--providers` changes it), the starter group map, weak list and name patterns behind a `Local` pattern for the household's own market (`--local-pattern`), group blocks that each run to the next block's start, at most 400 numbers (`Local` from 1, `Local News (US)` 10, `News` 100, `Sports` 300, `En Español` 600, `Entertainment` 700, `Drama` 900, `Classic TV` 1050, `Movies` 1200, `Sci-Fi & Horror` 1400, `Comedy` 1500, `Crime` 1600, `Documentary` 1700, `Lifestyle` 1850, `Food & Travel` 2100, `Kids & Family` 2200, `Anime` 2300, `Music` 2350, `Game Shows` 2500, `Faith` 2550, `Shopping` 2580, `Ambiance` 2600) with `numbering.followGroup` and the floor at 3000, where stations the policy keeps off are numbered, an alias for every enabled entry whose native sources carry other keys than its name, and a required station for each exported channel, pinned to its sources, with its name and group. Required stations are numbered in their group blocks like any other; `--keep-legacy-numbers` keeps their exported numbers instead, as overrides reserved before any block fills. `--replacements` maps an export channel name to pins that intentionally replace its sources, as a list of pins or `{"name": "...", "sources": [...]}` when the station should be keyed by another name. It prints every alias and station for review; review them.
-3. **Check** the policy on a copy of the server's data with `SOFA_POLICY` set:
-
-   ```sh
-   jq -n --slurpfile export legacy.json --slurpfile repl replacements.json \
-     '{channels: $export[0].channels, replacements: $repl[0]}' |
-   curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" -H 'Content-Type: application/json' \
-     --data @- http://127.0.0.1:8080/api/v1/admin/policy/check
-   ```
-
-   A channel passes when exactly one station carries every one of its sources, or every one of its replacement pins, counting live sources and the station's pins. The check fails overall when any channel fails or two stations share a number or an ID. Fix the policy until `pass` is `true`.
-4. **Apply** on the live server after a backup of `SOFA_DATA_DIR`, then rescan the Plex devices and remap their channels. With `requireVerified`, stations come on as the probe worker verifies a source of each, first sources first; a station none of whose sources has ever qualified healthy waits, disabled. Compare `devicesNeeded` with `devicesConfigured` in the apply result before the rescan.
-5. **Roll back** by restoring the backup and unsetting `SOFA_POLICY`. The policy rewrites the lineup but leaves the curation rules and settings in the database.
+   It writes `names.version` 2, `health.requireVerified`, the native providers in priority order (`--providers` changes it), the starter group map, weak list and name patterns behind a `Local` pattern for the household's own market (`--local-pattern`), group blocks that each run to the next block's start, at most 400 numbers (`Local` from 1, `Local News (US)` 10, `News` 100, `Sports` 300, `En Español` 600, `Entertainment` 700, `Drama` 900, `Classic TV` 1050, `Movies` 1200, `Sci-Fi & Horror` 1400, `Comedy` 1500, `Crime` 1600, `Documentary` 1700, `Lifestyle` 1850, `Food & Travel` 2100, `Kids & Family` 2200, `Anime` 2300, `Music` 2350, `Game Shows` 2500, `Faith` 2550, `Shopping` 2580, `Ambiance` 2600) with `numbering.followGroup` and the floor at 3000, where stations the policy keeps off are numbered, and an alias for every enabled lineup entry whose native sources carry other keys than its name. It prints every alias for review.
+2. **Turn it on** after a backup of `SOFA_DATA_DIR`: set `SOFA_POLICY` and restart, then read `GET /api/v1/admin/policy/preview`. With `requireVerified`, stations come on as the probe worker verifies a source of each, first sources first; a station none of whose sources has ever qualified healthy waits, disabled. Compare `devicesNeeded` with `devicesConfigured` in the apply result, then rescan the Plex devices and remap their channels.
+3. **Roll back** by restoring the backup and unsetting `SOFA_POLICY`.

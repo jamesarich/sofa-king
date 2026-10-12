@@ -19,11 +19,10 @@ import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
 
-private val checkJson = Json { ignoreUnknownKeys = true }
+private val overrideJson = Json { ignoreUnknownKeys = true }
 
 /**
  * Builds the lineup from the policy file: runs the [StationBuilder] over the current feeds, guides, health and the
@@ -97,7 +96,7 @@ class PolicyService(
         val health = store.allHealth()
         val previous = store.stationAvailability()
         val now = clock.instant()
-        // A first policy run counts the lineup it replaces as verified, so a cutover never hides channels already watched.
+        // A first policy run counts the lineup it replaces as verified, so turning a policy on never hides channels already watched.
         val seed = if (previous.isEmpty()) lineup.entries().filter { it.enabled && it.createdBy != "policy" }.flatMapTo(HashSet()) { it.offeringIds } else emptySet()
         val coverage = guides.coverage()
         val covered = { mapping: GuideMapping -> coverage[mapping.guideId]?.get(mapping.channelId)?.isAfter(now) == true }
@@ -328,43 +327,6 @@ class PolicyService(
         apply("delete")
     }
 
-    /**
-     * The cutover gate over a preview build. A legacy channel passes when exactly one station carries every one of its
-     * sources (or of its replacement pins), counting a station's live sources and its override pins.
-     */
-    suspend fun check(request: PolicyCheckRequest): PolicyCheckReport {
-        val loaded = file.current()
-        val result = run(loaded)
-        val carried = HashMap<String, MutableSet<String>>()
-        for (station in result.stations) {
-            val identities = carried.getOrPut(station.key) { HashSet() }
-            for (id in station.offeringIds) {
-                val offering = feeds.offering(id) ?: continue
-                val channel = feeds.channel(offering.channelId) ?: continue
-                channel.legacyGuideId?.let { identities += pinIdentity(SourcePin(offering.providerId, it)) }
-                identities += pinIdentity(SourcePin(offering.providerId, name = channel.name))
-            }
-            loaded.policy.stations[station.key]?.sources?.forEach { identities += pinIdentity(it) }
-        }
-        val everywhere = carried.values.flatten().toSet()
-        val channels = request.channels.map { channel ->
-            val replacement = request.replacements[channel.name]?.let(::replacementOf)
-            val wanted = (replacement?.sources?.map(::pinIdentity) ?: channel.sources.map { pinIdentity(SourcePin(it.provider, it.tvgId, it.channelName)) }).distinct()
-            val stations = if (wanted.isEmpty()) emptyList() else carried.filterValues { it.containsAll(wanted) }.keys.sorted()
-            val missing = wanted.filter { it !in everywhere }.sorted()
-            val reason = when {
-                wanted.isEmpty() -> "the channel lists no source"
-                stations.size == 1 -> "carried by ${stations.single()}" + if (replacement != null) " (replacement pins)" else ""
-                stations.isEmpty() -> "no station carries every source"
-                else -> "${stations.size} stations carry every source"
-            }
-            PolicyCheckChannel(channel.name, channel.number, stations.size == 1, stations, missing, reason)
-        }
-        val duplicateNumbers = result.stations.groupBy { canonicalNumber(it.number) }.filterValues { it.size > 1 }.keys.sorted()
-        val duplicateIds = result.stations.groupBy { it.id }.filterValues { it.size > 1 }.keys.sorted()
-        return PolicyCheckReport(channels.all { it.pass } && duplicateNumbers.isEmpty() && duplicateIds.isEmpty(), loaded.revision, channels, duplicateNumbers, duplicateIds)
-    }
-
     /** Asks the loop to run soon; requests before it runs coalesce into one. */
     fun requestRun(cause: String) {
         trigger.trySend(cause)
@@ -398,11 +360,6 @@ private fun editNames(tree: JsonObject, edit: (MutableMap<String, JsonElement>) 
 data class HdhrSizing(val devices: Int, val deviceSize: Int) {
     /** Devices [enabled] channels need. */
     fun needed(enabled: Int): Int = (enabled + deviceSize - 1) / deviceSize
-}
-
-private fun replacementOf(element: JsonElement): PolicyReplacement = when (element) {
-    is JsonArray -> PolicyReplacement(sources = checkJson.decodeFromJsonElement(ListSerializer(SourcePin.serializer()), element))
-    else -> checkJson.decodeFromJsonElement(PolicyReplacement.serializer(), element)
 }
 
 private fun pinJson(pin: SourcePin): JsonObject = buildJsonObject {
@@ -448,7 +405,7 @@ internal fun withLearnedNames(tree: JsonObject, learned: Map<String, String>, me
     if (stations != null && mergedAway.isNotEmpty()) {
         for (key in mergedAway) {
             val station = stations[key] ?: continue
-            val override = runCatching { checkJson.decodeFromJsonElement(StationOverride.serializer(), station) }.getOrNull()
+            val override = runCatching { overrideJson.decodeFromJsonElement(StationOverride.serializer(), station) }.getOrNull()
             if (override != null && numberOnly(override)) { stations.remove(key); dropped += key }
         }
         next["stations"] = JsonObject(stations.toSortedMap())

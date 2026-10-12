@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.backend.http
 
-import dev.jamesrich.sofaking.backend.api.PolicyCheckRequest
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.PolicyService
 import io.ktor.http.HttpHeaders
@@ -11,12 +10,8 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.*
 import io.ktor.utils.io.readBuffer
 import kotlinx.io.readByteArray
-import kotlinx.serialization.json.Json
 
 private const val POLICY_BODY_LIMIT = 4 * 1024 * 1024L
-
-/** Legacy exports carry fields the check does not read. */
-private val checkJson = Json { ignoreUnknownKeys = true }
 
 /** The `If-Match` revision without quotes or a weak prefix; null when absent. */
 internal fun ApplicationCall.ifMatch(): String? =
@@ -28,7 +23,7 @@ private suspend fun ApplicationCall.policyBody(): ByteArray {
     return bytes
 }
 
-/** The lineup policy under the admin route: the document and its writes, preview, apply, findings, the cutover check and one station's candidates. */
+/** The lineup policy under the admin route: the document and its writes, preview, apply, findings and one station's candidates. */
 fun Route.policyRoutes(policy: PolicyService?) {
     fun loaded(): PolicyService = policy ?: throw ApiFailure(404, "POLICY_NOT_CONFIGURED", "No lineup policy is configured; set SOFA_POLICY")
     get("/policy") {
@@ -46,9 +41,5 @@ fun Route.policyRoutes(policy: PolicyService?) {
     get("/policy/preview") { call.respond(loaded().preview()) }
     post("/policy/apply") { call.respond(loaded().apply("api")) }
     get("/policy/findings") { call.respond(loaded().findings()) }
-    post("/policy/check") {
-        val service = loaded()
-        call.respond(service.check(checkJson.decodeFromString<PolicyCheckRequest>(call.policyBody().toString(Charsets.UTF_8))))
-    }
     get("/stations/{key}") { call.respond(loaded().explain(call.parameters["key"]!!)) }
 }

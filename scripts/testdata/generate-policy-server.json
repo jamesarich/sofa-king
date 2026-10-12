@@ -12,12 +12,5 @@
     {"id": "e3", "number": "102", "name": "Quiet", "enabled": false, "offerings": [
       {"id": "o5", "providerId": "whale", "channelName": "Quiet Channel"}
     ]}
-  ],
-  "candidates": {
-    "aggregator": [
-      {"channelId": "c1", "providerId": "aggregator", "number": "1", "name": "Sports One", "tvgId": "sports1"},
-      {"channelId": "c2", "providerId": "aggregator", "number": "2", "name": "Sports One Backup", "tvgId": "sports1b"},
-      {"channelId": "c3", "providerId": "aggregator", "number": "3", "name": "Real Sports One", "tvgId": "real1"}
-    ]
-  }
+  ]
 }

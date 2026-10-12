@@ -36,14 +36,6 @@ class BaseNameTest(unittest.TestCase):
             self.assertEqual(len(names), len({key(n) for n in names}), names)
 
 
-class LegacyNumbersTest(unittest.TestCase):
-    def test_legacy_numbers_are_left_to_the_group_blocks_unless_kept(self):
-        channels = [{'name': 'Local 5 News', 'number': '5', 'group': 'Local', 'sources': [{'provider': 'masq', 'tvgId': 'l5', 'channelName': 'Local 5 News'}]}]
-        offered = {'masq/tvg-id:l5'}
-        self.assertNotIn('number', generate_policy.legacy_stations(channels, {}, {}, offered)['local5news'])
-        self.assertEqual('5', generate_policy.legacy_stations(channels, {}, {}, offered, keep_numbers=True)['local5news']['number'])
-
-
 class StarterGroupsTest(unittest.TestCase):
     def test_the_local_pattern_comes_first_and_weak_keys_are_lowercased(self):
         starter = {'groupMap': {' TV ': 'Entertainment'}, 'weak': ['TV'], 'patterns': [{'name': 'kids', 'group': 'Kids & Family'}]}
@@ -66,9 +58,7 @@ class GenerateTest(unittest.TestCase):
             out = os.path.join(directory, 'policy.json')
             subprocess.run([
                 sys.executable, SCRIPT, '--offline', os.path.join(DATA, 'generate-policy-server.json'),
-                '--legacy', os.path.join(DATA, 'generate-policy-legacy.json'),
-                '--replacements', os.path.join(DATA, 'generate-policy-replacements.json'),
-                '--starter-groups', os.path.join(DATA, 'generate-policy-starter.json'), '--keep-legacy-numbers',
+                '--starter-groups', os.path.join(DATA, 'generate-policy-starter.json'),
                 '--providers', 'whale,samsung,vizio,lg,localnow', '--out', out,
             ], check=True, capture_output=True, text=True)
             with open(out, encoding='utf-8') as handle:
@@ -95,14 +85,7 @@ class GenerateTest(unittest.TestCase):
                           'Music': 2350, 'Game Shows': 2500, 'Faith': 2550, 'Shopping': 2580, 'Ambiance': 2600}, numbering['groups'])
         self.assertGreaterEqual(numbering['floor'], max(numbering['groups'].values()) + numbering['groupSize'], 'the floor is clear of every block')
         self.assertTrue(numbering['followGroup'])
-        self.assertEqual({
-            'local5news': {'required': True, 'name': 'Local 5 News', 'number': '5', 'group': 'Local',
-                           'sources': [{'provider': 'aggregator', 'tvgId': 'local5', 'name': 'Local 5'}]},
-            'sportsone': {'required': True, 'name': 'Sports One', 'number': '227', 'group': 'Sports',
-                          'sources': [{'provider': 'aggregator', 'tvgId': 'real1', 'name': 'Real Sports One'}]},
-            'sportstwo': {'required': True, 'name': 'The Sports Two', 'number': '228', 'group': 'Sports',
-                          'sources': [{'provider': 'aggregator', 'tvgId': 'real2', 'name': 'Real Sports Two'}]},
-        }, policy['stations'], 'legacy stations keep their exported numbers as overrides')
+        self.assertNotIn('stations', policy)
 
 
 if __name__ == '__main__':

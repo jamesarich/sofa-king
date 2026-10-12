@@ -179,34 +179,6 @@ class PolicyApplyTest {
         }
     }
 
-    @Test fun `the cutover check passes a channel that lands in exactly one station`() = testApplication {
-        withPolicy {
-            val body = """
-                {"exportedAt":"x","channels":[
-                  {"name":"Station","number":"5","group":"News","logo":"https://l.test/a.png","sources":[{"provider":"fixture","channelName":"Station","tvgId":"station","status":"HEALTHY"},{"provider":"alt","tvgId":"station"}]},
-                  {"name":"Gone","sources":[{"provider":"fixture","tvgId":"nope"}]},
-                  {"name":"Spread","sources":[{"provider":"fixture","tvgId":"station"},{"provider":"twin","tvgId":"twin-sports"}]},
-                  {"name":"Replaced","sources":[{"provider":"fixture","tvgId":"nope2"}]},
-                  {"name":"Renamed","sources":[{"provider":"fixture","tvgId":"nope3"}]}
-                ],
-                "replacements":{"Replaced":[{"provider":"twin","tvgId":"twin-sports"}],"Renamed":{"name":"TS Station","sources":[{"provider":"ts","tvgId":"ts-station"}]}}}
-            """.trimIndent()
-            val report = Json.decodeFromString<PolicyCheckReport>(client.post("/api/v1/admin/policy/check") { asAdmin(); setBody(body) }.bodyAsText())
-            val byName = report.channels.associateBy { it.name }
-            assertTrue(byName.getValue("Station").pass); assertEquals(listOf("station"), byName.getValue("Station").stations)
-            assertFalse(byName.getValue("Gone").pass); assertEquals(listOf("fixture/tvg-id:nope"), byName.getValue("Gone").missing)
-            assertFalse(byName.getValue("Spread").pass); assertEquals("no station carries every source", byName.getValue("Spread").reason)
-            assertTrue(byName.getValue("Replaced").pass); assertEquals(listOf("twin sports"), byName.getValue("Replaced").stations)
-            assertTrue(byName.getValue("Renamed").pass)
-            assertFalse(report.pass)
-            assertTrue(report.duplicateNumbers.isEmpty() && report.duplicateIds.isEmpty())
-
-            val passing = """{"channels":[{"name":"Station","sources":[{"provider":"fixture","tvgId":"station"}]}]}"""
-            assertTrue(Json.decodeFromString<PolicyCheckReport>(client.post("/api/v1/admin/policy/check") { asAdmin(); setBody(passing) }.bodyAsText()).pass)
-            assertTrue(runtime.lineup.entries().isEmpty(), "the check writes nothing")
-        }
-    }
-
     @Test fun `findings report a required station without a source, and the preview carries the same suggestions`() = testApplication {
         withPolicy("""{"names":{"version":1},"providers":[{"id":"fixture"}],"stations":{"nfl network":{"required":true,"sources":[{"provider":"alt","tvgId":"nfl"}]}}}""") {
             val findings = Json.decodeFromString<PolicyFindings>(client.get("/api/v1/admin/policy/findings") { asAdmin() }.bodyAsText())

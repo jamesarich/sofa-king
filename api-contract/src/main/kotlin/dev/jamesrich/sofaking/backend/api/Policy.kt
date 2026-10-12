@@ -171,32 +171,3 @@ import kotlinx.serialization.Serializable
     val generatedAt: String, val revision: String, val findings: List<String> = emptyList(), val suggestedAliases: List<String> = emptyList(),
     val unmappedCategories: List<PolicyUnmappedCategory> = emptyList(),
 )
-
-/** One source of a channel in a legacy lineup export. */
-@Serializable data class LegacySource(val provider: String, val channelName: String? = null, val tvgId: String? = null)
-
-/** One channel of a legacy lineup export. */
-@Serializable data class LegacyChannel(val name: String, val number: String? = null, val group: String? = null, val sources: List<LegacySource> = emptyList())
-
-/** Pins that intentionally replace a legacy channel's sources; [name] names the station the generator keys it by. */
-@Serializable data class PolicyReplacement(val name: String? = null, val sources: List<SourcePin> = emptyList())
-
-/** One legacy channel's verdict: [stations] carry every one of its sources; [missing] are sources no station carries. */
-@Serializable data class PolicyCheckChannel(
-    val name: String, val number: String? = null, val pass: Boolean, val stations: List<String> = emptyList(),
-    val missing: List<String> = emptyList(), val reason: String,
-)
-
-/** The cutover gate over a preview build: every legacy channel lands in exactly one station, and no number or ID collides. */
-@Serializable data class PolicyCheckReport(
-    val pass: Boolean, val revision: String, val channels: List<PolicyCheckChannel> = emptyList(),
-    val duplicateNumbers: List<String> = emptyList(), val duplicateIds: List<String> = emptyList(),
-)
-
-/**
- * A legacy lineup export to check against the policy. Each [replacements] value is a list of pins or a
- * [PolicyReplacement], keyed by export channel name.
- */
-@Serializable data class PolicyCheckRequest(
-    val channels: List<LegacyChannel> = emptyList(), val replacements: Map<String, kotlinx.serialization.json.JsonElement> = emptyMap(),
-)

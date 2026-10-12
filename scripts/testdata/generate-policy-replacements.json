@@ -1,4 +1,0 @@
-{
-  "Sports One": {"name": "Sports One", "sources": [{"provider": "aggregator", "tvgId": "real1", "name": "Real Sports One"}]},
-  "The Sports Two": [{"provider": "aggregator", "tvgId": "real2", "name": "Real Sports Two"}]
-}

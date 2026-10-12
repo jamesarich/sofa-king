@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
-import androidx.compose.ui.backhandler.BackHandler
+import dev.jamesrich.sofaking.ui.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExitTransition

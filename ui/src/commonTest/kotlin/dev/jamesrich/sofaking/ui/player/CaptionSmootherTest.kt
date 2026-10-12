@@ -1,15 +1,15 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.ui.player.CaptionSmoother.Decision
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class CaptionSmootherTest {
     private fun decide(shown: String, incoming: String, sinceEmitMs: Long = 100L): Decision =
         CaptionSmoother.decide(shown, incoming, nowMs = 1_000L, lastEmitMs = 1_000L - sinceEmitMs)
 
     @Test
-    fun `a cleared screen is shown at once, never held`() {
+    fun `a cleared screen is shown at once never held`() {
         assertEquals(Decision.EMIT, decide(shown = "HELLO WO", incoming = ""))
     }
 

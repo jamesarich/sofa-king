@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.ui
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class ClockTest {
     @Test

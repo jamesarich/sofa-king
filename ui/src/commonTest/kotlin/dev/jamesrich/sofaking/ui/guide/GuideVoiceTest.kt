@@ -1,12 +1,12 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.Test
 
 class GuideVoiceTest {
     @Test
-    fun `the first spoken result is the query, trimmed`() {
+    fun `the first spoken result is the query trimmed`() {
         assertEquals("local news", voiceQuery(ok = true, results = listOf(" local news ", "local noose")))
     }
 

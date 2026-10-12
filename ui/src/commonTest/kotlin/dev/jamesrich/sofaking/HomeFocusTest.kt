@@ -2,8 +2,8 @@ package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class HomeFocusTest {
     private val channel = Channel("1", 1.0, "One", null, listOf("Test"))
@@ -19,7 +19,7 @@ class HomeFocusTest {
     }
 
     @Test
-    fun `loading, failed and empty lineups leave focus alone`() {
+    fun `loading failed and empty lineups leave focus alone`() {
         assertEquals(HomeFocus.NONE, homeFocusFor(LineupState.Loading))
         assertEquals(HomeFocus.NONE, homeFocusFor(LineupState.Failed("HTTP_500")))
         assertEquals(HomeFocus.NONE, homeFocusFor(LineupState.Ready(Lineup(emptyList(), emptyMap()))))

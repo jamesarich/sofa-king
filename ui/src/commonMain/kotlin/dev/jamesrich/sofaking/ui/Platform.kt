@@ -2,6 +2,22 @@ package dev.jamesrich.sofaking.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.input.key.KeyEvent
+import androidx.navigationevent.NavigationEventInfo
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
+
+/**
+ * Back on every platform: the remote's or system Back on Android, the swipe on iOS, Escape on desktops and the
+ * web. While [enabled], [onBack] takes it; otherwise it goes on to the host (on Android, finishing the activity).
+ */
+@Composable
+internal fun BackHandler(enabled: Boolean = true, onBack: () -> Unit) {
+    NavigationBackHandler(
+        state = rememberNavigationEventState(NavigationEventInfo.None),
+        isBackEnabled = enabled,
+        onBackCompleted = onBack,
+    )
+}
 
 /** True while a screen reader explores by touch (TalkBack), which a channel opening full screen would cut off. */
 @Composable

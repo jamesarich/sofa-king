@@ -2,8 +2,8 @@ package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class GuideFilterMovesTest {
     private fun channel(id: String, group: String = "News") = Channel(id, id.toDouble(), "Ch $id", null, listOf(group))
@@ -13,7 +13,7 @@ class GuideFilterMovesTest {
     private fun typed(digits: String) = digits.fold(ChannelNumberEntry()) { entry, c -> entry.append(c.digitToInt()) }
 
     @Test
-    fun `chips list every group once, in the order its first channel appears`() {
+    fun `chips list every group once in the order its first channel appears`() {
         val local = Channel("5", 5.0, "KSNV", null, listOf("Local", "News"))
         val filters = guideFilters(listOf(local) + all)
         assertEquals(

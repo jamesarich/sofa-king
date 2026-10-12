@@ -1,9 +1,10 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.data.Channel
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+import kotlin.test.Test
 
 class ChannelNumberEntryTest {
     private val channels = listOf(
@@ -26,9 +27,9 @@ class ChannelNumberEntryTest {
         assertEquals("9".repeat(ChannelNumberEntry.MAX_DIGITS), entry.digits)
     }
 
-    @Test(expected = IllegalArgumentException::class)
+    @Test
     fun `rejects a value that is not a digit`() {
-        ChannelNumberEntry().append(10)
+        assertFailsWith<IllegalArgumentException> { ChannelNumberEntry().append(10) }
     }
 
     @Test

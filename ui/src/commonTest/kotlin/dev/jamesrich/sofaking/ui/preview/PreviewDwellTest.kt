@@ -1,10 +1,10 @@
 package dev.jamesrich.sofaking.ui.preview
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class PreviewDwellTest {
     /** A clock the test advances by hand. */
@@ -16,7 +16,7 @@ class PreviewDwellTest {
     }
 
     @Test
-    fun `a tuned preview is muted, unmutes at five seconds and opens full screen at ten`() {
+    fun `a tuned preview is muted unmutes at five seconds and opens full screen at ten`() {
         dwell.onFocus("a", now)
         assertTrue(dwell.isMuted(now))
         assertFalse(dwell.opensFullScreen(now))
@@ -93,7 +93,7 @@ class PreviewDwellTest {
     }
 
     @Test
-    fun `the next transition counts down to unmute, then full screen, then nothing`() {
+    fun `the next transition counts down to unmute then full screen then nothing`() {
         dwell.onFocus("a", now)
         assertEquals(5_000L, dwell.nextTransitionMs(now))
         advance(2_000)

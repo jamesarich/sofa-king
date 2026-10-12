@@ -1,9 +1,9 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.ui.input.key.Key
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.Test
 
 class PlayerKeysTest {
     @Test
@@ -33,7 +33,7 @@ class PlayerKeysTest {
     }
 
     @Test
-    fun `OK shows the info bar, and OK on the info bar opens the channel list`() {
+    fun `OK shows the info bar and OK on the info bar opens the channel list`() {
         assertEquals(PlayerOk.SHOW_INFO, playerOk(hasDigits = false, failed = false, infoVisible = false))
         assertEquals(PlayerOk.OPEN_CHANNEL_LIST, playerOk(hasDigits = false, failed = false, infoVisible = true))
     }

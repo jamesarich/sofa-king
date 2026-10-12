@@ -7,7 +7,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.WebElementView
+import androidx.compose.ui.viewinterop.HtmlElementView
 import dev.jamesrich.sofaking.data.PlaybackStream
 import kotlinx.browser.document
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -145,7 +145,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
     override fun Video(modifier: Modifier, shutter: @Composable () -> Unit) {
         val state by status.collectAsState()
         Box(modifier) {
-            WebElementView(factory = { video }, modifier = Modifier.matchParentSize())
+            HtmlElementView(factory = { video }, modifier = Modifier.matchParentSize())
             if (state.state != PlaybackState.READY) shutter()
         }
     }
@@ -155,6 +155,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
     }
 
     /** Autoplay with sound needs a user gesture first; a rejected play() leaves the item paused, as a remote's pause would. */
+    @OptIn(ExperimentalWasmJsInterop::class)
     private fun startPlayback() {
         video.play()
     }

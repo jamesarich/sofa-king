@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.ui.settings
 
-import androidx.compose.ui.backhandler.BackHandler
+import dev.jamesrich.sofaking.ui.BackHandler
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

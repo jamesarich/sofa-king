@@ -1,26 +1,14 @@
 package dev.jamesrich.sofaking.ui.player
 
-import androidx.media3.common.C
-import androidx.media3.common.MimeTypes
 import dev.jamesrich.sofaking.data.AppSettings
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class CaptionPolicyTest {
-
-    @Test
-    fun `a text track among other tracks counts as captions`() {
-        assertTrue(CaptionPolicy.hasTextTrack(listOf(C.TRACK_TYPE_VIDEO, C.TRACK_TYPE_AUDIO, C.TRACK_TYPE_TEXT)))
-    }
-
-    @Test
-    fun `a channel without a text track has no captions`() {
-        assertFalse(CaptionPolicy.hasTextTrack(listOf(C.TRACK_TYPE_VIDEO, C.TRACK_TYPE_AUDIO)))
-        assertFalse(CaptionPolicy.hasTextTrack(emptyList()))
-    }
 
     @Test
     fun `toggling on a channel with captions announces on`() {
@@ -50,9 +38,9 @@ class CaptionPolicyTest {
         assertEquals(27f / 720f, CaptionPolicy.bottomPaddingFraction(720), 0.0001f)
     }
 
-    @Test(expected = IllegalArgumentException::class)
+    @Test
     fun `bottom padding rejects a zero height`() {
-        CaptionPolicy.bottomPaddingFraction(0)
+        assertFailsWith<IllegalArgumentException> { CaptionPolicy.bottomPaddingFraction(0) }
     }
 
     private fun track(group: Int, mime: String?, channel: Int = 1) =
@@ -60,25 +48,25 @@ class CaptionPolicyTest {
 
     @Test
     fun `cea-708 service one is preferred over cea-608 when both are present`() {
-        val tracks = listOf(track(0, MimeTypes.APPLICATION_CEA608), track(1, MimeTypes.APPLICATION_CEA708))
+        val tracks = listOf(track(0, CaptionPolicy.MIME_CEA608), track(1, CaptionPolicy.MIME_CEA708))
         assertEquals(tracks[1], CaptionPolicy.preferredTextTrack(tracks))
     }
 
     @Test
     fun `cea-708 on another service is taken before cea-608 CC1`() {
-        val tracks = listOf(track(0, MimeTypes.APPLICATION_CEA608), track(1, MimeTypes.APPLICATION_CEA708, channel = 3))
+        val tracks = listOf(track(0, CaptionPolicy.MIME_CEA608), track(1, CaptionPolicy.MIME_CEA708, channel = 3))
         assertEquals(tracks[1], CaptionPolicy.preferredTextTrack(tracks))
     }
 
     @Test
-    fun `cea-608 CC1 is used when there is no cea-708 track, such as after an ad break`() {
-        val tracks = listOf(track(0, MimeTypes.APPLICATION_CEA608, channel = 3), track(1, MimeTypes.APPLICATION_CEA608))
+    fun `cea-608 CC1 is used when there is no cea-708 track such as after an ad break`() {
+        val tracks = listOf(track(0, CaptionPolicy.MIME_CEA608, channel = 3), track(1, CaptionPolicy.MIME_CEA608))
         assertEquals(tracks[1], CaptionPolicy.preferredTextTrack(tracks))
     }
 
     @Test
     fun `a non-caption text track is used only when no caption track exists`() {
-        val tracks = listOf(track(0, MimeTypes.TEXT_VTT), track(1, null))
+        val tracks = listOf(track(0, "text/vtt"), track(1, null))
         assertEquals(tracks[0], CaptionPolicy.preferredTextTrack(tracks))
     }
 

@@ -1,17 +1,18 @@
 package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Programme
-import org.junit.Assert.assertEquals
-import org.junit.Test
-import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.Test
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 class GuideJumpTest {
     private val base = Instant.parse("2026-10-09T10:00:00Z")
 
     private fun programme(startMin: Long, stopMin: Long) = Programme(
         channelId = "1",
-        start = base.plusSeconds(startMin * 60),
-        stop = base.plusSeconds(stopMin * 60),
+        start = (base + (startMin * 60).seconds),
+        stop = (base + (stopMin * 60).seconds),
         title = "Show",
         description = null,
     )
@@ -20,7 +21,7 @@ class GuideJumpTest {
 
     @Test
     fun `cell index is found by minute and -1 outside the cells`() {
-        val cells = GuideTimeline.cellsFor(listOf(programme(60, 120)), base, base.plusSeconds(1440 * 60))
+        val cells = GuideTimeline.cellsFor(listOf(programme(60, 120)), base, (base + (1440 * 60).seconds))
         assertEquals(0, GuideTimeline.cellIndexAt(cells, 0))
         assertEquals(1, GuideTimeline.cellIndexAt(cells, 60))
         assertEquals(1, GuideTimeline.cellIndexAt(cells, 119))
@@ -32,7 +33,7 @@ class GuideJumpTest {
 
     @Test
     fun `a filled-in row replaces the gap cell with the programme under the cursor`() {
-        val window = base.plusSeconds(1440 * 60)
+        val window = (base + (1440 * 60).seconds)
         val before = GuideTimeline.cellsFor(emptyList(), base, window).single()
         val after = GuideTimeline.cellsFor(listOf(programme(0, 15), programme(15, 60)), base, window)
         assertEquals(after[1], GuideTimeline.cellAfterUpdate(after, before, cursor = 25))
@@ -41,7 +42,7 @@ class GuideJumpTest {
 
     @Test
     fun `a cursor outside the previous cell falls back to the cell at its start`() {
-        val window = base.plusSeconds(1440 * 60)
+        val window = (base + (1440 * 60).seconds)
         val before = GuideCell(programme(60, 120), 60, 120)
         val after = GuideTimeline.cellsFor(listOf(programme(0, 90), programme(90, 150)), base, window)
         assertEquals(after[0], GuideTimeline.cellAfterUpdate(after, before, cursor = 500))

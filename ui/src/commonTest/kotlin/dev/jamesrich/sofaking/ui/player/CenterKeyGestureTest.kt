@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class CenterKeyGestureTest {
     private val gesture = CenterKeyGesture()
@@ -37,6 +37,19 @@ class CenterKeyGestureTest {
         gesture.onKeyDown(isLongPress = true, repeatCount = 0)
         gesture.onKeyUp()
         gesture.onKeyDown(isLongPress = false, repeatCount = 0)
+        assertEquals(CenterPress.SHORT, gesture.onKeyUp())
+    }
+
+    @Test
+    fun `without a repeat count a second key-down while held is the long press`() {
+        assertEquals(CenterPress.NONE, gesture.onKeyDown(isLongPress = false, repeatCount = null))
+        assertEquals(CenterPress.LONG, gesture.onKeyDown(isLongPress = false, repeatCount = null))
+        assertEquals(CenterPress.NONE, gesture.onKeyUp())
+    }
+
+    @Test
+    fun `without a repeat count a single key-down is a short press`() {
+        gesture.onKeyDown(isLongPress = false, repeatCount = null)
         assertEquals(CenterPress.SHORT, gesture.onKeyUp())
     }
 }

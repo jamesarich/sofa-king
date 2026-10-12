@@ -51,13 +51,22 @@ kotlin {
             isStatic = true
         }
     }
+    // The browser runs the app; Node runs the common tests on JS without a headless browser. Wasm tests are off:
+    // Compose's wasm test binary loads skiko.wasm, which Node is not served; core runs its tests on wasm.
     js {
-        browser { commonWebpackConfig { outputFileName = "sofaking.js" } }
+        browser {
+            commonWebpackConfig { outputFileName = "sofaking.js" }
+            testTask { enabled = false }
+        }
+        nodejs()
         binaries.executable()
     }
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
-        browser { commonWebpackConfig { outputFileName = "sofaking.js" } }
+        browser {
+            commonWebpackConfig { outputFileName = "sofaking.js" }
+            testTask { enabled = false }
+        }
         binaries.executable()
     }
 
@@ -79,7 +88,7 @@ kotlin {
                 implementation(libs.compose.ui)
                 implementation(libs.compose.animation)
                 implementation(libs.compose.material3)
-                implementation(libs.compose.ui.backhandler)
+                implementation(libs.navigationevent.compose)
                 implementation(libs.compose.components.resources)
                 implementation(libs.compose.ui.tooling.preview)
                 implementation(libs.lifecycle.viewmodel.compose)
@@ -101,7 +110,6 @@ kotlin {
             implementation(libs.media3.session)
         }
         jvmMain.dependencies {
-            implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.vlcj)
         }

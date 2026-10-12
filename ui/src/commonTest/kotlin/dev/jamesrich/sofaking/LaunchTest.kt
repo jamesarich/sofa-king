@@ -3,8 +3,8 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class LaunchTest {
     private val lineup = Lineup(listOf(Channel("1", 1.0, "One", null, listOf("Test")), Channel("2", 2.0, "Two", null, listOf("Test"))), emptyMap())

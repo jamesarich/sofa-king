@@ -1,9 +1,9 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.data.Channel
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.Test
 
 class PlayerChannelsTest {
     private fun channel(guideId: String, number: Double, name: String = "Ch $guideId") =

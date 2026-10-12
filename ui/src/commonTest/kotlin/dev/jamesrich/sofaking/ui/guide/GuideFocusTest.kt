@@ -1,10 +1,10 @@
 package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Channel
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class GuideFocusTest {
     private fun channel(id: String) = Channel(id, id.toDouble(), "Ch $id", null, listOf("Test"))
@@ -42,7 +42,7 @@ class GuideFocusTest {
     }
 
     @Test
-    fun `a watched channel on screen, gone from the lineup or unknown leaves the filter alone`() {
+    fun `a watched channel on screen gone from the lineup or unknown leaves the filter alone`() {
         assertFalse(watchedIsHidden("2", visible, visible))
         assertFalse(watchedIsHidden("9", visible, visible))
         assertFalse(watchedIsHidden(null, visible, visible))

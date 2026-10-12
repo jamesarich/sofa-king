@@ -1,18 +1,19 @@
 package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Programme
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 class GuideTimelineTest {
     private val base = Instant.parse("2026-10-09T10:00:00Z")
     private val windowEnd = GuideTimeline.windowEnd(base)
 
     /** Minutes relative to [base]; negative values start before the window. */
-    private fun at(minutes: Long): Instant = base.plusSeconds(minutes * 60)
+    private fun at(minutes: Long): Instant = (base + (minutes * 60).seconds)
 
     private fun show(title: String, startMin: Long, stopMin: Long, channelId: String = "1") = Programme(
         channelId = channelId,
@@ -28,8 +29,8 @@ class GuideTimelineTest {
     private fun assertTiles(cells: List<GuideCell>, from: Long, to: Long) {
         assertEquals(from, cells.first().startMinute)
         assertEquals(to, cells.last().endMinute)
-        cells.zipWithNext().forEach { (a, b) -> assertEquals("cells must abut", a.endMinute, b.startMinute) }
-        cells.forEach { assertTrue("cell ${it.startMinute}..${it.endMinute} is empty", it.minutes > 0) }
+        cells.zipWithNext().forEach { (a, b) -> assertEquals(a.endMinute, b.startMinute, "cells must abut") }
+        cells.forEach { assertTrue(it.minutes > 0, "cell ${it.startMinute}..${it.endMinute} is empty") }
     }
 
     // windowStart
@@ -58,7 +59,7 @@ class GuideTimelineTest {
     fun `window start floors across midnight and day boundaries`() {
         assertEquals(
             Instant.parse("2026-10-09T23:30:00Z"),
-            GuideTimeline.windowStart(Instant.parse("2026-10-10T00:00:00Z").minusSeconds(1)),
+            GuideTimeline.windowStart(Instant.parse("2026-10-10T00:00:00Z") - 1.seconds),
         )
         assertEquals(
             Instant.parse("2026-10-10T00:00:00Z"),
@@ -77,7 +78,7 @@ class GuideTimelineTest {
     fun `the window is kept while now is inside it`() {
         assertEquals(base, GuideTimeline.windowStartFor(base, base))
         assertEquals(base, GuideTimeline.windowStartFor(base, at(90)))
-        assertEquals(base, GuideTimeline.windowStartFor(base, at(1440).minusSeconds(1)))
+        assertEquals(base, GuideTimeline.windowStartFor(base, at(1440) - 1.seconds))
     }
 
     @Test
@@ -119,7 +120,7 @@ class GuideTimelineTest {
 
     @Test
     fun `offset truncates partial minutes`() {
-        assertEquals(1L, GuideTimeline.offsetMinutes(base, base.plusSeconds(119)))
+        assertEquals(1L, GuideTimeline.offsetMinutes(base, (base + (119).seconds)))
     }
 
     // cellsFor

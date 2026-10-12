@@ -1,8 +1,9 @@
 package dev.jamesrich.sofaking.ui.player
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
-import java.time.Instant
+import kotlin.test.assertEquals
+import kotlin.test.Test
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 class ProgrammeProgressTest {
     private val start = Instant.parse("2026-10-09T20:00:00Z")
@@ -10,18 +11,18 @@ class ProgrammeProgressTest {
 
     @Test
     fun `is zero before the programme starts`() {
-        assertEquals(0f, programmeProgress(start, stop, start.minusSeconds(1)), 0f)
+        assertEquals(0f, programmeProgress(start, stop, start - 1.seconds), 0f)
     }
 
     @Test
     fun `is one after the programme stops`() {
-        assertEquals(1f, programmeProgress(start, stop, stop.plusSeconds(1)), 0f)
+        assertEquals(1f, programmeProgress(start, stop, (stop + (1).seconds)), 0f)
     }
 
     @Test
     fun `is the elapsed share in between`() {
-        assertEquals(0.25f, programmeProgress(start, stop, start.plusSeconds(900)), 0.0001f)
-        assertEquals(0.5f, programmeProgress(start, stop, start.plusSeconds(1800)), 0.0001f)
+        assertEquals(0.25f, programmeProgress(start, stop, (start + (900).seconds)), 0.0001f)
+        assertEquals(0.5f, programmeProgress(start, stop, (start + (1800).seconds)), 0.0001f)
     }
 
     @Test

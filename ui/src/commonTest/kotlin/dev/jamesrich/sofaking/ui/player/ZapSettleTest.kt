@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.data.Channel
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 class ZapSettleTest {
     private fun channel(id: String) = Channel(id, id.toDouble(), "Ch $id", null, listOf("Test"))

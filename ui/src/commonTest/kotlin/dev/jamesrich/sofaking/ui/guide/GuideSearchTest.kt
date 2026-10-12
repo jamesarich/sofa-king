@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 class GuideSearchTest {
     @Test
@@ -46,5 +46,11 @@ class GuideSearchTest {
     @Test
     fun `query is trimmed before matching`() {
         assertTrue(GuideSearch.matches("  news  ", 7.0, "Local News", null))
+    }
+
+    @Test
+    fun `decomposed accents fold the same as precomposed ones`() {
+        assertTrue(GuideSearch.normalize("Télé") == "tele")
+        assertTrue(GuideSearch.matches("tele", 7.0, "Télé Québec", null))
     }
 }

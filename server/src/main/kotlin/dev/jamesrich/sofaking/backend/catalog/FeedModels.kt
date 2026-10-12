@@ -113,8 +113,6 @@ fun loadSources(path: Path?, environment: Map<String, String> = System.getenv())
     return config
 }
 
-fun loadFeeds(path: Path?): List<FeedConfig> = loadSources(path).providers
-
 private val variable = Regex("\\$\\{([A-Za-z_][A-Za-z0-9_]*)}")
 
 internal fun expandVariables(element: JsonElement, environment: Map<String, String>): JsonElement = when (element) {
@@ -133,8 +131,7 @@ fun httpUri(value: String): URI = URI(value).also {
     require(it.scheme in setOf("http", "https") && it.host != null && it.userInfo == null) { "Expected an HTTP(S) URL without user info" }
 }
 @Serializable data class Offering(val id: String, val channelId: String, val providerId: String, val url: String, val protocol: String)
-/** `programmes` is kept for decoding snapshots written before guides became independent sources; it is no longer populated. */
-@Serializable data class FeedSnapshot(val providerId: String, val channels: List<Channel>, val offerings: List<Offering>, val programmes: List<Programme> = emptyList(), val importedAt: String)
+@Serializable data class FeedSnapshot(val providerId: String, val channels: List<Channel>, val offerings: List<Offering>, val importedAt: String)
 fun stableId(value: String): String = java.util.UUID.nameUUIDFromBytes(value.toByteArray(Charsets.UTF_8)).toString()
 
 /** An XMLTV `<channel>`, or a channel id seen only on programmes (then [displayName] is the id). */

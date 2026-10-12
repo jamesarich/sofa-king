@@ -129,11 +129,6 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
         }
     }
 
-    /** Drops a cached resolution, for a caller that found the URL dead before its expiry. */
-    fun forget(offeringId: String) {
-        resolutions.remove(offeringId)
-    }
-
     companion object {
         val EXPIRY_MARGIN: Duration = Duration.ofSeconds(60)
         val MAX_CACHE: Duration = Duration.ofHours(6)

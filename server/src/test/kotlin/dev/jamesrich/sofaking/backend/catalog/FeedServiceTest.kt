@@ -147,7 +147,7 @@ class FeedServiceTest {
             val clock = MutableClock()
             val start = clock.now
             fun snapshot(provider: String, ids: List<String>, at: Instant) =
-                FeedSnapshot(provider, ids.map { Channel(it, "1", it) }, ids.map { Offering(it, it, provider, "http://example.test/$it.m3u8", "hls") }, emptyList(), at.toString())
+                FeedSnapshot(provider, ids.map { Channel(it, "1", it) }, ids.map { Offering(it, it, provider, "http://example.test/$it.m3u8", "hls") }, at.toString())
             store.saveSnapshot(snapshot("gone", listOf("old", "kept-by-hand"), start))
             store.setManuallyDisabled("kept-by-hand", true)
             store.saveSnapshot(snapshot("paused", listOf("recent"), start.plus(java.time.Duration.ofDays(59))))

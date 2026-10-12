@@ -23,7 +23,7 @@ class ProbeWorkerTest {
             val config = FeedConfig("p", "http://example.test/feed.m3u")
             val channel = Channel("station", "5", "Station")
             val offering = Offering("source", channel.id, "p", "http://example.test/live.m3u8", "hls")
-            store.saveSnapshot(FeedSnapshot("p", listOf(channel), listOf(offering), emptyList(), clock.now.toString()))
+            store.saveSnapshot(FeedSnapshot("p", listOf(channel), listOf(offering), clock.now.toString()))
             val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
             val catalog = lineupStack(feeds, store, clock, http).catalog
             var success = false
@@ -46,7 +46,7 @@ class ProbeWorkerTest {
         try { HttpClient(CIO).use { http ->
             val clock = MutableClock(); val config = FeedConfig("p", "http://example.test/feed.m3u")
             openStore(dir).use { store ->
-                store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), listOf(Offering("s", "c", "p", "http://example.test/live.m3u8", "hls")), emptyList(), clock.now.toString()))
+                store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), listOf(Offering("s", "c", "p", "http://example.test/live.m3u8", "hls")), clock.now.toString()))
                 val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
                 val worker = ProbeWorker(feeds, store, clock, "unused") { _, _ -> FailureClass.PROVIDER }
                 assertTrue(worker.step()); assertTrue(store.health("s")!!.failures.isEmpty())
@@ -65,7 +65,7 @@ class ProbeWorkerTest {
         val dir = Files.createTempDirectory("sofa-probe-resolve-")
         try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val clock = MutableClock()
-            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), listOf(Offering("s", "c", "p", "svc://xumo/1", "hls")), emptyList(), clock.now.toString()))
+            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), listOf(Offering("s", "c", "p", "svc://xumo/1", "hls")), clock.now.toString()))
             // Without a provider registry a native source's resolve throws IllegalStateException, not ProviderFailure.
             val feeds = FeedService(listOf(FeedConfig("p", "http://example.test/feed.m3u")), store, http, clock); feeds.initialize()
             val worker = ProbeWorker(feeds, store, clock, "unused") { _, _ -> error("the qualifier is never reached") }
@@ -164,7 +164,7 @@ class ProbeWorkerTest {
         try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val clock = MutableClock(); val config = FeedConfig("p", "http://example.test/feed.m3u")
             val offerings = listOf("healthy", "unverified", "suspect").map { Offering(it, "c", "p", "http://example.test/$it.ts", "mpegts") }
-            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), offerings, emptyList(), clock.now.toString()))
+            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), offerings, clock.now.toString()))
             store.recordObservation("healthy", Observation("ok", clock.now, true), clock.now)
             store.recordObservation("suspect", Observation("bad", clock.now, false, FailureClass.OFFERING), clock.now)
             val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
@@ -181,7 +181,7 @@ class ProbeWorkerTest {
         try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val clock = MutableClock(); val config = FeedConfig("p", "http://example.test/feed.m3u")
             val offerings = (1..3).map { Offering("s$it", "c", "p", "http://example.test/$it.ts", "mpegts") }
-            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), offerings, emptyList(), clock.now.toString()))
+            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), offerings, clock.now.toString()))
             val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
             val started = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
             val inFlight = java.util.concurrent.atomic.AtomicInteger(); val seen = java.util.Collections.synchronizedList(mutableListOf<String>())
@@ -203,7 +203,7 @@ class ProbeWorkerTest {
         try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val clock = MutableClock()
             val offering = Offering("source", "station", "p", "http://example.test/live.m3u8", "hls")
-            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("station", "5", "Station")), listOf(offering), emptyList(), clock.now.toString()))
+            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("station", "5", "Station")), listOf(offering), clock.now.toString()))
             val feeds = FeedService(listOf(FeedConfig("p", "http://example.test/feed.m3u")), store, http, clock); feeds.initialize()
             var success = false
             val changed = mutableListOf<String>(); val observed = mutableListOf<String>()
@@ -237,7 +237,7 @@ class ProbeWorkerTest {
         try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val clock = MutableClock()
             val ids = listOf("a", "b", "c", "d", "e")
-            store.saveSnapshot(FeedSnapshot("p", ids.map { Channel(it, "1", it) }, ids.map { Offering(it, it, "p", "http://example.test/$it.m3u8", "hls") }, emptyList(), clock.now.toString()))
+            store.saveSnapshot(FeedSnapshot("p", ids.map { Channel(it, "1", it) }, ids.map { Offering(it, it, "p", "http://example.test/$it.m3u8", "hls") }, clock.now.toString()))
             val feeds = FeedService(listOf(FeedConfig("p", "http://example.test/feed.m3u", probe = false)), store, http, clock); feeds.initialize()
             store.recordObservation("a", Observation("x", clock.now, false, FailureClass.OFFERING), clock.now)
             clock.now = clock.now.plusSeconds(600)

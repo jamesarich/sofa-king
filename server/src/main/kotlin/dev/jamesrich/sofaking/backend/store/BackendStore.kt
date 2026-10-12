@@ -18,6 +18,9 @@ import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
+/** A stored snapshot may carry fields [dev.jamesrich.sofaking.backend.catalog.FeedSnapshot] does not declare. */
+private val snapshotJson = Json { ignoreUnknownKeys = true }
+
 interface IdentityStore {
     suspend fun serverId(): String
     suspend fun ready(): Boolean
@@ -134,7 +137,7 @@ class BackendStore internal constructor(
 
     suspend fun snapshots(): List<dev.jamesrich.sofaking.backend.catalog.FeedSnapshot> {
         val encoded = query { Metadata.selectAll().where { keyPrefix("feed:") }.map { it[Metadata.value] } }
-        return encoded.map { Json.decodeFromString(it) }
+        return encoded.map { snapshotJson.decodeFromString(it) }
     }
 
     suspend fun saveSnapshot(snapshot: dev.jamesrich.sofaking.backend.catalog.FeedSnapshot) {

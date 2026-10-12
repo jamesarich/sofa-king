@@ -89,7 +89,7 @@ class SessionManagerTest {
         try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val clock = MutableClock(); val config = FeedConfig("p", "http://example.test/feed.m3u", probe = false)
             val offerings = listOf("suspect", "unverified", "healthy", "quarantined").map { Offering(it, "c", "p", "http://example.test/$it.ts", "mpegts") }
-            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), offerings, emptyList(), clock.now.toString()))
+            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), offerings, clock.now.toString()))
             store.recordObservation("healthy", Observation("ok", clock.now, true), clock.now)
             store.recordObservation("suspect", Observation("bad", clock.now, false, FailureClass.OFFERING), clock.now)
             for (minute in listOf(0L, 5L, 10L)) {
@@ -120,7 +120,7 @@ class SessionManagerTest {
             val clock = MutableClock(); val config = FeedConfig("p", "http://example.test/feed.m3u", probe = false)
             val channels = listOf(Channel("ts", "1", "TS"), Channel("hls", "2", "HLS"))
             val offerings = listOf(Offering("ts-source", "ts", "p", "http://example.test/live.ts", "mpegts"), Offering("hls-source", "hls", "p", "http://example.test/live.m3u8", "hls"))
-            store.saveSnapshot(FeedSnapshot("p", channels, offerings, emptyList(), clock.now.toString()))
+            store.saveSnapshot(FeedSnapshot("p", channels, offerings, clock.now.toString()))
             val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
             val catalog = lineupStack(feeds, store, clock, http).catalog
             val sessions = SessionManager(catalog, store, clock)

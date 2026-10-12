@@ -45,11 +45,21 @@ class BackendStoreTest {
                 dev.jamesrich.sofaking.backend.catalog.Offering("p:old", "c", "p", "http://old", "hls"),
                 dev.jamesrich.sofaking.backend.catalog.Offering("p:new", "c", "p", "http://new", "hls"),
             )
-            store.saveSnapshot(dev.jamesrich.sofaking.backend.catalog.FeedSnapshot("p", emptyList(), offerings, emptyList(), t.toString()))
+            store.saveSnapshot(dev.jamesrich.sofaking.backend.catalog.FeedSnapshot("p", emptyList(), offerings, t.toString()))
             assertEquals(HealthState(), store.health("p:new"))
             assertTrue(store.health("p:old")!!.manuallyDisabled)
             assertEquals(setOf("p:old", "p:new"), store.allHealth().keys)
         }
+    }
+    @Test fun `a stored snapshot with fields the model does not declare still loads`() = runBlocking<Unit> {
+        val dir = directory()
+        openStore(dir).use { it.serverId() }
+        DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
+            connection.createStatement().use { stmt ->
+                stmt.execute("""INSERT INTO metadata(key, value) VALUES ('feed:p', '{"providerId":"p","channels":[],"offerings":[],"programmes":[{"id":"x"}],"importedAt":"2026-10-10T00:00:00Z"}')""")
+            }
+        }
+        openStore(dir).use { store -> assertEquals(listOf(dev.jamesrich.sofaking.backend.catalog.FeedSnapshot("p", emptyList(), emptyList(), t.toString())), store.snapshots()) }
     }
     @Test fun `store is ready only while open`() = runBlocking<Unit> {
         val store = openStore(directory())

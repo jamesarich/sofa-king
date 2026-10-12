@@ -35,6 +35,8 @@ class BuildInput(
     val now: Instant,
     /** Offerings that count as verified without a probe: the enabled lineup a first policy run replaces. */
     val seedVerified: Set<String> = emptySet(),
+    /** Whether a guide holds programmes ahead for a channel; a station prefers a covered guide over an empty one. */
+    val guideCovered: (GuideMapping) -> Boolean = { true },
 )
 
 /**
@@ -382,6 +384,8 @@ object StationBuilder {
                 draft.key in autoOff -> "unavailable"
                 else -> null
             }
+            // The first guide that has programmes ahead, else the first that lists the station at all.
+            val guides = if (override?.guide != null) emptyList() else guidesFor(draft.sources, input)
             PolicyStation(
                 id = override?.id?.lowercase() ?: stationId(draft.key),
                 key = draft.key,
@@ -389,11 +393,12 @@ object StationBuilder {
                 name = override?.name ?: leading?.name ?: draft.missing?.lastName ?: override?.sources?.firstNotNullOfOrNull { it.name } ?: draft.key,
                 group = groupFor(draft),
                 logo = override?.logo ?: leading?.logo,
-                guide = override?.guide ?: guideFor(draft.sources, input),
+                guide = override?.guide ?: guides.firstOrNull(input.guideCovered) ?: guides.firstOrNull(),
                 enabled = reason == null,
                 required = override?.required == true,
                 offeringIds = draft.offeringIds,
                 disabledReason = reason,
+                guideCandidates = guides,
             )
         }.sortedWith(compareBy<PolicyStation, BigDecimal?>(NUMBER_ORDER) { numberValue(it.number) }.thenBy { it.key })
 
@@ -428,16 +433,13 @@ object StationBuilder {
     }
 
     /**
-     * The first source, in station order, whose `tvg-id` a guide lists: its provider's own guide first, then a guide
-     * that is not another provider's. Provider guides key channels by that provider's ids.
+     * For each source, in station order, whose `tvg-id` a guide lists, that guide: its provider's own guide first, then
+     * a guide that is not another provider's. Provider guides key channels by that provider's ids.
      */
-    private fun guideFor(sources: List<Member>, input: BuildInput): GuideMapping? {
-        for (member in sources) {
-            val tvg = member.candidate.channel.legacyGuideId ?: continue
-            val listing = input.guidesListing(tvg)
-            val guideId = listing.firstOrNull { it == member.candidate.providerId } ?: listing.firstOrNull { it !in input.providerIds } ?: continue
-            return GuideMapping(guideId, tvg)
-        }
-        return null
-    }
+    private fun guidesFor(sources: List<Member>, input: BuildInput): List<GuideMapping> = sources.mapNotNull { member ->
+        val tvg = member.candidate.channel.legacyGuideId ?: return@mapNotNull null
+        val listing = input.guidesListing(tvg)
+        val guideId = listing.firstOrNull { it == member.candidate.providerId } ?: listing.firstOrNull { it !in input.providerIds } ?: return@mapNotNull null
+        GuideMapping(guideId, tvg)
+    }.distinct()
 }

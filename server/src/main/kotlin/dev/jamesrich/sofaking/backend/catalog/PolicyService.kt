@@ -62,6 +62,27 @@ class PolicyService(
     /** The stations and result of the last apply that built the lineup; null until one has. */
     fun lastApplied(): AppliedRun? = lastApplied.get()
 
+    /**
+     * Guide channels to keep programmes for beyond the ones the lineup maps, by guide id: every candidate of a station
+     * whose guide has nothing ahead, so a run can see another guide that does, and the first candidate of a station
+     * that moved off it, so a run can move back once it fills again.
+     */
+    fun wantedGuides(): Map<String, Set<String>> {
+        val stations = lastApplied()?.stations.orEmpty()
+        val coverage = guides.coverage()
+        val now = clock.instant()
+        val wanted = stations.filter { it.enabled }.flatMap { station ->
+            val guide = station.guide ?: return@flatMap station.guideCandidates
+            val covered = coverage[guide.guideId]?.get(guide.channelId)?.isAfter(now) == true
+            when {
+                !covered -> station.guideCandidates
+                guide != station.guideCandidates.firstOrNull() -> listOfNotNull(station.guideCandidates.firstOrNull())
+                else -> emptyList()
+            }
+        }
+        return wanted.groupBy({ it.guideId }, { it.channelId }).mapValues { it.value.toSet() }
+    }
+
     val policy: LineupPolicy get() = file.current().policy
 
     fun document(): PolicyDocument = file.current().let { PolicyDocument(it.revision, it.path.toString(), it.policy) }
@@ -78,7 +99,9 @@ class PolicyService(
         val now = clock.instant()
         // A first policy run counts the lineup it replaces as verified, so a cutover never hides channels already watched.
         val seed = if (previous.isEmpty()) lineup.entries().filter { it.enabled && it.createdBy != "policy" }.flatMapTo(HashSet()) { it.offeringIds } else emptySet()
-        fun build(policy: LineupPolicy) = StationBuilder.build(BuildInput(policy, candidates, guides::guidesListing, providerIds, health, previous, now, seed))
+        val coverage = guides.coverage()
+        val covered = { mapping: GuideMapping -> coverage[mapping.guideId]?.get(mapping.channelId)?.isAfter(now) == true }
+        fun build(policy: LineupPolicy) = StationBuilder.build(BuildInput(policy, candidates, guides::guidesListing, providerIds, health, previous, now, seed, covered))
         val first = build(loaded.policy)
         val learning = learnAliases(first, loaded.policy, schedules(first, loaded.policy, now))
         return if (learning.learned.isEmpty()) first.with(learning) else build(withLearned(loaded.policy, learning.learned)).with(learning)

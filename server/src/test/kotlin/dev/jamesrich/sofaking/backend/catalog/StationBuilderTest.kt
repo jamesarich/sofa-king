@@ -27,10 +27,11 @@ class StationBuilderTest {
         listing: (String) -> List<String> = { emptyList() },
         providers: Set<String> = candidates.mapTo(HashSet()) { it.providerId },
         seed: Set<String> = emptySet(),
+        covered: (GuideMapping) -> Boolean = { true },
     ): BuildResult = StationBuilder.build(
         BuildInput(
             policy, candidates, listing, providers,
-            health ?: candidates.flatMap { it.offerings }.associate { it.id to HealthState(HealthStatus.HEALTHY) }, previous, now, seed,
+            health ?: candidates.flatMap { it.offerings }.associate { it.id to HealthState(HealthStatus.HEALTHY) }, previous, now, seed, covered,
         ),
     )
 
@@ -232,6 +233,18 @@ class StationBuilderTest {
         assertEquals(GuideMapping("epg", "s-bbc"), independent.station("bbc news").guide)
         val overridden = build(policy.copy(stations = mapOf("bbc news" to StationOverride(guide = GuideMapping("custom", "x")))), catalog, listing = { guides[it].orEmpty() })
         assertEquals(GuideMapping("custom", "x"), overridden.station("bbc news").guide)
+        assertEquals(emptyList(), overridden.station("bbc news").guideCandidates)
+    }
+
+    @Test fun `a station takes the first guide with programmes ahead, and keeps the first when none has any`() {
+        val guides = mapOf("bbc" to listOf("whale"), "s-bbc" to listOf("samsung"), "v-bbc" to listOf("epg"))
+        val providers = setOf("whale", "samsung", "vizio")
+        val all = listOf(GuideMapping("whale", "bbc"), GuideMapping("samsung", "s-bbc"), GuideMapping("epg", "v-bbc"))
+        val empty = build(policy, catalog, listing = { guides[it].orEmpty() }, providers = providers, covered = { false })
+        assertEquals(all, empty.station("bbc news").guideCandidates)
+        assertEquals(GuideMapping("whale", "bbc"), empty.station("bbc news").guide)
+        val fallback = build(policy, catalog, listing = { guides[it].orEmpty() }, providers = providers, covered = { it.guideId != "whale" })
+        assertEquals(GuideMapping("samsung", "s-bbc"), fallback.station("bbc news").guide)
     }
 
     @Test fun `availability turns a station off after disableAfterHours and back on when a source is healthy`() {

@@ -96,12 +96,14 @@ import kotlinx.serialization.Serializable
 
 /**
  * One station a policy run produces. [disabledReason] is `policy`, `no-source`, `unverified`, `unavailable` or
- * `missing` when not [enabled].
+ * `missing` when not [enabled]. [guideCandidates] are the guides that list one of its sources, in source order, when
+ * no override sets the guide; [guide] is the first of them with programmes ahead.
  */
 @Serializable data class PolicyStation(
     val id: String, val key: String, val number: String, val name: String, val group: String? = null, val logo: String? = null,
     val guide: GuideMapping? = null, val enabled: Boolean = true, val required: Boolean = false,
     val offeringIds: List<String> = emptyList(), val disabledReason: String? = null,
+    val guideCandidates: List<GuideMapping> = emptyList(),
 )
 
 /**

@@ -70,7 +70,11 @@ class LiveRuntime(
                 val feeds = FeedService(sources.providers, store, http, clock, policy, providers) { logos.requestSweep(); lineupInputsChanged("feeds") }
                 feeds.initialize()
                 lateinit var lineup: LineupService
-                val guides = GuideService(sources.allGuides, store, http, clock, policy, providers, onImported = { policyService?.requestRun("guides") }) { lineup.wanted() }
+                val guides = GuideService(sources.allGuides, store, http, clock, policy, providers, onImported = { policyService?.requestRun("guides") }) {
+                    val mapped = lineup.wanted()
+                    val extra = policyService?.wantedGuides().orEmpty()
+                    if (extra.isEmpty()) mapped else (mapped.keys + extra.keys).associateWith { id -> mapped[id].orEmpty() + extra[id].orEmpty() }
+                }
                 guides.initialize()
                 lineup = LineupService(store, clock, feeds, guides) { logos.requestSweep() }
                 lineup.initialize()

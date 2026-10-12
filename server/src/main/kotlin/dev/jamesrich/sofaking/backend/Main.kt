@@ -25,7 +25,7 @@ fun main(): Unit = runBlocking<Unit> {
     val ports = listOf(config.port) + if (config.hdhr.enabled) config.hdhr.extraPorts else emptyList()
     val plexStatus = runtime.plex?.let { sync -> PlexStatusSource { sync.status() } }
     val server = embeddedServer(Netty, configure = { ports.forEach { p -> connector { host = config.host; port = p } } }) {
-        backendModule(store, Clock.systemUTC(), runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr, plexStatus)
+        backendModule(store, Clock.systemUTC(), runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr, plexStatus, config)
     }
     // The JVM halts as soon as its shutdown hooks return, so the hook itself runs the whole ordered close.
     val closed = AtomicBoolean(false)

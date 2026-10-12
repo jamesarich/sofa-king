@@ -140,6 +140,9 @@ form.inline{display:inline}
 .kv{display:grid;grid-template-columns:minmax(120px,max-content) 1fr;gap:6px 16px;margin:0}
 .kv dt{color:var(--mauve)}
 .kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.settings{display:grid;gap:12px;margin:0}
+.setting .name{color:var(--mauve);font-size:.78rem;letter-spacing:.02em}
+.setting .val{margin-top:2px;overflow-wrap:anywhere}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .tag{display:inline-flex;align-items:center;gap:2px;background:var(--plum-raised);border:1px solid var(--line);border-radius:999px;padding:0 2px 0 10px;font-size:.85rem;min-height:30px}
 .tag button{min-height:26px;padding:0 8px;background:transparent;border:0;color:var(--mauve);font-weight:700}

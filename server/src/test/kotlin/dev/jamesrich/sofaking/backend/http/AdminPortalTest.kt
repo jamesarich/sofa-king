@@ -21,6 +21,7 @@ class AdminPortalTest {
     private val token = "secret".repeat(8)
     private val admin = "curator".repeat(6)
     private val outputToken = "output".repeat(6)
+    private val plexToken = "plexsecret".repeat(3)
     private val basePolicy = """{"names":{"version":1},"health":{"requireVerified":false},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
 
     private class Setup(val policyFile: Path?, val runtime: LiveRuntime, val browser: HttpClient)
@@ -41,7 +42,9 @@ class AdminPortalTest {
             val config = ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin, policyFile = policyFile)
             val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000, probes = false)
             try {
-                application { backendModule(store, MutableClock(), runtime, token, admin, OutputConfig(outputToken)) }
+                // The portal is told of a Plex token and the output token the runtime never uses, so redaction is checked against them.
+                val shown = config.copy(outputs = OutputConfig(outputToken), plex = PlexConfig("http://127.0.0.1:32400", plexToken))
+                application { backendModule(store, MutableClock(), runtime, token, admin, OutputConfig(outputToken), config = shown) }
                 for (provider in runtime.feeds.configs) runtime.feeds.refresh(provider)
                 val extraGuides = guides(fixture).map { it.id }.toSet()
                 for (guide in runtime.guides.configs.filter { it.id in extraGuides }) runtime.guides.refresh(guide)
@@ -251,7 +254,9 @@ class AdminPortalTest {
             val html = page.bodyAsText()
             assertTrue(html.contains("Sources, in failover order") && html.contains("twin"))
             assertFalse(html.contains("/twin-feed.m3u"), "source URLs stay off the page")
-            assertEquals(HttpStatusCode.NotFound, browser.get("/admin/lineup/not-a-station").status)
+            val gone = browser.get("/admin/lineup/not-a-station")
+            assertEquals(HttpStatusCode.Gone, gone.status)
+            assertTrue(gone.bodyAsText().contains("Channel not found"))
 
             val saved = browser.post("/admin/lineup/${twin.id}/edit", "name" to "Twin Sports West", "number" to twin.number, "group" to "", "q" to "twin", "csrf" to field(html, "csrf"))
             assertEquals(HttpStatusCode.SeeOther, saved.status)
@@ -279,6 +284,45 @@ class AdminPortalTest {
             assertTrue(body.contains("Not saved:") && body.contains("is claimed by"), body)
             assertTrue(body.contains("name=\"number\""), "the form comes back to correct")
             assertNotEquals(other.number, runtime.lineup.entry(id)!!.number)
+        }
+    }
+
+    @Test fun `settings show the effective configuration with every secret redacted`() = testApplication {
+        val query = "sekret".repeat(6)
+        portal(basePolicy, feeds = { listOf(it.feed, it.altFeed, it.twinFeed, it.tsFeed.copy(playlistUrl = it.tsFeed.playlistUrl + "?auth=$query", headers = mapOf("X-Key" to query))) }) {
+            runtime.policy!!.apply("test")
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/settings").status)
+            browser.signIn()
+            val html = browser.get("/admin/settings").bodyAsText()
+            for (secret in listOf(admin, token, outputToken, plexToken, query)) assertFalse(html.contains(secret), "a secret reached the page")
+            for (shown in listOf("SOFA_ADMIN_TOKEN", "SOFA_PLEX_URL", "http://127.0.0.1:32400", "policy.json", "headers: X-Key", "Change log")) assertTrue(html.contains(shown), shown)
+            assertTrue(html.contains("Twin Sports"), "the change log lists the stations the run added")
+        }
+    }
+
+    @Test fun `apply now runs the policy behind the session and the CSRF token`() = testApplication {
+        portal(basePolicy) {
+            assertEquals(HttpStatusCode.Unauthorized, browser.post("/admin/policy/apply").status)
+            browser.signIn()
+            val html = browser.get("/admin/settings").bodyAsText()
+            assertEquals(HttpStatusCode.Forbidden, browser.post("/admin/policy/apply").status)
+            assertNull(runtime.policy!!.lastApplied(), "a refused apply runs nothing")
+            val applied = browser.post("/admin/policy/apply", "csrf" to field(html, "csrf"))
+            assertEquals(HttpStatusCode.SeeOther, applied.status)
+            assertEquals("/admin/settings", applied.headers[HttpHeaders.Location])
+            assertNotNull(runtime.policy!!.lastApplied())
+            assertTrue(browser.get("/admin/settings").bodyAsText().contains("Applied the policy:"))
+        }
+    }
+
+    @Test fun `apply now without a policy says so`() = testApplication {
+        portal {
+            browser.signIn()
+            val html = browser.get("/admin/settings").bodyAsText()
+            assertTrue(html.contains("No lineup policy"))
+            val response = browser.post("/admin/policy/apply", "csrf" to field(html, "csrf"))
+            assertEquals(HttpStatusCode.Conflict, response.status)
+            assertTrue(response.bodyAsText().contains("No lineup policy is configured."))
         }
     }
 

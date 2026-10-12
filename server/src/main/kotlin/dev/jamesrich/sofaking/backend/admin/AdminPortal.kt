@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.admin
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.OutputConfig
+import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
@@ -52,6 +53,8 @@ class AdminPortal(
     private val hdhr: HdhrConfig,
     private val clock: Clock,
     private val plexStatus: PlexStatusSource? = null,
+    /** The settings the server started with, for the settings page; null leaves that section out. */
+    private val config: ServerConfig? = null,
 ) {
     val sessions = AdminSessions(clock)
 
@@ -110,7 +113,8 @@ class AdminPortal(
             get("/lineup/{id}") {
                 val session = call.session()
                 val view = stationView(call.parameters["id"]!!, LineupFilter.from(call.request.queryParameters))
-                if (view == null) call.html(goneStationPage(chrome(session)), HttpStatusCode.NotFound) else call.html(stationPage(chrome(session), view))
+                // 404 would be replaced by the API's JSON error page.
+                if (view == null) call.html(goneStationPage(chrome(session)), HttpStatusCode.Gone) else call.html(stationPage(chrome(session), view))
             }
             action("/lineup/{id}/visibility") { session, form ->
                 val enabled = form["enabled"]?.toBooleanStrictOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "enabled must be true or false")
@@ -137,6 +141,21 @@ class AdminPortal(
             get("/providers") { call.html(providersPage(chrome(call.session()), providersView())) }
             get("/plex") { call.html(plexPage(chrome(call.session()), plexView(call, reveal = false))) }
             action("/plex/reveal") { session, _ -> call.html(plexPage(chrome(session), plexView(call, reveal = true))) }
+            get("/settings") {
+                val limit = call.request.queryParameters["changes"]?.toIntOrNull()?.coerceIn(1, 1000) ?: 50
+                call.html(settingsPage(chrome(call.session()), settingsView(limit)))
+            }
+            action("/policy/apply") { session, _ ->
+                val policy = runtime.policy
+                if (policy == null) {
+                    call.html(settingsPage(chrome(session, Flash("No lineup policy is configured.", Tone.BAD)), settingsView(50)), HttpStatusCode.Conflict)
+                    return@action
+                }
+                val result = policy.apply("api")
+                val summary = "${thousands(result.enabledStations)} on of ${thousands(result.stations)}, " + if (result.changed) plural(result.changes, "field") + " changed." else "no change."
+                session.flash.set(Flash("Applied the policy: $summary", if (result.findings.any { it.startsWith("feeds:") }) Tone.WARN else Tone.OK))
+                seeOther(call, "/admin/settings")
+            }
         }
     }
 
@@ -360,6 +379,19 @@ class AdminPortal(
             ProviderRow(status, kind, entries.orEmpty().withIndex().filter { it.value.id == status.id })
         }
         return ProvidersView(rows, runtime.guides.statuses(), entries, document?.revision, led)
+    }
+
+    private suspend fun settingsView(changeLimit: Int): SettingsView {
+        val policy = runtime.policy
+        val document = policy?.document()
+        return SettingsView(
+            config?.let(::effectiveSettings).orEmpty(),
+            runtime.feeds.configs.map(::providerSummary),
+            runtime.guides.configs.map(::guideSummary),
+            document?.let { PolicySummary(it.path, it.revision, it.policy, policy.lastApplied()?.result) },
+            policy?.changes(changeLimit).orEmpty(),
+            changeLimit,
+        )
     }
 
     private suspend fun plexView(call: ApplicationCall, reveal: Boolean): PlexView {

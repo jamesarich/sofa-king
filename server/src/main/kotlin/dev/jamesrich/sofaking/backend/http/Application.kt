@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.admin.PlexStatusSource
 import dev.jamesrich.sofaking.backend.admin.isPortalPath
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.OutputConfig
+import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.hash
@@ -42,9 +43,11 @@ fun Application.backendModule(
     outputs: OutputConfig = OutputConfig(),
     hdhr: HdhrConfig = HdhrConfig(),
     plexStatus: PlexStatusSource? = null,
+    /** The settings the server started with, which the portal's settings page shows with every token redacted. */
+    config: ServerConfig? = null,
 ) {
     // The portal signs in with the admin token, or the API token when no admin token is set.
-    val portal = runtime?.let { AdminPortal(it, adminToken ?: apiToken, outputs, hdhr, clock, plexStatus) }
+    val portal = runtime?.let { AdminPortal(it, adminToken ?: apiToken, outputs, hdhr, clock, plexStatus, config) }
     install(ContentNegotiation) { json(wireJson) }
     install(Compression) {
         gzip { priority = 1.0 }

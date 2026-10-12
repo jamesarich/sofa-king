@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -118,6 +119,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     // One player for the guide preview and the full screen, so OK on the previewed channel continues its stream,
     // and one server session behind it, promoted from preview to watch in place.
     val context = LocalContext.current
+    val resources = LocalResources.current
     val captionSync = remember { CaptionSync() }
     val player = remember { buildLivePlayer(context, captionSync) }
     val sessions = vm.sessions
@@ -212,7 +214,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 },
                 reloadLineup = vm::reloadLineup,
                 onChannelGone = { channel ->
-                    notice = context.getString(R.string.channel_gone, channel.label())
+                    notice = resources.getString(R.string.channel_gone, channel.label())
                     screen = Screen.Guide(returnedFrom = watching)
                 },
                 captionsEnabled = settings?.captionsEnabled ?: false,

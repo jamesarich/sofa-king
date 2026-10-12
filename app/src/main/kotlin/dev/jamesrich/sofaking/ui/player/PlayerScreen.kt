@@ -38,6 +38,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -133,6 +134,7 @@ fun PlayerScreen(
     smoothCaptions: Boolean = true,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val channels = lineup.channels
     val currentChannels by rememberUpdatedState(channels)
     val currentOnChannelChanged by rememberUpdatedState(onChannelChanged)
@@ -565,9 +567,9 @@ fun PlayerScreen(
                 currentChannels.getOrNull(index)?.let { channel ->
                     val title = lineup.nowAndNext(channel, now).first?.title
                     contentDescription = if (title == null) {
-                        context.getString(R.string.now_playing_channel, channel.label())
+                        resources.getString(R.string.now_playing_channel, channel.label())
                     } else {
-                        context.getString(R.string.now_playing, channel.label(), title)
+                        resources.getString(R.string.now_playing, channel.label(), title)
                     }
                 }
             }

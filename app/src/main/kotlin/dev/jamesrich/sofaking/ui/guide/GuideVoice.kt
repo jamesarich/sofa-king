@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import dev.jamesrich.sofaking.R
 
 /** The query the recognizer heard: its first non-blank result when it finished, else null (dismissed or heard nothing). */
@@ -28,7 +29,7 @@ internal fun rememberVoiceSearch(onResult: (String?) -> Unit): () -> Boolean {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         currentOnResult(voiceQuery(result.resultCode == Activity.RESULT_OK, result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)))
     }
-    val prompt = context.getString(R.string.guide_search_voice_prompt)
+    val prompt = stringResource(R.string.guide_search_voice_prompt)
     return {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)

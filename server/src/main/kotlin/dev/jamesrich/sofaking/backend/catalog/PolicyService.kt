@@ -309,11 +309,25 @@ class PolicyService(
         return apply("never-merge")
     }
 
-    /** Adds `names.aliases[from] = to`, then applies. */
+    /**
+     * Adds `names.aliases[from] = to`, then applies. An override keyed by [from] cannot stay under an alias: one
+     * that holds only a number goes, as with a learned alias; any other moves to [to], keeping [to]'s number.
+     */
     suspend fun addAlias(from: String, to: String, ifMatch: String?): PolicyApplyResult {
         if (from.isBlank() || to.isBlank()) throw ApiFailure(400, "INVALID_REQUEST", "An alias takes two keys")
         file.edit(ifMatch) { tree ->
-            editNames(tree) { names ->
+            val stations = (tree["stations"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+            val merged = stations.remove(from) as? JsonObject
+            if (merged != null && !numberOnlyOverride(merged)) {
+                val kept = stations[to] as? JsonObject
+                if (kept != null && !numberOnlyOverride(kept)) {
+                    throw ApiFailure(409, "STATION_CONFLICT", "\"$from\" and \"$to\" both have station settings; combine them under \"$to\" first")
+                }
+                val number = kept?.get("number")?.takeUnless { it is JsonNull }
+                stations[to] = if (number == null) merged else JsonObject(merged + ("number" to number))
+            }
+            val moved = JsonObject(tree.toMutableMap().apply { put("stations", JsonObject(stations.toSortedMap())) })
+            editNames(moved) { names ->
                 val aliases = (names["aliases"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
                 aliases[from] = JsonPrimitive(to)
                 names["aliases"] = JsonObject(aliases.toSortedMap())
@@ -368,6 +382,11 @@ private fun pinJson(pin: SourcePin): JsonObject = buildJsonObject {
     put("provider", pin.provider)
     pin.tvgId?.let { put("tvgId", it) }
     pin.name?.let { put("name", it) }
+}
+
+/** A station override in the file whose only setting is its number; nulls and the defaults count as unset. */
+private fun numberOnlyOverride(station: JsonObject): Boolean = station.all { (field, value) ->
+    field == "number" || value is JsonNull || (value is JsonArray && value.isEmpty()) || (field == "required" && value == JsonPrimitive(false))
 }
 
 private fun editStation(tree: JsonObject, key: String, edit: (MutableMap<String, JsonElement>) -> Unit): JsonObject {

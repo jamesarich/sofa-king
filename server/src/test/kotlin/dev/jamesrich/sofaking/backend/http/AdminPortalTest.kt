@@ -356,6 +356,35 @@ class AdminPortalTest {
         }
     }
 
+    @Test fun `accepting a merge folds the merged-away key's override into the kept one`() = testApplication {
+        val stations = """{"numberonly":{"number":"870","required":false,"sources":[]},"keptnumber":{"number":"1976"},""" +
+            """"named":{"name":"Renamed"},"plain":{"number":"40"},"both":{"name":"One"},"other":{"group":"Sports"}}"""
+        portal(basePolicy.dropLast(1) + ""","stations":$stations}""") {
+            browser.signIn()
+            suspend fun accept(from: String, to: String): HttpResponse {
+                val page = browser.get("/admin/groups").bodyAsText()
+                return browser.post("/admin/merges/accept", "from" to from, "to" to to, "csrf" to field(page, "csrf"))
+            }
+            assertEquals(HttpStatusCode.SeeOther, accept("numberonly", "keptnumber").status)
+            var saved = stationsIn(policyFile!!)
+            assertNull(saved["numberonly"], "an override holding only a number goes with its key")
+            assertEquals("1976", saved["keptnumber"]!!.jsonObject["number"]!!.jsonPrimitive.content)
+            assertEquals("keptnumber", policyJson(policyFile)["names"]!!.jsonObject["aliases"]!!.jsonObject["numberonly"]!!.jsonPrimitive.content)
+
+            assertEquals(HttpStatusCode.SeeOther, accept("named", "plain").status)
+            saved = stationsIn(policyFile)
+            assertNull(saved["named"])
+            assertEquals("Renamed", saved["plain"]!!.jsonObject["name"]!!.jsonPrimitive.content, "other settings move to the kept key")
+            assertEquals("40", saved["plain"]!!.jsonObject["number"]!!.jsonPrimitive.content, "the kept key's number stays")
+
+            val before = Files.readString(policyFile)
+            val refused = accept("both", "other")
+            assertEquals(HttpStatusCode.Conflict, refused.status)
+            assertTrue(refused.bodyAsText().contains("both have station settings"), "the reason shows inline")
+            assertEquals(before, Files.readString(policyFile), "nothing is written")
+        }
+    }
+
     @Test fun `a number block is written into the policy and applied`() = testApplication {
         portal(basePolicy) {
             runtime.policy!!.apply("test")

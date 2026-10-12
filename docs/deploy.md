@@ -225,9 +225,9 @@ ssh HOST 'cd /srv/sofa-king-backend && gunzip -c sofa-king-backend.tar.gz | dock
 
 `--no-build` runs the image already on the host; there is no repository checkout there for the `build` section to point at.
 
-## Move a database from a /data volume
+## Move from a /data volume
 
-A server whose database is in a `/data` volume, with `sources.json` and `policy/policy.json` mounted beside it, moves into the config folder like this. The image refuses to start on an empty `/config` while a database is mounted at `/data`, so an image that reaches the host first fails its health check and the updater puts the previous one back. From the Compose directory:
+These steps move a server whose database is in a Docker volume mounted at `/data`, with `sources.json` and `policy/policy.json` mounted beside it, into the config folder. The image refuses to start while a database is mounted at `/data` and `/config` holds none, so stop the updater first. From the Compose directory:
 
 ```sh
 sudo systemctl stop sofa-king-update.timer
@@ -249,15 +249,4 @@ Then:
 
 ## Troubleshooting
 
-| Symptom | Check |
-| --- | --- |
-| The container exits at once; the log says `/config is not writable by the user the server runs as` | `config` belongs to another user. Set `UID` and `GID` in `.env` to its owner, or `chown` it to them. Docker creates a missing bind-mount folder as root, so create it before the first start. |
-| The container exits at once; the log says `must contain at least 32 characters` | A token set in `.env` or its file is too short. The output token needs 32 letters, digits, hyphens or underscores. |
-| The container exits at once; the log says `Set SOFA_API_TOKEN or SOFA_API_TOKEN_FILE, not both` | Remove one of the two from `.env`. The same holds for each `_FILE` variable. |
-| The container exits at once; the log says `/data/backend.sqlite exists but SOFA_DATA_DIR (/config) holds no database` | Move the database as [move a database from a /data volume](#move-a-database-from-a-data-volume) describes. |
-| The container exits at once; the log says `Source configuration references unset variable` | `config/sources.json` uses `${NAME}` for a variable that `.env` does not set. |
-| The container exits at once; the log says `Not an IP address or CIDR block` | `SOFA_HDHR_ALLOW` holds a placeholder or a hostname. List the Plex server's IP address. |
-| The admin token is not in the log | No token is logged. Read it with `docker compose exec sofa-king-backend cat /config/secrets.json`, or sign in and reveal the API token in Settings. |
-| A provider shows `IMPORT_FAILED` for a feed on the Docker host | Use `host.docker.internal` or the LAN address. Loopback is refused. |
-| `/api/v1/channels` is empty | The lineup has not been built yet. See [lineup](live-tv.md#lineup). |
-| Sources stay `UNVERIFIED` | Check `docker compose logs` for probe outcomes. |
+[Troubleshooting](troubleshooting.md) covers a container that does not start, tokens, ports, registry access, reverse proxies and Plex.

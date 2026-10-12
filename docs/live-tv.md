@@ -1,6 +1,6 @@
 # Live TV: configuration, lineup and sources
 
-This page is the configuration reference for the server: every environment variable, the source file that lists providers and guides, how sources and channels are identified, the lineup, the player outputs and Plex, and the troubleshooting table.
+This page is the configuration reference for the server: every environment variable, the source file that lists providers and guides, how sources and channels are identified, the lineup, the player outputs and Plex.
 
 ## Server settings
 
@@ -242,27 +242,6 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 
 FFmpeg reads sources itself for probes and for the Plex remux. It is started with `-protocol_whitelist http,https,tcp,tls,crypto`, so a playlist that names `file:`, `concat:` or another protocol fails instead of reading files on the server.
 
-## When things get Sofa King weird
+## Troubleshooting
 
-| Symptom | Check |
-| --- | --- |
-| `/api/v1/channels` is empty | The lineup is empty or every entry is disabled. Set a [lineup policy](lineup-policy.md) or adopt a provider. `GET /api/v1/admin/lineup` shows the entries. |
-| No candidates | Add `sources.json` to `SOFA_DATA_DIR` or set `SOFA_SOURCES`, inspect `/api/v1/providers` for `IMPORT_FAILED`, and check the playlist URL and format. |
-| Import stays unchanged | A failed or empty import preserves the previous snapshot. Check provider status and `allowEmpty`. |
-| Channel has no guide | Check the entry's `guide` mapping against `GET /api/v1/admin/guides/GUIDE_ID/channels`. A mapping changed moments ago is filled on the next guide fetch. `IMPORT_FAILED` on `/api/v1/admin/guides` means that guide's fetch or parse failed. |
-| Entry source shows `WITHDRAWN` | The provider no longer lists that stream. The entry keeps the reference. Replace the source when the provider offers a new URL. |
-| Extensionless HLS answers `410 STREAM_CHANGED` once | The source has not been probed yet. The first fetch detects HLS, stores it and bumps the epoch, so fetch the session again. The source keeps the detected protocol across restarts. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, so unprobed sources start right. |
-| Startup rejects a token | A token set in the environment or read from its `_FILE` needs at least 32 characters. Unset, the API and admin tokens are generated on a LAN bind. |
-| The admin token is not in the log | No token is logged. The start that generates it logs where it is kept. Read `adminToken` from `SOFA_DATA_DIR/secrets.json`. |
-| `401 AUTH_REQUIRED` | Send the configured token in the Authorization header. Admin routes need the admin token when one is configured. |
-| `429 CAPACITY_EXHAUSTED` | Every slot holds a watch session. Release unused sessions or wait for their 90-second leases to expire. Previews and idle player sessions are evicted automatically. |
-| A player gets `401` on the playlist URL | `SOFA_OUTPUT_TOKEN` is unset or the `token` query differs. The API token opens `/output/*` only as a bearer header. |
-| A player plays a channel as the wrong type after a probe | The stream suffix follows the stored protocol. Refresh the playlist in the player. |
-| A channel shows no logo | `curl -i http://SERVER_HOST:PORT/logos/KEY` with the key from the playlist. `404` means the source was refused: a loopback or link-local address, a non-image content type, a body over 2 MiB, or an error. The log has `logo fetch failed key=KEY class=... message="..."` with the reason, URLs redacted. The source is retried an hour later. `GET /api/v1/admin/lineup/ENTRY_ID` shows the source URL. |
-| Plex does not find the tuner | Plex discovers devices by SSDP, which is not implemented. Enter `SERVER_HOST:PORT` manually. `curl http://SERVER_HOST:PORT/discover.json` from the Plex host answers `403` when `SOFA_HDHR_ALLOW` leaves Plex out, and `404` when `SOFA_HDHR_ENABLED=false`. |
-| Plex says all tuners are in use | `SOFA_HDHR_TUNERS` streams are open, every `SOFA_MAX_SESSIONS` slot is taken, or the channel has no eligible source. Check `GET /api/v1/admin/lineup/ENTRY_ID`. |
-| A Plex channel plays for a moment and stops | FFmpeg ended the remux. The server log has `remux ended exit=` with FFmpeg's last lines, URLs removed. |
-| Plex channels lag the lineup | Check `lastError` and `findings` in `GET /api/v1/admin/plex`. `answered 401` means `SOFA_PLEX_TOKEN` is wrong; a device listed in `missingDevices` is not in any DVR. `POST /api/v1/admin/plex/sync` runs a sync now. |
-| `503 SOURCE_UNAVAILABLE` | Inspect `GET /api/v1/admin/lineup/ENTRY_ID` for the entry's source states, or `/api/v1/sources` for quarantine, probation or manual disable. |
-| A channel vanished from the lineup | `GET /api/v1/admin/lineup/ENTRY_ID`: `autoDisabledAt` set means the lineup policy turned it off for want of an eligible source (`autoDisabledReason` `unavailable`). `GET /api/v1/admin/policy/changes` has the change and `GET /api/v1/admin/stations/KEY` the station's candidates. |
-| Sources never qualify | Check FFmpeg availability, the `probe` setting, and whether the feed has credential or custom headers. |
+[Troubleshooting](troubleshooting.md) covers empty lineups, imports, sources, the guide, players, logos and Plex.

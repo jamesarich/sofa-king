@@ -56,6 +56,6 @@ Details are in [live TV: upstream addresses and provider headers](docs/live-tv.m
 - Set `SOFA_HDHR_ALLOW` to the address of the Plex server, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 - Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens, and the source file can hold feed URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
 - With [automatic updates](docs/deploy.md#update-automatically), log Docker in to the registry with a token that has only the `read:packages` scope. The updater's database backups hold the same session tokens as the database and are readable by root alone.
-- [Verify the published image](docs/deploy.md#verify-the-published-image) before you run it.
+- [Inspect the published image's provenance and SBOM](docs/deploy.md#inspect-the-published-image) before you run it.
 - Use HTTPS, through a reverse proxy, for any token that crosses a network you do not control.
 - Rotate tokens with the steps in [operations](docs/operations.md#rotating-tokens).

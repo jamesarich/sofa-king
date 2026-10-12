@@ -26,7 +26,7 @@ Sofa King Backend is a self-hosted live TV server for a home network. It builds 
 - A logo cache, so every client loads logos from this server
 - A JSON API with a Kotlin client module ([API](docs/api.md))
 - An [admin portal](docs/admin.md) at `/admin` that shows what needs attention and edits channels, merges, groups and provider priority
-- A Docker image for `linux/amd64` and `linux/arm64`, with an SBOM and a build attestation
+- A Docker image for `linux/amd64` and `linux/arm64`, with an SBOM and build provenance
 
 The server has no DVR of its own.
 

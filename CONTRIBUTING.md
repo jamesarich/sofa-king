@@ -18,7 +18,7 @@ The tests generate real HLS fixtures with FFmpeg, so FFmpeg must be on the path.
 The [Image workflow](.github/workflows/image.yml) runs on every pull request and on every push to `main`, in two jobs:
 
 - `test` runs `./gradlew test :server:installDist` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. On a pull request it also builds the image for `linux/amd64` without pushing it.
-- `publish` runs only for `main`, after `test` passes. It builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to `ghcr.io/jamesarich/sofa-king-backend` as `:main` and `:sha-<commit>`. The push carries an SBOM, build provenance and a GitHub build attestation, which [deploy](docs/deploy.md#verify-the-published-image) shows how to check. Hosts with [automatic updates](docs/deploy.md#update-automatically) install that image.
+- `publish` runs only for `main`, after `test` passes. It builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to `ghcr.io/jamesarich/sofa-king-backend` as `:main` and `:sha-<commit>`. The push carries a BuildKit SBOM and max-mode build provenance, which [deploy](docs/deploy.md#inspect-the-published-image) shows how to inspect. Hosts with [automatic updates](docs/deploy.md#update-automatically) install that image.
 
 [Renovate](renovate.json) opens the dependency, base image and workflow action updates as pull requests, which run the same `test` job.
 

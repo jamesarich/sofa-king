@@ -174,15 +174,16 @@ cd deploy && docker compose up -d --no-build
 
 Docker pulls the variant for the host, so the same tag serves `amd64` and `arm64` hosts.
 
-### Verify the published image
+### Inspect the published image
 
-Each published image carries an SBOM and build provenance, and a GitHub build attestation signed for this repository. With the [GitHub CLI](https://cli.github.com/) signed in to an account that can read the repository, check that an image was built by this repository's workflow:
+Each published image, for `linux/amd64` and `linux/arm64`, carries a BuildKit SBOM and max-mode build provenance in the registry. The provenance records how the image was built, including the source repository, the commit and the build arguments. The SBOM lists the packages inside the image. With Docker logged in to `ghcr.io`, print them:
 
 ```sh
-gh attestation verify oci://ghcr.io/jamesarich/sofa-king-backend:main -R jamesarich/sofa-king-backend
+docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king-backend:main --format '{{json .Provenance}}'
+docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king-backend:main --format '{{json .SBOM}}'
 ```
 
-The command prints the workflow and commit that built the image, and fails for an image this repository did not build. `docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king-backend:main --format '{{json .SBOM}}'` prints the SBOM, the packages inside the image.
+Compare the commit in the provenance with the `org.opencontainers.image.revision` label of the image you run.
 
 ## Update automatically
 

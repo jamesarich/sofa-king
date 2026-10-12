@@ -5,7 +5,7 @@
 | Page | What it covers |
 | --- | --- |
 | [Getting started](getting-started.md) | From `docker compose up` to a channel playing in Plex, the Sofa King app or an M3U player |
-| [Deploy with Docker](deploy.md) | The quick start, the config folder, running as your own user, secrets, reverse proxies, the published image and its attestation, and automatic updates |
+| [Deploy with Docker](deploy.md) | The quick start, the config folder, running as your own user, secrets, reverse proxies, the published image and its provenance, and automatic updates |
 | [Build a starter lineup](starter-lineup.md) | From an empty server to a grouped lineup of the free services with fallbacks across them, plus your local channels |
 | [Admin portal](admin.md) | The web pages at `/admin`: the overview, channel edits, merges, required stations, groups and provider priority, Plex and the effective settings |
 | [Operations](operations.md) | State and backups, restore, upgrades and rollback, monitoring, logs, native provider failures and token rotation |

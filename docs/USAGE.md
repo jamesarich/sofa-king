@@ -22,7 +22,7 @@ The app shows its saved lineup while refreshing. Channels load before guide data
 | Channel Up / Down | Move a page (4 rows) | Next / previous channel |
 | Captions (CC) | — | Toggle captions |
 | Play/Pause | — | Pause or resume; resume after 30 seconds returns to live |
-| Digits | Move to the row with that number; OK or a short pause commits | Enter a channel number, then press OK |
+| Digits | Move to the row with that number, showing All when the filter hides it; OK or a short pause commits | Enter a channel number, then press OK |
 | Previous / Last | — | Return to the previously watched channel, also after picking a channel in the guide |
 | Info | — | Toggle the info bar |
 | Guide / Menu | Jump to Now | Open the guide at Now |

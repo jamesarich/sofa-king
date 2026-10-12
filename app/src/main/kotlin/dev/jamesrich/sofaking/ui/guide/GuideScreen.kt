@@ -122,6 +122,9 @@ private const val GUIDE_PAGE_ROWS = 4
 /** The player's digit entry timeout, so typed channel numbers commit in the same time in both screens. */
 private const val GUIDE_DIGIT_COMMIT_MS = 1_500L
 
+/** How long "No channel N" shows, as in the player. */
+private const val GUIDE_NUMBER_MISS_MS = 2_000L
+
 /** Asks the row for [guideId] to focus the cell covering window [minute]. [nonce] keeps each request distinct. */
 internal data class GuideJump(val guideId: String, val minute: Long, val nonce: Int)
 
@@ -342,13 +345,43 @@ fun GuideScreen(
         }
     }
 
-    // Typed channel digits, as the player takes them. Digits are judged on the rows on screen, and OK or the
-    // entry timeout commits them to the row with that number; no match clears them without a notice.
+    // A filter change starts the list at the focused channel, or at the top when the filter hides it, rather
+    // than at the old filter's scroll index. A number typed for a hidden channel switches to All and moves
+    // to its row here once the list has changed. Skipped until the first focus has landed, which places
+    // the list itself.
+    var listedFilter by remember { mutableStateOf(activeFilter) }
+    var numberJump by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(activeFilter, numberJump) {
+        if (listedFilter == activeFilter && numberJump == null) return@LaunchedEffect
+        listedFilter = activeFilter
+        if (!initialFocusDone) return@LaunchedEffect
+        val jumpRow = numberJump?.let { id -> visible.indexOfFirst { it.guideId == id } } ?: -1
+        numberJump = null
+        if (jumpRow >= 0) focusRow(jumpRow) else listState.scrollToItem(firstItemAfterFilter(visible, focused?.channel?.guideId))
+    }
+
+    // Typed channel digits, as the player takes them. OK or the entry timeout commits them to the row with
+    // that number, switching to All when the filter hides it; no channel with that number shows a notice.
     var numberEntry by remember { mutableStateOf(ChannelNumberEntry()) }
+    var numberMiss by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(numberMiss) {
+        if (numberMiss == null) return@LaunchedEffect
+        delay(GUIDE_NUMBER_MISS_MS)
+        numberMiss = null
+    }
     val commitNumberEntry: () -> Unit = {
         val pending = numberEntry
         numberEntry = ChannelNumberEntry()
-        if (!searchOpen) pending.indexIn(visible)?.let(focusRow)
+        if (!searchOpen && pending.digits.isNotEmpty()) {
+            when (val target = guideNumberTarget(pending, visible, lineup.channels)) {
+                is GuideNumberTarget.Row -> focusRow(target.index)
+                is GuideNumberTarget.Hidden -> {
+                    filter = GuideFilter.All
+                    numberJump = target.guideId
+                }
+                GuideNumberTarget.Missing -> numberMiss = pending.digits
+            }
+        }
     }
     val currentCommit by rememberUpdatedState(commitNumberEntry)
     LaunchedEffect(numberEntry) {
@@ -634,8 +667,11 @@ fun GuideScreen(
                 }
             }
         }
+        val miss = numberMiss
         if (numberEntry.digits.isNotEmpty()) {
             Box(Modifier.align(Alignment.TopEnd)) { DigitsBadge(numberEntry.digits) }
+        } else if (miss != null) {
+            Box(Modifier.align(Alignment.TopEnd)) { DigitsBadge(stringResource(R.string.no_channel_number, miss)) }
         }
     }
 }

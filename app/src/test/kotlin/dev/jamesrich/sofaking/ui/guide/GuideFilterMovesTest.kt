@@ -1,0 +1,42 @@
+package dev.jamesrich.sofaking.ui.guide
+
+import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class GuideFilterMovesTest {
+    private fun channel(id: String, group: String = "News") = Channel(id, id.toDouble(), "Ch $id", null, group)
+    private val all = listOf(channel("100"), channel("101"), channel("300", "Sports"), channel("301", "Sports"))
+    private val news = all.filter { it.group == "News" }
+
+    private fun typed(digits: String) = digits.fold(ChannelNumberEntry()) { entry, c -> entry.append(c.digitToInt()) }
+
+    @Test
+    fun `a number on screen moves to its row`() {
+        assertEquals(GuideNumberTarget.Row(1), guideNumberTarget(typed("101"), news, all))
+    }
+
+    @Test
+    fun `a number the filter hides still finds its channel`() {
+        assertEquals(GuideNumberTarget.Hidden("300"), guideNumberTarget(typed("300"), news, all))
+    }
+
+    @Test
+    fun `a number no channel has is a miss`() {
+        assertEquals(GuideNumberTarget.Missing, guideNumberTarget(typed("999"), news, all))
+    }
+
+    @Test
+    fun `a filter change keeps the focused channel in its slot when it is still listed`() {
+        assertEquals(2 - FOCUS_ROW_SLOT, firstItemAfterFilter(all, "300"))
+        assertEquals(0, firstItemAfterFilter(all, "100"))
+    }
+
+    @Test
+    fun `a filter change that hides the focused channel starts at the top`() {
+        val sports = all.filter { it.group == "Sports" }
+        assertEquals(0, firstItemAfterFilter(sports, "101"))
+        assertEquals(0, firstItemAfterFilter(sports, null))
+    }
+}

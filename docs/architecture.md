@@ -83,7 +83,7 @@ When the upstream ends or fails, the relay reconnects with backoff from 0.5 to 8
 
 ## Supported scope
 
-Configured HTTP(S) feeds and guides, JSON control and admin requests, HLS/MPEG-TS passthrough, M3U/XMLTV output with per-channel stream URLs for third-party players, cached lineup logos served from this server, HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, and FFmpeg source qualification are supported. Recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery, web administration, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
+Configured HTTP(S) feeds and guides, native provider clients, the lineup policy, JSON control and admin requests, the admin portal, HLS/MPEG-TS passthrough, M3U/XMLTV output with per-channel stream URLs for third-party players, cached lineup logos served from this server, HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification are supported. Recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
 
 ## Operations
 

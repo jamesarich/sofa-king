@@ -89,7 +89,7 @@ class GenerateTest(unittest.TestCase):
         self.assertEqual({'requireVerified': True}, policy['health'])
         numbering = policy['numbering']
         self.assertEqual(400, numbering['groupSize'])
-        self.assertEqual({'Local': 1, 'Local News (US)': 30, 'News': 100, 'Sports': 300, 'En Español': 600, 'Entertainment': 700,
+        self.assertEqual({'Local': 1, 'Local News (US)': 10, 'News': 100, 'Sports': 300, 'En Español': 600, 'Entertainment': 700,
                           'Drama': 900, 'Classic TV': 1050, 'Movies': 1200, 'Sci-Fi & Horror': 1400, 'Comedy': 1500, 'Crime': 1600,
                           'Documentary': 1700, 'Lifestyle': 1850, 'Food & Travel': 2100, 'Kids & Family': 2200, 'Anime': 2300,
                           'Music': 2350, 'Game Shows': 2500, 'Faith': 2550, 'Shopping': 2580, 'Ambiance': 2600}, numbering['groups'])

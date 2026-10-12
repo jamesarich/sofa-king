@@ -34,7 +34,7 @@ Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conven
 
 ## Dependencies
 
-Versions are pinned in `gradle/libs.versions.toml`, resolved versions are locked, and Gradle checks every artifact against the checksums in `gradle/verification-metadata.xml`. A dependency change updates all three. The [dependencies](docs/dependencies.md) page lists the current versions and the update steps.
+Versions are pinned in `gradle/libs.versions.toml`, resolved versions are locked, and Gradle checks every artifact against the checksums in `gradle/verification-metadata.xml`. A dependency change updates all three; `scripts/update-verification-metadata.sh` regenerates the checksums from a clean resolve. The [dependencies](docs/dependencies.md) page lists the current versions and the update steps.
 
 ## Add a native provider
 

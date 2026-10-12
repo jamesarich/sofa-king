@@ -29,7 +29,7 @@ The [admin portal](admin.md) serves htmx from `server/src/main/resources/admin/h
 
 1. Update the exact versions in [the version catalog](../gradle/libs.versions.toml).
 2. Run the build with `--write-locks` and review the lockfile changes.
-3. Run `./gradlew --write-verification-metadata sha256 help test :server:installDist` and review the new checksums in `gradle/verification-metadata.xml`. Gradle checks every resolved artifact against that file and fails the build on a mismatch or an unlisted artifact.
+3. Run `scripts/update-verification-metadata.sh` and review the new checksums in `gradle/verification-metadata.xml`. Gradle checks every resolved artifact against that file and fails the build on a mismatch or an unlisted artifact. The script refreshes dependencies and reruns every task, so it records artifacts a warm Gradle cache skips, such as BOM `.module` files, and it prints the changed lines. Set `GRADLEW` to run Gradle through a wrapper command of your own. The `kotlinx-coroutines-bom` 1.8.0 entry is resolved only by CI's Gradle setup; the script fails if it goes missing.
 4. Run both smoke scripts, as described in [development](development.md#build-and-test).
 5. For a wrapper update, pin the official distribution checksum in `gradle-wrapper.properties`.
 

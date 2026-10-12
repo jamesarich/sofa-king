@@ -1,0 +1,33 @@
+package dev.jamesrich.sofaking
+
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberWindowState
+import dev.jamesrich.sofaking.data.AppStorage
+import java.io.File
+
+/** Sofa King on Linux, macOS and Windows desktops; a keyboard's arrows, Enter and Escape stand in for the remote. */
+fun main() {
+    initSofaKing(AppStorage.inDirectory(desktopDataDirectory().absolutePath))
+    application {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "Sofa King",
+            state = rememberWindowState(width = 1280.dp, height = 720.dp),
+        ) {
+            App()
+        }
+    }
+}
+
+/** The OS's per-user application data directory: Application Support on macOS, APPDATA on Windows, XDG elsewhere. */
+private fun desktopDataDirectory(): File {
+    val os = System.getProperty("os.name").lowercase()
+    val home = System.getProperty("user.home")
+    return when {
+        "mac" in os -> File(home, "Library/Application Support/Sofa King")
+        "win" in os -> File(System.getenv("APPDATA") ?: home, "Sofa King")
+        else -> File(System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() } ?: "$home/.local/share", "sofa-king")
+    }
+}

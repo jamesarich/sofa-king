@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="captions_on">Captions on</string>
+    <string name="captions_off">Captions off</string>
+    <string name="captions_unavailable">No captions on this channel</string>
+    <string name="captions_setting">Closed captions</string>
+    <string name="captions_indicator_timing">CC %1$s s early ◀ ▶</string>
+    <string name="captions_indicator_timing_description">Captions %1$s seconds early. Left or right to adjust.</string>
+    <string name="now_playing">Now playing %1$s, %2$s</string>
+    <string name="now_playing_channel">Now playing %1$s</string>
+    <string name="cant_reach_stream">Can't reach the stream</string>
+    <string name="stream_refused">The stream refused the connection</string>
+    <string name="stream_unsupported">This stream format isn't supported</string>
+    <string name="caption_timing">Default caption timing</string>
+    <string name="caption_timing_value">%1$s s earlier</string>
+    <string name="caption_timing_help">Live captions are typed after the words are spoken, and each channel runs a different distance behind. While watching with captions on, press OK to show the info bar, then Left or Right to fix that channel in half-second steps; it remembers. Channels take that much longer to start while captions are on.</string>
+    <string name="caption_smooth">Smooth live captions</string>
+    <string name="caption_smooth_help">Holds roll-up text until each line is complete, so captions appear a line at a time instead of letter by letter.</string>
+    <string name="caption_style">Caption style</string>
+    <string name="caption_style_system">System</string>
+    <string name="caption_style_large">Large, high contrast</string>
+</resources>

@@ -29,6 +29,8 @@ The app shows its saved lineup while refreshing. Channels load before guide data
 | Search | Search by voice | Open guide search by voice |
 | Back | Close search; move from the grid to the selected filter chip; exit from the chips or header | Close the channel list or return to the guide |
 
+On a desktop or in a browser, the arrow keys move like the D-pad, Enter is OK (hold it for a long press), Escape is Back, Page Up and Page Down move a page, the digit keys enter a channel number and C toggles captions. Touch and a mouse select directly.
+
 A channel opened from Favorites or a category chip keeps channel up and down and the channel list inside that filter, and the info bar names it with the channel's place, for example "Sports 3/214". Typing a number outside it widens them to the whole lineup. In the channel list, Up/Down select a channel, OK tunes it and Back closes the list. Leaving the app stops playback and releases its session on the server. Returning opens a new session for the same channel and prepares the stream at the live edge while preserving paused intent.
 
 ## Captions
@@ -58,5 +60,9 @@ Channels come from the server's catalog. A channel appears when the server repor
 | Preview unavailable | The server answered the preview session with an error, or the stream failed; focus another channel and come back. |
 | Guide fills in after channels | Guide data loads after the catalog; the saved lineup remains visible during refresh. |
 | Slow tune with captions | Reduce caption timing if the added buffer is too long. |
+| Can't play this channel, on a desktop, for every channel | Install VLC 3; the desktop app plays through libVLC. |
+| This stream format isn't supported, on iOS or the web | The channel streams MPEG-TS, which AVPlayer and browsers do not play; those platforms play HLS channels. |
+| Couldn't reach the Sofa King server, in a browser only | The server must allow the page's origin (CORS), or serve the web app itself. |
+| No info bar or channel list over full-screen video, in a browser | The browser draws the video above the app, so full-screen overlays stay hidden. Escape still returns to the guide. |
 
 Failed or ended streams reconnect after 2, 4, 8, 15, then every 30 seconds while the player is open and the app is started; a stream the server replaced reconnects at once. OK retries immediately. A stalled stream that remains open does not trigger an automatic reconnect.

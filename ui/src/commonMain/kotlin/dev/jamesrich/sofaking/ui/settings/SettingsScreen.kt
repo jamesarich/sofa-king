@@ -113,7 +113,7 @@ fun SettingsScreen(
         item {
             SettingField(
                 label = stringResource(Res.string.settings_server_url),
-                value = serverUrl,
+                stored = settings.serverUrl,
                 onValueChange = { serverUrl = it },
                 problem = stringResource(Res.string.settings_server_url_invalid).takeIf { validUrl == null },
                 focusRequester = serverFocus,
@@ -124,7 +124,7 @@ fun SettingsScreen(
         item {
             SettingField(
                 label = stringResource(Res.string.settings_api_token),
-                value = apiToken,
+                stored = settings.apiToken,
                 onValueChange = { apiToken = it },
                 problem = stringResource(Res.string.settings_api_token_invalid).takeIf { validToken == null },
                 focusRequester = tokenFocus,
@@ -288,7 +288,7 @@ private fun SettingRow(label: String, controls: @Composable () -> Unit) {
 @Composable
 private fun SettingField(
     label: String,
-    value: String,
+    stored: String,
     onValueChange: (String) -> Unit,
     problem: String?,
     focusRequester: FocusRequester,
@@ -296,10 +296,11 @@ private fun SettingField(
     onAction: () -> Unit,
     maskUnfocused: ((String) -> String)? = null,
 ) {
-    // Mirror external resets into the field; typing is reported back through onValueChange.
-    val state = rememberTextFieldState(value)
-    LaunchedEffect(value) {
-        if (state.text.toString() != value) state.setTextAndPlaceCursorAtEnd(value)
+    // The field owns what is typed; only a change to the saved [stored] value replaces it, so an echo of
+    // earlier keystrokes can never overwrite newer ones.
+    val state = rememberTextFieldState(stored)
+    LaunchedEffect(stored) {
+        if (state.text.toString() != stored) state.setTextAndPlaceCursorAtEnd(stored)
     }
     LaunchedEffect(state) {
         snapshotFlow { state.text.toString() }.collect(onValueChange)

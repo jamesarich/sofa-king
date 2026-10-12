@@ -89,7 +89,12 @@ internal fun ChannelRow(
     val initialIndex = if (initialFocus == null) -1 else {
         cells.indexOfFirst { it.programme != null && it.covers(nowMinute) }.coerceAtLeast(0)
     }
-    val cellFocus = remember(cells) { List(cells.size) { FocusRequester() } }
+    val ownFocus = remember(cells) { List(cells.size) { FocusRequester() } }
+    // The first row's airing cell answers to the guide's initial-focus requester; a jump must request that one,
+    // since the cell's own requester is never attached.
+    val cellFocus = remember(ownFocus, initialFocus, initialIndex) {
+        ownFocus.mapIndexed { index, own -> if (initialFocus != null && index == initialIndex) initialFocus else own }
+    }
     val currentCells by rememberUpdatedState(cells)
     val currentCellFocus by rememberUpdatedState(cellFocus)
 
@@ -136,7 +141,7 @@ internal fun ChannelRow(
                         cell = cell,
                         airing = cell.programme != null && cell.covers(nowMinute),
                         env = env,
-                        focusRequester = if (initialFocus != null && index == initialIndex) initialFocus else cellFocus[index],
+                        focusRequester = cellFocus[index],
                         modifier = Modifier.width(MINUTE_WIDTH * cell.minutes.toFloat()).fillMaxHeight(),
                     )
                 }

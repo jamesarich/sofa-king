@@ -29,12 +29,13 @@ class AdminPortalTest {
     private suspend fun ApplicationTestBuilder.portal(
         policy: String? = null,
         feeds: (Fixture) -> List<FeedConfig> = { listOf(it.feed, it.altFeed, it.twinFeed, it.tsFeed) },
+        guides: (Fixture) -> List<GuideConfig> = { emptyList() },
         block: suspend Setup.() -> Unit,
     ) {
         val dir = Files.createTempDirectory("sofa-admin-portal-")
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json")
-            Files.writeString(sources, """{"providers":${json.encodeToString(feeds(fixture))},"guides":[]}""")
+            Files.writeString(sources, """{"providers":${json.encodeToString(feeds(fixture))},"guides":${json.encodeToString(guides(fixture))}}""")
             val policyFile = policy?.let { text -> Files.createDirectories(dir.resolve("policy")).resolve("policy.json").also { Files.writeString(it, text) } }
             val store = openStore(dir)
             val config = ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin, policyFile = policyFile)
@@ -42,6 +43,8 @@ class AdminPortalTest {
             try {
                 application { backendModule(store, MutableClock(), runtime, token, admin, OutputConfig(outputToken)) }
                 for (provider in runtime.feeds.configs) runtime.feeds.refresh(provider)
+                val extraGuides = guides(fixture).map { it.id }.toSet()
+                for (guide in runtime.guides.configs.filter { it.id in extraGuides }) runtime.guides.refresh(guide)
                 val browser = createClient { install(HttpCookies); followRedirects = false }
                 Setup(policyFile, runtime, browser).block()
             } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
@@ -152,10 +155,11 @@ class AdminPortalTest {
             browser.signIn()
             for (path in listOf("/admin", "/admin/merges", "/admin/required", "/admin/plex")) assertEquals(HttpStatusCode.OK, browser.get(path).status, path)
             val page = browser.get("/admin/lineup").bodyAsText()
-            assertTrue(Regex("""<select name="group"[^>]*><option value=""[^>]*>Policy decides</option>""").containsMatchIn(page), "the group is picked from a list")
+            val id = stationId("twin sports")
+            val station = browser.get("/admin/lineup/$id").bodyAsText()
+            assertTrue(Regex("""<select name="group"[^>]*><option value=""[^>]*>Policy decides</option>""").containsMatchIn(station), "the group is picked from a list")
             val csrf = field(page, "csrf")
             val revision = field(page, "revision")
-            val id = stationId("twin sports")
             val response = browser.post("/admin/lineup/$id/visibility", "enabled" to "false", "csrf" to csrf, "revision" to revision)
             assertEquals(HttpStatusCode.SeeOther, response.status, response.bodyAsText())
             assertEquals(false, stationsIn(policyFile!!).getValue("twin sports").jsonObject["enabled"]!!.jsonPrimitive.boolean)
@@ -200,6 +204,93 @@ class AdminPortalTest {
             val revealed = browser.post("/admin/plex/reveal", "csrf" to field(html, "csrf")).bodyAsText()
             assertTrue(revealed.contains("/output/playlist.m3u?token=$outputToken"))
             assertTrue(revealed.contains("/output/guide.xml?token=$outputToken"))
+        }
+    }
+
+    @Test fun `the overview lists what needs attention and links to the fix`() = testApplication {
+        portal(basePolicy, guides = { listOf(it.brokenGuide) }) {
+            runtime.policy!!.apply("test")
+            browser.signIn()
+            val html = browser.get("/admin").bodyAsText()
+            assertTrue(html.contains("Needs attention"))
+            assertTrue(html.contains("Guide broken failed its last import"), html)
+            assertTrue(html.contains("href=\"/admin/providers#guides\""), "the item links to where it is fixed")
+            assertTrue(html.contains("Guide coverage"))
+            assertTrue(html.contains("href=\"/admin/lineup?state=enabled\""), "the channel count links to the lineup")
+            assertFalse(html.contains(admin) || html.contains(token) || html.contains(outputToken))
+        }
+    }
+
+    @Test fun `the providers page needs the session and shows each import`() = testApplication {
+        portal(basePolicy, guides = { listOf(it.brokenGuide) }) {
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/providers").status)
+            browser.signIn()
+            val html = browser.get("/admin/providers").bodyAsText()
+            for (id in listOf("fixture", "alt", "twin", "ts", "broken")) assertTrue(html.contains(">$id<"), id)
+            assertFalse(html.contains("/feed.m3u"), "no source URL reaches the page")
+        }
+    }
+
+    @Test fun `the brand icon is served without a session`() = testApplication {
+        portal {
+            val icon = client.get("/admin/static/icon.svg")
+            assertEquals(HttpStatusCode.OK, icon.status)
+            assertEquals(ContentType.Image.SVG, icon.contentType()?.withoutParameters())
+            assertFalse(icon.bodyAsText().contains("<script"))
+        }
+    }
+
+    @Test fun `the station page edits a channel and the lineup confirms the save inline`() = testApplication {
+        portal {
+            runtime.adoptAll()
+            val twin = runtime.lineup.entries().single { it.name == "Twin Sports" }
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/lineup/${twin.id}").status, "the station page needs the session")
+            browser.signIn()
+            val page = browser.get("/admin/lineup/${twin.id}?q=twin")
+            assertEquals(HttpStatusCode.OK, page.status)
+            val html = page.bodyAsText()
+            assertTrue(html.contains("Sources, in failover order") && html.contains("twin"))
+            assertFalse(html.contains("/twin-feed.m3u"), "source URLs stay off the page")
+            assertEquals(HttpStatusCode.NotFound, browser.get("/admin/lineup/not-a-station").status)
+
+            val saved = browser.post("/admin/lineup/${twin.id}/edit", "name" to "Twin Sports West", "number" to twin.number, "group" to "", "q" to "twin", "csrf" to field(html, "csrf"))
+            assertEquals(HttpStatusCode.SeeOther, saved.status)
+            assertEquals("/admin/lineup?q=twin", saved.headers[HttpHeaders.Location])
+            val list = browser.get("/admin/lineup?q=twin").bodyAsText()
+            assertTrue(list.contains("role=\"status\">Saved Twin Sports West."), "the save is confirmed once")
+            assertTrue(list.contains("<tr class=\"flash\" id=\"row-${twin.id}\""), "the saved row is marked")
+            assertFalse(browser.get("/admin/lineup?q=twin").bodyAsText().contains("Saved Twin Sports West."), "the notice shows once")
+
+            val shown = browser.post("/admin/lineup/${twin.id}/visibility", "enabled" to "false", "from" to "station", "csrf" to field(html, "csrf"))
+            assertEquals("/admin/lineup/${twin.id}", shown.headers[HttpHeaders.Location], "an action from the station page returns to it")
+        }
+    }
+
+    @Test fun `a rejected station edit shows the policy's error on the station page`() = testApplication {
+        portal(basePolicy) {
+            runtime.policy!!.apply("test")
+            browser.signIn()
+            val id = stationId("twin sports")
+            val other = runtime.lineup.entries().first { it.id != id }
+            val html = browser.get("/admin/lineup/$id").bodyAsText()
+            val response = browser.post("/admin/lineup/$id/edit", "name" to "Twin Sports", "number" to other.number, "group" to "", "csrf" to field(html, "csrf"))
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            assertTrue(body.contains("Not saved:") && body.contains("is claimed by"), body)
+            assertTrue(body.contains("name=\"number\""), "the form comes back to correct")
+            assertNotEquals(other.number, runtime.lineup.entry(id)!!.number)
+        }
+    }
+
+    @Test fun `the guide filter splits the lineup`() = testApplication {
+        portal {
+            runtime.adoptAll()
+            browser.signIn()
+            val all = Regex("""id="row-""").findAll(browser.get("/admin/lineup").bodyAsText()).count()
+            val with = Regex("""id="row-""").findAll(browser.get("/admin/lineup?guide=available").bodyAsText()).count()
+            val without = Regex("""id="row-""").findAll(browser.get("/admin/lineup?guide=missing").bodyAsText()).count()
+            assertTrue(all > 0)
+            assertEquals(all, with + without)
         }
     }
 }

@@ -23,27 +23,18 @@ import io.ktor.util.date.GMTDate
 import java.time.Clock
 import java.time.Instant
 
-/** One line of status from outside the portal, such as a Plex sync's last result. */
-data class AdminStatusLine(val label: String, val value: String)
-
-/** Supplies the Plex page's status lines; the page leaves the section out when no source is given. */
+/** Supplies the last Plex sync's status; without a source the portal treats Plex sync as not set up. */
 fun interface PlexStatusSource {
-    suspend fun lines(): List<AdminStatusLine>
-}
-
-fun plexStatusLines(status: PlexStatus): List<AdminStatusLine> = buildList {
-    add(AdminStatusLine("Last sync", status.lastSyncAt?.let { "$it (${status.lastCause ?: "scheduled"})" } ?: "never"))
-    add(AdminStatusLine("Sync interval", "${status.syncMinutes} min"))
-    status.lastError?.let { add(AdminStatusLine("Last error", it)) }
-    status.devices.forEach { d -> add(AdminStatusLine("Tuner ${d.device} (${d.deviceId})", "DVR ${d.dvr}, ${d.mapped} channels mapped")) }
-    if (status.missingDevices.isNotEmpty()) add(AdminStatusLine("Not in Plex", status.missingDevices.joinToString()))
-    status.findings.forEach { add(AdminStatusLine("Finding", it)) }
+    suspend fun status(): PlexStatus
 }
 
 private const val COOKIE = "sofa_admin"
 private const val PAGE_SIZE = 100
 private val SESSION = AttributeKey<AdminSession>("AdminSession")
-private val PUBLIC_PATHS = setOf("/admin", "/admin/login")
+private const val HTMX_PATH = "/admin/static/htmx.min.js"
+private const val ICON_PATH = "/admin/static/icon.svg"
+/** The sign-in form and the brand icon its tab shows; everything else needs a session. */
+private val PUBLIC_PATHS = setOf("/admin", "/admin/login", ICON_PATH)
 private const val CSP =
     "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 
@@ -69,7 +60,7 @@ class AdminPortal(
      * Returns false once it has answered.
      */
     internal suspend fun admit(call: ApplicationCall, path: String): Boolean {
-        if (path != "/admin/static/htmx.min.js") call.response.header(HttpHeaders.CacheControl, "no-store")
+        if (path != HTMX_PATH && path != ICON_PATH) call.response.header(HttpHeaders.CacheControl, "no-store")
         call.response.header("Content-Security-Policy", CSP)
         call.response.header("X-Frame-Options", "DENY")
         call.response.header("X-Content-Type-Options", "nosniff")
@@ -93,7 +84,7 @@ class AdminPortal(
             get {
                 val session = sessions.find(call.request.cookies[COOKIE])
                 if (session == null) call.html(signInPage(enabled = secret != null))
-                else call.html(dashboardPage(session, dashboard()))
+                else call.html(overviewPage(chrome(session), overview()))
             }
             post("/login") {
                 val expected = secret ?: throw ApiFailure(404, "NOT_FOUND", "Resource not found")
@@ -113,19 +104,20 @@ class AdminPortal(
                 call.response.cookies.append(sessionCookie("", maxAge = 0, secure = false))
                 seeOther(call, "/admin")
             }
-            get("/static/htmx.min.js") {
-                val bytes = AdminPortal::class.java.getResourceAsStream("/admin/htmx.min.js")?.use { it.readBytes() }
-                    ?: throw ApiFailure(404, "NOT_FOUND", "Resource not found")
-                call.response.header(HttpHeaders.CacheControl, "private, max-age=86400")
-                call.respondBytes(bytes, ContentType.Text.JavaScript)
+            get("/static/htmx.min.js") { call.resource("/admin/htmx.min.js", ContentType.Text.JavaScript) }
+            get("/static/icon.svg") { call.resource("/admin/icon.svg", ContentType.Image.SVG) }
+            get("/lineup") { call.html(lineupPage(chrome(call.session()), lineupView(LineupFilter.from(call.request.queryParameters)))) }
+            get("/lineup/{id}") {
+                val session = call.session()
+                val view = stationView(call.parameters["id"]!!, LineupFilter.from(call.request.queryParameters))
+                if (view == null) call.html(goneStationPage(chrome(session)), HttpStatusCode.NotFound) else call.html(stationPage(chrome(session), view))
             }
-            get("/lineup") { call.html(lineupPage(call.session(), lineupView(LineupFilter.from(call.request.queryParameters)))) }
             action("/lineup/{id}/visibility") { session, form ->
                 val enabled = form["enabled"]?.toBooleanStrictOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "enabled must be true or false")
-                changeEntry(call, session, form, call.parameters["id"]!!) { UpdateLineupEntry(enabled = enabled) }
+                changeEntry(call, session, form, call.parameters["id"]!!, if (enabled) "Showing" else "Hid") { UpdateLineupEntry(enabled = enabled) }
             }
             action("/lineup/{id}/edit") { session, form ->
-                changeEntry(call, session, form, call.parameters["id"]!!) { entry ->
+                changeEntry(call, session, form, call.parameters["id"]!!, "Saved") { entry ->
                     val name = form["name"]?.trim().orEmpty()
                     val number = form["number"]?.trim().orEmpty()
                     val group = form["group"]?.trim()
@@ -137,13 +129,14 @@ class AdminPortal(
                     )
                 }
             }
-            get("/merges") { call.html(mergesPage(call.session(), mergesView())) }
-            action("/merges/never") { session, form -> policyAction(call, session, form) { policy, from, to, revision -> policy.neverMerge(from, to, revision) } }
-            action("/merges/accept") { session, form -> policyAction(call, session, form) { policy, from, to, revision -> policy.addAlias(from, to, revision) } }
-            action("/merges/dismiss") { session, form -> policyAction(call, session, form) { policy, from, to, revision -> policy.neverMerge(from, to, revision) } }
-            get("/required") { call.html(requiredPage(call.session(), requiredView())) }
-            get("/plex") { call.html(plexPage(call.session(), plexView(call, reveal = false))) }
-            action("/plex/reveal") { session, _ -> call.html(plexPage(session, plexView(call, reveal = true))) }
+            get("/merges") { call.html(mergesPage(chrome(call.session()), mergesView())) }
+            action("/merges/never") { session, form -> policyAction(call, session, form, "Kept apart") { policy, from, to, revision -> policy.neverMerge(from, to, revision) } }
+            action("/merges/accept") { session, form -> policyAction(call, session, form, "Merged") { policy, from, to, revision -> policy.addAlias(from, to, revision) } }
+            action("/merges/dismiss") { session, form -> policyAction(call, session, form, "Kept apart") { policy, from, to, revision -> policy.neverMerge(from, to, revision) } }
+            get("/required") { call.html(requiredPage(chrome(call.session()), requiredView())) }
+            get("/providers") { call.html(providersPage(chrome(call.session()), providersView())) }
+            get("/plex") { call.html(plexPage(chrome(call.session()), plexView(call, reveal = false))) }
+            action("/plex/reveal") { session, _ -> call.html(plexPage(chrome(session), plexView(call, reveal = true))) }
         }
     }
 
@@ -160,15 +153,34 @@ class AdminPortal(
         }
     }
 
+    /** The page furniture for [session]; takes the one-shot notice unless [flash] replaces it. */
+    private suspend fun chrome(session: AdminSession, flash: Flash? = null): Chrome = Chrome(session, clock.instant(), flash ?: session.flash.getAndSet(null), badges())
+
+    /** Nav counts from in-memory state only, so every page stays cheap. */
+    private suspend fun badges(): Map<String, Int> {
+        val applied = runtime.policy?.lastApplied()
+        val plex = plexStatus?.status()
+        return mapOf(
+            "merges" to (applied?.result?.suggestedAliases?.size ?: 0),
+            "required" to (applied?.stations?.count { it.required && !it.enabled } ?: 0),
+            "providers" to runtime.feeds.providers().count { it.errorCode != null } + runtime.guides.statuses().count { it.errorCode != null },
+            "plex" to (if (plex?.lastError != null) 1 else 0) + (plex?.missingDevices?.size ?: 0),
+        )
+    }
+
     /**
      * Changes one lineup entry the way `PATCH /api/v1/admin/lineup/{id}` does: through the policy, or through the
      * lineup without one. Portal edits touch one station's fields, so they apply to the file as it is now rather than
      * to the revision the page showed; background runs write the file often.
      */
-    private suspend fun changeEntry(call: ApplicationCall, session: AdminSession, form: Parameters, id: String, request: (LineupEntryRecord) -> UpdateLineupEntry) {
+    private suspend fun changeEntry(
+        call: ApplicationCall, session: AdminSession, form: Parameters, id: String, verb: String, request: (LineupEntryRecord) -> UpdateLineupEntry,
+    ) {
         val filter = LineupFilter.from(form)
+        var name: String? = null
         val failure = try {
             val entry = runtime.lineup.entry(id) ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "That station is no longer in the lineup")
+            name = entry.name
             val update = request(entry)
             val policy = runtime.policy
             if (update != UpdateLineupEntry()) {
@@ -177,57 +189,135 @@ class AdminPortal(
             }
             null
         } catch (e: ApiFailure) { e }
-        if (failure == null) seeOther(call, "/admin/lineup" + filter.query().let { if (it.isEmpty()) "" else "?$it" })
-        else call.html(lineupPage(session, lineupView(filter), RowError(id, failure.message)), HttpStatusCode.fromValue(failure.status))
+        val query = filter.query().let { if (it.isEmpty()) "" else "?$it" }
+        val fromStation = form["from"] == "station" || form["name"] != null
+        if (failure == null) {
+            val now = runtime.lineup.entry(id)?.name ?: name
+            session.flash.set(Flash("$verb $now.", Tone.OK, id))
+            seeOther(call, if (form["from"] == "station") "/admin/lineup/$id$query" else "/admin/lineup$query")
+            return
+        }
+        val status = HttpStatusCode.fromValue(failure.status)
+        val station = if (fromStation) stationView(id, filter, failure.message) else null
+        if (station != null) call.html(stationPage(chrome(session), station), status)
+        else call.html(lineupPage(chrome(session, Flash("Not saved: ${failure.message}", Tone.BAD, id)), lineupView(filter)), status)
     }
 
     private suspend fun policyAction(
-        call: ApplicationCall, session: AdminSession, form: Parameters,
+        call: ApplicationCall, session: AdminSession, form: Parameters, verb: String,
         write: suspend (dev.jamesrich.sofaking.backend.catalog.PolicyService, String, String, String?) -> Unit,
     ) {
         val policy = runtime.policy ?: throw ApiFailure(404, "POLICY_NOT_CONFIGURED", "No lineup policy is configured")
+        val from = form["from"]?.trim().orEmpty()
+        val to = form["to"]?.trim().orEmpty()
         val failure = try {
-            val from = form["from"]?.trim().orEmpty()
-            val to = form["to"]?.trim().orEmpty()
             if (from.isEmpty() || to.isEmpty()) throw ApiFailure(400, "INVALID_REQUEST", "Both keys are required")
             write(policy, from, to, null)
             null
         } catch (e: ApiFailure) { e }
-        if (failure == null) seeOther(call, "/admin/merges")
-        else call.html(mergesPage(session, mergesView(), failure.message), HttpStatusCode.fromValue(failure.status))
+        if (failure == null) {
+            session.flash.set(Flash("$verb: $from and $to. The policy was applied."))
+            seeOther(call, "/admin/merges")
+        } else call.html(mergesPage(chrome(session, Flash("Not saved: ${failure.message}", Tone.BAD)), mergesView(), failure.message), HttpStatusCode.fromValue(failure.status))
     }
 
-    private suspend fun dashboard(): DashboardView {
+    private suspend fun overview(): OverviewView {
+        val now = clock.instant()
         val entries = runtime.lineup.entries()
-        val applied = runtime.policy?.lastApplied()
-        return DashboardView(
-            providers = runtime.feeds.providers(),
-            guides = runtime.guides.statuses(),
+        val policy = runtime.policy
+        val applied = policy?.lastApplied()
+        val coverage = runtime.guides.coverage()
+        val enabled = entries.filter { it.enabled }
+        val byGuide = enabled.groupingBy { guideStatus(it, coverage, now) }.eachCount()
+        val guide = GuideCoverage(byGuide["available"] ?: 0, byGuide["stale"] ?: 0, byGuide["empty"] ?: 0, byGuide["unassigned"] ?: 0)
+        val providers = runtime.feeds.providers()
+        val guides = runtime.guides.statuses()
+        val plex = plexStatus?.status()
+        val stations = applied?.stations
+        val requiredOff = stations?.count { it.required && !it.enabled }
+        val unverified = stations?.count { it.disabledReason == "unverified" }
+        val attention = buildList {
+            val failed = providers.filter { it.errorCode != null }
+            if (failed.isNotEmpty()) add(Attention(
+                Tone.BAD, if (failed.size == 1) "${failed[0].id} failed its last import" else "${failed.size} providers failed their last import",
+                failed.joinToString { "${it.id} (${it.errorCode})" }, "/admin/providers#imports", "Providers",
+            ))
+            val waiting = providers.filter { it.errorCode == null && it.lastSuccessAt == null }
+            if (waiting.isNotEmpty()) add(Attention(Tone.WARN, "Waiting for the first import of ${waiting.joinToString { it.id }}", null, "/admin/providers#imports", "Providers"))
+            val badGuides = guides.filter { it.errorCode != null }
+            if (badGuides.isNotEmpty()) add(Attention(
+                Tone.BAD, if (badGuides.size == 1) "Guide ${badGuides[0].id} failed its last import" else "${badGuides.size} guides failed their last import",
+                badGuides.joinToString { "${it.id} (${it.errorCode})" }, "/admin/providers#guides", "Guides",
+            ))
+            if (plex?.lastError != null) add(Attention(Tone.BAD, "Plex sync failed", plex.lastError, "/admin/plex#sync", "Plex"))
+            if (!plex?.missingDevices.isNullOrEmpty()) add(Attention(
+                Tone.WARN, "${plural(plex!!.missingDevices.size, "tuner")} not in Plex", plex.missingDevices.joinToString(), "/admin/plex#tuners", "Plex",
+            ))
+            val needed = applied?.result?.devicesNeeded
+            val configured = applied?.result?.devicesConfigured
+            if (needed != null && configured != null && needed > configured) add(Attention(
+                Tone.BAD, "The lineup needs $needed tuners; $configured are configured", "Add ports to SOFA_HDHR_EXTRA_PORTS, then add the devices in Plex.", "/admin/plex#tuners", "Plex",
+            ))
+            if ((requiredOff ?: 0) > 0) add(Attention(Tone.BAD, "${plural(requiredOff!!, "required channel")} off", null, "/admin/required", "Required"))
+            val suggestions = applied?.result?.suggestedAliases?.size ?: 0
+            if (suggestions > 0) add(Attention(Tone.WARN, "${plural(suggestions, "merge suggestion")} to settle", "Pairs of stations that are probably one channel.", "/admin/merges#suggested", "Merges"))
+            val findings = applied?.result?.findings?.size ?: 0
+            if (findings > 0) add(Attention(Tone.WARN, "${plural(findings, "open finding")} from the last run", null, "/admin/merges#findings", "Findings"))
+            val unmapped = applied?.result?.unmappedCategories?.size ?: 0
+            if (unmapped > 0) add(Attention(Tone.WARN, "${plural(unmapped, "category", "categories")} map to no group", "Their stations fall to the default group.", "/admin/groups#unmapped", "Groups"))
+            val ended = guide.stale + guide.empty
+            if (ended > 0) add(Attention(Tone.WARN, "${plural(ended, "on-air channel")} show no programmes", "Their guide ended or holds nothing ahead.", "/admin/lineup?state=enabled&guide=missing", "Channels"))
+            if (policy != null && applied == null) add(Attention(Tone.OFF, "No lineup run since the server started", "Runs follow imports and every 15 minutes.", "/admin/settings#policy", "Settings"))
+            if ((unverified ?: 0) > 0) add(Attention(Tone.OFF, "${plural(unverified!!, "channel")} waiting for a verified source", "They come on as probes verify a source.", "/admin/lineup?state=unverified", "Channels"))
+        }.sortedBy { listOf(Tone.BAD, Tone.WARN, Tone.OK, Tone.OFF).indexOf(it.tone) }
+        return OverviewView(
+            attention = attention,
+            stations = entries.size, enabled = enabled.size, guide = guide,
+            required = stations?.count { it.required }, requiredOff = requiredOff,
+            suggestions = applied?.result?.suggestedAliases?.size, findings = applied?.result?.findings?.size, unverified = unverified,
+            providersOk = providers.count { it.errorCode == null && it.lastSuccessAt != null }, providersTotal = providers.size,
+            plex = plex?.let { PlexSummary(it.lastSyncAt, it.lastError, it.devices.size, it.devices.sumOf { d -> d.mapped }, it.missingDevices.size, it.syncMinutes) },
             sessions = runtime.sessions.snapshot().map { it to runtime.lineup.entry(it.channelId)?.name },
-            stations = entries.size,
-            enabled = entries.count { it.enabled },
-            policy = runtime.policy != null,
-            unverified = applied?.stations?.count { it.disabledReason == "unverified" },
-            required = applied?.stations?.count { it.required },
-            findings = applied?.result?.findings?.size,
+            lastRun = applied?.result, policy = policy != null,
         )
     }
 
-    private fun lineupView(filter: LineupFilter): LineupView {
-        val policy = runtime.policy
-        val stations = policy?.lastApplied()?.stations.orEmpty().associateBy { it.id }
+    private fun rows(): List<StationRow> {
+        val stations = runtime.policy?.lastApplied()?.stations.orEmpty().associateBy { it.id }
         val coverage = runtime.guides.coverage()
         val now = clock.instant()
-        val rows = runtime.lineup.entries().map { entry -> StationRow(entry, stations[entry.id], guideStatus(entry, coverage, now)) }
+        return runtime.lineup.entries().map { entry -> StationRow(entry, stations[entry.id], guideStatus(entry, coverage, now)) }
+    }
+
+    private fun groupChoices(rows: List<StationRow>): List<String> {
+        val policy = runtime.policy?.policy
+        val named = policy?.let { it.numbering.groups.keys + it.groups.map.values + it.groups.patterns.map { p -> p.group } + listOfNotNull(it.groups.default) }.orEmpty()
+        return (rows.mapNotNull { it.entry.group } + named).distinct().sorted()
+    }
+
+    private fun lineupView(filter: LineupFilter): LineupView {
+        val rows = rows()
         val matches = rows.filter { filter.admits(it) }
         val pages = maxOf(1, (matches.size + PAGE_SIZE - 1) / PAGE_SIZE)
         val page = filter.page.coerceIn(1, pages)
         val groups = rows.mapNotNull { it.entry.group }.distinct().sorted()
-        val document = policy?.document()
         return LineupView(
             filter.copy(page = page), matches.drop((page - 1) * PAGE_SIZE).take(PAGE_SIZE), matches.size, rows.size, pages,
-            groups, document?.revision, (groups + document?.policy?.numbering?.groups?.keys.orEmpty()).distinct().sorted(),
+            groups, runtime.policy?.document()?.revision, groupChoices(rows), rows.count { it.entry.enabled },
         )
+    }
+
+    private suspend fun stationView(id: String, filter: LineupFilter, error: String? = null): StationView? {
+        val rows = rows()
+        val row = rows.firstOrNull { it.entry.id == id } ?: return null
+        val health = runtime.store.allHealth()
+        val sources = row.entry.offeringIds.map { offeringId ->
+            val offering = runtime.feeds.offering(offeringId)
+            if (offering == null) SourceLine("gone", null, "", "WITHDRAWN")
+            else SourceLine(offering.providerId, runtime.feeds.channel(offering.channelId)?.name, offering.protocol, health[offeringId]?.status?.name ?: "UNVERIFIED")
+        }
+        val guideName = row.entry.guide?.let { runtime.guides.channel(it.guideId, it.channelId)?.displayName?.let { name -> "$name (${it.guideId})" } }
+        return StationView(row, sources, guideName, filter, runtime.policy?.document()?.revision, groupChoices(rows), error)
     }
 
     private suspend fun mergesView(): MergesView? {
@@ -250,6 +340,26 @@ class AdminPortal(
             RequiredRow(station, overrides[station.key]?.sources.orEmpty(), counts.toSortedMap())
         }
         return RequiredView(rows, ran = true)
+    }
+
+    private fun providersView(): ProvidersView {
+        val configs = runtime.feeds.configs.associateBy { it.id }
+        val document = runtime.policy?.document()
+        val entries = document?.policy?.providers
+        val led = runtime.policy?.lastApplied()?.stations.orEmpty()
+            .mapNotNull { station -> station.offeringIds.firstOrNull()?.let { runtime.feeds.offering(it)?.providerId } }
+            .groupingBy { it }.eachCount()
+        val rows = runtime.feeds.providers().map { status ->
+            val config = configs[status.id]
+            val kind = when {
+                config == null -> ""
+                config.native && config.service != config.id -> "native: ${config.service}"
+                config.native -> "native"
+                else -> "M3U"
+            }
+            ProviderRow(status, kind, entries.orEmpty().withIndex().filter { it.value.id == status.id })
+        }
+        return ProvidersView(rows, runtime.guides.statuses(), entries, document?.revision, led)
     }
 
     private suspend fun plexView(call: ApplicationCall, reveal: Boolean): PlexView {
@@ -275,7 +385,7 @@ class AdminPortal(
             devicesNeeded = if (byRange && hdhr.enabled) (enabled.size + hdhr.deviceSize - 1) / hdhr.deviceSize else null,
             enabledChannels = enabled.size,
             tuners = hdhr.tuners,
-            status = plexStatus?.lines(),
+            status = plexStatus?.status(),
         )
     }
 
@@ -299,6 +409,12 @@ private suspend fun seeOther(call: ApplicationCall, location: String) {
 private suspend fun ApplicationCall.html(body: String, status: HttpStatusCode = HttpStatusCode.OK) =
     respondText(body, ContentType.Text.Html.withCharset(Charsets.UTF_8), status)
 
+private suspend fun ApplicationCall.resource(path: String, type: ContentType) {
+    val bytes = AdminPortal::class.java.getResourceAsStream(path)?.use { it.readBytes() } ?: throw ApiFailure(404, "NOT_FOUND", "Resource not found")
+    response.header(HttpHeaders.CacheControl, "private, max-age=86400")
+    respondBytes(bytes, type)
+}
+
 private fun guideStatus(entry: LineupEntryRecord, coverage: Map<String, Map<String, Instant>>, now: Instant): String {
     val guide = entry.guide ?: return "unassigned"
     val ends = coverage[guide.guideId]?.get(guide.channelId) ?: return "empty"
@@ -306,12 +422,18 @@ private fun guideStatus(entry: LineupEntryRecord, coverage: Map<String, Map<Stri
 }
 
 /** The lineup page's filters, read from a query or from the hidden fields of a row action. */
-internal data class LineupFilter(val q: String = "", val group: String = "", val state: String = "", val required: Boolean = false, val page: Int = 1) {
+internal data class LineupFilter(
+    val q: String = "", val group: String = "", val state: String = "", val required: Boolean = false, val page: Int = 1, val guide: String = "",
+) {
     fun admits(row: StationRow): Boolean {
         val entry = row.entry
         if (q.isNotEmpty() && !entry.name.contains(q, ignoreCase = true) && entry.number != q && row.station?.key?.contains(q, ignoreCase = true) != true) return false
         if (group.isNotEmpty() && entry.group != group) return false
         if (required && !row.required) return false
+        when (guide) {
+            "available" -> if (row.guideStatus != "available") return false
+            "missing" -> if (row.guideStatus == "available") return false
+        }
         return when (state) {
             "enabled" -> entry.enabled
             "hidden" -> !entry.enabled
@@ -321,7 +443,7 @@ internal data class LineupFilter(val q: String = "", val group: String = "", val
     }
 
     fun query(page: Int = this.page): String =
-        listOf("q" to q, "group" to group, "state" to state, "required" to if (required) "true" else "", "page" to if (page > 1) page.toString() else "")
+        listOf("q" to q, "group" to group, "state" to state, "guide" to guide, "required" to if (required) "true" else "", "page" to if (page > 1) page.toString() else "")
             .filter { it.second.isNotEmpty() }.formUrlEncode()
 
     companion object {
@@ -331,6 +453,7 @@ internal data class LineupFilter(val q: String = "", val group: String = "", val
             parameters["state"]?.takeIf { it in setOf("enabled", "hidden", "unverified") }.orEmpty(),
             parameters["required"] == "true",
             parameters["page"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1,
+            parameters["guide"]?.takeIf { it in setOf("available", "missing") }.orEmpty(),
         )
     }
 }

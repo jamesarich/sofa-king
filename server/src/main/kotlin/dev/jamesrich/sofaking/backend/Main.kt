@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.admin.PlexStatusSource
-import dev.jamesrich.sofaking.backend.admin.plexStatusLines
 import dev.jamesrich.sofaking.backend.http.backendModule
 import dev.jamesrich.sofaking.backend.store.openStore
 import io.ktor.server.engine.connector
@@ -24,7 +23,7 @@ fun main(): Unit = runBlocking<Unit> {
             throw failure
         }
     val ports = listOf(config.port) + if (config.hdhr.enabled) config.hdhr.extraPorts else emptyList()
-    val plexStatus = runtime.plex?.let { sync -> PlexStatusSource { plexStatusLines(sync.status()) } }
+    val plexStatus = runtime.plex?.let { sync -> PlexStatusSource { sync.status() } }
     val server = embeddedServer(Netty, configure = { ports.forEach { p -> connector { host = config.host; port = p } } }) {
         backendModule(store, Clock.systemUTC(), runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr, plexStatus)
     }

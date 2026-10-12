@@ -9,7 +9,10 @@ import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 
 /** One signed-in browser: [id] travels in the cookie, [csrf] in every form it posts. */
-class AdminSession(val id: String, val csrf: String, val expiresAt: Instant)
+class AdminSession(val id: String, val csrf: String, val expiresAt: Instant) {
+    /** The notice the next page shows once, set by an action before it redirects. */
+    internal val flash = java.util.concurrent.atomic.AtomicReference<Flash?>(null)
+}
 
 /**
  * Portal sessions, held in memory only, so a restart signs everyone out. Each lasts [lifetime] from sign-in; past

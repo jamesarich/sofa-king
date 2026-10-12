@@ -10,6 +10,7 @@ The config folder holds everything the server keeps across restarts:
 | --- | --- |
 | `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, the last Plex sync, and the server identity |
 | `logos/` | Cached lineup logos, one file per source URL |
+| `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand |
 | `secrets.json` | The generated API and admin tokens |
 | `sources.json`, `policy.json` | The source file and the lineup policy, when they are kept here |
 
@@ -19,12 +20,17 @@ Playback sessions and resolved native stream URLs are held in memory. A restart 
 
 Back up the whole config folder. The database needs a consistent copy, either from SQLite's backup API while the server runs or from a stopped server; a plain copy of a running database can miss what is still in its write-ahead log. The logo cache is a cache: a restore without `logos/` fetches the logos again on the first sweep.
 
-Online, without stopping the server. The image does not include `sqlite3`, so run it on the host, or use Python's `sqlite3` module, which calls the same backup API:
+Online, without stopping the server. The image includes `sqlite3`, so one line copies the database into `config/backups/`:
+
+```sh
+docker compose exec sofa-king-backend sqlite3 /config/backend.sqlite ".backup '/config/backups/manual.sqlite'"
+```
+
+Run it from `deploy`. `sqlite3` does not create the folder, so make it first with `mkdir -m 700 config/backups` when it is missing. The copy belongs to the user the container runs as. To keep the rest of the folder with it, archive the folder without the live database and the logo cache:
 
 ```sh
 cd deploy
 mkdir -p backup
-sqlite3 config/backend.sqlite ".backup 'backup/backend-$(date +%F).sqlite'"
 tar czf backup/config-$(date +%F).tgz --exclude='backend.sqlite*' --exclude=logos -C config .
 ```
 
@@ -37,7 +43,7 @@ tar czf backup/config-$(date +%F).tgz -C config .
 docker compose start
 ```
 
-Keep backups private and out of version control. They contain the generated tokens, the provider session tokens and stream URLs. The [updater](deploy.md#update-automatically) also backs up the database, through the same backup API, before each update.
+Keep backups private and out of version control. They contain the generated tokens, the provider session tokens and stream URLs. The [updater](deploy.md#update-automatically) also backs up the database, through the same backup API, to `config/backups/` before each update.
 
 ## Restore
 
@@ -48,7 +54,7 @@ cd deploy
 docker compose stop
 rm -f config/backend.sqlite-wal config/backend.sqlite-shm
 tar xzf backup/config-DATE.tgz -C config
-cp backup/backend-DATE.sqlite config/backend.sqlite   # when the database was backed up on its own
+cp config/backups/manual.sqlite config/backend.sqlite   # or an updater backup, config/backups/backend-*.sqlite
 docker compose start
 ```
 
@@ -83,13 +89,13 @@ cd deploy && docker compose up -d --no-build --force-recreate
 | --- | --- |
 | `GET /healthz` | The process answers. No token |
 | `GET /readyz` | The database answers; `503 NOT_READY` otherwise. The Docker health check uses it. No token |
+| `GET /api/v1/admin/status` | One summary: the revision, uptime and schema version, channel and source counts, failing provider and guide imports, the last lineup policy run and Plex sync, and active sessions. See [server status](api.md#server-status) |
 | `GET /api/v1/providers` | Per provider: `lastSuccessAt`, `channels`, `sources`, `skippedEntries`, `skipReasons` and `notes`. An `errorCode` of `IMPORT_FAILED` means the last import failed and the previous snapshot is still in use |
 | `GET /api/v1/admin/guides` | The same for each guide, with the retained `programmes` count. An `IMPORT_FAILED` guide keeps the previous data |
 | `GET /api/v1/sources` | Health state of every source (`HEALTHY`, `UNVERIFIED`, `SUSPECT`, `QUARANTINED`, `PROBATION`) |
 | `GET /api/v1/admin/sessions` | Live playback sessions. An empty list means nothing is playing |
 | `GET /api/v1/admin/policy/changes` | What lineup policy runs changed, newest first |
 | `GET /api/v1/admin/policy/findings` | Open findings of the lineup policy, such as missing required sources |
-| `GET /api/v1/admin/status` | One summary: the revision, uptime and schema version, channel and source counts, failing provider and guide imports, the last lineup policy run and Plex sync, and active sessions. See [server status](api.md#server-status) |
 
 Use `Authorization: Bearer $SOFA_API_TOKEN` for the `/api/v1` checks, and `Authorization: Bearer $SOFA_ADMIN_TOKEN` for the `/api/v1/admin` routes.
 

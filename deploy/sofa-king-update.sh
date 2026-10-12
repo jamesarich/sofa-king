@@ -3,7 +3,7 @@
 # when the new container is not healthy in time, the backup and the previous image are put back and that image is
 # not tried again. Run it from a timer, see docs/deploy.md#update-automatically.
 set -euo pipefail
-# Backups hold provider session tokens, so they are readable by root alone.
+# Backups hold provider session tokens, so each is readable by its owner alone: the container's user or root.
 umask 077
 
 dir=${SOFA_UPDATE_DIR:?set SOFA_UPDATE_DIR to the directory with compose.yaml}
@@ -26,6 +26,27 @@ healthy() {
     waited=$((waited + 5))
   done
   return 1
+}
+# Copies the database to backups/$1 in the config folder with the container's own sqlite3, written as the container's
+# user and readable by it alone. When the exec fails, the host's python3 copies it into the Compose directory instead.
+backup_database() {
+  local name=$1
+  # shellcheck disable=SC2016 # $1 and $2 expand in the container's shell.
+  if docker exec "$container" sh -c 'umask 077 && mkdir -p "$1/backups" && sqlite3 "$1/backend.sqlite" ".backup '\''$1/backups/$2'\''"' \
+    sh "$data_dir" "$name" >/dev/null 2>&1 && [ -s "$data/backups/$name" ]; then
+    backup="$data/backups/$name"
+    return 0
+  fi
+  log "the container could not back up the database; backing it up with the host's python3"
+  rm -f "$data/backups/$name"
+  backup="$state/$name"
+  python3 - "$data/backend.sqlite" "$backup" <<'EOF'
+import sqlite3, sys
+source = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
+target = sqlite3.connect(sys.argv[2])
+source.backup(target)
+target.close()
+EOF
 }
 
 exec 9>/run/lock/sofa-king-update.lock
@@ -61,16 +82,12 @@ while IFS=$'\t' read -r destination source; do
   esac
 done < <(docker inspect --format '{{range .Mounts}}{{.Destination}}{{"\t"}}{{.Source}}{{"\n"}}{{end}}' "$container")
 [ -n "$data" ] || { log "no mount of $container holds $data_dir"; exit 1; }
-backup="$state/backend-$(date -u +%Y%m%dT%H%M%SZ)-$from.sqlite"
-python3 - "$data/backend.sqlite" "$backup" <<'EOF'
-import sqlite3, sys
-source = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
-target = sqlite3.connect(sys.argv[2])
-source.backup(target)
-target.close()
-EOF
+backup_database "backend-$(date -u +%Y%m%dT%H%M%SZ)-${from//[^A-Za-z0-9._-]/_}.sqlite"
 # Backup names start with a UTC timestamp, so name order is age order.
-find "$state" -maxdepth 1 -name 'backend-*.sqlite' -print0 | sort -zr | tail -zn +"$((keep + 1))" | xargs -0r rm --
+for folder in "$state" "$data/backups"; do
+  [ -d "$folder" ] || continue
+  find "$folder" -maxdepth 1 -name 'backend-*.sqlite' -print0 | sort -zr | tail -zn +"$((keep + 1))" | xargs -0r rm --
+done
 
 docker tag "$running" "$previous_tag"
 docker tag "$candidate" "$local_tag"

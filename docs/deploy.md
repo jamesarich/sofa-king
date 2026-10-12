@@ -1,6 +1,6 @@
 # Deploy with Docker
 
-The image runs the server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jre-noble`, pinned by digest) with Ubuntu's FFmpeg and curl, for `linux/amd64` and `linux/arm64`. Everything the server keeps lives in one folder, `/config`. It runs as any non-root user that owns that folder, listens on container port 8080, and reports healthy once `/readyz` answers. The Compose file needs Docker Compose 2.24 or later.
+The image runs the server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jre-noble`, pinned by digest) with Ubuntu's FFmpeg, curl and sqlite3, for `linux/amd64` and `linux/arm64`. Everything the server keeps lives in one folder, `/config`. It runs as any non-root user that owns that folder, listens on container port 8080, and reports healthy once `/readyz` answers. The Compose file needs Docker Compose 2.24 or later.
 
 ## Quick start
 
@@ -30,6 +30,7 @@ The HDHomeRun emulation for Plex stays off until `.env` sets `SOFA_HDHR_ENABLED=
 | --- | --- | --- |
 | `backend.sqlite` (with `-wal` and `-shm` while running) | Server | The lineup, guides, source health, provider session tokens and the server identity |
 | `logos/` | Server | Cached lineup logos, at most 2 MiB each; a logo the lineup does not name is deleted |
+| `backups/` | The updater and you | Database backups, readable by their owner alone; see [backups](operations.md#backups) |
 | `secrets.json` | Server | The generated API and admin tokens, readable by the owner alone |
 | `sources.json` | You | The [source file](live-tv.md#source-settings), used when `SOFA_SOURCES` is unset |
 | `policy.json` | You and the server | The [lineup policy](lineup-policy.md), used when `SOFA_POLICY` is unset; the server writes numbers and edits back into it |
@@ -189,12 +190,12 @@ Compare the commit in the provenance with the `org.opencontainers.image.revision
 
 `deploy/sofa-king-update.sh` keeps a host on the [published image](#the-published-image). When the published image differs from the running one, it:
 
-1. Backs up the database to `backups/` in the Compose directory, keeping the newest five. It finds the database through the container's `SOFA_DATA_DIR` and the mount that holds it. The backups hold provider session tokens, so only root can read them.
+1. Backs up the database with the running container's `sqlite3` to `backups/` in the config folder, keeping the newest five. The container writes the copy as its own user, readable by that user alone. When that fails, as with an image that has no `sqlite3`, the host's Python 3 writes the copy to `backups/` in the Compose directory instead, readable by root alone. It finds the database through the container's `SOFA_DATA_DIR` and the mount that holds it. The backups hold provider session tokens.
 2. Tags the running image `sofa-king-backend:previous` and the new one `sofa-king-backend:local`.
 3. Recreates the container and waits up to three minutes for it to report healthy.
 4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` so later runs skip it until a newer one is published.
 
-It needs Python 3 on the host for the database backup, and pull access to the private package. To install it, log Docker in to the registry as root with a personal access token (classic) that has only the `read:packages` scope, then add the script and the timer:
+It needs pull access to the private package, and Python 3 on the host only for the fallback backup. To install it, log Docker in to the registry as root with a personal access token (classic) that has only the `read:packages` scope, then add the script and the timer:
 
 ```sh
 sudo docker login ghcr.io -u GITHUB_USER

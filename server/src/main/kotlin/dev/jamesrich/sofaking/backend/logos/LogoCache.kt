@@ -44,7 +44,8 @@ import org.slf4j.LoggerFactory
  * Lineup logos fetched once and served from `directory/<key>`, so the outputs point at this server instead of the
  * hosts the feeds name. The key is the SHA-256 of the source URL, so a changed URL is a new logo. A fetch goes
  * through the upstream address policy with no provider headers, must answer an image content type whose body
- * looks like one, and is capped at [maxBytes]. A failed refresh keeps the previous file; a failed first fetch is
+ * looks like one, and is capped at [maxBytes]. A PNG or JPEG larger than [LOGO_MAX_SIDE] pixels on a side is stored
+ * scaled down to fit. A failed refresh keeps the previous file; a failed first fetch is
  * retried after [retryAfter]. Logos the lineup no longer names are deleted by the next [sweep].
  */
 class LogoCache(
@@ -145,8 +146,9 @@ class LogoCache(
             val at = clock.instant()
             val record = try {
                 val image = download(source)
-                write(key, image.bytes)
-                LogoRecord(key, source, image.contentType, image.bytes.size.toLong(), sha256(image.bytes), fetchedAt = at, failedAt = null, failures = 0)
+                val bytes = withContext(Dispatchers.Default) { fitLogo(image.bytes, image.contentType) }
+                write(key, bytes)
+                LogoRecord(key, source, image.contentType, bytes.size.toLong(), sha256(bytes), fetchedAt = at, failedAt = null, failures = 0)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

@@ -126,6 +126,8 @@ fun PlayerScreen(
     startIndex: Int,
     /** The channel watched before this player opened, for Last; it may have been left through the guide. */
     previousGuideId: String? = null,
+    /** The guide filter the channel was picked from; null cycles the whole lineup. */
+    zapScope: ZapScope? = null,
     player: ExoPlayer,
     sessions: PlaybackSessions,
     captionSync: CaptionSync,
@@ -144,17 +146,25 @@ fun PlayerScreen(
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
-    val channels = lineup.channels
+    val startChannel = lineup.channels.getOrNull(startIndex)
+    // Up, Down and the channel list stay in the guide's filter until a number typed outside it, or a channel
+    // being followed after a re-import, widens them to the whole lineup.
+    var widened by remember { mutableStateOf(zapScope != null && startChannel?.guideId !in zapScope.guideIds) }
+    val channels = remember(lineup.channels, zapScope, widened) { zapRing(lineup.channels, zapScope, widened) }
+    val scoped = channels.size < lineup.channels.size
     val currentChannels by rememberUpdatedState(channels)
+    val currentLineupChannels by rememberUpdatedState(lineup.channels)
+    // A channel number typed outside the scope, tuned once the ring has widened.
+    var pendingNumber by remember { mutableStateOf<String?>(null) }
     val currentOnChannelChanged by rememberUpdatedState(onChannelChanged)
     val currentOnCaptionsChanged by rememberUpdatedState(onCaptionsChanged)
     val currentOnCaptionAdvanceChanged by rememberUpdatedState(onCaptionAdvanceChanged)
     val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
     val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(windowHeightDp)
-    var index by remember { mutableIntStateOf(startIndex.coerceIn(0, (channels.size - 1).coerceAtLeast(0))) }
+    var index by remember { mutableIntStateOf(channels.indexOfFirst { it.guideId == startChannel?.guideId }.coerceAtLeast(0)) }
     // What load() last tuned and what was watched before it, so a refreshed lineup can be followed by identity.
     var tuned by remember { mutableStateOf<Channel?>(null) }
-    var previousChannel by remember { mutableStateOf(channels.firstOrNull { it.guideId == previousGuideId }) }
+    var previousChannel by remember { mutableStateOf(lineup.channels.firstOrNull { it.guideId == previousGuideId }) }
     var previousIndex by remember { mutableStateOf(channels.indexOfFirst { it.guideId == previousGuideId }.takeIf { it >= 0 }) }
     var entry by remember { mutableStateOf(ChannelNumberEntry()) }
     var notice by remember { mutableStateOf<Notice?>(null) }
@@ -305,8 +315,13 @@ fun PlayerScreen(
         val pending = entry
         if (pending.digits.isEmpty()) return
         val target = pending.indexIn(currentChannels)
+        val outside = if (target == null) pending.indexIn(currentLineupChannels)?.let { currentLineupChannels[it] } else null
         if (target != null) {
             zapTo(target)
+        } else if (outside != null) {
+            entry = ChannelNumberEntry()
+            pendingNumber = outside.guideId
+            widened = true
         } else {
             entry = ChannelNumberEntry()
             notice = Notice(pending.digits)
@@ -315,11 +330,17 @@ fun PlayerScreen(
 
     // The lineup refreshes every few hours and may reorder or grow; the tuned channel keeps its stream and
     // its row follows it. A channel that vanished stays playing on the nearest row.
+    // The same holds when the ring widens from the guide's filter to the whole lineup.
     LaunchedEffect(channels) {
         if (recovering != null) return@LaunchedEffect
-        val current = tuned ?: return@LaunchedEffect
-        index = indexAfterRefresh(channels, current) ?: index.coerceIn(0, (channels.size - 1).coerceAtLeast(0))
-        previousIndex = previousChannel?.let { indexAfterRefresh(channels, it) }
+        val current = tuned ?: startChannel
+        if (current != null) {
+            index = indexAfterRefresh(channels, current) ?: index.coerceIn(0, (channels.size - 1).coerceAtLeast(0))
+            previousIndex = previousChannel?.let { indexAfterRefresh(channels, it) }
+        }
+        val number = pendingNumber ?: return@LaunchedEffect
+        pendingNumber = null
+        channels.indexOfFirst { it.guideId == number }.takeIf { it >= 0 }?.let(::zapTo)
     }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -392,6 +413,11 @@ fun PlayerScreen(
             // lineup and follow the channel by number, then name; with nothing to follow, the guide takes over.
             val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
             recovering = channel
+            // The replacement is looked for in the whole lineup; the ring's ids are the ones that went stale.
+            if (!widened) {
+                widened = true
+                index = currentLineupChannels.indexOfFirst { it.guideId == channel.guideId }.coerceAtLeast(0)
+            }
             var attempt = current.attempt
             var lineup = reloadLineup()
             while (lineup == null) {
@@ -644,7 +670,8 @@ fun PlayerScreen(
             }
             AnimatedVisibility(overlayVisible && !miniGuideOpen, enter = RiseIn, exit = SinkOut) {
                 Box(Modifier.fillMaxSize()) {
-                    InfoOverlay(lineup = lineup, channel = channel, now = now, captionsOn = captionsOn, captionAdvanceMs = channelAdvance)
+                    val scopeLabel = zapScope?.takeIf { scoped }?.let { stringResource(R.string.zap_scope, it.label, index + 1, channels.size) }
+                    InfoOverlay(lineup = lineup, channel = channel, now = now, captionsOn = captionsOn, captionAdvanceMs = channelAdvance, scope = scopeLabel)
                 }
             }
         }

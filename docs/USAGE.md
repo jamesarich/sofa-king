@@ -29,7 +29,7 @@ The app shows its saved lineup while refreshing. Channels load before guide data
 | Search | Search by voice | Open guide search by voice |
 | Back | Close search; move from the grid to the selected filter chip; exit from the chips or header | Close the channel list or return to the guide |
 
-In the channel list, Up/Down select a channel, OK tunes it and Back closes the list. Leaving the app stops playback and releases its session on the server. Returning opens a new session for the same channel and prepares the stream at the live edge while preserving paused intent.
+A channel opened from Favorites or a category chip keeps channel up and down and the channel list inside that filter, and the info bar names it with the channel's place, for example "Sports 3/214". Typing a number outside it widens them to the whole lineup. In the channel list, Up/Down select a channel, OK tunes it and Back closes the list. Leaving the app stops playback and releases its session on the server. Returning opens a new session for the same channel and prepares the stream at the live edge while preserving paused intent.
 
 ## Captions
 

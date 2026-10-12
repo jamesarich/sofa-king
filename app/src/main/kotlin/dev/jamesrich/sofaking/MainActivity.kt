@@ -59,6 +59,7 @@ import dev.jamesrich.sofaking.ui.player.buildLivePlayer
 import dev.jamesrich.sofaking.ui.player.captionParameters
 import dev.jamesrich.sofaking.ui.player.currentChannelId
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
+import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.player.withStream
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
@@ -85,7 +86,8 @@ private sealed interface Screen {
      * the preview must not reopen by itself until focus moves. None survives a restore.
      */
     data class Guide(val atNow: Boolean = false, val search: Boolean = false, val returnedFrom: String? = null) : Screen
-    data class Player(val guideId: String) : Screen
+    /** [scope] is the guide filter the channel was picked from, which Up and Down stay in; it does not survive a restore. */
+    data class Player(val guideId: String, val scope: ZapScope? = null) : Screen
     data object Settings : Screen
 }
 
@@ -208,6 +210,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 lineup = lineup,
                 startIndex = start,
                 previousGuideId = previousGuideId,
+                zapScope = current.scope,
                 player = player,
                 sessions = sessions,
                 captionSync = captionSync,
@@ -270,7 +273,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                         startAtNow = current.atNow,
                         startSearch = current.search,
                         returnedFrom = current.returnedFrom,
-                        onPlay = { screen = Screen.Player(it) },
+                        onPlay = { guideId, scope -> screen = Screen.Player(guideId, scope) },
                         onToggleFavorite = vm::toggleFavorite,
                         previewPlayer = player,
                         sessions = sessions,
@@ -293,7 +296,7 @@ private fun GuideOrEmpty(
     startAtNow: Boolean,
     startSearch: Boolean,
     returnedFrom: String?,
-    onPlay: (String) -> Unit,
+    onPlay: (String, ZapScope?) -> Unit,
     onToggleFavorite: (String) -> Unit,
     previewPlayer: ExoPlayer,
     sessions: PlaybackSessions,
@@ -312,7 +315,7 @@ private fun GuideOrEmpty(
             startAtNow = startAtNow,
             startSearch = startSearch,
             returnedFrom = returnedFrom,
-            onPlay = { onPlay(it.guideId) },
+            onPlay = { channel, scope -> onPlay(channel.guideId, scope) },
             onToggleFavorite = { onToggleFavorite(it.guideId) },
             previewPlayer = previewPlayer,
             sessions = sessions,

@@ -72,6 +72,7 @@ import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
 import dev.jamesrich.sofaking.ui.preview.PreviewDwell
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
+import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.player.DigitsBadge
 import dev.jamesrich.sofaking.ui.player.digitValue
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
@@ -164,7 +165,7 @@ fun GuideScreen(
     startAtNow: Boolean,
     startSearch: Boolean,
     returnedFrom: String?,
-    onPlay: (Channel) -> Unit,
+    onPlay: (Channel, ZapScope?) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     previewPlayer: ExoPlayer,
     sessions: PlaybackSessions,
@@ -207,12 +208,22 @@ fun GuideScreen(
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     val query = if (searchOpen) searchState.text.toString() else ""
     val searchNow = now.takeIf { query.isNotBlank() }
-    val visible = remember(lineup, favorites, activeFilter, query, searchNow) {
-        val byFilter = when (val f = activeFilter) {
+    val byFilter = remember(lineup.channels, favorites, activeFilter) {
+        when (val f = activeFilter) {
             GuideFilter.All -> lineup.channels
             GuideFilter.Favorites -> lineup.channels.filter { it.guideId in favorites }
             is GuideFilter.Group -> lineup.channels.filter { f.name in it.groups }
         }
+    }
+    // A channel opened from a filter keeps the player's Up and Down inside it; search does not narrow it.
+    val activeLabel = activeFilter.label()
+    val zapScope = remember(activeFilter, activeLabel, byFilter) {
+        if (activeFilter == GuideFilter.All) null else ZapScope(activeLabel, byFilter.mapTo(HashSet()) { it.guideId })
+    }
+    val currentZapScope by rememberUpdatedState(zapScope)
+    val currentOnPlay by rememberUpdatedState(onPlay)
+    val play: (Channel) -> Unit = remember { { channel -> currentOnPlay(channel, currentZapScope) } }
+    val visible = remember(byFilter, lineup, query, searchNow) {
         if (searchNow == null) {
             byFilter
         } else {
@@ -482,7 +493,7 @@ fun GuideScreen(
     val noListing = stringResource(R.string.no_listing)
     val favoriteLabel = stringResource(R.string.guide_favorite)
     val toggleFavoriteLabel = stringResource(R.string.guide_toggle_favorite)
-    val env = remember(resources, timeFormat, noListing, favoriteLabel, toggleFavoriteLabel, minutePx, minStickyTextPx, scrollState, onCellFocused, onPlay, onToggleFavorite) {
+    val env = remember(resources, timeFormat, noListing, favoriteLabel, toggleFavoriteLabel, minutePx, minStickyTextPx, scrollState, onCellFocused, play, onToggleFavorite) {
         GuideRowEnv(
             resources = resources,
             timeFormat = timeFormat,
@@ -493,7 +504,7 @@ fun GuideScreen(
             minStickyTextPx = minStickyTextPx,
             scrollState = scrollState,
             onCellFocused = onCellFocused,
-            onPlay = onPlay,
+            onPlay = play,
             onToggleFavorite = onToggleFavorite,
         )
     }
@@ -544,7 +555,7 @@ fun GuideScreen(
                         // The same handoff as OK: the preview session is promoted, nothing reloads. A preview
                         // without a picture is not opened; it would only carry its failure to the full screen.
                         val channel = focused?.channel?.takeIf { it.guideId == dwell.channelId }
-                        if (channel != null && !input.failed && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) onPlay(channel)
+                        if (channel != null && !input.failed && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) play(channel)
                         return@collectLatest
                     }
                     delay(dwell.nextTransitionMs(now) ?: return@collectLatest)

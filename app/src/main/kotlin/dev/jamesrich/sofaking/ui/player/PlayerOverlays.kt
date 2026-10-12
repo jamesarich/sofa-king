@@ -112,7 +112,7 @@ internal fun ProgressBar(fraction: Float, color: Color = SofaAmber) {
 }
 
 @Composable
-internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean, captionAdvanceMs: Int) {
+internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean, captionAdvanceMs: Int, scope: String? = null) {
     val (current, next) = lineup.nowAndNext(channel, now)
     val timeFormat = rememberTimeFormatter()
     Column(
@@ -126,6 +126,10 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(channel.label(), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
+            if (scope != null) {
+                Spacer(Modifier.width(16.dp))
+                Text(scope, style = MaterialTheme.typography.labelLarge, color = SofaMauve)
+            }
             if (captionsOn) {
                 Spacer(Modifier.width(16.dp))
                 val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)

@@ -19,7 +19,6 @@ class GuideTimelineTest {
         start = at(startMin),
         stop = at(stopMin),
         title = title,
-        subtitle = null,
         description = null,
     )
 

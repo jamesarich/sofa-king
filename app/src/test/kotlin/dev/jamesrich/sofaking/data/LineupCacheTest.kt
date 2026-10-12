@@ -29,8 +29,8 @@ class LineupCacheTest {
     private val channelTwo = Channel("2", 2.5, "Café ☃", null, listOf("Other"))
     private val channelThree = Channel("3", 3.0, "Quiet", null, listOf("Other"))
 
-    private fun programme(channel: String, start: String, stop: String, title: String, subtitle: String? = null, description: String? = null) =
-        Programme(channel, Instant.parse(start), Instant.parse(stop), title, subtitle, description)
+    private fun programme(channel: String, start: String, stop: String, title: String, description: String? = null) =
+        Programme(channel, Instant.parse(start), Instant.parse(stop), title, description)
 
     @Test
     fun `round trip keeps channels and programmes`() = runTest {
@@ -38,7 +38,7 @@ class LineupCacheTest {
             channels = listOf(channelOne, channelTwo),
             guide = mapOf(
                 "1" to listOf(
-                    programme("1", "2026-10-09T09:00:00Z", "2026-10-09T11:00:00Z", "Morning", "Part 1", "Long description"),
+                    programme("1", "2026-10-09T09:00:00Z", "2026-10-09T11:00:00Z", "Morning", "Long description"),
                     programme("1", "2026-10-09T11:00:00Z", "2026-10-09T12:00:00Z", "Noon ✓ naïve"),
                 ),
                 "2" to listOf(programme("2", "2026-10-09T10:00:00Z", "2026-10-09T10:30:00Z", "Short", description = "d")),
@@ -88,7 +88,7 @@ class LineupCacheTest {
     }
 
     @Test
-    fun `an older version reads as null and is deleted`() = runTest {
+    fun `an unknown version reads as null and is deleted`() = runTest {
         cache().write(Lineup(listOf(channelOne), emptyMap()))
         val bytes = cacheFile().readBytes()
         bytes[3] = 0

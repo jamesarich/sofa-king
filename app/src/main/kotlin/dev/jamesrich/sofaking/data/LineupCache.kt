@@ -78,7 +78,6 @@ class LineupCache(
                 out.writeLong(programme.start.epochSecond)
                 out.writeLong(programme.stop.epochSecond)
                 out.writeText(programme.title)
-                out.writeNullableText(programme.subtitle)
                 out.writeNullableText(programme.description)
             }
         }
@@ -105,10 +104,9 @@ class LineupCache(
                 val start = Instant.ofEpochSecond(input.readLong())
                 val stop = Instant.ofEpochSecond(input.readLong())
                 val title = input.readText()
-                val subtitle = input.readNullableText()
                 val description = input.readNullableText()
                 if (stop.isAfter(at)) {
-                    programmes.add(Programme(channelId, start, stop, title, subtitle, description))
+                    programmes.add(Programme(channelId, start, stop, title, description))
                 }
             }
             if (programmes.isNotEmpty()) guide[channelId] = programmes
@@ -144,8 +142,8 @@ class LineupCache(
     private fun DataInputStream.readNullableText(): String? = if (readBoolean()) readText() else null
 
     private companion object {
-        /** Bump when the layout changes; older files are deleted on read. */
-        const val VERSION = 3
+        /** Bump when the layout changes; a file with any other version is deleted on read and the lineup refetched. */
+        const val VERSION = 4
         const val BUFFER_SIZE = 64 * 1024
         const val MAX_COUNT = 1_000_000
         const val MAX_TEXT_BYTES = 1 shl 20

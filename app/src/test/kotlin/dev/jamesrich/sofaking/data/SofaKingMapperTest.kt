@@ -93,8 +93,8 @@ class SofaKingMapperTest {
         assertEquals(setOf("a"), guide.keys)
         assertEquals(
             listOf(
-                Programme("a", Instant.parse("2026-10-10T10:00:00Z"), Instant.parse("2026-10-10T11:00:00Z"), "Earlier", null, null),
-                Programme("a", Instant.parse("2026-10-10T11:00:00Z"), Instant.parse("2026-10-10T12:00:00Z"), "Later", null, "Second"),
+                Programme("a", Instant.parse("2026-10-10T10:00:00Z"), Instant.parse("2026-10-10T11:00:00Z"), "Earlier", null),
+                Programme("a", Instant.parse("2026-10-10T11:00:00Z"), Instant.parse("2026-10-10T12:00:00Z"), "Later", "Second"),
             ),
             guide["a"],
         )

@@ -36,7 +36,6 @@ internal object SofaKingMapper {
             start = start,
             stop = stop,
             title = dto.title,
-            subtitle = null,
             description = dto.description?.takeIf { it.isNotBlank() },
         )
     }

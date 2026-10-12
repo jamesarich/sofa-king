@@ -136,9 +136,6 @@ internal fun PreviewDetails(
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
         )
-        programme.subtitle?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
         programme.description?.let {
             Text(
                 it,

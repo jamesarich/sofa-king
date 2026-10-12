@@ -13,7 +13,6 @@ class GuideJumpTest {
         start = base.plusSeconds(startMin * 60),
         stop = base.plusSeconds(stopMin * 60),
         title = "Show",
-        subtitle = null,
         description = null,
     )
 

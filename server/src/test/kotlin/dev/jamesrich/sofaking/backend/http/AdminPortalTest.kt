@@ -106,6 +106,19 @@ class AdminPortalTest {
         }
     }
 
+    @Test fun `sign-in attempts are limited per address, and each refusal is logged without the token`() = testApplication {
+        val lines = java.util.concurrent.CopyOnWriteArrayList<String>()
+        application { attributes.put(AuthFailureLogKey, AuthFailureLog(MutableClock(), sink = { lines += it })) }
+        portal {
+            repeat(ADMIN_LOGINS_PER_MINUTE) { attempt -> assertEquals(HttpStatusCode.Unauthorized, browser.signIn(admin.reversed()).status, "attempt $attempt") }
+            assertEquals(HttpStatusCode.TooManyRequests, browser.signIn().status, "even the right token waits once the limit is spent")
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/lineup").status, "no session was opened")
+            assertEquals(ADMIN_LOGINS_PER_MINUTE, lines.size, "$lines")
+            assertTrue(lines.all { it.startsWith("auth failed route=/admin/login remote=") }, "$lines")
+            assertTrue(lines.none { admin in it || admin.reversed() in it }, "$lines")
+        }
+    }
+
     @Test fun `portal paths need the session under any spelling`() = testApplication {
         portal {
             for (path in listOf("//admin/lineup", "/%61dmin/lineup", "/admin//lineup", "/admin/lineup/", "/%61dmin/plex", "/admin/%70lex", "//admin/static/htmx.min.js")) {

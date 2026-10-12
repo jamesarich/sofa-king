@@ -14,6 +14,8 @@ dependencies {
     implementation(libs.ktor.negotiation)
     implementation(libs.ktor.status)
     implementation(libs.ktor.compression)
+    implementation(libs.ktor.body.limit)
+    implementation(libs.ktor.rate.limit)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite)

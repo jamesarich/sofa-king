@@ -9,9 +9,15 @@ import kotlinx.serialization.json.Json
 
 private val requestJson = Json { encodeDefaults = true }
 
+internal const val CONTROL_BODY_LIMIT = 64 * 1024L
+
+/** The 413 message for a body over [limit] bytes. */
+internal fun tooLargeMessage(limit: Long): String =
+    "Request exceeds " + if (limit % (1024 * 1024) == 0L) "${limit / (1024 * 1024)} MiB" else "${limit / 1024} KiB"
+
 /** Control requests are small; the policy write has its own 4 MiB reader. */
 internal suspend inline fun <reified T> ApplicationCall.body(): T {
-    val bytes = receiveChannel().readBuffer(65_537L).readByteArray()
-    if (bytes.size > 65_536) throw ApiFailure(413, "REQUEST_TOO_LARGE", "Request exceeds 64 KiB")
+    val bytes = receiveChannel().readBuffer(CONTROL_BODY_LIMIT + 1).readByteArray()
+    if (bytes.size > CONTROL_BODY_LIMIT) throw ApiFailure(413, "REQUEST_TOO_LARGE", tooLargeMessage(CONTROL_BODY_LIMIT))
     return requestJson.decodeFromString(bytes.toString(Charsets.UTF_8))
 }

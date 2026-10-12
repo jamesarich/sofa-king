@@ -17,7 +17,7 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 import java.net.URLEncoder
-import java.security.MessageDigest
+import dev.jamesrich.sofaking.backend.admin.sameSecret
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -150,12 +150,12 @@ internal fun authorizeOutput(call: ApplicationCall, outputToken: String?, apiTok
     if (outputToken == null && apiToken == null) return
     val bearer = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ")
     val query = call.request.queryParameters["token"]
-    val authorized = (outputToken != null && (same(query, outputToken) || same(bearer, outputToken))) || (apiToken != null && same(bearer, apiToken))
-    if (!authorized) throw ApiFailure(401, "AUTH_REQUIRED", "Output token required")
+    val authorized = (outputToken != null && (sameSecret(query, outputToken) || sameSecret(bearer, outputToken))) || (apiToken != null && sameSecret(bearer, apiToken))
+    if (!authorized) {
+        call.authFailed()
+        throw ApiFailure(401, "AUTH_REQUIRED", "Output token required")
+    }
 }
-
-private fun same(presented: String?, expected: String): Boolean =
-    presented != null && MessageDigest.isEqual(expected.toByteArray(), presented.toByteArray())
 
 /** The address the player reached us by, so generated URLs work through port mappings; `X-Forwarded-Proto` names a TLS proxy. */
 internal fun publicBase(call: ApplicationCall): String {

@@ -20,7 +20,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import dev.jamesrich.sofaking.backend.http.ADMIN_LOGIN_LIMIT
+import dev.jamesrich.sofaking.backend.http.authFailed
 import dev.jamesrich.sofaking.backend.http.deviceShare
+import io.ktor.server.plugins.ratelimit.rateLimit
 import dev.jamesrich.sofaking.backend.http.hdhrChannels
 import dev.jamesrich.sofaking.backend.http.publicBase
 import dev.jamesrich.sofaking.backend.http.tokenQuery
@@ -101,10 +104,11 @@ class AdminPortal(
                 if (session == null) call.html(signInPage(enabled = secret != null))
                 else call.html(overviewPage(chrome(session), overview()))
             }
-            post("/login") {
+            rateLimit(ADMIN_LOGIN_LIMIT) { post("/login") {
                 val expected = secret ?: throw ApiFailure(404, "NOT_FOUND", "Resource not found")
                 val presented = call.formOrEmpty()["token"]
                 if (!sameSecret(presented, expected)) {
+                    call.authFailed()
                     call.html(signInPage(enabled = true, error = "That token is not the admin token."), HttpStatusCode.Unauthorized)
                     return@post
                 }
@@ -113,7 +117,7 @@ class AdminPortal(
                 val secure = call.request.headers["X-Forwarded-Proto"] == "https" || call.request.local.scheme == "https"
                 call.response.cookies.append(sessionCookie(session.id, maxAge = 12 * 3600, secure = secure))
                 seeOther(call, "/admin")
-            }
+            } }
             action("/logout") { session, _ ->
                 sessions.close(session.id)
                 call.response.cookies.append(sessionCookie("", maxAge = 0, secure = false))

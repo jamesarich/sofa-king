@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.admin.AdminPortal
 import dev.jamesrich.sofaking.backend.admin.PlexStatusSource
 import dev.jamesrich.sofaking.backend.admin.isPortalPath
+import dev.jamesrich.sofaking.backend.admin.sameSecret
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.ServerConfig
@@ -16,6 +17,10 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.PayloadTooLargeException
+import io.ktor.server.plugins.bodylimit.RequestBodyLimit
+import io.ktor.server.plugins.ratelimit.RateLimit
+import io.ktor.server.plugins.ratelimit.RateLimitName
 import io.ktor.server.plugins.compression.Compression
 import io.ktor.server.plugins.compression.condition
 import io.ktor.server.plugins.compression.deflate
@@ -28,12 +33,24 @@ import io.ktor.server.routing.*
 import io.ktor.util.cio.ChannelIOException
 import io.ktor.utils.io.ClosedByteChannelException
 import io.ktor.utils.io.ConnectionClosedException
-import java.security.MessageDigest
+import io.ktor.server.plugins.origin
 import java.time.Clock
+import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 
 private val wireJson = Json { encodeDefaults = true }
+
+/** Sign-in attempts at `POST /admin/login`, counted per remote address. */
+internal val ADMIN_LOGIN_LIMIT = RateLimitName("admin-login")
+internal const val ADMIN_LOGINS_PER_MINUTE = 10
+
+/** Every request body is capped at [CONTROL_BODY_LIMIT], except the policy writes, which may carry a whole policy file. */
+internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
+    method == HttpMethod.Put && path == "/api/v1/admin/policy" -> POLICY_BODY_LIMIT
+    method == HttpMethod.Post && (path == "/admin/providers/edit" || path == "/admin/groups/edit") -> POLICY_BODY_LIMIT
+    else -> CONTROL_BODY_LIMIT
+}
 fun Application.backendModule(
     store: IdentityStore,
     clock: Clock,
@@ -48,6 +65,14 @@ fun Application.backendModule(
 ) {
     // The portal signs in with the admin token, or the API token when no admin token is set.
     val portal = runtime?.let { AdminPortal(it, adminToken ?: apiToken, outputs, hdhr, clock, plexStatus, config) }
+    attributes.computeIfAbsent(AuthFailureLogKey) { AuthFailureLog(clock) }
+    install(RequestBodyLimit) { bodyLimit { call -> requestBodyLimit(call.request.httpMethod, routedPath(call.request.path())) } }
+    if (portal != null) install(RateLimit) {
+        register(ADMIN_LOGIN_LIMIT) {
+            rateLimiter(limit = ADMIN_LOGINS_PER_MINUTE, refillPeriod = 1.minutes)
+            requestKey { call -> call.request.origin.remoteAddress }
+        }
+    }
     install(ContentNegotiation) { json(wireJson) }
     install(Compression) {
         gzip { priority = 1.0 }
@@ -57,6 +82,12 @@ fun Application.backendModule(
     install(StatusPages) {
         status(HttpStatusCode.NotFound) { call, status -> call.respond(status, ApiError("NOT_FOUND", "Resource not found", false)) }
         exception<Throwable> { call, cause ->
+            // The body limit fails the read, so its exception can arrive wrapped in a closed-channel one.
+            if (cause !is CancellationException && generateSequence(cause) { it.cause }.take(4).any { it is PayloadTooLargeException }) {
+                val limit = requestBodyLimit(call.request.httpMethod, routedPath(call.request.path()))
+                call.respond(HttpStatusCode.PayloadTooLarge, ApiError("REQUEST_TOO_LARGE", tooLargeMessage(limit), false))
+                return@exception
+            }
             when (cause) {
                 is CancellationException -> throw cause
                 is ApiFailure -> call.respond(HttpStatusCode.fromValue(cause.status), ApiError(cause.code, cause.message, cause.retryable))
@@ -74,6 +105,8 @@ fun Application.backendModule(
         }
     }
     intercept(ApplicationCallPipeline.Call) {
+        // A validator, such as the body limit, may have answered already.
+        if (call.isHandled) { finish(); return@intercept }
         // Decide on the path routing resolves, so no spelling of a guarded route skips its token.
         val path = routedPath(call.request.path())
         if (path == null) {
@@ -87,7 +120,8 @@ fun Application.backendModule(
             val expected = if (isAdmin && adminToken != null) adminToken else apiToken
             if ((path == "/api" || path.startsWith("/api/")) && expected != null) {
                 val presented = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()
-                if (!MessageDigest.isEqual(expected.toByteArray(), presented.toByteArray())) {
+                if (!sameSecret(presented, expected)) {
+                    call.authFailed()
                     call.respond(HttpStatusCode.Unauthorized, ApiError("AUTH_REQUIRED", "Bearer token required", false))
                     finish()
                 }

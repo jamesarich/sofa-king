@@ -11,7 +11,7 @@ import io.ktor.server.routing.*
 import io.ktor.utils.io.readBuffer
 import kotlinx.io.readByteArray
 
-private const val POLICY_BODY_LIMIT = 4 * 1024 * 1024L
+internal const val POLICY_BODY_LIMIT = 4 * 1024 * 1024L
 
 /** The `If-Match` revision without quotes or a weak prefix; null when absent. */
 internal fun ApplicationCall.ifMatch(): String? =
@@ -19,7 +19,7 @@ internal fun ApplicationCall.ifMatch(): String? =
 
 private suspend fun ApplicationCall.policyBody(): ByteArray {
     val bytes = receiveChannel().readBuffer(POLICY_BODY_LIMIT + 1).readByteArray()
-    if (bytes.size > POLICY_BODY_LIMIT) throw ApiFailure(413, "REQUEST_TOO_LARGE", "Request exceeds 4 MiB")
+    if (bytes.size > POLICY_BODY_LIMIT) throw ApiFailure(413, "REQUEST_TOO_LARGE", tooLargeMessage(POLICY_BODY_LIMIT))
     return bytes
 }
 

@@ -45,5 +45,6 @@ Details are in [live TV: upstream addresses and provider headers](docs/live-tv.m
 - Set `SOFA_OUTPUT_TOKEN` when players or Plex use the outputs, from `openssl rand -hex 16`.
 - Set `SOFA_HDHR_ALLOW` to the address of the Plex server, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 - Keep `data/` and the source file private. The database holds native provider session tokens, and the source file can hold feed URLs with credentials. The Docker files in `deploy/` are ignored by Git.
+- With [automatic updates](docs/deploy.md#update-automatically), log Docker in to the registry with a token that has only the `read:packages` scope. The updater's database backups hold the same session tokens as the database and are readable by root alone.
 - Use HTTPS, through a reverse proxy, for any token that crosses a network you do not control.
 - Rotate tokens with the steps in [operations](docs/operations.md#rotating-tokens).

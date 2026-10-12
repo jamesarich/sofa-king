@@ -21,7 +21,7 @@ The server relays HLS and MPEG-TS streams, caches channel logos so every output 
 
 ## Sofa King fast setup
 
-You need JDK 21 and FFmpeg. Run the commands from the repository root. For Docker, see [deploy](docs/deploy.md).
+You need JDK 21 and FFmpeg. Run the commands from the repository root. For Docker, including a host that updates itself from the published image, see [deploy](docs/deploy.md).
 
 1. Build the server:
 

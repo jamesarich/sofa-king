@@ -3,6 +3,8 @@
 # when the new container is not healthy in time, the backup and the previous image are put back and that image is
 # not tried again. Run it from a timer, see docs/deploy.md#update-automatically.
 set -euo pipefail
+# Backups hold provider session tokens, so they are readable by root alone.
+umask 077
 
 dir=${SOFA_UPDATE_DIR:?set SOFA_UPDATE_DIR to the directory with compose.yaml}
 image=${SOFA_UPDATE_IMAGE:-ghcr.io/jamesarich/sofa-king-backend:main}

@@ -103,7 +103,7 @@ The [Image workflow](../.github/workflows/image.yml) tests every push to `main` 
 
 `deploy/sofa-king-update.sh` keeps a host on that image. When the published image differs from the running one, it:
 
-1. Backs up the database to `backups/` in the Compose directory, keeping the newest five.
+1. Backs up the database to `backups/` in the Compose directory, keeping the newest five. The backups hold provider session tokens, so only root can read them.
 2. Tags the running image `sofa-king-backend:previous` and the new one `sofa-king-backend:local`.
 3. Recreates the container and waits up to three minutes for it to report healthy.
 4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` so later runs skip it until a newer one is published.
@@ -118,7 +118,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now sofa-king-update.timer
 ```
 
-Set `SOFA_UPDATE_DIR` in the service to the Compose directory if it is not `/srv/sofa-king-backend`. The timer checks every 15 minutes; `sudo systemctl start sofa-king-update` checks now, and `journalctl -u sofa-king-update` shows what each run did. Other settings come from the environment: `SOFA_UPDATE_IMAGE`, `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer to keep it.
+Set `SOFA_UPDATE_DIR` in the service to the Compose directory if it is not `/srv/sofa-king-backend`. The timer checks every 15 minutes; `sudo systemctl start sofa-king-update` checks now, and `journalctl -u sofa-king-update` shows what each run did. Other settings come from the environment: `SOFA_UPDATE_IMAGE`, `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer to keep it. The updater installs new images, not new copies of itself, so run the `install` lines again when `deploy/sofa-king-update.sh` or the units change.
 
 ## Deploy to a host without a JDK
 

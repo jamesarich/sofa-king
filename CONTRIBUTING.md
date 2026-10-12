@@ -15,6 +15,8 @@ python3 scripts/live-smoke.py
 
 The tests generate real HLS fixtures with FFmpeg, so FFmpeg must be on the path. The smoke scripts run the installed distribution against disposable servers and temporary directories, so run `:server:installDist` first. See [development](docs/development.md) for what each script covers.
 
+The [Image workflow](.github/workflows/image.yml) runs the tests on every pull request and push, on Ubuntu 24.04's FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. A push to `main` that passes publishes the image that [automatic updates](docs/deploy.md#update-automatically) install.
+
 Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own.
 
 ## Commits and pull requests

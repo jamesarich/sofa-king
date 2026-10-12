@@ -1,51 +1,58 @@
 # Operations
 
-This guide covers running a server after the first start: where its state lives, how to back it up and restore it, how to upgrade and roll back, what to watch, what to do when a native provider breaks, and how to rotate tokens. Paths assume the Docker stack in [deploy](deploy.md); outside Docker, `SOFA_DATA_DIR` (default `data`) is the same directory.
+This guide covers running a server after the first start: where its state lives, how to back it up and restore it, how to upgrade and roll back, what to watch, what to do when a native provider breaks, and how to rotate tokens. Paths assume the Docker stack in [deploy](deploy.md), whose config folder is `deploy/config`; outside Docker, `SOFA_DATA_DIR` (default `data`) is the same directory.
 
 ## State
 
-The data directory holds everything the server keeps across restarts:
+The config folder holds everything the server keeps across restarts:
 
 | Path | Contents |
 | --- | --- |
 | `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, and the server identity |
 | `logos/` | Cached lineup logos, one file per source URL |
+| `secrets.json` | The generated API and admin tokens |
+| `sources.json`, `policy.json` | The source file and the lineup policy, when they are kept here |
 
 Playback sessions and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions.
 
 ## Backups
 
-Back up `backend.sqlite`. The logo cache is a cache: a restore without `logos/` fetches the logos again on the first sweep.
+Back up the whole config folder. The database needs a consistent copy, either from SQLite's backup API while the server runs or from a stopped server; a plain copy of a running database can miss what is still in its write-ahead log. The logo cache is a cache: a restore without `logos/` fetches the logos again on the first sweep.
 
-Cold copy, which is the simplest consistent backup. Stop the service, archive the volume, and start it again:
+Online, without stopping the server. The image does not include `sqlite3`, so run it on the host, or use Python's `sqlite3` module, which calls the same backup API:
 
 ```sh
 cd deploy
-docker compose stop sofa-king-backend
-docker run --rm -v sofa-king-backend_sofa-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/sofa-data-$(date +%F).tgz -C /data .
-docker compose start sofa-king-backend
+mkdir -p backup
+sqlite3 config/backend.sqlite ".backup 'backup/backend-$(date +%F).sqlite'"
+tar czf backup/config-$(date +%F).tgz --exclude='backend.sqlite*' --exclude=logos -C config .
 ```
 
-Online copy, without stopping the server. Run the SQLite CLI on the host against the data directory, because the image does not include `sqlite3`:
+Stopped, which copies everything in one step:
 
 ```sh
-sqlite3 data/backend.sqlite ".backup 'backup/backend-$(date +%F).sqlite'"
+cd deploy
+docker compose stop
+tar czf backup/config-$(date +%F).tgz -C config .
+docker compose start
 ```
 
-Keep backups out of version control. They contain the provider tokens and stream URLs.
+Keep backups private and out of version control. They contain the generated tokens, the provider session tokens and stream URLs. The [updater](deploy.md#update-automatically) also backs up the database, through the same backup API, before each update.
 
 ## Restore
 
-Stop the service, then replace the database. Remove the `-wal` and `-shm` files that belong to the old database so SQLite does not replay them into the restored copy:
+Stop the service, then put the files back. Remove the `-wal` and `-shm` files that belong to the old database so SQLite does not replay them into the restored copy:
 
 ```sh
 cd deploy
-docker compose stop sofa-king-backend
-docker run --rm -v sofa-king-backend_sofa-data:/data -v "$PWD":/backup alpine \
-  sh -c 'rm -rf /data/* && tar xzf /backup/sofa-data-DATE.tgz -C /data'
-docker compose start sofa-king-backend
+docker compose stop
+rm -f config/backend.sqlite-wal config/backend.sqlite-shm
+tar xzf backup/config-DATE.tgz -C config
+cp backup/backend-DATE.sqlite config/backend.sqlite   # when the database was backed up on its own
+docker compose start
 ```
+
+Restore as the user that owns `config`, so the server can still write the files.
 
 Check the result with `/readyz` and `/api/v1/providers` (see [monitoring](#monitoring)).
 
@@ -113,13 +120,13 @@ The [native providers](providers.md) call each service's public endpoints. A ser
 
 ## Rotating tokens
 
-Tokens are set in the environment (`deploy/.env` for Docker). Each change takes effect after a restart, and any client holding the old value gets `401` until it is updated.
+Tokens come from the environment (`deploy/.env` for Docker), from the file a `_FILE` variable names, or, for the API and admin tokens, from `secrets.json` in the config folder. Each change takes effect after a restart, and any client holding the old value gets `401` until it is updated.
 
 | Token | Rotate by | Update |
 | --- | --- | --- |
-| API token (`SOFA_API_TOKEN`) | Generate with `openssl rand -hex 32`, set it, restart | Every API client, including the Sofa King app |
-| Admin token (`SOFA_ADMIN_TOKEN`) | Same | Whatever calls `/api/v1/admin` |
-| Output token (`SOFA_OUTPUT_TOKEN`) | Generate with `openssl rand -hex 16`, set it, restart | Each player's playlist and guide URL, and the Plex guide URL |
+| API token (`SOFA_API_TOKEN`) | Set a new value from `openssl rand -hex 32` and restart. When it is generated, delete `apiToken` from `secrets.json` and restart, and a new one is generated | Every API client, including the Sofa King app |
+| Admin token (`SOFA_ADMIN_TOKEN`) | Same, with `adminToken`; the start that generates it logs the new value once | Whatever calls `/api/v1/admin`, and the admin portal sign-in |
+| Output token (`SOFA_OUTPUT_TOKEN`) | Set a new value from `openssl rand -hex 16` and restart | Each player's playlist and guide URL, and the Plex guide URL |
 
 The output token goes in URLs, so changing it means editing every player and Plex. Logo URLs carry no token and need no change. Native provider session tokens are renewed by the server, so nothing is needed for those.
 

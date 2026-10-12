@@ -4,17 +4,18 @@ This page is the configuration reference for the server: every environment varia
 
 ## Server settings
 
-Set these environment variables before starting the server. Relative paths resolve from the server's working directory. Configuration changes require a restart.
+Set these environment variables before starting the server. Relative paths resolve from the server's working directory. Configuration changes require a restart. The [Docker image](deploy.md) sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/config`.
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `SOFA_HOST` | `127.0.0.1` | Listen address |
 | `SOFA_PORT` | `8080` | Listen port, 1-65535 |
-| `SOFA_DATA_DIR` | `data` | Database and logo cache directory |
-| `SOFA_SOURCES` | Unset | Path to the source configuration JSON file; unset starts with no providers or guides |
-| `SOFA_POLICY` | Unset | Path to a [lineup policy](lineup-policy.md) JSON file in a writable directory, loaded and validated at start (any error stops the server). When set, the lineup is built from it |
-| `SOFA_API_TOKEN` | Unset | API bearer token, at least 32 characters; required for non-loopback binding |
-| `SOFA_ADMIN_TOKEN` | Unset | Bearer token for `/api/v1/admin/*`, at least 32 characters; unset means the API token administers the lineup too |
+| `SOFA_DATA_DIR` | `data` | Directory for the database, the logo cache and `secrets.json`, and where `sources.json` and `policy.json` are looked for |
+| `SOFA_SOURCES` | `SOFA_DATA_DIR/sources.json` when it exists | Path to the source configuration JSON file; with neither, the server starts with no providers or guides |
+| `SOFA_POLICY` | `SOFA_DATA_DIR/policy.json` when it exists | Path to a [lineup policy](lineup-policy.md) JSON file in a writable directory, loaded and validated at start (any error stops the server). With a policy, the lineup is built from it |
+| `SOFA_API_TOKEN` | Generated on a non-loopback bind | API bearer token, at least 32 characters. On a non-loopback bind, an unset token is generated at the first start, stored in `SOFA_DATA_DIR/secrets.json` and reused; the admin portal's Settings page reveals it. On loopback, unset leaves the API open |
+| `SOFA_ADMIN_TOKEN` | Generated on a non-loopback bind | Bearer token for `/api/v1/admin/*` and the admin portal, at least 32 characters. On a non-loopback bind, an unset token is generated and stored like the API token, and the start that generates it logs it once. On loopback, unset means the API token administers the lineup too |
+| `SOFA_API_TOKEN_FILE`, `SOFA_ADMIN_TOKEN_FILE`, `SOFA_OUTPUT_TOKEN_FILE`, `SOFA_PLEX_TOKEN_FILE` | Unset | A file holding the token, for Docker secrets. The value is read at start without its trailing line break and validated like the variable. Setting a variable and its `_FILE` variant, or naming an unreadable file, stops the start |
 | `SOFA_MAX_SESSIONS` | `4` | Maximum active playback sessions, 1-16 |
 | `SOFA_FFMPEG` | `ffmpeg` | FFmpeg executable used by source probes and the HDHomeRun remux |
 | `SOFA_PROBE_PARALLELISM` | `6` | Concurrent source probes, 1-32 |
@@ -35,6 +36,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_PLEX_TOKEN` | Unset | The Plex server's `X-Plex-Token`, at least 8 characters. A secret: it is sent only as a request header and never logged |
 | `SOFA_PLEX_SYNC_MINUTES` | `60` | Minutes between Plex syncs when the lineup does not change, 5 to 1440 |
 | `SOFA_PLEX_TUNER_BASE` | Unset | Scheme and host Plex reaches this server's tuners on, without a port, for example `http://192.168.1.3`. When set, a sync adds devices Plex lacks |
+| `TZ` | UTC | Time zone of the process, for example `America/Chicago`. The server stores and serves its times in UTC either way |
 
 ## Source settings
 
@@ -203,22 +205,21 @@ The extra ports must differ from `SOFA_PORT`. They are opened only when `SOFA_HD
 
 ## LAN access
 
-Set a token and bind to the LAN address. Replace `TOKEN` with a secret of at least 32 characters:
+Bind to the LAN address. The first start generates the API and admin tokens and keeps them in `data/secrets.json`; set `SOFA_API_TOKEN` to a secret of at least 32 characters to choose the API token yourself:
 
 ```sh
-export SOFA_API_TOKEN='TOKEN'
-SOFA_HOST=0.0.0.0 SOFA_SOURCES=./data/sources.json \
-  server/build/install/server/bin/server
+SOFA_HOST=0.0.0.0 SOFA_HDHR_ALLOW=PLEX_SERVER_IP server/build/install/server/bin/server
 ```
 
-Send the token with every `/api/` request:
+Send the token with every `/api/` request, here from another shell:
 
 ```sh
+SOFA_API_TOKEN=$(jq -r .apiToken data/secrets.json)
 curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" \
   http://SERVER_HOST:8080/api/v1/channels
 ```
 
-The API token permits playback and source administration, and the lineup admin API unless `SOFA_ADMIN_TOKEN` is set. When it is set, only the admin token opens `/api/v1/admin/*`, and the API token is refused there. Health endpoints are public. Media URLs authorize playback by possession and expire with the session. Use HTTPS when sending a token over a network you do not control. The full token model is in [security](../SECURITY.md#credentials-and-the-routes-they-open).
+The API token permits playback and source administration, and the lineup admin API when there is no admin token. When it is set, only the admin token opens `/api/v1/admin/*`, and the API token is refused there. Health endpoints are public. Media URLs authorize playback by possession and expire with the session. Use HTTPS when sending a token over a network you do not control. The full token model is in [security](../SECURITY.md#credentials-and-the-routes-they-open).
 
 ## Provider headers
 
@@ -235,12 +236,13 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 | Symptom | Check |
 | --- | --- |
 | `/api/v1/channels` is empty | The lineup is empty or every entry is disabled. Set a [lineup policy](lineup-policy.md) or adopt a provider. `GET /api/v1/admin/lineup` shows the entries. |
-| No candidates | Set `SOFA_SOURCES`, inspect `/api/v1/providers` for `IMPORT_FAILED`, and check the playlist URL and format. |
+| No candidates | Add `sources.json` to `SOFA_DATA_DIR` or set `SOFA_SOURCES`, inspect `/api/v1/providers` for `IMPORT_FAILED`, and check the playlist URL and format. |
 | Import stays unchanged | A failed or empty import preserves the previous snapshot. Check provider status and `allowEmpty`. |
 | Channel has no guide | Check the entry's `guide` mapping against `GET /api/v1/admin/guides/GUIDE_ID/channels`. A mapping changed moments ago is filled on the next guide fetch. `IMPORT_FAILED` on `/api/v1/admin/guides` means that guide's fetch or parse failed. |
 | Entry source shows `WITHDRAWN` | The provider no longer lists that stream. The entry keeps the reference. Replace the source when the provider offers a new URL. |
 | Extensionless HLS answers `410 STREAM_CHANGED` once | The source has not been probed yet. The first fetch detects HLS, stores it and bumps the epoch, so fetch the session again. The source keeps the detected protocol across restarts. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, so unprobed sources start right. |
-| Startup rejects LAN binding | Set `SOFA_API_TOKEN` to at least 32 characters. |
+| Startup rejects a token | A token set in the environment or read from its `_FILE` needs at least 32 characters. Unset, the API and admin tokens are generated on a LAN bind. |
+| The admin token is not in the log | Only the start that generates it logs it. Read `adminToken` from `SOFA_DATA_DIR/secrets.json`. |
 | `401 AUTH_REQUIRED` | Send the configured token in the Authorization header. Admin routes need the admin token when one is configured. |
 | `429 CAPACITY_EXHAUSTED` | Every slot holds a watch session. Release unused sessions or wait for their 90-second leases to expire. Previews and idle player sessions are evicted automatically. |
 | A player gets `401` on the playlist URL | `SOFA_OUTPUT_TOKEN` is unset or the `token` query differs. The API token opens `/output/*` only as a bearer header. |

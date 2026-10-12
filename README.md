@@ -21,7 +21,18 @@ The server relays HLS and MPEG-TS streams, caches channel logos so every output 
 
 ## Sofa King fast setup
 
-You need JDK 21 and FFmpeg. Run the commands from the repository root. For Docker, including a host that updates itself from the published image, see [deploy](docs/deploy.md).
+With Docker and JDK 21, from the repository root:
+
+```sh
+./gradlew :server:installDist
+mkdir -p deploy/config
+cd deploy && docker compose up -d --build
+docker compose logs | grep 'generated SOFA_ADMIN_TOKEN'
+```
+
+Open `http://SERVER_HOST:9193/admin` and sign in with the admin token from that log line. Everything the server keeps, including the generated tokens, is in `deploy/config`; drop a `sources.json` and a `policy.json` there to add channels. [Deploy](docs/deploy.md) covers the config folder, running as your own user, secrets, reverse proxies and a host that updates itself from the published image.
+
+Without Docker you need JDK 21 and FFmpeg. Run the commands from the repository root:
 
 1. Build the server:
 
@@ -29,7 +40,7 @@ You need JDK 21 and FFmpeg. Run the commands from the repository root. For Docke
    ./gradlew :server:installDist
    ```
 
-2. Create `data/sources.json`. Native providers need no account. Inside any string, `${NAME}` is replaced from the environment, so a tokenized URL stays out of the file:
+2. Create `data/sources.json`. The server reads it from its data directory, `data`, at start. Native providers need no account. Inside any string, `${NAME}` is replaced from the environment, so a tokenized URL stays out of the file:
 
    ```sh
    mkdir -p data
@@ -51,35 +62,34 @@ You need JDK 21 and FFmpeg. Run the commands from the repository root. For Docke
 3. Start the server. It listens on `127.0.0.1:8080` by default:
 
    ```sh
-   SOFA_SOURCES=./data/sources.json server/build/install/server/bin/server
+   server/build/install/server/bin/server
    ```
 
-   To serve other machines, set `SOFA_HOST=0.0.0.0` and `SOFA_API_TOKEN` to a value of at least 32 characters (`openssl rand -hex 32`). The server refuses a non-loopback bind without it.
+   On loopback the API needs no token. To serve other machines, set `SOFA_HOST=0.0.0.0`: the first start then generates an API token and an admin token, keeps them in `data/secrets.json` and logs the admin token once. `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` set your own values instead.
 
-4. Check the imports. The examples below assume `TOKEN` holds `SOFA_API_TOKEN`. Leave out the header when no token is set:
+4. Check the imports. The examples below assume `TOKEN` holds the API token. Leave out the header when no token is set:
 
    ```sh
    curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/providers
    curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/admin/guides
    ```
 
-5. Build the lineup. A new server serves no channels until a [lineup policy](docs/lineup-policy.md) builds them. Write a policy that takes every channel of the three services, Whale first, in a directory the server can write:
+5. Build the lineup. A new server serves no channels until a [lineup policy](docs/lineup-policy.md) builds them. Write a policy that takes every channel of the three services, Whale first, to `data/policy.json`:
 
    ```sh
-   mkdir -p policy
-   echo '{"providers": [{"id": "whale"}, {"id": "tubi"}, {"id": "pluto"}], "groups": {"default": "Entertainment"}}' > policy/policy.json
+   echo '{"providers": [{"id": "whale"}, {"id": "tubi"}, {"id": "pluto"}], "groups": {"default": "Entertainment"}}' > data/policy.json
    ```
 
-   Restart the server with `SOFA_POLICY` set. Stations come on as the probes verify one of their sources:
+   Restart the server. It logs which sources and policy files it picked, and stations come on as the probes verify one of their sources:
 
    ```sh
-   SOFA_SOURCES=./data/sources.json SOFA_POLICY=./policy/policy.json server/build/install/server/bin/server
+   server/build/install/server/bin/server
    curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/channels
    ```
 
    For a full lineup of every free service, grouped, with fallbacks across services and your local channels, follow [build a starter lineup](docs/starter-lineup.md).
 
-Keep `data/` and `policy/` across restarts. It holds the database and the logo cache. [Operations](docs/operations.md) covers backups, upgrades and token rotation.
+Keep `data/` across restarts. It holds the database, the logo cache, the generated tokens and the two files you wrote. `SOFA_SOURCES` and `SOFA_POLICY` point at files elsewhere. [Operations](docs/operations.md) covers backups, upgrades and token rotation.
 
 ## Configuration
 

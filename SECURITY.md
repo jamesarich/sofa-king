@@ -6,7 +6,7 @@ Do not open a public issue for a security problem. Report it privately through G
 
 ## Intended deployment
 
-The server is designed for a private network. It has no accounts, no per-user access control and no TLS. It binds to loopback by default, and a non-loopback bind refuses to start without `SOFA_API_TOKEN`. Keep it on the LAN, do not forward its port to the internet, and put it behind a VPN or a TLS-terminating reverse proxy if it must be reached from outside.
+The server is designed for a private network. It has no accounts, no per-user access control and no TLS. It binds to loopback by default. On a non-loopback bind, such as the Docker image's, it always has an API token and an admin token: an unset one is generated at the first start, as the next section describes. Keep it on the LAN, do not forward its port to the internet, and put it behind a VPN or a TLS-terminating reverse proxy if it must be reached from outside.
 
 ## Credentials and the routes they open
 
@@ -22,7 +22,9 @@ The server is designed for a private network. It has no accounts, no per-user ac
 
 Notes on the table:
 
-- A token that is not configured leaves its routes open. With no API token, every `/api/` route is open, and with neither output nor API token, `/output/*` is open. This is for loopback development.
+- On a non-loopback bind, an API or admin token that the environment leaves unset is generated: 32 random bytes from the JVM's `SecureRandom`, as 64 hex characters. Both are kept in `secrets.json` in the data directory, created with mode `600` and replaced by an atomic rename, and reused on later starts. A token set in the environment, or read from the file its `_FILE` variable names, always wins and is never written there.
+- The start that generates the admin token logs it once, with the path of `secrets.json`. No later start logs a token. A signed-in admin can reveal the API token on the portal's Settings page and the output token on its Plex page, each through a `POST` with the session's CSRF token.
+- On a loopback bind, a token that is not configured leaves its routes open. With no API token, every `/api/` route is open, and with neither output nor API token, `/output/*` is open. This is for local development.
 - Tokens are compared in constant time. The API token is never accepted in a query string.
 - A token in a URL lands in player configuration, screenshots and proxy logs. That is why the output token is separate from the API token and opens nothing but `/output/*`.
 - Logo URLs and HDHomeRun routes carry no token because the clients that fetch them, Plex and players, send none. Logos are fetched only for URLs the lineup names.
@@ -41,10 +43,10 @@ Details are in [live TV: upstream addresses and provider headers](docs/live-tv.m
 
 ## Hardening checklist
 
-- Set `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` to values of at least 32 characters, from `openssl rand -hex 32`.
+- Let the server generate the API and admin tokens, or set them to values of at least 32 characters from `openssl rand -hex 32`. Prefer the `_FILE` variables with Docker secrets over plain values in `.env`.
 - Set `SOFA_OUTPUT_TOKEN` when players or Plex use the outputs, from `openssl rand -hex 16`.
 - Set `SOFA_HDHR_ALLOW` to the address of the Plex server, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
-- Keep `data/` and the source file private. The database holds native provider session tokens, and the source file can hold feed URLs with credentials. The Docker files in `deploy/` are ignored by Git.
+- Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens, and the source file can hold feed URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
 - With [automatic updates](docs/deploy.md#update-automatically), log Docker in to the registry with a token that has only the `read:packages` scope. The updater's database backups hold the same session tokens as the database and are readable by root alone.
 - Use HTTPS, through a reverse proxy, for any token that crosses a network you do not control.
 - Rotate tokens with the steps in [operations](docs/operations.md#rotating-tokens).

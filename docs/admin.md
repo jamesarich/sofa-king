@@ -6,7 +6,7 @@ The portal calls the server's services directly. It changes nothing the [admin A
 
 ## Sign in
 
-Open `http://SERVER_HOST:8080/admin` and enter the admin token: `SOFA_ADMIN_TOKEN`, or `SOFA_API_TOKEN` when no admin token is set. With neither set, nobody can sign in, and the page says so.
+Open `http://SERVER_HOST:PORT/admin` (port 9193 with the [Compose file](deploy.md)) and enter the admin token: `SOFA_ADMIN_TOKEN`, or `SOFA_API_TOKEN` when there is no admin token. On a non-loopback bind the server generates an unset admin token at the first start and logs it once; after that, read `adminToken` from `secrets.json` in the data directory. On loopback with neither token set, nobody can sign in, and the page says so.
 
 A session lasts 12 hours from sign-in, or until you sign out. Sessions are held in memory, so a restart signs everyone out. Up to 32 sessions are kept; a new one replaces the one closest to expiry.
 
@@ -24,7 +24,7 @@ The navigation groups the pages into the overview, Lineup (Channels, Merges, Req
 | Groups | With a policy: each group's number block with its range and channels on, the groups in the lineup without a block, the default group, the categories the last run left unmapped, the category map by group, the weak categories and the name patterns | Add a block, move its first number or remove it; set the default group; map a category or unmap it; add or remove a weak category; add or remove a name pattern |
 | Providers | Each provider's channels, last import and status, and each guide's; with a policy, the provider entries in priority order with what each takes and the stations each provider leads | With a policy: move an entry up or down, hide or show the stations an entry leads (its `enabled`), add an entry that takes every channel of a provider, or remove an entry |
 | Plex | The last Plex sync with each tuner's DVR and mapped channels, each HDHomeRun device with its address and channel count, the devices the lineup needs, the M3U playlist and XMLTV guide URLs, and the Plex setup steps | Nothing; the output token stays hidden until you choose to reveal it |
-| Settings | The lineup policy's file, revision, contents and last run; every `SOFA_` variable as the server runs with it, marked when it is the default; the source file's providers and guides; and the newest 50 entries of the policy change log, with more on request | Apply the policy now |
+| Settings | The lineup policy's file, revision, contents and last run; every `SOFA_` variable as the server runs with it, marked when it is the default, with the source and policy files noted when they were found in the data directory; each token as generated, set or not set, and where it came from; the source file's providers and guides; and the newest 50 entries of the policy change log, with more on request | Apply the policy now; reveal the API token |
 
 Without a policy, the Merges, Required and Groups pages explain that they need one, and channel edits go to the lineup itself, sending the changed fields the way `PATCH /api/v1/admin/lineup/{id}` does.
 
@@ -36,7 +36,7 @@ A group or provider edit reads the policy file, makes the one change, validates 
 
 When the policy changed since the page loaded, the edit is not saved: the confirmation shows what it does against the policy as it is now, and confirming saves it against that revision. When the result would not be a valid policy, every validation error shows in the section the edit came from and nothing is written.
 
-The settings page reports each token only as set or not set, and describes the source file by provider, kind, host and refresh interval, with header and option names but never a URL path or query, a header value or an option value.
+The settings page reports each token as generated (stored in `secrets.json`), set (in the environment or through its `_FILE` variable) or not set, and shows no token until you choose "Reveal the API token", which shows the API token the Sofa King app needs. It describes the source file by provider, kind, host and refresh interval, with header and option names but never a URL path or query, a header value or an option value.
 
 Device addresses on the Plex page use the host the page was reached by; extra devices use their own ports from `SOFA_HDHR_EXTRA_PORTS`.
 
@@ -47,4 +47,4 @@ Device addresses on the Plex page use the host the page was reached by; extra de
 - Every page and action needs the session, whatever spelling of the path reaches it, except the sign-in form and the brand icon its tab shows. Every action is a `POST` that carries the session's CSRF token.
 - The portal opens nothing under `/api/`. API clients still need their bearer token.
 - Pages are sent with `Cache-Control: no-store` and a content security policy that allows scripts from the server only. htmx and the icon are served from the server; the portal loads nothing from other hosts.
-- The output token appears only on the page answering "Reveal the output token", never in the page source by default. No other token reaches any page.
+- The output token appears only on the page answering "Reveal the output token" and the API token only on the page answering "Reveal the API token", never in the page source by default. Each reveal is a `POST` that needs the session and its CSRF token. No other token reaches any page.

@@ -2,7 +2,7 @@
 
 A fresh server knows its sources but serves no channels until a [lineup policy](lineup-policy.md) builds them. This guide writes a policy for the free native services: one station per channel, with every other service that carries the same channel attached as a fallback, sorted into a small set of groups with a block of numbers each. It takes about ten minutes, most of it waiting for imports.
 
-You need a running server ([quick start](../README.md#sofa-king-fast-setup) or [Docker](deploy.md)) and its tokens. The examples use these shell variables:
+You need a running server ([quick start](../README.md#sofa-king-fast-setup) or [Docker](deploy.md)) and its tokens. Generated tokens are in `secrets.json` in the data directory (`deploy/config` with Docker), as `apiToken` and `adminToken`. The examples use these shell variables:
 
 ```sh
 SERVER=http://SERVER_HOST:PORT
@@ -14,7 +14,7 @@ auth=(-H "Authorization: Bearer $ADMIN_TOKEN")
 
 ## 1. Configure the sources
 
-Copy `deploy/sources.example.json` to your sources file. It lists all 17 [native providers](providers.md) and needs two edits:
+Copy `deploy/sources.example.json` to `sources.json` in the data directory, or to the file `SOFA_SOURCES` names. It lists all 17 [native providers](providers.md) and needs two edits:
 
 - `pbs`: set `options.zip` to your ZIP code, so the server finds your member station.
 - `localnow`: add `"options": { "dma": "DMA_CODE", "market": "MARKET" }` for your local news; without them it serves the national lineup.
@@ -37,11 +37,10 @@ A provider with an `errorCode` is skipped and the rest carry on; see [when a nat
 `deploy/starter-groups.json` maps the raw category names the native services use (`Crime TV`, `More Cities`, `News And Opinion`, …) to 22 groups: Local, Local News (US), News, Sports, En Español, Entertainment, Drama, Classic TV, Movies, Sci-Fi & Horror, Comedy, Crime, Documentary, Lifestyle, Food & Travel, Kids & Family, Anime, Music, Game Shows, Faith, Shopping and Ambiance. Its `weak` list holds broad categories that decide a station's group only when nothing more specific does, and its `patterns` group stations by name.
 
 ```sh
-mkdir -p policy
 python3 scripts/generate-policy.py --server "$SERVER" \
   --admin-token "$ADMIN_TOKEN" --api-token "$API_TOKEN" \
   --starter-groups deploy/starter-groups.json --local-pattern '\b(des moines|kcci)\b' \
-  --out policy/policy.json
+  --out policy.json
 ```
 
 Replace the `--local-pattern` regex with your own market's city and station call signs; stations whose names match it group as Local. The generated policy:
@@ -55,7 +54,7 @@ Edit `deploy/starter-groups.json` first if you want different groups. A category
 
 ## 3. Turn it on
 
-Set `SOFA_POLICY` to the file and restart. With Docker, mount the `policy` directory read-write as [lineup policy setup](lineup-policy.md#setup) shows; the server writes numbers back into the file. Then preview the lineup:
+Move `policy.json` into the data directory (`deploy/config` with Docker) and restart; the server finds it there, and writes numbers back into it, as [lineup policy setup](lineup-policy.md#setup) describes. Then preview the lineup:
 
 ```sh
 curl -s "${auth[@]}" "$SERVER/api/v1/admin/policy/preview" | jq '.stations, .enabledStations, .counts, (.findings | length)'

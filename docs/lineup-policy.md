@@ -2,18 +2,11 @@
 
 A lineup policy is one JSON file that, together with `sources.json`, decides the whole lineup: its stations, their IDs, numbers, groups, logos, guides and sources. The same two files give the same lineup on any server, so a lineup can be rebuilt from them after a data loss or moved to another host.
 
-Set `SOFA_POLICY` to the file's path to turn it on. The server then builds the lineup from the policy. Without `SOFA_POLICY` the server serves the lineup stored in its database, which changes only through the [admin API](api.md#admin-api).
+Save it as `policy.json` in the data directory, or set `SOFA_POLICY` to its path, to turn it on. The server then builds the lineup from the policy. Without either, the server serves the lineup stored in its database, which changes only through the [admin API](api.md#admin-api).
 
 ## Setup
 
-Keep the policy in a directory the server can write, not a single-file bind mount: the server writes numbers and API edits back with a rename in that directory. With Docker Compose:
-
-```yaml
-    environment:
-      SOFA_POLICY: /config/policy/policy.json
-    volumes:
-      - ./policy:/config/policy
-```
+Keep the policy in a directory the server can write, not a single-file bind mount: the server writes numbers and API edits back with a rename in that directory. With the [Compose file](deploy.md), that is the config folder: save the policy as `deploy/config/policy.json` and restart.
 
 The server reads and validates the file at start, and any error stops it. The file is never `${VAR}`-expanded.
 
@@ -215,9 +208,9 @@ With a policy, the HDHomeRun devices split the lineup by range instead of by has
    scripts/generate-policy.py --server http://127.0.0.1:8080 \
      --admin-token "$SOFA_ADMIN_TOKEN" --api-token "$SOFA_API_TOKEN" \
      --starter-groups deploy/starter-groups.json --local-pattern '\b(des moines|kcci)\b' \
-     --out policy/policy.json
+     --out policy.json
    ```
 
    It writes `names.version` 2, `health.requireVerified`, the native providers in priority order (`--providers` changes it), the starter group map, weak list and name patterns behind a `Local` pattern for the household's own market (`--local-pattern`), group blocks that each run to the next block's start, at most 400 numbers (`Local` from 1, `Local News (US)` 10, `News` 100, `Sports` 300, `En Español` 600, `Entertainment` 700, `Drama` 900, `Classic TV` 1050, `Movies` 1200, `Sci-Fi & Horror` 1400, `Comedy` 1500, `Crime` 1600, `Documentary` 1700, `Lifestyle` 1850, `Food & Travel` 2100, `Kids & Family` 2200, `Anime` 2300, `Music` 2350, `Game Shows` 2500, `Faith` 2550, `Shopping` 2580, `Ambiance` 2600) with `numbering.followGroup` and the floor at 3000, where stations the policy keeps off are numbered, and an alias for every enabled lineup entry whose native sources carry other keys than its name. It prints every alias for review.
-2. **Turn it on** after a backup of `SOFA_DATA_DIR`: set `SOFA_POLICY` and restart, then read `GET /api/v1/admin/policy/preview`. With `requireVerified`, stations come on as the probe worker verifies a source of each, first sources first; a station none of whose sources has ever qualified healthy waits, disabled. Compare `devicesNeeded` with `devicesConfigured` in the apply result, then rescan the Plex devices and remap their channels.
-3. **Roll back** by restoring the backup and unsetting `SOFA_POLICY`.
+2. **Turn it on** after a backup of `SOFA_DATA_DIR`: move `policy.json` into the data directory, or set `SOFA_POLICY` to it, and restart, then read `GET /api/v1/admin/policy/preview`. With `requireVerified`, stations come on as the probe worker verifies a source of each, first sources first; a station none of whose sources has ever qualified healthy waits, disabled. Compare `devicesNeeded` with `devicesConfigured` in the apply result, then rescan the Plex devices and remap their channels.
+3. **Roll back** by restoring the backup and removing `policy.json` from the data directory, or unsetting `SOFA_POLICY`.

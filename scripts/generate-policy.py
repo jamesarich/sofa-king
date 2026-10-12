@@ -3,7 +3,7 @@
 
     scripts/generate-policy.py --server http://127.0.0.1:8080 \
         --admin-token "$SOFA_ADMIN_TOKEN" --api-token "$SOFA_API_TOKEN" \
-        --starter-groups deploy/starter-groups.json --out policy/policy.json
+        --starter-groups deploy/starter-groups.json --out policy.json
 
 Reads `GET /api/v1/providers` and `GET /api/v1/admin/lineup`. Writes:
 

@@ -1,16 +1,33 @@
-# Sofa King contributor instructions
+# CLAUDE.md
 
-Android TV app: one `app` module, Kotlin, Compose for TV and Media3. Read README and docs/ARCHITECTURE.md for current setup and behavior.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Android TV app: one `app` module, Kotlin, Compose for TV and Media3, talking to the [Sofa King server](https://github.com/jamesarich/sofa-king-backend) `/api/v1`. Read README and docs/ARCHITECTURE.md for current setup and behavior.
 
 ## Build
 
-Use JDK 21 and an Android SDK configured in local.properties. On the shared host, run:
+Use JDK 21 and an Android SDK with API 37.1 configured in local.properties (a new worktree needs a copy). On the shared host, run:
 
 ```sh
 /home/james/.claude/bin/gradle-queue -- :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
 ```
 
-Unit tests run against MockWebServer; no server is needed for offline development. Install release builds on TVs only when requested; release APKs use R8 and the local debug key.
+One test class or method: `/home/james/.claude/bin/gradle-queue -- :app:testDebugUnitTest --tests 'dev.jamesrich.sofaking.ui.preview.PreviewDwellTest'`.
+
+Unit tests run against MockWebServer; no server is needed for offline development. Install release builds on TVs only when requested; release APKs use R8 and the local debug key. A change to playback, focus or the remote also needs the TV checklist in docs/DEVELOPMENT.md, which only a person with a TV can run; say so rather than claiming it.
+
+Dependencies are locked. For an update, change `gradle/libs.versions.toml`, run the checks with `--write-locks`, review the lockfile diff, then rerun without the flag. Regenerate the TV banner with `tools/render-banner.sh` after changing the vector mark.
+
+Commits use Conventional Commits, `type(scope): summary` in the imperative, with scopes such as `player`, `preview`, `guide`, `data`, `settings`, `ui`.
+
+## Code map
+
+All source is under `app/src/main/kotlin/dev/jamesrich/sofaking`; tests mirror it.
+
+- `MainActivity` routes between `Screen`s, makes the cold-start decision with `Launch.kt`, owns the ExoPlayer and drives session stop/start from the lifecycle.
+- `LineupViewModel` owns settings flows, lineup state, refresh, `LineupCache` and the one `PlaybackSessions`.
+- `data/`: `SofaKingApi` (HTTP, `wireJson`), `SofaKingRepository` and `SofaKingMapper` (catalog and chunked guide queries to `Channel`/`Programme`), `PlaybackSessions`, `LineupCache`, `DataStoreSettingsStore`.
+- `ui/guide`, `ui/preview`, `ui/player`, `ui/settings`: screens. Key mapping, back, focus and timing decisions are plain functions or classes beside the composables (`GuideKeys`, `GuideBack`, `PlayerKeys`, `PreviewDwell`, `Launch`), unit-tested without a device; put new decisions there too.
 
 ## UI
 

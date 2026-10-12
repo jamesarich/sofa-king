@@ -224,8 +224,15 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
             _status.update { it.copy(state = PlaybackState.READY, isPlaying = false) }
         }
 
+        /** libVLC reports its cache filling throughout playback; only a cache short of full before playing is buffering. */
         override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) {
-            if (newCache < 100f) _status.update { it.copy(state = PlaybackState.BUFFERING) }
+            _status.update {
+                when {
+                    newCache >= 100f -> it.copy(state = PlaybackState.READY)
+                    it.isPlaying -> it
+                    else -> it.copy(state = PlaybackState.BUFFERING)
+                }
+            }
         }
 
         override fun finished(mediaPlayer: MediaPlayer) {

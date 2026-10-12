@@ -132,6 +132,8 @@ compose.desktop {
         mainClass = "dev.jamesrich.sofaking.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            // From `suggestRuntimeModules`; DataStore's protobuf needs jdk.unsupported, and the trimmed runtime lacks it.
+            modules("java.instrument", "java.management", "jdk.unsupported")
             packageName = "Sofa King"
             packageVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
         }

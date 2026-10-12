@@ -63,5 +63,6 @@ Channels come from the server's catalog. A channel appears when the server repor
 | Can't play this channel, on a desktop, for every channel | Install VLC 3; the desktop app plays through libVLC. |
 | This stream format isn't supported, on iOS or the web | The channel streams MPEG-TS, which AVPlayer and browsers do not play; those platforms play HLS channels. |
 | Couldn't reach the Sofa King server, in a browser only | The server must allow the page's origin (CORS), or serve the web app itself. |
+| No info bar or channel list over full-screen video, in a browser | The browser draws the video above the app, so full-screen overlays stay hidden. Escape still returns to the guide. |
 
 Failed or ended streams reconnect after 2, 4, 8, 15, then every 30 seconds while the player is open and the app is started; a stream the server replaced reconnects at once. OK retries immediately. A stalled stream that remains open does not trigger an automatic reconnect.

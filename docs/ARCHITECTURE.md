@@ -81,6 +81,8 @@ The app holds one `LivePlayer`. Preview and full-screen playback share it, so op
 | iOS | AVPlayer | HLS | Drawn by AVPlayerLayer in the iOS caption style | Now Playing and remote commands |
 | Web | `<video>` | HLS where the browser plays it natively | The browser's in-band text tracks | Page title |
 
+On the web the `<video>` element sits above the Compose canvas, since Compose's HTML interop stacks HTML over the canvas and the canvas clears opaque. The preview is unaffected, but the full-screen picture covers the info bar, channel list and status pills.
+
 `LivePlayer` exposes state as flows (`status`, `errors`, `cues`), so screens collect them instead of registering listeners. A desktop without libVLC gets a player whose every prepare fails with `VLC_NOT_INSTALLED`, so the screens show their failure cards and the rest of the app works.
 
 Every stream comes from a playback session. `PlaybackSessions` holds at most one: the preview opens it with `preview` intent, and OK on the previewed channel promotes the same session to `watch` with a PATCH, so the player keeps its item and nothing reloads. Tuning another channel releases the held session, then opens the next. The lease is renewed every 15 seconds with an empty PATCH, inside the 45-second preview lease. A renewal that returns a new descriptor epoch, or `410 SESSION_EXPIRED` followed by a reopen, is published on `replaced`; the app swaps the held item's URL and prepares it. A 410 from the media relay is a player error whose first reconnect runs without the backoff delay; tuning again re-reads the session and takes the current URL.

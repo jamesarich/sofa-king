@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.ui.theme
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
@@ -45,7 +47,10 @@ fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifi
         .border(3.dp, ring, shape)
 }
 
-/** A Material 3 button with the D-pad focus cue; every action button in the app is one. */
+/**
+ * A Material 3 button with the D-pad focus cue; every action button in the app is one. It rests tonal and fills
+ * with the primary color only while focused, so a row of buttons shows at a glance which one OK will press.
+ */
 @Composable
 fun SofaButton(
     onClick: () -> Unit,
@@ -53,10 +58,18 @@ fun SofaButton(
     enabled: Boolean = true,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
+    val scheme = MaterialTheme.colorScheme
     Button(
         onClick = onClick,
         modifier = modifier.tvFocus(ButtonDefaults.shape),
         enabled = enabled,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (focused) scheme.primary else scheme.surfaceVariant,
+            contentColor = if (focused) scheme.onPrimary else scheme.onSurface,
+        ),
+        interactionSource = interactions,
         content = content,
     )
 }

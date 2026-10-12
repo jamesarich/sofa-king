@@ -4,7 +4,7 @@ import SofaKingUi
 @main
 struct SofaKingApp: App {
     init() {
-        MainViewControllerKt.initSofaKingIos()
+        MainViewControllerKt.startSofaKingIos()
     }
 
     var body: some Scene {

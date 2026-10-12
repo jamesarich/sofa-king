@@ -8,9 +8,12 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSUserDomainMask
 import platform.UIKit.UIViewController
 
-/** Called once from the Swift app's init, before the first [MainViewController]. */
+/**
+ * Called once from the Swift app's init, before the first [MainViewController]. Not named `init…`: Kotlin/Native
+ * exports such functions to Swift as `doInit…`, since Objective-C reserves the init family for initializers.
+ */
 @OptIn(ExperimentalForeignApi::class)
-fun initSofaKingIos() {
+fun startSofaKingIos() {
     val support = NSFileManager.defaultManager.URLForDirectory(
         directory = NSApplicationSupportDirectory,
         inDomain = NSUserDomainMask,

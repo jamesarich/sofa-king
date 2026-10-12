@@ -144,6 +144,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
     @Composable
     override fun Video(modifier: Modifier, shutter: @Composable () -> Unit) {
         val state by status.collectAsState()
+        // Compose's web interop places the element over its canvas, which paints opaque, so the full-screen picture
+        // covers the info bar, channel list and status pills that other platforms draw over it.
         Box(modifier) {
             HtmlElementView(factory = { video }, modifier = Modifier.matchParentSize())
             if (state.state != PlaybackState.READY) shutter()

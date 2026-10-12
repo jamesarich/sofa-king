@@ -51,15 +51,24 @@ Check the result with `/readyz` and `/api/v1/providers` (see [monitoring](#monit
 
 ## Upgrade and rollback
 
-Back up before every upgrade. Then build and start the new version:
+Back up before every upgrade, and tag the running image so it stays available to roll back to. Then build and start the new version:
 
 ```sh
+docker tag sofa-king-backend:local sofa-king-backend:previous
 git pull
 ./gradlew :server:installDist
-cd deploy && docker compose up -d --build
+REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml build
+cd deploy && docker compose up -d
 ```
 
-Schema migrations run at startup and only move forward. The server records each applied version in `schema_version`, and a server that does not know a version in the database refuses to start (`Unsupported database schema`). A rollback therefore means the previous image plus the backup taken before the upgrade. Restore that backup as shown above, then start the older image.
+On a host without a JDK, build over SSH as [deploy](deploy.md#deploy-to-a-host-without-a-jdk) shows and run the `docker tag` there first. `docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' sofa-king-backend` prints the commit a running container was built from.
+
+Schema migrations run at startup and only move forward. The server records each applied version in `schema_version`, and a server that does not know a version in the database refuses to start (`Unsupported database schema`). A rollback therefore needs both the previous image and the backup taken before the upgrade. [Restore](#restore) that backup, then start the previous image:
+
+```sh
+docker tag sofa-king-backend:previous sofa-king-backend:local
+cd deploy && docker compose up -d --no-build --force-recreate
+```
 
 ## Monitoring
 

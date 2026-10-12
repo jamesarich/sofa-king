@@ -1,14 +1,14 @@
 # Deploy with Docker
 
-The image runs the installed server on `eclipse-temurin:21-jre-noble` with Ubuntu's FFmpeg and curl, as the non-root user `sofa` (uid 10001). The database and the logo cache live in the `/data` volume. The server listens on container port 8080, and a health check polls `/readyz` every 30 seconds after a 30-second start period.
+The image runs the installed server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jre-noble`, pinned by digest) with Ubuntu's FFmpeg and curl, as the non-root user `sofa` (uid 10001). `tini` is the entrypoint and reaps the FFmpeg processes the server starts for probes and remuxing. The database and the logo cache live in the `/data` volume. The server listens on container port 8080, and a health check polls `/readyz` every 30 seconds after a 30-second start period.
 
-The server is built on the host and copied into the image. Gradle resolves the pinned dependencies, some of them prereleases, from their repositories on the host, so the image build needs only the base image and Ubuntu packages. The Compose file targets Docker Compose v2.
+The server is built on the host and copied into the image. Gradle resolves the pinned dependencies, some of them prereleases, from their repositories on the host, so the image build needs only the base image and Ubuntu packages. The third-party jars get their own layer below the server's, so a rebuild after a code change reuses every layer but the top one. The Compose file targets Docker Compose v2.
 
 ## Files
 
 | File | Purpose |
 | --- | --- |
-| `Dockerfile` | Image definition; copies `server/build/install/server` to `/opt/sofa` |
+| `Dockerfile` | Image definition; copies `server/build/install/server` to `/opt/sofa`, third-party jars first |
 | `.dockerignore` | Admits only the installed distribution into the build context |
 | `deploy/compose.yaml` | Service, port mapping, volume, source file mount, [container limits](#container-limits) |
 | `deploy/.env.example` | Environment template; copy to `deploy/.env` |
@@ -30,10 +30,10 @@ Run from the repository root with JDK 21 installed:
 
 ```sh
 ./gradlew :server:installDist
-docker compose -f deploy/compose.yaml build
+REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml build
 ```
 
-For an amd64 host built from an Apple Silicon machine, set the platform: `DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f deploy/compose.yaml build`.
+`REVISION` stamps the image's `org.opencontainers.image.revision` label; the build works without it. For an amd64 host built from an Apple Silicon machine, set the platform: `DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose -f deploy/compose.yaml build`. To build on another host instead, see [deploy to a host without a JDK](#deploy-to-a-host-without-a-jdk).
 
 ## Configure
 
@@ -68,9 +68,9 @@ docker compose down
 
 ### Container limits
 
-The image runs the server under `tini`, which reaps the FFmpeg processes it starts for probes and remuxing. Third-party jars sit in their own layer below the server's two, so a rebuild after a code change reuses it. In the Compose file the root filesystem is read-only; the server writes only `/data`, the policy directory and temporary files in a 64 MiB `/tmp`. The container drops every capability and cannot gain privileges.
+The Compose file runs the container with a read-only root filesystem. The server writes only `/data`, the policy directory and temporary files in a 64 MiB `/tmp`. `/tmp` is mounted `exec` because the SQLite driver loads its native library from there; a `noexec` `/tmp` stops the server at startup. The container drops every capability and cannot gain privileges, runs at most 1,024 processes, and keeps three 10 MB log files.
 
-`mem_limit` (4 GiB) covers the JVM and its FFmpeg processes, and the heap is 75% of it. Raise it with `SOFA_MAX_SESSIONS` or `SOFA_PROBE_PARALLELISM`; each FFmpeg process takes tens of megabytes. Pass `REVISION=$(git rev-parse --short HEAD)` to the build to stamp the image's `org.opencontainers.image.revision` label.
+`mem_limit` (4 GiB) covers the JVM and its FFmpeg processes, and the heap is 75% of it. Each FFmpeg process takes tens of megabytes, so raise the limit with `SOFA_MAX_SESSIONS` or `SOFA_PROBE_PARALLELISM`.
 
 ### Data volume
 
@@ -113,7 +113,7 @@ scp sofa-king-backend.tar.gz deploy/compose.yaml deploy/.env deploy/sources.json
 ssh HOST 'cd /srv/sofa-king-backend && gunzip -c sofa-king-backend.tar.gz | docker load && docker compose up -d --no-build'
 ```
 
-`--no-build` runs the loaded image without the repository checkout that the `build` section points at. `compose.yaml`, `.env` and `sources.json` go into the same directory.
+`--no-build` runs the image already on the host; there is no repository checkout there for the `build` section to point at. The save-and-load route sends the whole image, about 800 MB before compression, on every deploy.
 
 ## Bind mount instead of a volume
 

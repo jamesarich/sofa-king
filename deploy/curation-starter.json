@@ -208,6 +208,10 @@
   },
   "patterns": [
     {
+      "name": "^(abc|cbs|nbc|fox|cw|pbs|mynetwork|telemundo|univision)\\b.*,\\s*[a-z]{2}\\s*$",
+      "group": "Local News (US)"
+    },
+    {
       "name": "\\banime\\b",
       "group": "Anime"
     },

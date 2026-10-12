@@ -93,6 +93,38 @@ class BackendStore internal constructor(
         HealthObservations.deleteWhere { observedAt less before.toString() }
     }
 
+    /**
+     * Deletes the health, observations, probe attempt and detected protocol of every offering outside [live] whose
+     * health last changed before [before]. A source disabled by hand keeps its row. Returns how many were deleted.
+     */
+    suspend fun pruneOfferings(live: Set<String>, before: Instant): Int {
+        val removed = query {
+            val stale = OfferingHealth.selectAll().mapNotNull { row ->
+                val id = row[OfferingHealth.offeringId]
+                val updated = runCatching { Instant.parse(row[OfferingHealth.updatedAt]) }.getOrNull()
+                id.takeIf { it !in live && updated != null && updated < before && !decodeHealth(row[OfferingHealth.stateJson]).manuallyDisabled }
+            }
+            for (chunk in stale.chunked(500)) {
+                HealthObservations.deleteWhere { offeringId inList chunk }
+                ProbeAttempts.deleteWhere { offeringId inList chunk }
+                OfferingProtocols.deleteWhere { offeringId inList chunk }
+                OfferingHealth.deleteWhere { offeringId inList chunk }
+            }
+            stale
+        }
+        if (removed.isNotEmpty()) {
+            val gone = removed.toHashSet()
+            healthSnapshot.updateAndGet { current -> current.filterKeys { it !in gone } }
+        }
+        return removed.size
+    }
+
+    /** Deletes the stored feed snapshots of [providerIds]. */
+    suspend fun deleteSnapshots(providerIds: Collection<String>) = query {
+        Metadata.deleteWhere { Metadata.key inList providerIds.map { "feed:$it" } }
+        Unit
+    }
+
     suspend fun setManuallyDisabled(offeringId: String, disabled: Boolean): HealthState = writeHealth { changed ->
         val next = requireNotNull(healthSnapshot.get()[offeringId]) { "Unknown offering" }.copy(manuallyDisabled = disabled)
         saveHealth(offeringId, next, Instant.now())

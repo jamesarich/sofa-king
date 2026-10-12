@@ -118,4 +118,28 @@ class FeedServiceTest {
             assertEquals("CHANNEL_NOT_FOUND", assertFailsWith<ApiFailure> { catalog.guide(query.copy(channelIds = listOf("unknown"))) }.code)
         } } } } finally { dir.toFile().deleteRecursively() }
     }
+
+    @Test fun `a provider retired for 30 days and sources no feed lists lose their stored data, hand edits stay`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-feed-retired-")
+        try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            val start = clock.now
+            fun snapshot(provider: String, ids: List<String>, at: Instant) =
+                FeedSnapshot(provider, ids.map { Channel(it, "1", it) }, ids.map { Offering(it, it, provider, "http://example.test/$it.m3u8", "hls") }, emptyList(), at.toString())
+            store.saveSnapshot(snapshot("gone", listOf("old", "kept-by-hand"), start))
+            store.setManuallyDisabled("kept-by-hand", true)
+            store.saveSnapshot(snapshot("paused", listOf("recent"), start.plus(java.time.Duration.ofDays(59))))
+            store.saveSnapshot(snapshot("live", listOf("current"), start.plus(java.time.Duration.ofDays(60))))
+            clock.now = start.plus(java.time.Duration.ofDays(60))
+
+            FeedService(listOf(FeedConfig("live", "http://example.test/feed.m3u")), store, http, clock).initialize()
+            assertEquals(setOf("live", "paused"), store.snapshots().map { it.providerId }.toSet(), "a provider left out for under 30 days keeps its snapshot")
+            assertNull(store.health("old"))
+            assertNotNull(store.health("kept-by-hand"), "a source disabled by hand keeps its row")
+            assertNotNull(store.health("recent")); assertNotNull(store.health("current"))
+
+            FeedService(emptyList(), store, http, clock).initialize()
+            assertEquals(setOf("live", "paused"), store.snapshots().map { it.providerId }.toSet(), "with nothing configured nothing is pruned")
+        } } } finally { dir.toFile().deleteRecursively() }
+    }
 }

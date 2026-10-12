@@ -11,6 +11,8 @@ Each probe has two tiers:
 1. HTTP qualification: one GET with an eight-second budget. It must answer 2xx and start with either `#EXTM3U` or three aligned MPEG-TS sync bytes. Any other answer ends the probe and is classified from the HTTP status. The signature found is stored as the source's protocol, replacing the one the import assigned, so playback descriptors and the decode tier use it from then on, including after a restart.
 2. FFmpeg decode: 30 seconds of the first video stream with at least 30 frames and 29 seconds of media timestamps; the deadline is 50 seconds. For MPEG-TS sources FFmpeg reconnects on upstream EOF (`-reconnect_at_eof`), so a source that hiccups still qualifies when it delivers 30 seconds within the deadline. HLS sources rely on the HLS demuxer's own segment handling.
 
+At start the server deletes the stored data of what feeds no longer carry. A provider missing from the configuration whose last import is over 30 days old loses its stored snapshot, and a source no stored snapshot lists whose health last changed over 30 days ago loses its health, observations, probe attempt and detected protocol. A source disabled by hand keeps its row. With no provider configured nothing is deleted.
+
 Healthy sources recheck after six hours. A recheck of a healthy source copies the video packets instead of decoding them (`-c copy`), with the same frame and timestamp thresholds: it proves the source still delivers at a fraction of the CPU, and a source that fails it is fully decoded again on its next probe. Unverified and suspect sources retry no sooner than five minutes. Credential/custom-header feeds are not probed because FFmpeg cannot scope their headers by origin.
 
 ## Failure classes

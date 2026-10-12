@@ -37,6 +37,9 @@ class ApiFailure(
     val retryable: Boolean = false,
 ) : RuntimeException(message)
 
+/** How long a provider left out of the configuration, or a source no feed lists, keeps its stored data. */
+internal val RETIRED_AFTER: Duration = Duration.ofDays(30)
+
 /** Provider playlists: the candidate channels and their sources. The lineup decides what the app sees. */
 class FeedService(
     val configs: List<FeedConfig>,
@@ -82,15 +85,28 @@ class FeedService(
     private val mutex = Mutex()
 
     suspend fun initialize() {
+        val stored = store.snapshots()
+        val configured = configs.mapTo(HashSet()) { it.id }
         published.set(
             Published(
-                store.snapshots().filter { snapshot -> configs.any { it.id == snapshot.providerId } }.sortedBy { snapshot ->
-                    configs.indexOfFirst { it.id == snapshot.providerId }
-                },
+                stored.filter { it.providerId in configured }.sortedBy { snapshot -> configs.indexOfFirst { it.id == snapshot.providerId } },
                 store.offeringProtocols(),
                 renewable,
             ),
         )
+        // With no provider configured nothing tells live data from retired data, so nothing is pruned.
+        if (configured.isEmpty()) return
+        val cutoff = clock.instant().minus(RETIRED_AFTER)
+        val retired = stored.filter { snapshot ->
+            snapshot.providerId !in configured && runCatching { java.time.Instant.parse(snapshot.importedAt) }.getOrNull()?.isBefore(cutoff) == true
+        }.map { it.providerId }
+        if (retired.isNotEmpty()) {
+            store.deleteSnapshots(retired)
+            log.info("deleted retired provider snapshots providers={}", retired.sorted())
+        }
+        val kept = stored.filter { it.providerId !in retired }.flatMapTo(HashSet()) { snapshot -> snapshot.offerings.map { it.id } }
+        val pruned = store.pruneOfferings(kept, cutoff)
+        if (pruned > 0) log.info("deleted health of retired sources count={} retiredDays={}", pruned, RETIRED_AFTER.toDays())
     }
 
     /** Records the protocol a probe or media fetch found in the stream body; every later offering view carries it. */

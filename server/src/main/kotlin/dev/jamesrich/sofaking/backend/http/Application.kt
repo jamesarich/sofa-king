@@ -1,6 +1,9 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
+import dev.jamesrich.sofaking.backend.admin.AdminPortal
+import dev.jamesrich.sofaking.backend.admin.PlexStatusSource
+import dev.jamesrich.sofaking.backend.admin.isPortalPath
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.api.*
@@ -34,7 +37,10 @@ fun Application.backendModule(
     adminToken: String? = null,
     outputs: OutputConfig = OutputConfig(),
     hdhr: HdhrConfig = HdhrConfig(),
+    plexStatus: PlexStatusSource? = null,
 ) {
+    // The portal signs in with the admin token, or the API token when no admin token is set.
+    val portal = runtime?.let { AdminPortal(it, adminToken ?: apiToken, outputs, hdhr, clock, plexStatus) }
     install(ContentNegotiation) { json(wireJson) }
     install(StatusPages) {
         status(HttpStatusCode.NotFound) { call, status -> call.respond(status, ApiError("NOT_FOUND", "Resource not found", false)) }
@@ -61,6 +67,8 @@ fun Application.backendModule(
         if (path == null) {
             call.respond(HttpStatusCode.BadRequest, ApiError("INVALID_REQUEST", "Invalid request path", false))
             finish()
+        } else if (portal != null && isPortalPath(path)) {
+            if (!portal.admit(call, path)) finish()
         } else {
             // Admin routes take the admin token when one is configured; otherwise the API token covers them too.
             val isAdmin = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/")
@@ -118,6 +126,7 @@ fun Application.backendModule(
             outputRoutes(runtime, clock, outputs, apiToken)
             logoRoutes(runtime.logos)
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
+            portal?.install(this)
         }
     }
 }

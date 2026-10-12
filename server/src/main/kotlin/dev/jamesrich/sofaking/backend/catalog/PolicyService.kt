@@ -57,6 +57,11 @@ class PolicyService(
      */
     fun probeTargets(): Map<String, Int> = probePlan.get()
 
+    private val lastApplied = java.util.concurrent.atomic.AtomicReference<AppliedRun?>(null)
+
+    /** The stations and result of the last apply that built the lineup; null until one has. */
+    fun lastApplied(): AppliedRun? = lastApplied.get()
+
     val policy: LineupPolicy get() = file.current().policy
 
     fun document(): PolicyDocument = file.current().let { PolicyDocument(it.revision, it.path.toString(), it.policy) }
@@ -207,7 +212,7 @@ class PolicyService(
         PolicyApplyResult(
             now.toString(), revision, changed, next.size, next.count { it.enabled }, changes.size, numbers.toSortedMap(), findings.sorted(), result.suggestedAliases,
             result.learned, hdhr?.needed(enabledChannels(result)), hdhr?.devices, result.unmappedCategories,
-        )
+        ).also { lastApplied.set(AppliedRun(result.stations, it)) }
     }
 
     /** Writes [bytes] as the whole policy when [ifMatch] is the loaded revision, then applies it. */
@@ -258,6 +263,38 @@ class PolicyService(
         }
         apply("patch")
         return lineup.entry(entryId)
+    }
+
+    /**
+     * Keeps [a] and [b] apart for good: adds the pair to `names.never` and drops a learned alias between them, then
+     * applies. A pair already listed is not added twice.
+     */
+    suspend fun neverMerge(a: String, b: String, ifMatch: String?): PolicyApplyResult {
+        if (a.isBlank() || b.isBlank() || a == b) throw ApiFailure(400, "INVALID_REQUEST", "names.never takes two different keys")
+        file.edit(ifMatch) { tree ->
+            editNames(tree) { names ->
+                val never = (names["never"] as? JsonArray).orEmpty().toMutableList()
+                val listed = never.any { pair -> (pair as? JsonArray)?.map { it.jsonPrimitive.content }?.toSet() == setOf(a, b) }
+                if (!listed) never.add(JsonArray(listOf(JsonPrimitive(a), JsonPrimitive(b))))
+                names["never"] = JsonArray(never)
+                val learned = (names["learned"] as? JsonObject)?.filterNot { (from, to) -> setOf(from, to.jsonPrimitive.content) == setOf(a, b) }
+                if (learned.isNullOrEmpty()) names.remove("learned") else names["learned"] = JsonObject(learned)
+            }
+        }
+        return apply("never-merge")
+    }
+
+    /** Adds `names.aliases[from] = to`, then applies. */
+    suspend fun addAlias(from: String, to: String, ifMatch: String?): PolicyApplyResult {
+        if (from.isBlank() || to.isBlank()) throw ApiFailure(400, "INVALID_REQUEST", "An alias takes two keys")
+        file.edit(ifMatch) { tree ->
+            editNames(tree) { names ->
+                val aliases = (names["aliases"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+                aliases[from] = JsonPrimitive(to)
+                names["aliases"] = JsonObject(aliases.toSortedMap())
+            }
+        }
+        return apply("alias")
     }
 
     /** Writes `enabled: false` for the entry's station, then applies. */
@@ -322,6 +359,15 @@ class PolicyService(
             }
         }
     }
+}
+
+/** The stations one apply built, in lineup order, and what it reported. */
+class AppliedRun(val stations: List<PolicyStation>, val result: PolicyApplyResult)
+
+private fun editNames(tree: JsonObject, edit: (MutableMap<String, JsonElement>) -> Unit): JsonObject {
+    val names = (tree["names"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+    edit(names)
+    return JsonObject(tree.toMutableMap().apply { put("names", JsonObject(names)) })
 }
 
 /** HDHomeRun devices that split a policy lineup by range: [devices] of [deviceSize] channels each. */

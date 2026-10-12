@@ -16,6 +16,7 @@ dependencies {
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite)
+    implementation(libs.kotlinx.html)
     runtimeOnly(libs.slf4j.simple)
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.ktor.test)

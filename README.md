@@ -4,7 +4,7 @@ Live TV, Sofa King good.
 
 Sofa King Backend is a self-hosted IPTV server written in Kotlin. It imports M3U playlists and XMLTV guides, lists free streaming services through built-in native provider clients, and keeps a curated channel lineup in SQLite. It serves that lineup to the Sofa King app over a JSON API, to M3U and XMLTV players, and to Plex through an HDHomeRun emulation.
 
-The server relays HLS and MPEG-TS streams, caches channel logos so every output points at this server, and takes failing sources out of rotation automatically. Curation rules keep the lineup in shape (groups, names, logos, equivalent sources across providers, channels disabled when nothing can play them). Rules never override a value an admin set. The server has no web UI and no DVR.
+The server relays HLS and MPEG-TS streams, caches channel logos so every output points at this server, and takes failing sources out of rotation automatically. Curation rules keep the lineup in shape (groups, names, logos, equivalent sources across providers, channels disabled when nothing can play them). Rules never override a value an admin set. The server has no DVR.
 
 ## Features
 
@@ -17,6 +17,7 @@ The server relays HLS and MPEG-TS streams, caches channel logos so every output 
 - M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
 - A logo cache served from this server
 - A JSON API, with a Kotlin client module
+- An [admin portal](docs/admin.md) at `/admin` for the lineup, station merges and Plex setup
 
 ## Sofa King fast setup
 

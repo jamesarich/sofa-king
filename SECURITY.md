@@ -14,6 +14,7 @@ The server is designed for a private network. It has no accounts, no per-user ac
 | --- | --- | --- |
 | API token (`SOFA_API_TOKEN`) | `Authorization: Bearer` | `/api/v1/*`, except `/api/v1/admin/*` when an admin token is set. Also accepted as a bearer on `/output/*` |
 | Admin token (`SOFA_ADMIN_TOKEN`) | `Authorization: Bearer` | `/api/v1/admin/*`. The API token is refused there once this is set |
+| Admin portal session | `sofa_admin` cookie, set by signing in at `/admin` with the admin token (or the API token when no admin token is set) | `/admin/*`, the [admin portal](docs/admin.md). Actions also need the session's CSRF token |
 | Output token (`SOFA_OUTPUT_TOKEN`) | `?token=` query or bearer | `/output/*`: the playlist, the guide and the stream URLs |
 | None | | `/healthz`, `/readyz` and `/logos/{key}` |
 | None; client address allow-list | | The HDHomeRun routes (`/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/auto/v{number}`). `SOFA_HDHR_ALLOW` admits listed addresses and answers everyone else `403`; unset admits the whole LAN |

@@ -12,7 +12,7 @@ python3 scripts/smoke.py
 python3 scripts/live-smoke.py
 ```
 
-The unit tests cover persistence and migrations, feed and guide imports (including gzip guides), the native provider clients, lineup and curation rules, the Dispatcharr import, source health, playback sessions, the relay, the admin API, the player outputs, the logo cache, the HDHomeRun routes and the FFmpeg remux, and client cleanup. Tests that depend on a response's lifetime or on an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job. `MediaFixture` generates H.264 and AAC HLS with FFmpeg, so FFmpeg is needed to run the suite.
+The unit tests cover persistence and migrations, feed and guide imports (including gzip guides), the native provider clients, lineup and curation rules, the Dispatcharr import, source health, playback sessions, the relay, the admin API, the admin portal, the player outputs, the logo cache, the HDHomeRun routes and the FFmpeg remux, and client cleanup. Tests that depend on a response's lifetime or on an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job. `MediaFixture` generates H.264 and AAC HLS with FFmpeg, so FFmpeg is needed to run the suite.
 
 The smoke scripts start disposable servers in temporary directories. `smoke.py` verifies the installed application over HTTP, including SIGTERM and restart. `live-smoke.py` generates H.264 and AAC fixtures, curates a lineup through the admin API, checks concurrent playback and cancellation, loads the player output with FFmpeg as the player, and runs a curation rule through preview, run and restart.
 

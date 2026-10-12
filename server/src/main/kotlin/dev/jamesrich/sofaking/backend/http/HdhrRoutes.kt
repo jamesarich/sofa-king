@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.catalog.stableId
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
@@ -55,6 +56,20 @@ internal data class LineupStatus(
     @SerialName("SourceList") val sourceList: List<String> = listOf("Cable"),
 )
 
+/** The enabled entries the tuners serve, in lineup order: the first entry of each number. */
+internal fun hdhrChannels(entries: List<LineupEntryRecord>): List<LineupEntryRecord> {
+    val seen = HashSet<String>()
+    return entries.filter { it.enabled && seen.add(it.number) }
+}
+
+/**
+ * The channels of [device] among [enabled]: by a stable hash of the entry ID, or [byRange] (with a policy) in
+ * consecutive ranges of `deviceSize`, so a new channel moves only its own range; the overflow stays on the last device.
+ */
+internal fun deviceShare(enabled: List<LineupEntryRecord>, device: Int, config: HdhrConfig, byRange: Boolean): List<LineupEntryRecord> =
+    if (!byRange) enabled.filter { Math.floorMod(it.id.hashCode(), config.devices) == device }
+    else enabled.filterIndexed { index, _ -> minOf(index / config.deviceSize, config.devices - 1) == device }
+
 /**
  * The HDHomeRun a Plex server expects at the root: discovery and lineup JSON, the UPnP description, and one
  * MPEG-TS stream per channel number. Plex sends no credentials, so the only gate is the address allow-list.
@@ -80,19 +95,15 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
     val overflowWarned = AtomicInteger()
 
     fun lineup(base: String, device: Int): List<LineupItem> {
-        val seen = HashSet<String>()
-        val enabled = runtime.lineup.entries().filter { it.enabled && seen.add(it.number) }
-        // With a policy, devices hold consecutive ranges in lineup order, so a new channel moves only its own range.
-        val mine = if (runtime.policy == null) {
-            enabled.filter { Math.floorMod(it.id.hashCode(), config.devices) == device }
-        } else {
+        val enabled = hdhrChannels(runtime.lineup.entries())
+        val byRange = runtime.policy != null
+        if (byRange) {
             val capacity = config.devices * config.deviceSize
             if (enabled.size > capacity && overflowWarned.getAndSet(enabled.size) != enabled.size) {
                 log.warn("HDHomeRun devices hold {} channels but {} are enabled; the rest go on the last device, add ports to SOFA_HDHR_EXTRA_PORTS", capacity, enabled.size)
             }
-            enabled.filterIndexed { index, _ -> minOf(index / config.deviceSize, config.devices - 1) == device }
         }
-        return mine.map { LineupItem(it.number, it.name, "$base/auto/v${it.number}") }
+        return deviceShare(enabled, device, config, byRange).map { LineupItem(it.number, it.name, "$base/auto/v${it.number}") }
     }
 
     get("/discover.json") {

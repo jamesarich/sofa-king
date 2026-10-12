@@ -107,8 +107,9 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
     // once per process (restored across configuration changes), and before the guide composes, so the preview
     // never opens a session that the full screen is about to replace.
     var launchDecided by rememberSaveable { mutableStateOf(false) }
-    // The channel the player has tuned, so the guide knows which one it came back from.
-    var watching by remember { mutableStateOf<String?>(null) }
+    // The channel the player has tuned, so the guide knows which one it came back from, and the one before it
+    // for Last; both outlive the player's own composition.
+    var history by remember { mutableStateOf(WatchHistory()) }
     val launch = launchTarget(state, settings)
     LaunchedEffect(launch, launchDecided) {
         if (launchDecided || launch == LaunchTarget.Undecided) return@LaunchedEffect
@@ -199,23 +200,25 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
         }
         is Screen.Player -> if (lineup != null) {
             val start = lineup.channels.indexOfFirst { it.guideId == current.guideId }.coerceAtLeast(0)
+            val previousGuideId = remember(current) { history.previousFor(current.guideId) }
             PlayerScreen(
                 lineup = lineup,
                 startIndex = start,
+                previousGuideId = previousGuideId,
                 player = player,
                 sessions = sessions,
                 captionSync = captionSync,
-                onExit = { screen = Screen.Guide(returnedFrom = watching) },
-                onGuide = { screen = Screen.Guide(atNow = true, returnedFrom = watching) },
-                onSearch = { screen = Screen.Guide(search = true, returnedFrom = watching) },
+                onExit = { screen = Screen.Guide(returnedFrom = history.watching) },
+                onGuide = { screen = Screen.Guide(atNow = true, returnedFrom = history.watching) },
+                onSearch = { screen = Screen.Guide(search = true, returnedFrom = history.watching) },
                 onChannelChanged = {
-                    watching = it.guideId
+                    history = history.tuned(it.guideId)
                     vm.setLastChannel(it.guideId)
                 },
                 reloadLineup = vm::reloadLineup,
                 onChannelGone = { channel ->
                     notice = resources.getString(R.string.channel_gone, channel.label())
-                    screen = Screen.Guide(returnedFrom = watching)
+                    screen = Screen.Guide(returnedFrom = history.watching)
                 },
                 captionsEnabled = settings?.captionsEnabled ?: false,
                 onCaptionsChanged = { vm.setCaptionsEnabled(it) },

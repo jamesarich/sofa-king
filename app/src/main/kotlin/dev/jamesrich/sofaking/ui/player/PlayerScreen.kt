@@ -117,6 +117,8 @@ private class TuneJob {
 fun PlayerScreen(
     lineup: Lineup,
     startIndex: Int,
+    /** The channel watched before this player opened, for Last; it may have been left through the guide. */
+    previousGuideId: String? = null,
     player: ExoPlayer,
     sessions: PlaybackSessions,
     captionSync: CaptionSync,
@@ -143,10 +145,10 @@ fun PlayerScreen(
     val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
     val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(windowHeightDp)
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, (channels.size - 1).coerceAtLeast(0))) }
-    var previousIndex by remember { mutableStateOf<Int?>(null) }
     // What load() last tuned and what was watched before it, so a refreshed lineup can be followed by identity.
     var tuned by remember { mutableStateOf<Channel?>(null) }
-    var previousChannel by remember { mutableStateOf<Channel?>(null) }
+    var previousChannel by remember { mutableStateOf(channels.firstOrNull { it.guideId == previousGuideId }) }
+    var previousIndex by remember { mutableStateOf(channels.indexOfFirst { it.guideId == previousGuideId }.takeIf { it >= 0 }) }
     var entry by remember { mutableStateOf(ChannelNumberEntry()) }
     var notice by remember { mutableStateOf<Notice?>(null) }
     var overlayVisible by remember { mutableStateOf(true) }

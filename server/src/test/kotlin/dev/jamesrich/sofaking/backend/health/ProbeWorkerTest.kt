@@ -254,6 +254,24 @@ class ProbeWorkerTest {
         } } } finally { dir.toFile().deleteRecursively() }
     }
 
+    @Test fun `a recheck passes on output time alone, since FFmpeg 6 prints no frame count when copying`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-probe-ffmpeg6-")
+        try {
+            // FFmpeg 6.1's -progress output for a 30-second stream copy: output time, no frame= line.
+            val ffmpeg = dir.resolve("ffmpeg").also {
+                Files.writeString(it, "#!/bin/sh\nprintf 'out_time_us=-80000\\nout_time_us=29960000\\nprogress=end\\n'\n")
+                it.toFile().setExecutable(true)
+            }
+            HttpClient(CIO).use { http -> openStore(dir.resolve("db")).use { store ->
+                val feeds = FeedService(emptyList(), store, http, MutableClock())
+                val worker = ProbeWorker(feeds, store, MutableClock(), ffmpeg.toString())
+                val offering = Offering("o", "c", "p", "http://example.test/live.m3u8", "hls")
+                assertNull(worker.decode(offering, emptyMap(), recheck = true))
+                assertEquals(FailureClass.OFFERING, worker.decode(offering, emptyMap(), recheck = false), "a full decode still needs its frames")
+            } }
+        } finally { dir.toFile().deleteRecursively() }
+    }
+
     @Test fun `a healthy recheck copies the video instead of decoding it, and both qualify real media`() = runBlocking<Unit> {
         val offering = Offering("o", "c", "p", "http://example.test/live.m3u8", "hls")
         val decodeArgs = decodeCommand("ffmpeg", offering, emptyMap(), 30, copy = false)

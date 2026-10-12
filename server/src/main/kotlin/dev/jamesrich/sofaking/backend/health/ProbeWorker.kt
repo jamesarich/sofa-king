@@ -246,7 +246,9 @@ class ProbeWorker(
                     val progress = Files.readString(output)
                     val frames = Regex("(?m)^frame=(\\d+)$").findAll(progress).lastOrNull()?.groupValues?.get(1)?.toLongOrNull() ?: 0
                     val micros = Regex("(?m)^out_time_us=(\\d+)$").findAll(progress).lastOrNull()?.groupValues?.get(1)?.toLongOrNull() ?: 0
-                    if (owned.exitValue() == 0 && frames >= config.decodeSeconds && micros >= (config.decodeSeconds - 1) * 1_000_000L) {
+                    // FFmpeg 6 reports no frame count when copying, so a recheck stands on the output time alone.
+                    val enoughFrames = recheck || frames >= config.decodeSeconds
+                    if (owned.exitValue() == 0 && enoughFrames && micros >= (config.decodeSeconds - 1) * 1_000_000L) {
                         null
                     } else {
                         classify(Files.newInputStream(errors).use { it.readNBytes(8192).toString(Charsets.UTF_8) })

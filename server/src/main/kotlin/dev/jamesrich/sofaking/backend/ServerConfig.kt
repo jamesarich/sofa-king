@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.http.AddressAllowList
+import java.nio.file.Files
 import java.nio.file.Path
 
 /** Player outputs: the token the M3U, XMLTV and stream URLs carry, and how far ahead the XMLTV reaches. */
@@ -65,9 +66,87 @@ data class ServerConfig(
     val policyFile: Path? = null,
     /** Plex sync when `SOFA_PLEX_URL` and `SOFA_PLEX_TOKEN` are set. */
     val plex: PlexConfig? = null,
+    /** Where each set token came from, by variable name. */
+    val secretOrigins: Map<String, SecretOrigin> = emptyMap(),
+    /** The file holding the generated tokens, when any token is generated. */
+    val secretsFile: Path? = null,
+    /** `SOFA_SOURCES` and `SOFA_POLICY` when their file was found in the data directory instead of set. */
+    val foundInDataDirectory: Set<String> = emptySet(),
 ) {
     companion object {
-        fun fromEnvironment(environment: Map<String, String>): ServerConfig {
+        /** Where earlier images kept the database; a database there and none in the data directory stops the start. */
+        private val LEGACY_DATA_DIRECTORY: Path = Path.of("/data")
+
+        /**
+         * The configuration the server starts with: [fromEnvironment] after reading `NAME_FILE` secrets, then the source
+         * and policy files found in the data directory when their variables are unset, and, on a non-loopback bind, the
+         * API and admin tokens the environment leaves unset from [SecretsFile], generated on first use. [log] gets one
+         * line per decision, and the admin token only on the start that generates it.
+         */
+        fun load(
+            environment: Map<String, String>,
+            log: (String) -> Unit,
+            readFile: (Path) -> String = Files::readString,
+            legacyDataDirectory: Path = LEGACY_DATA_DIRECTORY,
+        ): ServerConfig {
+            val (resolved, origins) = readSecretFiles(environment, readFile)
+            val base = fromEnvironment(resolved, requireToken = false)
+            val directory = base.dataDirectory
+            val legacyDatabase = legacyDataDirectory.resolve("backend.sqlite")
+            require(
+                directory.toAbsolutePath().normalize() == legacyDataDirectory.toAbsolutePath().normalize() ||
+                    Files.exists(directory.resolve("backend.sqlite")) || !Files.isRegularFile(legacyDatabase),
+            ) {
+                "$legacyDatabase exists but SOFA_DATA_DIR ($directory) holds no database. " +
+                    "Move the contents of $legacyDataDirectory into $directory, or set SOFA_DATA_DIR=$legacyDataDirectory"
+            }
+            val found = mutableSetOf<String>()
+            fun pick(name: String, set: Path?, fileName: String, what: String): Path? {
+                val candidate = directory.resolve(fileName)
+                return when {
+                    set != null -> set.also { log("config: $what file=$it from=$name") }
+                    Files.isRegularFile(candidate) -> candidate.also { found += name; log("config: $what file=$it from=SOFA_DATA_DIR, $name is unset") }
+                    else -> null.also { log("config: no $what file; set $name or add $fileName to $directory") }
+                }
+            }
+            val sources = pick("SOFA_SOURCES", base.sourcesFile, "sources.json", "sources")
+            val policy = pick("SOFA_POLICY", base.policyFile, "policy.json", "lineup policy")
+            var apiToken = base.apiToken
+            var adminToken = base.adminToken
+            var secretsFile: Path? = null
+            val allOrigins = origins.toMutableMap()
+            val missing = buildList { if (apiToken == null) add("apiToken"); if (adminToken == null) add("adminToken") }
+            if (!isLoopback(base.host) && missing.isNotEmpty()) {
+                val file = SecretsFile(directory.resolve(SecretsFile.NAME))
+                val (values, generated) = file.resolve(missing)
+                secretsFile = file.path
+                values["apiToken"]?.let { token ->
+                    apiToken = token
+                    allOrigins["SOFA_API_TOKEN"] = SecretOrigin.GENERATED
+                    if ("apiToken" in generated) log("secrets: generated SOFA_API_TOKEN and stored it in ${file.path}; reveal it in the admin portal under Settings")
+                    else log("secrets: SOFA_API_TOKEN from ${file.path}")
+                }
+                values["adminToken"]?.let { token ->
+                    adminToken = token
+                    allOrigins["SOFA_ADMIN_TOKEN"] = SecretOrigin.GENERATED
+                    if ("adminToken" in generated) {
+                        log(
+                            "secrets: generated SOFA_ADMIN_TOKEN=$token and stored it in ${file.path}. Sign in at /admin with it. " +
+                                "It is not logged again; read adminToken from that file to see it later",
+                        )
+                    } else log("secrets: SOFA_ADMIN_TOKEN from ${file.path}")
+                }
+            }
+            return base.copy(
+                sourcesFile = sources, policyFile = policy, apiToken = apiToken, adminToken = adminToken,
+                secretOrigins = allOrigins, secretsFile = secretsFile, foundInDataDirectory = found,
+            )
+        }
+
+        private fun isLoopback(host: String) = host in setOf("127.0.0.1", "localhost", "::1")
+
+        /** [requireToken] false leaves a non-loopback bind without `SOFA_API_TOKEN` to [load], which generates one. */
+        fun fromEnvironment(environment: Map<String, String>, requireToken: Boolean = true): ServerConfig {
             val host = environment["SOFA_HOST"] ?: "127.0.0.1"
             require(host.isNotBlank()) { "SOFA_HOST must not be blank" }
             val port = (environment["SOFA_PORT"] ?: "8080").toIntOrNull()
@@ -76,8 +155,8 @@ data class ServerConfig(
             require(directory.isNotBlank()) { "SOFA_DATA_DIR must not be blank" }
             val token = environment["SOFA_API_TOKEN"]
             require(token == null || token.length >= 32) { "SOFA_API_TOKEN must contain at least 32 characters" }
-            val loopbackBind = host in setOf("127.0.0.1", "localhost", "::1")
-            require(loopbackBind || token != null) { "Non-loopback binding requires SOFA_API_TOKEN" }
+            val loopbackBind = isLoopback(host)
+            require(loopbackBind || token != null || !requireToken) { "Non-loopback binding requires SOFA_API_TOKEN" }
             val capacity = (environment["SOFA_MAX_SESSIONS"] ?: "4").toIntOrNull()
             require(capacity != null && capacity in 1..16) { "SOFA_MAX_SESSIONS must be between 1 and 16" }
             val sources = environment["SOFA_SOURCES"]?.let { require(it.isNotBlank()); Path.of(it) }

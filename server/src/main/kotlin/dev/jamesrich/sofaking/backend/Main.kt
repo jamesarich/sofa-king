@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory
 
 fun main(): Unit = runBlocking<Unit> {
     val log = LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.Main")
-    val config = ServerConfig.fromEnvironment(System.getenv())
+    val config = ServerConfig.load(System.getenv(), log::info)
     val store = openStore(config.dataDirectory)
     val runtime =
         try {

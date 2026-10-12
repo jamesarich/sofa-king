@@ -4,9 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -64,23 +62,6 @@ class DataStoreSettingsStoreTest {
         val settings = store.settings.first()
         assertEquals("http://sofa.lan:9193", settings.serverUrl)
         assertEquals("abc123", settings.apiToken)
-    }
-
-    @Test
-    fun `a playlist server address from an earlier install is not read and is dropped on save`() = runTest {
-        dataStore.edit {
-            it[stringPreferencesKey("server_url")] = "http://192.168.1.3:9191"
-            it[stringPreferencesKey("profile")] = "livingroom"
-        }
-        val store = newStore()
-        assertEquals("", store.settings.first().serverUrl)
-
-        store.setServer("http://192.168.1.3:9193", "")
-
-        val prefs = dataStore.data.first()
-        assertEquals(null, prefs[stringPreferencesKey("server_url")])
-        assertEquals(null, prefs[stringPreferencesKey("profile")])
-        assertEquals("http://192.168.1.3:9193", store.settings.first().serverUrl)
     }
 
     @Test
@@ -156,40 +137,11 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
-    fun `the old whole-seconds default is not migrated`() = runTest {
-        dataStore.edit { it[intPreferencesKey("caption_advance_seconds")] = 6 }
-
-        assertEquals(0, newStore().settings.first().captionAdvanceMs)
-    }
-
-    @Test
-    fun `legacy per-channel seconds are read as seconds and keep their channel`() = runTest {
-        dataStore.edit { it[stringSetPreferencesKey("channel_caption_advance")] = setOf("5\t2", "8\t6") }
-
-        val settings = newStore().settings.first()
-        assertEquals(2_000, settings.captionAdvanceFor("5"))
-        assertEquals(6_000, settings.captionAdvanceFor("8"))
-        assertEquals(0, settings.captionAdvanceFor("108"))
-    }
-
-    @Test
     fun `a set default replaces the zero default`() = runTest {
         val store = newStore()
         store.setCaptionAdvanceMs(1_500)
 
         assertEquals(1_500, store.settings.first().captionAdvanceMs)
-    }
-
-    @Test
-    fun `writing one channel keeps every legacy channel value`() = runTest {
-        dataStore.edit { it[stringSetPreferencesKey("channel_caption_advance")] = setOf("5\t2") }
-        val store = newStore()
-
-        store.setChannelCaptionAdvance("8", 6_500)
-
-        val settings = store.settings.first()
-        assertEquals(2_000, settings.captionAdvanceFor("5"))
-        assertEquals(6_500, settings.captionAdvanceFor("8"))
     }
 
     @Test

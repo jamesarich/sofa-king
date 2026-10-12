@@ -53,9 +53,6 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs ->
             prefs[SERVER_URL] = server
             prefs[API_TOKEN] = token
-            // Left by installs that pointed at a playlist server; never read, and freed here.
-            prefs.remove(LEGACY_SERVER_URL)
-            prefs.remove(LEGACY_PROFILE)
         }
     }
 
@@ -101,28 +98,15 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[PREVIEW_SOUND] = enabled }
     }
 
-    /** The old whole-seconds default is deliberately not migrated: the default is now 0 and per-channel values carry the tuning. */
     private fun advanceMs(prefs: Preferences): Int =
         (prefs[CAPTION_ADVANCE_MS] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
 
-    /** Per-channel values follow the same rule as [advanceMs]: the ms set wins once it exists. */
-    private fun channelAdvances(prefs: Preferences): Map<String, Int> =
-        prefs[CHANNEL_CAPTION_ADVANCE_MS]?.let { decodeAdvances(it, legacy = false) }
-            ?: decodeAdvances(prefs[LEGACY_CHANNEL_CAPTION_ADVANCE].orEmpty(), legacy = true)
-
-    /** Entries are `guideId<TAB>value`; anything malformed is skipped. */
-    private fun decodeAdvances(entries: Set<String>, legacy: Boolean): Map<String, Int> = entries.mapNotNull { entry ->
+    /** Entries are `guideId<TAB>ms`; anything malformed is skipped. */
+    private fun channelAdvances(prefs: Preferences): Map<String, Int> = prefs[CHANNEL_CAPTION_ADVANCE_MS].orEmpty().mapNotNull { entry ->
         val id = entry.substringBeforeLast(SEPARATOR, missingDelimiterValue = "")
         val value = entry.substringAfterLast(SEPARATOR).toIntOrNull()
-        when {
-            id.isEmpty() || value == null -> null
-            legacy -> id to legacySecondsToMs(value)
-            else -> id to value.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
-        }
+        if (id.isEmpty() || value == null) null else id to value.coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
     }.toMap()
-
-    /** The old setting was clamped to 0..6 whole seconds; keep that bound before scaling. */
-    private fun legacySecondsToMs(seconds: Int): Int = seconds.coerceIn(0..6) * 1_000
 
     companion object {
         private val SERVER_URL = stringPreferencesKey("backend_url")
@@ -136,9 +120,6 @@ class DataStoreSettingsStore(
         private val CAPTION_STYLE = stringPreferencesKey("caption_style")
         private val AUTO_OPEN_DELAY = stringPreferencesKey("auto_open_delay")
         private val PREVIEW_SOUND = booleanPreferencesKey("preview_sound")
-        private val LEGACY_CHANNEL_CAPTION_ADVANCE = stringSetPreferencesKey("channel_caption_advance")
-        private val LEGACY_SERVER_URL = stringPreferencesKey("server_url")
-        private val LEGACY_PROFILE = stringPreferencesKey("profile")
         private const val SEPARATOR = '\t'
 
         private val lock = Any()

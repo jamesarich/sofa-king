@@ -120,7 +120,7 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
         if (!guard(call)) return@get
         call.respond(LineupStatus())
     }
-    // Plex asks for a channel scan; the lineup is whatever the household curated, so there is nothing to scan.
+    // Plex asks for a channel scan; the lineup is built ahead of time, so there is nothing to scan.
     get("/lineup.post") { if (guard(call)) call.respond(HttpStatusCode.OK) }
     post("/lineup.post") { if (guard(call)) call.respond(HttpStatusCode.OK) }
     get("/device.xml") {

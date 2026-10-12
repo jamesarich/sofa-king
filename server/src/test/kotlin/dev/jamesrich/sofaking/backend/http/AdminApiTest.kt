@@ -15,7 +15,7 @@ import kotlin.test.*
 class AdminApiTest {
     private val json = Json { encodeDefaults = true }
 
-    @Test fun `admin API curates the lineup behind its own token and the app sees the result`() = testApplication {
+    @Test fun `admin API edits the lineup behind its own token and the app sees the result`() = testApplication {
         val dir = Files.createTempDirectory("sofa-admin-api-")
         val token = "secret".repeat(8)
         val admin = "curator".repeat(6)
@@ -58,11 +58,8 @@ class AdminApiTest {
                     asAdmin(); setBody(json.encodeToString(UpdateLineupEntry(number = "501", offerings = listOf(altCandidate.offerings.single().id, fixtureCandidate.offerings.single().id))))
                 }.bodyAsText())
                 assertEquals("501", patched.number); assertEquals(listOf("alt", "fixture"), patched.offerings.map { it.providerId })
-                assertEquals(listOf("number", "offerings"), patched.pinned, "every field the household sets is pinned")
+                assertEquals("Station", patched.name, "an absent field keeps its value")
                 assertEquals("manual", patched.createdBy)
-                val repinned = Json.decodeFromString<LineupEntry>(client.patch("/api/v1/admin/lineup/${entry.id}") { asAdmin(); setBody("""{"pin":["name"],"unpin":["number"]}""") }.bodyAsText())
-                assertEquals(listOf("name", "offerings"), repinned.pinned)
-                assertEquals(HttpStatusCode.BadRequest, client.patch("/api/v1/admin/lineup/${entry.id}") { asAdmin(); setBody("""{"pin":["colour"]}""") }.status)
                 assertEquals(HttpStatusCode.BadRequest, client.patch("/api/v1/admin/lineup/${entry.id}") { asAdmin(); setBody("""{"number":""}""") }.status)
                 assertEquals(HttpStatusCode.NotFound, client.patch("/api/v1/admin/lineup/missing") { asAdmin(); setBody("{}") }.status)
                 val second = Json.decodeFromString<LineupEntry>(client.post("/api/v1/admin/lineup") { asAdmin(); setBody("""{"number":"7","name":"Manual"}""") }.bodyAsText())

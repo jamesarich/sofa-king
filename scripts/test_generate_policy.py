@@ -45,7 +45,7 @@ class StarterGroupsTest(unittest.TestCase):
         }, generate_policy.starter_groups(starter, 'des moines'))
 
     def test_every_group_the_starter_names_has_a_block(self):
-        with open(os.path.join(ROOT, 'deploy/curation-starter.json'), encoding='utf-8') as handle:
+        with open(os.path.join(ROOT, 'deploy/starter-groups.json'), encoding='utf-8') as handle:
             starter = json.load(handle)
         named = set(starter['groupMap'].values()) | {p['group'] for p in starter['patterns']} | {'Local'}
         self.assertEqual(set(), named - set(generate_policy.GROUP_BLOCKS))

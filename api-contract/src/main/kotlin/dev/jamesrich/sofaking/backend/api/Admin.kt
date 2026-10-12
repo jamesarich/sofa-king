@@ -24,34 +24,29 @@ import kotlinx.serialization.Serializable
     val status: String, val manuallyDisabled: Boolean = false,
 )
 /**
- * [pinned] names the fields the household set (`number`, `name`, `group`, `logo`, `enabled`, `offerings`, `guide`), which
- * curation never changes. [createdBy] is `manual`, `import` or `rule:ID`. [autoDisabledAt] and [autoDisabledReason]
- * (`unavailable` or `alias`) are set while curation, not the household, holds the entry disabled.
+ * [createdBy] is `policy` for an entry a lineup policy built, else `manual`. [autoDisabledAt] and [autoDisabledReason]
+ * (`unavailable`) are set while the policy holds the station off for want of an eligible source.
  */
 @Serializable data class LineupEntry(
     val id: String, val position: Int, val number: String, val name: String, val group: String? = null, val logo: String? = null,
     val enabled: Boolean = true, val guide: GuideMapping? = null, val offerings: List<LineupOfferingInfo> = emptyList(),
-    val guideStatus: String = "unassigned", val pinned: List<String> = emptyList(), val createdBy: String = "manual",
+    val guideStatus: String = "unassigned", val createdBy: String = "manual",
     val autoDisabledAt: String? = null, val autoDisabledReason: String? = null,
 )
 /**
- * Either name a feed [channelId] to copy its number, name, logo, group and sources, or supply them explicitly. Every
- * field supplied is pinned; [enabled] defaults to true and is pinned only when sent.
+ * Either name a feed [channelId] to copy its number, name, logo, group and sources, or supply them explicitly; fields
+ * supplied override the copied ones. [enabled] defaults to true.
  */
 @Serializable data class CreateLineupEntry(
     val channelId: String? = null, val id: String? = null, val number: String? = null, val name: String? = null, val group: String? = null,
     val logo: String? = null, val enabled: Boolean? = null, val offerings: List<String>? = null, val guide: GuideMapping? = null,
     val position: Int? = null,
 )
-/**
- * Absent fields keep their value; the `clear*` flags remove optional values. Every field sent (and every field cleared)
- * is pinned; [pin] and [unpin] change pins without changing values.
- */
+/** Absent fields keep their value; the `clear*` flags remove optional values. */
 @Serializable data class UpdateLineupEntry(
     val number: String? = null, val name: String? = null, val group: String? = null, val logo: String? = null, val enabled: Boolean? = null,
     val offerings: List<String>? = null, val guide: GuideMapping? = null, val position: Int? = null,
     val clearGroup: Boolean = false, val clearLogo: Boolean = false, val clearGuide: Boolean = false,
-    val pin: List<String> = emptyList(), val unpin: List<String> = emptyList(),
 )
 @Serializable data class ReorderLineup(val ids: List<String>)
 @Serializable data class AdoptProvider(val providerId: String, val enabled: Boolean = true)

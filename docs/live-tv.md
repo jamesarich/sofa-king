@@ -12,7 +12,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_PORT` | `8080` | Listen port, 1-65535 |
 | `SOFA_DATA_DIR` | `data` | Database and logo cache directory |
 | `SOFA_SOURCES` | Unset | Path to the source configuration JSON file; unset starts with no providers or guides |
-| `SOFA_POLICY` | Unset | Path to a [lineup policy](lineup-policy.md) JSON file in a writable directory, loaded and validated at start (any error stops the server). When set, the lineup is built from it and curation does not run |
+| `SOFA_POLICY` | Unset | Path to a [lineup policy](lineup-policy.md) JSON file in a writable directory, loaded and validated at start (any error stops the server). When set, the lineup is built from it |
 | `SOFA_API_TOKEN` | Unset | API bearer token, at least 32 characters; required for non-loopback binding |
 | `SOFA_ADMIN_TOKEN` | Unset | Bearer token for `/api/v1/admin/*`, at least 32 characters; unset means the API token administers the lineup too |
 | `SOFA_MAX_SESSIONS` | `4` | Maximum active playback sessions, 1-16 |
@@ -92,7 +92,7 @@ Each guide object configures one XMLTV source, independent of any provider:
 | `headers` | `{}` | Request headers for the guide |
 | `refreshSeconds` | `21600` | Import interval; minimum 300 seconds |
 
-Guides are parsed as a stream. The server keeps the `<channel>` index (and every channel ID seen on a program) for curation, and it keeps programs only for channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programs within one fetch. The download follows up to five redirects and is bounded by a 15-second socket inactivity timeout rather than a total request timeout. It is read as gzip whenever the body starts with the gzip magic bytes, whatever the content type says. A `<!DOCTYPE tv SYSTEM "xmltv.dtd">` declaration is accepted. The DTD is never fetched, and an entity declared in the document fails the import instead of resolving. In UTF-8 and single-byte guides, control characters that XML forbids are dropped before parsing and counted as `controlChars` in the import log line. A UTF-16 guide is parsed as sent. Each guide fails on its own. `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one, the others keep refreshing, and the log line carries the exception class and its message with URLs redacted.
+Guides are parsed as a stream. The server keeps the `<channel>` index (and every channel ID seen on a program) for guide mapping, and it keeps programs only for channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programs within one fetch. The download follows up to five redirects and is bounded by a 15-second socket inactivity timeout rather than a total request timeout. It is read as gzip whenever the body starts with the gzip magic bytes, whatever the content type says. A `<!DOCTYPE tv SYSTEM "xmltv.dtd">` declaration is accepted. The DTD is never fetched, and an entity declared in the document fails the import instead of resolving. In UTF-8 and single-byte guides, control characters that XML forbids are dropped before parsing and counted as `controlChars` in the import log line. A UTF-16 guide is parsed as sent. Each guide fails on its own. `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one, the others keep refreshing, and the log line carries the exception class and its message with URLs redacted.
 
 ### Import limits
 
@@ -110,7 +110,7 @@ The XMLTV limit counts decompressed bytes as they stream past the parser, so it 
 
 ## Lineup
 
-The app sees the lineup and nothing else: `/api/v1/channels`, `/api/v1/guide/query` and `/api/v1/playback-sessions` work on lineup entry IDs. Feed channels that are not in the lineup are candidates for curation.
+The app sees the lineup and nothing else: `/api/v1/channels`, `/api/v1/guide/query` and `/api/v1/playback-sessions` work on lineup entry IDs. Feed channels that are not in the lineup are candidates. With a [lineup policy](lineup-policy.md) the policy builds the lineup from them; without one, entries are added through the admin API.
 
 A lineup entry has a stable UUID (the app's channel ID), a number, a name, an optional group and logo override, an enabled flag, an ordered list of sources from any providers (the failover order) and an optional guide mapping (guide ID plus XMLTV channel ID). Entries live in SQLite and survive imports and restarts. A disabled entry is kept but not served.
 
@@ -118,11 +118,11 @@ Playback walks an entry's sources in order within each health rank: healthy sour
 
 ### Logos
 
-Clients, players and Plex see every logo at `http://SERVER_HOST:PORT/logos/KEY` on this server, not on the host the feed names ([API detail](api.md#logos)). A channel's logo is the entry's own, else the first of its sources' `tvg-logo` values, else the mapped guide channel's `<icon>`. A logo on a host listed in the curation settings' `retiredLogoHosts` counts as absent.
+Clients, players and Plex see every logo at `http://SERVER_HOST:PORT/logos/KEY` on this server, not on the host the feed names ([API detail](api.md#logos)). A channel's logo is the entry's own, else the first of its sources' `tvg-logo` values, else the mapped guide channel's `<icon>`.
 
 The server fetches each lineup logo once after an import or lineup change, stores it under `SOFA_DATA_DIR/logos/`, serves it with a day of cache headers and an `ETag`, and refreshes it a week later. A refresh that fails keeps the old file, so retiring a logo host leaves the logos in place. Only image content types up to 2 MiB are accepted. Fetches follow the [upstream address policy](#upstream-addresses) and send no provider headers. A `tvg-logo` or guide `<icon>` with spaces or other unencoded characters is percent-encoded, and a relative one resolves against the playlist or guide URL. A reference that is not an HTTP(S) URL after that counts as no logo. A logo the source never answered stays in the listings and answers `404`, which players show as their placeholder. The source is retried an hour later. Logos no longer named by any entry are deleted on the next sweep.
 
-Curate with the [admin API](api.md#admin-api). The common steps:
+Without a lineup policy, edit the lineup with the [admin API](api.md#admin-api). The common steps:
 
 1. Find candidates: `GET /api/v1/admin/candidates?q=espn` lists feed channels with their sources and which entries already use them.
 2. Add one: `POST /api/v1/admin/lineup` with `{"channelId": "FEED_CHANNEL_ID"}` copies the candidate's number, name, logo, group and sources. When the candidate's `tvg-id` appears in a configured guide, that guide is mapped automatically, explicit guides first, then provider guides.
@@ -132,7 +132,7 @@ Curate with the [admin API](api.md#admin-api). The common steps:
 
 To add every channel of one provider at once, `POST /api/v1/admin/lineup/adopt` with `{"providerId": "whale"}` adds each channel whose sources no entry uses yet.
 
-Every field one of these requests sets is pinned, so automation leaves it alone. [Curation](curation.md) fills and corrects the rest by rule: groups, name and logo corrections, equivalent sources from other providers, entries disabled while no source works, and candidates adopted by rule. `GET /api/v1/admin/curation/preview` shows what it would change before `settings.enabled` turns it on.
+With a lineup policy, `PATCH` and `DELETE` write the station's override in the policy instead, and the routes that add, reorder or adopt answer `410` ([lineup policy API](lineup-policy.md#api)).
 
 ## Third-party players
 
@@ -170,7 +170,7 @@ After a lineup change, a new channel or a renumbering, Plex must re-read `/lineu
 
 ### Keep Plex in step
 
-With `SOFA_PLEX_URL` and `SOFA_PLEX_TOKEN` set, the server keeps the channel maps of its devices in Plex in step with the lineup. A sync runs 2 minutes after a lineup policy apply or a curation run changes the lineup, every `SOFA_PLEX_SYNC_MINUTES`, 2 minutes after start, and on `POST /api/v1/admin/plex/sync`.
+With `SOFA_PLEX_URL` and `SOFA_PLEX_TOKEN` set, the server keeps the channel maps of its devices in Plex in step with the lineup. A sync runs 2 minutes after a lineup policy apply changes the lineup, every `SOFA_PLEX_SYNC_MINUTES`, 2 minutes after start, and on `POST /api/v1/admin/plex/sync`.
 
 A sync reads Plex's DVRs and picks out the devices whose DeviceID is one of this server's. For each, it takes the channel map Plex proposes against the DVR's guide, saves it with every proposed channel enabled, then reloads that DVR's guide once. Other tuners in the same DVR are left alone. A channel Plex proposes no guide channel for stays out of the map.
 
@@ -251,6 +251,5 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 | A Plex channel plays for a moment and stops | FFmpeg ended the remux. The server log has `remux ended exit=` with FFmpeg's last lines, URLs removed. |
 | Plex channels lag the lineup | Check `lastError` and `findings` in `GET /api/v1/admin/plex`. `answered 401` means `SOFA_PLEX_TOKEN` is wrong; a device listed in `missingDevices` is not in any DVR. `POST /api/v1/admin/plex/sync` runs a sync now. |
 | `503 SOURCE_UNAVAILABLE` | Inspect `GET /api/v1/admin/lineup/ENTRY_ID` for the entry's source states, or `/api/v1/sources` for quarantine, probation or manual disable. |
-| A channel vanished from the lineup | `GET /api/v1/admin/lineup/ENTRY_ID`: `autoDisabledAt` set means curation disabled it (`autoDisabledReason` `unavailable` or `alias`). `GET /api/v1/admin/curation/changes` has the action. `PATCH` with `{"enabled": true}` takes the flag back as a manual setting. |
-| Curation changed a field an admin set | `PATCH` the entry with the value, which pins the field. `pin` and `unpin` lists adjust pins without a value change. `GET /api/v1/admin/curation/preview` shows what the next run would do. |
+| A channel vanished from the lineup | `GET /api/v1/admin/lineup/ENTRY_ID`: `autoDisabledAt` set means the lineup policy turned it off for want of an eligible source (`autoDisabledReason` `unavailable`). `GET /api/v1/admin/policy/changes` has the change and `GET /api/v1/admin/stations/KEY` the station's candidates. |
 | Sources never qualify | Check FFmpeg availability, the `probe` setting, and whether the feed has credential or custom headers. |

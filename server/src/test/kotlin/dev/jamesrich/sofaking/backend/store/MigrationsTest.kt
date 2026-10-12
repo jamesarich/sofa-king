@@ -44,7 +44,7 @@ class MigrationsTest {
         } finally { closeDatabase(db); dir.toFile().deleteRecursively() }
     }
 
-    @Test fun `a lineup written before the curation columns opens with defaults after the upgrade`() = runBlocking<Unit> {
+    @Test fun `a lineup written before the created-by and auto-disable columns opens with defaults after the upgrade`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-migration-upgrade-")
         try {
             val db = databaseAt(dir)
@@ -58,8 +58,8 @@ class MigrationsTest {
             openStore(dir).use { store ->
                 val entry = store.lineup().single()
                 assertEquals(LineupEntryRecord("b0f6d2f4-0000-4000-8000-000000000001", "5", "First", "News", null, true, GuideMapping("g", "x"), listOf("o1")), entry)
-                assertTrue(entry.pinned.isEmpty()); assertEquals("manual", entry.createdBy); assertNull(entry.autoDisabledAt); assertNull(entry.autoDisabledReason)
-                assertTrue(store.curationRules().isEmpty()); assertNull(store.curationSettings()); assertTrue(store.unavailableSince().isEmpty())
+                assertEquals("manual", entry.createdBy); assertNull(entry.autoDisabledAt); assertNull(entry.autoDisabledReason)
+                assertTrue(store.policyChanges(10).isEmpty())
                 assertTrue(store.stationAvailability().isEmpty())
                 val remembered = mapOf(
                     "news" to dev.jamesrich.sofaking.backend.catalog.StationAvailability(
@@ -75,8 +75,48 @@ class MigrationsTest {
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT version FROM schema_version ORDER BY version").use { rows ->
-                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60), buildList { while (rows.next()) add(rows.getInt(1)) })
+                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70), buildList { while (rows.next()) add(rows.getInt(1)) })
                     }
+                }
+            }
+        } finally { dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `the upgrade drops the curation tables and keeps the lineup and the policy changes`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-migration-curation-")
+        try {
+            val db = databaseAt(dir)
+            try {
+                applyMigrations(db, foundationMigrations().filter { it.version < 70 })
+                transaction(db) {
+                    exec("INSERT INTO lineup_entry(id, position, number, name, group_name, logo, enabled, guide_id, guide_channel, updated_at, pinned, created_by, auto_disabled_at, auto_disabled_reason) VALUES ('b0f6d2f4-0000-4000-8000-000000000001', 0, '5', 'First', 'News', NULL, 0, NULL, NULL, '2026-10-10T00:00:00Z', 'group,name', 'policy', '2026-10-09T00:00:00Z', 'unavailable')")
+                    exec("INSERT INTO lineup_offering(entry_id, position, offering_id) VALUES ('b0f6d2f4-0000-4000-8000-000000000001', 0, 'o1')")
+                    exec("INSERT INTO curation_rule(id, kind, position, rule_json) VALUES ('r', 'group', 0, '{}')")
+                    exec("INSERT INTO curation_entry_state(entry_id, unavailable_since) VALUES ('b0f6d2f4-0000-4000-8000-000000000001', '2026-10-09T00:00:00Z')")
+                    exec("INSERT INTO curation_adopted(channel_id, entry_id, adopted_at) VALUES ('c', 'b0f6d2f4-0000-4000-8000-000000000001', '2026-10-09T00:00:00Z')")
+                    exec("INSERT INTO metadata(key, value) VALUES ('curation:settings', '{}')")
+                    exec("""INSERT INTO curation_change(applied_at, entry_id, action_json) VALUES ('2026-10-09T00:00:00Z', NULL, '{"kind":"regroup","entryName":"Old","reason":"rule"}')""")
+                    exec("""INSERT INTO curation_change(applied_at, entry_id, action_json) VALUES ('2026-10-10T00:00:00Z', 'b0f6d2f4-0000-4000-8000-000000000001', '{"kind":"policy","entryId":"b0f6d2f4-0000-4000-8000-000000000001","entryName":"First","field":"enabled","before":"true","after":"false","reason":"health: unavailable","ruleId":null,"offeringIds":[],"key":"first"}')""")
+                }
+            } finally { closeDatabase(db) }
+            openStore(dir).use { store ->
+                val entry = store.lineup().single()
+                assertEquals(
+                    LineupEntryRecord(
+                        "b0f6d2f4-0000-4000-8000-000000000001", "5", "First", "News", enabled = false, offeringIds = listOf("o1"), createdBy = "policy",
+                        autoDisabledAt = java.time.Instant.parse("2026-10-09T00:00:00Z"), autoDisabledReason = "unavailable",
+                    ),
+                    entry,
+                )
+                val change = store.policyChanges(10).single()
+                assertEquals("2026-10-10T00:00:00Z", change.appliedAt)
+                assertEquals(dev.jamesrich.sofaking.backend.api.PolicyChange("b0f6d2f4-0000-4000-8000-000000000001", "First", "enabled", "true", "false", "health: unavailable", "first"), change.change)
+            }
+            DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
+                connection.createStatement().use { stmt ->
+                    stmt.executeQuery("SELECT name FROM sqlite_master WHERE name LIKE 'curation%'").use { rows -> assertFalse(rows.next(), "no curation table or index is left") }
+                    stmt.executeQuery("SELECT COUNT(*) FROM metadata WHERE key = 'curation:settings'").use { rows -> rows.next(); assertEquals(0, rows.getInt(1)) }
+                    stmt.executeQuery("SELECT COUNT(*) FROM pragma_table_info('lineup_entry') WHERE name = 'pinned'").use { rows -> rows.next(); assertEquals(0, rows.getInt(1)) }
                 }
             }
         } finally { dir.toFile().deleteRecursively() }
@@ -87,12 +127,16 @@ class MigrationsTest {
         val db = databaseAt(dir)
         try {
             applyMigrations(db, foundationMigrations())
-            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60), foundationMigrations().map { it.version })
+            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70), foundationMigrations().map { it.version })
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").use { rows ->
                         val tables = buildList { while (rows.next()) add(rows.getString(1)) }
-                        assertTrue(tables.containsAll(listOf("lineup_entry", "lineup_offering", "guide_channel", "guide_programme", "guide_import", "logo_cache", "station_availability")), tables.toString())
+                        assertTrue(
+                            tables.containsAll(listOf("lineup_entry", "lineup_offering", "guide_channel", "guide_programme", "guide_import", "logo_cache", "station_availability", "policy_change")),
+                            tables.toString(),
+                        )
+                        assertTrue(tables.none { it.startsWith("curation") }, tables.toString())
                     }
                 }
             }

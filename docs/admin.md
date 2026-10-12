@@ -20,7 +20,7 @@ A session lasts 12 hours from sign-in, or until you sign out. Sessions are held 
 | Required | With a policy: the required stations from the last run, with their pins, live source count, source health and state | Nothing |
 | Plex & players | The M3U playlist and XMLTV guide URLs, each HDHomeRun device with its address and channel count, the devices the lineup needs against those configured, and the Plex setup steps | Nothing; the output token stays hidden until you choose to reveal it |
 
-Without a policy, the Merges and Required pages explain that they need one, and lineup edits go to the lineup itself, pinning each changed field the way `PATCH /api/v1/admin/lineup/{id}` does.
+Without a policy, the Merges and Required pages explain that they need one, and lineup edits go to the lineup itself, sending the changed fields the way `PATCH /api/v1/admin/lineup/{id}` does.
 
 A lineup edit under a policy fails with "The policy revision is ..." when the policy changed since the page loaded, including through a run that wrote back numbers or learned aliases. Reload the page and repeat the edit. Every error shows on the page, next to the station it concerns.
 

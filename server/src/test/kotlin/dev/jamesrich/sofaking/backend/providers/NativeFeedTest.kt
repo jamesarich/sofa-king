@@ -68,14 +68,12 @@ class NativeFeedTest {
         guides.initialize()
         lineup = LineupService(store, clock, feeds, guides)
         lineup.initialize()
-        val curation = CurationService(store, clock, feeds, guides, lineup)
-        curation.initialize()
         val catalog = CatalogService(feeds, guides, lineup, store, clock)
         logos = LogoCache(store, http, clock, dir.resolve("logos"), policy, { emptyList() })
         logos.initialize()
         val sessions = SessionManager(catalog, store, clock, 4)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        return LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux("ffmpeg"), logos, curation, http, scope)
+        return LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux("ffmpeg"), logos, http, scope)
     }
 
     @Test fun `a native provider imports as svc offerings that the relay resolves with the service headers`() = testApplication {
@@ -95,7 +93,7 @@ class NativeFeedTest {
                 val one = runtime.feeds.channels().first { it.name == "Channel One" }
                 assertEquals("101", one.displayNumber); assertEquals(listOf("News", "us"), one.tags); assertEquals("one", one.legacyGuideId)
                 assertEquals("${fixture.base}/logo.png", one.logo)
-                // The implicit native guide lists the channel, so adopting maps it without curation.
+                // The implicit native guide lists the channel, so adopting maps it.
                 runtime.guides.refresh(runtime.guides.configs.single())
                 assertEquals("whale", runtime.guides.configs.single().provider)
                 runtime.lineup.adopt(AdoptProvider("whale"))

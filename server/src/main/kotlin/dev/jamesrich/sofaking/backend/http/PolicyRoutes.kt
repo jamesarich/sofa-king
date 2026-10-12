@@ -23,7 +23,7 @@ private suspend fun ApplicationCall.policyBody(): ByteArray {
     return bytes
 }
 
-/** The lineup policy under the admin route: the document and its writes, preview, apply, findings and one station's candidates. */
+/** The lineup policy under the admin route: the document and its writes, preview, apply, findings, the change log and one station's candidates. */
 fun Route.policyRoutes(policy: PolicyService?) {
     fun loaded(): PolicyService = policy ?: throw ApiFailure(404, "POLICY_NOT_CONFIGURED", "No lineup policy is configured; set SOFA_POLICY")
     get("/policy") {
@@ -41,5 +41,6 @@ fun Route.policyRoutes(policy: PolicyService?) {
     get("/policy/preview") { call.respond(loaded().preview()) }
     post("/policy/apply") { call.respond(loaded().apply("api")) }
     get("/policy/findings") { call.respond(loaded().findings()) }
+    get("/policy/changes") { call.respond(loaded().changes(call.request.queryParameters["limit"]?.toIntOrNull() ?: 100)) }
     get("/stations/{key}") { call.respond(loaded().explain(call.parameters["key"]!!)) }
 }

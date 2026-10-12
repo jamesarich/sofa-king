@@ -3,7 +3,7 @@
 
     scripts/generate-policy.py --server http://127.0.0.1:8080 \
         --admin-token "$SOFA_ADMIN_TOKEN" --api-token "$SOFA_API_TOKEN" \
-        --starter-groups deploy/curation-starter.json --out policy/policy.json
+        --starter-groups deploy/starter-groups.json --out policy/policy.json
 
 Reads `GET /api/v1/providers` and `GET /api/v1/admin/lineup`. Writes:
 
@@ -160,7 +160,7 @@ def main():
     parser.add_argument('--api-token')
     parser.add_argument('--out', required=True)
     parser.add_argument('--providers', default=NATIVE_ORDER, help='native provider priority, comma separated')
-    parser.add_argument('--starter-groups', help='a file with a groupMap, weak and patterns, such as deploy/curation-starter.json')
+    parser.add_argument('--starter-groups', help='a file with a groupMap, weak and patterns, such as deploy/starter-groups.json')
     parser.add_argument('--local-pattern', help='a name regex for the household\'s own market, grouped as Local ahead of every other rule')
     parser.add_argument('--offline', help='read providers and lineup from this file instead of the server')
     args = parser.parse_args()

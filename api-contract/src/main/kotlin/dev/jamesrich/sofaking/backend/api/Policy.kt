@@ -171,3 +171,15 @@ import kotlinx.serialization.Serializable
     val generatedAt: String, val revision: String, val findings: List<String> = emptyList(), val suggestedAliases: List<String> = emptyList(),
     val unmappedCategories: List<PolicyUnmappedCategory> = emptyList(),
 )
+
+/**
+ * One field a policy run changed on the lineup entry of station [key], with the run's cause as [reason]. [field] is
+ * `station` with [before] null for a station that joined and [after] null for one that left.
+ */
+@Serializable data class PolicyChange(
+    val entryId: String? = null, val entryName: String, val field: String? = null,
+    val before: String? = null, val after: String? = null, val reason: String, val key: String? = null,
+)
+
+/** A logged [change], newest first in the change log. */
+@Serializable data class PolicyChangeEntry(val id: Long, val appliedAt: String, val change: PolicyChange)

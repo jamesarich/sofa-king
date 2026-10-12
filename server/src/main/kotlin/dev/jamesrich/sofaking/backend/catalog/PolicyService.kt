@@ -2,7 +2,8 @@ package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.backend.store.BackendStore
-import dev.jamesrich.sofaking.backend.store.recordCurationChanges
+import dev.jamesrich.sofaking.backend.store.policyChanges
+import dev.jamesrich.sofaking.backend.store.recordPolicyChanges
 import dev.jamesrich.sofaking.backend.store.saveStationAvailability
 import dev.jamesrich.sofaking.backend.store.stationAvailability
 import java.time.Clock
@@ -141,6 +142,9 @@ class PolicyService(
         )
     }
 
+    /** The newest [limit] logged changes, newest first. */
+    suspend fun changes(limit: Int): List<PolicyChangeEntry> = store.policyChanges(limit.coerceIn(1, 1000))
+
     /** Enabled channels the devices serve: one per number. */
     private fun enabledChannels(result: BuildResult): Int = result.stations.filter { it.enabled }.distinctBy { it.number }.size
 
@@ -206,7 +210,7 @@ class PolicyService(
         }
         val now = clock.instant()
         store.saveStationAvailability(result.availability, now)
-        store.recordCurationChanges(changes, now)
+        store.recordPolicyChanges(changes, now)
 
         val moved = result.renumbered.mapNotNull { (key, number) -> loaded.policy.stations[key]?.number?.let { key to (it to number) } }.toMap()
         val numbers = result.assigned.filterKeys { loaded.policy.stations[it]?.number == null } + moved.mapValues { it.value.second }
@@ -260,9 +264,7 @@ class PolicyService(
 
     /** Writes [request] as the override of the entry's station, then applies. */
     suspend fun updateStation(entryId: String, request: UpdateLineupEntry, ifMatch: String?): LineupEntryRecord? {
-        if (request.position != null || request.pin.isNotEmpty() || request.unpin.isNotEmpty()) {
-            throw ApiFailure(400, "INVALID_REQUEST", "position, pin and unpin do not apply to a lineup built from the policy")
-        }
+        if (request.position != null) throw ApiFailure(400, "INVALID_REQUEST", "position does not apply to a lineup built from the policy")
         val key = keyOf(entryId)
         val pins = request.offerings?.let { ids ->
             ids.map { id ->
@@ -452,19 +454,19 @@ internal fun withAssignedKeys(tree: JsonObject, add: Set<String>, remove: Set<St
     return JsonObject(next)
 }
 
-/** One change-log action per field that differs between the lineup before and after a run, matched by entry ID. */
+/** One change-log entry per field that differs between the lineup before and after a run, matched by entry ID. */
 internal fun changesBetween(
     before: List<LineupEntryRecord>, after: List<LineupEntryRecord>, keyById: Map<String, String>, reasonById: Map<String, String?>,
     keys: StationKeys, cause: String,
-): List<CurationAction> {
+): List<PolicyChange> {
     val old = before.associateBy { it.id }
     val new = after.associateBy { it.id }
-    val actions = ArrayList<CurationAction>()
+    val actions = ArrayList<PolicyChange>()
     for (entry in after) {
         val key = keyById[entry.id] ?: keys.key(entry.name)
         val previous = old[entry.id]
         fun change(field: String, from: String?, to: String?, why: String = cause) {
-            if (from != to) actions += CurationAction("policy", entry.id, entry.name, field, from, to, why, key = key)
+            if (from != to) actions += PolicyChange(entry.id, entry.name, field, from, to, why, key)
         }
         if (previous == null) { change("station", null, entry.number); continue }
         change("number", previous.number, entry.number)
@@ -475,7 +477,7 @@ internal fun changesBetween(
         change("guide", previous.guide?.let { "${it.guideId}/${it.channelId}" }, entry.guide?.let { "${it.guideId}/${it.channelId}" })
         change("sources", previous.offeringIds.joinToString(","), entry.offeringIds.joinToString(","))
     }
-    for (entry in before) if (entry.id !in new) actions += CurationAction("policy", entry.id, entry.name, "station", entry.number, null, cause, key = keys.key(entry.name))
+    for (entry in before) if (entry.id !in new) actions += PolicyChange(entry.id, entry.name, "station", entry.number, null, cause, keys.key(entry.name))
     return actions
 }
 

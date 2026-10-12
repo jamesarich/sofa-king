@@ -72,8 +72,11 @@ class PolicyApiTest {
             val store = openStore(dir)
             val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
             try {
-                assertNotNull(runtime.curationLoop, "without a policy curation runs as before")
+                assertNull(runtime.policy)
+                runtime.feeds.refresh(fixture.feed)
+                assertTrue(runtime.lineup.entries().isEmpty(), "without a policy nothing enters the lineup on its own")
                 application { backendModule(store, MutableClock(), runtime, token) }
+                assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/admin/policy/changes") { bearerAuth(token) }.status)
                 val response = client.get("/api/v1/admin/policy/preview") { bearerAuth(token) }
                 assertEquals(HttpStatusCode.NotFound, response.status)
                 assertTrue(response.bodyAsText().contains("POLICY_NOT_CONFIGURED"))

@@ -20,7 +20,7 @@ class LineupServiceTest {
             val feeds = FeedService(listOf(fixture.feed, fixture.tsFeed), store, http, clock, UpstreamPolicy(allowLoopback = true))
             feeds.refresh(fixture.feed); feeds.refresh(fixture.tsFeed)
             val stack = lineupStack(feeds, store, clock, http, adopt = false)
-            assertTrue(stack.catalog.catalog().channels.isEmpty(), "nothing is served until curated")
+            assertTrue(stack.catalog.catalog().channels.isEmpty(), "nothing is served until it enters the lineup")
             assertEquals(2, feeds.channels().size)
             val ts = feeds.channels("ts").single()
             val created = stack.lineup.create(CreateLineupEntry(channelId = ts.id, number = "100"))

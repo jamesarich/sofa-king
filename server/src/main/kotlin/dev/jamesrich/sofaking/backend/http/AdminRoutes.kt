@@ -79,7 +79,6 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
             if (policy == null) runtime.lineup.delete(id) else policy.disableStation(id, call.ifMatch())
             call.respond(HttpStatusCode.NoContent)
         }
-        curationRoutes(runtime.curation, managedByPolicy = policy != null)
         policyRoutes(runtime.policy)
         plexRoutes(runtime.plex)
     }
@@ -106,6 +105,6 @@ private fun LineupEntryRecord.info(runtime: LiveRuntime, states: Map<String, Hea
             coverage > Instant.now() -> "available"
             else -> "stale"
         },
-        pinned.sorted(), createdBy, autoDisabledAt?.toString(), autoDisabledReason,
+        createdBy, autoDisabledAt?.toString(), autoDisabledReason,
     )
 }

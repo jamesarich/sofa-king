@@ -143,16 +143,10 @@ data class GuideProgramme(val channelId: String, val startsAt: Instant, val ends
 
 /**
  * A household channel: the app sees these, in this order, and nothing else. [offeringIds] is the failover order.
- * [pinned] names the fields the household set ([PINNABLE_FIELDS]), which automation never changes; [autoDisabledAt]
- * is set while automation, not the household, holds the entry disabled.
+ * [autoDisabledAt] is set while a lineup policy, not the household, holds the entry disabled.
  */
 data class LineupEntryRecord(
     val id: String, val number: String, val name: String, val group: String? = null, val logo: String? = null,
     val enabled: Boolean = true, val guide: GuideMapping? = null, val offeringIds: List<String> = emptyList(),
-    val pinned: Set<String> = emptySet(), val createdBy: String = "manual",
-    val autoDisabledAt: Instant? = null, val autoDisabledReason: String? = null,
-) {
-    fun pinned(field: String): Boolean = field in pinned
-}
-
-val PINNABLE_FIELDS: Set<String> = setOf("number", "name", "group", "logo", "enabled", "offerings", "guide")
+    val createdBy: String = "manual", val autoDisabledAt: Instant? = null, val autoDisabledReason: String? = null,
+)

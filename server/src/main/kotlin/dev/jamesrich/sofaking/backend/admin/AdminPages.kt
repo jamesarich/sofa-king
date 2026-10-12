@@ -280,7 +280,7 @@ private fun FlowContent.rowForm(action: String, session: AdminSession, view: Lin
     }
 
 private fun MAIN.noPolicy(what: String) {
-    p { +"$what needs a lineup policy. Set SOFA_POLICY to a policy file and restart; without one the lineup is curated through the lineup and curation API." }
+    p { +"$what needs a lineup policy. Set SOFA_POLICY to a policy file and restart; without one the lineup is edited entry by entry through the admin API." }
 }
 
 internal fun mergesPage(session: AdminSession, view: MergesView?, error: String? = null): String = layout("Merges & findings", session, "/admin/merges") {

@@ -193,13 +193,13 @@ class PlexSyncTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
             sync.start(scope)
-            sync.requestSync("policy"); sync.requestSync("policy"); sync.requestSync("curation")
+            sync.requestSync("policy"); sync.requestSync("policy"); sync.requestSync("startup")
             delay(100)
             assertEquals(0, plex.calls(HttpMethod.Get, "/livetv/dvrs").size, "nothing runs inside the debounce")
             withTimeout(5000) { while (sync.status().lastSyncAt == null) delay(20) }
             delay(500)
             assertEquals(1, plex.calls(HttpMethod.Get, "/livetv/dvrs").size)
-            assertTrue(sync.status().lastCause in setOf("policy", "curation"), "a coalesced request keeps one of its causes")
+            assertTrue(sync.status().lastCause in setOf("policy", "startup"), "a coalesced request keeps one of its causes")
         } finally { scope.cancel() }
     }
 }

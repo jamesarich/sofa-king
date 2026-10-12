@@ -2,7 +2,7 @@
 
 A lineup policy is one JSON file that, together with `sources.json`, decides the whole lineup: its stations, their IDs, numbers, groups, logos, guides and sources. The same two files give the same lineup on any server, so a lineup can be rebuilt from them after a data loss or moved to another host.
 
-Set `SOFA_POLICY` to the file's path to turn it on. The server then builds the lineup from the policy, and the [curation](curation.md) engine does not run. Without `SOFA_POLICY` the server keeps the curated lineup exactly as before.
+Set `SOFA_POLICY` to the file's path to turn it on. The server then builds the lineup from the policy. Without `SOFA_POLICY` the server serves the lineup stored in its database, which changes only through the [admin API](api.md#admin-api).
 
 ## Setup
 
@@ -154,7 +154,7 @@ A run is deterministic: everything sorts on values, never on feed or file order.
 7. **Numbers.** Override numbers are reserved first. With `numbering.groups`, the rest each get the next free number in their group's block, which runs `groupSize` numbers or to the next block's start, whichever comes first, or the next free number from the floor once the block is full or the group has none. Stations the policy keeps off (an entry with `enabled: false`, or an override) always number from the floor, so the blocks hold what viewers can see. Without it, they get the leading channel's number when it is free and `keepProviderNumbers` is set, else the next free number from the floor. Every number in the file is reserved, including a station's that has just left. Each number given this way is written back to the policy file as `stations.<key>.number`, so the file holds the whole numbering, and its key joins `numbering.assigned`, the sorted list of keys the server numbered. A station with a number in the file is never renumbered, except under `numbering.followGroup`: then an enabled, verified station whose key is in `numbering.assigned` and whose number lies outside its group's block takes the next free number in that block, and the new number replaces the old one in the file. Its old number stays reserved until the next run, and a station whose block is full keeps its number. A number set by hand never moves. A station with `health.requireVerified` that no source has verified yet gets a floor number for the run only, which is not written; once it verifies, it takes its block number and that is written. A station gone for `health.keepMissingDays` releases its number when its key is in `numbering.assigned`: the number and its key leave the file, and the number is free for the next station. A number set by hand, or by a `PATCH` that sets one, is never released, and a `PATCH` that sets a number removes its key from `numbering.assigned`.
 8. **Guide.** The override, else, for each source in station order, its own provider's guide when it lists the channel, else any configured guide listing the source's `tvg-id` that is not another provider's. Of these candidates the station takes the first with programmes ahead, else the first. While a station's guide has nothing ahead, the server keeps programmes for all its candidates, so the next run can move it to one that has; a station that moved keeps its first candidate's programmes too, so it moves back once that guide fills again. Each station's candidates are listed as `guideCandidates`.
 9. **Availability.** With `requireVerified`, a station stays off, with reason `unverified`, until one of its sources has qualified healthy once; the run records when as the station's `verifiedAt`. After that, and always without `requireVerified`, a station with no eligible source for `disableAfterHours` turns off until a source qualifies. A station whose channels vanish stays, disabled, for `keepMissingDays`; a key an alias joins into another station merged and does not linger.
-10. **Write.** The lineup is written in one transaction, in number order, only when it differs from the served one. Each change goes to the change log with the station key, the field, before and after, and the cause. A station that fails validation is reported and left as it was. Numbers and learned aliases are then written back to the policy file in one revision-checked write.
+10. **Write.** The lineup is written in one transaction, in number order, only when it differs from the served one. Each change goes to the [change log](#api) with the station key, the field, before and after, and the cause. A station that fails validation is reported and left as it was. Numbers and learned aliases are then written back to the policy file in one revision-checked write.
 
 Runs follow every feed import, guide import and health change, after ten quiet seconds, and every 900 seconds. Until some feed has a live channel, a run leaves the lineup alone.
 
@@ -194,13 +194,14 @@ All routes are under `/api/v1/admin` and take the admin token.
 | GET | `/policy/preview` | What a run would change against the served lineup, the aliases it would learn (`learned`), the `unmappedCategories`, and with range devices `devicesNeeded` and `devicesConfigured`; writes nothing |
 | POST | `/policy/apply` | Run now and write the result; reports `enabledStations`, the numbers it `assigned`, the aliases it `learned`, the `unmappedCategories`, and with range devices `devicesNeeded` and `devicesConfigured` |
 | GET | `/policy/findings` | Open findings, suggested aliases and `unmappedCategories` |
+| GET | `/policy/changes?limit=` | The change log, newest first: each field a run changed, with the station key and the cause |
 | GET | `/stations/{key}` | One station: its pins and every channel that names the key or joins it, with why |
 | PATCH | `/lineup/{id}` | Writes `name`, `number`, `group`, `logo`, `guide`, `enabled` and `offerings` (as pins by provider and `tvg-id`) into the station's override, then applies |
 | DELETE | `/lineup/{id}` | Writes `enabled: false` into the station's override, then applies |
 
 Every write holds one lock, writes a temp file in the policy's directory, syncs it to disk and renames it over the policy. When the file changed on disk since the server read it, the server reloads it and the write fails with `409 POLICY_CHANGED`; read the policy again and retry. `PATCH` and `DELETE` accept `If-Match` too.
 
-While a policy is configured, routes that edit the lineup by hand answer `410 Gone` with code `POLICY_MANAGED`: `POST /lineup`, `PUT /lineup/order`, `POST /lineup/adopt`, and every `/curation/*` route except `GET /curation/changes`, which also lists policy changes (`kind: "policy"`).
+While a policy is configured, routes that edit the lineup by hand answer `410 Gone` with code `POLICY_MANAGED`: `POST /lineup`, `PUT /lineup/order` and `POST /lineup/adopt`.
 
 ## HDHomeRun devices
 
@@ -213,7 +214,7 @@ With a policy, the HDHomeRun devices split the lineup by range instead of by has
    ```sh
    scripts/generate-policy.py --server http://127.0.0.1:8080 \
      --admin-token "$SOFA_ADMIN_TOKEN" --api-token "$SOFA_API_TOKEN" \
-     --starter-groups deploy/curation-starter.json --local-pattern '\b(des moines|kcci)\b' \
+     --starter-groups deploy/starter-groups.json --local-pattern '\b(des moines|kcci)\b' \
      --out policy/policy.json
    ```
 

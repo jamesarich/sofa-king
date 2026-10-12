@@ -8,7 +8,7 @@ The data directory holds everything the server keeps across restarts:
 
 | Path | Contents |
 | --- | --- |
-| `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, curation rules, settings and change log, native provider device IDs and session tokens, and the server identity |
+| `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, and the server identity |
 | `logos/` | Cached lineup logos, one file per source URL |
 
 Playback sessions and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions.
@@ -71,7 +71,8 @@ Schema migrations run at startup and only move forward. The server records each 
 | `GET /api/v1/admin/guides` | The same for each guide, with the retained `programmes` count. An `IMPORT_FAILED` guide keeps the previous data |
 | `GET /api/v1/sources` | Health state of every source (`HEALTHY`, `UNVERIFIED`, `SUSPECT`, `QUARANTINED`, `PROBATION`) |
 | `GET /api/v1/admin/sessions` | Live playback sessions. An empty list means nothing is playing |
-| `GET /api/v1/admin/curation/changes` | Actions automation applied, newest first |
+| `GET /api/v1/admin/policy/changes` | What lineup policy runs changed, newest first |
+| `GET /api/v1/admin/policy/findings` | Open findings of the lineup policy, such as missing required sources |
 
 The logs are `key=value` lines. They name providers, guides, sources and entries by ID, and they omit stream and guide URLs and tokens. Look for import failures, probe batch counts, health transitions (source ID with its old and new state), and `remux ended exit=` when an HDHomeRun stream stops.
 

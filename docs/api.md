@@ -153,25 +153,19 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | DELETE | `/api/v1/admin/lineup/{id}` | Remove an entry; returns 204. With a policy, writes `enabled: false` into the station override instead |
 | PUT | `/api/v1/admin/lineup/order` | Reorder: `{"ids": [...]}` listing every entry once; returns the lineup |
 | POST | `/api/v1/admin/lineup/adopt` | `{"providerId": "...", "enabled": true}` adds every channel of the provider whose sources no entry uses; returns `added` and `skipped` |
-| GET, PUT | `/api/v1/admin/curation/settings` | Curation settings, see [curation](#curation) |
-| GET, POST | `/api/v1/admin/curation/rules` | List rules; create one (201) |
-| PUT, DELETE | `/api/v1/admin/curation/rules/{id}` | Replace or remove a rule (204) |
-| POST | `/api/v1/admin/curation/import` | Create rules from a pipeline's data files, see [migrate from Dispatcharr](migrate-from-dispatcharr.md#pipeline-data-import) |
-| GET | `/api/v1/admin/curation/preview` | The plan a run would apply now, applying nothing |
-| POST | `/api/v1/admin/curation/run` | Apply a plan now, whether or not automation is enabled; returns what was applied |
-| GET | `/api/v1/admin/curation/changes?limit=` | Applied actions, newest first; `limit` 1-1000 (default 100). Policy runs log here too, as `kind: "policy"` with the station `key` and the cause in `reason` |
 | GET | `/api/v1/admin/policy` | The [lineup policy](lineup-policy.md) `SOFA_POLICY` names, as `policy` with `revision` (the file's SHA-256, also the `ETag`) and `path`; 404 `POLICY_NOT_CONFIGURED` when unset |
 | PUT | `/api/v1/admin/policy` | Replace the policy with the body; `If-Match: <revision>` required (428 without it, 409 `POLICY_CHANGED` when stale or the file changed on disk, 400 `INVALID_POLICY` with every error). Writes atomically, applies, and returns `document` and `apply` |
 | GET | `/api/v1/admin/policy/preview` | The stations the policy builds now against the served lineup: `added` keys, `removed` entries, field `changes`, `merges`, `splits`, `counts`, `findings` and `suggestedAliases`; writes nothing |
 | POST | `/api/v1/admin/policy/apply` | Run the policy now: writes the lineup when it differs, logs each change, writes assigned numbers back to the file; returns `changed`, `changes`, `assigned` and `findings` |
 | GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current feeds, and `suggestedAliases` |
+| GET | `/api/v1/admin/policy/changes?limit=` | What policy runs changed, newest first, as `{"id", "appliedAt", "change"}`: `change` has the station `key`, `entryId`, `entryName`, `field`, `before`, `after` and the run's cause in `reason`. `limit` 1-1000 (default 100); the server keeps the newest 10,000 |
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
-| GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `curation`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`; 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
+| GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`; 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
 | POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |
 
-While `SOFA_POLICY` is set, `POST /lineup`, `PUT /lineup/order`, `POST /lineup/adopt` and every `/curation/*` route except `GET /curation/changes` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api).
+While `SOFA_POLICY` is set, `POST /lineup`, `PUT /lineup/order` and `POST /lineup/adopt` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api). Without it, the `/policy/*` routes answer `404 POLICY_NOT_CONFIGURED`.
 
-An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `pinned` (the fields an admin set, which [curation](curation.md#pins) never changes), `createdBy` (`manual`, `import`, `rule:ID` or `policy`) and, while curation rather than an admin holds the entry disabled, `autoDisabledAt` and `autoDisabledReason` (`unavailable` or `alias`).
+An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings` in failover order (`id`, `providerId`, `channelName`, `protocol`, `status`, `manuallyDisabled`; `status` is a health state or `WITHDRAWN` when no feed offers the source now), `guideStatus`, `createdBy` (`policy` for an entry the policy built, else `manual`) and, while the policy holds a station off for want of an eligible source, `autoDisabledAt` and `autoDisabledReason` (`unavailable`).
 
 Create from a feed candidate, copying its number, name, logo, group, sources and (when its `tvg-id` is listed by a configured guide) guide mapping:
 
@@ -181,9 +175,9 @@ curl --fail -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/v1
   --data '{"channelId": "FEED_CHANNEL_ID"}'
 ```
 
-Any field in the body overrides the copied value and is pinned: `id` (a UUID), `number`, `name`, `group`, `logo`, `enabled` (true when absent, pinned only when sent), `offerings` (source IDs in failover order), `guide`, `position` (insertion index). Without `channelId`, `number` and `name` are required.
+Any field in the body overrides the copied value: `id` (a UUID), `number`, `name`, `group`, `logo`, `enabled` (true when absent), `offerings` (source IDs in failover order), `guide`, `position` (insertion index). Without `channelId`, `number` and `name` are required.
 
-Update fields with `PATCH`; absent fields keep their value, `clearGroup`, `clearLogo` and `clearGuide` remove optional values, `position` moves the entry. Every field sent or cleared is pinned; `pin` and `unpin` lists change pins alone (`{"unpin": ["group"]}` lets curation manage the group again). Sending `enabled` either way makes the flag the admin's: curation stops tracking a disable of its own.
+Update fields with `PATCH`; absent fields keep their value, `clearGroup`, `clearLogo` and `clearGuide` remove optional values, `position` moves the entry. Sending `enabled` clears `autoDisabledAt` and `autoDisabledReason`.
 
 ```sh
 curl --fail -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/v1/admin/lineup/ENTRY_ID \
@@ -192,34 +186,6 @@ curl --fail -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:80
 ```
 
 Validation: `number` 1-32 characters without spaces, `name` 1-256, `group` 1-128, `logo` an HTTP(S) URL, at most 64 sources per entry, every source ID known to a configured feed, `guideId` a configured guide. An active session keeps its current source until that source stops being selectable or the session ends.
-
-### Curation
-
-The rules and settings that keep the lineup curated; what each one does is in [curation](curation.md). Every request takes the admin token.
-
-`GET /api/v1/admin/curation/settings` returns the settings and `PUT` replaces them; absent fields take their defaults:
-
-```json
-{
-  "enabled": false, "intervalSeconds": 900, "disableAfterHours": 24, "enableOn": "healthy",
-  "equivalentEvidence": "name-and-guide", "numberFloor": 1000, "retiredLogoHosts": ["logos.example.com:9192"], "defaultGroup": null,
-  "retiredGuides": ["old-guide"]
-}
-```
-
-Validation: `intervalSeconds` 60-86400, `disableAfterHours` 1-720, `enableOn` `healthy` or `eligible`, `equivalentEvidence` `name-and-guide` or `name`, `numberFloor` 1-999999, each retired host `host` or `host:port` (lowercased), `defaultGroup` 1-128 characters. A change triggers a run.
-
-A rule is `{"id", "kind", "position", "enabled", "match", "set", "note"}`; `POST` generates `id` when it is absent and answers `409 RULE_EXISTS` for a taken one, `PUT /rules/{id}` replaces the rule with that id (`404 RULE_NOT_FOUND`), and the list is in position order. `match` takes `providerId`, `group`, `groupPattern`, `name`, `namePattern`, `tvgId` and `entryId`; `set` takes `group`, `name`, `logo`, `enabled` and `canonicalEntryId`. Which fields a kind needs is in [rules](curation.md#rules); a rule that lacks them, names an unknown provider or entry, or carries a pattern that does not compile answers `400 INVALID_REQUEST`.
-
-```sh
-curl --fail -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/v1/admin/curation/rules \
-  -H 'Content-Type: application/json' \
-  --data '{"kind": "group", "match": {"group": "US: Sports"}, "set": {"group": "Sports"}}'
-```
-
-`GET /api/v1/admin/curation/preview` answers the plan: `generatedAt`, `enabled` (whether a run would apply it), `actions`, `counts` by kind and `findings`. An action has `kind` (`regroup`, `rename`, `relogo`, `clear-logo`, `remap-guide`, `attach`, `disable`, `enable`, `adopt`), `entryId`, `entryName`, `field`, `before`, `after`, `reason`, `ruleId` and, for `attach`, `offeringIds`. `POST /api/v1/admin/curation/run` applies a plan now and answers the same shape with `enabled` true and `actions` reduced to what was applied; an action whose entry changed under it (a field pinned since, a value no longer the one planned) is left out. `GET /api/v1/admin/curation/changes` lists applied actions as `{"id", "appliedAt", "action"}`, newest first; the server keeps the newest 10,000.
-
-`POST /api/v1/admin/curation/import` takes up to 4 MiB with any of `groupMap`, `aliases`, `equivalents`, `sportsCorrections`, `corrections` and `dryRun` ([shapes](migrate-from-dispatcharr.md#pipeline-data-import)); fields the rules do not use are ignored. The report has `dryRun`, `created`, `updated`, `existing`, `skipped` and `items`, each `{"source", "item", "outcome", "ruleId", "reason"}` with `outcome` `created`, `updated`, `exists`, `skipped` or `applied-by-import`.
 
 ## Kotlin client
 
@@ -264,8 +230,8 @@ Errors contain `code`, `message` and `retryable`:
 | --- | --- |
 | 400 | `INVALID_REQUEST`, `INVALID_QUERY` |
 | 401 | `AUTH_REQUIRED` |
-| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `RESOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RULE_NOT_FOUND` |
-| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `RULE_EXISTS` |
+| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `RESOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND` |
+| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS` |
 | 410 | `SESSION_EXPIRED`, `STREAM_CHANGED` |
 | 413 | `REQUEST_TOO_LARGE` |
 | 429 | `CAPACITY_EXHAUSTED` |

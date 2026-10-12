@@ -140,8 +140,7 @@ class AdminPortalTest {
             val renamed = browser.post("/admin/lineup/${twin.id}/edit", "name" to "Twin Sports East", "number" to twin.number, "group" to "", "csrf" to csrf)
             assertEquals(HttpStatusCode.SeeOther, renamed.status)
             assertEquals("Twin Sports East", runtime.lineup.entry(twin.id)!!.name)
-            assertTrue("name" in runtime.lineup.entry(twin.id)!!.pinned)
-            assertFalse("number" in runtime.lineup.entry(twin.id)!!.pinned, "an unchanged field is not sent")
+            assertEquals(twin.number, runtime.lineup.entry(twin.id)!!.number)
             assertTrue(browser.get("/admin/merges").bodyAsText().contains("needs a lineup policy"))
             assertTrue(browser.get("/admin/required").bodyAsText().contains("needs a lineup policy"))
         }

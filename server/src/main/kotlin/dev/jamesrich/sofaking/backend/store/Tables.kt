@@ -43,8 +43,6 @@ internal object LineupEntries : Table("lineup_entry") {
     val guideId = text("guide_id").nullable()
     val guideChannel = text("guide_channel").nullable()
     val updatedAt = text("updated_at")
-    /** Comma-separated field names the household set; automation leaves them alone. */
-    val pinned = text("pinned")
     val createdBy = text("created_by")
     val autoDisabledAt = text("auto_disabled_at").nullable()
     val autoDisabledReason = text("auto_disabled_reason").nullable()
@@ -79,31 +77,11 @@ internal object LogoCacheRows : Table("logo_cache") {
     val failures = integer("failures")
     override val primaryKey = PrimaryKey(key)
 }
-internal object CurationRules : Table("curation_rule") {
-    val id = text("id")
-    val kind = text("kind")
-    val position = integer("position")
-    val ruleJson = text("rule_json")
-    override val primaryKey = PrimaryKey(id)
-}
-/** Since when an entry has had no eligible source; absent while it has one. */
-internal object CurationEntryStates : Table("curation_entry_state") {
-    val entryId = text("entry_id")
-    val unavailableSince = text("unavailable_since")
-    override val primaryKey = PrimaryKey(entryId)
-}
-/** Feed channels an adopt rule has created an entry for; never adopted twice. */
-internal object CurationAdopted : Table("curation_adopted") {
-    val channelId = text("channel_id")
-    val entryId = text("entry_id")
-    val adoptedAt = text("adopted_at")
-    override val primaryKey = PrimaryKey(channelId)
-}
-internal object CurationChanges : Table("curation_change") {
+internal object PolicyChanges : Table("policy_change") {
     val id = long("id").autoIncrement()
     val appliedAt = text("applied_at")
     val entryId = text("entry_id").nullable()
-    val actionJson = text("action_json")
+    val changeJson = text("change_json")
     override val primaryKey = PrimaryKey(id)
 }
 internal object ProviderStates : Table("provider_state") {

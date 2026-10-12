@@ -1,12 +1,12 @@
 # Architecture
 
-One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programs, server identity, source health, probe attempt times, observation history, the logo cache index, native provider state (device ids, tokens), and the curation rules, settings, availability state and change log; the logo files sit beside it in the data directory. Playback sessions and resolved native stream URLs exist in memory.
+One Kotlin/JVM process serves the HTTP API and media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programs, server identity, source health, probe attempt times, observation history, the logo cache index, native provider state (device ids, tokens), and the lineup policy's station availability and change log; the logo files sit beside it in the data directory. Playback sessions and resolved native stream URLs exist in memory.
 
 ## Modules
 
 | Module | Contents |
 | --- | --- |
-| `api-contract` | Serializable request/response models, including the admin, curation and lineup import models, JVM 17 |
+| `api-contract` | Serializable request/response models, including the admin and lineup policy models, JVM 17 |
 | `client` | Ktor client and playback lease handles, JVM 17 |
 | `server` | Ktor Netty server, imports, SQLite storage, lineup, source probes, media relay, player outputs and HDHomeRun emulation, JVM 21 |
 
@@ -18,16 +18,15 @@ Service API → ProviderClient (providers/) → ProviderRegistry (svc:// offerin
 XMLTV (gzip ok) → FeedParser.guide (streaming) → SQLite guide tables → GuideService
 Service guide API → ProviderClient.guide → SQLite guide tables → GuideService
 svc:// offering → FeedService.playable → ProviderRegistry.resolve (cached until expiry) → MediaRelay / ProbeWorker / TsRemux
-Admin API (including the lineup import) → LineupService → SQLite lineup tables
+Admin API → LineupService → SQLite lineup tables
 FeedService + GuideService + LineupService → CatalogService → JSON API
 Lineup entry → SessionManager (ordered offerings by health) → MediaRelay → HLS/MPEG-TS player
 Lineup + GuideService → /output M3U + XMLTV → third-party player → /output/stream → SessionManager (external session) → MediaRelay
 Lineup → /discover.json + /lineup.json → Plex → /auto/v{number} → SessionManager (external session) → TsFanout, or TsRemux (FFmpeg stream copy) for HLS
-PolicyService.apply or CurationService.run that changed the lineup → PlexSync (debounced) → Plex channel maps + guide reload
+PolicyService.apply that changed the lineup → PlexSync (debounced) → Plex channel maps + guide reload
 Stream URL → ProbeWorker → HealthPolicy → SQLite source health
 Lineup logo URLs → LogoCache (fetch, validate, data/logos/<key>) → /logos/{key} in the JSON API, M3U and XMLTV
-Rules + settings (SQLite) + lineup + feeds + health → CurationService.plan → apply (one lineup transaction) → curation_change log
-Policy file + feeds + guides + health + station_availability → StationBuilder.build → PolicyService.apply (one lineup transaction) → curation_change log, numbers written back to the file
+Policy file + feeds + guides + health + station_availability → StationBuilder.build → PolicyService.apply (one lineup transaction) → policy_change log, numbers written back to the file
 ```
 
 Provider imports publish complete snapshots; invalid imports retain the previous snapshot, and an import whose channels and sources equal the stored ones writes and publishes nothing and triggers no run, except the first success after a start. Guide imports replace one guide's rows atomically and keep only programs for channels the lineup maps onto that guide, plus, with a policy, the guide candidates of stations whose guide has nothing ahead; the channel index is kept whole. Immutable in-memory indexes serve catalog requests; guide programs are read from SQLite by guide, channel and window. SQLite uses WAL, foreign keys, bounded blocking transactions and versioned atomic migrations whose versions may have gaps.
@@ -52,15 +51,11 @@ Guide programs belong to a guide ID and XMLTV channel ID; an entry's `legacyGuid
 
 ## Lineup policy
 
-With `SOFA_POLICY` set, `PolicyService` builds the lineup and `CurationService` is constructed but never started. `StationBuilder` is pure: it turns one snapshot of feed channels, guide listings, health and the remembered `station_availability` rows into stations, findings and the numbers it assigned. `apply` writes the stations through `LineupService.mutate` only when they differ, replaces the availability rows, logs field changes as `kind: "policy"` actions, then writes assigned numbers into the file. `PolicyFile` serializes every write behind one mutex, checks the on-disk SHA-256 against the loaded revision, and writes a temp file, fsyncs and renames. The loop runs on feed, guide and health triggers after a quiet period, and every 900 seconds. [Lineup policy](lineup-policy.md) describes the file and the run.
+With `SOFA_POLICY` set, `PolicyService` builds the lineup; without it nothing changes the lineup but the admin API. `StationBuilder` is pure: it turns one snapshot of feed channels, guide listings, health and the remembered `station_availability` rows into stations, findings and the numbers it assigned. `apply` writes the stations through `LineupService.mutate` only when they differ, replaces the availability rows, logs field changes to `policy_change` (newest 10,000 kept), then writes assigned numbers into the file. `PolicyFile` serializes every write behind one mutex, checks the on-disk SHA-256 against the loaded revision, and writes a temp file, fsyncs and renames. The loop runs on feed, guide and health triggers after a quiet period, and every 900 seconds. [Lineup policy](lineup-policy.md) describes the file and the run.
 
 ## Plex sync
 
-With `SOFA_PLEX_URL` set, `PlexSync` keeps Plex's channel maps for this server's HDHomeRun devices in step with the lineup. A policy apply or curation run that changed the lineup requests a sync, which runs after a 120-second quiet period; the loop also runs every `SOFA_PLEX_SYNC_MINUTES`. It shares the runtime's HTTP client, sends the token only as the `X-Plex-Token` header, follows no redirects, and keeps its status in memory. The DeviceIDs come from the same `hdhrDeviceId` the HDHomeRun routes report. [Keep Plex in step](live-tv.md#keep-plex-in-step) describes what a sync does.
-
-## Curation
-
-`CurationService` holds the settings (one `metadata` row), the rules (`curation_rule`, patterns compiled once), the adopted-candidate set and the unavailable-since map in memory, each loaded from SQLite at start. A run takes a snapshot (lineup, health states, settings, rules), computes a plan of steps in a fixed order (availability, alias merges, equivalent attachment, adoption, display fields) plus findings, writes the availability rows that changed, and, when enabled or forced, applies the steps inside one `LineupService.mutate`, re-checking each against the entry as it then stands (field unpinned, old value unchanged, cap not exceeded) before recording it in `curation_change` (newest 10,000 kept). Imports and health changes signal a conflated trigger; the loop waits a quiet period, drains it and runs, and otherwise runs every `intervalSeconds`. `preview` is the same plan with nothing written. Entry columns `pinned`, `created_by`, `auto_disabled_at` and `auto_disabled_reason` (V040) carry an admin's pins and automation's own disables; `curation_entry_state` holds unavailable-since separately so bookkeeping never rewrites the lineup. [Curation](curation.md) lists the rules and the pass.
+With `SOFA_PLEX_URL` set, `PlexSync` keeps Plex's channel maps for this server's HDHomeRun devices in step with the lineup. A policy apply that changed the lineup requests a sync, which runs after a 120-second quiet period; the loop also runs every `SOFA_PLEX_SYNC_MINUTES`. It shares the runtime's HTTP client, sends the token only as the `X-Plex-Token` header, follows no redirects, and keeps its status in memory. The DeviceIDs come from the same `hdhrDeviceId` the HDHomeRun routes report. [Keep Plex in step](live-tv.md#keep-plex-in-step) describes what a sync does.
 
 ## Playback
 
@@ -94,7 +89,7 @@ Configured HTTP(S) feeds and guides, JSON control and admin requests, HLS/MPEG-T
 
 Health observation history is pruned to `SOFA_OBSERVATION_RETENTION_DAYS` (default 7) at the start of each probe batch; source health, strikes and probe attempt times are separate rows and are never pruned. The channels ETag derives from the lineup, the published channels and offerings, each guide's import time, the health table's row count and latest update, which entries' guides are still current, and the request's `Host` (the logo URLs carry it), so a matching `If-None-Match` is answered without building the body.
 
-Logs are key=value lines: provider imports (counts, skipped entries, duration, failure class), logo fetch failures (key, exception class, the message with every URL replaced by `<url>`, whether a stale file remains), guide imports (channels, retained programs, duration; on failure the exception class and its message with every URL replaced by `<url>`), probe batches (outcome counts, duration) and health transitions (source ID, old and new state), curation runs (planned, applied and finding counts, whether enabled, duration) and each applied action (kind, entry ID, field, rule ID; never the value, which can be a logo URL), relay upstream reconnects and failures (source ID, attempt, exception class, HTTP status). A request that fails with a closed channel, broken pipe or connection reset, as when a player switches channels mid-body, logs at debug with the exception class; other request failures log at error. Stream URLs, guide URLs, query tokens and provider exception messages are never logged; a guide failure message is logged only after URL redaction.
+Logs are key=value lines: provider imports (counts, skipped entries, duration, failure class), logo fetch failures (key, exception class, the message with every URL replaced by `<url>`, whether a stale file remains), guide imports (channels, retained programs, duration; on failure the exception class and its message with every URL replaced by `<url>`), probe batches (outcome counts, duration) and health transitions (source ID, old and new state), lineup policy runs (cause, station, change, assigned-number, learned-alias and finding counts, duration) and each learned alias, relay upstream reconnects and failures (source ID, attempt, exception class, HTTP status). A request that fails with a closed channel, broken pipe or connection reset, as when a player switches channels mid-body, logs at debug with the exception class; other request failures log at error. Stream URLs, guide URLs, query tokens and provider exception messages are never logged; a guide failure message is logged only after URL redaction.
 
 On SIGTERM the shutdown hook stops the HTTP server, closes the runtime (imports, probes, relay upstreams and sessions) and then the store, in that order, and logs each step.
 

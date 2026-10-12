@@ -19,7 +19,7 @@ Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conven
 
 ## Commits and pull requests
 
-- Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, for example `feat(providers): resolve the guide id for a channel` or `fix(hdhr): report a busy tuner on a remux failure`. Use the package or area as the scope (`providers`, `curation`, `hdhr`, `logos`, `playback`) and `docs` for documentation-only changes.
+- Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, for example `feat(providers): resolve the guide id for a channel` or `fix(hdhr): report a busy tuner on a remux failure`. Use the package or area as the scope (`providers`, `policy`, `hdhr`, `logos`, `playback`) and `docs` for documentation-only changes.
 - Describe why the change is needed in the pull request. The diff already shows what changed.
 - Add or update tests with any behavior change. Name tests for the behavior they check.
 - Keep documentation describing the current behavior. Put the reasoning behind a change in the commit or the pull request.

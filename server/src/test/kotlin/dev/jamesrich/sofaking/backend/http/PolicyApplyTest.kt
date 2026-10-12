@@ -70,14 +70,14 @@ class PolicyApplyTest {
             val entries = runtime.lineup.entries()
             assertEquals(listOf("station", "ts station", "twin sports").map(::stationId), entries.map { it.id }, "lineup order is number order")
             assertEquals(listOf("5", "6", "12"), entries.map { it.number })
-            assertTrue(entries.all { it.createdBy == "policy" && it.pinned.isEmpty() })
+            assertTrue(entries.all { it.createdBy == "policy" })
             assertEquals(listOf("fixture", "alt", "twin"), entries.first().offeringIds.map { runtime.feeds.offering(it)!!.providerId })
 
             assertEquals(setOf("station", "ts station", "twin sports"), runtime.store.stationAvailability().keys)
-            val changes = Json.decodeFromString<List<CurationChange>>(client.get("/api/v1/admin/curation/changes?limit=100") { asAdmin() }.bodyAsText())
-            assertTrue(changes.all { it.action.kind == "policy" && it.action.reason == "api" })
-            assertEquals(setOf("station", "ts station", "twin sports"), changes.filter { it.action.field == "station" && it.action.before == null }.map { it.action.key }.toSet())
-            assertEquals(legacy, changes.filter { it.action.field == "station" && it.action.after == null }.map { it.action.entryId }.toSet(), "every adopted entry is logged as removed")
+            val changes = Json.decodeFromString<List<PolicyChangeEntry>>(client.get("/api/v1/admin/policy/changes?limit=100") { asAdmin() }.bodyAsText())
+            assertTrue(changes.all { it.change.reason == "api" })
+            assertEquals(setOf("station", "ts station", "twin sports"), changes.filter { it.change.field == "station" && it.change.before == null }.map { it.change.key }.toSet())
+            assertEquals(legacy, changes.filter { it.change.field == "station" && it.change.after == null }.map { it.change.entryId }.toSet(), "every adopted entry is logged as removed")
 
             val written = stationsIn(policyFile)
             assertEquals(mapOf("station" to "5", "ts station" to "6", "twin sports" to "12"), written.mapValues { it.value.jsonObject["number"]!!.jsonPrimitive.content })
@@ -161,21 +161,17 @@ class PolicyApplyTest {
         }
     }
 
-    @Test fun `routes the policy replaces answer 410 and the change log stays readable`() = testApplication {
+    @Test fun `routes that edit the lineup by hand answer 410 under a policy`() = testApplication {
         withPolicy {
             for ((method, path) in listOf(
                 HttpMethod.Post to "/api/v1/admin/lineup", HttpMethod.Put to "/api/v1/admin/lineup/order", HttpMethod.Post to "/api/v1/admin/lineup/adopt",
-                HttpMethod.Get to "/api/v1/admin/curation/settings", HttpMethod.Put to "/api/v1/admin/curation/settings",
-                HttpMethod.Get to "/api/v1/admin/curation/rules", HttpMethod.Post to "/api/v1/admin/curation/run", HttpMethod.Get to "/api/v1/admin/curation/preview",
-                HttpMethod.Post to "/api/v1/admin/curation/import", HttpMethod.Delete to "/api/v1/admin/curation/rules/x",
             )) {
                 val response = client.request(path) { this.method = method; asAdmin(); setBody("{}") }
                 assertEquals(HttpStatusCode.Gone, response.status, "$method $path")
                 val error = Json.decodeFromString<ApiError>(response.bodyAsText())
                 assertEquals("POLICY_MANAGED", error.code); assertTrue(error.message.contains("/api/v1/admin/policy"))
             }
-            assertEquals(HttpStatusCode.OK, client.get("/api/v1/admin/curation/changes") { asAdmin() }.status)
-            assertNull(runtime.curationLoop, "curation does not run under a policy")
+            assertEquals("[]", client.get("/api/v1/admin/policy/changes") { asAdmin() }.bodyAsText())
         }
     }
 
@@ -329,7 +325,7 @@ class PolicyApplyTest {
 }
 
 class PolicyLoopTest {
-    @Test fun `with a policy, a feed import triggers a policy run and curation never starts`() = kotlinx.coroutines.runBlocking<Unit> {
+    @Test fun `with a policy, a feed import triggers a policy run`() = kotlinx.coroutines.runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-policy-loop-")
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json")
@@ -340,7 +336,6 @@ class PolicyLoopTest {
             val config = ServerConfig("127.0.0.1", 8080, dir, sources, "secret".repeat(8), allowLoopbackUpstreams = true, policyFile = policyFile)
             val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 10, probes = false)
             try {
-                assertNull(runtime.curationLoop)
                 runtime.feeds.refresh(fixture.feed)
                 withTimeout(10_000) { while (runtime.lineup.entries().isEmpty()) delay(20) }
                 assertEquals(listOf(stationId("station")), runtime.lineup.entries().map { it.id })

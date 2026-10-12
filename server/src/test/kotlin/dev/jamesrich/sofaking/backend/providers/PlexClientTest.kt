@@ -115,6 +115,10 @@ class PlexClientTest {
             fixture.route("/epg$cwPart") { Canned("", 429) }
             assertFailsWith<ProviderFailure> { client.resolve(cw) }.let { assertTrue(it.transient) }
             assertEquals(2, fixture.hits("/epg$cwPart"))
+            fixture.route("/epg$cwPart") { Canned(302, location = "https://cdn.example/live/master.m3u8") }
+            assertEquals("https://cdn.example/live/master.m3u8", client.resolve(cw).url, "a part that redirects resolves to its target")
+            fixture.route("/epg$cwPart") { Canned(302, location = "/cdn/master.m3u8") }
+            assertEquals("${fixture.base}/cdn/master.m3u8", client.resolve(cw).url, "a relative redirect is resolved against the part")
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 }

@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.providers
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import java.net.URI
 import java.net.URLEncoder
 import java.time.Duration
 import java.time.Instant
@@ -59,15 +60,18 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
             ?: run { context.invalidate(CHANNELS); listed().firstOrNull { it.channel.id == channelId }?.partKey }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         var url = ""
-        // A part Plex answers 400 for is not served to anyone; asking again never changes the answer.
-        val answer = authorized(gone = GONE_STATUSES + 400) { token ->
+        val answer = signedIn { token ->
             url = "$apiBase$key?includeAllStreams=1&X-Plex-Product=${encode(PRODUCT)}&X-Plex-Token=${encode(token)}"
             context.http.get(url, STREAM_HEADERS, limit = MANIFEST_LIMIT, follow = false)
         }
-        val target = when {
-            answer.status in 300..399 && answer.location != null -> answer.location
-            answer.text().trimStart().startsWith("#EXTM3U") -> url
-            else -> throw ProviderFailure("Plex part is not a playlist")
+        // Some parts redirect to their CDN master. A part Plex answers 400 for is not served to anyone; asking again never changes that.
+        val target = if (answer.status in 300..399 && answer.location != null) {
+            val location = try { URI(answer.url).resolve(answer.location).toString() } catch (_: IllegalArgumentException) { throw ProviderFailure("Invalid Plex redirect", transient = false) }
+            httpOrNull(location) ?: throw ProviderFailure("Plex redirect is not HTTP", transient = false)
+        } else {
+            answer.require("Plex API", GONE_STATUSES + 400)
+            if (!answer.text().trimStart().startsWith("#EXTM3U")) throw ProviderFailure("Plex part is not a playlist")
+            url
         }
         return ResolvedStream(target, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }

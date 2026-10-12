@@ -41,7 +41,7 @@ A cold start shows the loader until the lineup state and settings are both known
 
 The grid covers 24 hours from the half-hour at which it opens. It moves the window when the current time leaves that range. Rows share a horizontal scroll position; Up/Down preserve the time cursor. Filter, search, cursor, scroll and focused channel are saved across full-screen playback. Voice search goes through the platform's `RecognizerIntent` activity; the manifest declares the query so the app can tell whether one is installed, and the text field is the fallback.
 
-Models are immutable. A shared minute clock updates the guide and current-program displays. Focus requests for lazy items wait until their nodes attach. When guide data arrives after the channels, the focused cell's details are refreshed from the new row and focus returns to the cell at the time cursor.
+Models are immutable. A minute clock that ticks on the wall-clock minute updates the guide and current-program displays. Focus requests for lazy items wait until their nodes attach. When guide data arrives after the channels, the focused cell's details are refreshed from the new row and focus returns to the cell at the time cursor.
 
 ## Playback
 

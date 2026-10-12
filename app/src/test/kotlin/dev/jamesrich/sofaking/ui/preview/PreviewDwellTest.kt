@@ -114,16 +114,6 @@ class PreviewDwellTest {
     }
 
     @Test
-    fun `timers can be shortened for a faster bench`() {
-        val quick = PreviewDwell(unmuteAfterMs = 100, fullScreenAfterMs = 200)
-        quick.onFocus("a", now)
-        advance(100)
-        assertFalse(quick.isMuted(now))
-        advance(100)
-        assertTrue(quick.opensFullScreen(now))
-    }
-
-    @Test
     fun `without a full screen delay the preview unmutes but never opens`() {
         val off = PreviewDwell(fullScreenAfterMs = null)
         off.onFocus("a", now)

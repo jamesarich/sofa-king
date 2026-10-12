@@ -1,6 +1,14 @@
 # Runs the installed distribution built on the host: ./gradlew :server:installDist
 # The build context only admits server/build/install/server (see .dockerignore).
-FROM eclipse-temurin:21-jre-noble
+# Pinned by digest so a rebuild gets the same base; bump the digest deliberately.
+FROM eclipse-temurin:21-jre-noble@sha256:000fd431958bc81a24abe1e8e5f0f0fd3ae365a594bd50aadb20696805f9408c
+
+ARG REVISION=unknown
+LABEL org.opencontainers.image.title="Sofa King backend" \
+      org.opencontainers.image.source="https://github.com/jamesarich/sofa-king-backend" \
+      org.opencontainers.image.licenses="GPL-3.0-only" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.version="${REVISION}"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates \

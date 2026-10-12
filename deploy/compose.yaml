@@ -6,8 +6,29 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args:
+        REVISION: ${REVISION:-unknown}
     container_name: sofa-king-backend
     restart: unless-stopped
+    # tini reaps the FFmpeg processes the server starts for probes and remuxing.
+    init: true
+    # The server writes only /data, the policy directory and temporary files.
+    read_only: true
+    # exec: sqlite-jdbc loads its native library from the temporary directory.
+    tmpfs:
+      - /tmp:size=64m,exec
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # The heap is 75% of this limit; without one the JVM sizes it from the whole host.
+    mem_limit: 4g
+    pids_limit: 1024
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     ports:
       - "8080:8080"
       # One more HDHomeRun device per port listed in SOFA_HDHR_EXTRA_PORTS, see docs/live-tv.md#several-devices-for-a-large-lineup.

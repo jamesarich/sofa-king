@@ -10,7 +10,7 @@ The server is built on the host and copied into the image. Gradle resolves the p
 | --- | --- |
 | `Dockerfile` | Image definition; copies `server/build/install/server` to `/opt/sofa` |
 | `.dockerignore` | Admits only the installed distribution into the build context |
-| `deploy/compose.yaml` | Service, port mapping, volume, source file mount |
+| `deploy/compose.yaml` | Service, port mapping, volume, source file mount, [container limits](#container-limits) |
 | `deploy/.env.example` | Environment template; copy to `deploy/.env` |
 | `deploy/sources.example.json` | Source template; copy to `deploy/sources.json` |
 
@@ -65,6 +65,12 @@ docker compose down
 ```
 
 `down` keeps the `sofa-king-backend_sofa-data` volume. `down -v` deletes the database, the server identity and the logo cache.
+
+### Container limits
+
+The Compose file runs the server under `tini` (`init: true`), which reaps the FFmpeg processes it starts for probes and remuxing. The root filesystem is read-only; the server writes only `/data`, the policy directory and temporary files in a 64 MiB `/tmp`. The container drops every capability and cannot gain privileges.
+
+`mem_limit` (4 GiB) covers the JVM and its FFmpeg processes, and the heap is 75% of it. Raise it with `SOFA_MAX_SESSIONS` or `SOFA_PROBE_PARALLELISM`; each FFmpeg process takes tens of megabytes. Pass `REVISION=$(git rev-parse --short HEAD)` to the build to stamp the image's `org.opencontainers.image.revision` label.
 
 ### Data volume
 

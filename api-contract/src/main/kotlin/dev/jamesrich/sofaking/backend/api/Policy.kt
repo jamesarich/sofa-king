@@ -44,12 +44,20 @@ import kotlinx.serialization.Serializable
     val names: List<String> = emptyList(), val namePatterns: List<String> = emptyList(),
 )
 
-/** [map] is keyed by lowercase raw group. A station with no other group takes [default], else its raw group. */
+/**
+ * [map] is keyed by lowercase raw group, or `provider:raw group` for one provider's category. A station's sources
+ * vote with their mapped categories; a category in [weak] votes only when no other category does. A station with no
+ * vote takes [default], else its leading channel's raw group.
+ */
 @Serializable data class PolicyGroups(
     val map: Map<String, String> = emptyMap(), val patterns: List<GroupPattern> = emptyList(), val default: String? = null,
+    val weak: List<String> = emptyList(),
 )
 
-/** Assigns [group] when [name] matches the leading candidate's name or [rawGroup] its raw group (case-insensitive regexes). */
+/**
+ * Assigns [group] ahead of any vote when [name] matches the station's name, or turns a source's raw group into a vote
+ * for [group] when [rawGroup] matches it and the map does not name it (case-insensitive regexes).
+ */
 @Serializable data class GroupPattern(val name: String? = null, val rawGroup: String? = null, val group: String)
 
 /**

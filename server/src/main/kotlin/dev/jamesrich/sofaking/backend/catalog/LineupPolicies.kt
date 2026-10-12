@@ -87,6 +87,7 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
         if (raw != raw.trim().lowercase()) errors += "groups.map: key \"$raw\" must be lowercase and trimmed"
         if (group.isBlank() || group.length > 128) errors += "groups.map[\"$raw\"]: group must be 1 to 128 characters"
     }
+    for (raw in policy.groups.weak) if (raw != raw.trim().lowercase()) errors += "groups.weak: \"$raw\" must be lowercase and trimmed"
 
     val aliases = policy.names.aliases
     for ((from, to) in aliases.entries.sortedBy { it.key }) {

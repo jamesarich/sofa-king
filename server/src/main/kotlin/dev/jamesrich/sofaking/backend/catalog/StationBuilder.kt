@@ -160,6 +160,8 @@ object StationBuilder {
         class Draft(
             val key: String, val leading: Member?, val sources: List<Member>, val offeringIds: List<String>, val override: StationOverride?,
             val baseEnabled: Boolean, val missing: StationAvailability? = null, val pinOfferings: Map<String, List<String>> = emptyMap(),
+            /** Every eligible member in leading order; each casts the group vote of its raw category. */
+            val voters: List<Member> = emptyList(),
         ) {
             var number: String? = override?.number
         }
@@ -199,7 +201,8 @@ object StationBuilder {
                     .thenBy { it.entry ?: Int.MAX_VALUE }.thenBy(NUMBER_ORDER) { it.number }.thenBy { it.id },
             )
             val ordered = pinned + rest
-            val leading = eligible.minWithOrNull(compareBy<Member> { it.entry ?: Int.MAX_VALUE }.thenBy(NUMBER_ORDER) { it.number }.thenBy { it.id })
+            val voters = eligible.sortedWith(compareBy<Member> { it.entry ?: Int.MAX_VALUE }.thenBy(NUMBER_ORDER) { it.number }.thenBy { it.id })
+            val leading = voters.firstOrNull()
             val offeringIds = ArrayList<String>()
             val pinOfferings = sortedMapOf<String, List<String>>()
             var dropped = 0
@@ -233,7 +236,7 @@ object StationBuilder {
             }
             if (dropped > 0) findings += "$key: $dropped sources over the cap of ${policy.maxSourcesPerStation} dropped"
             val baseEnabled = override?.enabled ?: leading?.entry?.let { policy.providers[it].enabled } ?: true
-            drafts += Draft(key, leading, ordered, offeringIds, override, baseEnabled, pinOfferings = pinOfferings)
+            drafts += Draft(key, leading, ordered, offeringIds, override, baseEnabled, pinOfferings = pinOfferings, voters = voters)
         }
 
         // Availability by key: unavailable long enough turns a station off until a source qualifies again.
@@ -275,15 +278,34 @@ object StationBuilder {
             findings += "$key: candidates missing since $missingSince"
         }
 
-        val groupPatterns = policy.groups.patterns.map { Triple(it.name?.let { p -> Regex(p, RegexOption.IGNORE_CASE) }, it.rawGroup?.let { p -> Regex(p, RegexOption.IGNORE_CASE) }, it.group) }
-        fun patternGroup(name: String?, raw: String?): String? =
-            groupPatterns.firstOrNull { (byName, byGroup, _) -> (byName != null && name != null && byName.containsMatchIn(name)) || (byGroup != null && raw != null && byGroup.containsMatchIn(raw)) }?.third
-        fun groupOf(name: String?, raw: String?): String? =
-            raw?.let { policy.groups.map[it.trim().lowercase()] } ?: patternGroup(name, raw) ?: policy.groups.default ?: raw
-        // A raw category that neither the map nor a pattern names; its station takes the default group or keeps the raw one.
-        fun unmapped(name: String?, raw: String?): Boolean =
-            raw != null && policy.groups.map[raw.trim().lowercase()] == null && patternGroup(name, raw) == null
-        fun groupFor(draft: Draft): String? = draft.override?.group ?: draft.leading?.candidate?.channel.let { groupOf(it?.name, it?.tags?.firstOrNull()) }
+        // A station's group: its override, else a name pattern, else its sources' vote, else the default, else the
+        // leading channel's raw group.
+        val weak = policy.groups.weak.mapTo(HashSet()) { it.trim().lowercase() }
+        val namePatterns = policy.groups.patterns.mapNotNull { p -> p.name?.let { Regex(it, RegexOption.IGNORE_CASE) to p.group } }
+        val rawPatterns = policy.groups.patterns.mapNotNull { p -> p.rawGroup?.let { Regex(it, RegexOption.IGNORE_CASE) to p.group } }
+        fun rawOf(member: Member): String? = member.candidate.channel.tags.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+        fun isWeak(member: Member, raw: String): Boolean = raw.lowercase() in weak || "${member.candidate.providerId}:${raw.lowercase()}" in weak
+        fun mapped(member: Member, raw: String): String? = policy.groups.map["${member.candidate.providerId}:${raw.lowercase()}"]
+            ?: policy.groups.map[raw.lowercase()] ?: rawPatterns.firstOrNull { it.first.containsMatchIn(raw) }?.second
+        fun nameGroup(draft: Draft): String? = (draft.override?.name ?: draft.leading?.candidate?.channel?.name)
+            ?.let { name -> namePatterns.firstOrNull { it.first.containsMatchIn(name) }?.second }
+        // Each provider counts once per group; a tie goes to the group whose first vote comes earliest in leading order.
+        fun elect(votes: List<Pair<String, String>>): String? {
+            val tally = votes.distinct().groupingBy { it.second }.eachCount()
+            val best = tally.values.maxOrNull() ?: return null
+            return votes.first { tally[it.second] == best }.second
+        }
+        fun votedGroup(draft: Draft): String? {
+            val cast = draft.voters.mapNotNull { member ->
+                val raw = rawOf(member) ?: return@mapNotNull null
+                mapped(member, raw)?.let { Triple(member.candidate.providerId, it, isWeak(member, raw)) }
+            }
+            return elect(cast.filter { !it.third }.map { it.first to it.second }) ?: elect(cast.map { it.first to it.second })
+        }
+        val groupByKey = HashMap<String, String?>()
+        fun groupFor(draft: Draft): String? = groupByKey.getOrPut(draft.key) {
+            draft.override?.group ?: nameGroup(draft) ?: votedGroup(draft) ?: policy.groups.default ?: draft.leading?.let(::rawOf)
+        }
 
         // Pass one reserves every number the file holds, including a station that has just left, and the numbers missing
         // stations still hold; pass two assigns the rest, in the station's group block when numbering.groups names its group.
@@ -349,19 +371,23 @@ object StationBuilder {
         }.sortedWith(compareBy<PolicyStation, BigDecimal?>(NUMBER_ORDER) { numberValue(it.number) }.thenBy { it.key })
 
         for ((id, group) in stations.groupBy { it.id }.toSortedMap()) if (group.size > 1) findings += "${group.first().key}: id $id is shared with ${group.drop(1).joinToString { it.key }}"
-        // Stations whose leading channel's raw category nothing maps, grouped by provider and lowercase category.
-        val unmappedRows = drafts.mapNotNull { draft ->
-            val leading = draft.leading ?: return@mapNotNull null
-            val channel = leading.candidate.channel
-            val raw = channel.tags.firstOrNull()
-            if (draft.override?.group != null || raw == null || !unmapped(channel.name, raw)) return@mapNotNull null
-            Triple(leading.candidate.providerId, raw.trim().lowercase(), draft.override?.name ?: channel.name)
+        // Raw categories of any source that nothing maps and that are not weak, by provider and lowercase category, for
+        // the stations whose group the vote decides.
+        data class Unmapped(val provider: String, val category: String, val key: String, val name: String)
+        val unmappedRows = drafts.flatMap { draft ->
+            val leading = draft.leading ?: return@flatMap emptyList()
+            if (draft.override?.group != null || nameGroup(draft) != null) return@flatMap emptyList()
+            val name = draft.override?.name ?: leading.candidate.channel.name
+            draft.voters.mapNotNull { member ->
+                val raw = rawOf(member) ?: return@mapNotNull null
+                if (mapped(member, raw) != null || isWeak(member, raw)) null else Unmapped(member.candidate.providerId, raw.lowercase(), draft.key, name)
+            }.distinct()
         }
-        val unmappedCategories = unmappedRows.groupBy { it.first to it.second }.map { (category, rows) ->
-            PolicyUnmappedCategory(category.first, category.second, rows.size, rows.map { it.third }.sorted().first())
+        val unmappedCategories = unmappedRows.groupBy { it.provider to it.category }.map { (category, rows) ->
+            PolicyUnmappedCategory(category.first, category.second, rows.size, rows.map { it.name }.sorted().first())
         }.sortedWith(compareByDescending<PolicyUnmappedCategory> { it.stations }.thenBy { it.provider }.thenBy { it.category })
         if (unmappedCategories.isNotEmpty()) {
-            findings += "groups: ${unmappedCategories.size} categories have no mapping (${unmappedRows.size} stations); see unmappedCategories"
+            findings += "groups: ${unmappedCategories.size} categories have no mapping (${unmappedRows.distinctBy { it.key }.size} stations); see unmappedCategories"
         }
 
         return BuildResult(

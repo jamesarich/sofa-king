@@ -71,7 +71,8 @@ A learned alias for a pair in `names.never` is ignored and removed at the next w
 | `names.learned` | `{}` | Key to station key, written by runs from matching schedules; may not chain |
 | `names.never` | `[]` | Pairs of keys, `[["a", "b"]]`, that never merge |
 | `providers` | `[]` | Provider entries in priority order, see below |
-| `groups.map` | `{}` | Lowercase raw group to group; [unmapped categories](#unmapped-categories) list what is missing |
+| `groups.map` | `{}` | Lowercase raw group, or `provider:raw group` for one provider's category, to group; see [Groups](#groups). [Unmapped categories](#unmapped-categories) list what is missing |
+| `groups.weak` | `[]` | Lowercase raw groups, or `provider:raw group` keys, that vote only when no other category does |
 | `groups.patterns` | `[]` | `{"name": regex, "rawGroup": regex, "group": "..."}`, first match wins; give `name`, `rawGroup` or both |
 | `groups.default` | unset | Group for a station nothing else groups; unset keeps the raw group |
 | `numbering.floor` | `1000` | First number handed out when a station's own number is taken or not numeric |
@@ -120,6 +121,25 @@ A pin joins a provider's channel to the station by `tvg-id`, or by name when eit
 
 Validation rejects duplicate numbers and IDs, an override keyed by an alias or a learned alias, aliases or learned aliases that chain, a `names.never` entry that is not two different keys, and a pin claimed by two stations.
 
+## Groups
+
+A station's group is the first of:
+
+1. Its override's `group`.
+2. The `group` of the first pattern whose `name` matches the station's name.
+3. The vote of its sources. Each source's raw category maps through `groups.map`, trying `provider:raw group` before `raw group`, and then through the first pattern whose `rawGroup` matches it. Each provider counts once per group, and the group with the most providers wins; a tie goes to the group voted for first, in leading order. Categories in `groups.weak` vote only when no other category does, so a broad bucket such as `TV`, `Featured` or `Movies and Series` decides a station only when nothing more specific names it. A category nothing maps casts no vote.
+4. `groups.default`.
+5. The leading channel's raw category.
+
+```json
+"groups": {
+  "map": { "news": "News", "reality": "Lifestyle", "movies and series": "Movies", "plex:classics": "Movies" },
+  "weak": ["movies and series", "featured"],
+  "patterns": [{ "name": "\\bnoticias\\b", "group": "News" }],
+  "default": "Entertainment"
+}
+```
+
 ## How a run works
 
 A run is deterministic: everything sorts on values, never on feed or file order.
@@ -128,7 +148,7 @@ A run is deterministic: everything sorts on values, never on feed or file order.
 2. **Stations.** Channels group by key. The leading channel, the lowest by (entry, channel number, channel ID), gives the name, logo and raw group.
 3. **Learned aliases.** Stations whose names match loosely are compared by schedule, and those that match merge, as [Learned aliases](#learned-aliases) describes. The steps below run over the merged stations.
 4. **Sources.** Pinned sources first, then the rest by `prefer`, entry, channel number and channel ID, without excluded providers, up to the cap.
-5. **Fields.** Overrides first, then the group map, patterns and default, then the leading channel.
+5. **Fields.** Overrides first, then the leading channel; the group comes from the override, a name pattern, the sources' vote or the default, as [Groups](#groups) describes.
 6. **IDs.** The override `id`, else one derived from the key.
 7. **Numbers.** Override numbers are reserved first. With `numbering.groups`, the rest each get the next free number in their group's block, which runs `groupSize` numbers or to the next block's start, whichever comes first, or the next free number from the floor once the block is full or the group has none. Stations the policy keeps off (an entry with `enabled: false`, or an override) always number from the floor, so the blocks hold what viewers can see. Without it, they get the leading channel's number when it is free and `keepProviderNumbers` is set, else the next free number from the floor. Every number in the file is reserved, including a station's that has just left. Each number given this way is written back to the policy file as `stations.<key>.number`, so the file holds the whole numbering, and its key joins `numbering.assigned`, the sorted list of keys the server numbered. A station with a number in the file is never renumbered. A station with `health.requireVerified` that no source has verified yet gets a floor number for the run only, which is not written; once it verifies, it takes its block number and that is written. A station gone for `health.keepMissingDays` releases its number when its key is in `numbering.assigned`: the number and its key leave the file, and the number is free for the next station. A number set by hand, or by a `PATCH` that sets one, is never released, and a `PATCH` that sets a number removes its key from `numbering.assigned`.
 8. **Guide.** The override, else the guide of the leading source's own provider when it lists the channel, else any configured guide listing a source's `tvg-id` that is not another provider's.
@@ -158,13 +178,9 @@ Each run reports findings, each starting with the station key (the `groups:` sum
 
 ### Unmapped categories
 
-A station whose leading channel has a raw category that `groups.map` and `groups.patterns` do not name takes `groups.default`, or keeps the raw category when there is none. Each run lists these in `unmappedCategories`, in preview, apply and findings: one entry per provider and category, `{"provider", "category", "stations", "example"}`, with the most stations first, then provider and category. `category` is the lowercase key `groups.map` takes, and `example` is the first station name in sorted order. Stations with a group override are not listed, and neither are stations with no raw category. When the list is not empty, the findings carry one `groups:` line with the category and station counts.
+Each run lists the raw categories that no `groups.map` entry or `rawGroup` pattern names and that `groups.weak` does not list, in `unmappedCategories`, in preview, apply and findings. Every source of a station counts, not only the leading one. There is one entry per provider and category, `{"provider", "category", "stations", "example"}`, with the most stations first, then provider and category. `category` is the lowercase key `groups.map` takes, and `example` is the first station name in sorted order. Stations with a group override or a matching name pattern are not listed, and neither are sources with no raw category. When the list is not empty, the findings carry one `groups:` line with the category and station counts.
 
-To map a category, add its `category` to `groups.map` with the group it belongs in, then apply. A category that should stay in the default group needs no entry.
-
-```json
-"groups": { "map": { "news": "Headlines", "lifestyle": "Lifestyle" }, "default": "Entertainment" }
-```
+To map a category, add its `category` to `groups.map` with the group it belongs in, then apply. A category that says nothing about the genre goes in `groups.weak`.
 
 ## API
 

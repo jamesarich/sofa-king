@@ -325,7 +325,7 @@ internal fun mergesPage(session: AdminSession, view: MergesView?, error: String?
             thead { tr { th { +"Provider" }; th { +"Category" }; th { +"Stations" }; th { +"Example" } } }
             tbody { for (row in view.unmapped) tr { cell(row.provider); cell(row.category); cell(row.stations); cell(row.example) } }
         }
-        p("muted") { +"Add a category to groups.map in the policy file to give its stations a group." }
+        p("muted") { +"Add a category to groups.map in the policy file so its sources vote for a group, or to groups.weak when it names no genre." }
     }
 }
 

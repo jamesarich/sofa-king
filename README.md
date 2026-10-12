@@ -65,13 +65,13 @@ Without Docker you need JDK 21 and FFmpeg. Run the commands from the repository 
    server/build/install/server/bin/server
    ```
 
-   On loopback the API needs no token. To serve other machines, set `SOFA_HOST=0.0.0.0`: the first start then generates an API token and an admin token, keeps them in `data/secrets.json` and logs the admin token once. `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` set your own values instead.
+   On loopback the API needs no token. To serve other machines, set `SOFA_HOST=0.0.0.0`, and either `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` or `SOFA_HDHR_ENABLED=false`: on a LAN bind the server refuses to start without one of them. The first start then generates an API token and an admin token and keeps them in `data/secrets.json`; no token is logged. `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` set your own values instead.
 
-4. Check the imports. The examples below assume `TOKEN` holds the API token. Leave out the header when no token is set:
+4. Check the imports. On a LAN bind, `/api/v1/admin/*` takes only the admin token and refuses the API token. The examples below assume `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` hold the tokens, for example from `jq -r .apiToken data/secrets.json`. Leave out the header when no token is set:
 
    ```sh
-   curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/providers
-   curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/admin/guides
+   curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://127.0.0.1:8080/api/v1/providers
+   curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://127.0.0.1:8080/api/v1/admin/guides
    ```
 
 5. Build the lineup. A new server serves no channels until a [lineup policy](docs/lineup-policy.md) builds them. Write a policy that takes every channel of the three services, Whale first, to `data/policy.json`:
@@ -84,7 +84,7 @@ Without Docker you need JDK 21 and FFmpeg. Run the commands from the repository 
 
    ```sh
    server/build/install/server/bin/server
-   curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/channels
+   curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://127.0.0.1:8080/api/v1/channels
    ```
 
    For a full lineup of every free service, grouped, with fallbacks across services and your local channels, follow [build a starter lineup](docs/starter-lineup.md).

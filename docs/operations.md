@@ -90,9 +90,18 @@ cd deploy && docker compose up -d --no-build --force-recreate
 | `GET /api/v1/admin/policy/changes` | What lineup policy runs changed, newest first |
 | `GET /api/v1/admin/policy/findings` | Open findings of the lineup policy, such as missing required sources |
 
-The logs are `key=value` lines. They name providers, guides, sources and entries by ID, and they omit stream and guide URLs and tokens. Look for import failures, probe batch counts, health transitions (source ID with its old and new state), and `remux ended exit=` when an HDHomeRun stream stops.
+Use `Authorization: Bearer $SOFA_API_TOKEN` for the `/api/v1` checks, and `Authorization: Bearer $SOFA_ADMIN_TOKEN` for the `/api/v1/admin` routes.
 
-Use `Authorization: Bearer $TOKEN` for the `/api/v1` checks, with the admin token for `/api/v1/admin` routes when one is configured.
+## Logs
+
+The server logs to stderr, which `docker compose logs` shows. `SOFA_LOG_LEVEL` sets the level (`info` by default) and `SOFA_LOG_FORMAT` the format:
+
+- `text`, the default: one line per event with the time in UTC, the level, the thread and the logger, then the message. A line written while handling a request ends with `requestId=...`.
+- `json`: one JSON object per line from logback's JSON encoder, with the level, the logger, the formatted message and the request id. Use it when a log collector parses the output.
+
+Every request gets a random 16-character request id, returned in the `X-Request-Id` response header. Quote it when you report a problem, and search the log for it. Each request also gets one access line, `request method=GET path=/api/v1/channels status=200 durationMs=12`, except media, logos, player streams, `/auto/v*` and the health checks. The path never includes the query, so a token in a URL does not reach the log.
+
+Messages are `key=value` text. They name providers, guides, sources and entries by ID, and they omit stream and guide URLs and tokens. Look for import failures, probe batch counts, health transitions (source ID with its old and new state), `auth failed route=... remote=...` for rejected tokens, and `remux ended exit=` when an HDHomeRun stream stops.
 
 ## When a native provider breaks
 
@@ -110,8 +119,8 @@ The [native providers](providers.md) call each service's public endpoints. A ser
 4. To stop the server from retrying a broken source, disable it:
 
    ```sh
-   curl --fail -X PATCH -H "Authorization: Bearer $TOKEN" \
-     http://SERVER_HOST:8080/api/v1/sources/SOURCE_ID \
+   curl --fail -X PATCH -H "Authorization: Bearer $SOFA_API_TOKEN" \
+     http://SERVER_HOST:9193/api/v1/sources/SOURCE_ID \
      -H 'Content-Type: application/json' --data '{"manuallyDisabled":true}'
    ```
 

@@ -1,6 +1,6 @@
 # API
 
-The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_API_TOKEN` is configured, send `Authorization: Bearer $TOKEN` on API requests. Routes under `/api/v1/admin` take `SOFA_ADMIN_TOKEN` instead when one is configured, sent as `Authorization: Bearer $ADMIN_TOKEN`. The examples assume these shell variables hold the tokens, and they omit the header when no token is configured. The token model is in [security](../SECURITY.md#credentials-and-the-routes-they-open).
+The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_API_TOKEN` is configured, send `Authorization: Bearer $SOFA_API_TOKEN` on API requests. Routes under `/api/v1/admin` take `SOFA_ADMIN_TOKEN` instead when one is configured, sent as `Authorization: Bearer $SOFA_ADMIN_TOKEN`. The examples assume these shell variables hold the tokens and that the server runs under Docker at `SERVER_HOST:9193`; outside Docker the port is 8080. On a loopback server with no token, leave the header out. The token model is in [security](../SECURITY.md#credentials-and-the-routes-they-open).
 
 ## Endpoints
 
@@ -18,7 +18,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 | GET | `/api/v1/playback-sessions/{id}` | Read the current playback descriptor |
 | PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent |
 | DELETE | `/api/v1/playback-sessions/{id}` | Release the session; returns 204 |
-| GET | `/media/sessions/{id}/{epoch}/{resource}` | Session-authorized HLS or MPEG-TS media |
+| GET | `/media/sessions/{id}/{epoch}/{token}` | Session-authorized HLS or MPEG-TS media. `{epoch}` is the descriptor's epoch and `{token}` a random token for one playlist, segment or key |
 | GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
 | GET | `/output/guide.xml?days=` | The lineup's programs as XMLTV |
 | GET | `/output/stream/{channelId}.m3u8` or `.ts` | Opens a player session for the channel and streams it |
@@ -26,8 +26,9 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 | GET | `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/device.xml` | HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
 | GET, POST | `/lineup.post` | Accepts Plex's channel-scan request; answers 200 |
 | GET | `/auto/v{number}` | MPEG-TS stream of the channel with that lineup number |
+| GET, POST | `/admin`, `/admin/*` | The [admin portal](#admin-portal-routes), HTML |
 
-Request bodies are limited to 64 KiB, except a policy write (4 MiB). Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams and logos never are. The [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/) defines the response fields.
+Request bodies are limited to 64 KiB, except a policy write through `PUT /api/v1/admin/policy` or the portal's group and provider edits (4 MiB). A larger body answers `413 REQUEST_TOO_LARGE` before the token is checked. Every response carries an `X-Request-Id` header with the id the server's log lines for that request carry. Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams and logos never are. The [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/) defines the response fields.
 
 Channel IDs are lineup entry IDs. A channel's `displayNumber`, `name` and `tags` (the group) come from its entry; `logo` is the entry's logo served from this server, `http://HOST/logos/KEY` (see [logos](#logos)), with `HOST` taken from the request's `Host` header; `legacyGuideId` is the mapped XMLTV channel ID; `guideStatus` is `unassigned`, `empty`, `available` or `stale`; `playbackEligible` is true when any of the entry's sources is selectable. Channels are listed in lineup order.
 
@@ -38,7 +39,7 @@ Each provider status reports `lastSuccessAt`, `errorCode` (`IMPORT_FAILED` when 
 Replace `CHANNEL_UUID` with a catalog ID. Set `FROM_UTC` and `TO_UTC` to ISO 8601 UTC timestamps (`YYYY-MM-DDTHH:MM:SSZ`):
 
 ```sh
-curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/guide/query \
+curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/api/v1/guide/query \
   -H 'Content-Type: application/json' \
   --data '{
     "channelIds": ["CHANNEL_UUID"],
@@ -58,7 +59,7 @@ To page through a consistent guide, pass the returned `revision` in subsequent r
 Create a session with a catalog channel ID and a unique idempotency key:
 
 ```sh
-curl --fail -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/playback-sessions \
+curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/api/v1/playback-sessions \
   -H 'Content-Type: application/json' \
   --data '{
     "channelId": "CHANNEL_UUID",
@@ -75,8 +76,8 @@ A watch session expires 90 seconds after its last renewal, a preview after 45 se
 
 ```sh
 curl --fail -X PATCH \
-  -H "Authorization: Bearer $TOKEN" \
-  http://127.0.0.1:8080/api/v1/playback-sessions/SESSION_ID \
+  -H "Authorization: Bearer $SOFA_API_TOKEN" \
+  http://SERVER_HOST:9193/api/v1/playback-sessions/SESSION_ID \
   -H 'Content-Type: application/json' \
   --data '{"intent":"watch"}'
 ```
@@ -87,8 +88,8 @@ Release the session when playback ends:
 
 ```sh
 curl --fail -X DELETE \
-  -H "Authorization: Bearer $TOKEN" \
-  http://127.0.0.1:8080/api/v1/playback-sessions/SESSION_ID
+  -H "Authorization: Bearer $SOFA_API_TOKEN" \
+  http://SERVER_HOST:9193/api/v1/playback-sessions/SESSION_ID
 ```
 
 Release is idempotent and cancels active upstream requests. Repeating an open request with the same key returns the same session while it remains active. A reused key with different parameters returns `409 IDEMPOTENCY_CONFLICT`.
@@ -129,16 +130,18 @@ The admin API (`/api/v1/admin/lineup`, `/api/v1/admin/candidates`) keeps the sou
 
 ## HDHomeRun emulation
 
-With `SOFA_HDHR_ENABLED` (the default) the root serves what a Plex server reads from an HDHomeRun tuner. Nothing here takes a token, because Plex sends none; `SOFA_HDHR_ALLOW` (client IPs or CIDR blocks) answers everyone else `403`. Absolute URLs derive from the request's `Host` header like the player outputs.
+With `SOFA_HDHR_ENABLED` the root serves what a Plex server reads from an HDHomeRun tuner. The server binary enables it by default; `deploy/compose.yaml` disables it unless `deploy/.env` sets `SOFA_HDHR_ENABLED=true`. Nothing here takes a token, because Plex sends none; `SOFA_HDHR_ALLOW` (client IPs or CIDR blocks) answers everyone else `403`. Absolute URLs derive from the request's `Host` header like the player outputs.
 
 | Path | Body |
 | --- | --- |
-| `/discover.json` | `FriendlyName` (`SOFA_HDHR_NAME`), `Manufacturer`, `ModelNumber` `HDTC-2US`, `FirmwareName` `hdhomeruntc_atsc`, `FirmwareVersion`, `DeviceID` (`SOFA_HDHR_DEVICE_ID`, else eight hex digits derived from the server identity), `DeviceAuth`, `BaseURL`, `LineupURL`, `TunerCount` (`SOFA_HDHR_TUNERS`) |
+| `/discover.json` | `FriendlyName` (`SOFA_HDHR_NAME`), `Manufacturer` `Silicondust`, `ManufacturerURL` `https://www.silicondust.com/`, `ModelNumber` `HDTC-2US`, `FirmwareName` `hdhomeruntc_atsc`, `FirmwareVersion`, `DeviceID`, `DeviceAuth`, `BaseURL`, `LineupURL`, `TunerCount` (`SOFA_HDHR_TUNERS`) |
 | `/lineup.json` | One `{"GuideNumber", "GuideName", "URL"}` per enabled lineup entry in lineup order, with the entry number, name and `BASE/auto/vNUMBER`; a second entry with the same number is left out |
 | `/lineup_status.json` | `{"ScanInProgress":0,"ScanPossible":0,"Source":"Cable","SourceList":["Cable"]}` |
 | `/lineup.post` | `200` with no body; there is nothing to scan |
-| `/device.xml` | UPnP root description with the same name, model, `DeviceID` as `serialNumber` and the server identity as `UDN` |
+| `/device.xml` | UPnP root description with the same name, model, `DeviceID` as `serialNumber`, and a `UDN` |
 | `/auto/v{number}` | `video/mp2t` for the enabled entry with that number; `404` when none |
+
+The first device, on `SOFA_PORT`, has `SOFA_HDHR_DEVICE_ID` as its `DeviceID`, or eight hex digits derived from the server identity, and the server identity as its `UDN`. Each device on a port from `SOFA_HDHR_EXTRA_PORTS` is named `SOFA_HDHR_NAME 2`, `SOFA_HDHR_NAME 3` and so on. Its `DeviceID` is derived from the first device's and its position, and its `UDN` is a UUID derived from the server identity and its position. All of them stay the same across restarts.
 
 `/auto/v{number}` opens an external session like a player stream URL. An MPEG-TS source goes through the fan-out. An HLS source is remuxed by FFmpeg (`-c copy -f mpegts -mpegts_flags +resend_headers`): FFmpeg reads the source URL itself with the provider's headers when they are portable, takes one video and one audio stream (the highest resolution and the most channels, so other variants are not downloaded), drops subtitle and data tracks, and copies the elementary streams, so CEA-608 captions inside the video pass through. The process is killed and reaped when Plex disconnects or the session ends, and every remux is killed on shutdown. While `SOFA_HDHR_TUNERS` streams are open, or when the session cap or the source refuses one, the request answers `503` with `X-HDHomeRun-Error: 805 All Tuners In Use`, which Plex reports as a busy tuner. A protocol detected on the first fetch of an MPEG-TS descriptor switches to the remux within the request.
 
@@ -160,10 +163,10 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | PUT | `/api/v1/admin/lineup/order` | Reorder: `{"ids": [...]}` listing every entry once; returns the lineup |
 | POST | `/api/v1/admin/lineup/adopt` | `{"providerId": "...", "enabled": true}` adds every channel of the provider whose sources no entry uses; returns `added` and `skipped` |
 | GET | `/api/v1/admin/policy` | The [lineup policy](lineup-policy.md) the server runs with (`SOFA_POLICY`, or `policy.json` in the data directory), as `policy` with `revision` (the file's SHA-256, also the `ETag`) and `path`; 404 `POLICY_NOT_CONFIGURED` without one |
-| PUT | `/api/v1/admin/policy` | Replace the policy with the body; `If-Match: <revision>` required (428 without it, 409 `POLICY_CHANGED` when stale or the file changed on disk, 400 `INVALID_POLICY` with every error). Writes atomically, applies, and returns `document` and `apply` |
-| GET | `/api/v1/admin/policy/preview` | The stations the policy builds now against the served lineup: `added` keys, `removed` entries, field `changes`, `merges`, `splits`, `counts`, `findings` and `suggestedAliases`; writes nothing |
-| POST | `/api/v1/admin/policy/apply` | Run the policy now: writes the lineup when it differs, logs each change, writes assigned numbers back to the file; returns `changed`, `changes`, `assigned` and `findings` |
-| GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current feeds, and `suggestedAliases` |
+| PUT | `/api/v1/admin/policy` | Replace the policy with the body, up to 4 MiB; `If-Match: <revision>` required (428 `PRECONDITION_REQUIRED` without it, 409 `POLICY_CHANGED` when stale or the file changed on disk, 400 `INVALID_POLICY` with every error). Writes atomically, applies, and returns `document` and `apply` |
+| GET | `/api/v1/admin/policy/preview` | What a run would change against the served lineup; writes nothing. Returns `generatedAt`, `revision`, `stations`, `enabledStations`, `added` keys, `removed` entries (`key`, `entryId`, `name`), field `changes` (`key`, `entryId`, `field`, `before`, `after`), `merges` and `splits` (`keys`, `entryIds`), `counts`, `findings`, `suggestedAliases`, the aliases it would learn in `learned`, `devicesNeeded` and `devicesConfigured` (with range devices, else null) and `unmappedCategories` (`provider`, `category`, `stations`, `example`) |
+| POST | `/api/v1/admin/policy/apply` | Run the policy now: writes the lineup when it differs, logs each change, writes assigned numbers and learned aliases back to the file. Returns `appliedAt`, `revision`, `changed`, `stations`, `enabledStations`, `changes` (the number of fields changed), `assigned` (station key to number), `findings`, `suggestedAliases`, `learned`, `devicesNeeded`, `devicesConfigured` and `unmappedCategories` |
+| GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current feeds: `generatedAt`, `revision`, `findings`, `suggestedAliases` and `unmappedCategories` |
 | GET | `/api/v1/admin/policy/changes?limit=` | What policy runs changed, newest first, as `{"id", "appliedAt", "change"}`: `change` has the station `key`, `entryId`, `entryName`, `field`, `before`, `after` and the run's cause in `reason`. `limit` 1-1000 (default 100); the server keeps the newest 10,000 |
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
 | GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`; 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
@@ -176,7 +179,7 @@ An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `gu
 Create from a feed candidate, copying its number, name, logo, group, sources and (when its `tvg-id` is listed by a configured guide) guide mapping:
 
 ```sh
-curl --fail -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/v1/admin/lineup \
+curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_HOST:9193/api/v1/admin/lineup \
   -H 'Content-Type: application/json' \
   --data '{"channelId": "FEED_CHANNEL_ID"}'
 ```
@@ -186,12 +189,35 @@ Any field in the body overrides the copied value: `id` (a UUID), `number`, `name
 Update fields with `PATCH`; absent fields keep their value, `clearGroup`, `clearLogo` and `clearGuide` remove optional values, `position` moves the entry. Sending `enabled` clears `autoDisabledAt` and `autoDisabledReason`.
 
 ```sh
-curl --fail -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8080/api/v1/admin/lineup/ENTRY_ID \
+curl --fail -X PATCH -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_HOST:9193/api/v1/admin/lineup/ENTRY_ID \
   -H 'Content-Type: application/json' \
   --data '{"number": "501", "offerings": ["SOURCE_ID", "FALLBACK_SOURCE_ID"], "guide": {"guideId": "gracenote", "channelId": "XMLTV_ID"}}'
 ```
 
 Validation: `number` 1-32 characters without spaces, `name` 1-256, `group` 1-128, `logo` an HTTP(S) URL, at most 64 sources per entry, every source ID known to a configured feed, `guideId` a configured guide. An active session keeps its current source until that source stops being selectable or the session ends.
+
+## Admin portal routes
+
+The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in page, the sign-in form and the icon needs the `sofa_admin` session cookie. A page request without one is redirected to `/admin`, and an action answers `401`. Every `POST` but the sign-in also needs the session's CSRF token, as the form field the pages include or the `X-CSRF-Token` header, and answers `403` without it.
+
+| Method | Path | Page or action |
+| --- | --- | --- |
+| GET | `/admin` | The sign-in page, or the overview once signed in |
+| POST | `/admin/login` | Sign in with the form field `token`. 10 attempts a minute per client address, then `429` |
+| POST | `/admin/logout` | Sign out |
+| GET | `/admin/static/icon.svg`, `/admin/static/htmx.min.js` | The portal's icon (public) and htmx (signed in) |
+| GET | `/admin/lineup` | Channels, filtered by the query |
+| GET | `/admin/lineup/{id}` | One channel |
+| POST | `/admin/lineup/{id}/visibility`, `/admin/lineup/{id}/edit` | Hide or show a channel; rename, renumber or regroup it |
+| GET | `/admin/merges` | Suggested and learned aliases |
+| POST | `/admin/merges/accept`, `/admin/merges/dismiss`, `/admin/merges/never` | Accept a suggestion, dismiss it, or keep a learned pair apart |
+| GET | `/admin/required` | Required stations |
+| GET, POST | `/admin/providers`, `/admin/providers/edit` | Provider entries and their edits |
+| GET, POST | `/admin/groups`, `/admin/groups/edit` | Groups and their edits |
+| GET, POST | `/admin/plex`, `/admin/plex/reveal` | Plex and the device addresses; reveal the output token |
+| GET | `/admin/settings?changes=` | Settings and the newest policy changes, 50 by default |
+| POST | `/admin/settings/reveal-api-token` | Reveal the API token |
+| POST | `/admin/policy/apply` | Apply the lineup policy now |
 
 ## Kotlin client
 
@@ -232,14 +258,19 @@ Errors contain `code`, `message` and `retryable`:
 }
 ```
 
-| Status | Common codes |
+| Status | Codes |
 | --- | --- |
-| 400 | `INVALID_REQUEST`, `INVALID_QUERY` |
+| 400 | `INVALID_REQUEST` (a malformed body or path), `INVALID_QUERY` (a guide query or `days` out of range), `INVALID_POLICY` (a policy write that fails validation, with every error in `message`) |
 | 401 | `AUTH_REQUIRED` |
-| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `RESOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND` |
-| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS` |
-| 410 | `SESSION_EXPIRED`, `STREAM_CHANGED` |
-| 413 | `REQUEST_TOO_LARGE` |
+| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED` |
+| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `POLICY_CHANGED` (a stale `If-Match` or a policy file changed on disk), `STATION_CONFLICT` (a merge of two stations that both have overrides) |
+| 410 | `SESSION_EXPIRED`, `STREAM_CHANGED`, `POLICY_MANAGED` |
+| 413 | `REQUEST_TOO_LARGE`, answered before the token is checked |
+| 422 | `FORMAT_UNSUPPORTED` (an HLS playlist with variables, content steering or a non-HTTP resource) |
+| 428 | `PRECONDITION_REQUIRED` (a policy write without `If-Match`) |
 | 429 | `CAPACITY_EXHAUSTED` |
+| 500 | `INTERNAL_ERROR` |
 | 502 | `UPSTREAM_UNAVAILABLE`, `UPSTREAM_REJECTED`, `INVALID_MANIFEST` |
 | 503 | `NOT_READY`, `SOURCE_UNAVAILABLE` |
+
+The admin portal shows its errors on its pages. A sign-in over its limit answers `429 Too Many Requests` with no error body.

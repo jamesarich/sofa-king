@@ -2,11 +2,11 @@
 
 ## Reporting a vulnerability
 
-Do not open a public issue for a security problem. Report it privately through GitHub's private vulnerability reporting on this repository (Security tab, then Report a vulnerability). Include the commit or version, the route or code path involved, and the steps to reproduce. Leave out live tokens, provider URLs with credentials and private addresses; a redacted example is enough.
+Do not open a public issue for a security problem. Report it privately through GitHub's private vulnerability reporting on this repository (Security tab, then Report a vulnerability). Include the commit or image revision, the route or code path involved, and the steps to reproduce. Leave out live tokens, provider URLs with credentials and private addresses; a redacted example is enough.
 
 ## Intended deployment
 
-The server is designed for a private network. It has no accounts, no per-user access control and no TLS. It binds to loopback by default. On a non-loopback bind, such as the Docker image's, it always has an API token and an admin token: an unset one is generated at the first start, as the next section describes. Keep it on the LAN, do not forward its port to the internet, and put it behind a VPN or a TLS-terminating reverse proxy if it must be reached from outside.
+The server is designed for a private network. It has no accounts, no per-user access control and no TLS. It binds to loopback by default. On a non-loopback bind, such as the Docker image's, it always has an API token and an admin token: an unset one is generated at the first start, as the next section describes. Keep it on the LAN and do not forward its port to the internet. Put it behind a VPN or a TLS-terminating reverse proxy if it must be reached from outside.
 
 ## Credentials and the routes they open
 
@@ -16,18 +16,25 @@ The server is designed for a private network. It has no accounts, no per-user ac
 | Admin token (`SOFA_ADMIN_TOKEN`) | `Authorization: Bearer` | `/api/v1/admin/*`. The API token is refused there once this is set |
 | Admin portal session | `sofa_admin` cookie, set by signing in at `/admin` with the admin token (or the API token when no admin token is set) | `/admin/*`, the [admin portal](docs/admin.md). Actions also need the session's CSRF token |
 | Output token (`SOFA_OUTPUT_TOKEN`) | `?token=` query or bearer | `/output/*`: the playlist, the guide and the stream URLs |
-| None | | `/healthz`, `/readyz` and `/logos/{key}` |
-| None; client address allow-list | | The HDHomeRun routes (`/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/auto/v{number}`). `SOFA_HDHR_ALLOW` admits listed addresses and answers everyone else `403`; unset admits the whole LAN |
-| Session URL | | `/media/sessions/{id}/{epoch}/{token}`. The token is random and the URL ends with its session |
+| None | | `/healthz`, `/readyz`, `/logos/{key}`, the admin sign-in page (`GET /admin` and `POST /admin/login`) and the portal icon `/admin/static/icon.svg` |
+| None; client address allow-list | | The HDHomeRun routes (`/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/auto/v{number}`). `SOFA_HDHR_ALLOW` admits the listed addresses and answers everyone else `403` |
+| Session URL | | `/media/sessions/{id}/{epoch}/{token}`. `{token}` is random per resource, and the URL stops working when the session ends or its epoch changes |
 
 Notes on the table:
 
-- On a non-loopback bind, an API or admin token that the environment leaves unset is generated: 32 random bytes from the JVM's `SecureRandom`, as 64 hex characters. Both are kept in `secrets.json` in the data directory, created with mode `600` and replaced by an atomic rename, and reused on later starts. A token set in the environment, or read from the file its `_FILE` variable names, always wins and is never written there.
+- On a non-loopback bind, an API or admin token that the environment leaves unset is generated: 32 random bytes from the JVM's `SecureRandom`, as 64 hex characters. Both are kept in `secrets.json` in the data directory, created with mode `600`, replaced by an atomic rename and reused on later starts. A token set in the environment, or read from the file its `_FILE` variable names, always wins and is never written there.
 - No token is ever logged. The start that generates the admin token logs the path of `secrets.json` and the command that reads it. A signed-in admin can reveal the API token on the portal's Settings page and the output token on its Plex page, each through a `POST` with the session's CSRF token.
+- On a non-loopback bind with the HDHomeRun emulation enabled, the server refuses to start until `SOFA_HDHR_ALLOW` is set. Set it, or set `SOFA_HDHR_ENABLED=false`. On loopback, an unset allow-list admits every address that reaches the port.
 - On a loopback bind, a token that is not configured leaves its routes open. With no API token, every `/api/` route is open, and with neither output nor API token, `/output/*` is open. This is for local development.
 - Tokens are compared in constant time. The API token is never accepted in a query string.
 - A token in a URL lands in player configuration, screenshots and proxy logs. That is why the output token is separate from the API token and opens nothing but `/output/*`.
 - Logo URLs and HDHomeRun routes carry no token because the clients that fetch them, Plex and players, send none. Logos are fetched only for URLs the lineup names.
+
+## Request limits
+
+- Request bodies are capped at 64 KiB, and at 4 MiB for a whole policy written through `PUT /api/v1/admin/policy` or the portal's group and provider edits. A larger body answers `413 REQUEST_TOO_LARGE` before any token is checked.
+- `POST /admin/login` accepts 10 attempts a minute from each client address and answers `429 Too Many Requests` beyond that, even for the right token. Behind a reverse proxy every sign-in comes from the proxy's address and shares that budget.
+- A rejected token is logged as `auth failed route=ROUTE remote=ADDRESS`, at most 30 lines a minute. The route is the path without its query, and the token is never logged.
 
 ## Outbound requests
 
@@ -38,6 +45,7 @@ The server makes requests to feed, guide, logo and stream hosts that you configu
 - Hostnames are not resolved before the request, so a name that resolves to a refused address is not caught by this check.
 - Provider headers, such as an authorization header, go only to the configured origin. A cross-origin CDN request receives only `User-Agent`, `Accept`, `Accept-Language`, `Origin` and `Referer`.
 - Redirects are limited to five, and an HTTPS redirect cannot downgrade to HTTP.
+- FFmpeg, which probes sources and remuxes them for Plex, may open only the `http`, `https`, `tcp`, `tls` and `crypto` protocols. A playlist that names `file:`, `concat:` or any other protocol cannot make it read files in the container.
 
 Details are in [live TV: upstream addresses and provider headers](docs/live-tv.md#provider-headers).
 
@@ -48,5 +56,6 @@ Details are in [live TV: upstream addresses and provider headers](docs/live-tv.m
 - Set `SOFA_HDHR_ALLOW` to the address of the Plex server, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 - Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens, and the source file can hold feed URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
 - With [automatic updates](docs/deploy.md#update-automatically), log Docker in to the registry with a token that has only the `read:packages` scope. The updater's database backups hold the same session tokens as the database and are readable by root alone.
+- [Verify the published image](docs/deploy.md#verify-the-published-image) before you run it.
 - Use HTTPS, through a reverse proxy, for any token that crosses a network you do not control.
 - Rotate tokens with the steps in [operations](docs/operations.md#rotating-tokens).

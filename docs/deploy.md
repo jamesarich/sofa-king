@@ -1,6 +1,6 @@
 # Deploy with Docker
 
-The image runs the server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jre-noble`, pinned by digest) with Ubuntu's FFmpeg and curl. Everything the server keeps lives in one folder, `/config`. It runs as any non-root user that owns that folder, listens on container port 8080, and reports healthy once `/readyz` answers. The Compose file needs Docker Compose 2.24 or later.
+The image runs the server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jre-noble`, pinned by digest) with Ubuntu's FFmpeg and curl, for `linux/amd64` and `linux/arm64`. Everything the server keeps lives in one folder, `/config`. It runs as any non-root user that owns that folder, listens on container port 8080, and reports healthy once `/readyz` answers. The Compose file needs Docker Compose 2.24 or later.
 
 ## Quick start
 
@@ -123,7 +123,7 @@ A [Homepage](https://gethomepage.dev/configs/docker/) instance with access to th
 | `deploy/.env.example` | Optional settings; copy to `deploy/.env` |
 | `deploy/sources.example.json` | Source template; copy to `deploy/config/sources.json` |
 | `deploy/sofa-king-update.sh`, `deploy/systemd/` | Keeps a host on the published image, see [update automatically](#update-automatically) |
-| `.github/workflows/image.yml` | Tests every push and publishes the image |
+| `.github/workflows/image.yml` | Tests pull requests and pushes to `main`, and publishes the image for `main` |
 
 `deploy/.env` and `deploy/config/` are ignored by Git.
 
@@ -136,7 +136,7 @@ The server is built on the host and copied into the image, so the image build ne
 REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml build
 ```
 
-`REVISION` stamps the image's `org.opencontainers.image.revision` label; the build works without it. For an amd64 host built from an Apple Silicon machine, set `DOCKER_DEFAULT_PLATFORM=linux/amd64`. `docker compose up -d` does not rebuild an existing image, so pass `--build` after a new `installDist`.
+`REVISION` stamps the image's `org.opencontainers.image.revision` label; the build works without it. The build targets the platform of the Docker host that runs it, `linux/amd64` or `linux/arm64`. To build for another platform, for example an amd64 host from an Apple Silicon machine, set `DOCKER_DEFAULT_PLATFORM=linux/amd64`. `docker compose up -d` does not rebuild an existing image, so pass `--build` after a new `installDist`.
 
 ### Container limits
 
@@ -149,8 +149,8 @@ The Compose file runs the container with a read-only root filesystem; the server
 ```sh
 curl --fail http://SERVER_HOST:9193/readyz
 docker inspect --format '{{.State.Health.Status}}' sofa-king-backend
-TOKEN=$(jq -r .apiToken config/secrets.json)
-curl --fail -H "Authorization: Bearer $TOKEN" http://SERVER_HOST:9193/api/v1/providers
+SOFA_API_TOKEN=$(jq -r .apiToken config/secrets.json)
+curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/api/v1/providers
 ```
 
 `/readyz` answers `ready`, and the health status becomes `healthy` after the 30-second start period. Each provider shows `lastSuccessAt` with its channel and source counts, and sources move from `UNVERIFIED` to `HEALTHY` as probes qualify them. A request without the token answers `401 AUTH_REQUIRED`. When `SOFA_API_TOKEN` is set in `.env`, use that value instead of the stored one.
@@ -159,18 +159,41 @@ curl --fail -H "Authorization: Bearer $TOKEN" http://SERVER_HOST:9193/api/v1/pro
 
 Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rollback).
 
+## The published image
+
+The [Image workflow](../.github/workflows/image.yml) runs on every pull request and every push to `main`. Its `test` job runs the tests and builds the distribution; on a pull request it also builds the image without publishing it. For `main`, the `publish` job then builds the image for `linux/amd64` and `linux/arm64` and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
+
+The package is private. Pulling it needs a GitHub account with access to it, and Docker logged in to `ghcr.io` with a [personal access token (classic)](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic) that has the `read:packages` scope. Without access, `docker pull` answers `denied`. To run the published image instead of a local build, tag it as the image `compose.yaml` names and start without building:
+
+```sh
+docker login ghcr.io -u GITHUB_USER
+docker pull ghcr.io/jamesarich/sofa-king-backend:main
+docker tag ghcr.io/jamesarich/sofa-king-backend:main sofa-king-backend:local
+cd deploy && docker compose up -d --no-build
+```
+
+Docker pulls the variant for the host, so the same tag serves `amd64` and `arm64` hosts.
+
+### Verify the published image
+
+Each published image carries an SBOM and build provenance, and a GitHub build attestation signed for this repository. With the [GitHub CLI](https://cli.github.com/) signed in to an account that can read the repository, check that an image was built by this repository's workflow:
+
+```sh
+gh attestation verify oci://ghcr.io/jamesarich/sofa-king-backend:main -R jamesarich/sofa-king-backend
+```
+
+The command prints the workflow and commit that built the image, and fails for an image this repository did not build. `docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king-backend:main --format '{{json .SBOM}}'` prints the SBOM, the packages inside the image.
+
 ## Update automatically
 
-The [Image workflow](../.github/workflows/image.yml) tests every push to `main` and publishes the image to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing. Pull requests run the tests and build the image without publishing it.
-
-`deploy/sofa-king-update.sh` keeps a host on that image. When the published image differs from the running one, it:
+`deploy/sofa-king-update.sh` keeps a host on the [published image](#the-published-image). When the published image differs from the running one, it:
 
 1. Backs up the database to `backups/` in the Compose directory, keeping the newest five. It finds the database through the container's `SOFA_DATA_DIR` and the mount that holds it. The backups hold provider session tokens, so only root can read them.
 2. Tags the running image `sofa-king-backend:previous` and the new one `sofa-king-backend:local`.
 3. Recreates the container and waits up to three minutes for it to report healthy.
 4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` so later runs skip it until a newer one is published.
 
-It needs Python 3 on the host for the database backup. To install it, log Docker in to the registry with a [personal access token (classic)](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic) that has only the `read:packages` scope, then add the script and the timer:
+It needs Python 3 on the host for the database backup, and pull access to the private package. To install it, log Docker in to the registry as root with a personal access token (classic) that has only the `read:packages` scope, then add the script and the timer:
 
 ```sh
 sudo docker login ghcr.io -u GITHUB_USER
@@ -234,7 +257,7 @@ Then:
 | The container exits at once; the log says `/data/backend.sqlite exists but SOFA_DATA_DIR (/config) holds no database` | Move the database as [move a database from a /data volume](#move-a-database-from-a-data-volume) describes. |
 | The container exits at once; the log says `Source configuration references unset variable` | `config/sources.json` uses `${NAME}` for a variable that `.env` does not set. |
 | The container exits at once; the log says `Not an IP address or CIDR block` | `SOFA_HDHR_ALLOW` holds a placeholder or a hostname. List the Plex server's IP address. |
-| The admin token line is gone from the log | It is printed only on the start that generates it. Read it with `jq -r .adminToken config/secrets.json`. |
+| The admin token is not in the log | No token is logged. Read it with `docker compose exec sofa-king-backend cat /config/secrets.json`, or sign in and reveal the API token in Settings. |
 | A provider shows `IMPORT_FAILED` for a feed on the Docker host | Use `host.docker.internal` or the LAN address. Loopback is refused. |
 | `/api/v1/channels` is empty | The lineup has not been built yet. See [lineup](live-tv.md#lineup). |
 | Sources stay `UNVERIFIED` | Check `docker compose logs` for probe outcomes. |

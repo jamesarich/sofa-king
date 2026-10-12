@@ -34,7 +34,7 @@ Restream origins are LAN proxies whose 502 means their upstream is gone. List th
 | --- | --- | --- |
 | `UNVERIFIED` | Yes | No qualified result yet |
 | `HEALTHY` | Yes | Qualified decode succeeded |
-| `SUSPECT` | Yes | Offering-specific failure recorded |
+| `SUSPECT` | Yes | A failure that points at this source was recorded |
 | `QUARANTINED` | No | Three independent failures within six hours, spanning at least ten minutes |
 | `PROBATION` | No | Recovery passed once; another pass is required at least ten minutes later |
 | `ARCHIVED` | No | Archived source; automatic archival is not implemented |
@@ -49,17 +49,18 @@ With a [lineup policy](lineup-policy.md), a station none of whose sources is sel
 
 ## Inspect or disable a source
 
-List source IDs and health states:
+These routes take the API token. With Docker the server is at `SERVER_HOST:9193`; outside Docker the port is 8080. List source IDs and health states:
 
 ```sh
-curl --fail http://127.0.0.1:8080/api/v1/sources
+curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" \
+  http://SERVER_HOST:9193/api/v1/sources
 ```
 
 Disable a source by its ID:
 
 ```sh
-curl --fail -X PATCH \
-  http://127.0.0.1:8080/api/v1/sources/SOURCE_ID \
+curl --fail -X PATCH -H "Authorization: Bearer $SOFA_API_TOKEN" \
+  http://SERVER_HOST:9193/api/v1/sources/SOURCE_ID \
   -H 'Content-Type: application/json' \
   --data '{"manuallyDisabled":true}'
 ```

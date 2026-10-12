@@ -4,7 +4,7 @@ This page is the configuration reference for the server: every environment varia
 
 ## Server settings
 
-Set these environment variables before starting the server. Relative paths resolve from the server's working directory. Configuration changes require a restart. The [Docker image](deploy.md) sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/config`.
+Set these environment variables before starting the server. Relative paths resolve from the server's working directory. Configuration changes require a restart. The [Docker image](deploy.md) sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/config`. `deploy/compose.yaml` publishes container port 8080 as host port 9193 and sets `SOFA_HDHR_ENABLED=false` unless `deploy/.env` sets it.
 
 | Variable | Default | Description |
 | --- | --- | --- |
@@ -24,20 +24,20 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_ALLOW_LOOPBACK_UPSTREAMS` | `false` | Allow playlist, guide and stream URLs on loopback (`127.0.0.1`, `::1`, `localhost`); for local fixtures only |
 | `SOFA_OUTPUT_TOKEN` | Unset | Token for the [player outputs](#third-party-players) under `/output/*`, at least 32 letters, digits, hyphens or underscores. It goes in the URL, so it is separate from the API token. Unset, only the API token (as a bearer) opens them |
 | `SOFA_XMLTV_DAYS` | `3` | Days ahead the XMLTV output carries, 1-14 |
-| `SOFA_HDHR_ENABLED` | `true` | Serve the [HDHomeRun emulation](#plex-live-tv) (`/discover.json`, `/lineup.json`, `/auto/v*`) at the root |
+| `SOFA_HDHR_ENABLED` | `true`; `false` in `deploy/compose.yaml` | Serve the [HDHomeRun emulation](#plex-live-tv) (`/discover.json`, `/lineup.json`, `/auto/v*`) at the root. The server binary defaults to `true`. The Compose file passes `false` unless `deploy/.env` sets `SOFA_HDHR_ENABLED=true` |
 | `SOFA_HDHR_TUNERS` | `2` | Tuners each device exposes, which is the number of HDHomeRun streams open at once on that device, 1 to `SOFA_MAX_SESSIONS` |
 | `SOFA_HDHR_DEVICE_ID` | Derived from the server identity | Eight hex digits Plex identifies the tuner by; keep it stable or Plex sees a new device |
-| `SOFA_HDHR_NAME` | `Sofa King` | Friendly name Plex shows, 1-64 characters |
-| `SOFA_HDHR_ALLOW` | Unset | Client IPs or CIDR blocks admitted to the HDHomeRun routes, comma separated (for example `PLEX_SERVER_IP` or `LAN_CIDR`); required when `SOFA_HOST` is not loopback and HDHomeRun is enabled; on loopback, unset admits every address that reaches the port |
+| `SOFA_HDHR_NAME` | `Sofa King` | Friendly name Plex shows, 1-64 characters without control characters |
+| `SOFA_HDHR_ALLOW` | Unset | Client IPs or CIDR blocks admitted to the HDHomeRun routes, comma separated (for example `PLEX_SERVER_IP` or `LAN_CIDR`). Required when `SOFA_HOST` is not loopback and HDHomeRun is enabled: the server refuses to start without it. On loopback, unset admits every address that reaches the port |
 | `SOFA_HDHR_EXTRA_PORTS` | Unset | Further ports the server listens on, comma separated, up to 7. Each is one more HDHomeRun device (`SOFA_HDHR_NAME 2`, and so on) carrying its share of the lineup. See [several devices](#several-devices-for-a-large-lineup) |
 | `SOFA_HDHR_DEVICE_SIZE` | `250` | With a lineup policy, channels per HDHomeRun device; devices hold consecutive ranges of the lineup. 1 to 5000 |
 | `SOFA_HDHR_PUBLIC_PORTS` | `SOFA_PORT`, then `SOFA_HDHR_EXTRA_PORTS` | The host ports Plex reaches each device on, comma separated, one per device in device order. Set it when Docker publishes the ports under other numbers |
-| `SOFA_PLEX_URL` | Unset | The Plex server to [keep in step](#keep-plex-in-step) with the lineup, as `http://HOST:32400` (for example `http://host.docker.internal:32400`). Set it with `SOFA_PLEX_TOKEN`; requires `SOFA_HDHR_ENABLED` |
-| `SOFA_PLEX_TOKEN` | Unset | The Plex server's `X-Plex-Token`, at least 8 characters. A secret: it is sent only as a request header and never logged |
+| `SOFA_PLEX_URL` | Unset | The Plex server to [keep in step](#keep-plex-in-step) with the lineup, as `http(s)://HOST[:PORT]` with no path, query or credentials (for example `http://host.docker.internal:32400`). Set it with `SOFA_PLEX_TOKEN`; requires `SOFA_HDHR_ENABLED` |
+| `SOFA_PLEX_TOKEN` | Unset | The Plex server's `X-Plex-Token`, at least 8 characters without spaces, control characters or DEL. A secret: it is sent only as a request header and never logged |
 | `SOFA_PLEX_SYNC_MINUTES` | `60` | Minutes between Plex syncs when the lineup does not change, 5 to 1440 |
-| `SOFA_PLEX_TUNER_BASE` | Unset | Scheme and host Plex reaches this server's tuners on, without a port, for example `http://192.168.1.3`. When set, a sync adds devices Plex lacks |
+| `SOFA_PLEX_TUNER_BASE` | Unset | Scheme and host Plex reaches this server's tuners on, as `http(s)://HOST` with no port, path, query or credentials, for example `http://192.168.1.3`. When set, a sync adds devices Plex lacks |
 | `SOFA_LOG_LEVEL` | `info` | Log level for every logger: `trace`, `debug`, `info`, `warn`, `error` or `off` |
-| `SOFA_LOG_FORMAT` | `text` | `text` for one line per event, or `json` for one JSON object per line with the level, logger, message and request id. Logs go to stderr |
+| `SOFA_LOG_FORMAT` | `text` | `text` for one line per event, or `json` for one JSON object per line with the level, logger, message and request id. Logs go to stderr. See [logs](operations.md#logs) |
 | `TZ` | UTC | Time zone of the process, for example `America/Chicago`. The server stores and serves its times in UTC either way |
 
 ## Source settings
@@ -169,9 +169,11 @@ Plex Live TV & DVR takes an HDHomeRun tuner and an XMLTV guide. The server emula
 
 The tuner routes carry no token: anyone who can reach the port can list the lineup and watch through `/auto/vNUMBER`. Keep the port on the LAN and set `SOFA_HDHR_ALLOW` to the Plex server's address. Behind Docker on Linux, a published port keeps the client address with the default iptables setup. Where Docker's userland proxy handles the port, the server sees the Docker gateway address instead, and the allow-list must name that address. Set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 
-1. Set `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` and `SOFA_HDHR_TUNERS` to the number of simultaneous Plex streams and recordings, at most `SOFA_MAX_SESSIONS`. Restart, then check from the Plex host with `curl --fail http://SERVER_HOST:8080/discover.json`.
-2. In Plex Web, open Settings, then Live TV & DVR, then Set Up Plex DVR. The server does not answer SSDP discovery, so choose "Don't see your HDHomeRun device? Enter its network address manually" and enter `SERVER_HOST:8080`. Plex reads `/discover.json` and `/lineup.json` and lists the device by `SOFA_HDHR_NAME` with its tuner count.
-3. Plex shows the channels from `/lineup.json`. At the guide step, choose "Have an XMLTV guide on your server?" and enter `http://SERVER_HOST:8080/output/guide.xml?token=OUTPUT_TOKEN`. Plex fetches the guide on its own schedule. Keep `SOFA_XMLTV_DAYS` at 3 or more so a daily refresh never runs out of programs.
+The steps use the Docker port, 9193. Outside Docker the port is `SOFA_PORT`, 8080 by default.
+
+1. In `deploy/.env`, set `SOFA_HDHR_ENABLED=true`, `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` and `SOFA_HDHR_TUNERS` to the number of simultaneous Plex streams and recordings, at most `SOFA_MAX_SESSIONS`. Set `SOFA_OUTPUT_TOKEN` too, for the guide URL. Run `docker compose up -d`, then check from the Plex host with `curl --fail http://SERVER_HOST:9193/discover.json`.
+2. In Plex Web, open Settings, then Live TV & DVR, then Set Up Plex DVR. The server does not answer SSDP discovery, so choose "Don't see your HDHomeRun device? Enter its network address manually" and enter `SERVER_HOST:9193`. Plex reads `/discover.json` and `/lineup.json` and lists the device by `SOFA_HDHR_NAME` with its tuner count.
+3. Plex shows the channels from `/lineup.json`. At the guide step, choose "Have an XMLTV guide on your server?" and enter `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN`. Plex fetches the guide on its own schedule. Keep `SOFA_XMLTV_DAYS` at 3 or more so a daily refresh never runs out of programs.
 4. Map the channels. The XMLTV lists each channel's name and number as display names, and the lineup carries the same values, so Plex pairs most of them. Choose the rest from the dropdowns. Plex saves a device's channel map in one request, and a very large map on one device fails with "There was a problem saving channel mappings". Split a large lineup across devices, as described below.
 5. Play a channel. Plex opens `/auto/vNUMBER`. An MPEG-TS source streams through the fan-out. An HLS source is remuxed to MPEG-TS by FFmpeg with stream copy, so CEA-608 captions inside the video reach Plex's caption setting. When every tuner or session slot is taken, Plex reports "all tuners are in use".
 
@@ -236,7 +238,9 @@ Providers that need secret headers on a different CDN origin are unsupported. Di
 
 ## Upstream addresses
 
-Playlist, guide, probe and media requests go only to `http`/`https` URLs without user info. Loopback (`127.0.0.0/8`, `::1`, `localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), unspecified (`0.0.0.0`, `::`) and multicast literals are refused, including as redirect targets. Private LAN addresses (RFC 1918) are allowed. Hostnames are not resolved before the request. A refused media address answers `502 UPSTREAM_REJECTED`, a refused feed or guide address fails that import, and a refused probe target is offering evidence. `SOFA_ALLOW_LOOPBACK_UPSTREAMS=true` permits loopback for local fixtures.
+Playlist, guide, probe and media requests go only to `http`/`https` URLs without user info. Loopback (`127.0.0.0/8`, `::1`, `localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), unspecified (`0.0.0.0`, `::`) and multicast literals are refused, including as redirect targets. Private LAN addresses (RFC 1918) are allowed. Hostnames are not resolved before the request. A refused media address answers `502 UPSTREAM_REJECTED`, a refused feed or guide address fails that import, and a refused probe target counts as evidence against the source. `SOFA_ALLOW_LOOPBACK_UPSTREAMS=true` permits loopback for local fixtures.
+
+FFmpeg reads sources itself for probes and for the Plex remux. It is started with `-protocol_whitelist http,https,tcp,tls,crypto`, so a playlist that names `file:`, `concat:` or another protocol fails instead of reading files on the server.
 
 ## When things get Sofa King weird
 
@@ -249,7 +253,7 @@ Playlist, guide, probe and media requests go only to `http`/`https` URLs without
 | Entry source shows `WITHDRAWN` | The provider no longer lists that stream. The entry keeps the reference. Replace the source when the provider offers a new URL. |
 | Extensionless HLS answers `410 STREAM_CHANGED` once | The source has not been probed yet. The first fetch detects HLS, stores it and bumps the epoch, so fetch the session again. The source keeps the detected protocol across restarts. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, so unprobed sources start right. |
 | Startup rejects a token | A token set in the environment or read from its `_FILE` needs at least 32 characters. Unset, the API and admin tokens are generated on a LAN bind. |
-| The admin token is not in the log | Only the start that generates it logs it. Read `adminToken` from `SOFA_DATA_DIR/secrets.json`. |
+| The admin token is not in the log | No token is logged. The start that generates it logs where it is kept. Read `adminToken` from `SOFA_DATA_DIR/secrets.json`. |
 | `401 AUTH_REQUIRED` | Send the configured token in the Authorization header. Admin routes need the admin token when one is configured. |
 | `429 CAPACITY_EXHAUSTED` | Every slot holds a watch session. Release unused sessions or wait for their 90-second leases to expire. Previews and idle player sessions are evicted automatically. |
 | A player gets `401` on the playlist URL | `SOFA_OUTPUT_TOKEN` is unset or the `token` query differs. The API token opens `/output/*` only as a bearer header. |

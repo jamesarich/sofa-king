@@ -13,7 +13,6 @@ import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -96,7 +95,6 @@ class SofaKingApiTest {
             assertEquals(401, e.status)
             assertEquals("AUTH_REQUIRED", e.code)
             assertEquals("Bearer token required", e.message)
-            assertFalse(e.retryable)
         }
     }
 
@@ -110,7 +108,6 @@ class SofaKingApiTest {
         } catch (e: SofaKingException) {
             assertEquals(502, e.status)
             assertEquals("HTTP_502", e.code)
-            assertTrue(e.retryable)
         }
     }
 

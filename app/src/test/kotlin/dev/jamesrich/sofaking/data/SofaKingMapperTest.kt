@@ -18,7 +18,6 @@ class SofaKingMapperTest {
     @Test
     fun `playable channels map to the app model sorted by number`() {
         val catalog = CatalogDto(
-            "r1",
             listOf(
                 channel("b", "12", "Twelve", tags = listOf("News", "HD")),
                 channel("a", " 5.1 ", "Five", logo = "http://logo/5.png"),
@@ -39,7 +38,7 @@ class SofaKingMapperTest {
     @Test
     fun `every tag is a group, trimmed and once each, in tag order`() {
         val channels = SofaKingMapper.channels(
-            CatalogDto("r1", listOf(channel("a", "1", tags = listOf(" Local ", "", "News", "Local")))),
+            CatalogDto(listOf(channel("a", "1", tags = listOf(" Local ", "", "News", "Local")))),
         )
 
         assertEquals(listOf("Local", "News"), channels.single().groups)
@@ -48,7 +47,6 @@ class SofaKingMapperTest {
     @Test
     fun `channels the server cannot play or number are left out`() {
         val catalog = CatalogDto(
-            "r1",
             listOf(
                 channel("x", "7", eligible = false),
                 channel("y", "abc"),
@@ -66,7 +64,7 @@ class SofaKingMapperTest {
     @Test
     fun `blank tags are skipped and a channel left with none is filed under Other`() {
         val channels = SofaKingMapper.channels(
-            CatalogDto("r1", listOf(channel("a", "1", tags = listOf(" ", "Sports")), channel("b", "2", tags = listOf(" ")))),
+            CatalogDto(listOf(channel("a", "1", tags = listOf(" ", "Sports")), channel("b", "2", tags = listOf(" ")))),
         )
 
         assertEquals(listOf(listOf("Sports"), listOf("Other")), channels.map { it.groups })
@@ -80,8 +78,8 @@ class SofaKingMapperTest {
                 ChannelGuideDto(
                     "a",
                     listOf(
-                        ProgrammeDto("a", "2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Later", description = "Second"),
-                        ProgrammeDto("a", "2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Earlier", description = " "),
+                        ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Later", description = "Second"),
+                        ProgrammeDto("2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Earlier", description = " "),
                     ),
                 ),
                 ChannelGuideDto("b", emptyList()),
@@ -108,13 +106,13 @@ class SofaKingMapperTest {
                 ChannelGuideDto(
                     "a",
                     listOf(
-                        ProgrammeDto("a", "not a time", "2026-10-10T12:00:00Z", "Bad start"),
-                        ProgrammeDto("a", "2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Zero length"),
-                        ProgrammeDto("a", "2026-10-10T11:00:00Z", "2026-10-10T10:00:00Z", "Backwards"),
-                        ProgrammeDto("a", "2026-10-10T11:00:00Z", "2026-10-10T11:30:00Z", "Kept"),
+                        ProgrammeDto("not a time", "2026-10-10T12:00:00Z", "Bad start"),
+                        ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Zero length"),
+                        ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T10:00:00Z", "Backwards"),
+                        ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T11:30:00Z", "Kept"),
                     ),
                 ),
-                ChannelGuideDto("b", listOf(ProgrammeDto("b", "2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Only bad"))),
+                ChannelGuideDto("b", listOf(ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Only bad"))),
             ),
         )
 

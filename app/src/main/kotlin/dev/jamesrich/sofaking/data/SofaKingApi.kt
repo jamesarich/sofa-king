@@ -18,7 +18,6 @@ class SofaKingException(
     val status: Int,
     val code: String,
     message: String,
-    val retryable: Boolean,
 ) : IOException(message)
 
 /** The catalog as the server sent it, or [NotModified] when the ETag offered still matches. */
@@ -100,9 +99,9 @@ class SofaKingApi(
         val error = try {
             wireJson.decodeFromString(ApiErrorDto.serializer(), text)
         } catch (_: Exception) {
-            ApiErrorDto("HTTP_$code", "Server returned HTTP $code", retryable = code >= 500)
+            ApiErrorDto("HTTP_$code", "Server returned HTTP $code")
         }
-        throw SofaKingException(code, error.code, error.message, error.retryable)
+        throw SofaKingException(code, error.code, error.message)
     }
 
     private fun json(text: String) = text.toRequestBody(JSON)

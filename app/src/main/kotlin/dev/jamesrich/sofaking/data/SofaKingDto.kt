@@ -11,7 +11,7 @@ internal val wireJson = Json {
 }
 
 @Serializable
-internal data class CatalogDto(val revision: String, val channels: List<CatalogChannelDto>)
+internal data class CatalogDto(val channels: List<CatalogChannelDto>)
 
 @Serializable
 internal data class CatalogChannelDto(
@@ -34,7 +34,6 @@ internal data class ChannelGuideDto(val channelId: String, val programmes: List<
 
 @Serializable
 internal data class ProgrammeDto(
-    val channelId: String,
     val startsAt: String,
     val endsAt: String,
     val title: String,
@@ -55,9 +54,8 @@ internal data class PlaybackSessionDto(
     val id: String,
     val channelId: String,
     val intent: String,
-    val expiresAt: String,
     val descriptor: PlaybackDescriptorDto,
 )
 
 @Serializable
-internal data class ApiErrorDto(val code: String, val message: String, val retryable: Boolean = false)
+internal data class ApiErrorDto(val code: String, val message: String)

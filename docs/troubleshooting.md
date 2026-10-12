@@ -38,7 +38,7 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 | A provider shows `IMPORT_FAILED` for a feed on the Docker host | Use `host.docker.internal` or the LAN address. Loopback is refused. |
 | An import stays unchanged | A failed or empty import keeps the previous snapshot. Check the provider status and `allowEmpty`. |
 | Sources stay `UNVERIFIED` or never qualify | Check `docker compose logs` for probe outcomes. Outside Docker, check that `SOFA_FFMPEG` names a working FFmpeg. Check the provider's `probe` setting too, and whether the feed sends credential or custom headers, which are never probed. |
-| A source shows `WITHDRAWN` | The provider no longer lists that stream. The entry keeps the reference. Replace the source when the provider lists a new URL. |
+| A source shows `WITHDRAWN` | The provider's current list does not have that stream. The entry keeps the reference. Replace the source when the provider lists a new URL. |
 | A channel vanished from the lineup | `GET /api/v1/admin/lineup/ENTRY_ID`: `autoDisabledAt` set means the lineup policy turned it off for want of an eligible source. `GET /api/v1/admin/policy/changes` has the change and `GET /api/v1/admin/stations/KEY` the station's candidates. |
 | `503 SOURCE_UNAVAILABLE` | No source of the channel is selectable now. `GET /api/v1/admin/lineup/ENTRY_ID` shows each source's state, and `/api/v1/sources` shows quarantine, probation or a manual disable. |
 | Extensionless HLS answers `410 STREAM_CHANGED` once | The source has not been probed yet. The first fetch detects HLS, stores it and starts a new epoch, so fetch the session again. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, so unprobed sources start right. |

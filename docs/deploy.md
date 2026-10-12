@@ -29,7 +29,7 @@ The HDHomeRun emulation for Plex stays off until `.env` sets `SOFA_HDHR_ENABLED=
 | Path | Written by | Contents |
 | --- | --- | --- |
 | `backend.sqlite` (with `-wal` and `-shm` while running) | Server | The lineup, guides, source health, provider session tokens and the server identity |
-| `logos/` | Server | Cached lineup logos, at most 2 MiB each; logos the lineup no longer names are deleted |
+| `logos/` | Server | Cached lineup logos, at most 2 MiB each; a logo the lineup does not name is deleted |
 | `secrets.json` | Server | The generated API and admin tokens, readable by the owner alone |
 | `sources.json` | You | The [source file](live-tv.md#source-settings), used when `SOFA_SOURCES` is unset |
 | `policy.json` | You and the server | The [lineup policy](lineup-policy.md), used when `SOFA_POLICY` is unset; the server writes numbers and edits back into it |

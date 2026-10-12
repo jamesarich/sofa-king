@@ -63,7 +63,7 @@ From the other services' guides the server reads titles, descriptions and times 
 
 A native source's URL is `svc://SERVICE/CHANNEL_ID`: stable, never fetched, and what the lineup refers to. When a session opens the channel, the relay asks the provider to resolve it. The provider fills the service's ad macros (device ID, session ID, cache buster, privacy defaults) or follows the service's redirect, and the relay fetches the master playlist with the headers the service's own client sends. The resolution is cached per source until a minute before it expires: an hour for macro-filled URLs, the token lifetime for tokens, and indefinitely for static URLs. Every session, probe and remux on that source shares it. Nothing a player sees names the service. Media playlists and segments are the relay's opaque session paths, as for any HLS source.
 
-A service that cannot answer (its API is down, or a token is refused twice) fails that one resolution. The session answers `502 UPSTREAM_UNAVAILABLE`, Plex sees a busy tuner, and a probe records provider evidence, which never strikes. A channel the service no longer lists is evidence against that source and strikes like a 404. One provider failing never affects another.
+A service that cannot answer (its API is down, or a token is refused twice) fails that one resolution. The session answers `502 UPSTREAM_UNAVAILABLE`, Plex sees a busy tuner, and a probe records provider evidence, which never strikes. A channel missing from the service's list is evidence against that source and strikes like a 404. One provider failing never affects another.
 
 For each provider, the server keeps one random device ID and any session token in the `provider_state` table, so a restart neither re-identifies the install nor re-authenticates. Logs carry provider IDs, channel counts, failure classes and reason text, never tokens or URLs.
 
@@ -173,4 +173,4 @@ Fragility: the channel IDs come from the page's server-rendered state. A page se
 
 ## Checking a provider
 
-`scripts/provider-smoke.py --service NAME [--option key=value]` starts a disposable server with that one provider, waits for the import, adopts every channel, opens sessions on three channels and expects an HLS master from each, decodes five seconds of two of them with FFmpeg, and prints the counts. It needs the built distribution and network access to the service. See [development](development.md#scripts) for the other scripts.
+`scripts/provider-smoke.py --service NAME [--option key=value]` starts a disposable server with that one provider, waits for the import and adopts every channel. It then opens sessions on three channels, expecting an HLS master from each, decodes five seconds of two of them with FFmpeg, and prints the counts. It needs the built distribution and network access to the service. See [development](development.md#scripts) for the other scripts.

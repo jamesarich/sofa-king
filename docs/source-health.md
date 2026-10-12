@@ -11,9 +11,9 @@ Each probe has two tiers:
 1. HTTP qualification: one GET with an eight-second budget. It must answer 2xx and start with either `#EXTM3U` or three aligned MPEG-TS sync bytes. Any other answer ends the probe and is classified from the HTTP status. The signature found is stored as the source's protocol, replacing the one the import assigned, so playback descriptors and the decode tier use it from then on, including after a restart.
 2. FFmpeg decode: 30 seconds of the first video stream with at least 30 frames and 29 seconds of media timestamps; the deadline is 50 seconds. For MPEG-TS sources FFmpeg reconnects on upstream EOF (`-reconnect_at_eof`), so a source that hiccups still qualifies when it delivers 30 seconds within the deadline. HLS sources rely on the HLS demuxer's own segment handling.
 
-At start the server deletes the stored data of what feeds no longer carry. A provider missing from the configuration whose last import is over 30 days old loses its stored snapshot, and a source no stored snapshot lists whose health last changed over 30 days ago loses its health, observations, probe attempt and detected protocol. A source disabled by hand keeps its row. With no provider configured nothing is deleted.
+At start the server deletes the stored data of what the feeds do not carry. A provider missing from the configuration whose last import is over 30 days old loses its stored snapshot. A source no stored snapshot lists, whose health last changed over 30 days ago, loses its health, observations, probe attempt and detected protocol. A source disabled by hand keeps its row. With no provider configured nothing is deleted.
 
-Healthy sources recheck after six hours. A recheck of a healthy source copies the video packets instead of decoding them (`-c copy`) and needs only the 29 seconds of media timestamps, since FFmpeg 6 reports no frame count for a copy: it proves the source still delivers at a fraction of the CPU, and a source that fails it is fully decoded again on its next probe. Unverified and suspect sources retry no sooner than five minutes. Credential/custom-header feeds are not probed because FFmpeg cannot scope their headers by origin.
+Healthy sources recheck after six hours. A recheck of a healthy source copies the video packets instead of decoding them (`-c copy`). It needs only the 29 seconds of media timestamps, since FFmpeg 6 reports no frame count for a copy. It proves the source still delivers at a fraction of the CPU, and a source that fails it is fully decoded again on its next probe. Unverified and suspect sources retry no sooner than five minutes. Feeds with credential or custom headers are not probed, because FFmpeg cannot scope their headers by origin. FFmpeg may open only the `http`, `https`, `tcp`, `tls` and `crypto` protocols.
 
 ## Failure classes
 
@@ -26,7 +26,7 @@ Healthy sources recheck after six hours. A recheck of a healthy source copies th
 | HTTP 404, 410 or other 4xx; 2xx without a stream signature; FFmpeg `Server returned 404` or `4XX`; decode failures; premature stream end | `OFFERING` | Yes |
 | Missing decoder, permission, memory or disk errors | `LOCAL` | No |
 
-Restream origins are LAN proxies whose 502 means their upstream is gone. List them as `host` or `host:port`; the scheme's default port applies when a URL has none. The same 502 from any other origin is provider evidence and never strikes.
+`OFFERING` evidence points at the source itself, so only it strikes. Restream origins are LAN proxies whose 502 means their upstream is gone. List them as `host` or `host:port`; the scheme's default port applies when a URL has none. The same 502 from any other origin is provider evidence and never strikes.
 
 ## States
 
@@ -45,7 +45,7 @@ Initial quarantine lasts 15 minutes. Failed recovery backs off to one hour, six 
 
 Playback walks the lineup entry's sources in order within each health rank: healthy first, then unverified, then suspect. Quarantined, probation, archived, manually disabled and withdrawn sources are never selected.
 
-With a [lineup policy](lineup-policy.md), a station none of whose sources is selectable for `health.disableAfterHours` (default 24) turns off, so the M3U, XMLTV and HDHomeRun listings stop carrying it; a source qualifying `HEALTHY` again (or any selectable source, with `health.enableOn: eligible`) turns it back on.
+With a [lineup policy](lineup-policy.md), a station none of whose sources is selectable for `health.disableAfterHours` (default 24) turns off, and the M3U, XMLTV and HDHomeRun listings stop carrying it. A source qualifying `HEALTHY` again turns it back on, or any selectable source with `health.enableOn: eligible`.
 
 ## Inspect or disable a source
 

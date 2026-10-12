@@ -123,7 +123,7 @@ An HLS source is answered with a redirect to the session's root playlist, so one
 
 A fetch goes through `withUpstreamResponse` with the feed address policy and no provider headers, and requires an image content type. It caps the body at 2 MiB, by `Content-Length` first and then during the read. It types the body by its signature, so a mislabeled PNG is stored as PNG and a declared SVG must be markup; anything else is a failure row. Fetches are single-flight per key and share a semaphore of four.
 
-`FeedService` and `LineupService` signal a conflated trigger after each import or change. The sweep loop in the runtime scope then fetches every wanted key that is missing, or a week old and not failed within the hour. It deletes rows and files the lineup no longer names. A request for a key with no usable file fetches it inline when the lineup names it. The catalog and output routes rewrite a channel's logo to `BASE/logos/<key>` from the request `Host`, so the channels ETag covers the base as well as the catalog revision.
+`FeedService` and `LineupService` signal a conflated trigger after each import or change. The sweep loop in the runtime scope then fetches every wanted key that is missing, or a week old and not failed within the hour. It deletes the rows and files of logos the lineup does not name. A request for a key with no usable file fetches it inline when the lineup names it. The catalog and output routes rewrite a channel's logo to `BASE/logos/<key>` from the request `Host`, so the channels ETag covers the base as well as the catalog revision.
 
 ## HDHomeRun emulation
 

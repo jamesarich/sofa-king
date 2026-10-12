@@ -1,6 +1,6 @@
 # Operations
 
-This guide covers running a server after the first start: where its state lives, how to back it up and restore it, how to upgrade and roll back, what to watch, what to do when a native provider breaks, and how to rotate tokens. Paths assume the Docker stack in [deploy](deploy.md), whose config folder is `deploy/config`; outside Docker, `SOFA_DATA_DIR` (default `data`) is the same directory.
+This guide covers running a server after the first start: where its state lives, backups and restore, upgrades and rollback, monitoring and logs, native provider failures, and token rotation. Paths assume the Docker stack in [deploy](deploy.md), whose config folder is `deploy/config`; outside Docker, `SOFA_DATA_DIR` (default `data`) is the same directory.
 
 ## State
 

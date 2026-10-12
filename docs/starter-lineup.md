@@ -1,15 +1,15 @@
 # Build a starter lineup
 
-A fresh server knows its sources but serves no channels until a [lineup policy](lineup-policy.md) builds them. This guide writes a policy for the free native services: one station per channel, with every other service that carries the same channel attached as a fallback, sorted into a small set of groups with a block of numbers each. It takes about ten minutes, most of it waiting for imports.
+A fresh server knows its sources but serves no channels until a [lineup policy](lineup-policy.md) builds them. This guide writes a policy for the free native services: one station per channel, with every other service that carries the same channel attached as a fallback. The stations are sorted into a small set of groups with a block of numbers each. It takes about ten minutes, most of it waiting for imports.
 
-You need a running server ([quick start](../README.md#sofa-king-fast-setup) or [Docker](deploy.md)) and its tokens. Generated tokens are in `secrets.json` in the data directory (`deploy/config` with Docker), as `apiToken` and `adminToken`. The examples use these shell variables:
+You need a running server ([getting started](getting-started.md)) and its tokens. Generated tokens are in `secrets.json` in the data directory (`deploy/config` with Docker), as `apiToken` and `adminToken`. The examples run from the repository root against the Docker port, and use these shell variables:
 
 ```sh
-SERVER=http://SERVER_HOST:PORT
-API_TOKEN=...                                   # SOFA_API_TOKEN
-ADMIN_TOKEN=...                                 # SOFA_ADMIN_TOKEN; the API token when no admin token is set
-api=(-H "Authorization: Bearer $API_TOKEN")
-auth=(-H "Authorization: Bearer $ADMIN_TOKEN")
+SERVER=http://SERVER_HOST:9193
+SOFA_API_TOKEN=$(jq -r .apiToken deploy/config/secrets.json)
+SOFA_ADMIN_TOKEN=$(jq -r .adminToken deploy/config/secrets.json)
+api=(-H "Authorization: Bearer $SOFA_API_TOKEN")
+auth=(-H "Authorization: Bearer $SOFA_ADMIN_TOKEN")
 ```
 
 ## 1. Configure the sources
@@ -38,7 +38,7 @@ A provider with an `errorCode` is skipped and the rest carry on; see [when a nat
 
 ```sh
 python3 scripts/generate-policy.py --server "$SERVER" \
-  --admin-token "$ADMIN_TOKEN" --api-token "$API_TOKEN" \
+  --admin-token "$SOFA_ADMIN_TOKEN" --api-token "$SOFA_API_TOKEN" \
   --starter-groups deploy/starter-groups.json --local-pattern '\b(des moines|kcci)\b' \
   --out policy.json
 ```
@@ -60,7 +60,7 @@ Move `policy.json` into the data directory (`deploy/config` with Docker) and res
 curl -s "${auth[@]}" "$SERVER/api/v1/admin/policy/preview" | jq '.stations, .enabledStations, .counts, (.findings | length)'
 ```
 
-Expect a few thousand stations. They come on as the probes verify one source of each, first sources first, so the lineup fills over the first hours. From then on the policy runs after every import, guide import and health change, and every 15 minutes: a channel a service adds joins its station or starts a new one, a station with no playable source for a day turns off until one recovers, and the numbers the server assigns are written into the policy file.
+Expect a few thousand stations. They come on as the probes verify one source of each, first sources first, so the lineup fills over the first hours. From then on the policy runs after every import, guide import and health change, and every 15 minutes. A channel a service adds joins its station or starts a new one. A station with no playable source for a day turns off until one recovers. The numbers the server assigns are written into the policy file.
 
 ## Your local channels
 

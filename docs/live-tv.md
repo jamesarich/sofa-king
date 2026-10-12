@@ -121,15 +121,15 @@ The XMLTV limit counts decompressed bytes as they stream past the parser, so it 
 
 The app sees the lineup and nothing else: `/api/v1/channels`, `/api/v1/guide/query` and `/api/v1/playback-sessions` work on lineup entry IDs. Feed channels that are not in the lineup are candidates. With a [lineup policy](lineup-policy.md) the policy builds the lineup from them; without one, entries are added through the admin API.
 
-A lineup entry has a stable UUID (the app's channel ID), a number, a name, an optional group and logo override, an enabled flag, an ordered list of sources from any providers (the failover order) and an optional guide mapping (guide ID plus XMLTV channel ID). Entries live in SQLite and survive imports and restarts. A disabled entry is kept but not served.
+A lineup entry has a stable UUID (the app's channel ID), a number, a name, an optional group and logo override, and an enabled flag. It also has an ordered list of sources from any providers, the failover order, and an optional guide mapping (guide ID plus XMLTV channel ID). Entries live in SQLite and survive imports and restarts. A disabled entry is kept but not served.
 
 Playback walks an entry's sources in order within each health rank: healthy sources first, then unverified, then suspect, lineup order inside each rank. Quarantined, probation, archived, manually disabled and withdrawn sources are skipped. The channel's `logo` is the override or the first source's feed logo. `tags` carries the group, and `legacyGuideId` carries the mapped XMLTV channel ID.
 
 ### Logos
 
-Clients, players and Plex see every logo at `http://SERVER_HOST:PORT/logos/KEY` on this server, not on the host the feed names ([API detail](api.md#logos)). A channel's logo is the entry's own, else the first of its sources' `tvg-logo` values, else the mapped guide channel's `<icon>`.
+Clients, players and Plex see every logo at `http://SERVER_HOST:9193/logos/KEY` on this server, not on the host the feed names ([API detail](api.md#logos)). A channel's logo is the entry's own, else the first of its sources' `tvg-logo` values, else the mapped guide channel's `<icon>`.
 
-The server fetches each lineup logo once after an import or lineup change, stores it under `SOFA_DATA_DIR/logos/`, serves it with a day of cache headers and an `ETag`, and refreshes it a week later. A refresh that fails keeps the old file, so retiring a logo host leaves the logos in place. Only image content types up to 2 MiB are accepted. Fetches follow the [upstream address policy](#upstream-addresses) and send no provider headers. A `tvg-logo` or guide `<icon>` with spaces or other unencoded characters is percent-encoded, and a relative one resolves against the playlist or guide URL. A reference that is not an HTTP(S) URL after that counts as no logo. A logo the source never answered stays in the listings and answers `404`, which players show as their placeholder. The source is retried an hour later. Logos no longer named by any entry are deleted on the next sweep.
+The server fetches each lineup logo once after an import or lineup change, stores it under `SOFA_DATA_DIR/logos/`, serves it with a day of cache headers and an `ETag`, and refreshes it a week later. A refresh that fails keeps the old file, so retiring a logo host leaves the logos in place. Only image content types up to 2 MiB are accepted. Fetches follow the [upstream address policy](#upstream-addresses) and send no provider headers. A `tvg-logo` or guide `<icon>` with spaces or other unencoded characters is percent-encoded, and a relative one resolves against the playlist or guide URL. A reference that is not an HTTP(S) URL after that counts as no logo. A logo the source never answered stays in the listings and answers `404`, which players show as their placeholder. The source is retried an hour later. The next sweep deletes logos that no entry names.
 
 Without a lineup policy, edit the lineup with the [admin API](api.md#admin-api). The common steps:
 
@@ -145,11 +145,11 @@ With a lineup policy, `PATCH` and `DELETE` write the station's override in the p
 
 ## Third-party players
 
-The lineup is also served as an M3U playlist with an XMLTV guide, for any player that takes an M3U playlist URL ([API detail](api.md#player-outputs)). Set `SOFA_OUTPUT_TOKEN` (32 or more characters, from `openssl rand -hex 16`) and restart. The token goes in the URLs because players send no headers. Replace `SERVER_HOST:PORT` with the address the player reaches the server by:
+The lineup is also served as an M3U playlist with an XMLTV guide, for any player that takes an M3U playlist URL ([API detail](api.md#player-outputs)). Set `SOFA_OUTPUT_TOKEN` (32 or more characters, from `openssl rand -hex 16`) and restart. The token goes in the URLs because players send no headers. Replace `SERVER_HOST:9193` with the address the player reaches the server by (port 8080 outside Docker):
 
 ```text
-http://SERVER_HOST:PORT/output/playlist.m3u?token=OUTPUT_TOKEN
-http://SERVER_HOST:PORT/output/guide.xml?token=OUTPUT_TOKEN
+http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN
+http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN
 ```
 
 The playlist names the guide URL (`url-tvg`), uses the lineup channel ID as `tvg-id` on both sides, and lists each channel's stream as `/output/stream/CHANNEL_ID.m3u8` (HLS source) or `.ts` (MPEG-TS source), with the token. Opening a stream URL opens a watch session. The session ends when the player disconnects (TS) or 60 seconds after its last request (HLS). Players count against `SOFA_MAX_SESSIONS`. An idle player session gives way to the next channel change, and a busy server answers `429`.

@@ -44,8 +44,10 @@ class PbsClient(private val context: ProviderContext) : ProviderClient {
                         val seconds = item["duration"].long ?: continue
                         val show = item.str("show_title") ?: continue
                         if (seconds <= 0) continue
-                        val episode = item.str("episode_title")
-                        programmes += GuideProgramme(listed.channel.id, start, start.plusSeconds(seconds), show, listOfNotNull(episode, item.str("episode_description") ?: item.str("show_description")).joinToString(": ").ifBlank { null })
+                        programmes += GuideProgramme(
+                            listed.channel.id, start, start.plusSeconds(seconds), show, item.str("episode_description") ?: item.str("show_description"),
+                            subTitle = item.str("episode_title"),
+                        )
                     }
                 }
             }

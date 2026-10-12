@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import dev.jamesrich.sofaking.backend.catalog.ProgrammeRating
 import java.net.URLEncoder
 import java.time.Instant
 
@@ -80,4 +82,27 @@ object Macros {
         fun value(name: String) = byName[name.lowercase()]?.let { URLEncoder.encode(it, Charsets.UTF_8) } ?: ""
         return brace.replace(bracket.replace(template) { value(it.groupValues[1]) }) { value(it.groupValues[1]) }
     }
+}
+
+/**
+ * A service's season and episode numbers as XMLTV numbering: `xmltv_ns` (zero-based) for whichever is known, and
+ * `onscreen` (`S02E05`) when both are. Services send 0 or nothing for an unnumbered airing, so only positive
+ * numbers count.
+ */
+internal fun seasonEpisode(season: Long?, episode: Long?): List<EpisodeNumber> {
+    val s = season?.takeIf { it in 1..99_999 }
+    val e = episode?.takeIf { it in 1..99_999 }
+    if (s == null && e == null) return emptyList()
+    val ns = EpisodeNumber("xmltv_ns", "${s?.minus(1) ?: ""}.${e?.minus(1) ?: ""}.")
+    return if (s != null && e != null) listOf(ns, EpisodeNumber("onscreen", "S%02dE%02d".format(s, e))) else listOf(ns)
+}
+
+private val vchip = setOf("TV-Y", "TV-Y7", "TV-Y7-FV", "TV-G", "TV-PG", "TV-14", "TV-MA")
+private val mpaa = setOf("G", "PG", "PG-13", "R", "NC-17")
+
+/** A service's content rating with the system its value belongs to: US TV ratings are `VCHIP`, film ratings `MPAA`. */
+internal fun usRating(value: String?): ProgrammeRating? {
+    val rating = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val upper = rating.uppercase()
+    return ProgrammeRating(rating, if (upper in vchip) "VCHIP" else if (upper in mpaa) "MPAA" else null)
 }

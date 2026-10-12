@@ -30,7 +30,9 @@ class PbsClientTest {
             assertEquals(listOf("A Craftsman's Legacy"), guide.programmes.map { it.title }.distinct(), "the main channel's listings are not wanted")
             assertEquals(2, guide.programmes.size, "the same fixture day twice collapses to one set")
             assertEquals("2026-10-10T05:30:00Z", guide.programmes[0].endsAt.toString())
-            assertEquals("The Shoe Makers: Making shoes.", guide.programmes[0].description)
+            assertEquals("The Shoe Makers", guide.programmes[0].subTitle, "the episode title is the sub-title")
+            assertEquals("Making shoes.", guide.programmes[0].description)
+            assertEquals("The Furniture Maker", guide.programmes[1].subTitle)
             assertEquals(1, fixture.hits("/localize/zipcode/50309/"))
         } } } } finally { dir.toFile().deleteRecursively() }
     }

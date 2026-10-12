@@ -30,9 +30,12 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
                 val seconds = row["duration"].double ?: continue
                 if (seconds <= 0) continue
                 val episode = row.str("name") ?: row.str("episodeName")
-                val series = row.str("seriesName") ?: channel.channel.name
-                val title = episode ?: series
-                programmes += GuideProgramme(channel.channel.id, start, start.plusMillis((seconds * 1000).toLong()), title, if (episode != null) series else null)
+                val series = row.str("seriesName")
+                val title = series ?: episode ?: channel.channel.name
+                programmes += GuideProgramme(
+                    channel.channel.id, start, start.plusMillis((seconds * 1000).toLong()), title,
+                    subTitle = if (series != null) episode else null,
+                )
             }
         }
         return ParsedGuide(index, programmes)

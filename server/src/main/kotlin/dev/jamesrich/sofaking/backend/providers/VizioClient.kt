@@ -36,8 +36,11 @@ class VizioClient(private val context: ProviderContext) : ProviderClient {
             val end = airing.str("timeEnd")?.let(::instant) ?: continue
             val title = airing.str("title") ?: continue
             if (end <= start) continue
-            val subtitle = airing.str("subTitle")?.takeIf { it != title }
-            programmes += GuideProgramme(channelId, start, end, title, listOfNotNull(subtitle, airing.str("description")).joinToString(" - ").ifBlank { null })
+            programmes += GuideProgramme(
+                channelId, start, end, title, airing.str("description"),
+                subTitle = airing.str("subTitle")?.takeIf { it != title },
+                episodeNumbers = seasonEpisode(airing["seasonNumber"].long, airing["episodeNumber"].long),
+            )
         }
         return ParsedGuide(index, programmes)
     }

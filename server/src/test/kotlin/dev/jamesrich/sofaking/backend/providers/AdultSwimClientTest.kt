@@ -27,8 +27,9 @@ class AdultSwimClientTest {
             assertEquals(1, fixture.hits("/api/shows/v1/videos/jqX79_YeQkm3I9kHJYGAXA"), "the asset is cached")
             val guide = client.guide(setOf("rick-and-morty"))
             assertEquals(2, guide.channels.size)
-            assertEquals(listOf("Promortyus", "The Vat of Acid Episode"), guide.programmes.map { it.title })
-            assertEquals("Rick and Morty", guide.programmes[0].description)
+            assertEquals(listOf("Rick and Morty", "Rick and Morty"), guide.programmes.map { it.title }, "the series is the title")
+            assertEquals(listOf("Promortyus", "The Vat of Acid Episode"), guide.programmes.map { it.subTitle }, "the episode is the sub-title")
+            assertNull(guide.programmes[0].description)
             assertEquals("2026-10-11T02:38:26.519Z", guide.programmes[0].startsAt.toString())
             assertEquals("2026-10-11T02:59:41.092Z", guide.programmes[0].endsAt.toString(), "start plus the fractional duration")
             assertFailsWith<ProviderFailure> { client.resolve("aqua-teen-hunger-force") }.let { assertFalse(it.transient, "a 404 from the video API means the asset is gone") }

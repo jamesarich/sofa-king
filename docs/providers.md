@@ -45,6 +45,20 @@ The server supports 17 services. Each one is listed below with its endpoints and
 
 A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider ID, refreshed hourly. Its channel IDs are the service's own, and a lineup entry created from a candidate maps onto that guide automatically. The guide holds every channel in its index, but programs only for channels the lineup maps. A service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS, Plex, STIRR, Pluto TV) is asked only about mapped channels.
 
+Programs carry the metadata the guide responses already hold, with no extra requests:
+
+| Service | Program metadata beyond title and description |
+| --- | --- |
+| `pluto` | Episode name as sub-title, season and episode number, genre and sub-genre as categories, rating, poster; a `film` series is a movie |
+| `plex` | Episode title as sub-title under the series title, season and episode number, genres, content rating, image, original air date or year, premieres as new; a `movie` item is a movie |
+| `vizio` | Sub-title, season and episode number when positive |
+| `pbs` | Episode title as sub-title |
+| `adultswim` | Series name as title, episode name as sub-title |
+| `xumo` | The Gracenote asset ID as `dd_progid` numbering; a movie or sports asset gets that category |
+| `samsung`, `roku` | Whatever the XMLTV carries, read as for any XMLTV guide |
+
+From the other services' guides the server reads titles, descriptions and times only.
+
 ## How a native source plays
 
 A native offering's URL is `svc://SERVICE/CHANNEL_ID`: stable, never fetched, and what the lineup refers to. When a session opens the channel, the relay asks the provider to resolve it. The provider fills the service's ad macros (device ID, session ID, cache buster, privacy defaults) or follows the service's redirect, and the relay fetches the master playlist with the headers the service's own client sends. The resolution is cached per source until a minute before it expires: an hour for macro-filled URLs, the token lifetime for tokens, and indefinitely for static URLs. Every session, probe and remux on that source shares it. Nothing a player sees names the service. Media playlists and segments are the relay's opaque session paths, as for any HLS source.

@@ -43,12 +43,24 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
                     context.http.get("$apiBase/grid?channelGridKey=$id&date=$date&X-Plex-Token=${encode(token)}", headers(token) + ("X-Plex-Provider-Version" to "7.2"))
                 }.json()
                 for (item in payload["MediaContainer"]["Metadata"].array) {
-                    val title = item.str("grandparentTitle") ?: item.str("title") ?: continue
+                    val series = item.str("grandparentTitle")
+                    val title = series ?: item.str("title") ?: continue
+                    val episode = item.str("type") == "episode"
+                    val movie = item.str("type") == "movie"
                     for (media in item["Media"].array) {
                         val start = media["beginsAt"].long ?: continue
                         val end = media["endsAt"].long ?: continue
                         if (end <= start) continue
-                        programmes += GuideProgramme(id, Instant.ofEpochSecond(start), Instant.ofEpochSecond(end), title, item.str("summary"))
+                        programmes += GuideProgramme(
+                            id, Instant.ofEpochSecond(start), Instant.ofEpochSecond(end), title, item.str("summary"),
+                            subTitle = if (series != null) item.str("title") else null,
+                            episodeNumbers = if (episode) seasonEpisode(item["parentIndex"].long, item["index"].long) else emptyList(),
+                            icon = httpOrNull(item.str("thumb") ?: item.str("grandparentThumb")),
+                            categories = listOfNotNull(if (movie) "Movie" else null) + item["Genre"].array.mapNotNull { it.str("tag") },
+                            rating = usRating(item.str("contentRating")),
+                            isNew = media["premiere"].truthy,
+                            date = item.str("originallyAvailableAt") ?: item.str("year"),
+                        )
                     }
                 }
             }

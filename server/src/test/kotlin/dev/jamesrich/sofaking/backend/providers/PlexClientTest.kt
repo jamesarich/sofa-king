@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.catalog.ProgrammeRating
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.providerState
 import dev.jamesrich.sofaking.backend.store.saveProviderState
@@ -86,6 +88,30 @@ class PlexClientTest {
             assertEquals(2, guide.programmes.size, "the same airing on both days is kept once")
             assertEquals("7th Heaven", guide.programmes[0].title)
             assertEquals("2026-10-10T23:27:56Z", guide.programmes[0].startsAt.toString())
+            assertEquals("We the People", guide.programmes[0].subTitle, "an episode's own title is the sub-title")
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `guide maps episode numbers, genres, rating, image, date and premieres`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-plex-")
+        try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
+            fixture.plex()
+            fixture.route("/epg/grid") { Canned(ProviderFixture.resource("plex-grid-episode.json")) }
+            val client = PlexClient(ProviderFixture.context("plex", options(fixture), http, store, MutableClock()))
+            val (episode, movie) = client.guide(setOf(cw)).programmes.map { it.bounded() }
+            assertEquals("7th Heaven", episode.title); assertEquals("We the People", episode.subTitle)
+            assertEquals(listOf(EpisodeNumber("xmltv_ns", "5.11."), EpisodeNumber("onscreen", "S06E12")), episode.episodeNumbers)
+            assertEquals(listOf("Drama", "Family"), episode.categories)
+            assertEquals(ProgrammeRating("TV-G", "VCHIP"), episode.rating)
+            assertEquals("https://provider-static.plex.tv/epg/images/thumb.jpg", episode.icon)
+            assertEquals("20020128", episode.date)
+            assertTrue(episode.isNew)
+            assertEquals("Sample Film", movie.title); assertNull(movie.subTitle)
+            assertTrue(movie.episodeNumbers.isEmpty())
+            assertEquals(listOf("Movie"), movie.categories)
+            assertEquals(ProgrammeRating("PG-13", "MPAA"), movie.rating)
+            assertEquals("1999", movie.date)
+            assertFalse(movie.isNew)
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 

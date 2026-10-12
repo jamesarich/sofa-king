@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
@@ -50,15 +51,31 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
                     for (slot in row["schedule"].array) {
                         val start = slot.str("start")?.let(::instant) ?: continue
                         val end = slot.str("end")?.let(::instant) ?: continue
-                        val asset = page["assets"][slot.str("assetId") ?: continue]
+                        val assetId = slot.str("assetId") ?: continue
+                        val asset = page["assets"][assetId]
                         val title = asset.str("title") ?: continue
-                        if (end > start) programmes.putIfAbsent(id to start, GuideProgramme(id, start, end, title, asset["descriptions"].let { it.str("medium") ?: it.str("small") }))
+                        if (end > start) programmes.putIfAbsent(id to start, programme(id, start, end, title, asset["descriptions"].let { it.str("medium") ?: it.str("small") }, assetId))
                     }
                 }
                 offset += PAGE
             } while (rows.size == PAGE && offset < (page["totalChannels"].long ?: 0) && offset < MAX_OFFSET)
         }
         return ParsedGuide(index, programmes.values.toList())
+    }
+
+    /**
+     * Xumo's asset ids are Gracenote TMS ids (`EP000191553073`): two letters for the kind, eight digits for the
+     * series and four for the episode, which XMLTV carries as `dd_progid` `EP00019155.3073`. `MV` is a movie and
+     * `SP` a sports event.
+     */
+    private fun programme(id: String, start: Instant, end: Instant, title: String, description: String?, assetId: String): GuideProgramme {
+        val tms = TMS_ID.matchEntire(assetId) ?: return GuideProgramme(id, start, end, title, description)
+        val (kind, series, episode) = tms.destructured
+        return GuideProgramme(
+            id, start, end, title, description,
+            episodeNumbers = listOf(EpisodeNumber("dd_progid", "$kind$series.$episode")),
+            categories = listOfNotNull(KINDS[kind]),
+        )
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
@@ -121,6 +138,8 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
     private fun instant(value: String): Instant? = try { Instant.from(STAMP.parse(value)) } catch (_: Exception) { null }
 
     companion object {
+        private val TMS_ID = Regex("(EP|SH|MV|SP)(\\d{8})(\\d{4})")
+        private val KINDS = mapOf("MV" to "Movie", "SP" to "Sports")
         private const val API_BASE = "https://valencia-app-mds.xumo.com"
         private const val LOGO_BASE = "https://image.xumo.com/v1/channels/channel"
         private const val MARKET = "10006"

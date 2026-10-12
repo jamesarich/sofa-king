@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.providerState
@@ -53,6 +54,24 @@ class VizioClientTest {
             assertEquals(2, guide.programmes.size, "the airing of an unknown station is dropped")
             assertTrue(guide.programmes.all { it.channelId == "93FoxNewsNow" && it.title == "LiveNOW from FOX" })
             assertEquals("2026-10-11T02:00:00Z", guide.programmes.first().startsAt.toString())
+            val first = guide.programmes.first()
+            assertNull(first.subTitle, "a sub-title equal to the title says nothing")
+            assertTrue(first.episodeNumbers.isEmpty(), "season and episode 0 mean unnumbered")
+            assertEquals("LIVE 24/7. Always On. Raw & unfiltered breaking news, live events and stories from across the nation.", first.description)
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `guide maps the airing's sub-title and season and episode numbers`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-vizio-")
+        try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
+            fixture.vizio()
+            fixture.json("/api/airings/", ProviderFixture.resource("vizio-airings-episode.json"))
+            val client = VizioClient(ProviderFixture.context("vizio", mapOf("apiBase" to "${fixture.base}/api"), http, store, MutableClock()))
+            val (episode, special) = client.guide(setOf("93FoxNewsNow")).programmes
+            assertEquals("Sample Series", episode.title); assertEquals("The Sample Episode", episode.subTitle)
+            assertEquals("Something happens.", episode.description)
+            assertEquals(listOf(EpisodeNumber("xmltv_ns", "1.4."), EpisodeNumber("onscreen", "S02E05")), episode.episodeNumbers)
+            assertEquals(listOf(EpisodeNumber("xmltv_ns", ".2.")), special.episodeNumbers, "an episode without a season")
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 }

@@ -8,6 +8,7 @@ import java.net.URLEncoder
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -43,11 +44,24 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
                     val from = item.str("start")?.let(::instant) ?: continue
                     val until = item.str("stop")?.let(::instant) ?: continue
                     val title = item.str("title") ?: continue
-                    if (until > from) programmes += GuideProgramme(id, from, until, title, item["episode"].str("description"))
+                    if (until > from) programmes += programme(id, from, until, title, item["episode"])
                 }
             }
         }
         return ParsedGuide(index, programmes)
+    }
+
+    /** A timeline entry and its `episode`: the episode name, season and number, genres, rating and poster; a `film` series is a movie. */
+    private fun programme(id: String, from: Instant, until: Instant, title: String, episode: JsonElement?): GuideProgramme {
+        val movie = episode["series"].str("type") == "film"
+        return GuideProgramme(
+            id, from, until, title, episode.str("description"),
+            subTitle = episode.str("name")?.takeIf { !movie && !it.equals(title, ignoreCase = true) },
+            episodeNumbers = if (movie) emptyList() else seasonEpisode(episode["season"].long, episode["number"].long),
+            icon = httpOrNull(episode["poster"].str("path")),
+            categories = listOfNotNull(if (movie) "Movie" else null, episode.str("genre"), episode.str("subGenre")),
+            rating = usRating(episode.str("rating")?.takeUnless { it.equals("Not Rated", ignoreCase = true) }),
+        )
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {

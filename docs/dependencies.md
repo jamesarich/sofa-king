@@ -8,7 +8,7 @@
 | kotlinx.coroutines | 1.11.0 |
 | Exposed | 1.5.1 |
 | SQLite JDBC | 3.53.4.0 |
-| SLF4J | 2.0.18 |
+| Logback | 1.6.5 |
 | kotlinx.html | 0.12.0 |
 | htmx | 2.0.11 |
 | Gradle | 9.9.0-milestone-2 |

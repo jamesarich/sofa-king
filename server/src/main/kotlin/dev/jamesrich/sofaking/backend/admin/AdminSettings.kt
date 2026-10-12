@@ -62,6 +62,8 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
             s("SOFA_RESTREAM_ORIGINS", config.restreamOrigins.sorted().joinToString(), ""),
             s("SOFA_OBSERVATION_RETENTION_DAYS", config.observationRetentionDays, 7),
             s("SOFA_ALLOW_LOOPBACK_UPSTREAMS", config.allowLoopbackUpstreams, false),
+            s("SOFA_LOG_LEVEL", config.logging.level, "info"),
+            s("SOFA_LOG_FORMAT", config.logging.format, "text"),
         )),
         SettingGroup("Tokens", listOf(
             secret("SOFA_API_TOKEN", config.apiToken, "Opens /api/v1; the Sofa King app needs it"),

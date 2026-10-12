@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.http.AddressAllowList
+import dev.jamesrich.sofaking.backend.logging.LogSettings
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -72,6 +73,8 @@ data class ServerConfig(
     val secretsFile: Path? = null,
     /** `SOFA_SOURCES` and `SOFA_POLICY` when their file was found in the data directory instead of set. */
     val foundInDataDirectory: Set<String> = emptySet(),
+    /** `SOFA_LOG_LEVEL` and `SOFA_LOG_FORMAT`, which logback reads itself before this is loaded. */
+    val logging: LogSettings = LogSettings(),
 ) {
     companion object {
         /** Where earlier images kept the database; a database there and none in the data directory stops the start. */
@@ -216,6 +219,7 @@ data class ServerConfig(
                 HdhrConfig(hdhrEnabled, tuners, deviceId, friendlyName, allow, extraPorts, deviceSize, publicPorts),
                 policy,
                 plex,
+                logging = LogSettings.from(environment),
             )
         }
 

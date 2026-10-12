@@ -36,6 +36,8 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_PLEX_TOKEN` | Unset | The Plex server's `X-Plex-Token`, at least 8 characters. A secret: it is sent only as a request header and never logged |
 | `SOFA_PLEX_SYNC_MINUTES` | `60` | Minutes between Plex syncs when the lineup does not change, 5 to 1440 |
 | `SOFA_PLEX_TUNER_BASE` | Unset | Scheme and host Plex reaches this server's tuners on, without a port, for example `http://192.168.1.3`. When set, a sync adds devices Plex lacks |
+| `SOFA_LOG_LEVEL` | `info` | Log level for every logger: `trace`, `debug`, `info`, `warn`, `error` or `off` |
+| `SOFA_LOG_FORMAT` | `text` | `text` for one line per event, or `json` for one JSON object per line with the level, logger, message and request id. Logs go to stderr |
 | `TZ` | UTC | Time zone of the process, for example `America/Chicago`. The server stores and serves its times in UTC either way |
 
 ## Source settings

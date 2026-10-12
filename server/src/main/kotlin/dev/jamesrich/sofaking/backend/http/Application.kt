@@ -34,7 +34,14 @@ import io.ktor.util.cio.ChannelIOException
 import io.ktor.utils.io.ClosedByteChannelException
 import io.ktor.utils.io.ConnectionClosedException
 import io.ktor.server.plugins.origin
+import io.ktor.server.plugins.callid.CallId
+import io.ktor.server.plugins.callid.callIdMdc
+import io.ktor.server.plugins.callid.generate
+import io.ktor.server.plugins.calllogging.CallLogging
+import io.ktor.server.plugins.calllogging.processingTimeMillis
 import java.time.Clock
+import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
@@ -51,6 +58,15 @@ internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
     method == HttpMethod.Post && (path == "/admin/providers/edit" || path == "/admin/groups/edit") -> POLICY_BODY_LIMIT
     else -> CONTROL_BODY_LIMIT
 }
+
+private val accessLog = LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.http.Access")
+
+/** Whether a request to the routed [path] gets an access log line: not media, logos, player streams or health checks. */
+internal fun accessLogged(path: String?): Boolean = path == null || !(
+    path.startsWith("/media/") || path.startsWith("/logos/") || path.startsWith("/output/stream/") || path.startsWith("/auto/") ||
+        path == "/healthz" || path == "/readyz"
+    )
+
 fun Application.backendModule(
     store: IdentityStore,
     clock: Clock,
@@ -66,6 +82,21 @@ fun Application.backendModule(
     // The portal signs in with the admin token, or the API token when no admin token is set.
     val portal = runtime?.let { AdminPortal(it, adminToken ?: apiToken, outputs, hdhr, clock, plexStatus, config) }
     attributes.computeIfAbsent(AuthFailureLogKey) { AuthFailureLog(clock) }
+    install(CallId) {
+        generate(length = 16, dictionary = "0123456789abcdef")
+        replyToHeader(HttpHeaders.XRequestId)
+    }
+    // The path only: query strings carry the output token.
+    install(CallLogging) {
+        level = Level.INFO
+        logger = accessLog
+        callIdMdc("requestId")
+        filter { call -> accessLogged(routedPath(call.request.path())) }
+        format { call ->
+            "request method=${call.request.httpMethod.value} path=${routedPath(call.request.path()) ?: "-"} " +
+                "status=${call.response.status()?.value ?: "-"} durationMs=${call.processingTimeMillis()}"
+        }
+    }
     install(RequestBodyLimit) { bodyLimit { call -> requestBodyLimit(call.request.httpMethod, routedPath(call.request.path())) } }
     if (portal != null) install(RateLimit) {
         register(ADMIN_LOGIN_LIMIT) {

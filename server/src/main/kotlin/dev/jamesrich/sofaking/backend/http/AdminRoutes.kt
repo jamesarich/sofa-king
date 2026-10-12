@@ -12,8 +12,11 @@ import io.ktor.server.routing.*
 import java.time.Clock
 import java.time.Instant
 
-/** The admin API under `/api/v1/admin`: feed candidates, guide channels and the household lineup. JSON only. */
-fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock) {
+/**
+ * The admin API under `/api/v1/admin`: the server status, feed candidates, guide channels and the household lineup.
+ * JSON only. [revision] is the commit the status reports.
+ */
+fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "unknown") {
     val store = runtime.store
     suspend fun entryInfo(entry: LineupEntryRecord): LineupEntry {
         val states = store.allHealth()
@@ -22,6 +25,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock) {
     val policy = runtime.policy
     fun manual() { if (policy != null) throw policyManaged() }
     route("/api/v1/admin") {
+        get("/status") { call.respond(serverStatus(runtime, clock, revision)) }
         get("/sessions") { call.respond(runtime.sessions.snapshot()) }
         get("/candidates") {
             val query = call.request.queryParameters["q"]?.trim()?.lowercase().orEmpty()

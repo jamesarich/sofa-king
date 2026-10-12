@@ -16,6 +16,11 @@ class ServerConfigTest {
         assertEquals(9193, config.port)
         assertEquals(Path.of("/tmp/sofa-config"), config.dataDirectory)
     }
+    @Test fun `the revision comes from SOFA_REVISION and is unknown without it`() {
+        assertEquals("unknown", ServerConfig.fromEnvironment(emptyMap()).revision)
+        assertEquals("unknown", ServerConfig.fromEnvironment(mapOf("SOFA_REVISION" to " ")).revision)
+        assertEquals("abc1234", ServerConfig.fromEnvironment(mapOf("SOFA_REVISION" to "abc1234")).revision)
+    }
     @Test fun `LAN binding requires token and capacity is bounded`() {
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0")) }
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_API_TOKEN" to "short")) }

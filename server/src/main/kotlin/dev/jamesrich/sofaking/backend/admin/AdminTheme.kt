@@ -5,8 +5,24 @@ import java.time.Instant
 import kotlinx.html.*
 import kotlinx.html.stream.createHTML
 
-/** What every signed-in page carries besides its content: the session, the render time, a one-shot notice and nav counts. */
-internal class Chrome(val session: AdminSession, val now: Instant, val flash: Flash? = null, val badges: Map<String, Int> = emptyMap())
+/**
+ * What every signed-in page carries besides its content: the session, the render time, a one-shot notice, nav counts,
+ * and the server revision and start time for the footer.
+ */
+internal class Chrome(
+    val session: AdminSession, val now: Instant, val flash: Flash? = null, val badges: Map<String, Int> = emptyMap(),
+    val revision: String? = null, val startedAt: Instant? = null,
+)
+
+/** A running time as "3 d 4 h", "5 h 12 min" or "7 min". */
+internal fun uptime(from: Instant, now: Instant): String {
+    val s = Duration.between(from, now).seconds.coerceAtLeast(0)
+    return when {
+        s >= 86_400 -> "${s / 86_400} d ${s % 86_400 / 3600} h"
+        s >= 3600 -> "${s / 3600} h ${s % 3600 / 60} min"
+        else -> "${s / 60} min"
+    }
+}
 
 /** A notice shown once after a redirect; [target] names the row it concerns. */
 internal class Flash(val message: String, val tone: Tone = Tone.OK, val target: String? = null)
@@ -255,7 +271,11 @@ internal fun layout(title: String, chrome: Chrome?, current: String?, content: M
             id = "content"
             content()
         }
-        footer { +"Sofa King well organized." }
+        footer {
+            +"Sofa King well organized."
+            if (chrome?.revision != null) { +" Revision "; code { +chrome.revision }; +"." }
+            if (chrome?.startedAt != null) +" Up ${uptime(chrome.startedAt, chrome.now)}."
+        }
         val flash = chrome?.flash
         if (flash != null) div("toast ${flash.tone.css}") { attributes["role"] = "status"; +flash.message }
     }

@@ -106,6 +106,23 @@ class AdminPortalTest {
         }
     }
 
+    @Test fun `the footer of a signed-in page shows the revision and uptime`() = testApplication {
+        portal(show = { it.copy(revision = "abc1234") }) {
+            assertFalse(browser.get("/admin").bodyAsText().contains("abc1234"), "the sign-in page does not name the revision")
+            browser.signIn()
+            val footer = Regex("<footer>(.*?)</footer>").find(browser.get("/admin/lineup").bodyAsText())!!.groupValues[1]
+            assertTrue(footer.contains("Revision <code>abc1234</code>."), footer)
+            assertTrue(footer.contains("Up 0 min."), footer)
+        }
+    }
+
+    @Test fun `uptime reads in the largest two units`() {
+        val start = java.time.Instant.parse("2026-10-10T00:00:00Z")
+        assertEquals("7 min", dev.jamesrich.sofaking.backend.admin.uptime(start, start.plusSeconds(7 * 60 + 59)))
+        assertEquals("5 h 12 min", dev.jamesrich.sofaking.backend.admin.uptime(start, start.plusSeconds(5 * 3600 + 12 * 60)))
+        assertEquals("3 d 4 h", dev.jamesrich.sofaking.backend.admin.uptime(start, start.plusSeconds(3 * 86_400 + 4 * 3600 + 59)))
+    }
+
     @Test fun `sign-in attempts are limited per address, and each refusal is logged without the token`() = testApplication {
         val lines = java.util.concurrent.CopyOnWriteArrayList<String>()
         application { attributes.put(AuthFailureLogKey, AuthFailureLog(MutableClock(), sink = { lines += it })) }

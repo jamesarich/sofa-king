@@ -52,3 +52,5 @@ LABEL org.opencontainers.image.title="Sofa King backend" \
       org.opencontainers.image.licenses="GPL-3.0-only" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.version="${REVISION}"
+# Labels are not visible inside the container, so the server reads its revision from the environment.
+ENV SOFA_REVISION=${REVISION}

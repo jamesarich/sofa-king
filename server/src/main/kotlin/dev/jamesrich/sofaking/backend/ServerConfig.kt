@@ -75,6 +75,8 @@ data class ServerConfig(
     val foundInDataDirectory: Set<String> = emptySet(),
     /** `SOFA_LOG_LEVEL` and `SOFA_LOG_FORMAT`, which logback reads itself before this is loaded. */
     val logging: LogSettings = LogSettings(),
+    /** `SOFA_REVISION`, the commit the image was built from; `unknown` outside the image. */
+    val revision: String = "unknown",
 ) {
     companion object {
         /** Where earlier images kept the database; a database there and none in the data directory stops the start. */
@@ -220,6 +222,7 @@ data class ServerConfig(
                 policy,
                 plex,
                 logging = LogSettings.from(environment),
+                revision = environment["SOFA_REVISION"]?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown",
             )
         }
 

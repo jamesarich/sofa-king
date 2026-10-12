@@ -68,7 +68,7 @@ REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml bui
 cd deploy && docker compose up -d
 ```
 
-On a host without a JDK, build over SSH as [deploy](deploy.md#deploy-to-a-host-without-a-jdk) shows and run the `docker tag` there first. `docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' sofa-king-backend` prints the commit a running container was built from.
+On a host without a JDK, build over SSH as [deploy](deploy.md#deploy-to-a-host-without-a-jdk) shows and run the `docker tag` there first. `docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' sofa-king-backend` prints the commit a running container was built from; `GET /api/v1/admin/status` and the admin portal footer report the same commit as `revision`.
 
 Schema migrations run at startup and only move forward. The server records each applied version in `schema_version`, and a server that does not know a version in the database refuses to start (`Unsupported database schema`). A rollback therefore needs both the previous image and the backup taken before the upgrade. [Restore](#restore) that backup, then start the previous image:
 
@@ -89,6 +89,7 @@ cd deploy && docker compose up -d --no-build --force-recreate
 | `GET /api/v1/admin/sessions` | Live playback sessions. An empty list means nothing is playing |
 | `GET /api/v1/admin/policy/changes` | What lineup policy runs changed, newest first |
 | `GET /api/v1/admin/policy/findings` | Open findings of the lineup policy, such as missing required sources |
+| `GET /api/v1/admin/status` | One summary: the revision, uptime and schema version, channel and source counts, failing provider and guide imports, the last lineup policy run and Plex sync, and active sessions. See [server status](api.md#server-status) |
 
 Use `Authorization: Bearer $SOFA_API_TOKEN` for the `/api/v1` checks, and `Authorization: Bearer $SOFA_ADMIN_TOKEN` for the `/api/v1/admin` routes.
 

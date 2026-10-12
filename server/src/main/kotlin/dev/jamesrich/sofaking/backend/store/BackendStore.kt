@@ -176,6 +176,11 @@ class BackendStore internal constructor(
         }
     }
 
+    /** The newest schema migration applied to the database. */
+    suspend fun schemaVersion(): Int = query {
+        exec("SELECT MAX(version) FROM schema_version") { if (it.next()) it.getInt(1) else 0 } ?: 0
+    }
+
     suspend fun probeAttempts(): Map<String, Instant> = query {
         ProbeAttempts.selectAll().associate { it[ProbeAttempts.offeringId] to Instant.parse(it[ProbeAttempts.attemptedAt]) }
     }

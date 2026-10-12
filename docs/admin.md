@@ -12,7 +12,7 @@ A session lasts 12 hours from sign-in, or until you sign out. Sessions are held 
 
 ## Pages
 
-The navigation groups the pages into the overview, Lineup (Channels, Merges, Required) and Setup (Groups, Providers, Plex, Settings). A count beside Merges, Required, Providers or Plex says how many things there need a look.
+The navigation groups the pages into the overview, Lineup (Channels, Merges, Required) and Setup (Groups, Providers, Plex, Settings). A count beside Merges, Required, Providers or Plex says how many things there need a look. The footer of every signed-in page shows the server's revision and how long it has been up.
 
 | Page | What it shows | What it changes |
 | --- | --- | --- |

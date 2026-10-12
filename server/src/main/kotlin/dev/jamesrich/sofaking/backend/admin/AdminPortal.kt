@@ -208,7 +208,9 @@ class AdminPortal(
     }
 
     /** The page furniture for [session]; takes the one-shot notice unless [flash] replaces it. */
-    private suspend fun chrome(session: AdminSession, flash: Flash? = null): Chrome = Chrome(session, clock.instant(), flash ?: session.flash.getAndSet(null), badges())
+    private suspend fun chrome(session: AdminSession, flash: Flash? = null): Chrome = Chrome(
+        session, clock.instant(), flash ?: session.flash.getAndSet(null), badges(), config?.revision ?: "unknown", runtime.startedAt,
+    )
 
     /** Nav counts from in-memory state only, so every page stays cheap. */
     private suspend fun badges(): Map<String, Int> {

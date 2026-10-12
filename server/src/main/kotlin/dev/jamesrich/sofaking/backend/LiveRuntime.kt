@@ -53,6 +53,8 @@ class LiveRuntime(
     val policy: PolicyService? = null,
     /** Plex sync when `SOFA_PLEX_URL` is set. */
     val plex: PlexSync? = null,
+    /** When the runtime started, for the uptime the status reports. */
+    val startedAt: java.time.Instant = java.time.Instant.now(),
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -65,6 +67,7 @@ class LiveRuntime(
         suspend fun create(
             store: BackendStore, config: ServerConfig, clock: Clock, policyDebounceMillis: Long = 10_000, probes: Boolean = true, plexDebounceMillis: Long = 120_000,
         ): LiveRuntime {
+            val started = clock.instant()
             val sources = loadSources(config.sourcesFile)
             val providerIds = sources.providers.mapTo(HashSet()) { provider -> provider.id }
             val loadedPolicy = config.policyFile?.let { loadPolicy(it, providerIds) }
@@ -120,7 +123,7 @@ class LiveRuntime(
                 plex?.requestSync("startup")
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
-                    policyService, plex,
+                    policyService, plex, started,
                 )
                 scope.launchEvery("session-expire", 1000) { sessions.expire() }
                 // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.

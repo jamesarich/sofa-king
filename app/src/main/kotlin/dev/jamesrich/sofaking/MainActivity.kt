@@ -83,7 +83,7 @@ private sealed interface Screen {
     /**
      * [atNow] moves the guide's cursor to the current time on arrival (the Guide key from the player); [search]
      * opens its search by voice (the Search key); [returnedFrom] is the channel the player was left on, which
-     * the preview must not reopen by itself until focus moves. None survives a restore.
+     * the guide focuses and the preview must not reopen by itself until focus moves. None survives a restore.
      */
     data class Guide(val atNow: Boolean = false, val search: Boolean = false, val returnedFrom: String? = null) : Screen
     /** [scope] is the guide filter the channel was picked from, which Up and Down stay in; it does not survive a restore. */

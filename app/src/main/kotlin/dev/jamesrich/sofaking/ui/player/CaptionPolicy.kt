@@ -18,7 +18,7 @@ internal data class TextTrackInfo(
 internal object CaptionPolicy {
     const val PREFERRED_LANGUAGE = "en"
 
-    /** Bottom overscan on full-screen content, per the workspace TV rules. */
+    /** Bottom overscan on full-screen content, the same vertical margin every screen keeps. */
     const val OVERSCAN_BOTTOM_DP = 27
 
     private const val SERVICE_ONE = 1

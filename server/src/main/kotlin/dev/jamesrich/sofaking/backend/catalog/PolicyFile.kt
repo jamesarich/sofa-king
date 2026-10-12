@@ -18,6 +18,9 @@ import org.slf4j.LoggerFactory
 @OptIn(ExperimentalSerializationApi::class)
 private val writtenJson = Json { prettyPrint = true; prettyPrintIndent = "  " }
 
+/** [tree] as the server writes a policy file. */
+internal fun policyBytes(tree: JsonObject): ByteArray = (writtenJson.encodeToString(JsonObject.serializer(), tree) + "\n").toByteArray()
+
 /**
  * The policy file and every write to it. One mutex serializes writers. A write checks the file on disk against the
  * loaded revision, and when it differs reloads it and fails with 409 so no edit lands on a revision nobody read.
@@ -38,7 +41,7 @@ class PolicyFile(initial: LoadedPolicy, private val providerIds: Set<String>, pr
     /** Rewrites the file's JSON through [edit]; [ifMatch], when given, must be the loaded revision. */
     suspend fun edit(ifMatch: String?, edit: (JsonObject) -> JsonObject): LoadedPolicy = write(ifMatch) { current ->
         val tree = Json.parseToJsonElement(current.toString(Charsets.UTF_8)) as? JsonObject ?: throw ApiFailure(409, "POLICY_CHANGED", "The policy file is not a JSON object")
-        (writtenJson.encodeToString(JsonObject.serializer(), edit(tree)) + "\n").toByteArray()
+        policyBytes(edit(tree))
     }
 
     private suspend fun write(ifMatch: String?, produce: (ByteArray) -> ByteArray): LoadedPolicy = mutex.withLock {

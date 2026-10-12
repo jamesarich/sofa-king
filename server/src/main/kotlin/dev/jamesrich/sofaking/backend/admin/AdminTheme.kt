@@ -127,6 +127,11 @@ form.inline{display:inline}
 .field{display:flex;flex-direction:column;gap:4px;min-width:0}
 .field label,.field .label{font-size:.8rem;font-weight:600;color:var(--mauve)}
 .field .hint{font-size:.8rem;color:var(--mauve)}
+.spaced{margin-top:14px}
+.maprow{display:grid;grid-template-columns:minmax(120px,200px) 1fr;gap:8px 16px;align-items:start;padding:10px 0;border-top:1px solid var(--line)}
+.maprow:first-child{border-top:0}
+.mapgroup{font-weight:600;padding-top:4px}
+@media (max-width:720px){.maprow{grid-template-columns:1fr}}
 .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px;align-items:end}
 .filters{display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr)) auto auto;gap:10px;align-items:end;margin:0 0 12px}
 .filters .check{display:flex;align-items:center;gap:8px;min-height:38px;white-space:nowrap}

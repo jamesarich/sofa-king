@@ -337,4 +337,103 @@ class AdminPortalTest {
             assertEquals(all, with + without)
         }
     }
+
+    private fun policyJson(file: Path): JsonObject = Json.parseToJsonElement(Files.readString(file)).jsonObject
+
+    @Test fun `policy edits need the session and the CSRF token`() = testApplication {
+        portal(basePolicy) {
+            runtime.policy!!.apply("test")
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/groups").status)
+            for (path in listOf("/admin/groups/edit", "/admin/providers/edit")) assertEquals(HttpStatusCode.Unauthorized, browser.post(path, "op" to "block").status, path)
+            browser.signIn()
+            val before = Files.readString(policyFile!!)
+            val page = browser.get("/admin/groups").bodyAsText()
+            for (path in listOf("/admin/groups/edit", "/admin/providers/edit")) {
+                val refused = browser.post(path, "op" to "block", "group" to "News", "start" to "500", "revision" to field(page, "revision"), "confirm" to "yes")
+                assertEquals(HttpStatusCode.Forbidden, refused.status, path)
+            }
+            assertEquals(before, Files.readString(policyFile), "a refused edit writes nothing")
+        }
+    }
+
+    @Test fun `a number block is written into the policy and applied`() = testApplication {
+        portal(basePolicy) {
+            runtime.policy!!.apply("test")
+            browser.signIn()
+            val page = browser.get("/admin/groups").bodyAsText()
+            assertTrue(page.contains("Groups and number blocks") && page.contains("Category map"))
+            val saved = browser.post("/admin/groups/edit", "op" to "block", "group" to "Sports", "start" to "500", "csrf" to field(page, "csrf"), "revision" to field(page, "revision"), "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, saved.status, saved.bodyAsText())
+            assertEquals("/admin/groups#blocks", saved.headers[HttpHeaders.Location])
+            assertEquals(500, policyJson(policyFile!!)["numbering"]!!.jsonObject["groups"]!!.jsonObject["Sports"]!!.jsonPrimitive.int)
+            assertEquals(Files.readString(policyFile).let { java.security.MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).joinToString("") { b -> "%02x".format(b) } }, runtime.policy!!.document().revision)
+            val after = browser.get("/admin/groups").bodyAsText()
+            assertTrue(after.contains("Saved: number Sports from 500."), "the save is confirmed")
+            assertTrue(after.contains(">Sports<"), "the block is listed")
+        }
+    }
+
+    @Test fun `an invalid edit shows every policy error inline and writes nothing`() = testApplication {
+        portal(basePolicy) {
+            runtime.policy!!.apply("test")
+            browser.signIn()
+            val before = Files.readString(policyFile!!)
+            val page = browser.get("/admin/groups").bodyAsText()
+            val response = browser.post("/admin/groups/edit", "op" to "pattern", "name" to "(", "group" to "News", "csrf" to field(page, "csrf"), "revision" to field(page, "revision"), "confirm" to "yes")
+            assertEquals(HttpStatusCode.BadRequest, response.status)
+            val body = response.bodyAsText()
+            assertTrue(body.contains("The policy would not be valid") && body.contains("groups.patterns[0].name: invalid pattern"), body)
+            assertEquals(before, Files.readString(policyFile))
+
+            val unknown = browser.post("/admin/providers/edit", "op" to "add", "provider" to "nope", "csrf" to field(page, "csrf"), "revision" to field(page, "revision"), "confirm" to "yes")
+            assertEquals(HttpStatusCode.BadRequest, unknown.status)
+            assertTrue(unknown.bodyAsText().contains("unknown provider nope"))
+            assertEquals(before, Files.readString(policyFile))
+        }
+    }
+
+    @Test fun `an edit against a stale revision is held for confirmation against the current policy`() = testApplication {
+        portal(basePolicy) {
+            runtime.policy!!.apply("test")
+            browser.signIn()
+            val before = Files.readString(policyFile!!)
+            val page = browser.get("/admin/groups").bodyAsText()
+            val stale = "0".repeat(64)
+            val held = browser.post("/admin/groups/edit", "op" to "weak", "category" to "Featured", "csrf" to field(page, "csrf"), "revision" to stale, "confirm" to "yes")
+            assertEquals(HttpStatusCode.Conflict, held.status)
+            val body = held.bodyAsText()
+            assertTrue(body.contains("The policy changed since this page loaded"), body)
+            assertEquals(before, Files.readString(policyFile), "nothing is saved on a stale revision")
+            val current = runtime.policy!!.document().revision
+            assertTrue(body.contains("name=\"revision\" value=\"$current\""), "the confirm step carries the current revision")
+            val saved = browser.post("/admin/groups/edit", "op" to "weak", "category" to "Featured", "csrf" to field(page, "csrf"), "revision" to current, "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, saved.status, saved.bodyAsText())
+            assertEquals(Json.parseToJsonElement("""["featured"]"""), policyJson(policyFile)["groups"]!!.jsonObject["weak"])
+        }
+    }
+
+    @Test fun `hiding a provider entry shows what turns off and saves only once confirmed`() = testApplication {
+        portal(basePolicy) {
+            runtime.policy!!.apply("test")
+            browser.signIn()
+            val page = browser.get("/admin/providers").bodyAsText()
+            assertTrue(page.contains("Priority"))
+            val ts = runtime.lineup.entries().single { it.name == "TS Station" }
+            assertTrue(ts.enabled)
+            val fields = arrayOf("op" to "enabled", "index" to "3", "enabled" to "false", "csrf" to field(page, "csrf"), "revision" to field(page, "revision"))
+            val asked = browser.post("/admin/providers/edit", *fields)
+            assertEquals(HttpStatusCode.OK, asked.status)
+            val dialog = asked.bodyAsText()
+            assertTrue(dialog.contains("role=\"dialog\"") && dialog.contains("turn off") && dialog.contains("TS Station") && dialog.contains("Save and apply"), dialog)
+            assertNull(policyJson(policyFile!!)["providers"]!!.jsonArray[3].jsonObject["enabled"], "nothing is saved before the confirm")
+            val saved = browser.post("/admin/providers/edit", *fields, "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, saved.status, saved.bodyAsText())
+            assertEquals(false, policyJson(policyFile)["providers"]!!.jsonArray[3].jsonObject["enabled"]!!.jsonPrimitive.boolean)
+            assertFalse(runtime.lineup.entry(ts.id)!!.enabled, "the apply turned the station off")
+
+            val moved = browser.post("/admin/providers/edit", "op" to "move", "index" to "1", "to" to "up", "csrf" to field(page, "csrf"), "revision" to runtime.policy!!.document().revision, "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, moved.status, moved.bodyAsText())
+            assertEquals(listOf("alt", "fixture", "twin", "ts"), policyJson(policyFile)["providers"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content })
+        }
+    }
 }

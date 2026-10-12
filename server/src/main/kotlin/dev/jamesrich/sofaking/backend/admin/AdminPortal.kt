@@ -9,6 +9,17 @@ import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
+import dev.jamesrich.sofaking.backend.catalog.LoadedPolicy
+import dev.jamesrich.sofaking.backend.catalog.parsePolicy
+import dev.jamesrich.sofaking.backend.catalog.policyBytes
+import dev.jamesrich.sofaking.backend.catalog.policyRevision
+import dev.jamesrich.sofaking.backend.catalog.validatePolicy
+import dev.jamesrich.sofaking.backend.api.LineupPolicy
+import java.nio.file.Files
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import dev.jamesrich.sofaking.backend.http.deviceShare
 import dev.jamesrich.sofaking.backend.http.hdhrChannels
 import dev.jamesrich.sofaking.backend.http.publicBase
@@ -138,7 +149,21 @@ class AdminPortal(
             action("/merges/accept") { session, form -> policyAction(call, session, form, "Merged") { policy, from, to, revision -> policy.addAlias(from, to, revision) } }
             action("/merges/dismiss") { session, form -> policyAction(call, session, form, "Kept apart") { policy, from, to, revision -> policy.neverMerge(from, to, revision) } }
             get("/required") { call.html(requiredPage(chrome(call.session()), requiredView())) }
-            get("/providers") { call.html(providersPage(chrome(call.session()), providersView())) }
+            get("/providers") {
+                val chrome = chrome(call.session())
+                val view = providersView()
+                call.html(providersPage(chrome, view) { providerEntries(chrome, view, null, null) })
+            }
+            action("/providers/edit") { session, form ->
+                policyEdit(call, session, form, "/admin/providers", { providersEdit(form, it) }) { chrome, errors, confirm ->
+                    val view = providersView()
+                    providersPage(chrome, view) { providerEntries(chrome, view, errors, confirm) }
+                }
+            }
+            get("/groups") { call.html(groupsPage(chrome(call.session()), groupsView())) }
+            action("/groups/edit") { session, form ->
+                policyEdit(call, session, form, "/admin/groups", { groupsEdit(form) }) { chrome, errors, confirm -> groupsPage(chrome, groupsView(), errors, confirm) }
+            }
             get("/plex") { call.html(plexPage(chrome(call.session()), plexView(call, reveal = false))) }
             action("/plex/reveal") { session, _ -> call.html(plexPage(chrome(session), plexView(call, reveal = true))) }
             get("/settings") {
@@ -238,6 +263,68 @@ class AdminPortal(
             session.flash.set(Flash("$verb: $from and $to. The policy was applied."))
             seeOther(call, "/admin/merges")
         } else call.html(mergesPage(chrome(session, Flash("Not saved: ${failure.message}", Tone.BAD)), mergesView(), failure.message), HttpStatusCode.fromValue(failure.status))
+    }
+
+    /**
+     * A taxonomy or provider edit, made the way `PUT /api/v1/admin/policy` makes one: the whole file, written against
+     * the revision the page showed, validated, then applied. An edit that changes any station, or that meets a policy
+     * that moved on since the page loaded, is shown with its effect and waits for `confirm=yes`.
+     */
+    private suspend fun policyEdit(
+        call: ApplicationCall, session: AdminSession, form: Parameters, page: String,
+        parse: (LineupPolicy) -> PolicyEdit, render: suspend (Chrome, EditErrors?, Confirm?) -> String,
+    ) {
+        val section = sectionOf(form["op"])
+        val policy = runtime.policy
+        if (policy == null) {
+            call.html(render(chrome(session, Flash("No lineup policy is configured.", Tone.BAD)), null, null), HttpStatusCode.Conflict)
+            return
+        }
+        suspend fun refuse(messages: List<String>, status: HttpStatusCode = HttpStatusCode.BadRequest) =
+            call.html(render(chrome(session, Flash("Not saved: ${messages.first()}", Tone.BAD)), EditErrors(section, messages), null), status)
+        val bytes = withContext(Dispatchers.IO) { Files.readAllBytes(policy.file.path) }
+        val current = policyRevision(bytes)
+        val (edit, next) = try {
+            val edit = parse(parsePolicy(bytes))
+            val tree = Json.parseToJsonElement(bytes.decodeToString()) as? JsonObject ?: throw ApiFailure(409, "POLICY_CHANGED", "The policy file is not a JSON object")
+            edit to policyBytes(edit.change(tree))
+        } catch (e: ApiFailure) { refuse(listOf(e.message)); return }
+        val candidate = try { parsePolicy(next) } catch (e: Exception) { refuse(listOf("The edit does not fit the policy schema")); return }
+        val errors = validatePolicy(candidate, runtime.feeds.configs.mapTo(HashSet()) { it.id })
+        if (errors.isNotEmpty()) { refuse(errors); return }
+        val stale = form["revision"] != current
+        if (stale || form["confirm"] != "yes") {
+            val impact = impactOf(policy.run().stations, policy.run(LoadedPolicy(policy.file.path, candidate, "candidate")).stations)
+            if (stale || !impact.isEmpty) {
+                val fields = form.entries().filter { it.key !in setOf("csrf", "revision", "confirm") }.flatMap { (name, values) -> values.map { name to it } }
+                val confirm = Confirm("$page/edit", edit.describe, fields, current, impact, stale, "$page#${edit.section}")
+                call.html(render(chrome(session), null, confirm), if (stale) HttpStatusCode.Conflict else HttpStatusCode.OK)
+                return
+            }
+        }
+        val result = try { policy.replace(current, next).apply } catch (e: ApiFailure) {
+            if (e.status == 409) refuse(listOf("The policy changed while saving; nothing was saved. Reload the page and repeat the edit."), HttpStatusCode.Conflict)
+            else refuse(e.message.split("; "))
+            return
+        }
+        session.flash.set(Flash("Saved: ${edit.describe}. ${thousands(result.enabledStations)} channels on of ${thousands(result.stations)}."))
+        seeOther(call, "$page#${edit.section}")
+    }
+
+    private fun groupsView(): GroupsView? {
+        val policy = runtime.policy ?: return null
+        val document = policy.document()
+        val p = document.policy
+        val rows = rows()
+        val byGroup = rows.groupBy { it.entry.group }
+        val starts = p.numbering.groups.entries.sortedBy { it.value }
+        val blocks = starts.mapIndexed { i, (group, start) ->
+            val next = starts.getOrNull(i + 1)?.value ?: Int.MAX_VALUE
+            val members = byGroup[group].orEmpty()
+            BlockRow(group, start, minOf(start.toLong() + p.numbering.groupSize - 1, next.toLong() - 1).toInt(), members.count { it.entry.enabled }, members.size)
+        }
+        val unblocked = byGroup.filterKeys { it != null && it !in p.numbering.groups }.map { (group, members) -> group!! to members.size }.sortedByDescending { it.second }
+        return GroupsView(document.revision, p, blocks, groupChoices(rows), policy.lastApplied()?.result?.unmappedCategories.orEmpty(), unblocked)
     }
 
     private suspend fun overview(): OverviewView {
@@ -425,6 +512,15 @@ class AdminPortal(
 }
 
 private val SUGGESTION = Regex("(.+): possible alias of (.+)")
+
+/** The page section an edit's errors show in, by its op. */
+private fun sectionOf(op: String?): String = when (op) {
+    "block", "block-remove", "default" -> "blocks"
+    "map", "map-remove" -> "map"
+    "weak", "weak-remove" -> "weak"
+    "pattern", "pattern-remove" -> "patterns"
+    else -> "entries"
+}
 
 internal const val HIDDEN_TOKEN = "••••••••"
 

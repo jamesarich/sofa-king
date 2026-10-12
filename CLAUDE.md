@@ -34,7 +34,7 @@ Unit tests run against MockWebServer; no server is needed for offline developmen
 - Renew well inside the 45 s preview lease (15 s). Release on channel change, Settings and ON_STOP; reopen on ON_START. Reopen on `replaced` and on a 410 from the relay by re-reading the session, not by retrying the old URL.
 - Session opens run under NonCancellable and a canceled tune releases what it opened. Never leak a session: capacity is small and the oldest preview is evicted.
 - Gate tune preparation on STARTED. Stop on ON_STOP and Settings; retain paused-user intent on return.
-- Preserve preview debounce and stream handoff. Zap with stop, resolve the session, setMediaItem, prepare.
+- Preserve preview debounce and stream handoff. A zap waits `ZAP_SETTLE_MS` for presses to rest (the first tune does not), then stops, resolves the session, sets the media item and prepares.
 - Reconnect failed/ended streams with the existing backoff. Do not add a watchdog that reconnects stalled-but-open streams. A `CHANNEL_NOT_FOUND` session error reloads the lineup and follows the channel by number, then name; never retry a dead id with the backoff.
 - PlayerScreen owns MediaSession; there is no background playback service.
 - Preserve CEA-608/708 selection, caption geometry and per-channel timing. Update renderer-thread settings from SideEffect through volatile fields. The preview draws the same `Captions` composable as the full screen, scaled to its box with no overscan inset, gated on the CC setting; both screens call `preferCaptionTrack` on track changes.

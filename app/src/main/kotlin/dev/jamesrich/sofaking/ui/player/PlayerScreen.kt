@@ -106,6 +106,13 @@ private class CaptionToast(val outcome: CaptionToggleOutcome)
  */
 private data class Failure(val code: String, val attempt: Int, val immediate: Boolean = false)
 
+/** How long a zap rests before the new channel is tuned, so pressing through channels does not open a session per press. */
+internal const val ZAP_SETTLE_MS = 400L
+
+/** A zap from a tuned channel waits [ZAP_SETTLE_MS]; the first tune, which may take over the preview's stream, does not. */
+internal fun zapSettleMs(tuned: Channel?, next: Channel): Long =
+    if (tuned == null || tuned.guideId == next.guideId) 0L else ZAP_SETTLE_MS
+
 /** The tune in flight, so a zap cancels the previous channel's session request before it lands on the player. */
 private class TuneJob {
     var job: Job? = null
@@ -320,6 +327,8 @@ fun PlayerScreen(
         // While a dead id is being followed, nothing tunes until the row for its replacement is known.
         if (recovering != null) return@LaunchedEffect
         val channel = currentChannel ?: return@LaunchedEffect
+        // Channels passed under quick presses are never tuned; the info bar follows each press at once.
+        delay(zapSettleMs(tuned, channel))
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
             val before = tuned
             tuned = channel

@@ -198,10 +198,8 @@ fun GuideScreen(
     val todayLabel = stringResource(R.string.guide_today)
     val rangeFormat = stringResource(R.string.guide_range)
 
-    val filters = remember(lineup) {
-        listOf<GuideFilter>(GuideFilter.All, GuideFilter.Favorites) +
-            lineup.channels.map { it.group }.distinct().map { GuideFilter.Group(it) }
-    }
+    val filters = remember(lineup.channels) { guideFilters(lineup.channels) }
+    val filterCounts = remember(lineup.channels, favorites) { guideFilterCounts(lineup.channels, favorites) }
     var filter by rememberSaveable(stateSaver = GuideFilterSaver) { mutableStateOf<GuideFilter>(GuideFilter.All) }
     val activeFilter = filter.takeIf { it in filters } ?: GuideFilter.All
 
@@ -213,7 +211,7 @@ fun GuideScreen(
         val byFilter = when (val f = activeFilter) {
             GuideFilter.All -> lineup.channels
             GuideFilter.Favorites -> lineup.channels.filter { it.guideId in favorites }
-            is GuideFilter.Group -> lineup.channels.filter { it.group == f.name }
+            is GuideFilter.Group -> lineup.channels.filter { f.name in it.groups }
         }
         if (searchNow == null) {
             byFilter
@@ -504,6 +502,7 @@ fun GuideScreen(
     val chips: @Composable (Modifier) -> Unit = { chipModifier ->
         FilterChipRow(
             filters = filters,
+            counts = filterCounts,
             activeFilter = activeFilter,
             searchOpen = searchOpen,
             selectedChip = selectedChip,

@@ -43,7 +43,7 @@ Enter the Sofa King server's absolute HTTP(S) address with a host and optional p
 
 The API token is the server's `SOFA_API_TOKEN`: letters, digits and punctuation with no spaces. Leave it empty when the server runs without one. The field shows only the token's last four characters until it is focused for editing.
 
-Channels come from the server's catalog. A channel appears when the server reports it as playable and gives it a numeric display number; its first tag is the guide category.
+Channels come from the server's catalog. A channel appears when the server reports it as playable and gives it a numeric display number. Each of its tags is a guide category with its own chip, so a channel tagged both Local and News is listed under both; chips show how many channels they list.
 
 ## Troubleshooting
 

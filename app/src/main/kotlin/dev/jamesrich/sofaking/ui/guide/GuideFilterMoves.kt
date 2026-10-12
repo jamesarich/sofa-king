@@ -3,6 +3,22 @@ package dev.jamesrich.sofaking.ui.guide
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
 
+/** All, Favorites, then every group in the order its first channel appears, so the chips follow the numbering. */
+internal fun guideFilters(channels: List<Channel>): List<GuideFilter> =
+    listOf(GuideFilter.All, GuideFilter.Favorites) + channels.flatMap { it.groups }.distinct().map { GuideFilter.Group(it) }
+
+/** How many channels each filter lists; a channel filed under several groups counts in each. */
+internal fun guideFilterCounts(channels: List<Channel>, favorites: Set<String>): Map<GuideFilter, Int> = buildMap {
+    put(GuideFilter.All, channels.size)
+    put(GuideFilter.Favorites, channels.count { it.guideId in favorites })
+    for (channel in channels) {
+        for (group in channel.groups) {
+            val key = GuideFilter.Group(group)
+            put(key, (get(key) ?: 0) + 1)
+        }
+    }
+}
+
 /** Where a typed channel number goes in the guide. */
 internal sealed interface GuideNumberTarget {
     /** A row on screen, by its index in the visible list. */

@@ -64,7 +64,8 @@ class LineupCache(
             out.writeDouble(channel.number)
             out.writeText(channel.name)
             out.writeNullableText(channel.logo)
-            out.writeText(channel.group)
+            out.writeInt(channel.groups.size)
+            for (group in channel.groups) out.writeText(group)
         }
         // Empty lists are dropped on read, so skipping them here keeps the file minimal without changing the result.
         val guide = lineup.guide.filterValues { it.isNotEmpty() }
@@ -86,13 +87,13 @@ class LineupCache(
     private fun readLineup(input: DataInputStream, at: Instant): Lineup {
         val channelCount = input.readCount()
         val channels = List(channelCount) {
-            Channel(
-                guideId = input.readText(),
-                number = input.readDouble(),
-                name = input.readText(),
-                logo = input.readNullableText(),
-                group = input.readText(),
-            )
+            val guideId = input.readText()
+            val number = input.readDouble()
+            val name = input.readText()
+            val logo = input.readNullableText()
+            val groups = List(input.readCount()) { input.readText() }
+            require(groups.isNotEmpty()) { "channel without a group" }
+            Channel(guideId = guideId, number = number, name = name, logo = logo, group = groups.first(), groups = groups)
         }
         val channelIds = input.readCount()
         val guide = HashMap<String, List<Programme>>()
@@ -144,7 +145,7 @@ class LineupCache(
 
     private companion object {
         /** Bump when the layout changes; older files are deleted on read. */
-        const val VERSION = 2
+        const val VERSION = 3
         const val BUFFER_SIZE = 64 * 1024
         const val MAX_COUNT = 1_000_000
         const val MAX_TEXT_BYTES = 1 shl 20

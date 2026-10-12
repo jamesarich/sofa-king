@@ -11,7 +11,10 @@ data class Channel(
     val number: Double,
     val name: String,
     val logo: String?,
+    /** The channel's main category, its first tag. */
     val group: String,
+    /** Every category the channel is filed under, [group] first; a channel can be both Local and News. */
+    val groups: List<String> = listOf(group),
 )
 
 @Immutable

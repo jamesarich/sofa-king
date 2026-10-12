@@ -86,6 +86,7 @@ internal fun VisibleRange(
 @Composable
 internal fun FilterChipRow(
     filters: List<GuideFilter>,
+    counts: Map<GuideFilter, Int>,
     activeFilter: GuideFilter,
     searchOpen: Boolean,
     selectedChip: FocusRequester,
@@ -122,7 +123,7 @@ internal fun FilterChipRow(
                 onClick = { onSelect(option) },
                 modifier = if (selected) Modifier.focusRequester(selectedChip) else Modifier,
             ) {
-                Text(option.label())
+                Text(stringResource(R.string.guide_filter_count, option.label(), counts[option] ?: 0))
             }
         }
     }

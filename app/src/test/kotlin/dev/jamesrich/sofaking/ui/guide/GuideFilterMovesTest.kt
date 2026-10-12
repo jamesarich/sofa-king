@@ -13,6 +13,27 @@ class GuideFilterMovesTest {
     private fun typed(digits: String) = digits.fold(ChannelNumberEntry()) { entry, c -> entry.append(c.digitToInt()) }
 
     @Test
+    fun `chips list every group once, in the order its first channel appears`() {
+        val local = Channel("5", 5.0, "KSNV", null, "Local", listOf("Local", "News"))
+        val filters = guideFilters(listOf(local) + all)
+        assertEquals(
+            listOf(GuideFilter.All, GuideFilter.Favorites, GuideFilter.Group("Local"), GuideFilter.Group("News"), GuideFilter.Group("Sports")),
+            filters,
+        )
+    }
+
+    @Test
+    fun `counts include a channel in each of its groups`() {
+        val local = Channel("5", 5.0, "KSNV", null, "Local", listOf("Local", "News"))
+        val counts = guideFilterCounts(listOf(local) + all, favorites = setOf("300", "gone"))
+        assertEquals(5, counts[GuideFilter.All])
+        assertEquals(1, counts[GuideFilter.Favorites])
+        assertEquals(1, counts[GuideFilter.Group("Local")])
+        assertEquals(3, counts[GuideFilter.Group("News")])
+        assertEquals(2, counts[GuideFilter.Group("Sports")])
+    }
+
+    @Test
     fun `a number on screen moves to its row`() {
         assertEquals(GuideNumberTarget.Row(1), guideNumberTarget(typed("101"), news, all))
     }

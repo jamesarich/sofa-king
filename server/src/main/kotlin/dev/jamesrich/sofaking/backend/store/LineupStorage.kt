@@ -82,8 +82,13 @@ suspend fun BackendStore.guides(): Map<String, StoredGuide> = query {
     }
 }
 
-/** Replaces one guide's channels and retained programmes atomically. */
-suspend fun BackendStore.saveGuide(guideId: String, importedAt: Instant, channels: List<GuideChannel>, programmes: List<GuideProgramme>) = query {
+/** Replaces one guide's channels and retained programmes atomically, then refreshes the planner statistics the import shifted. */
+suspend fun BackendStore.saveGuide(guideId: String, importedAt: Instant, channels: List<GuideChannel>, programmes: List<GuideProgramme>) {
+    replaceGuide(guideId, importedAt, channels, programmes)
+    optimize()
+}
+
+private suspend fun BackendStore.replaceGuide(guideId: String, importedAt: Instant, channels: List<GuideChannel>, programmes: List<GuideProgramme>) = query {
     GuideProgrammes.deleteWhere { GuideProgrammes.guideId eq guideId }
     GuideChannels.deleteWhere { GuideChannels.guideId eq guideId }
     GuideImports.deleteWhere { GuideImports.guideId eq guideId }

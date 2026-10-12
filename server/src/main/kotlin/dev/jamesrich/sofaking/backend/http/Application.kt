@@ -111,7 +111,7 @@ fun Application.backendModule(
         condition { compressible(routedPath(request.path())) }
     }
     install(StatusPages) {
-        status(HttpStatusCode.NotFound) { call, status -> call.respond(status, ApiError("NOT_FOUND", "Resource not found", false)) }
+        status(HttpStatusCode.NotFound) { call, status -> call.respond(status, ApiError("RESOURCE_NOT_FOUND", "Resource not found", false)) }
         exception<Throwable> { call, cause ->
             // The body limit fails the read, so its exception can arrive wrapped in a closed-channel one.
             if (cause !is CancellationException && generateSequence(cause) { it.cause }.take(4).any { it is PayloadTooLargeException }) {
@@ -191,7 +191,7 @@ fun Application.backendModule(
                 call.respond(source)
             }
             post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.body<GuideQuery>())) }
-            adminRoutes(runtime)
+            adminRoutes(runtime, clock)
             post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.body<OpenPlayback>())) }
             get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }
             patch("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.update(call.parameters["id"]!!, call.body<UpdatePlayback>())) }

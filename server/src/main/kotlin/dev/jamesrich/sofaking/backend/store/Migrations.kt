@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.backend.store
 
-import java.time.Instant
+import java.time.Clock
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
@@ -19,7 +19,7 @@ internal fun foundationMigrations(): List<Migration> = listOf(
 }
 
 /** Our migration files contain simple SQL statements, with no embedded semicolons. */
-internal fun applyMigrations(database: Database, migrations: List<Migration>) {
+internal fun applyMigrations(database: Database, migrations: List<Migration>, clock: Clock = Clock.systemUTC()) {
     val versions = migrations.map { it.version }
     require(versions == versions.sorted() && versions.distinct().size == versions.size) { "Migrations must be unique and in order" }
     transaction(database) {
@@ -33,7 +33,7 @@ internal fun applyMigrations(database: Database, migrations: List<Migration>) {
         }
         for (migration in migrations.filter { it.version !in applied }) {
             migration.sql.split(';').map(String::trim).filter(String::isNotEmpty).forEach { exec(it) }
-            exec("INSERT INTO schema_version VALUES (${migration.version}, '${Instant.now()}')")
+            exec("INSERT INTO schema_version VALUES (${migration.version}, '${clock.instant()}')")
         }
     }
 }

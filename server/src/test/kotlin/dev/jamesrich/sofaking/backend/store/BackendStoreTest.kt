@@ -203,4 +203,29 @@ class BackendStoreTest {
             }
         }
     }
+
+    @Test fun `stored times come from the injected clock`() = runBlocking<Unit> {
+        val dir = directory()
+        val then = Instant.parse("2000-01-01T00:00:00Z")
+        openStore(dir, dev.jamesrich.sofaking.backend.catalog.MutableClock(then)).use { store ->
+            store.registerOffering("p:old")
+            assertEquals(1, store.pruneOfferings(emptySet(), then.plusSeconds(1)), "the row is dated by the clock, not the wall")
+        }
+        DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
+            connection.createStatement().use { stmt ->
+                stmt.executeQuery("SELECT DISTINCT applied_at FROM schema_version").use { rs -> assertTrue(rs.next()); assertEquals(then.toString(), rs.getString(1)); assertFalse(rs.next()) }
+            }
+        }
+    }
+
+    @Test fun `a guide import refreshes the planner statistics`() = runBlocking<Unit> {
+        val dir = directory()
+        openStore(dir).use { store ->
+            val channels = List(50) { dev.jamesrich.sofaking.backend.catalog.GuideChannel("c$it", "Channel $it") }
+            val programmes = List(2000) { i -> dev.jamesrich.sofaking.backend.catalog.GuideProgramme("c${i % 50}", t.plusSeconds(i * 600L), t.plusSeconds(i * 600L + 600), "Show $i") }
+            store.saveGuide("g", t, channels, programmes)
+            val analyzed = store.query { exec("SELECT DISTINCT tbl FROM sqlite_stat1") { rs -> buildList { while (rs.next()) add(rs.getString(1)) } } }.orEmpty()
+            assertTrue("guide_programme" in analyzed, "$analyzed")
+        }
+    }
 }

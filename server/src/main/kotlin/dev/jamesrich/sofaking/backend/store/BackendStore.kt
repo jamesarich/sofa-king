@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.health.*
 import java.nio.file.Path
+import java.time.Clock
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ExecutorService
@@ -31,6 +32,7 @@ class BackendStore internal constructor(
     private val database: Database,
     private val executor: ExecutorService,
     private val dispatcher: ExecutorCoroutineDispatcher,
+    private val clock: Clock,
 ) : IdentityStore, AutoCloseable {
     private val closed = AtomicBoolean(false)
     private val policy = HealthPolicy()
@@ -39,7 +41,7 @@ class BackendStore internal constructor(
     private val healthSnapshot = AtomicReference<Map<String, HealthState>>(emptyMap())
 
     internal suspend fun initialize() = databaseWork {
-        applyMigrations(database, foundationMigrations())
+        applyMigrations(database, foundationMigrations(), clock)
         transaction(database) {
             Metadata.insertIgnore { it[key] = "server_id"; it[value] = UUID.randomUUID().toString() }
             healthSnapshot.set(OfferingHealth.selectAll().associate { it[OfferingHealth.offeringId] to decodeHealth(it[OfferingHealth.stateJson]) })
@@ -63,7 +65,7 @@ class BackendStore internal constructor(
             OfferingHealth.insertIgnore {
                 it[OfferingHealth.offeringId] = offeringId
                 it[stateJson] = HealthState().encode()
-                it[updatedAt] = Instant.now().toString()
+                it[updatedAt] = clock.instant().toString()
             }
             if (offeringId !in healthSnapshot.get()) changed[offeringId] = HealthState()
         }
@@ -130,7 +132,7 @@ class BackendStore internal constructor(
 
     suspend fun setManuallyDisabled(offeringId: String, disabled: Boolean): HealthState = writeHealth { changed ->
         val next = requireNotNull(healthSnapshot.get()[offeringId]) { "Unknown offering" }.copy(manuallyDisabled = disabled)
-        saveHealth(offeringId, next, Instant.now())
+        saveHealth(offeringId, next, clock.instant())
         changed[offeringId] = next
         next
     }
@@ -223,8 +225,19 @@ class BackendStore internal constructor(
         return withContext(dispatcher) { check(!closed.get()) { "Store is closed" }; block() }
     }
 
+    /** Lets SQLite refresh the statistics its query planner uses, on the tables that changed enough to need it. */
+    suspend fun optimize() = query { exec("PRAGMA optimize"); Unit }
+
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        // SQLite advises PRAGMA optimize before closing a long-lived connection; a failure must not stop the close.
+        try {
+            executor.submit { transaction(database) { maxAttempts = 1; exec("PRAGMA optimize") } }.get(10, TimeUnit.SECONDS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        } catch (_: Exception) {
+            // Closing matters more than the statistics.
+        }
         executor.shutdown()
         check(executor.awaitTermination(10, TimeUnit.SECONDS)) { "Database work did not stop" }
         dispatcher.close()
@@ -232,13 +245,13 @@ class BackendStore internal constructor(
     }
 }
 
-suspend fun openStore(dataDirectory: Path): BackendStore {
+suspend fun openStore(dataDirectory: Path, clock: Clock = Clock.systemUTC()): BackendStore {
     val executor = Executors.newSingleThreadExecutor { task -> Thread(task, "sofa-sqlite") }
     val dispatcher = executor.asCoroutineDispatcher()
     var store: BackendStore? = null
     try {
         val database = withContext(dispatcher) { databaseAt(dataDirectory) }
-        store = BackendStore(database, executor, dispatcher)
+        store = BackendStore(database, executor, dispatcher, clock)
         store.initialize()
         return store
     } catch (failure: Throwable) {

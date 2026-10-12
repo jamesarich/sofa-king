@@ -105,7 +105,7 @@ class AdminPortal(
                 else call.html(overviewPage(chrome(session), overview()))
             }
             rateLimit(ADMIN_LOGIN_LIMIT) { post("/login") {
-                val expected = secret ?: throw ApiFailure(404, "NOT_FOUND", "Resource not found")
+                val expected = secret ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
                 val presented = call.formOrEmpty()["token"]
                 if (!sameSecret(presented, expected)) {
                     call.authFailed()
@@ -550,7 +550,7 @@ private suspend fun ApplicationCall.html(body: String, status: HttpStatusCode = 
     respondText(body, ContentType.Text.Html.withCharset(Charsets.UTF_8), status)
 
 private suspend fun ApplicationCall.resource(path: String, type: ContentType) {
-    val bytes = AdminPortal::class.java.getResourceAsStream(path)?.use { it.readBytes() } ?: throw ApiFailure(404, "NOT_FOUND", "Resource not found")
+    val bytes = AdminPortal::class.java.getResourceAsStream(path)?.use { it.readBytes() } ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
     response.header(HttpHeaders.CacheControl, "private, max-age=86400")
     respondBytes(bytes, type)
 }

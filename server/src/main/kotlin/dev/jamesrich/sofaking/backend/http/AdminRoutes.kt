@@ -9,14 +9,15 @@ import dev.jamesrich.sofaking.backend.health.HealthState
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
 import io.ktor.server.routing.*
+import java.time.Clock
 import java.time.Instant
 
 /** The admin API under `/api/v1/admin`: feed candidates, guide channels and the household lineup. JSON only. */
-fun Route.adminRoutes(runtime: LiveRuntime) {
+fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock) {
     val store = runtime.store
     suspend fun entryInfo(entry: LineupEntryRecord): LineupEntry {
         val states = store.allHealth()
-        return entry.info(runtime, states, runtime.lineup.entries().indexOfFirst { it.id == entry.id })
+        return entry.info(runtime, states, runtime.lineup.entries().indexOfFirst { it.id == entry.id }, clock.instant())
     }
     val policy = runtime.policy
     fun manual() { if (policy != null) throw policyManaged() }
@@ -54,14 +55,16 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
         }
         get("/lineup") {
             val states = store.allHealth()
-            call.respond(runtime.lineup.entries().mapIndexed { index, entry -> entry.info(runtime, states, index) })
+            val now = clock.instant()
+            call.respond(runtime.lineup.entries().mapIndexed { index, entry -> entry.info(runtime, states, index, now) })
         }
         post("/lineup") { manual(); call.respond(HttpStatusCode.Created, entryInfo(runtime.lineup.create(call.body<CreateLineupEntry>()))) }
         put("/lineup/order") {
             manual()
             runtime.lineup.reorder(call.body<ReorderLineup>().ids)
             val states = store.allHealth()
-            call.respond(runtime.lineup.entries().mapIndexed { index, entry -> entry.info(runtime, states, index) })
+            val now = clock.instant()
+            call.respond(runtime.lineup.entries().mapIndexed { index, entry -> entry.info(runtime, states, index, now) })
         }
         post("/lineup/adopt") { manual(); call.respond(runtime.lineup.adopt(call.body<AdoptProvider>())) }
         get("/lineup/{id}") {
@@ -87,7 +90,7 @@ fun Route.adminRoutes(runtime: LiveRuntime) {
 /** What a route the lineup policy replaces answers while a policy is configured. */
 internal fun policyManaged() = ApiFailure(410, "POLICY_MANAGED", "The lineup is built from the lineup policy; change it through /api/v1/admin/policy")
 
-private fun LineupEntryRecord.info(runtime: LiveRuntime, states: Map<String, HealthState>, position: Int): LineupEntry {
+private fun LineupEntryRecord.info(runtime: LiveRuntime, states: Map<String, HealthState>, position: Int, now: Instant): LineupEntry {
     val coverage = guide?.let { runtime.guides.coverage()[it.guideId]?.get(it.channelId) }
     return LineupEntry(
         id, position, number, name, group, logo, enabled, guide,
@@ -102,7 +105,7 @@ private fun LineupEntryRecord.info(runtime: LiveRuntime, states: Map<String, Hea
         when {
             guide == null -> "unassigned"
             coverage == null -> "empty"
-            coverage > Instant.now() -> "available"
+            coverage > now -> "available"
             else -> "stale"
         },
         createdBy, autoDisabledAt?.toString(), autoDisabledReason,

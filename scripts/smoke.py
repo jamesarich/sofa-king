@@ -56,7 +56,7 @@ def start_and_check(directory, iteration):
             assert bootstrap['apiVersion'] == 1
             assert bootstrap['capabilities'] == {'catalog': True, 'guide': True, 'playback': True, 'events': False}
             status, body = request(base, '/api/v1/missing')
-            assert status == 404 and json.loads(body)['code'] == 'NOT_FOUND'
+            assert status == 404 and json.loads(body)['code'] == 'RESOURCE_NOT_FOUND'
             return bootstrap['serverId']
         finally:
             if process.poll() is None:

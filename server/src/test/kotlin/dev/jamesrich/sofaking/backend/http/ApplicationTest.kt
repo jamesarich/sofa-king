@@ -49,7 +49,7 @@ class ApplicationTest {
         application { backendModule(unreadyStore(), Clock.systemUTC()) }
         val response = client.get("/api/v1/missing")
         assertEquals(HttpStatusCode.NotFound, response.status)
-        assertEquals("NOT_FOUND", Json.decodeFromString<ApiError>(response.bodyAsText()).code)
+        assertEquals("RESOURCE_NOT_FOUND", Json.decodeFromString<ApiError>(response.bodyAsText()).code)
     }
     @Test fun `a client hanging up is a debug line while other failures stay errors`() {
         assertTrue(clientAbort(ClosedByteChannelException()))

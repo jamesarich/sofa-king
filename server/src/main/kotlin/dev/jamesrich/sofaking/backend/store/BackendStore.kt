@@ -16,7 +16,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
-import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 interface IdentityStore {
@@ -194,7 +193,7 @@ class BackendStore internal constructor(
         executor.shutdown()
         check(executor.awaitTermination(10, TimeUnit.SECONDS)) { "Database work did not stop" }
         dispatcher.close()
-        TransactionManager.closeAndUnregister(database)
+        closeDatabase(database)
     }
 }
 

@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.admin
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.OutputConfig
+import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
@@ -28,6 +29,15 @@ data class AdminStatusLine(val label: String, val value: String)
 /** Supplies the Plex page's status lines; the page leaves the section out when no source is given. */
 fun interface PlexStatusSource {
     suspend fun lines(): List<AdminStatusLine>
+}
+
+fun plexStatusLines(status: PlexStatus): List<AdminStatusLine> = buildList {
+    add(AdminStatusLine("Last sync", status.lastSyncAt?.let { "$it (${status.lastCause ?: "scheduled"})" } ?: "never"))
+    add(AdminStatusLine("Sync interval", "${status.syncMinutes} min"))
+    status.lastError?.let { add(AdminStatusLine("Last error", it)) }
+    status.devices.forEach { d -> add(AdminStatusLine("Tuner ${d.device} (${d.deviceId})", "DVR ${d.dvr}, ${d.mapped} channels mapped")) }
+    if (status.missingDevices.isNotEmpty()) add(AdminStatusLine("Not in Plex", status.missingDevices.joinToString()))
+    status.findings.forEach { add(AdminStatusLine("Finding", it)) }
 }
 
 private const val COOKIE = "sofa_admin"
@@ -151,8 +161,9 @@ class AdminPortal(
     }
 
     /**
-     * Changes one lineup entry the way `PATCH /api/v1/admin/lineup/{id}` does: through the policy, checked against
-     * the revision the page showed, or through the lineup without one.
+     * Changes one lineup entry the way `PATCH /api/v1/admin/lineup/{id}` does: through the policy, or through the
+     * lineup without one. Portal edits touch one station's fields, so they apply to the file as it is now rather than
+     * to the revision the page showed; background runs write the file often.
      */
     private suspend fun changeEntry(call: ApplicationCall, session: AdminSession, form: Parameters, id: String, request: (LineupEntryRecord) -> UpdateLineupEntry) {
         val filter = LineupFilter.from(form)
@@ -162,10 +173,7 @@ class AdminPortal(
             val policy = runtime.policy
             if (update != UpdateLineupEntry()) {
                 if (policy == null) runtime.lineup.update(id, update)
-                else {
-                    val revision = form["revision"] ?: throw ApiFailure(400, "INVALID_REQUEST", "Reload the page and try again")
-                    policy.updateStation(id, update, revision) ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "The station left the lineup")
-                }
+                else policy.updateStation(id, update, null) ?: throw ApiFailure(404, "LINEUP_ENTRY_NOT_FOUND", "The station left the lineup")
             }
             null
         } catch (e: ApiFailure) { e }
@@ -175,15 +183,14 @@ class AdminPortal(
 
     private suspend fun policyAction(
         call: ApplicationCall, session: AdminSession, form: Parameters,
-        write: suspend (dev.jamesrich.sofaking.backend.catalog.PolicyService, String, String, String) -> Unit,
+        write: suspend (dev.jamesrich.sofaking.backend.catalog.PolicyService, String, String, String?) -> Unit,
     ) {
         val policy = runtime.policy ?: throw ApiFailure(404, "POLICY_NOT_CONFIGURED", "No lineup policy is configured")
         val failure = try {
             val from = form["from"]?.trim().orEmpty()
             val to = form["to"]?.trim().orEmpty()
-            val revision = form["revision"] ?: throw ApiFailure(400, "INVALID_REQUEST", "Reload the page and try again")
             if (from.isEmpty() || to.isEmpty()) throw ApiFailure(400, "INVALID_REQUEST", "Both keys are required")
-            write(policy, from, to, revision)
+            write(policy, from, to, null)
             null
         } catch (e: ApiFailure) { e }
         if (failure == null) seeOther(call, "/admin/merges")
@@ -246,11 +253,11 @@ class AdminPortal(
     private suspend fun plexView(call: ApplicationCall, reveal: Boolean): PlexView {
         val base = publicBase(call)
         val host = Url(base).host.let { if (it.contains(':')) "[$it]" else it }
-        val mainPort = Url(base).port
+        val ports = hdhr.publicPorts(Url(base).port)
         val enabled = hdhrChannels(runtime.lineup.entries())
         val byRange = runtime.policy != null
         val devices = if (!hdhr.enabled) emptyList() else (0 until hdhr.devices).map { device ->
-            val port = if (device == 0) mainPort else hdhr.extraPorts[device - 1]
+            val port = ports[device]
             val name = if (device == 0) hdhr.friendlyName else "${hdhr.friendlyName} ${device + 1}"
             HdhrDevice(name, "$host:$port", deviceShare(enabled, device, hdhr, byRange).size)
         }

@@ -162,10 +162,10 @@ class AdminPortalTest {
             assertFalse(runtime.lineup.entry(id)!!.enabled)
             assertTrue(browser.get("/admin/lineup?state=hidden").bodyAsText().contains("off: policy"))
 
-            val stale = browser.post("/admin/lineup/$id/visibility", "enabled" to "true", "csrf" to csrf, "revision" to revision)
-            assertEquals(HttpStatusCode.Conflict, stale.status)
-            assertTrue(stale.bodyAsText().contains("Not saved"), "the conflict shows inline")
-            assertFalse(runtime.lineup.entry(id)!!.enabled, "a stale revision writes nothing")
+            // The file has moved on since the page loaded; a one-station edit still applies to it as it is now.
+            val later = browser.post("/admin/lineup/$id/visibility", "enabled" to "true", "csrf" to csrf, "revision" to revision)
+            assertEquals(HttpStatusCode.SeeOther, later.status, later.bodyAsText())
+            assertTrue(runtime.lineup.entry(id)!!.enabled)
         }
     }
 

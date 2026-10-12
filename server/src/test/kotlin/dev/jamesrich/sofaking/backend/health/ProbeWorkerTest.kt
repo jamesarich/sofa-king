@@ -297,7 +297,7 @@ class ProbeWorkerTest {
         for (command in listOf(decodeCommand("ffmpeg", offering, emptyMap(), 30, copy = false), remuxCommand("ffmpeg", offering.url, emptyMap()))) {
             val at = command.indexOf("-protocol_whitelist")
             assertTrue(at in 1 until command.indexOf("-i"), "an input option: $command")
-            assertEquals("file,http,https,tcp,tls,crypto", command[at + 1])
+            assertEquals("http,https,tcp,tls,crypto", command[at + 1])
         }
         MediaFixture().use { media ->
             fun exit(url: String): Int {
@@ -308,6 +308,11 @@ class ProbeWorkerTest {
             }
             assertEquals(0, exit("${media.base}/seg0.ts"), "HTTP is allowed")
             assertNotEquals(0, exit("concat:${media.base}/seg0.ts|${media.base}/seg1.ts"), "concat is not")
+            val local = Files.createTempFile("sofa-probe-local-", ".ts")
+            try {
+                Files.write(local, java.net.URI("${media.base}/seg0.ts").toURL().readBytes())
+                assertNotEquals(0, exit("file:$local"), "a local file is not")
+            } finally { Files.deleteIfExists(local) }
         }
     }
 }

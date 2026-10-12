@@ -31,4 +31,16 @@ class PlayerKeysTest {
     fun `Search leaves the player for guide search`() {
         assertEquals(PlayerExit.SEARCH, Key.Search.playerExit())
     }
+
+    @Test
+    fun `OK shows the info bar, and OK on the info bar opens the channel list`() {
+        assertEquals(PlayerOk.SHOW_INFO, playerOk(hasDigits = false, failed = false, infoVisible = false))
+        assertEquals(PlayerOk.OPEN_CHANNEL_LIST, playerOk(hasDigits = false, failed = false, infoVisible = true))
+    }
+
+    @Test
+    fun `typed digits commit before a failed stream retries`() {
+        assertEquals(PlayerOk.COMMIT_NUMBER, playerOk(hasDigits = true, failed = true, infoVisible = true))
+        assertEquals(PlayerOk.RETRY, playerOk(hasDigits = false, failed = true, infoVisible = true))
+    }
 }

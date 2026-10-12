@@ -15,9 +15,9 @@ The app shows its saved lineup while refreshing. Channels load before guide data
 | Key | Guide | Player |
 | --- | --- | --- |
 | D-pad Up | Move focus | Next channel |
-| D-pad Down | Move focus | Previous channel; open the channel list when the info bar is visible |
+| D-pad Down | Move focus | Previous channel |
 | D-pad Left / Right | Move focus | Toggle the info bar; adjust caption timing when captions and the info bar are on |
-| OK | Watch the channel | Toggle the info bar, tune an entered number, or retry a failed stream |
+| OK | Watch the channel | Show the info bar; on the info bar, open the channel list. Also tunes an entered number or retries a failed stream |
 | Long-press OK | Toggle favorite | Return to the previously watched channel |
 | Channel Up / Down | Move a page (4 rows) | Next / previous channel |
 | Captions (CC) | — | Toggle captions |

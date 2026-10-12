@@ -456,7 +456,7 @@ fun PlayerScreen(
         miniGuideActivity++
     }
 
-    /** OK is judged on key-up: a short press toggles the overlay (or commits typed digits), a long press recalls the last channel. */
+    /** OK is judged on key-up: a short press acts as [playerOk] decides, a long press recalls the last channel. */
     fun handleCenter(event: KeyEvent): Boolean {
         // With the mini-guide open, its focused row takes OK.
         if (miniGuideOpen || currentChannels.isEmpty()) return false
@@ -469,15 +469,19 @@ fun PlayerScreen(
             KeyEventType.KeyUp -> {
                 if (centerGesture.onKeyUp() == CenterPress.SHORT) {
                     val channel = currentChannels.getOrNull(index)
-                    when {
-                        entry.digits.isNotEmpty() -> commitEntry()
+                    when (playerOk(entry.digits.isNotEmpty(), failure != null && channel != null, overlayVisible)) {
+                        PlayerOk.COMMIT_NUMBER -> commitEntry()
                         // A failed channel retries on OK, however many automatic retries have run.
-                        failure != null && channel != null -> {
+                        PlayerOk.RETRY -> if (channel != null) {
                             failure = null
                             recovering = null
                             load(channel)
                         }
-                        else -> overlayVisible = !overlayVisible
+                        PlayerOk.OPEN_CHANNEL_LIST -> openMiniGuide()
+                        PlayerOk.SHOW_INFO -> {
+                            overlayVisible = true
+                            overlayRequest++
+                        }
                     }
                 }
                 true
@@ -506,9 +510,7 @@ fun PlayerScreen(
         return when (key) {
             Key.Captions, Key.C -> { toggleCaptions(); true }
             Key.DirectionUp, Key.ChannelUp -> { zapStep(1); true }
-            // Down zaps like Up; with the info bar up it opens the channel list instead.
-            Key.DirectionDown -> { if (overlayVisible) openMiniGuide() else zapStep(-1); true }
-            Key.ChannelDown -> { zapStep(-1); true }
+            Key.DirectionDown, Key.ChannelDown -> { zapStep(-1); true }
             Key.MediaPrevious, Key.LastChannel -> { recallLastChannel(); true }
             Key.MediaPlayPause -> { if (wrapper.playWhenReady) wrapper.pause() else wrapper.play(); true }
             Key.MediaPlay -> { wrapper.play(); true }

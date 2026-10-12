@@ -16,6 +16,17 @@ internal fun Key.digitValue(): Int? = when (this) {
     else -> null
 }
 
+/** What a short OK press does in the player. */
+internal enum class PlayerOk { COMMIT_NUMBER, RETRY, OPEN_CHANNEL_LIST, SHOW_INFO }
+
+/** Typed digits commit first, then a failed stream retries; otherwise the info bar shows, and OK on it opens the channel list. */
+internal fun playerOk(hasDigits: Boolean, failed: Boolean, infoVisible: Boolean): PlayerOk = when {
+    hasDigits -> PlayerOk.COMMIT_NUMBER
+    failed -> PlayerOk.RETRY
+    infoVisible -> PlayerOk.OPEN_CHANNEL_LIST
+    else -> PlayerOk.SHOW_INFO
+}
+
 /** A key that leaves the player for the guide, and where in the guide it lands. */
 internal enum class PlayerExit { GUIDE_AT_NOW, SEARCH }
 

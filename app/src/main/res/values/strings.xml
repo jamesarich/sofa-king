@@ -9,6 +9,7 @@
     <string name="retry">Retry</string>
     <string name="no_listing">No listing</string>
     <string name="up_next">Next: %1$s</string>
+    <string name="channel_list_hint">OK for the channel list</string>
     <string name="no_channels">Sofa King empty in here. No channels to play</string>
     <string name="no_channels_hint">The server has no playable channels yet. Check its providers and source health.</string>
     <string name="refresh">Refresh</string>

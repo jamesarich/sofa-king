@@ -154,5 +154,7 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             ProgressBar(programmeProgress(current.start, current.stop, now))
         }
         next?.let { Text(stringResource(R.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = SofaMauve) }
+        Spacer(Modifier.height(8.dp))
+        Text(stringResource(R.string.channel_list_hint), style = MaterialTheme.typography.bodySmall, color = SofaMauve)
     }
 }

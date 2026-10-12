@@ -72,7 +72,10 @@ class OutputTest {
                 assertTrue(xml.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tv "))
                 assertTrue(xml.contains("<channel id=\"${hls.id}\"><display-name>Station</display-name><display-name>5</display-name></channel>"))
                 assertTrue(xml.contains("<channel id=\"${ts.id}\"><display-name>TS Station</display-name><display-name>6</display-name></channel>"))
-                assertTrue(xml.contains("<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" channel=\"${hls.id}\"><title>Morning</title></programme>"))
+                assertTrue(xml.contains(
+                    "<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" channel=\"${hls.id}\"><title>Morning</title>" +
+                        "<category lang=\"en\">News</category><episode-num system=\"original-air-date\">2026-10-10 13:00:00</episode-num></programme>",
+                ))
                 assertFalse(xml.contains("Elsewhere"))
                 assertTrue(xml.trimEnd().endsWith("</tv>"))
                 assertEquals(HttpStatusCode.BadRequest, client.get("/output/guide.xml?token=$output&days=0").status)
@@ -187,5 +190,14 @@ class OutputTest {
                 assertTrue(client.get("/output/playlist.m3u?token=$output").bodyAsText().contains("/output/stream/${channel.id}.m3u8?token="))
             } finally { served.runtime.close(); served.store.close(); dir.toFile().deleteRecursively() }
         }
+    }
+
+    @Test fun `a station's group gives its programmes the kind Plex sorts by, then the group itself`() {
+        assertEquals(listOf("Movie", "Movies"), xmltvCategories("Movies"))
+        assertEquals(listOf("Sports"), xmltvCategories("Sports"))
+        assertEquals(listOf("News", "Local News (US)"), xmltvCategories("Local News (US)"))
+        assertEquals(listOf("Children", "Kids & Family"), xmltvCategories("Kids & Family"))
+        assertEquals(listOf("Series", "Drama"), xmltvCategories("Drama"))
+        assertEquals(listOf("Series"), xmltvCategories(null))
     }
 }

@@ -61,7 +61,8 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
             val from = now.minus(Duration.ofHours(3))
             val to = now.plus(Duration.ofDays(days.toLong()))
             val channels = runtime.catalog.catalog().channels
-            val mappings = channels.mapNotNull { channel -> runtime.lineup.entry(channel.id)?.guide?.let { channel.id to it } }
+            val entries = channels.mapNotNull { channel -> runtime.lineup.entry(channel.id) }.associateBy { it.id }
+            val mappings = channels.mapNotNull { channel -> entries[channel.id]?.guide?.let { channel.id to it } }
             val programmes = HashMap<String, List<GuideProgramme>>()
             for ((guideId, group) in mappings.groupBy { it.second.guideId }) {
                 val rows = runtime.guides.programmes(guideId, group.map { it.second.channelId }, from, to)
@@ -77,10 +78,15 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
                     write("</channel>\n")
                 }
                 for (channel in channels) {
+                    val categories = xmltvCategories(entries[channel.id]?.group)
+                    val categoryXml = categories.joinToString("") { "<category lang=\"en\">${xml(it)}</category>" }
                     for (programme in programmes[channel.id].orEmpty()) {
                         write("<programme start=\"${xmltvTime(programme.startsAt)}\" stop=\"${xmltvTime(programme.endsAt)}\" channel=\"${xml(channel.id)}\">")
                         write("<title>${xml(programme.title)}</title>")
                         programme.description?.let { write("<desc>${xml(it)}</desc>") }
+                        write(categoryXml)
+                        // Plex files a programme without episode numbering as a movie, so every other airing is numbered by its start.
+                        if (categories.first() != XMLTV_MOVIE) write("<episode-num system=\"original-air-date\">${airDate(programme.startsAt)}</episode-num>")
                         write("</programme>\n")
                     }
                 }
@@ -164,6 +170,24 @@ private fun attribute(value: String): String = value.replace('"', '\'').replace(
 private val xmltvFormat = DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneOffset.UTC)
 
 private fun xmltvTime(instant: Instant): String = xmltvFormat.format(instant) + " +0000"
+
+private val airDateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC)
+
+private fun airDate(instant: Instant): String = airDateFormat.format(instant)
+
+internal const val XMLTV_MOVIE = "Movie"
+
+/** A station group's XMLTV categories: the kind Plex sorts by (Movie, Sports, News, Children or Series), then the group. */
+internal fun xmltvCategories(group: String?): List<String> {
+    val kind = when (group?.lowercase()) {
+        "movies" -> XMLTV_MOVIE
+        "sports" -> "Sports"
+        "news", "local", "local news (us)" -> "News"
+        "kids & family" -> "Children"
+        else -> "Series"
+    }
+    return listOfNotNull(kind, group?.takeIf { it.isNotBlank() && !it.equals(kind, ignoreCase = true) })
+}
 
 internal fun xml(value: String): String = buildString(value.length) {
     for (char in value) {

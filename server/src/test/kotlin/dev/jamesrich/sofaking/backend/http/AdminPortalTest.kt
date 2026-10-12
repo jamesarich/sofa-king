@@ -153,6 +153,7 @@ class AdminPortalTest {
             browser.signIn()
             for (path in listOf("/admin", "/admin/merges", "/admin/required", "/admin/plex")) assertEquals(HttpStatusCode.OK, browser.get(path).status, path)
             val page = browser.get("/admin/lineup").bodyAsText()
+            assertTrue(Regex("""<select name="group"[^>]*><option value=""[^>]*>Policy decides</option>""").containsMatchIn(page), "the group is picked from a list")
             val csrf = field(page, "csrf")
             val revision = field(page, "revision")
             val id = stationId("twin sports")

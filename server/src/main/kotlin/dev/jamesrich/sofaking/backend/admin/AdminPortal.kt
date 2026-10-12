@@ -222,9 +222,11 @@ class AdminPortal(
         val matches = rows.filter { filter.admits(it) }
         val pages = maxOf(1, (matches.size + PAGE_SIZE - 1) / PAGE_SIZE)
         val page = filter.page.coerceIn(1, pages)
+        val groups = rows.mapNotNull { it.entry.group }.distinct().sorted()
+        val document = policy?.document()
         return LineupView(
             filter.copy(page = page), matches.drop((page - 1) * PAGE_SIZE).take(PAGE_SIZE), matches.size, rows.size, pages,
-            rows.mapNotNull { it.entry.group }.distinct().sorted(), policy?.document()?.revision,
+            groups, document?.revision, (groups + document?.policy?.numbering?.groups?.keys.orEmpty()).distinct().sorted(),
         )
     }
 

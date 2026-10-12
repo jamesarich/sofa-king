@@ -18,6 +18,8 @@ internal class LineupView(
     val filter: LineupFilter, val rows: List<StationRow>, val matches: Int, val total: Int, val pages: Int, val groups: List<String>,
     /** The policy revision the row actions write against; null without a policy. */
     val revision: String?,
+    /** Groups a station can be put in: the lineup's groups and the policy's numbered groups. */
+    val groupChoices: List<String> = groups,
 )
 
 internal class RowError(val entryId: String, val message: String)
@@ -240,7 +242,14 @@ internal fun lineupPage(session: AdminSession, view: LineupView, error: RowError
                             rowForm("/admin/lineup/${entry.id}/edit", session, view, classes = "edit") {
                                 textInput(name = "name") { value = entry.name; attributes["aria-label"] = "Name" }
                                 textInput(name = "number") { value = entry.number; attributes["aria-label"] = "Number"; size = "6" }
-                                textInput(name = "group") { value = entry.group ?: ""; attributes["aria-label"] = "Group"; placeholder = "Group" }
+                                // A list, so a typo cannot make a group with no number block.
+                                select {
+                                    name = "group"; attributes["aria-label"] = "Group"
+                                    option { value = ""; selected = entry.group == null; +(if (view.revision != null) "Policy decides" else "No group") }
+                                    for (group in (view.groupChoices + listOfNotNull(entry.group)).distinct().sorted()) {
+                                        option { value = group; selected = group == entry.group; +group }
+                                    }
+                                }
                                 button(type = ButtonType.submit) { +"Save" }
                             }
                         }

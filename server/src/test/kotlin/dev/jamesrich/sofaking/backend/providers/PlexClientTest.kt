@@ -88,4 +88,33 @@ class PlexClientTest {
             assertEquals("2026-10-10T23:27:56Z", guide.programmes[0].startsAt.toString())
         } } } } finally { dir.toFile().deleteRecursively() }
     }
+
+    @Test fun `the guide waits out a 429 from the grid, and gives up after three waits`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-plex-")
+        try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
+            fixture.plex()
+            val limited = java.util.concurrent.atomic.AtomicInteger(2)
+            fixture.route("/epg/grid") { if (limited.getAndDecrement() > 0) Canned("", 429) else Canned(ProviderFixture.resource("plex-grid.json")) }
+            val fast = options(fixture) + mapOf("rateLimitWaitMillis" to "1", "gridSpacingMillis" to "0")
+            val client = PlexClient(ProviderFixture.context("plex", fast, http, store, MutableClock()))
+            assertEquals(2, client.guide(setOf(cw)).programmes.size)
+            assertEquals(4, fixture.hits("/epg/grid"), "two 429s, then today and tomorrow")
+            limited.set(Int.MAX_VALUE)
+            assertFailsWith<ProviderFailure> { client.guide(setOf(cw)) }.let { assertTrue(it.transient) }
+            assertEquals(8, fixture.hits("/epg/grid"), "the first request and three retries")
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `a part Plex answers 400 for fails resolve for good, and resolve never waits out a 429`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-plex-")
+        try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
+            fixture.plex()
+            val client = PlexClient(ProviderFixture.context("plex", options(fixture), http, store, MutableClock()))
+            fixture.route("/epg$cwPart") { Canned("", 400) }
+            assertFailsWith<ProviderFailure> { client.resolve(cw) }.let { assertFalse(it.transient) }
+            fixture.route("/epg$cwPart") { Canned("", 429) }
+            assertFailsWith<ProviderFailure> { client.resolve(cw) }.let { assertTrue(it.transient) }
+            assertEquals(2, fixture.hits("/epg$cwPart"))
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
 }

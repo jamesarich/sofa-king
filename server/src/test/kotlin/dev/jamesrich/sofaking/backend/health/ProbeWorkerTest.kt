@@ -61,6 +61,19 @@ class ProbeWorkerTest {
             }
         } } finally { dir.toFile().deleteRecursively() }
     }
+    @Test fun `a resolve that throws outside the provider contract is recorded against the source`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-probe-resolve-")
+        try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), listOf(Offering("s", "c", "p", "svc://xumo/1", "hls")), emptyList(), clock.now.toString()))
+            // Without a provider registry a native source's resolve throws IllegalStateException, not ProviderFailure.
+            val feeds = FeedService(listOf(FeedConfig("p", "http://example.test/feed.m3u")), store, http, clock); feeds.initialize()
+            val worker = ProbeWorker(feeds, store, clock, "unused") { _, _ -> error("the qualifier is never reached") }
+            assertTrue(worker.step())
+            assertEquals(1, store.health("s")!!.failures.size)
+            assertFalse(worker.step())
+        } } } finally { dir.toFile().deleteRecursively() }
+    }
     @Test fun `FFmpeg 8 HTTP errors classify auth rate limit provider outage and local decoder errors`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-probe-classification-")
         try { HttpClient(CIO).use { http -> openStore(dir).use { store ->

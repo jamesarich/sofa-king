@@ -7,6 +7,7 @@ import java.net.URLEncoder
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlinx.coroutines.delay
 
 /**
  * Plex's free live channels as watch.plex.tv uses them: an anonymous plex.tv token, the `plex` lineup on
@@ -18,6 +19,8 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
 
     private val apiBase = context.options["apiBase"] ?: API_BASE
     private val authUrl = context.options["authUrl"] ?: AUTH_URL
+    private val gridSpacingMillis = context.options["gridSpacingMillis"]?.toLongOrNull() ?: GRID_SPACING_MILLIS
+    private val rateLimitWaitMillis = context.options["rateLimitWaitMillis"]?.toLongOrNull() ?: RATE_LIMIT_WAIT_MILLIS
 
     private class Listed(val channel: ProviderChannel, val partKey: String)
 
@@ -28,9 +31,13 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
         val today = context.clock.instant().atOffset(ZoneOffset.UTC).toLocalDate()
         val programmes = ArrayList<GuideProgramme>()
+        var first = true
         for (id in channels.map { it.channel.id }.filter { it in wanted }) {
             for (date in listOf(today, today.plusDays(1))) {
-                val payload = authorized { token ->
+                // The grid answers 429 to a burst of a few hundred channels, so requests are spaced and a 429 waits.
+                if (!first) delay(gridSpacingMillis)
+                first = false
+                val payload = authorized(patient = true) { token ->
                     context.http.get("$apiBase/grid?channelGridKey=$id&date=$date&X-Plex-Token=${encode(token)}", headers(token) + ("X-Plex-Provider-Version" to "7.2"))
                 }.json()
                 for (item in payload["MediaContainer"]["Metadata"].array) {
@@ -52,7 +59,8 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
             ?: run { context.invalidate(CHANNELS); listed().firstOrNull { it.channel.id == channelId }?.partKey }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         var url = ""
-        val answer = authorized { token ->
+        // A part Plex answers 400 for is not served to anyone; asking again never changes the answer.
+        val answer = authorized(gone = GONE_STATUSES + 400) { token ->
             url = "$apiBase$key?includeAllStreams=1&X-Plex-Product=${encode(PRODUCT)}&X-Plex-Token=${encode(token)}"
             context.http.get(url, STREAM_HEADERS, limit = MANIFEST_LIMIT, follow = false)
         }
@@ -101,12 +109,26 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         return result
     }
 
-    /** Runs [request] with the stored anonymous token; a 401 or 403 replaces it and tries once more. */
-    private suspend fun authorized(request: suspend (String) -> Fetched): Fetched {
+    /**
+     * Runs [request] with the stored anonymous token; a 401 or 403 replaces it and tries once more. A [patient]
+     * caller, never a playback resolve, waits out a 429 with doubling waits before giving up.
+     */
+    private suspend fun authorized(gone: Set<Int> = GONE_STATUSES, patient: Boolean = false, request: suspend (String) -> Fetched): Fetched {
+        var wait = rateLimitWaitMillis
+        repeat(if (patient) RATE_LIMIT_RETRIES else 0) {
+            val answer = signedIn(request)
+            if (answer.status != 429) return answer.require("Plex API", gone)
+            delay(wait)
+            wait *= 2
+        }
+        return signedIn(request).require("Plex API", gone)
+    }
+
+    private suspend fun signedIn(request: suspend (String) -> Fetched): Fetched {
         val first = request(token())
-        if (first.status != 401 && first.status != 403) return first.require("Plex API")
+        if (first.status != 401 && first.status != 403) return first
         context.clearState(TOKEN)
-        return request(token()).require("Plex API")
+        return request(token())
     }
 
     private suspend fun token(): String {
@@ -130,6 +152,9 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         private const val CHANNELS = "channels"
         private const val TOKEN = "token"
         private const val MANIFEST_LIMIT = 1024 * 1024
+        private const val GRID_SPACING_MILLIS = 250L
+        private const val RATE_LIMIT_WAIT_MILLIS = 15_000L
+        private const val RATE_LIMIT_RETRIES = 3
         private val URL_LIFETIME = Duration.ofHours(1)
         private val CATCH_ALL = setOf("bingeworthy", "global")
         private const val USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"

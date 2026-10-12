@@ -30,7 +30,8 @@ fun normalizeLogoUrl(raw: String?, base: String? = null): String? {
 
 private const val UNENCODED = "-._~:/?#[]@!$&'()*+,;="
 
-private fun percentEncode(value: String): String {
+/** [value] with every character a URL may not carry percent-encoded as UTF-8; escapes already present are kept. */
+internal fun percentEncode(value: String): String {
     val out = StringBuilder(value.length + 16)
     var index = 0
     while (index < value.length) {

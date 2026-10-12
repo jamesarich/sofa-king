@@ -161,6 +161,13 @@ class ProbeWorker(
         } catch (e: ProviderFailure) {
             resolveFailure = if (e.transient) FailureClass.PROVIDER else FailureClass.OFFERING
             null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Recorded as the source's own failure, so it backs off rather than being claimed again unrecorded.
+            log.warn("probe resolve failed offering={} class={}", offering.id, e.javaClass.simpleName)
+            resolveFailure = FailureClass.OFFERING
+            null
         }
         val target = stream?.let { offering.copy(url = it.url) } ?: offering
         val headers = stream?.headers.orEmpty()

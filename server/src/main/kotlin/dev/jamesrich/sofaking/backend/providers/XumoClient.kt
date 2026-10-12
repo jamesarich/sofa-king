@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.providers
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
+import dev.jamesrich.sofaking.backend.catalog.percentEncode
 import java.net.URI
 import java.time.Duration
 import java.time.Instant
@@ -75,7 +76,8 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
             "IFA" to deviceId, "IFA_TYPE" to "dpid", "DEVICE_ID" to deviceId.replace("-", ""), "SESSION_ID" to UUID.randomUUID().toString(),
             "CCPA_Value" to "1---", "OS" to "web", "timestamp" to context.clock.instant().toEpochMilli().toString(),
         )
-        val url = unwrapped(Macros.fill(template, values))
+        // A few asset sources carry raw spaces or non-ASCII in their ad parameters.
+        val url = unwrapped(percentEncode(Macros.fill(template, values)))
         return ResolvedStream(url, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }
 

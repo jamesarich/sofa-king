@@ -44,12 +44,14 @@ class Fetched(
         throw ProviderFailure("Response is not JSON", cause = e)
     }
 
-    /** Fails as a transient provider fault unless the status is 2xx; 404 and 410 mean the thing is gone. */
-    fun require(what: String): Fetched {
+    /** Fails as a transient provider fault unless the status is 2xx; a status in [gone] means the thing is gone. */
+    fun require(what: String, gone: Set<Int> = GONE_STATUSES): Fetched {
         if (ok) return this
-        throw ProviderFailure("$what answered HTTP $status", transient = status != 404 && status != 410)
+        throw ProviderFailure("$what answered HTTP $status", transient = status !in gone)
     }
 }
+
+internal val GONE_STATUSES = setOf(404, 410)
 
 internal val lenientJson = Json { ignoreUnknownKeys = true; isLenient = true }
 

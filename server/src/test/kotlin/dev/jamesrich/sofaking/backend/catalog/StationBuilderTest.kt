@@ -483,4 +483,35 @@ class StationBuilderTest {
         val errors = validatePolicy(votingPolicy.copy(groups = PolicyGroups(weak = listOf("TV", " us"))), setOf("whale", "samsung", "vizio", "lg"))
         assertEquals(listOf("groups.weak: \"TV\" must be lowercase and trimmed", "groups.weak: \" us\" must be lowercase and trimmed"), errors)
     }
+
+    @Test fun `followGroup moves server-numbered stations into their group's block while it has room`() {
+        val grouped = LineupPolicy(
+            names = PolicyNames(version = 1),
+            health = PolicyHealth(requireVerified = false),
+            providers = listOf(PolicyProvider("a")),
+            groups = PolicyGroups(map = mapOf("news" to "News", "sports" to "Sports")),
+            numbering = PolicyNumbering(
+                floor = 1000, groups = mapOf("News" to 100, "Sports" to 200), groupSize = 2, followGroup = true,
+                assigned = listOf("news one", "news two", "news three", "sport a"),
+            ),
+            stations = mapOf(
+                "news one" to StationOverride(number = "200"), "news two" to StationOverride(number = "201"),
+                "news three" to StationOverride(number = "1000"), "sport a" to StationOverride(number = "1001"),
+                "news hand" to StationOverride(number = "203"),
+            ),
+        )
+        val catalog = listOf(
+            candidate("a", "n1", "News One", "1", group = "News"),
+            candidate("a", "n2", "News Two", "2", group = "News"),
+            candidate("a", "n3", "News Three", "3", group = "News"),
+            candidate("a", "n4", "News Hand", "4", group = "News"),
+            candidate("a", "s1", "Sport A", "5", group = "Sports"),
+        )
+        val result = build(grouped, catalog)
+        assertEquals(mapOf("news one" to "100", "news two" to "101"), result.renumbered)
+        assertEquals("1000", result.station("news three").number, "the block is full, so it keeps its number")
+        assertEquals("203", result.station("news hand").number, "a number set by hand never moves")
+        assertEquals("1001", result.station("sport a").number, "numbers freed this run stay reserved until the next")
+        assertEquals(emptyMap(), build(grouped.copy(numbering = grouped.numbering.copy(followGroup = false)), catalog).renumbered)
+    }
 }

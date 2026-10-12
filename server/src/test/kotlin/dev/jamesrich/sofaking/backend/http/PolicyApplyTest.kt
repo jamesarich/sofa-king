@@ -336,6 +336,24 @@ class PolicyApplyTest {
             assertEquals(setOf("station", "twin sports"), assignedIn(policyFile), "the changed number is a person's now; the unchanged ones stay the server's")
         }
     }
+
+    @Test fun `with followGroup a server-numbered station moves into its group's block and the file follows, a hand-set one stays`() = testApplication {
+        val policy = """{"names":{"version":1},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"health":{"requireVerified":false},""" +
+            """"numbering":{"floor":1000,"groups":{"News":10,"Sports":500},"followGroup":true,"assigned":["station"]},""" +
+            """"stations":{"station":{"number":"501","group":"News"},"ts station":{"number":"502","group":"News"}}}"""
+        withPolicy(policy) {
+            val applied = runtime.policy!!.apply("test")
+            assertEquals("10", applied.assigned["station"])
+            assertEquals("10", runtime.lineup.entry(stationId("station"))!!.number)
+            assertEquals("10", stationsIn(policyFile).getValue("station").jsonObject["number"]!!.jsonPrimitive.content)
+            assertEquals("502", runtime.lineup.entry(stationId("ts station"))!!.number, "a number set by hand never moves")
+            assertTrue("station" in assignedIn(policyFile))
+
+            val again = runtime.policy!!.apply("test")
+            assertFalse("station" in again.assigned, "once in its block, the station stays put")
+            assertEquals("10", runtime.lineup.entry(stationId("station"))!!.number)
+        }
+    }
 }
 
 class PolicyLoopTest {

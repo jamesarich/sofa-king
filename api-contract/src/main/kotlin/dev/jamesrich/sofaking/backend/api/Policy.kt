@@ -69,6 +69,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class PolicyNumbering(
     val floor: Int = 1000, val keepProviderNumbers: Boolean = true, val groups: Map<String, Int> = emptyMap(), val groupSize: Int = 100,
     val assigned: List<String> = emptyList(),
+    /** Moves a station whose key is in [assigned] into its group's block when its number lies outside it. */
+    val followGroup: Boolean = false,
 )
 
 /**

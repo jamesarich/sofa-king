@@ -56,11 +56,13 @@ class BuildResult(
     val unmappedCategories: List<PolicyUnmappedCategory> = emptyList(),
     /** Keys that left the lineup this run after keepMissingDays; a write-back reclaims their server-assigned numbers. */
     val reclaimed: Set<String> = emptySet(),
+    /** Server-numbered stations that followGroup moved into their group's block, key to new number. */
+    val renumbered: Map<String, String> = emptyMap(),
 ) {
     /** This result with [learning] applied: its aliases recorded, its suggestions and findings added. */
     fun with(learning: Learning): BuildResult = BuildResult(
         stations, assigned, (findings + learning.findings).sorted(), availability, candidates, keys,
-        (suggestedAliases + learning.suggestions).distinct().sorted(), learning.learned, unmappedCategories, reclaimed,
+        (suggestedAliases + learning.suggestions).distinct().sorted(), learning.learned, unmappedCategories, reclaimed, renumbered,
     )
 }
 
@@ -315,15 +317,40 @@ object StationBuilder {
             val last = canonicalNumber(draft.missing!!.lastNumber!!)
             if (used.add(last)) draft.number = last
         }
-        val assigned = sortedMapOf<String, String>()
-        val pending = drafts.filter { it.number == null }.sortedWith(
-            compareBy<Draft> { it.leading?.entry ?: Int.MAX_VALUE }.thenBy(NUMBER_ORDER) { it.leading?.number }.thenBy { it.key },
-        )
         val numbering = policy.numbering
         val starts = numbering.groups.values.sorted()
         // A block ends at its size or where the next group's block starts, whichever is first.
         fun blockEnd(start: Int): Int = minOf(start + numbering.groupSize, starts.firstOrNull { it > start } ?: Int.MAX_VALUE)
+        // With followGroup, a server-numbered station outside its group's block competes for a number in it. Its old
+        // number stays reserved for this run, and it keeps that number when the block is full.
+        val released = HashMap<String, String>()
+        if (numbering.followGroup) {
+            val serverNumbered = numbering.assigned.toHashSet()
+            for (draft in drafts) {
+                val number = draft.number ?: continue
+                if (draft.key !in serverNumbered || !draft.baseEnabled || draft.missing != null || draft.key in unverified) continue
+                val start = numbering.groups[groupFor(draft)] ?: continue
+                val value = numberValue(number) ?: continue
+                if (value >= start.toBigDecimal() && value < blockEnd(start).toBigDecimal()) continue
+                released[draft.key] = number
+                draft.number = null
+            }
+        }
+        val assigned = sortedMapOf<String, String>()
+        val renumbered = sortedMapOf<String, String>()
+        val pending = drafts.filter { it.number == null }.sortedWith(
+            compareBy<Draft> { it.leading?.entry ?: Int.MAX_VALUE }.thenBy(NUMBER_ORDER) { it.leading?.number }.thenBy { it.key },
+        )
         for (draft in pending) {
+            val old = released[draft.key]
+            if (old != null) {
+                val start = numbering.groups.getValue(groupFor(draft)!!)
+                val number = nextFreeIn(used, start, blockEnd(start)) ?: old
+                used += number
+                draft.number = number
+                if (number != old) renumbered[draft.key] = number
+                continue
+            }
             val provider = draft.leading?.candidate?.channel?.displayNumber?.takeIf { it.matches(STATION_NUMBER) }?.let(::canonicalNumber)
             // An unverified station holds a floor number that is never written, so its block keeps for a verified station.
             val temporary = draft.baseEnabled && draft.key in unverified
@@ -396,6 +423,7 @@ object StationBuilder {
             suggestedAliases(drafts.filter { it.sources.isNotEmpty() }.map { it.key }, policy.names.never),
             unmappedCategories = unmappedCategories,
             reclaimed = reclaimed,
+            renumbered = renumbered,
         )
     }
 

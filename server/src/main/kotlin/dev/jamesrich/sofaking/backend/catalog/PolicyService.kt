@@ -186,7 +186,8 @@ class PolicyService(
         store.saveStationAvailability(result.availability, now)
         store.recordCurationChanges(changes, now)
 
-        val numbers = result.assigned.filterKeys { loaded.policy.stations[it]?.number == null }
+        val moved = result.renumbered.mapNotNull { (key, number) -> loaded.policy.stations[key]?.number?.let { key to (it to number) } }.toMap()
+        val numbers = result.assigned.filterKeys { loaded.policy.stations[it]?.number == null } + moved.mapValues { it.value.second }
         val reclaim = result.reclaimed.filterTo(HashSet()) { it in loaded.policy.numbering.assigned }
         val names = loaded.policy.names
         val blocked = names.learned.filter { (from, to) -> neverMerges(names.never, from, to) }.keys
@@ -195,7 +196,7 @@ class PolicyService(
             val what = "${numbers.size} assigned numbers, ${reclaim.size} reclaimed numbers and ${result.learned.size} learned aliases"
             try {
                 val learned = mergeLearned(names.learned, result.learned, blocked)
-                revision = file.edit(null) { tree -> withNumbers(withLearnedNames(tree, learned, result.learned.keys), numbers, reclaim) }.revision
+                revision = file.edit(null) { tree -> withNumbers(withLearnedNames(tree, learned, result.learned.keys), numbers - moved.keys, reclaim, moved) }.revision
             } catch (e: ApiFailure) {
                 findings += "policy: $what not written back: ${e.message}"
                 log.warn("lineup policy write-back failed code={} numbers={} learned={}", e.code, numbers.size, result.learned.size)
@@ -434,12 +435,18 @@ internal fun withLearnedNames(tree: JsonObject, learned: Map<String, String>, me
 
 /**
  * [tree] with each of [numbers] written as `stations.<key>.number` where none is set, and each [reclaimed] key's
- * number removed (its station entry too, once empty). Both change `numbering.assigned` to match.
+ * number removed (its station entry too, once empty). Both change `numbering.assigned` to match. Each [moved] key's
+ * number is replaced, old to new, only while the file still holds the old one.
  */
-internal fun withNumbers(tree: JsonObject, numbers: Map<String, String>, reclaimed: Set<String>): JsonObject {
+internal fun withNumbers(
+    tree: JsonObject, numbers: Map<String, String>, reclaimed: Set<String>, moved: Map<String, Pair<String, String>> = emptyMap(),
+): JsonObject {
     var next = tree
     for (key in reclaimed.toSortedSet()) next = withoutNumber(next, key)
     for ((key, number) in numbers.toSortedMap()) next = editStation(next, key) { station -> if ("number" !in station) station["number"] = JsonPrimitive(number) }
+    for ((key, change) in moved.toSortedMap()) next = editStation(next, key) { station ->
+        if ((station["number"] as? JsonPrimitive)?.content == change.first) station["number"] = JsonPrimitive(change.second)
+    }
     return withAssignedKeys(next, add = numbers.keys, remove = reclaimed)
 }
 

@@ -253,4 +253,23 @@ class ProbeWorkerTest {
             assertEquals(listOf("c", "e", "b", "a"), probed, "first sources of unverified stations, their other sources, then the rest; d is no station's")
         } } } finally { dir.toFile().deleteRecursively() }
     }
+
+    @Test fun `a healthy recheck copies the video instead of decoding it, and both qualify real media`() = runBlocking<Unit> {
+        val offering = Offering("o", "c", "p", "http://example.test/live.m3u8", "hls")
+        val decodeArgs = decodeCommand("ffmpeg", offering, emptyMap(), 30, copy = false)
+        val copyArgs = decodeCommand("ffmpeg", offering, emptyMap(), 30, copy = true)
+        assertFalse("-c" in decodeArgs)
+        assertEquals(decodeArgs.size + 2, copyArgs.size)
+        assertEquals(listOf("-map", "0:v:0", "-c", "copy"), copyArgs.subList(copyArgs.indexOf("-map"), copyArgs.indexOf("-map") + 4))
+
+        val dir = Files.createTempDirectory("sofa-probe-copy-")
+        try { MediaFixture().use { media -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val feeds = FeedService(emptyList(), store, http, MutableClock())
+            val worker = ProbeWorker(feeds, store, MutableClock(), "ffmpeg", config = ProbeConfig(decodeSeconds = 4, deadlineSeconds = 30))
+            val vod = Offering("vod", "c", "media", "${media.base}/vod.m3u8", "hls")
+            assertNull(worker.decode(vod, emptyMap(), recheck = false))
+            assertNull(worker.decode(vod, emptyMap(), recheck = true))
+            assertEquals(FailureClass.OFFERING, worker.decode(vod.copy(url = "${media.base}/missing.m3u8"), emptyMap(), recheck = true))
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
 }

@@ -177,13 +177,13 @@ class ProbeWorker(
             } else if (qualifier != null) {
                 qualifier.invoke(target, headers)
             } else if (fastTier == null) {
-                decode(target, headers)
+                decode(target, headers, recheck = before == HealthStatus.HEALTHY)
             } else {
                 val qualification = fastTier.check(target, headers)
                 val protocol = qualification.protocol
                 // The body is the authority on the protocol; the decode tier's reconnect flags depend on it too.
                 if (protocol != null && protocol != offering.protocol) feeds.recordProtocol(offering.id, protocol)
-                qualification.failure ?: decode(if (protocol == null) target else target.copy(protocol = protocol), headers)
+                qualification.failure ?: decode(if (protocol == null) target else target.copy(protocol = protocol), headers, recheck = before == HealthStatus.HEALTHY)
             }
         val at = clock.instant()
         val after = store.recordObservation(offering.id, Observation(UUID.randomUUID().toString(), at, failure == null, failure), at)
@@ -221,23 +221,22 @@ class ProbeWorker(
         return now >= last.plus(if (state.status == HealthStatus.HEALTHY) Duration.ofHours(6) else Duration.ofMinutes(5))
     }
 
-    /** Decode tier: reconnects across upstream EOF so a hiccuping source still delivers its 30 seconds. */
-    private suspend fun decode(
+    /**
+     * Decode tier: reconnects across upstream EOF so a hiccuping source still delivers its 30 seconds. A [recheck] of
+     * a healthy source copies the video packets instead of decoding them: it proves the stream still delivers at a
+     * fraction of the CPU, and a source that fails it is fully decoded again once it is no longer healthy.
+     */
+    internal suspend fun decode(
         offering: Offering,
         headers: Map<String, String>,
+        recheck: Boolean = false,
     ): FailureClass? =
         withContext(Dispatchers.IO) {
             val output = Files.createTempFile("sofa-probe-", ".progress")
             val errors = Files.createTempFile("sofa-probe-", ".errors")
             var process: Process? = null
             try {
-                val command = mutableListOf(ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-rw_timeout", "15000000")
-                // The HLS demuxer handles segment boundaries itself; reconnect-at-EOF there loops on the first segment.
-                if (offering.protocol == "mpegts") {
-                    command += listOf("-reconnect", "1", "-reconnect_at_eof", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5")
-                }
-                if (headers.isNotEmpty()) command += listOf("-headers", headers.entries.joinToString("") { "${it.key}: ${it.value}\r\n" })
-                command += listOf("-i", offering.url, "-t", config.decodeSeconds.toString(), "-map", "0:v:0", "-an", "-progress", "pipe:1", "-f", "null", "-")
+                val command = decodeCommand(ffmpeg, offering, headers, config.decodeSeconds, recheck)
                 process = ProcessBuilder(command).redirectOutput(output.toFile()).redirectError(errors.toFile()).start()
                 val owned = process
                 val exited = runInterruptible { owned.waitFor(config.deadlineSeconds, TimeUnit.SECONDS) }
@@ -269,4 +268,18 @@ class ProbeWorker(
                 Files.deleteIfExists(errors)
             }
         }
+}
+
+/** The FFmpeg command that reads [seconds] of [offering]'s first video stream, decoding it or, with [copy], copying it. */
+internal fun decodeCommand(ffmpeg: String, offering: Offering, headers: Map<String, String>, seconds: Int, copy: Boolean): List<String> {
+    val command = mutableListOf(ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-rw_timeout", "15000000")
+    // The HLS demuxer handles segment boundaries itself; reconnect-at-EOF there loops on the first segment.
+    if (offering.protocol == "mpegts") {
+        command += listOf("-reconnect", "1", "-reconnect_at_eof", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5")
+    }
+    if (headers.isNotEmpty()) command += listOf("-headers", headers.entries.joinToString("") { "${it.key}: ${it.value}\r\n" })
+    command += listOf("-i", offering.url, "-t", seconds.toString(), "-map", "0:v:0")
+    if (copy) command += listOf("-c", "copy")
+    command += listOf("-an", "-progress", "pipe:1", "-f", "null", "-")
+    return command
 }

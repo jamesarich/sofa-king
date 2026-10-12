@@ -62,11 +62,15 @@ class PlexSync(
     /** Quiet time after a lineup change before the sync, so a burst of changes is one sync. */
     private val debounceMillis: Long = 120_000,
     private val intervalMillis: Long = config.syncMinutes * 60_000L,
+    /** The status a previous run stored, shown until this run's first sync replaces it. */
+    initial: PlexStatus? = null,
+    /** Stores each sync's status; a failure is logged and the sync still counts. */
+    private val persist: suspend (PlexStatus) -> Unit = {},
 ) {
     private val log = LoggerFactory.getLogger(PlexSync::class.java)
     private val mutex = Mutex()
     private val trigger = Trigger<String>(Trigger.CONFLATED)
-    private val status = AtomicReference(PlexStatus(config.syncMinutes))
+    private val status = AtomicReference(initial?.copy(syncMinutes = config.syncMinutes) ?: PlexStatus(config.syncMinutes))
 
     fun status(): PlexStatus = status.get()
 
@@ -140,6 +144,9 @@ class PlexSync(
             config.syncMinutes, clock.instant().toString(), cause, error, touched.toList(), mapped.sortedBy { it.device }, missing.map { it.id }, findings,
         )
         status.set(next)
+        try { persist(next) } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            log.warn("plex status not stored class={}", e.javaClass.simpleName)
+        }
         if (error != null) log.warn("plex sync cause={} error=\"{}\"", cause, error)
         log.info(
             "plex sync cause={} dvrs={} devices={} mapped={} missing={} durationMs={}",

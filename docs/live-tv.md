@@ -188,7 +188,7 @@ A sync reads Plex's DVRs and picks out the devices whose DeviceID is one of this
 - A device this server serves that no DVR holds is reported as a finding, `plex: device DEVICEID (device N) is not added to Plex`, where N counts from 0 on `SOFA_PORT`. With `SOFA_PLEX_TUNER_BASE` set, the sync adds it instead, at `SOFA_PLEX_TUNER_BASE:PORT` with the port from `SOFA_HDHR_PUBLIC_PORTS`, to the first DVR that holds one of this server's devices, then maps it. A device that answers with another DeviceID is not added.
 - Plex refuses a channel map whose request runs past about 30 KB, roughly 250 channels. A device over that is skipped with the finding `plex: device DEVICEID has N channels, too many for Plex to save; lower SOFA_HDHR_DEVICE_SIZE or add ports`.
 - A failed request is reported in `lastError` and as the finding `plex: sync failed: ...`; the other devices are still mapped.
-- `GET /api/v1/admin/plex` returns the last sync ([API detail](api.md#admin-api)). With a lineup policy, the findings also appear in `GET /api/v1/admin/policy/findings`.
+- `GET /api/v1/admin/plex` returns the last sync ([API detail](api.md#admin-api)). The database keeps it, so after a restart the API and the portal's Plex page show the last sync with its time until the next one replaces it. With a lineup policy, the findings also appear in `GET /api/v1/admin/policy/findings`.
 
 Plex must already reach the server: the URL is used as configured, without the upstream address rules, and redirects are not followed. `deploy/compose.yaml` maps `host.docker.internal` to the Docker host, so a Plex server on the same host is `http://host.docker.internal:32400`.
 

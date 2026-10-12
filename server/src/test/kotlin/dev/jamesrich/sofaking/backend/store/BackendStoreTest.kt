@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend.store
 
+import dev.jamesrich.sofaking.backend.api.PlexDeviceStatus
+import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.health.*
 import kotlinx.coroutines.*
 import org.jetbrains.exposed.v1.core.*
@@ -77,6 +79,27 @@ class BackendStoreTest {
         openStore(dir).use { store ->
             store.registerOffering("provider:station")
             assertEquals(HealthStatus.QUARANTINED, store.health("provider:station")!!.status)
+        }
+    }
+    @Test fun `a fresh store has no Plex status`() = runBlocking<Unit> {
+        openStore(directory()).use { store -> assertNull(store.plexStatus()) }
+    }
+    @Test fun `the Plex status persists across a reopen and a new one replaces it`() = runBlocking<Unit> {
+        val dir = directory()
+        val first = PlexStatus(
+            30, t.toString(), "startup", null, listOf("10"), listOf(PlexDeviceStatus("ABCDEF01", 0, "20", "10", 42)), listOf("12345678"),
+            listOf("plex: device 12345678 (device 1) is not added to Plex"),
+        )
+        openStore(dir).use { it.savePlexStatus(first) }
+        openStore(dir).use { store ->
+            assertEquals(first, store.plexStatus())
+            store.savePlexStatus(PlexStatus(30, t.plusSeconds(60).toString(), "interval", "GET /livetv/dvrs answered 401"))
+        }
+        openStore(dir).use { store ->
+            val stored = store.plexStatus()!!
+            assertEquals("interval", stored.lastCause)
+            assertEquals("GET /livetv/dvrs answered 401", stored.lastError)
+            assertEquals(emptyList(), stored.devices)
         }
     }
     @Test fun `same incident replayed after restart is a no op`() = runBlocking<Unit> {

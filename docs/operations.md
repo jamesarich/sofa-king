@@ -8,7 +8,7 @@ The config folder holds everything the server keeps across restarts:
 
 | Path | Contents |
 | --- | --- |
-| `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, and the server identity |
+| `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, the last Plex sync, and the server identity |
 | `logos/` | Cached lineup logos, one file per source URL |
 | `secrets.json` | The generated API and admin tokens |
 | `sources.json`, `policy.json` | The source file and the lineup policy, when they are kept here |

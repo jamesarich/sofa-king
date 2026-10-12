@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend.plex
 
 import dev.jamesrich.sofaking.backend.PlexConfig
+import dev.jamesrich.sofaking.backend.api.PlexDeviceStatus
+import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -65,10 +67,12 @@ class PlexSyncTest {
             }
         }
 
-        fun sync(tunerBase: String? = null, debounceMillis: Long = 120_000) = PlexSync(
+        fun sync(
+            tunerBase: String? = null, debounceMillis: Long = 120_000, initial: PlexStatus? = null, persist: suspend (PlexStatus) -> Unit = {},
+        ) = PlexSync(
             PlexConfig("http://plex.test:32400", token, tunerBase = tunerBase),
             HttpClient(engine) { followRedirects = false; install(HttpTimeout) },
-            MutableClock(), { ours }, debounceMillis, intervalMillis = 3_600_000,
+            MutableClock(), { ours }, debounceMillis, intervalMillis = 3_600_000, initial = initial, persist = persist,
         )
 
         fun calls(method: HttpMethod, path: String) = requests.filter { it.method == method && it.url.encodedPath == path }
@@ -125,6 +129,31 @@ class PlexSyncTest {
         assertEquals(emptyList(), status.findings)
         assertEquals(PlexDeviceStatusView("0BADF00D", "30", "10", 1, true), status.devices.single { it.device == 2 }.let { PlexDeviceStatusView(it.deviceId, it.plexKey, it.dvr, it.mapped, it.added) })
         assertTokenInHeaderOnly(plex)
+    }
+
+    @Test fun `the stored status shows until a sync replaces and stores it`() = runBlocking<Unit> {
+        val plex = FakePlex()
+        val stored = PlexStatus(1, "2026-10-01T00:00:00Z", "interval", null, listOf("10"), listOf(PlexDeviceStatus("ABCDEF01", 0, "20", "10", 7)))
+        val persisted = ConcurrentLinkedQueue<PlexStatus>()
+        val sync = plex.sync(initial = stored, persist = { persisted += it })
+
+        assertEquals("2026-10-01T00:00:00Z", sync.status().lastSyncAt)
+        assertEquals(7, sync.status().devices.single().mapped)
+        assertEquals(PlexConfig("http://plex.test:32400", token).syncMinutes, sync.status().syncMinutes, "the interval comes from the current settings")
+        assertEquals(emptyList(), persisted.toList(), "nothing is stored before a sync")
+
+        val next = sync.sync("test")
+        assertEquals(listOf(next), persisted.toList())
+        assertEquals(next, sync.status())
+        assertEquals("test", sync.status().lastCause)
+    }
+
+    @Test fun `a status that cannot be stored still counts as the sync`() = runBlocking<Unit> {
+        val plex = FakePlex()
+        val sync = plex.sync(persist = { throw java.io.IOException("disk full") })
+        val next = sync.sync("test")
+        assertNull(next.lastError)
+        assertEquals(next, sync.status())
     }
 
     private data class PlexDeviceStatusView(val id: String, val key: String, val dvr: String, val mapped: Int, val added: Boolean)

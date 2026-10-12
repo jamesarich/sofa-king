@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.store
 
+import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.health.*
 import java.nio.file.Path
 import java.time.Clock
@@ -21,6 +22,8 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 /** A stored snapshot may carry fields [dev.jamesrich.sofaking.backend.catalog.FeedSnapshot] does not declare. */
 private val snapshotJson = Json { ignoreUnknownKeys = true }
+
+private const val PLEX_STATUS_KEY = "plex_status"
 
 interface IdentityStore {
     suspend fun serverId(): String
@@ -156,6 +159,20 @@ class BackendStore internal constructor(
             }
             val known = healthSnapshot.get()
             for (offering in snapshot.offerings) if (offering.id !in known) changed[offering.id] = HealthState()
+        }
+    }
+
+    /** The last Plex sync's status, kept so it outlives a restart; null before the first sync or when it no longer decodes. */
+    suspend fun plexStatus(): PlexStatus? {
+        val encoded = query { Metadata.selectAll().where { Metadata.key eq PLEX_STATUS_KEY }.singleOrNull()?.get(Metadata.value) } ?: return null
+        return runCatching { snapshotJson.decodeFromString<PlexStatus>(encoded) }.getOrNull()
+    }
+
+    suspend fun savePlexStatus(status: PlexStatus) {
+        val encoded = Json.encodeToString(status)
+        query {
+            Metadata.deleteWhere { Metadata.key eq PLEX_STATUS_KEY }
+            Metadata.insert { it[key] = PLEX_STATUS_KEY; it[value] = encoded }
         }
     }
 

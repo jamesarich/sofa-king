@@ -91,7 +91,10 @@ class LiveRuntime(
                 lineup.initialize()
                 val plex = config.plex?.let { plexConfig ->
                     val ports = config.hdhr.publicPorts(config.port)
-                    PlexSync(plexConfig, http, clock, { val serverId = store.serverId(); List(config.hdhr.devices) { n -> HdhrDevice(n, hdhrDeviceId(config.hdhr, serverId, n), ports[n]) } }, plexDebounceMillis)
+                    PlexSync(
+                        plexConfig, http, clock, { val serverId = store.serverId(); List(config.hdhr.devices) { n -> HdhrDevice(n, hdhrDeviceId(config.hdhr, serverId, n), ports[n]) } },
+                        plexDebounceMillis, initial = store.plexStatus(), persist = store::savePlexStatus,
+                    )
                 }
                 val catalog = CatalogService(feeds, guides, lineup, store, clock)
                 logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) })

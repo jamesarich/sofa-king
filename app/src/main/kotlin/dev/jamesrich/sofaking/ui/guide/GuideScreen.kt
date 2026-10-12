@@ -126,13 +126,21 @@ private const val GUIDE_DIGIT_COMMIT_MS = 1_500L
 internal data class GuideJump(val guideId: String, val minute: Long, val nonce: Int)
 
 /**
- * The row a fresh guide starts on: back from the player, or on a cold start, the channel last focused
- * ([lastFocused]) or watched ([lastWatched]); -1 when neither is in [visible], so the first row takes focus.
+ * The row a fresh guide starts on: the channel the player was just left on ([returnedFrom]), else the one last
+ * focused in the guide ([lastFocused]) or watched ([lastWatched]); -1 when none is in [visible], so the first
+ * row takes focus.
  */
-internal fun initialGuideRow(visible: List<Channel>, lastFocused: String?, lastWatched: String?): Int {
-    val wanted = lastFocused ?: lastWatched ?: return -1
+internal fun initialGuideRow(visible: List<Channel>, returnedFrom: String?, lastFocused: String?, lastWatched: String?): Int {
+    val wanted = returnedFrom ?: lastFocused ?: lastWatched ?: return -1
     return visible.indexOfFirst { it.guideId == wanted }
 }
+
+/** True when the channel the player was left on is in the lineup but hidden by the filter or search, which then give way. */
+internal fun watchedIsHidden(returnedFrom: String?, visible: List<Channel>, all: List<Channel>): Boolean =
+    returnedFrom != null && visible.none { it.guideId == returnedFrom } && all.any { it.guideId == returnedFrom }
+
+/** Back from the player the cursor never points into the past: the listings start at [nowMinute] at the earliest. */
+internal fun cursorOnReturn(cursor: Long, nowMinute: Long): Long = maxOf(cursor, nowMinute)
 
 /** What the preview's rest timers watch: the channel under focus, the last key press, whether the preview failed and whether sound is on. */
 private data class DwellInput(val channelId: String?, val nonce: Int, val failed: Boolean, val sound: Boolean)
@@ -141,11 +149,11 @@ private data class DwellInput(val channelId: String?, val nonce: Int, val failed
 private data class FocusedCell(val channel: Channel, val cell: GuideCell)
 
 /**
- * The guide grid. Filter, search, time cursor, scroll and the focused channel are saveable, so a trip to the
- * player and back lands where the user left; [initialChannelId] (the last channel watched) is where a fresh
- * guide starts, [startAtNow] puts the cursor at the current time instead of where it was, and [startSearch]
- * opens search by voice on arrival. [returnedFrom] is the channel the full screen was just left on, which the
- * preview's rest timer must not reopen until focus has moved.
+ * The guide grid. Filter, search, time cursor, scroll and the focused channel are saveable across a trip to the
+ * player. [returnedFrom] is the channel the full screen was just left on: focus lands on it, a filter hiding it
+ * gives way, and the preview's rest timer does not reopen it until focus has moved. [initialChannelId] (the
+ * last channel watched) is where a fresh guide starts, [startAtNow] puts the cursor at the current time
+ * instead of where it was, and [startSearch] opens search by voice on arrival.
  */
 @Composable
 fun GuideScreen(
@@ -285,10 +293,19 @@ fun GuideScreen(
         revealMinute(minute)
     }
 
-    LaunchedEffect(visible.isNotEmpty(), initialFocusAttempt) {
-        if (initialFocusDone || visible.isEmpty() || initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) return@LaunchedEffect
-        if (startAtNow) cursor = nowMinute ?: nowClamped
-        val row = initialGuideRow(visible, lastFocusedGuideId, initialChannelId)
+    LaunchedEffect(visible.isNotEmpty(), activeFilter, searchOpen, initialFocusAttempt) {
+        if (initialFocusDone || initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) return@LaunchedEffect
+        if (watchedIsHidden(returnedFrom, visible, lineup.channels)) {
+            // Reruns with the full lineup on screen.
+            filter = GuideFilter.All
+            searchOpen = false
+            searchState.setTextAndPlaceCursorAtEnd("")
+            return@LaunchedEffect
+        }
+        if (visible.isEmpty()) return@LaunchedEffect
+        val nowAt = nowMinute ?: nowClamped
+        if (startAtNow) cursor = nowAt else if (returnedFrom != null) cursor = cursorOnReturn(cursor, nowAt)
+        val row = initialGuideRow(visible, returnedFrom, lastFocusedGuideId, initialChannelId)
         if (row >= 0) {
             // Before the first measure the layout info is empty; a restored scroll position must not be thrown away.
             withFrameNanos { }

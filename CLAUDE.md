@@ -17,7 +17,7 @@ Unit tests run against MockWebServer; no server is needed for offline developmen
 - Use androidx.tv.material3 and foundation lazy layouts. Do not mix mobile Material 3 into TV screens.
 - Support the five-way D-pad. Use focusRestorer; request focus from effects or callbacks and wait for lazy nodes with requestFocusWhenAttached. The guide's first focus is retried until a cell reports it landed; the header's buttons must never keep focus once channels are on screen. The unconfigured screen starts on Settings.
 - Preserve 48dp horizontal and 27dp vertical overscan padding.
-- Preserve the guide's 24-hour window, time cursor and saved position across player navigation.
+- Preserve the guide's 24-hour window, filter and scroll across player navigation. Back from the player focuses the channel being watched (`returnedFrom` ranks first in `initialGuideRow`), shows All when a filter or search hides it, and keeps the time cursor no earlier than now.
 - A cold start opens the last watched channel full screen through the normal session path, decided once by `launchTarget` after the lineup and settings are in; the guide and preview must not compose before that decision. No last channel opens the guide.
 - Guide and Menu are one shortcut: in the player they open the guide at Now (`Screen.Guide(atNow)`), in the guide they jump to Now. Search opens guide search through `RecognizerIntent` (`rememberVoiceSearch`), falling back to the text field when no recognizer answers. Map remote keys in `playerExit` and `guideShortcut`, not in ad-hoc `when` branches.
 - Back in the guide: open search closes first, the grid hands focus to the selected chip, the chips and header exit. Decide it in `guideBackAction`, never in a second BackHandler.

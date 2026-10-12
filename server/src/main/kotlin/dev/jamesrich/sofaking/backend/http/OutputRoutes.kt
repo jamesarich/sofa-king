@@ -78,19 +78,10 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
                     write("</channel>\n")
                 }
                 for (channel in channels) {
-                    val categories = xmltvCategories(entries[channel.id]?.group)
-                    val categoryXml = categories.joinToString("") { "<category lang=\"en\">${xml(it)}</category>" }
+                    val group = entries[channel.id]?.group
                     // A channel with nothing in the window gets hourly placeholders, so Plex lists and records it like the rest.
                     val listed = programmes[channel.id].orEmpty().ifEmpty { placeholders(channel.id, channel.name, from, to) }
-                    for (programme in listed) {
-                        write("<programme start=\"${xmltvTime(programme.startsAt)}\" stop=\"${xmltvTime(programme.endsAt)}\" channel=\"${xml(channel.id)}\">")
-                        write("<title>${xml(programme.title)}</title>")
-                        programme.description?.let { write("<desc>${xml(it)}</desc>") }
-                        write(categoryXml)
-                        // Plex files a programme without episode numbering as a movie, so every other airing is numbered by its start.
-                        if (categories.first() != XMLTV_MOVIE) write("<episode-num system=\"original-air-date\">${airDate(programme.startsAt)}</episode-num>")
-                        write("</programme>\n")
-                    }
+                    for (programme in listed) write(xmltvProgramme(channel.id, programme, group))
                 }
                 write("</tv>\n")
             }
@@ -185,6 +176,42 @@ internal fun placeholders(channelId: String, name: String, from: Instant, to: In
         .toList()
 
 internal const val XMLTV_MOVIE = "Movie"
+
+/** The kinds Plex sorts a programme by, in the order a programme's categories list them. */
+private val PLEX_KINDS = listOf(XMLTV_MOVIE, "Sports", "News", "Children", "Series").map(String::lowercase)
+
+/**
+ * One `<programme>` line for the channel [channelId], children in XMLTV DTD order. The categories are the source's
+ * own with any Plex kind first, else the ones [xmltvCategories] derives from the channel's [group]. A programme the
+ * source did not number and that is not a movie gets its start time as `original-air-date`, since Plex files a
+ * programme without episode numbering as a movie.
+ */
+internal fun xmltvProgramme(channelId: String, programme: GuideProgramme, group: String?): String = buildString {
+    val lang = programme.language?.let { " lang=\"${xml(it)}\"" }.orEmpty()
+    append("<programme start=\"${xmltvTime(programme.startsAt)}\" stop=\"${xmltvTime(programme.endsAt)}\" channel=\"${xml(channelId)}\">")
+    append("<title$lang>${xml(programme.title)}</title>")
+    programme.subTitle?.let { append("<sub-title$lang>${xml(it)}</sub-title>") }
+    programme.description?.let { append("<desc$lang>${xml(it)}</desc>") }
+    programme.date?.let { append("<date>${xml(it)}</date>") }
+    val derived = xmltvCategories(group)
+    if (programme.categories.isEmpty()) {
+        derived.forEach { append("<category lang=\"en\">${xml(it)}</category>") }
+    } else {
+        programme.categories.sortedBy { category -> PLEX_KINDS.indexOf(category.lowercase()).let { if (it < 0) PLEX_KINDS.size else it } }
+            .forEach { append("<category$lang>${xml(it)}</category>") }
+    }
+    programme.icon?.let { append("<icon src=\"${xml(it)}\"/>") }
+    programme.episodeNumbers.forEach { append("<episode-num system=\"${xml(it.system)}\">${xml(it.value)}</episode-num>") }
+    val movie = derived.first() == XMLTV_MOVIE || programme.categories.any { it.equals(XMLTV_MOVIE, ignoreCase = true) }
+    if (programme.episodeNumbers.isEmpty() && !movie) append("<episode-num system=\"original-air-date\">${airDate(programme.startsAt)}</episode-num>")
+    programme.previouslyShown?.let { shown -> append(shown.start?.let { "<previously-shown start=\"${xml(it)}\"/>" } ?: "<previously-shown/>") }
+    if (programme.isNew) append("<new/>")
+    programme.rating?.let { rating ->
+        append(rating.system?.let { "<rating system=\"${xml(it)}\">" } ?: "<rating>")
+        append("<value>${xml(rating.value)}</value></rating>")
+    }
+    append("</programme>\n")
+}
 
 /** A station group's XMLTV categories: the kind Plex sorts by (Movie, Sports, News, Children or Series), then the group. */
 internal fun xmltvCategories(group: String?): List<String> {

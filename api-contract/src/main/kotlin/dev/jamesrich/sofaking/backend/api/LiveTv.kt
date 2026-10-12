@@ -8,9 +8,15 @@ import kotlinx.serialization.Serializable
     val guideStatus: String = "unassigned", val playbackEligible: Boolean = false,
 )
 @Serializable data class Catalog(val revision: String, val channels: List<Channel>)
+/**
+ * [episode] is a display label such as `S2 E5`; [rating] a content rating such as `TV-14`; [icon] an image URL
+ * the guide source serves. The fields after [description] are null or false when the source has none.
+ */
 @Serializable data class Programme(
     val id: String, val channelId: String, val startsAt: String, val endsAt: String,
     val title: String, val description: String? = null,
+    val subTitle: String? = null, val episode: String? = null, val isNew: Boolean = false,
+    val rating: String? = null, val icon: String? = null,
 )
 @Serializable data class GuideQuery(val channelIds: List<String>, val from: String, val to: String, val revision: String? = null)
 @Serializable data class ChannelGuide(val channelId: String, val status: String, val programmes: List<Programme>)

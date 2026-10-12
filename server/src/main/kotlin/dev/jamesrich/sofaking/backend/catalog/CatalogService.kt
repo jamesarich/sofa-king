@@ -99,12 +99,36 @@ class CatalogService(
                 val rows = programmes[entry.id].orEmpty().map { programme ->
                     val start = programme.startsAt.toString()
                     val end = programme.endsAt.toString()
-                    Programme(stableId("programme:${entry.id}:$start:$end:${programme.title}"), entry.id, start, end, programme.title, programme.description)
+                    Programme(
+                        stableId("programme:${entry.id}:$start:$end:${programme.title}"), entry.id, start, end, programme.title, programme.description,
+                        programme.subTitle, episodeLabel(programme.episodeNumbers), programme.isNew, programme.rating?.value, programme.icon,
+                    )
                 }
                 ChannelGuide(entry.id, if (entry.guide == null) "unassigned" else if (rows.isEmpty()) "empty" else "available", rows)
             },
         )
     }
+}
+
+private val onscreenSeasonEpisode = Regex("[Ss](\\d{1,4})\\s*[Ee](\\d{1,5})")
+
+/**
+ * A display label for a programme's numbering: `S2 E5` from a zero-based `xmltv_ns` value or an `S02E05`-style
+ * `onscreen` one, `E5` or `S2` when the source numbers only one, else the `onscreen` text itself.
+ */
+fun episodeLabel(numbers: List<EpisodeNumber>): String? {
+    numbers.firstOrNull { it.system == "xmltv_ns" }?.value?.split('.')?.let { parts ->
+        fun part(index: Int) = parts.getOrNull(index)?.substringBefore('/')?.trim()?.toIntOrNull()?.takeIf { it in 0..99_999 }?.plus(1)
+        val season = part(0)
+        val episode = part(1)
+        val label = listOfNotNull(season?.let { "S$it" }, episode?.let { "E$it" }).joinToString(" ")
+        if (label.isNotEmpty()) return label
+    }
+    val onscreen = numbers.firstOrNull { it.system == "onscreen" }?.value ?: return null
+    onscreenSeasonEpisode.matchEntire(onscreen.trim())?.let { match ->
+        return "S${match.groupValues[1].toInt()} E${match.groupValues[2].toInt()}"
+    }
+    return onscreen.take(32)
 }
 
 fun eligible(state: HealthState): Boolean = !state.manuallyDisabled && state.status in setOf(HealthStatus.UNVERIFIED, HealthStatus.HEALTHY, HealthStatus.SUSPECT)

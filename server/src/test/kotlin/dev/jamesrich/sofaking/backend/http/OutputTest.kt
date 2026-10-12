@@ -100,6 +100,35 @@ class OutputTest {
         }
     }
 
+    @Test fun `a guide's own numbering and metadata reach the XMLTV and the JSON guide without a synthesized air date`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-output-metadata-")
+        Fixture().use { fixture ->
+            fixture.guideMetadata = true
+            val served = serve(fixture, dir, listOf(fixture.feed))
+            try {
+                val hls = served.channels.single()
+                val xml = client.get("/output/guide.xml?token=$output&days=2").bodyAsText()
+                assertTrue(xml.contains(
+                    "<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" channel=\"${hls.id}\"><title>Morning</title>" +
+                        "<sub-title>Pilot &amp; Plans</sub-title><category lang=\"en\">News</category>" +
+                        "<episode-num system=\"xmltv_ns\">1.4.</episode-num><episode-num system=\"onscreen\">S02E05</episode-num>" +
+                        "<new/><rating system=\"VCHIP\"><value>TV-PG</value></rating></programme>",
+                ), xml)
+                assertFalse(xml.contains("original-air-date\">2026-10-10 13:00:00"), "a numbered programme keeps the source's numbering only")
+
+                val query = GuideQuery(listOf(hls.id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")
+                val window = client.post("/api/v1/guide/query") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(query)) }
+                val programme = Json.decodeFromString<GuideWindow>(window.bodyAsText()).channels.single().programmes.single()
+                assertEquals("Morning", programme.title)
+                assertEquals("Pilot & Plans", programme.subTitle)
+                assertEquals("S2 E5", programme.episode)
+                assertTrue(programme.isNew)
+                assertEquals("TV-PG", programme.rating)
+                assertNull(programme.icon)
+            } finally { served.runtime.close(); served.store.close(); dir.toFile().deleteRecursively() }
+        }
+    }
+
     @Test fun `an HLS stream URL redirects players to a shared session that lives while they fetch media`() = testApplication {
         val dir = Files.createTempDirectory("sofa-output-hls-")
         Fixture().use { fixture ->

@@ -2,6 +2,11 @@ package dev.jamesrich.sofaking.data
 
 import java.time.Duration
 import java.time.Instant
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /**
  * The lineup from a Sofa King server. The catalog is fetched with its ETag, so an unchanged lineup costs one
@@ -43,19 +48,27 @@ class SofaKingRepository(
         }
     }
 
+    /** The first chunk answers the revision the rest pin; the rest run [GUIDE_PARALLEL] at a time, and any failure cancels them all. */
     private suspend fun query(chunks: List<List<String>>, from: Instant, to: Instant, pinRevision: Boolean): Map<String, List<Programme>> {
-        val guide = HashMap<String, List<Programme>>()
-        var revision: String? = null
-        for (chunk in chunks) {
-            val window = api.guide(GuideQueryDto(chunk, from.toString(), to.toString(), revision))
-            if (pinRevision) revision = window.revision
-            guide += SofaKingMapper.programmes(window)
+        if (chunks.isEmpty()) return emptyMap()
+        val first = api.guide(GuideQueryDto(chunks.first(), from.toString(), to.toString(), null))
+        val revision = first.revision.takeIf { pinRevision }
+        val limit = Semaphore(GUIDE_PARALLEL)
+        val rest = coroutineScope {
+            chunks.drop(1).map { chunk ->
+                async { limit.withPermit { api.guide(GuideQueryDto(chunk, from.toString(), to.toString(), revision)) } }
+            }.awaitAll()
         }
+        val guide = HashMap<String, List<Programme>>()
+        for (window in listOf(first) + rest) guide += SofaKingMapper.programmes(window)
         return guide
     }
 
     companion object {
         const val GUIDE_CHUNK = 200
+
+        /** Guide chunks in flight at once after the first. */
+        const val GUIDE_PARALLEL = 4
         private const val WINDOW_HOURS = 24L
         private const val SLOT_SECONDS = 30L * 60
 

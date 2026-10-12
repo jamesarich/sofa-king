@@ -112,7 +112,10 @@ class SofaKingRepositoryTest {
         assertEquals(450, guide.size)
         assertEquals("Show c449", guide["c449"]!!.single().title)
         val queries = fake.guideQueries.map { Json.parseToJsonElement(it).jsonObject }
-        assertEquals(listOf(200, 200, 50), queries.map { it["channelIds"]!!.jsonArray.size })
+        val sizes = queries.map { it["channelIds"]!!.jsonArray.size }
+        // The first chunk goes alone; the rest run together and may arrive in any order.
+        assertEquals(200, sizes.first())
+        assertEquals(listOf(200, 50), sizes.drop(1).sortedDescending())
         queries.forEach { query ->
             assertEquals("2026-10-10T10:00:00Z", query["from"]!!.jsonPrimitive.content)
             assertEquals("2026-10-11T10:00:00Z", query["to"]!!.jsonPrimitive.content)
@@ -136,6 +139,29 @@ class SofaKingRepositoryTest {
         assertEquals(250, guide.size)
         val revisions = fake.guideQueries.map { Json.parseToJsonElement(it).jsonObject["revision"]?.jsonPrimitive?.content }
         assertEquals(listOf(null, "r1", null, null), revisions)
+    }
+
+    @Test
+    fun `every chunk after the first pins the revision the first returned`() = runTest {
+        val guide = repository().loadGuide(channels(1_585))
+
+        assertEquals(1_585, guide.size)
+        val revisions = fake.guideQueries.map { Json.parseToJsonElement(it).jsonObject["revision"]?.jsonPrimitive?.content }
+        assertEquals(8, revisions.size)
+        assertEquals(null, revisions.first())
+        assertEquals(List(7) { "r1" }, revisions.drop(1))
+    }
+
+    @Test
+    fun `a conflict on a later chunk while others are in flight still restarts the whole guide`() = runTest {
+        fake.conflictsLeft += "once"
+
+        val guide = repository().loadGuide(channels(1_000))
+
+        assertEquals(1_000, guide.size)
+        val revisions = fake.guideQueries.map { Json.parseToJsonElement(it).jsonObject["revision"]?.jsonPrimitive?.content }
+        // The first attempt's opening chunk, then all five chunks of the restart, unpinned.
+        assertEquals(6, revisions.count { it == null })
     }
 
     @Test

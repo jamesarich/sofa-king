@@ -51,7 +51,7 @@ Check the result with `/readyz` and `/api/v1/providers` (see [monitoring](#monit
 
 ## Upgrade and rollback
 
-Back up before every upgrade, and tag the running image so it stays available to roll back to. Then build and start the new version:
+A host that runs the updater upgrades itself from the published image, with the backup, the tag and the rollback below done for it; see [update automatically](deploy.md#update-automatically). To upgrade by hand, back up first, and tag the running image so it stays available to roll back to. Then build and start the new version:
 
 ```sh
 docker tag sofa-king-backend:local sofa-king-backend:previous

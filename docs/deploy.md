@@ -13,6 +13,8 @@ The server is built on the host and copied into the image. Gradle resolves the p
 | `deploy/compose.yaml` | Service, port mapping, volume, source file mount, [container limits](#container-limits) |
 | `deploy/.env.example` | Environment template; copy to `deploy/.env` |
 | `deploy/sources.example.json` | Source template; copy to `deploy/sources.json` |
+| `deploy/sofa-king-update.sh`, `deploy/systemd/` | Keeps a host on the published image, see [update automatically](#update-automatically) |
+| `.github/workflows/image.yml` | Tests every push and publishes the image |
 
 `deploy/.env` and `deploy/sources.json` are ignored by Git.
 
@@ -94,6 +96,29 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:8080/a
 With `SOFA_OUTPUT_TOKEN` set, `curl --fail "http://SERVER_HOST:8080/output/playlist.m3u?token=$SOFA_OUTPUT_TOKEN"` prints the playlist that [M3U and XMLTV players](live-tv.md#third-party-players) load. Its stream URLs carry the address the request used, so they work through a port mapping. For Plex, `curl --fail http://SERVER_HOST:8080/discover.json` from the Plex host shows the tuner that [Plex](live-tv.md#plex-live-tv) is pointed at. Plex finds the device by its address, so no SSDP (UDP) port is needed.
 
 Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rollback).
+
+## Update automatically
+
+The [Image workflow](../.github/workflows/image.yml) tests every push to `main` and publishes the image to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing. Pull requests run the tests and build the image without publishing it.
+
+`deploy/sofa-king-update.sh` keeps a host on that image. When the published image differs from the running one, it:
+
+1. Backs up the database to `backups/` in the Compose directory, keeping the newest five.
+2. Tags the running image `sofa-king-backend:previous` and the new one `sofa-king-backend:local`.
+3. Recreates the container and waits up to three minutes for it to report healthy.
+4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` so later runs skip it until a newer one is published.
+
+It needs Python 3 on the host for the database backup. To install it, log Docker in to the registry with a [personal access token (classic)](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic) that has only the `read:packages` scope, then add the script and the timer:
+
+```sh
+sudo docker login ghcr.io -u GITHUB_USER
+sudo install -m 755 deploy/sofa-king-update.sh /srv/sofa-king-backend/
+sudo install -m 644 deploy/systemd/sofa-king-update.service deploy/systemd/sofa-king-update.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now sofa-king-update.timer
+```
+
+Set `SOFA_UPDATE_DIR` in the service to the Compose directory if it is not `/srv/sofa-king-backend`. The timer checks every 15 minutes; `sudo systemctl start sofa-king-update` checks now, and `journalctl -u sofa-king-update` shows what each run did. Other settings come from the environment: `SOFA_UPDATE_IMAGE`, `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer to keep it.
 
 ## Deploy to a host without a JDK
 

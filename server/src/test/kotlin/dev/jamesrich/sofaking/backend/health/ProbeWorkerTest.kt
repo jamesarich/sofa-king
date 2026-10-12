@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.api.Channel
 import dev.jamesrich.sofaking.backend.api.OpenPlayback
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.playback.SessionManager
+import dev.jamesrich.sofaking.backend.playback.remuxCommand
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
@@ -289,5 +290,24 @@ class ProbeWorkerTest {
             assertNull(worker.decode(vod, emptyMap(), recheck = true))
             assertEquals(FailureClass.OFFERING, worker.decode(vod.copy(url = "${media.base}/missing.m3u8"), emptyMap(), recheck = true))
         } } } } finally { dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `FFmpeg opens only the whitelisted protocols for probes and remuxes`() {
+        val offering = Offering("o", "c", "p", "http://example.test/live.m3u8", "hls")
+        for (command in listOf(decodeCommand("ffmpeg", offering, emptyMap(), 30, copy = false), remuxCommand("ffmpeg", offering.url, emptyMap()))) {
+            val at = command.indexOf("-protocol_whitelist")
+            assertTrue(at in 1 until command.indexOf("-i"), "an input option: $command")
+            assertEquals("file,http,https,tcp,tls,crypto", command[at + 1])
+        }
+        MediaFixture().use { media ->
+            fun exit(url: String): Int {
+                val process = ProcessBuilder(decodeCommand("ffmpeg", Offering("o", "c", "media", url, "mpegts"), emptyMap(), 1, copy = true))
+                    .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+                assertTrue(process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS), "FFmpeg finished")
+                return process.exitValue()
+            }
+            assertEquals(0, exit("${media.base}/seg0.ts"), "HTTP is allowed")
+            assertNotEquals(0, exit("concat:${media.base}/seg0.ts|${media.base}/seg1.ts"), "concat is not")
+        }
     }
 }

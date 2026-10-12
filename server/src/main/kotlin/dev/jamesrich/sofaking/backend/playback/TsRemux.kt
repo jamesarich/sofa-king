@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.upstream.FFMPEG_PROTOCOL_WHITELIST
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.server.application.ApplicationCall
@@ -31,11 +32,7 @@ class TsRemux(private val ffmpeg: String) {
 
     /** Streams [url] remuxed to `video/mp2t` into [call]; returns when the client hangs up or FFmpeg exits. */
     suspend fun stream(call: ApplicationCall, url: String, headers: Map<String, String>) {
-        val command = mutableListOf(ffmpeg, "-hide_banner", "-loglevel", "warning", "-nostdin", "-rw_timeout", "15000000")
-        if (headers.isNotEmpty()) command += listOf("-headers", headers.entries.joinToString("") { "${it.key}: ${it.value}\r\n" })
-        // FFmpeg's own selection takes one video (highest resolution) and one audio (most channels) and skips the
-        // other variants' downloads; subtitles and data have no reliable MPEG-TS mapping and are left out.
-        command += listOf("-i", url, "-sn", "-dn", "-c", "copy", "-f", "mpegts", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "pipe:1")
+        val command = remuxCommand(ffmpeg, url, headers)
         val errors = Files.createTempFile("sofa-remux-", ".log")
         val process = ProcessBuilder(command).redirectError(errors.toFile()).start()
         processes += process
@@ -92,4 +89,15 @@ class TsRemux(private val ffmpeg: String) {
     private fun tail(errors: java.nio.file.Path): String =
         runCatching { Files.readAllLines(errors).takeLast(3).joinToString(" | ") }.getOrDefault("")
             .replace(Regex("""https?://[^\s"'\]\[<>]+"""), "<url>").take(300)
+}
+
+/** The FFmpeg command that stream-copies [url] to MPEG-TS on its stdout. */
+internal fun remuxCommand(ffmpeg: String, url: String, headers: Map<String, String>): List<String> {
+    val command = mutableListOf(ffmpeg, "-hide_banner", "-loglevel", "warning", "-nostdin", "-rw_timeout", "15000000")
+    command += FFMPEG_PROTOCOL_WHITELIST
+    if (headers.isNotEmpty()) command += listOf("-headers", headers.entries.joinToString("") { "${it.key}: ${it.value}\r\n" })
+    // FFmpeg's own selection takes one video (highest resolution) and one audio (most channels) and skips the
+    // other variants' downloads; subtitles and data have no reliable MPEG-TS mapping and are left out.
+    command += listOf("-i", url, "-sn", "-dn", "-c", "copy", "-f", "mpegts", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "pipe:1")
+    return command
 }

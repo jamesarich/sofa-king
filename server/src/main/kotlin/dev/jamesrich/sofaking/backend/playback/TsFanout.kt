@@ -14,6 +14,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -82,9 +83,9 @@ internal class TsFanout(
         private set
 
     fun start() {
-        producer = scope.launch { produce() }
+        producer = scope.launch(CoroutineName("ts-fanout")) { produce() }
         keepalive =
-            scope.launch {
+            scope.launch(CoroutineName("ts-keepalive")) {
                 while (true) {
                     delay(config.keepaliveMillis)
                     if (dataSinceTick) dataSinceTick = false else broadcast(TS_NULL_PACKET)
@@ -107,7 +108,7 @@ internal class TsFanout(
             reader.channel.close()
             if (readers.isEmpty() && !ended) {
                 linger =
-                    scope.launch {
+                    scope.launch(CoroutineName("ts-linger")) {
                         delay(config.lingerMillis)
                         stop(null)
                     }

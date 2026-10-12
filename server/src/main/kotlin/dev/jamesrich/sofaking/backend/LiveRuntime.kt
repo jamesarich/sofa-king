@@ -16,6 +16,26 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import java.time.Clock
 import kotlinx.coroutines.*
+import org.slf4j.LoggerFactory
+
+private val runtimeLog = LoggerFactory.getLogger(LiveRuntime::class.java)
+
+/** The runtime's scope: a background coroutine that fails is logged by its name and exception class, and the others keep running. */
+internal fun backgroundScope(report: (String) -> Unit = runtimeLog::error): CoroutineScope =
+    CoroutineScope(
+        SupervisorJob() + Dispatchers.Default + CoroutineExceptionHandler { context, failure ->
+            report("background coroutine failed name=${context[CoroutineName]?.name ?: "unnamed"} class=${failure.javaClass.simpleName}")
+        },
+    )
+
+/** Runs [action] every [periodMillis] until cancelled; a failed run is logged by exception class and the loop goes on. */
+internal fun CoroutineScope.launchEvery(name: String, periodMillis: Long, report: (String) -> Unit = runtimeLog::warn, action: suspend () -> Unit): Job =
+    launch(CoroutineName(name)) {
+        while (isActive) {
+            try { action() } catch (e: CancellationException) { throw e } catch (e: Exception) { report("$name failed class=${e.javaClass.simpleName}") }
+            delay(periodMillis)
+        }
+    }
 
 class LiveRuntime(
     val store: BackendStore,
@@ -52,7 +72,7 @@ class LiveRuntime(
                 followRedirects = false
                 install(HttpTimeout) { requestTimeoutMillis = 60_000; connectTimeoutMillis = 5000; socketTimeoutMillis = 15_000 }
             }
-            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val scope = backgroundScope()
             try {
                 val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
                 lateinit var logos: LogoCache
@@ -99,7 +119,7 @@ class LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
                     policyService, plex,
                 )
-                scope.launch { while (isActive) { sessions.expire(); delay(1000) } }
+                scope.launchEvery("session-expire", 1000) { sessions.expire() }
                 // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.
                 val service = policyService
                 if (probes && (service != null || sources.providers.any { it.probe })) {
@@ -110,7 +130,7 @@ class LiveRuntime(
                             observationRetention = java.time.Duration.ofDays(config.observationRetentionDays.toLong()),
                         )
                     val targets = service?.let { { it.probeTargets() } }
-                    scope.launch {
+                    scope.launch(CoroutineName("probe-worker")) {
                         ProbeWorker(
                             feeds, store, clock, config.ffmpeg, http, probeConfig, onObserved = { id -> sessions.healthChanged(id) },
                             onHealthChanged = { service?.requestRun("health") }, targets = targets,

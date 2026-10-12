@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.time.Duration
@@ -20,12 +21,12 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
     private class Known(val id: String, val identifier: String, val name: String, val number: String, val host: String)
 
     override suspend fun channels(): List<ProviderChannel> {
-        val logos = runCatching { catalog() }.getOrElse { emptyMap() }
+        val logos = runCatchingCancellable { catalog() }.getOrElse { emptyMap() }
         return KNOWN.map { ProviderChannel(it.id, it.name, it.number, logos[it.identifier]?.second, "Movies", listOf("us")) }
     }
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
-        val catalog = runCatching { catalog() }.getOrElse { emptyMap() }
+        val catalog = runCatchingCancellable { catalog() }.getOrElse { emptyMap() }
         val index = KNOWN.map { GuideChannel(it.id, it.name, catalog[it.identifier]?.second) }
         val now = context.clock.instant()
         val from = now.minus(Duration.ofHours(1)).truncatedTo(java.time.temporal.ChronoUnit.HOURS)

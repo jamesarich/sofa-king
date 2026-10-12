@@ -31,6 +31,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -116,7 +117,7 @@ class LogoCache(
         trigger.trySend(Unit)
     }
 
-    fun start(scope: CoroutineScope): Job = scope.launch {
+    fun start(scope: CoroutineScope): Job = scope.launch(CoroutineName("logo-sweep")) {
         while (isActive) {
             trigger.receive()
             try { sweep() } catch (e: CancellationException) { throw e } catch (e: Exception) { log.warn("logo sweep failed class={}", e.javaClass.simpleName) }

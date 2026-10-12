@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.net.URI
@@ -80,7 +81,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetchChannels(): List<Listed> {
         val payload = authorized { token -> context.http.get("$apiBase/lineups/plex/channels?X-Plex-Token=${encode(token)}", headers(token)) }.json()
-        val groups = runCatching { genres() }.getOrElse { emptyMap() }
+        val groups = runCatchingCancellable { genres() }.getOrElse { emptyMap() }
         val result = LinkedHashMap<String, Listed>()
         for (channel in payload["MediaContainer"]["Channel"].array) {
             val media = channel["Media"][0]

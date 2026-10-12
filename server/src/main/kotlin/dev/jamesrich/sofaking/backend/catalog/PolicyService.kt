@@ -15,6 +15,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel as Trigger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
@@ -348,7 +349,7 @@ class PolicyService(
         trigger.trySend(cause)
     }
 
-    fun start(scope: CoroutineScope): Job = scope.launch {
+    fun start(scope: CoroutineScope): Job = scope.launch(CoroutineName("policy-run")) {
         while (isActive) {
             val cause = select<String> {
                 trigger.onReceive { it }

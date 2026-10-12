@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -217,7 +218,7 @@ class FeedService(
 
     fun start(scope: CoroutineScope): List<Job> =
         configs.map { config ->
-            scope.launch {
+            scope.launch(CoroutineName("feed-refresh:${config.id}")) {
                 while (isActive) {
                     refresh(config)
                     delay(config.refreshInterval * 1000)

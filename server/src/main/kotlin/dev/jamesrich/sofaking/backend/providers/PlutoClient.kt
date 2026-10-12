@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.net.URLEncoder
@@ -62,7 +63,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetchChannels(): List<Listed> {
         val payload = authorized { session -> context.http.get("${session.channels}/v2/guide/channels?channelIds=&offset=0&limit=1000&sort=number:asc", headers(session)) }.json()
-        val categories = runCatching {
+        val categories = runCatchingCancellable {
             authorized { session -> context.http.get("${session.channels}/v2/guide/categories?offset=0&limit=1000", headers(session)) }.json()["data"].array
                 .mapNotNull { category -> category.str("id")?.let { id -> category.str("name")?.let { id to it } } }.toMap()
         }.getOrElse { emptyMap() }

@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
@@ -145,7 +146,7 @@ class GuideService(
     }
 
     fun start(scope: CoroutineScope): List<Job> = configs.map { config ->
-        scope.launch {
+        scope.launch(CoroutineName("guide-refresh:${config.id}")) {
             val trigger = triggers.getValue(config.id)
             while (isActive) {
                 refresh(config)

@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.Lineup
@@ -191,6 +192,10 @@ class LineupViewModel(application: Application) : AndroidViewModel(application) 
     fun setSmoothCaptions(enabled: Boolean) = viewModelScope.launch { store.setSmoothCaptions(enabled) }
 
     fun setCaptionStyle(style: CaptionStyle) = viewModelScope.launch { store.setCaptionStyle(style) }
+
+    fun setAutoOpenDelay(delay: AutoOpenDelay) = viewModelScope.launch { store.setAutoOpenDelay(delay) }
+
+    fun setPreviewSound(enabled: Boolean) = viewModelScope.launch { store.setPreviewSound(enabled) }
 
     override fun onCleared() {
         sessions.close()

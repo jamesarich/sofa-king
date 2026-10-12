@@ -58,15 +58,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.R
-import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
@@ -172,6 +170,8 @@ fun GuideScreen(
     sessions: PlaybackSessions,
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
+    autoOpenDelay: AutoOpenDelay,
+    previewSound: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
@@ -244,13 +244,12 @@ fun GuideScreen(
     // The preview's rest timers: muted on tune, sound after five seconds, full screen after the chosen delay,
     // restarted by any key. Both run only while a cell holds focus with search closed, so typing never opens a channel.
     val context = LocalContext.current
-    val settingsStore = remember(context) { DataStoreSettingsStore.create(context) }
-    val guideSettings by settingsStore.settings.collectAsStateWithLifecycle(initialValue = AppSettings())
     // TalkBack reads the grid aloud as focus moves; a channel opening full screen would cut that off.
     val touchExploration = remember(context) {
         context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
     }
-    val fullScreenAfterMs = guideSettings.autoOpenDelay.afterMs.takeUnless { touchExploration }
+    val fullScreenAfterMs = autoOpenDelay.afterMs.takeUnless { touchExploration }
+    val currentPreviewSound by rememberUpdatedState(previewSound)
     val dwell = remember(fullScreenAfterMs) { PreviewDwell(suppressedChannelId = returnedFrom, fullScreenAfterMs = fullScreenAfterMs) }
     var dwellNonce by remember { mutableIntStateOf(0) }
     var previewMuted by remember { mutableStateOf(true) }
@@ -534,7 +533,7 @@ fun GuideScreen(
     }
     LaunchedEffect(dwell) {
         snapshotFlow {
-            DwellInput(focused?.channel?.guideId?.takeIf { gridFocused && !searchOpen }, dwellNonce, previewFailed, guideSettings.previewSound)
+            DwellInput(focused?.channel?.guideId?.takeIf { gridFocused && !searchOpen }, dwellNonce, previewFailed, currentPreviewSound)
         }
             .collectLatest { input ->
                 if (dwell.channelId != input.channelId) dwell.onFocus(input.channelId, SystemClock.uptimeMillis())

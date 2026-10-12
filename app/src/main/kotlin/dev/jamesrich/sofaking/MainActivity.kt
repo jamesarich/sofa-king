@@ -43,6 +43,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
@@ -196,6 +197,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                 onCaptionAdvanceChanged = { vm.setCaptionAdvanceMs(it) },
                 onSmoothCaptionsChanged = { vm.setSmoothCaptions(it) },
                 onCaptionStyleChanged = { vm.setCaptionStyle(it) },
+                onAutoOpenDelayChanged = { vm.setAutoOpenDelay(it) },
+                onPreviewSoundChanged = { vm.setPreviewSound(it) },
             )
         }
         is Screen.Player -> if (lineup != null) {
@@ -273,6 +276,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel()) {
                         sessions = sessions,
                         captionsEnabled = settings?.captionsEnabled ?: false,
                         captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
+                        autoOpenDelay = settings?.autoOpenDelay ?: AutoOpenDelay.AFTER_10_SECONDS,
+                        previewSound = settings?.previewSound ?: true,
                     )
                 }
             }
@@ -294,6 +299,8 @@ private fun GuideOrEmpty(
     sessions: PlaybackSessions,
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
+    autoOpenDelay: AutoOpenDelay,
+    previewSound: Boolean,
 ) {
     if (lineup.channels.isEmpty()) {
         MessageScreen(stringResource(R.string.no_channels), hint = stringResource(R.string.no_channels_hint))
@@ -311,6 +318,8 @@ private fun GuideOrEmpty(
             sessions = sessions,
             captionsEnabled = captionsEnabled,
             captionStyle = captionStyle,
+            autoOpenDelay = autoOpenDelay,
+            previewSound = previewSound,
         )
     }
 }

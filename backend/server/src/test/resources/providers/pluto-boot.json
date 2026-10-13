@@ -1,0 +1,9 @@
+{
+ "servers": {
+  "channels": "BASE/channels",
+  "stitcher": "BASE/stitcher"
+ },
+ "stitcherParams": "appName=web&clientID=fixture-client&country=US&deviceType=web&serverSideAds=false",
+ "sessionToken": "fixture-jwt",
+ "refreshInSec": 86400
+}

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for working on Sofa King. This guide covers the build, the tests, CI, and commit and pull request conventions. The app lives in `app/`; its [docs index](app/docs/README.md) lists the rest of the documentation, and [architecture](app/docs/architecture.md) describes how the code is organized.
+Thanks for working on Sofa King. This guide covers the app in `app/`: the build, the tests, CI, and commit and pull request conventions. Its [docs index](app/docs/README.md) lists the rest of the documentation, and [architecture](app/docs/architecture.md) describes how the code is organized. The server in `backend/` has [its own guide](backend/CONTRIBUTING.md).
 
 ## Build and test
 

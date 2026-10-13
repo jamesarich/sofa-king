@@ -1,0 +1,63 @@
+{
+ "MediaContainer": {
+  "size": 3,
+  "Channel": [
+   {
+    "title": "CW Forever",
+    "gridKey": "66635fc0ca7b22f4c3a2d743",
+    "id": "6a1610bebdf296985fd95603-66635fc0ca7b22f4c3a2d743",
+    "thumb": "https://provider-static.plex.tv/epg/cms/production/f9418a5d-f191-4b8a-bf3a-2eda3d2cd137/PLEX_CWFOREVER_UPDATEDLOGO_RDX.png",
+    "vcn": "000",
+    "Media": [
+     {
+      "drm": false,
+      "protocol": "hls",
+      "Part": [
+       {
+        "key": "/library/parts/6a1610bebdf296985fd95603-66635fc0ca7b22f4c3a2d743.m3u8"
+       }
+      ]
+     }
+    ],
+    "slug": "cw-forever"
+   },
+   {
+    "title": "Stories by AMC",
+    "gridKey": "5fc705e2a2236e002d69f3ba",
+    "id": "6a1610bebdf296985fd95603-5fc705e2a2236e002d69f3ba",
+    "thumb": "https://provider-static.plex.tv/d/epg/channels/logos/gracenote/dc11bbe6b65b5884a0af6702f6b61c61.png",
+    "vcn": "000",
+    "Media": [
+     {
+      "protocol": "hls",
+      "Part": [
+       {
+        "key": "/library/parts/6a1610bebdf296985fd95603-5fc705e2a2236e002d69f3ba.m3u8"
+       }
+      ]
+     }
+    ],
+    "slug": "stories-by-amc"
+   },
+   {
+    "title": "Locked Channel",
+    "gridKey": "6244cf3c742b0d58cd4f2514",
+    "id": "6a1610bebdf296985fd95603-6244cf3c742b0d58cd4f2514",
+    "thumb": "https://provider-static.plex.tv/epg/cms/production/29af70d1-d3ba-4a16-bc4d-bd99e7e7def4/hallmark-movies-and-more_color.png",
+    "vcn": "000",
+    "Media": [
+     {
+      "drm": true,
+      "protocol": "hls",
+      "Part": [
+       {
+        "key": "/library/parts/6a1610bebdf296985fd95603-6244cf3c742b0d58cd4f2514.m3u8"
+       }
+      ]
+     }
+    ],
+    "slug": "hallmark-movies-and-more"
+   }
+  ]
+ }
+}

@@ -1,0 +1,28 @@
+# Build and IDE state
+.gradle/
+.kotlin/
+**/build/
+.idea/
+*.iml
+# Runtime state and credentials
+/data/
+/deploy/data/
+/deploy/config/
+/deploy/sources.json
+secrets.json
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-shm
+*.db-wal
+*.key
+# Local OS files
+.DS_Store
+
+# Python acceptance-script caches
+__pycache__/
+*.py[cod]

@@ -1,0 +1,32 @@
+{
+ "data": [
+  {
+   "id": "program-Linear-1187-Non-Stop-Christmas-DRM-9416651-1791681728",
+   "title": "Merry Christmas, Ted Cooper!",
+   "description": "An unlucky weatherman, Ted, continues to see the glass half ",
+   "schedule": {
+    "startsAt": "2026-10-11T01:22:08Z",
+    "endsAt": "2026-10-11T02:51:26Z"
+   },
+   "display": {
+    "epg": {
+     "title": "Merry Christmas, Ted Cooper!"
+    }
+   }
+  },
+  {
+   "id": "program-Linear-1187-Non-Stop-Christmas-DRM-9416652-1791687086",
+   "title": "An Unexpected Christmas",
+   "description": "A speech writer makes a deal with his ex-girlfriend to prete",
+   "schedule": {
+    "startsAt": "2026-10-11T02:51:26Z",
+    "endsAt": "2026-10-11T04:20:39Z"
+   },
+   "display": {
+    "epg": {
+     "title": "An Unexpected Christmas"
+    }
+   }
+  }
+ ]
+}

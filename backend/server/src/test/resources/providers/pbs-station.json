@@ -1,0 +1,49 @@
+{
+ "stationData": {
+  "attributes": {
+   "call_sign": "KDIN",
+   "full_common_name": "Iowa PBS",
+   "timezone": "America/Chicago",
+   "images": [
+    {
+     "url": "https://image.pbs.org/stations/kdin-white-logo-1JUVLSE.png",
+     "profile": "white-logo"
+    },
+    {
+     "url": "https://image.pbs.org/stations/kdin-color-logo-oPnCcjN.png",
+     "profile": "color-logo"
+    }
+   ],
+   "livestream_feeds": [
+    {
+     "profile": "ga-main",
+     "cid": "76636aa7-e65e-4255-bcad-eefe05f73f8c",
+     "associated_tvss_feed": "9ccb1227-f038-4224-9340-afbf6f98dd3a",
+     "non_drm_url": "",
+     "drm_hls_url": "https://urs-anonymous-detect.pbs.org/redirect/dda5e061d9784e64a185dd76b2504bce/"
+    },
+    {
+     "profile": "ga-create",
+     "cid": "baebdfa9-279c-4eb7-bbb1-0ffcb2e121c6",
+     "associated_tvss_feed": "63c4db69-0bce-45ed-86c9-b016be29e297",
+     "non_drm_url": "BASE/pbs/ga-create/redirect/",
+     "drm_hls_url": ""
+    },
+    {
+     "profile": "ga-world",
+     "cid": "c9283b54-9db1-4543-b8cc-95f55ab775b1",
+     "associated_tvss_feed": "cd1278ff-b81f-415c-bfe8-151b6201692d",
+     "non_drm_url": "BASE/pbs/ga-world/redirect/",
+     "drm_hls_url": ""
+    },
+    {
+     "profile": "ga-fnx",
+     "cid": "6f4853be-b5ae-49b9-9d3a-8e43041d1c2a",
+     "associated_tvss_feed": null,
+     "non_drm_url": "",
+     "drm_hls_url": ""
+    }
+   ]
+  }
+ }
+}

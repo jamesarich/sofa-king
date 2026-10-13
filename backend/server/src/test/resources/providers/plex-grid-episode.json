@@ -1,0 +1,27 @@
+{
+ "MediaContainer": {
+  "size": 2,
+  "Metadata": [
+   {
+    "type": "episode",
+    "title": "We the People",
+    "grandparentTitle": "7th Heaven",
+    "parentIndex": 6,
+    "index": 12,
+    "contentRating": "TV-G",
+    "originallyAvailableAt": "2002-01-28",
+    "thumb": "https://provider-static.plex.tv/epg/images/thumb.jpg",
+    "Genre": [{ "tag": "Drama" }, { "tag": "Family" }],
+    "summary": "Mrs. Hinkle, Mary, Lucy, and even Matt and Shana lend a hand to their younger siblings with their paper route.",
+    "Media": [{ "beginsAt": 1791674876, "endsAt": 1791677986, "premiere": true }]
+   },
+   {
+    "type": "movie",
+    "title": "Sample Film",
+    "contentRating": "PG-13",
+    "year": 1999,
+    "Media": [{ "beginsAt": 1791677986, "endsAt": 1791681097 }]
+   }
+  ]
+ }
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv generator-info-name="TVApp2" source-info-name="TVApp2 EPG">
+  <channel id="10021">
+    <display-name>AMC</display-name>
+  </channel>
+  <programme start="20260714123443 -0500" stop="20260714131042 -0500" channel="10021">
+    <title lang="en">Bebefinn 2 - Ep6</title>
+    <desc lang="en">Explore a diverse range of sandwiches and burgers, each a delightful culinary adventure.</desc>
+  </programme>
+</tv>

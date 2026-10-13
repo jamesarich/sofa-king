@@ -1,0 +1,98 @@
+# Sofa King Backend
+
+Live TV, Sofa King good.
+
+Sofa King Backend is a self-hosted live TV server for a home network. It builds one channel lineup from free streaming services, M3U playlists and XMLTV guides, and serves it to Plex as an HDHomeRun tuner, to M3U and XMLTV players, and to the Sofa King Android TV app.
+
+## Why
+
+- **One container does the whole job.** Native clients for 17 free streaming (FAST) services sit beside an HDHomeRun emulation for Plex, so no separate playlist tool or tuner proxy is needed.
+- **The service clients run on your server.** Hosted FAST playlists have been taken down after DMCA notices. Here the server talks to the services itself; only Samsung TV Plus and The Roku Channel take their channel lists from a published mirror.
+- **One station per channel.** The same channel from several services becomes one station with the others as fallbacks. Channels whose names only roughly match are merged when their schedules agree, and kept apart otherwise.
+- **Numbers stay put.** Every number the server assigns is written back to the lineup policy file, so a channel keeps its number through rebuilds and on a new server.
+- **Failing sources step aside.** FFmpeg probes every source continuously, quarantines the ones that fail, and playback fails over to the next source, from any service.
+- **Plex stays in step.** The server saves Plex's channel maps itself, adds tuners Plex is missing, and splits a large lineup into devices of 250 channels, the size Plex can save.
+- **Easy to run.** An admin portal works from a phone browser, with or without JavaScript. A host can update itself from the published image, with a database backup and a rollback when the new image is unhealthy.
+
+## Features
+
+- Native clients for 17 free streaming services, with their guides ([providers](docs/providers.md))
+- M3U playlists and XMLTV guides, plain or gzip
+- A [lineup policy](docs/lineup-policy.md) file that rebuilds the same lineup on any server, with a preview before any change
+- Groups, stable numbers, logos, guide mapping and failover order, stored in SQLite
+- [Source health](docs/source-health.md) probes, quarantine and automatic failover between sources
+- HLS and MPEG-TS relayed through the server, and an MPEG-TS remux for Plex
+- M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
+- A logo cache, so every client loads logos from this server
+- A JSON API with a Kotlin client module ([API](docs/api.md))
+- An [admin portal](docs/admin.md) at `/admin` that shows what needs attention and edits channels, merges, groups and provider priority
+- A Docker image for `linux/amd64` and `linux/arm64`, with an SBOM and build provenance
+
+The server has no DVR of its own.
+
+## Clients
+
+Only Plex and the Sofa King app have been tested. The others speak the same HDHomeRun or M3U and XMLTV interfaces and should work. Replace `SERVER_HOST` with the server's LAN address and `OUTPUT_TOKEN` with `SOFA_OUTPUT_TOKEN`.
+
+| Client | Status | Connect with |
+| --- | --- | --- |
+| Plex Live TV & DVR | Tested | HDHomeRun at `SERVER_HOST:9193`, guide `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` ([Plex setup](docs/live-tv.md#plex-live-tv)) |
+| [Sofa King app](../app/README.md) | Tested | Server `http://SERVER_HOST:9193` and the API token |
+| Jellyfin, Emby | Should work, untested | HDHomeRun tuner at `http://SERVER_HOST:9193`, or an M3U tuner with the playlist below; the XMLTV guide below |
+| Channels DVR | Should work, untested | Custom channels source with the M3U playlist and XMLTV guide below |
+| TiviMate, Kodi (IPTV Simple Client) | Should work, untested | The M3U playlist and XMLTV guide below |
+| VLC | Should work, untested | Open the M3U playlist as a network stream; VLC shows no guide |
+
+```text
+http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN
+http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN
+```
+
+The HDHomeRun routes admit only the addresses in `SOFA_HDHR_ALLOW`, so list every client that uses them. [Player outputs](docs/live-tv.md#third-party-players) has the details.
+
+## Quick start
+
+With Docker and JDK 21, from `backend/`:
+
+```sh
+./gradlew :server:installDist
+mkdir -p deploy/config
+cd deploy && docker compose up -d --build
+docker compose exec sofa-king-backend cat /config/secrets.json
+```
+
+Open `http://SERVER_HOST:9193/admin` and sign in with the `adminToken` from that file. A new server has no channels until you add a `sources.json` and a lineup policy to `deploy/config`. [Getting started](docs/getting-started.md) walks from here to watching a channel. [Deploy with Docker](docs/deploy.md) covers the config folder, secrets, reverse proxies, the published image and automatic updates.
+
+To run without Docker, see [development](docs/development.md#run-without-docker).
+
+## Documentation
+
+The [documentation index](docs/README.md) lists every page. The most used are:
+
+- [Getting started](docs/getting-started.md)
+- [Deploy with Docker](docs/deploy.md)
+- [Build a starter lineup](docs/starter-lineup.md)
+- [Live TV: configuration, lineup and sources](docs/live-tv.md)
+- [Troubleshooting and FAQ](docs/troubleshooting.md)
+- [Lineup policy](docs/lineup-policy.md)
+- [HTTP API](docs/api.md)
+
+## Contributing
+
+Build and test with `./gradlew test`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the commit conventions, the test scripts and how to add a native provider.
+
+## Security
+
+[SECURITY.md](SECURITY.md) describes which token opens which routes, the request limits, the outbound address policy, and how to report a vulnerability.
+
+## Limitations
+
+- Plex reaches the HDHomeRun emulation by address only. SSDP discovery is not implemented.
+- The HDHomeRun remux of an HLS source carries one video stream and one audio stream.
+- The native providers are unofficial clients of public service endpoints. They stop working when a service changes them.
+- DRM channels are skipped by the native providers. M3U playlists are not filtered for DRM.
+- The repository and its image are private. Pulling the image needs access to the package.
+
+## License
+
+Licensed under the GNU General Public License v3.0.

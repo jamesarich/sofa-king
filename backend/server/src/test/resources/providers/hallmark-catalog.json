@@ -1,0 +1,72 @@
+{
+ "data": [
+  {
+   "id": "Linear-1187-Non-Stop-Christmas-DRM",
+   "title": "Non-Stop Christmas",
+   "extras": {
+    "channelIdentifier": "HLIVE_NSC"
+   },
+   "images": {
+    "logo": {
+     "landscape": [
+      {
+       "label": "channelImage",
+       "url": "https://097d0e9f.customer.static.core.one.accedo.tv/097d0e9f2de0f04b/image/item/Linear-1187-Non-Stop-Christmas-DRM/logo/landscape/channelimage?locale=en&one_etagHash=eced6ce0"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "Linear-1543-Non-Stop-Hallmark-Hits-DRM",
+   "title": "Non-Stop Hallmark Hits",
+   "extras": {
+    "channelIdentifier": "HLIVE_HMH"
+   },
+   "images": {
+    "logo": {
+     "landscape": [
+      {
+       "label": "channelImage",
+       "url": "https://097d0e9f.customer.static.core.one.accedo.tv/097d0e9f2de0f04b/image/item/Linear-1543-Non-Stop-Hallmark-Hits-DRM/logo/landscape/channelimage?locale=en&one_etagHash=105a41f6"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "Linear-1186-Non-Stop-Mysteries-DRM",
+   "title": "Non-Stop Mysteries",
+   "extras": {
+    "channelIdentifier": "HLIVE_MSM"
+   },
+   "images": {
+    "logo": {
+     "landscape": [
+      {
+       "label": "channelImage",
+       "url": "https://097d0e9f.customer.static.core.one.accedo.tv/097d0e9f2de0f04b/image/item/Linear-1186-Non-Stop-Mysteries-DRM/logo/landscape/channelimage?locale=en&one_etagHash=016dea50"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "Linear-1268-Non-Stop-RomComs-DRM",
+   "title": "Non-Stop Rom-Coms",
+   "extras": {
+    "channelIdentifier": "HLIVE_ROMCOM"
+   },
+   "images": {
+    "logo": {
+     "landscape": [
+      {
+       "label": "channelImage",
+       "url": "https://097d0e9f.customer.static.core.one.accedo.tv/097d0e9f2de0f04b/image/item/Linear-1268-Non-Stop-RomComs-DRM/logo/landscape/channelimage?locale=en&one_etagHash=9f6b665b"
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,14 @@
+{
+ "refresh": {
+  "from": 1,
+  "to": 2
+ },
+ "assets": [
+  {
+   "id": "XMDAMQQZCXH730",
+   "type": "Asset",
+   "live": true
+  }
+ ],
+ "ssaiStreamUrl": "BASE/xumo/10001/99951481/hls/playlist.m3u8?ads.xumo_channelId=99951481&ads.csid=xumo_[PLATFORM]_ssai&ads._fw_did=[IFA]&ads._fw_is_lat=[IS_LAT]&ads.lat=[LAT]&ads._fw_us_privacy=[CCPA_Value]"
+}

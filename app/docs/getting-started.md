@@ -6,7 +6,7 @@ Replace `SERVER_HOST` with the server's LAN address. The server answers on port 
 
 ## What you need
 
-- A [Sofa King server](https://github.com/jamesarich/sofa-king-backend) on your network with a lineup. Its [getting started](https://github.com/jamesarich/sofa-king-backend/blob/main/docs/getting-started.md) goes from an empty folder to a lineup.
+- A [Sofa King server](../../backend/README.md) on your network with a lineup. Its [getting started](../../backend/docs/getting-started.md) goes from an empty folder to a lineup.
 - The server's API token, `apiToken` in its `secrets.json`. A server bound to loopback may run without one.
 - One of the devices in the [platforms table](../README.md#platforms).
 

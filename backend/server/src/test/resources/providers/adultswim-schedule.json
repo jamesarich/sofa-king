@@ -1,0 +1,24 @@
+{
+ "status": "ok",
+ "timestamp": 1791686395156,
+ "data": [
+  {
+   "time": 1791686306519,
+   "startTime": "2026-10-11T02:38:26.519Z",
+   "duration": 1274.573,
+   "titleId": "2206491",
+   "name": "Promortyus",
+   "seriesId": "2013506",
+   "seriesName": "Rick and Morty"
+  },
+  {
+   "time": 1791687956462,
+   "startTime": "2026-10-11T03:05:56.462Z",
+   "duration": 1355.654,
+   "titleId": "2206493",
+   "name": "The Vat of Acid Episode",
+   "seriesId": "2013506",
+   "seriesName": "Rick and Morty"
+  }
+ ]
+}

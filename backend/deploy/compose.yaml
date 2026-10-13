@@ -1,0 +1,58 @@
+name: sofa-king-backend
+
+services:
+  sofa-king-backend:
+    image: sofa-king-backend:local
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        REVISION: ${REVISION:-unknown}
+    container_name: sofa-king-backend
+    restart: unless-stopped
+    # Runs as the owner of ./config. 1000:1000 is the first user on most Linux hosts; otherwise set UID and GID
+    # in .env to the output of `id -u` and `id -g`.
+    user: "${UID:-1000}:${GID:-1000}"
+    # The server writes only /config and temporary files.
+    read_only: true
+    # exec: sqlite-jdbc loads its native library from the temporary directory.
+    tmpfs:
+      - /tmp:size=64m,exec
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # The heap is 75% of this limit; without one the JVM sizes it from the whole host.
+    mem_limit: 4g
+    pids_limit: 1024
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    ports:
+      - "9193:8080"
+      # One more HDHomeRun device per port listed in SOFA_HDHR_EXTRA_PORTS, see docs/live-tv.md#several-devices-for-a-large-lineup.
+      # - "8081:8081"
+      # - "8082:8082"
+    # Every variable in .env reaches the server, so ${NAME} references in sources.json resolve from it.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # The HDHomeRun emulation for Plex stays off until .env sets SOFA_HDHR_ENABLED=true with SOFA_HDHR_ALLOW.
+      SOFA_HDHR_ENABLED: ${SOFA_HDHR_ENABLED:-false}
+    volumes:
+      # The database, the logo cache, the generated tokens, and sources.json and policy.json when you add them.
+      - ./config:/config
+    extra_hosts:
+      # Lets sources.json reach a feed served by this Docker host as http://host.docker.internal:PORT/...
+      - "host.docker.internal:host-gateway"
+    stop_grace_period: 20s
+    # A Homepage dashboard entry, see docs/deploy.md#homepage-dashboard.
+    # labels:
+    #   homepage.group: Media
+    #   homepage.name: Sofa King
+    #   homepage.icon: mdi-television-classic
+    #   homepage.href: https://tv.example.com/admin
+    #   homepage.description: Live TV

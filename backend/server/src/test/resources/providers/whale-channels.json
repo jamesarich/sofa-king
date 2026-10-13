@@ -1,0 +1,67 @@
+{
+ "errorCode": "0",
+ "errorMsg": "ok",
+ "timestamp": "1791686207516",
+ "data": [
+  {
+   "ctgName": "All",
+   "channels": [
+    {
+     "chlId": "523509741847643710",
+     "chlName": "WatchMojo",
+     "chlNum": "0105",
+     "chlUrl": "BASE/whale/master.m3u8?did=[did]&sid=[session_id]&cb=[cachebuster]&ua=[%user_agent%]&dnt=[dnt]",
+     "imageIdentifier": "watchmojo",
+     "chlLangCode": "en",
+     "description": "fixture"
+    },
+    {
+     "chlId": "956148002287389583",
+     "chlName": "Tasty",
+     "chlNum": "0410",
+     "chlUrl": "BASE/whale/other.m3u8?did=[did]&cb=[cachebuster]",
+     "imageIdentifier": "tasty",
+     "chlLangCode": "en",
+     "description": "fixture"
+    },
+    {
+     "chlId": "910027172377794537",
+     "chlName": "INTRAVEL",
+     "chlNum": "0303",
+     "chlUrl": "BASE/whale/third.m3u8?did=[did]",
+     "imageIdentifier": "intravel",
+     "chlLangCode": "en",
+     "description": "fixture"
+    }
+   ]
+  },
+  {
+   "ctgName": "News",
+   "channels": [
+    {
+     "chlId": "523509741847643710",
+     "chlName": "WatchMojo",
+     "chlNum": "0105",
+     "chlUrl": "BASE/whale/master.m3u8?did=[did]&sid=[session_id]&cb=[cachebuster]&ua=[%user_agent%]&dnt=[dnt]",
+     "imageIdentifier": "watchmojo",
+     "chlLangCode": "en",
+     "description": "fixture"
+    }
+   ]
+  },
+  {
+   "ctgName": "Sports",
+   "channels": [
+    {
+     "chlId": "910027172377794537",
+     "chlName": "INTRAVEL",
+     "chlNum": "0303",
+     "chlUrl": "BASE/whale/third.m3u8?did=[did]",
+     "imageIdentifier": "intravel",
+     "chlLangCode": "en",
+     "description": "fixture"
+    }
+   ]
+  }
+ ]
+}

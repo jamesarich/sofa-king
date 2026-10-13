@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv generator-info-name="TVApp2" source-info-name="TVApp2 EPG">
+  <channel id="111871">
+    <display-name>ACC</display-name>
+    <display-name>ACC</display-name>
+    <display-name>612</display-name>
+  </channel>
+  <channel id="10021">
+    <display-name>AMC</display-name>
+    <display-name>AMC</display-name>
+    <display-name>254</display-name>
+  </channel>
+  <programme start="20260714123443 -0500" stop="20260714131042 -0500" channel="111871">
+    <title lang="en">Meet China: Turning Villages into Stages, Taking Creativity to the World</title>
+    <desc lang="en">In this episode of Meet China, we step into the frontlines of rural revitalization.</desc>
+    <category lang="en">Business</category>
+  </programme>
+  <programme start="20260714131042 -0500" stop="20260714134845 -0500" channel="10021">
+    <title lang="en">Biztalk Special Coverage on AI EP3</title>
+    <desc lang="en">The Token Economy
+Demand for AI tokens is surging.</desc>
+  </programme>
+</tv>

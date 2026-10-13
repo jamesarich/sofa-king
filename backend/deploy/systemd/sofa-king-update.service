@@ -1,0 +1,11 @@
+[Unit]
+Description=Update the Sofa King server from its published image
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# The directory with compose.yaml, .env and config/.
+Environment=SOFA_UPDATE_DIR=/srv/sofa-king-backend
+ExecStart=/srv/sofa-king-backend/sofa-king-update.sh

@@ -1,0 +1,68 @@
+name: Native provider broken
+description: A built-in streaming service client lists no channels, fails to import, or its channels do not play.
+labels: [provider]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The native providers are unofficial clients of each service's public endpoints, and they break when a service changes them.
+        [When a native provider breaks](https://github.com/jamesarich/sofa-king/blob/main/backend/docs/operations.md#when-a-native-provider-breaks) has the steps to check one.
+  - type: dropdown
+    id: service
+    attributes:
+      label: Service
+      options:
+        - whale
+        - vizio
+        - lg
+        - freelivesports
+        - hallmark
+        - ballysports
+        - adultswim
+        - pbs
+        - samsung
+        - plex
+        - stirr
+        - tcl
+        - roku
+        - localnow
+        - xumo
+        - pluto
+        - tubi
+    validations:
+      required: true
+  - type: textarea
+    id: symptom
+    attributes:
+      label: What fails
+      description: No channels, `IMPORT_FAILED`, `502 UPSTREAM_UNAVAILABLE` on play, a missing guide, or something else. Say when it started.
+    validations:
+      required: true
+  - type: textarea
+    id: smoke
+    attributes:
+      label: Provider check output
+      description: |
+        The output of `python3 scripts/provider-smoke.py --service NAME` from a checkout with `./gradlew :server:installDist` built. Add `--option key=value` for the options your source file sets.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Provider status
+      description: The service's entry from `GET /api/v1/providers`, and its log lines, with tokens and URLs removed.
+      render: text
+  - type: input
+    id: revision
+    attributes:
+      label: Image revision
+      description: |
+        The output of `docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' sofa-king-backend`, or the commit you built from.
+    validations:
+      required: true
+  - type: input
+    id: region
+    attributes:
+      label: Server location
+      description: The country the server runs in, and the options it sets, such as `region`, `zip`, `dma` or `market`. Services answer differently by location.

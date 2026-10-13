@@ -1,0 +1,26 @@
+{
+ "data": [
+  {
+   "channelId": "673247127d5da5000817b4d6",
+   "channelSlug": "pluto-tv-trending-now",
+   "timelines": [
+    {
+     "start": "2026-10-11T03:30:00.000Z",
+     "stop": "2026-10-11T05:30:00.000Z",
+     "title": "John Tucker Must Die",
+     "episode": {
+      "description": "Cheerleaders use a newcomer to exact revenge on their cheating boyfriend."
+     }
+    },
+    {
+     "start": "2026-10-11T05:30:00.000Z",
+     "stop": "2026-10-11T07:30:00.000Z",
+     "title": "Mean Girls",
+     "episode": {
+      "description": "Cady thinks she understands \"survival of the fittest.\" However, the law of the wild takes on a whole new meaning when the homeschooled 15-year-old enters public high school for the first time."
+     }
+    }
+   ]
+  }
+ ]
+}

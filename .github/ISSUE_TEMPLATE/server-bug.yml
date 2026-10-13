@@ -1,0 +1,68 @@
+name: Server bug report
+description: The server does something the documentation says it should not, or fails to do what it says.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report security problems privately, as [SECURITY.md](https://github.com/jamesarich/sofa-king/blob/main/SECURITY.md) describes, not here.
+        Remove tokens, provider URLs with credentials and private addresses from everything you paste.
+        [Troubleshooting](https://github.com/jamesarich/sofa-king/blob/main/backend/docs/troubleshooting.md) covers the common problems.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: input
+    id: revision
+    attributes:
+      label: Image revision
+      description: |
+        The output of `docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' sofa-king-backend`, or the commit you built from.
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: Client
+      description: Where you saw the problem.
+      options:
+        - Plex
+        - Sofa King Android TV app
+        - An M3U or XMLTV player
+        - Jellyfin or Emby
+        - Admin portal
+        - HTTP API
+        - Server startup or logs
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: client-version
+    attributes:
+      label: Client name and version
+      description: For example Plex Media Server 1.41 on Linux, or TiviMate 5.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        The server log around the problem, from `docker compose logs --tail 200 sofa-king-backend`, with tokens and URLs removed. Include the `X-Request-Id` of a failing request when you have it.
+      render: text
+  - type: checkboxes
+    id: redacted
+    attributes:
+      label: Redaction
+      options:
+        - label: I removed tokens, provider URLs with credentials and private addresses.
+          required: true

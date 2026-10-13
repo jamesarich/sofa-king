@@ -1,0 +1,38 @@
+{
+ "data": [
+  {
+   "channelId": "673247127d5da5000817b4d6",
+   "timelines": [
+    {
+     "start": "2026-10-11T03:30:00.000Z",
+     "stop": "2026-10-11T04:00:00.000Z",
+     "title": "Sample Series",
+     "episode": {
+      "name": "The Sample Episode",
+      "number": 5,
+      "season": 2,
+      "description": "Something happens.",
+      "genre": "Comedy",
+      "subGenre": "Sitcoms",
+      "rating": "TV-14",
+      "poster": { "path": "https://images.pluto.tv/episodes/sample/poster.jpg" },
+      "series": { "type": "tv" }
+     }
+    },
+    {
+     "start": "2026-10-11T04:00:00.000Z",
+     "stop": "2026-10-11T06:00:00.000Z",
+     "title": "Sample Film",
+     "episode": {
+      "name": "Sample Film",
+      "number": 1,
+      "season": 1,
+      "genre": "Drama",
+      "rating": "Not Rated",
+      "series": { "type": "film" }
+     }
+    }
+   ]
+  }
+ ]
+}

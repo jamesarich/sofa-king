@@ -1,0 +1,78 @@
+package dev.jamesrich.sofaking.backend.http
+
+import dev.jamesrich.sofaking.backend.store.openStore
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.server.routing.*
+import io.ktor.server.response.*
+import io.ktor.server.testing.ApplicationTestBuilder
+import io.ktor.server.testing.testApplication
+import java.nio.file.Files
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
+import kotlin.test.*
+
+class AuthPathTest {
+    private val apiToken = "api".repeat(12)
+    private val adminToken = "admin".repeat(8)
+
+    @Test fun `token guard decides on the path routing resolves`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-auth-path-")
+        val store = openStore(dir)
+        try {
+            application {
+                backendModule(store, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), apiToken = apiToken, adminToken = adminToken)
+                routing {
+                    get("/api/v1/channels") { call.respondText("channels") }
+                    get("/api/v1/admin/sessions") { call.respondText("sessions") }
+                }
+            }
+            for (path in listOf("//api/v1/channels", "/%61pi/v1/channels", "/api//v1/channels", "/api/v1/channels/")) {
+                assertEquals(HttpStatusCode.Unauthorized, raw(path).status, "no token: $path")
+                assertEquals(HttpStatusCode.Unauthorized, raw(path, apiToken.reversed()).status, "wrong token: $path")
+            }
+            for (path in listOf("//api/v1/admin/sessions", "/%61pi/v1/admin/sessions", "/api//v1/admin/sessions", "/api/v1/%61dmin/sessions")) {
+                assertEquals(HttpStatusCode.Unauthorized, raw(path).status, "no token: $path")
+            }
+            assertEquals(HttpStatusCode.Unauthorized, raw("/api/v1/%61dmin/sessions", apiToken).status, "API token on admin route")
+            assertEquals(HttpStatusCode.Unauthorized, raw("//api/v1/admin/sessions", apiToken).status, "API token on admin route")
+        } finally { store.close(); dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `authorized requests reach their handlers under any spelling`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-auth-path-")
+        val store = openStore(dir)
+        try {
+            application {
+                backendModule(store, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), apiToken = apiToken, adminToken = adminToken)
+                routing {
+                    get("/api/v1/channels") { call.respondText("channels") }
+                    get("/api/v1/admin/sessions") { call.respondText("sessions") }
+                }
+            }
+            assertEquals(HttpStatusCode.OK, raw("/api/v1/bootstrap", apiToken).status)
+            assertEquals("channels", raw("/api/v1/channels", apiToken).bodyAsText())
+            assertEquals("channels", raw("//api/v1/channels", apiToken).bodyAsText())
+            assertEquals("sessions", raw("/api/v1/admin/sessions", adminToken).bodyAsText())
+            assertEquals("sessions", raw("//api/v1/admin/sessions", adminToken).bodyAsText())
+            assertEquals("sessions", raw("/api/v1/%61dmin/sessions", adminToken).bodyAsText())
+        } finally { store.close(); dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `segments that are dot segments or contain a slash are rejected`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-auth-path-")
+        val store = openStore(dir)
+        try {
+            application { backendModule(store, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), apiToken = apiToken, adminToken = adminToken) }
+            for (path in listOf("/api/v1/%2e%2e/channels", "/api/v1/./channels", "/api/v1/%2e/channels", "/api/v1/%2Fchannels", "/api/v1/%2F%2Fchannels")) {
+                assertEquals(HttpStatusCode.BadRequest, raw(path, apiToken).status, "$path")
+                assertEquals(HttpStatusCode.BadRequest, raw(path).status, "no token: $path")
+            }
+        } finally { store.close(); dir.toFile().deleteRecursively() }
+    }
+
+    private suspend fun ApplicationTestBuilder.raw(path: String, token: String? = null): HttpResponse =
+        client.get { url { encodedPath = path }; token?.let { bearerAuth(it) } }
+}

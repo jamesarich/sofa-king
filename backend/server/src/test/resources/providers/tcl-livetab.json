@@ -1,0 +1,21 @@
+{
+ "id": "1",
+ "name": "Live",
+ "lines": [
+  {
+   "id": "640822369446794325",
+   "name": "Recommended for You",
+   "type": "recommend"
+  },
+  {
+   "id": "640822369463571541",
+   "name": "TCL TOP 15",
+   "type": "programmable"
+  },
+  {
+   "id": "640822369463833685",
+   "name": "News & Opinion",
+   "type": "programmable"
+  }
+ ]
+}

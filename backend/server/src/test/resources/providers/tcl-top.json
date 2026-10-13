@@ -1,0 +1,34 @@
+{
+ "category": "TCL TOP 15",
+ "category_id": "640822369463571541",
+ "channels": [
+  {
+   "id": "531294409996639766",
+   "name": "CBS News 24/7",
+   "bundle_id": "CB502647",
+   "source": "CBS",
+   "media": "https://dai.google.com/linear/hls/event/Sid4xiTQTkCT1SLu6rjUSQ/master.m3u8?imafw__fw_app_bundle=%5BAPP+ID%5D&imafw__fw_did=%5Bidtype%3AdeviceID%5D&imafw__fw_is_lat=%5BLIMITED+AD+TRACKING%5D&imafw__fw_us_privacy=%5BCCPA+STRING%5D&imafw__fw_vcid2=%5Bunique_identifier%5D&imafw_csid=%5BSITE+SECTION%5D&is_lat=%5BLIMITED+AD+TRACKING%5D",
+   "drm": null,
+   "logo_color": null,
+   "genre": [
+    "News"
+   ],
+   "programs": [],
+   "logo_white": null
+  },
+  {
+   "id": "511838947937102197",
+   "name": "Noticias Telemundo Ahora",
+   "bundle_id": "XU431754",
+   "source": "Xumo",
+   "media": "https://d3f4oii5n0oeqi.cloudfront.net/11701/88814626/hls/master.m3u8?includeAssetTags=true&ads.xumo_channelId=88814626&ads.xumo_streamId=88814626&declaredCC1Language=en&ads.caid=TelemundoNoticiasAhora&ads.csid=tcl2_us_telemundonoticiasahora_ssai&ads.xumo_ifaType=%5BIFA_TYPE%5D&ads.xumo_ifa=%5BIFA%5D&ads.appName=%5BAPP_NAME%5D&ads.appVersion=%5BAPP_VERSION%5D&ads._fw_app_bundle=%5BTCL_APP_BUNDLE%5D&ads.genre=News&ads._fw_content_category=IAB1-7&ads._fw_content_genre=news&ads._fw_content_language=es&ads._fw_content_rating=tv-pg&ads._fw_deviceMake=%5BDEVICE_MAKE%5D&ads._fw_device_model=%5BDEVICE_MODEL%5D&ads._fw_devicetype=3-Connected_TV&ads._fw_coppa=0&ads._fw_is_lat=%5BLMT%5D&ads._fw_us_privacy=%5BUS_PRIVACY%5D&ads._fw_h_x_country=US&ads._fw_player_width=%5BPLAYER_WIDTH%5D&ads._fw_player_height=%5BPLAYER_HEIGHT%5D&ads.xumo_contentId=3944&ads.xumo_contentName=TelemundoNoticiasAhora&ads.xumo_providerId=3944&ads.xumo_providerName=TelemundoNoticiasAhora&ads.xumo_channelName=TelemundoNoticiasAhora&ads._fw_app_store_url=%5BTCL_APP_STORE_URL%5D",
+   "drm": null,
+   "logo_color": "/static/channel/XU431754/1715117308033627629-logo_color.png",
+   "genre": [
+    "News",
+    "Espanol"
+   ],
+   "programs": []
+  }
+ ]
+}

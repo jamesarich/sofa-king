@@ -1,0 +1,17 @@
+{
+ "id": "XM1YMKFW9XMSV6",
+ "providers": [
+  {
+   "sources": [
+    {
+     "produces": "application/dash+xml",
+     "uri": "BASE/xumo/locked.mpd"
+    },
+    {
+     "produces": "application/x-mpegURL",
+     "uri": "BASE/xumo/10001/99991635/hls/playlist.m3u8?ads.xumo_channelId=99991635&ads._fw_did=[IFA]&ads.amznappId=[AMZN_APP_ID]&ads.genre=Reality‑TV,Reality Shows"
+    }
+   ]
+  }
+ ]
+}

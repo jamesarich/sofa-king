@@ -13,7 +13,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.URLBuilder
-import io.ktor.http.encodedPath
 import io.ktor.http.Url
 import io.ktor.http.appendPathSegments
 import io.ktor.http.content.TextContent
@@ -87,18 +86,11 @@ class SofaKingApi(
         throw IOException("Unusable media URL", e)
     }
 
-    /**
-     * A logo the server serves, under `/logos/`, on this client's base address: the server names its own host
-     * from the request, which is wrong behind a proxy and plain HTTP under an HTTPS page. Other URLs pass through.
-     */
-    internal fun logoUrl(raw: String): String? {
-        val url = try {
-            Url(raw)
-        } catch (_: IllegalArgumentException) {
-            return null
-        }
-        if (!url.encodedPath.startsWith("/logos/")) return raw
-        return URLBuilder(base).apply { encodedPath = base.encodedPath.trimEnd('/') + url.encodedPath }.buildString()
+    /** A channel logo resolved against the server address, as media URLs are; null when it cannot be resolved. */
+    internal fun logoUrl(raw: String): String? = try {
+        URLBuilder(base).takeFrom(raw).buildString()
+    } catch (_: IllegalArgumentException) {
+        null
     }
 
     private fun endpoint(vararg segments: String): Url =

@@ -68,7 +68,7 @@ Build and test with the command in [development](docs/development.md#build-and-t
 
 - The app does not discover the server. Enter its address by hand.
 - iOS and the web play HLS channels only; MPEG-TS needs Android or a desktop.
-- The desktop app needs VLC 3 installed.
+- The desktop app needs VLC 3. The `.deb` installs it through apt; on macOS and Windows install it first.
 - The web app needs a server that lists its origin in `SOFA_CORS_ORIGINS`, or a reverse proxy that serves it from the server's origin.
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
 - There is no recording and no background playback. Playback stops when the app leaves the screen.

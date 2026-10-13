@@ -53,7 +53,7 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 
 | Symptom | Check |
 | --- | --- |
-| Can't play this channel, on a desktop, for every channel | Install VLC 3; the desktop app plays through libVLC. |
+| `VLC_NOT_INSTALLED` on a desktop | The desktop app plays through libVLC. Install VLC 3 (`sudo apt install vlc` on Ubuntu or Debian; a `.deb` installed with `apt install` brings it along), then restart the app. |
 | This stream format isn't supported, on iOS or the web | The channel streams MPEG-TS, which AVPlayer and browsers do not play. Those platforms play HLS channels. |
 | No sound when the web app opens a channel | The browser blocks sound until you interact with the page. Press any key or click, and the sound comes on. |
 | No captions, in Chrome | Chrome's built-in HLS player exposes no caption tracks. Safari exposes the stream's CEA-608 captions. |

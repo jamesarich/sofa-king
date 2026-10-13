@@ -38,7 +38,7 @@ body:
       description: Where you saw the problem.
       options:
         - Plex
-        - Sofa King Android TV app
+        - Sofa King app
         - An M3U or XMLTV player
         - Jellyfin or Emby
         - Admin portal

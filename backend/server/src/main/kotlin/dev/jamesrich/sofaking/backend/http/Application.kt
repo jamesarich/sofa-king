@@ -185,7 +185,7 @@ fun Application.backendModule(
         if (runtime != null) {
             get("/api/v1/channels") {
                 // The revision is cheap; the body is not, so answer a matching If-None-Match before building it.
-                // Logos are server-relative, so a client behind any proxy or path prefix resolves them on its own base URL.
+                // Logos are server-relative, so a client behind any proxy resolves them on its own base URL.
                 val revision = runtime.catalog.catalogRevision()
                 val etag = "\"${hash(revision)}\""
                 call.response.header(HttpHeaders.ETag, etag)

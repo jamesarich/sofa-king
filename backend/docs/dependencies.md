@@ -25,7 +25,7 @@ The [admin portal](admin.md) serves htmx from `server/src/main/resources/admin/h
 
 ## Changing versions
 
-[Renovate](../renovate.json) proposes updates for the version catalog, the Gradle wrapper, the Dockerfile base images, Compose and the workflow actions, pinning images and actions by digest. It follows Kotlin, kotlinx.serialization and kotlinx.coroutines prereleases, as the dependency policy in `AGENTS.md` asks; Ktor follows releases, matching the app. Its Gradle manager rewrites the lockfiles and the verification metadata in the same pull request and runs a weekly lock file maintenance. By hand:
+[Renovate](../../renovate.json) proposes updates for the version catalog, the Gradle wrapper, the Dockerfile base images, Compose and the workflow actions, pinning images and actions by digest. It follows Kotlin, kotlinx.serialization and kotlinx.coroutines prereleases, as the dependency policy in `AGENTS.md` asks; Ktor follows releases, matching the app. Its Gradle manager rewrites the lockfiles and the verification metadata in the same pull request and runs a weekly lock file maintenance. By hand:
 
 1. Update the exact versions in [the version catalog](../gradle/libs.versions.toml).
 2. Run the build with `--write-locks` and review the lockfile changes.

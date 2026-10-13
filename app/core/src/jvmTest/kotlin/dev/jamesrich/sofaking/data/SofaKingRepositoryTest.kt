@@ -50,7 +50,7 @@ class SofaKingRepositoryTest {
                     }
                     val ids = Json.parseToJsonElement(body).jsonObject["channelIds"]!!.jsonArray.map { it.jsonPrimitive.content }
                     val channels = ids.joinToString(",") { id ->
-                        """{"channelId":"$id","status":"current","programmes":[{"id":"p-$id","channelId":"$id","startsAt":"2026-10-10T10:00:00Z","endsAt":"2026-10-10T11:00:00Z","title":"Show $id"}]}"""
+                        """{"channelId":"$id","status":"available","programmes":[{"id":"p-$id","channelId":"$id","startsAt":"2026-10-10T10:00:00Z","endsAt":"2026-10-10T11:00:00Z","title":"Show $id"}]}"""
                     }
                     json("""{"revision":"$guideRevision","from":"x","to":"y","channels":[$channels]}""")
                 }

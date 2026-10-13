@@ -33,6 +33,8 @@ The server's [README](../README.md) introduces it, beside its [CONTRIBUTING](../
 
 ## Glossary
 
+Terms the server shares with the app are also in the [repository glossary](../../docs/README.md#glossary).
+
 | Term | Meaning |
 | --- | --- |
 | Provider | One entry in `sources.json`: an M3U playlist, or a native client for one free streaming service. Each has an ID, such as `pluto` |

@@ -79,9 +79,9 @@ The app holds one `LivePlayer`. Preview and full-screen playback share it, so op
 | Android | Media3 ExoPlayer | MPEG-TS, HLS | CEA-608/708, drawn by the app with per-channel timing | MediaSession |
 | Desktop | libVLC through vlcj | MPEG-TS, HLS | Drawn into the picture by libVLC | None |
 | iOS | AVPlayer | HLS | Drawn by AVPlayerLayer in the iOS caption style | Now Playing and remote commands |
-| Web | `<video>`, drawn into the Compose canvas through WebGL | HLS where the browser plays it natively | The browser's in-band text tracks, drawn by the app | Page title |
+| Web | `<video>`, drawn into the Compose canvas through WebGL | HLS where the browser plays it natively | The browser's in-band text tracks, drawn by the app; Safari exposes CEA-608, Chrome's built-in HLS exposes none | Page title |
 
-On the web the `<video>` element stays out of the page: each decoded frame is copied into a `WebGLRenderTarget` texture and drawn as a Compose image, so overlays draw over the picture. Without WebGL2, or when a cross-origin server sends no CORS headers on media, the player falls back to an HTML element view, which Compose stacks above its canvas and so hides the full-screen overlays.
+On the web the `<video>` element stays out of the page: each decoded frame is uploaded into a texture of its own size and blitted into a `WebGLRenderTarget`, which draws as a Compose image, so overlays draw over the picture. Browsers refuse autoplay with sound before a user gesture; the player then plays muted and restores the sound on the first key or pointer press. Without WebGL2, or when a cross-origin server sends no CORS headers on media, the player falls back to an HTML element view, which Compose stacks above its canvas and so hides the full-screen overlays.
 
 `LivePlayer` exposes state as flows (`status`, `errors`, `cues`), so screens collect them instead of registering listeners. A desktop without libVLC gets a player whose every prepare fails with `VLC_NOT_INSTALLED`, so the screens show their failure cards and the rest of the app works.
 

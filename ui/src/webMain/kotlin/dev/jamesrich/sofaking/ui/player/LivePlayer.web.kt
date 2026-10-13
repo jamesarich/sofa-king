@@ -37,6 +37,7 @@ import org.khronos.webgl.WebGLRenderingContext.Companion.CLAMP_TO_EDGE
 import org.khronos.webgl.WebGLRenderingContext.Companion.COLOR_ATTACHMENT0
 import org.khronos.webgl.WebGLRenderingContext.Companion.COLOR_BUFFER_BIT
 import org.khronos.webgl.WebGLRenderingContext.Companion.FRAMEBUFFER
+import org.khronos.webgl.WebGLRenderingContext.Companion.FRAMEBUFFER_COMPLETE
 import org.khronos.webgl.WebGLRenderingContext.Companion.LINEAR
 import org.khronos.webgl.WebGLRenderingContext.Companion.RGBA
 import org.khronos.webgl.WebGLRenderingContext.Companion.TEXTURE_2D
@@ -233,7 +234,9 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
                     if (time == shown && size == shownSize) continue
                     if (video.readyState < HAVE_CURRENT_DATA || video.videoWidth == 0 || video.videoHeight == 0) continue
                     try {
-                        if (target.render { frames.draw(video, target) }) {
+                        var drawn = false
+                        target.render { drawn = frames.draw(video, target) }
+                        if (drawn) {
                             shown = time
                             shownSize = size
                         }
@@ -333,7 +336,8 @@ private class VideoFrames(private val gl: WebGLRenderingContext) {
     private var texture: WebGLTexture? = null
     private var source: WebGLFramebuffer? = null
 
-    fun draw(video: HTMLVideoElement, target: WebGLRenderTarget) {
+    /** Returns false, drawing nothing, while the browser has no frame to hand over yet. */
+    fun draw(video: HTMLVideoElement, target: WebGLRenderTarget): Boolean {
         val texture = texture ?: createTexture().also { texture = it }
         gl.bindTexture(TEXTURE_2D, texture)
         gl.texImage2D(TEXTURE_2D, 0, RGBA, RGBA, UNSIGNED_BYTE, video)
@@ -344,6 +348,10 @@ private class VideoFrames(private val gl: WebGLRenderingContext) {
             source = fb
         }
         gl.bindFramebuffer(READ_FRAMEBUFFER, source)
+        if (gl.checkFramebufferStatus(READ_FRAMEBUFFER) != FRAMEBUFFER_COMPLETE) {
+            gl.bindFramebuffer(FRAMEBUFFER, target.framebuffer)
+            return false
+        }
         gl.bindFramebuffer(DRAW_FRAMEBUFFER, target.framebuffer)
         // The target's origin is bottom-left and the frame's first row is its top, so the blit flips it.
         gl.unsafeCast<WebGL2Blit>().blitFramebuffer(
@@ -352,6 +360,7 @@ private class VideoFrames(private val gl: WebGLRenderingContext) {
             COLOR_BUFFER_BIT, LINEAR,
         )
         gl.bindFramebuffer(FRAMEBUFFER, target.framebuffer)
+        return true
     }
 
     fun release() {

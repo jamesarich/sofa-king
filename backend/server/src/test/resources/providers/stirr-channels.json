@@ -1,0 +1,100 @@
+{
+ "status": 200,
+ "message": "Success",
+ "videos": {
+  "category_videos": [
+   [
+    {
+     "videoid": 5735,
+     "title": "Gags  - Just for Laughs",
+     "channel_number": 90,
+     "logo": "https://vcz-ktest2-cloud-vodlix-com.b-cdn.net/u/ktest2/files/video_logos/2024/04/08/1712612750Npdv5y4sxH.png",
+     "square_thumbs": {
+      "300x300": "https://vcz-ktest2-cloud-vodlix-com.b-cdn.net/u/ktest2/files/thumbs/2024/04/08/1712612750Npdv5y4sxH-300x300-square.jpg"
+     },
+     "drm_protected": "no",
+     "active": "yes",
+     "country": "US",
+     "categories": [
+      {
+       "category_id": 102,
+       "category_name": "Comedy Live"
+      },
+      {
+       "category_id": 182,
+       "category_name": "Entertainment Live"
+      }
+     ]
+    },
+    {
+     "videoid": 5407,
+     "title": "Drone TV",
+     "channel_number": 88,
+     "logo": null,
+     "square_thumbs": {
+      "300x300": "https://vcz-ktest2-cloud-vodlix-com.b-cdn.net/u/ktest2/files/thumbs/2024/02/23/170871539370SyzUanQG-300x300-square.png"
+     },
+     "drm_protected": "no",
+     "active": "yes",
+     "country": "US",
+     "categories": [
+      {
+       "category_id": 97,
+       "category_name": "Sports Live"
+      },
+      {
+       "category_id": 182,
+       "category_name": "Entertainment Live"
+      }
+     ]
+    }
+   ],
+   [
+    {
+     "videoid": 5735,
+     "title": "Gags  - Just for Laughs",
+     "channel_number": 90,
+     "logo": "https://vcz-ktest2-cloud-vodlix-com.b-cdn.net/u/ktest2/files/video_logos/2024/04/08/1712612750Npdv5y4sxH.png",
+     "square_thumbs": {
+      "300x300": "https://vcz-ktest2-cloud-vodlix-com.b-cdn.net/u/ktest2/files/thumbs/2024/04/08/1712612750Npdv5y4sxH-300x300-square.jpg"
+     },
+     "drm_protected": "no",
+     "active": "yes",
+     "country": "US",
+     "categories": [
+      {
+       "category_id": 102,
+       "category_name": "Comedy Live"
+      },
+      {
+       "category_id": 182,
+       "category_name": "Entertainment Live"
+      }
+     ]
+    },
+    {
+     "videoid": 6435,
+     "title": "Locked Channel",
+     "channel_number": 104,
+     "logo": "https://vcz-ktest2-cloud-vodlix-com.b-cdn.net/u/ktest2/files/video_logos/2024/09/24/1727159567f9WVAzmXSn.png",
+     "square_thumbs": {
+      "300x300": "https://vcz-ktest2-cloud-vodlix-com.b-cdn.net/u/ktest2/files/thumbs/2024/09/24/1727159567f9WVAzmXSn-300x300-square.png"
+     },
+     "drm_protected": "yes",
+     "active": "yes",
+     "country": "US",
+     "categories": [
+      {
+       "category_id": 182,
+       "category_name": "Entertainment Live"
+      },
+      {
+       "category_id": 184,
+       "category_name": "Default Category"
+      }
+     ]
+    }
+   ]
+  ]
+ }
+}

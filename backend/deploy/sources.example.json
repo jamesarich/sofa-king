@@ -1,0 +1,23 @@
+{
+  "providers": [
+    { "id": "whale", "type": "native", "service": "whale" },
+    { "id": "vizio", "type": "native", "service": "vizio" },
+    { "id": "lg", "type": "native", "service": "lg" },
+    { "id": "freelivesports", "type": "native", "service": "freelivesports" },
+    { "id": "hallmark", "type": "native", "service": "hallmark" },
+    { "id": "ballysports", "type": "native", "service": "ballysports" },
+    { "id": "adultswim", "type": "native", "service": "adultswim" },
+    { "id": "pbs", "type": "native", "service": "pbs", "options": { "zip": "ZIP_CODE" } },
+    { "id": "samsung", "type": "native", "service": "samsung", "options": { "region": "us" } },
+    { "id": "plex", "type": "native", "service": "plex" },
+    { "id": "stirr", "type": "native", "service": "stirr" },
+    { "id": "tcl", "type": "native", "service": "tcl" },
+    { "id": "roku", "type": "native", "service": "roku" },
+    { "id": "localnow", "type": "native", "service": "localnow" },
+    { "id": "xumo", "type": "native", "service": "xumo" },
+    { "id": "pluto", "type": "native", "service": "pluto" },
+    { "id": "tubi", "type": "native", "service": "tubi" },
+    { "id": "example-m3u", "playlistUrl": "https://PLAYLIST_HOST/path/playlist.m3u", "guideUrl": "https://GUIDE_HOST/path/guide.xml.gz" }
+  ],
+  "guides": []
+}

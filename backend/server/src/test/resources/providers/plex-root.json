@@ -1,0 +1,19 @@
+{
+ "MediaProvider": {
+  "Feature": [
+   {
+    "type": "grid",
+    "GridChannelFilter": [
+     {
+      "identifier": "bingeworthy",
+      "title": "Bingeworthy"
+     },
+     {
+      "identifier": "movies",
+      "title": "Movies"
+     }
+    ]
+   }
+  ]
+ }
+}

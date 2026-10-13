@@ -1,0 +1,70 @@
+{
+ "category": "News & Opinion",
+ "category_id": "640822369463833685",
+ "channels": [
+  {
+   "id": "464185307491729413",
+   "name": "NBC News Now",
+   "bundle_id": "XU233757",
+   "source": "Xumo",
+   "media": "BASE/tcl/master.m3u8?ads.xumo_ifa=%5BIFA%5D&ads.xumo_ifaType=%5BIFA_TYPE%5D&ads._fw_us_privacy=%5BUS_PRIVACY%5D&ads._fw_player_width=%5BPLAYER_WIDTH%5D&ads.caid=NBCNewsNow",
+   "drm": null,
+   "logo_color": "/static/channel/XU233757/1731963255683478830-XU233757_delivery_logo_color.png",
+   "genre": [
+    "News"
+   ],
+   "programs": [
+    {
+     "id": "464185307491729413:635050827211350304:1791676800",
+     "title": "Dateline NBC S27 E26",
+     "start": "2026-10-11T00:00:00Z",
+     "end": "2026-10-11T01:00:00Z",
+     "watch_now_avod": ""
+    },
+    {
+     "id": "464185307491729413:633746245813084448:1791680400",
+     "title": "Dateline NBC S27 E35",
+     "start": "2026-10-11T01:00:00Z",
+     "end": "2026-10-11T02:00:00Z",
+     "watch_now_avod": ""
+    }
+   ]
+  },
+  {
+   "id": "531294409996639766",
+   "name": "CBS News 24/7",
+   "bundle_id": "CB502647",
+   "source": "CBS",
+   "media": "https://dai.google.com/linear/hls/event/Sid4xiTQTkCT1SLu6rjUSQ/master.m3u8?imafw__fw_app_bundle=%5BAPP+ID%5D&imafw__fw_did=%5Bidtype%3AdeviceID%5D&imafw__fw_is_lat=%5BLIMITED+AD+TRACKING%5D&imafw__fw_us_privacy=%5BCCPA+STRING%5D&imafw__fw_vcid2=%5Bunique_identifier%5D&imafw_csid=%5BSITE+SECTION%5D&is_lat=%5BLIMITED+AD+TRACKING%5D",
+   "drm": null,
+   "logo_color": "/static/channel/CB502647/21249705989434521-CBS_News_SC_logo_color.jpg",
+   "genre": [
+    "News"
+   ],
+   "programs": [
+    {
+     "id": "531294409996639766:627423765451449719:1791676800",
+     "title": "48 Hours",
+     "start": "2026-10-11T00:00:00Z",
+     "end": "2026-10-11T01:00:00Z",
+     "watch_now_avod": ""
+    }
+   ]
+  },
+  {
+   "id": "550493098292026598",
+   "name": "Locked Channel",
+   "bundle_id": "AM585848",
+   "source": "Amagi",
+   "media": "https://amg01918-cnnus-amg01918c1-tclideo-na-6571.playouts.now.amagi.tv/playlist/amg01918-cnnus-cnnheadlines-tclideona/playlist.m3u8?device[did]=REPLACE_ME&device[dnt]=REPLACE_ME&gender=REPLACE_ME&app_bundle=REPLACE_ME&app_name=REPLACE_ME&app_store_url=REPLACE_ME&url=REPLACE_ME&genre=REPLACE_ME&ic=REPLACE_ME&us_privacy=REPLACE_ME&gdpr=REPLACE_ME&gdpr_consent=REPLACE_ME&coppa=0&schain=REPLACE_ME&device_make=REPLACE_ME&device_model=REPLACE_ME&ifa_type=REPLACE_ME",
+   "drm": {
+    "type": "widevine"
+   },
+   "logo_color": "/static/channel/AM585848/1752696039145138670-CNNHeadlinesSC_logo_color.png",
+   "genre": [
+    "News"
+   ],
+   "programs": []
+  }
+ ]
+}

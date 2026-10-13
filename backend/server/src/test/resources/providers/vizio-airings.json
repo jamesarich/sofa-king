@@ -1,0 +1,38 @@
+{
+ "currentChannelStationId": "93FoxNewsNow",
+ "airings": [
+  {
+   "airingId": 5133712690,
+   "channelId": 3982869701,
+   "stationId": "93FOXLIVENOW",
+   "title": "LiveNOW from FOX",
+   "subTitle": "LiveNOW from FOX",
+   "timeStart": "2026-10-11T02:00:00+00:00",
+   "timeEnd": "2026-10-11T06:00:00+00:00",
+   "description": "LIVE 24/7. Always On. Raw & unfiltered breaking news, live events and stories from across the nation.",
+   "episodeNumber": 0,
+   "seasonNumber": 0
+  },
+  {
+   "airingId": 5133712681,
+   "channelId": 3982869701,
+   "stationId": "93FOXLIVENOW",
+   "title": "LiveNOW from FOX",
+   "subTitle": "LiveNOW from FOX",
+   "timeStart": "2026-10-11T06:00:00+00:00",
+   "timeEnd": "2026-10-11T10:00:00+00:00",
+   "description": "LIVE 24/7. Always On. Raw & unfiltered breaking news, live events and stories from across the nation.",
+   "episodeNumber": 0,
+   "seasonNumber": 0
+  },
+  {
+   "airingId": "x",
+   "stationId": "unknown-station",
+   "title": "Elsewhere",
+   "timeStart": "2026-10-11T02:00:00+00:00",
+   "timeEnd": "2026-10-11T03:00:00+00:00"
+  }
+ ],
+ "epgCheck": true,
+ "epgCheckMsg": ""
+}

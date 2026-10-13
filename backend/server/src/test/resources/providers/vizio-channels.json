@@ -1,0 +1,54 @@
+{
+ "currentCategory": "",
+ "currentChannelStationId": "0",
+ "channels": [
+  {
+   "channelId": "93FoxNewsNow",
+   "channelName": "LiveNOW from FOX",
+   "channelNumber": 200,
+   "category": "NEWS + OPINION",
+   "channelUrls": [
+    "BASE/vizio/master.m3u8?did=%7bADID%7d&us_privacy=%7bUSPRIVACY%7d&app_name=%7bAPP_NAME%7d&w=%7bWIDTH%7d&iu=%7bIU%7d&vizdartoken=fixture"
+   ],
+   "channelUrl": "BASE/vizio/master.m3u8?did=%7bADID%7d&us_privacy=%7bUSPRIVACY%7d&app_name=%7bAPP_NAME%7d&w=%7bWIDTH%7d&iu=%7bIU%7d&vizdartoken=fixture",
+   "tokenUrl": "",
+   "channelIcon": "https://images.vizio.com/v4/btv/1/1736242707/1/267/150/0.jpg",
+   "bwIcon": "https://images.vizio.com/v4/btv/1/1564642819/1/102/42/0.jpg",
+   "portraitIcon": "",
+   "airingsKey": "93FOXLIVENOW",
+   "channelDescription": "fixture"
+  },
+  {
+   "channelId": "93cnnnw",
+   "channelName": "CNN Headlines",
+   "channelNumber": 201,
+   "category": "NEWS + OPINION",
+   "channelUrls": [
+    "BASE/vizio/other.m3u8?did={ADID}&lmt={LMT}"
+   ],
+   "channelUrl": "BASE/vizio/other.m3u8?did={ADID}&lmt={LMT}",
+   "tokenUrl": "",
+   "channelIcon": "https://images.vizio.com/v4/btv/1/1736159588/1/267/150/0.jpg",
+   "bwIcon": "https://images.vizio.com/v4/btv/1/1701630554/1/102/42/0.jpg",
+   "portraitIcon": "",
+   "airingsKey": "93cnnnw",
+   "channelDescription": "fixture"
+  },
+  {
+   "channelId": "118NFLDigitalChannel1",
+   "channelName": "NFL Channel",
+   "channelNumber": 1300,
+   "category": "SPORTS",
+   "channelUrls": [
+    "BASE/vizio/gated.m3u8?did=%7bADID%7d"
+   ],
+   "channelUrl": "BASE/vizio/gated.m3u8?did=%7bADID%7d",
+   "tokenUrl": "https://token.example/token",
+   "channelIcon": "https://images.vizio.com/v4/btv/1/1736120427/1/267/150/0.jpg",
+   "bwIcon": "https://images.vizio.com/v4/btv/1/1693417421/1/102/42/0.jpg",
+   "portraitIcon": "",
+   "airingsKey": "118NFLDigitalChannel1",
+   "channelDescription": "fixture"
+  }
+ ]
+}

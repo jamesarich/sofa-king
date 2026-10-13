@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE tv SYSTEM "xmltv.dtd"><tv generator-info-name="www.matthuisman.nz" generated-ts="1791674359">
+  <channel id="6a1610bebdf296985fd95603-66635fc0ca7b22f4c3a2d743">
+    <display-name>CW Forever</display-name>
+    <icon src="https://provider-static.plex.tv/epg/cms/production/f9418a5d-f191-4b8a-bf3a-2eda3d2cd137/PLEX_CWFOREVER_UPDATEDLOGO_RDX.png"/>
+  </channel>
+  <channel id="USBA370000104">
+    <display-name>CBS News</display-name>
+  </channel>
+  <programme channel="6a1610bebdf296985fd95603-66635fc0ca7b22f4c3a2d743" start="20261009231916 +0000" stop="20261010001102 +0000">
+    <title>7th Heaven</title>
+    <desc>After a failed table-spread trick, the 'Great Simoni' can't convince Ruthie to act as his assistant.</desc>
+  </programme>
+  <programme channel="USBA370000104" start="20261010230000 +0000" stop="20261011000000 +0000">
+    <title>48 Hours</title>
+    <desc>"48 Hours" investigates the most intriguing crime and justice cases.</desc>
+    <rating>
+      <value>TV-14</value>
+    </rating>
+  </programme>
+</tv>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv generator-info-name="metadata fixture">
+  <channel id="series.us">
+    <display-name>Series Channel</display-name>
+  </channel>
+  <programme channel="series.us" start="20261010200000 +0000" stop="20261010203000 +0000">
+    <title lang="en">The Show</title>
+    <sub-title lang="en">Pilot &amp; Plans</sub-title>
+    <desc lang="en">The first one.</desc>
+    <credits>
+      <actor>Someone<image>https://img.test/actor.jpg</image></actor>
+    </credits>
+    <date>2019-03-04</date>
+    <category lang="en">Series</category>
+    <category lang="en">Comedy</category>
+    <language>fr</language>
+    <icon src="/posters/the show.jpg" width="120" height="180"/>
+    <episode-num system="xmltv_ns">1.4.0/1</episode-num>
+    <episode-num system="onscreen">S02E05</episode-num>
+    <episode-num system="dd_progid">EP01234567.0005</episode-num>
+    <episode-num>Episode Five</episode-num>
+    <previously-shown start="20190304200000 +0000"/>
+    <rating system="VCHIP">
+      <value>TV-PG</value>
+      <icon src="https://img.test/tv-pg.png"/>
+    </rating>
+    <rating system="MPAA">
+      <value>PG</value>
+    </rating>
+    <star-rating>
+      <value>3/4</value>
+      <icon src="https://img.test/stars.png"/>
+    </star-rating>
+  </programme>
+  <programme channel="series.us" start="20261010203000 +0000" stop="20261010210000 +0000">
+    <title>Brand New</title>
+    <star-rating>
+      <value>4/4</value>
+      <icon src="https://img.test/only-stars.png"/>
+    </star-rating>
+    <language>es</language>
+    <new/>
+  </programme>
+  <programme channel="series.us" start="20261010210000 +0000" stop="20261010230000 +0000">
+    <title>Plain Film</title>
+    <date>1999</date>
+    <category>Movie</category>
+  </programme>
+</tv>

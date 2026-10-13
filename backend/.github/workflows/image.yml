@@ -1,0 +1,127 @@
+name: Image
+
+# Tests every pull request and push. A push to main, or a manual run on main, then publishes the server image for
+# linux/amd64 and linux/arm64 to GitHub Container Registry as ghcr.io/<owner>/sofa-king-backend:main and
+# :sha-<commit>, with a BuildKit SBOM and max-mode provenance stored beside it.
+# Hosts that run deploy/sofa-king-update.sh pull :main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      # The tests generate HLS fixtures with FFmpeg.
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Test and build the distribution
+        run: ./gradlew --console=plain test :server:installDist
+
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-reports
+          path: "**/build/reports/tests"
+          retention-days: 14
+
+      # Artifacts drop file modes, so the distribution travels as a tar to keep bin/server executable.
+      - name: Pack the distribution
+        run: tar -C server/build/install -cf server-dist.tar server
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: server-dist
+          path: server-dist.tar
+          retention-days: 1
+          if-no-files-found: error
+
+      # A pull request builds the image for amd64 only and pushes nothing.
+      - if: github.event_name == 'pull_request'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+
+  publish:
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: server-dist
+
+      - name: Unpack the distribution
+        run: mkdir -p server/build/install && tar -C server/build/install -xf server-dist.tar
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          image: docker.io/tonistiigi/binfmt:qemu-v10.2.3@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Name the image
+        id: names
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sofa-king-backend" >> "$GITHUB_OUTPUT"
+          echo "revision=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          build-args: REVISION=${{ steps.names.outputs.revision }}
+          push: true
+          sbom: true
+          provenance: mode=max
+          tags: |
+            ${{ steps.names.outputs.image }}:main
+            ${{ steps.names.outputs.image }}:sha-${{ steps.names.outputs.revision }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

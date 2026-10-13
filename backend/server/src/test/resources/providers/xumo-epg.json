@@ -1,0 +1,68 @@
+{
+ "totalChannels": 2,
+ "lastModified": 1,
+ "channels": [
+  {
+   "channelId": 99951481,
+   "number": 1,
+   "schedule": [
+    {
+     "assetId": "EP000191553073",
+     "start": "2026-10-11T00:00:00+0000",
+     "end": "2026-10-11T01:00:00+0000"
+    },
+    {
+     "assetId": "EP000191553082",
+     "start": "2026-10-11T01:00:00+0000",
+     "end": "2026-10-11T02:00:00+0000"
+    }
+   ]
+  },
+  {
+   "channelId": 99951517,
+   "number": 2,
+   "schedule": [
+    {
+     "assetId": "EP065819350004",
+     "start": "2026-10-11T00:00:00+0000",
+     "end": "2026-10-11T01:00:00+0000"
+    },
+    {
+     "assetId": "EP000000212325",
+     "start": "2026-10-11T01:00:00+0000",
+     "end": "2026-10-11T03:00:00+0000"
+    }
+   ]
+  }
+ ],
+ "assets": {
+  "EP000191553073": {
+   "title": "Dateline NBC",
+   "descriptions": {
+    "small": "When Ohio mother Heather Bogle goes missing, a detective identifies multiple suspects.",
+    "medium": "When Ohio mother Heather Bogle goes missing, a detective identifies multiple suspects, until he himself comes under scrutiny for his investigation."
+   }
+  },
+  "EP000191553082": {
+   "title": "Dateline NBC",
+   "descriptions": {
+    "small": "Investigators discover a new tool that may finally help unlock a murderer's identity.",
+    "medium": "The murder of a young schoolteacher in Pennsylvania goes unsolved for years, but investigators discover a new tool that may finally help unlock the murderer's identity."
+   }
+  },
+  "EP065819350004": {
+   "title": "Chilean Mine Rescue: Race Against Time",
+   "descriptions": {
+    "small": "Preparations begin for one of history's most challenging mine rescue attempts.",
+    "medium": "As the miners enter their second month underground, rescuers face the challenge of bringing them back alive amidst obstacles."
+   }
+  },
+  "EP000000212325": {
+   "title": "20/20",
+   "descriptions": {
+    "small": "When a young woman is found dead in an abandoned house, the prime suspect goes on the run.",
+    "medium": "When a young woman is found dead in an abandoned house, the prime suspect goes on the run, leading authorities on a cross-country chase."
+   }
+  }
+ }
+}

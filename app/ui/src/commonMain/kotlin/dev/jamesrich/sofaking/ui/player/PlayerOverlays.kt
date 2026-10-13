@@ -149,6 +149,7 @@ internal fun BoxScope.InfoOverlay(
         // The scope and captions badge wrap under a long name, and a name wider than the bar ends in an ellipsis.
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

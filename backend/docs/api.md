@@ -48,7 +48,7 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/a
   }'
 ```
 
-Request 1-200 distinct channels and a positive window of at most 24 hours. Programs overlap when `startsAt < to && endsAt > from`. A disabled or unknown entry answers `404 CHANNEL_NOT_FOUND`.
+Request 1-200 distinct channels and a positive window of at most 24 hours. Programs overlap when `startsAt < to && endsAt > from`. A disabled or unknown entry, one a client's catalog still lists after the lineup changed, gets a row with status `removed` and no programs instead of failing the query; the client reads the catalog again.
 
 Each program has `id`, `channelId`, `startsAt`, `endsAt`, `title` and `description`, and the metadata its guide source provides: `subTitle` (the episode title), `episode` (a label such as `S2 E5` or `E5`, or the source's on-screen numbering), `isNew` (a first airing), `rating` (such as `TV-14`) and `icon` (an image URL on the source's host). A field the source does not provide is null, or false for `isNew`. Clients should ignore fields they do not know.
 

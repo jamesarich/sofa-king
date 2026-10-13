@@ -12,6 +12,9 @@ object Wire {
         const val EMPTY = "empty"
         const val AVAILABLE = "available"
         const val STALE = "stale"
+
+        /** A guide query's row for a channel the lineup no longer lists: no programs, and the catalog has changed. */
+        const val REMOVED = "removed"
     }
 
     /** `ApiError.code` values a client acts on. */

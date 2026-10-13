@@ -10,6 +10,7 @@ Sofa King is a Kotlin Multiplatform project. One Compose Multiplatform UI on Mat
 | `ui` | Every screen, the app shell, the guide and player logic, the Koin graph, and the desktop, web and iOS entry points | Android, JVM, iOS, js, wasmJs |
 | `androidApp` | The Android application: manifest, launcher and TV banner, `MainActivity` | Android |
 | `iosApp` | The SwiftUI host for the `SofaKingUi` framework, as an XcodeGen spec | iOS |
+| `tvosApp` | The SwiftUI Apple TV app on the `SofaKingCore` framework (`SofaKingTv` in `core/tvosMain`), as an XcodeGen spec | tvOS |
 
 `core` targets everything its dependencies publish, so a native host such as a SwiftUI tvOS app can use the same data layer without Compose. Windows native is absent because DataStore has no mingw build; the JVM covers Windows desktops.
 

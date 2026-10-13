@@ -1,0 +1,35 @@
+# XcodeGen spec for the Apple TV app; `xcodegen` in this directory writes SofaKingTV.xcodeproj.
+# The app is SwiftUI on top of core's SofaKingCore framework: Compose Multiplatform does not render on tvOS.
+name: SofaKingTV
+options:
+  bundleIdPrefix: dev.jamesrich
+  deploymentTarget:
+    tvOS: "17.0"
+targets:
+  SofaKingTV:
+    type: application
+    platform: tvOS
+    sources: [SofaKingTV]
+    info:
+      path: SofaKingTV/Info.plist
+      properties:
+        CFBundleDisplayName: Sofa King
+        UILaunchScreen: {}
+        # The Sofa King server serves plain HTTP on the LAN, as Android's network_security_config allows.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: Sofa King connects to your Sofa King server on this network.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking.tv
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../core/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS: [-framework, SofaKingCore]
+    preBuildScripts:
+      - name: Build the Kotlin framework
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :core:embedAndSignAppleFrameworkForXcode

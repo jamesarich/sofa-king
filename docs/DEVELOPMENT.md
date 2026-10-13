@@ -41,11 +41,21 @@ Check these on a real Android TV or Google TV device before a change that touche
 
 ## Dependencies
 
-Exact versions are in [the version catalog](../gradle/libs.versions.toml). The app version is `sofaking.version` in `gradle.properties`; Android's `versionName`, the desktop package and the About row read it. AGP supplies built-in Kotlin for the Android app; the Kotlin, AGP and Compose Multiplatform versions are preview pins that move together. Resolved dependencies are locked per module, the Kotlin/JS yarn lockfiles live in `kotlin-js-store`, and the wrapper has a pinned checksum.
+Exact versions are in [the version catalog](../gradle/libs.versions.toml). The app version is `sofaking.version` in `gradle.properties`; Android's `versionName`, the desktop package and the About row read it. AGP supplies built-in Kotlin for the Android app; the Kotlin, AGP and Compose Multiplatform versions are preview pins that move together, outside the published compatibility matrices. Resolved dependencies, including the root build's plugin classpath, are locked per project, the Kotlin/JS yarn lockfiles live in `kotlin-js-store`, and the wrapper has a pinned checksum. Each project configures only itself; nothing configures across projects.
 
 For dependency updates, change the version catalog, run the checks above with `--write-locks` (and `kotlinUpgradeYarnLock kotlinWasmUpgradeYarnLock` for web dependencies), and review the lockfile diff. Run the same checks without that flag before committing.
 
 Release APKs use the local debug key. Distribution requires a release signing configuration.
+
+## CI and snapshots
+
+`.github/workflows/ci.yml` runs the checks above on Linux for every pull request and push to `main`. On `main` it also runs the Apple tests and links the iOS framework on macOS, then calls `snapshot.yml`, which builds the APK, both web bundles and the desktop package on Linux, macOS and Windows, and replaces the `snapshot` prerelease. Run `snapshot.yml` from the Actions tab to publish without a push.
+
+Snapshots pass `-Psofaking.versionCode` (the workflow run number) and `-Psofaking.versionSuffix` (`-dev.N+sha`); Android's `versionName` and the About row append the suffix, and the desktop package keeps the plain version. Set the `ANDROID_DEBUG_KEYSTORE` repository secret to a base64 debug keystore so every snapshot APK installs over the last:
+
+```sh
+base64 -w0 ~/.android/debug.keystore | gh secret set ANDROID_DEBUG_KEYSTORE --repo jamesarich/sofa-king
+```
 
 ## Banner
 

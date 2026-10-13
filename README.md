@@ -27,6 +27,10 @@ Building from source needs JDK 21 and the Android SDK with API 37.1; `adb` on yo
 
 ## Install
 
+### Snapshot builds
+
+Each push to `main` that passes CI replaces the [`snapshot` prerelease](../../releases/tag/snapshot) with a release APK, `.deb`, `.dmg` and `.msi` desktop packages and zipped web builds. They are test builds: the APK uses a debug key and the desktop packages are unsigned.
+
 ### Build from source
 
 Set `ANDROID_HOME` to your SDK directory, then run this from the repository root:

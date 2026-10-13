@@ -7,7 +7,7 @@ body:
       value: |
         Report security problems privately, as [SECURITY.md](https://github.com/jamesarich/sofa-king/blob/main/SECURITY.md) describes, not here.
         Remove tokens and private addresses from everything you paste.
-        [Troubleshooting](https://github.com/jamesarich/sofa-king/blob/main/docs/troubleshooting.md) covers the common problems. A problem the server shows to every client belongs to the [server's issues](https://github.com/jamesarich/sofa-king-backend/issues).
+        [Troubleshooting](https://github.com/jamesarich/sofa-king/blob/main/app/docs/troubleshooting.md) covers the common problems. A problem the server shows to every client belongs to the [server's issues](https://github.com/jamesarich/sofa-king-backend/issues).
   - type: textarea
     id: what
     attributes:

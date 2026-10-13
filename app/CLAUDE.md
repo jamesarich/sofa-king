@@ -4,15 +4,15 @@ Kotlin Multiplatform: `core` (data, no Compose, every target its dependencies pu
 
 ## Build
 
-Use JDK 21 and an Android SDK configured in local.properties. On the shared host, run:
+Use JDK 21 and an Android SDK configured in `app/local.properties`. The app's Gradle build is `app/`; on the shared host, run from the repository root:
 
 ```sh
-/home/james/.claude/bin/gradle-queue -- :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest :androidApp:lintDebug :androidApp:assembleRelease
+/home/james/.claude/bin/gradle-queue -C app -- :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest :androidApp:lintDebug :androidApp:assembleRelease
 ```
 
 After a change to common code also run `:core:compileTestKotlinLinuxX64 :ui:compileTestKotlinIosSimulatorArm64`: Native rejects commas and parentheses in backtick test names and JVM-only APIs that the JVM accepts. Unit tests run against MockWebServer and fakes; no server is needed for offline development. Install release builds on TVs only when requested; release APKs use R8 and the local debug key.
 
-One test class: `/home/james/.claude/bin/gradle-queue -- :ui:jvmTest --tests 'dev.jamesrich.sofaking.ui.preview.PreviewDwellTest'` (`:core:jvmTest` for the data layer). A new worktree needs a copy of local.properties.
+One test class: `/home/james/.claude/bin/gradle-queue -C app -- :ui:jvmTest --tests 'dev.jamesrich.sofaking.ui.preview.PreviewDwellTest'` (`:core:jvmTest` for the data layer). A new worktree needs a copy of `app/local.properties`.
 
 A change to playback, focus or the remote also needs the TV checklist in docs/development.md, which only a person with a TV can run; say so rather than claiming it.
 

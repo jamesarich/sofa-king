@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Renders the Google TV banner (320x180dp) with the app name, which a layer-list drawable cannot carry.
-# Needs ImageMagick 7 and Noto Sans (OFL). Run from the repo root; output lands in androidApp/src/main/res.
+# Needs ImageMagick 7 and Noto Sans (OFL). Runs from any directory; output lands in app/androidApp/src/main/res.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 work=$(mktemp -d)

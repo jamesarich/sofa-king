@@ -36,7 +36,7 @@ Every platform needs a Sofa King server it can reach over the network.
 
 ## Quick start
 
-With a Sofa King server on your network, download the APK from the [`snapshot` prerelease](../../releases/tag/snapshot) and install it on the TV over `adb`:
+With a Sofa King server on your network, download the APK from the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) and install it on the TV over `adb`:
 
 ```sh
 adb connect TV_IP:DEBUG_PORT
@@ -58,11 +58,11 @@ The [documentation index](docs/README.md) lists every page. The most used are:
 
 ## Contributing
 
-Build and test with the command in [development](docs/development.md#build-and-test). [CONTRIBUTING.md](CONTRIBUTING.md) covers CI, the commit conventions and the checks on a TV.
+Build and test with the command in [development](docs/development.md#build-and-test). [CONTRIBUTING.md](../CONTRIBUTING.md) covers CI, the commit conventions and the checks on a TV.
 
 ## Security
 
-[SECURITY.md](SECURITY.md) describes what the app stores, where the token is sent, cleartext HTTP, and how to report a vulnerability.
+[SECURITY.md](../SECURITY.md) describes what the app stores, where the token is sent, cleartext HTTP, and how to report a vulnerability.
 
 ## Limitations
 
@@ -77,4 +77,4 @@ Build and test with the command in [development](docs/development.md#build-and-t
 
 ## License
 
-Licensed under the [GNU General Public License v3.0](LICENSE).
+Licensed under the [GNU General Public License v3.0](../LICENSE).

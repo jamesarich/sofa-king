@@ -1,0 +1,37 @@
+# XcodeGen spec for the iOS host; `xcodegen` in this directory writes SofaKing.xcodeproj.
+name: SofaKing
+options:
+  bundleIdPrefix: dev.jamesrich
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  SofaKing:
+    type: application
+    platform: iOS
+    sources: [SofaKing]
+    info:
+      path: SofaKing/Info.plist
+      properties:
+        CFBundleDisplayName: Sofa King
+        CADisableMinimumFrameDurationOnPhone: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        # The Sofa King server serves plain HTTP on the LAN, as Android's network_security_config allows.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: Sofa King connects to your Sofa King server on this network.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../ui/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS: [-framework, SofaKingUi]
+    preBuildScripts:
+      - name: Build the Kotlin framework
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :ui:embedAndSignAppleFrameworkForXcode

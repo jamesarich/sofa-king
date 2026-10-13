@@ -1,0 +1,4 @@
+<resources>
+    <!-- The launcher label; the screens read their strings from the ui module's Compose resources. -->
+    <string name="app_name">Sofa King</string>
+</resources>

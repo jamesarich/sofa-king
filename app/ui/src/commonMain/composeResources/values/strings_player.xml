@@ -3,4 +3,11 @@
     <string name="mini_guide_title">Channels</string>
     <string name="mini_guide_last_channel">Last channel</string>
     <string name="player_paused">Paused</string>
+    <string name="player_control_guide">Guide</string>
+    <string name="player_control_channel_up">Channel up</string>
+    <string name="player_control_channel_down">Channel down</string>
+    <string name="player_control_channels">Channels</string>
+    <string name="player_control_captions">Captions</string>
+    <string name="player_control_pause">Pause</string>
+    <string name="player_control_play">Play</string>
 </resources>

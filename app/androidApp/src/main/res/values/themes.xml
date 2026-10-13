@@ -3,8 +3,6 @@
     <style name="Theme.SofaKing" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/sofa_plum</item>
         <item name="android:colorBackground">@color/sofa_plum</item>
-        <item name="android:statusBarColor">@color/sofa_plum</item>
-        <item name="android:navigationBarColor">@color/sofa_plum</item>
         <item name="android:windowNoTitle">true</item>
     </style>
 </resources>

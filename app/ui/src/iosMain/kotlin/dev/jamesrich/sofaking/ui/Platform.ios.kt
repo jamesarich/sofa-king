@@ -7,6 +7,10 @@ import androidx.compose.ui.input.key.KeyEvent
 import platform.UIKit.UIAccessibilityIsVoiceOverRunning
 import platform.UIKit.UIApplication
 
+/** iPhone and iPad; Apple TV is not a target. */
+@Composable
+internal actual fun rememberIsTelevision(): Boolean = false
+
 /** VoiceOver reads the grid as focus moves; a channel opening full screen would cut it off, as TalkBack's would. */
 @Composable
 internal actual fun rememberScreenReaderActive(): Boolean = remember { UIAccessibilityIsVoiceOverRunning() }

@@ -45,6 +45,7 @@ import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.screenPadding
 
 private val FIELD_WIDTH = 640.dp
 
@@ -85,7 +86,7 @@ fun SettingsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 48.dp, vertical = 27.dp)
+            .screenPadding()
             .focusRestorer(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {

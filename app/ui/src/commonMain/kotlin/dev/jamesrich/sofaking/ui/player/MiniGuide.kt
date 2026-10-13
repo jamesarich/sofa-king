@@ -47,6 +47,8 @@ import dev.jamesrich.sofaking.ui.theme.SofaMauve
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrimDense
 import dev.jamesrich.sofaking.ui.theme.SofaPlum
 import kotlin.time.Instant
+import androidx.compose.foundation.layout.WindowInsetsSides
+import dev.jamesrich.sofaking.ui.screenPadding
 
 /**
  * Bottom 40% channel list over the video. OK tunes and closes it through [onTune]; Back and the idle
@@ -75,7 +77,7 @@ internal fun BoxScope.MiniGuide(
             .fillMaxHeight(0.4f)
             .background(SofaOverlayScrimDense),
     ) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 48.dp, vertical = 27.dp)) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).padding(top = 27.dp)) {
             Text(
                 stringResource(Res.string.mini_guide_title),
                 style = MaterialTheme.typography.titleMedium,

@@ -50,6 +50,7 @@ import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.formatTemplate
 import kotlin.math.roundToInt
 import kotlin.time.Instant
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 
 /**
  * Everything a row's cells need that is the same for every cell on screen; one instance per guide, so cells skip.
@@ -125,9 +126,10 @@ internal fun ChannelRow(
         onJumpHandled(landed)
     }
 
+    val profile = LocalLayoutProfile.current
     Row(Modifier.fillMaxWidth().height(ROW_HEIGHT)) {
         Row(
-            Modifier.width(PIN_WIDTH).fillMaxHeight().padding(end = 12.dp),
+            Modifier.width(pinWidth(profile)).fillMaxHeight().padding(end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ChannelLogo(channel, LOGO_WIDTH, LOGO_HEIGHT, Modifier.padding(end = 12.dp))
@@ -139,12 +141,14 @@ internal fun ChannelRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
-                Text(
-                    channel.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (!profile.compactWidth) {
+                    Text(
+                        channel.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             if (isFavorite) {
                 Text(

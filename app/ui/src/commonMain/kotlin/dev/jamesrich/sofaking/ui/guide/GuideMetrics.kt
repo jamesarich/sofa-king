@@ -2,8 +2,11 @@ package dev.jamesrich.sofaking.ui.guide
 
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.ui.LayoutProfile
 
 internal val PIN_WIDTH = 240.dp
+/** The pinned column in a compact-width window: the logo and the number, without the name. */
+internal val COMPACT_PIN_WIDTH = 104.dp
 internal val MINUTE_WIDTH = 6.dp
 // 1080p TV budget (540dp tall): app header 27 + ~46 + 16 spacing, band 144 + 8, header 32 + 4 gaps leave four 56dp rows above the overscan.
 internal val ROW_HEIGHT = 56.dp
@@ -17,5 +20,8 @@ internal const val FOCUS_MARGIN_MINUTES = 30L
 
 /** Of the four rows on screen, the focused one sits in this slot (0-based) while the list scrolls under it. */
 internal const val FOCUS_ROW_SLOT = 1
+
+/** The pinned column's width; a compact-width window gives the timeline the rest of a phone held upright. */
+internal fun pinWidth(profile: LayoutProfile): Dp = if (profile.compactWidth) COMPACT_PIN_WIDTH else PIN_WIDTH
 
 internal fun nowOffset(minute: Long): Dp = MINUTE_WIDTH * minute.toFloat()

@@ -1,5 +1,13 @@
+@file:OptIn(ExperimentalWasmDsl::class)
+
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
+import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin
+import org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenEnvSpec
+import org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenPlugin
+import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsEnvSpec
+import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsPlugin
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -7,6 +15,13 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
 }
+
+dependencyLocking { lockAllConfigurations() }
+
+// Node and Binaryen resolve through the repositories declared in settings, which forbids project repositories.
+plugins.withType<NodeJsPlugin> { the<NodeJsEnvSpec>().downloadBaseUrl = null }
+plugins.withType<WasmNodeJsPlugin> { the<WasmNodeJsEnvSpec>().downloadBaseUrl = null }
+plugins.withType<BinaryenPlugin> { the<BinaryenEnvSpec>().downloadBaseUrl = null }
 
 val appVersion = providers.gradleProperty("sofaking.version").get()
 val versionSuffix = providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
@@ -62,7 +77,6 @@ kotlin {
         nodejs()
         binaries.executable()
     }
-    @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser {
             commonWebpackConfig { outputFileName = "sofaking.js" }
@@ -72,8 +86,6 @@ kotlin {
     }
 
     compilerOptions {
-        freeCompilerArgs.add("-Xexpect-actual-classes")
-        optIn.add("kotlin.time.ExperimentalTime")
         optIn.add("androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
         optIn.add("androidx.compose.material3.ExperimentalMaterial3Api")
         optIn.add("androidx.compose.ui.ExperimentalComposeUiApi")
@@ -84,14 +96,14 @@ kotlin {
             kotlin.srcDir(generateBuildInfo)
             dependencies {
                 api(project(":core"))
-                implementation(libs.compose.runtime)
+                // App() is this module's public surface, so the app shell compiles against the Compose it runs.
+                api(libs.compose.runtime)
+                api(libs.compose.ui)
                 implementation(libs.compose.foundation)
-                implementation(libs.compose.ui)
                 implementation(libs.compose.animation)
                 implementation(libs.compose.material3)
                 implementation(libs.navigationevent.compose)
                 implementation(libs.compose.components.resources)
-                implementation(libs.compose.ui.tooling.preview)
                 implementation(libs.lifecycle.viewmodel.compose)
                 implementation(libs.lifecycle.runtime.compose)
                 implementation(libs.koin.compose.viewmodel)
@@ -137,6 +149,8 @@ compose.desktop {
             modules("java.instrument", "java.management", "jdk.unsupported")
             packageName = "Sofa King"
             packageVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
+            // Fixed so each MSI upgrades the installed app in place.
+            windows { upgradeUuid = "4b04060d-b077-47c9-acc6-f55b71d52d1f" }
         }
     }
 }

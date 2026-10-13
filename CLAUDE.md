@@ -12,6 +12,21 @@ Use JDK 21 and an Android SDK configured in local.properties. On the shared host
 
 After a change to common code also run `:core:compileTestKotlinLinuxX64 :ui:compileTestKotlinIosSimulatorArm64`: Native rejects commas and parentheses in backtick test names and JVM-only APIs that the JVM accepts. Unit tests run against MockWebServer and fakes; no server is needed for offline development. Install release builds on TVs only when requested; release APKs use R8 and the local debug key.
 
+One test class: `/home/james/.claude/bin/gradle-queue -- :ui:jvmTest --tests 'dev.jamesrich.sofaking.ui.preview.PreviewDwellTest'` (`:core:jvmTest` for the data layer). A new worktree needs a copy of local.properties.
+
+A change to playback, focus or the remote also needs the TV checklist in docs/development.md, which only a person with a TV can run; say so rather than claiming it.
+
+Dependencies are locked; docs/dependencies.md has the update steps (`--write-locks`, review the lockfile diff, rerun without it). Commits use Conventional Commits, `type(scope): summary` in the imperative, scoped by area: `guide`, `player`, `preview`, `captions`, `settings`, `data`, `web`, `ios`, `desktop`, `build`, `ci`, `docs`.
+
+## Code map
+
+All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `commonTest`, `jvmTest` or `androidHostTest`.
+
+- `core/.../data`: `SofaKingApi` (Ktor, `wireJson`), `SofaKingRepository` and `SofaKingMapper` (catalog and chunked guide queries to `Channel` and `Programme`), `PlaybackSessions`, `LineupCache`, `DataStoreSettingsStore`. `core/.../LineupViewModel` owns settings flows, lineup state, refresh, the cache and the one `PlaybackSessions`.
+- `ui/.../App.kt` routes between screens and holds the player; `Launch.kt` makes the cold-start decision; `AppModule.kt` is the Koin graph.
+- `ui/.../ui/guide`, `ui/preview`, `ui/player`, `ui/settings`: screens. Key mapping, back, focus and timing decisions are plain functions or classes beside the composables (`GuideKeys`, `GuideBack`, `PlayerKeys`, `PreviewDwell`, `launchTarget`), unit-tested without a device; put new decisions there too.
+- Platform source sets (`androidMain`, `jvmMain`, `iosMain`, `webMain`) hold the `LivePlayer` implementations and the other `expect` seams.
+
 ## Code placement
 
 - Put code in `commonMain`. A platform source set holds only what needs that platform's API, behind an `expect` or an interface; `LivePlayer`, `rememberVoiceSearch`, `KeepScreenOn`, `rememberScreenReaderActive` and the key-repeat accessors are the seams.

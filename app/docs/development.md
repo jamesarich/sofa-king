@@ -1,16 +1,16 @@
 # Development
 
-The [contributing guide](../CONTRIBUTING.md) covers commit and pull request conventions. This page covers the build, the tests, running each platform, the checks on a TV and snapshot builds.
+The [contributing guide](../../CONTRIBUTING.md) covers commit and pull request conventions. This page covers the build, the tests, running each platform, the checks on a TV and snapshot builds.
 
 ## Build and test
 
-Use JDK 21, the Android SDK with API 37.1 and the checked-in Gradle wrapper. Point the build at the SDK in the ignored `local.properties` file:
+Use JDK 21, the Android SDK with API 37.1 and the checked-in Gradle wrapper. The app's build lives in `app/`; run every command on this page from there. Point the build at the SDK in the ignored `local.properties` file:
 
 ```sh
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
 ```
 
-Run from the repository root:
+Then build and test:
 
 ```sh
 ./gradlew :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest :androidApp:lintDebug :androidApp:assembleRelease
@@ -53,7 +53,7 @@ Release APKs are minified with R8 and signed with the local debug key, so they a
 
 ## CI and snapshots
 
-[CONTRIBUTING](../CONTRIBUTING.md#build-and-test) describes the CI jobs. A push to `main` that passes them runs `snapshot.yml`, which builds the APK, both web bundles and the desktop package on Linux, macOS and Windows, and replaces the `snapshot` prerelease. Run `snapshot.yml` from the Actions tab to publish without a push.
+[CONTRIBUTING](../../CONTRIBUTING.md#build-and-test) describes the CI jobs. A push to `main` that passes them runs `snapshot.yml`, which builds the APK, both web bundles and the desktop package on Linux, macOS and Windows, and replaces the `snapshot` prerelease. Run `snapshot.yml` from the Actions tab to publish without a push.
 
 Snapshots pass `-Psofaking.versionCode` (the workflow run number) and `-Psofaking.versionSuffix` (`-dev.N+sha`); Android's `versionName` and the About row append the suffix, and the desktop package keeps the plain version. Set the `ANDROID_DEBUG_KEYSTORE` repository secret to a base64 debug keystore so every snapshot APK installs over the last:
 

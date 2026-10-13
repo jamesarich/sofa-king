@@ -23,7 +23,7 @@ The first answers `ready`. The second lists the lineup as JSON. A `401` means th
 
 ## 2. Install the app
 
-The [`snapshot` prerelease](../../../releases/tag/snapshot) has a build of every platform from the latest `main`. To build from source instead, see [run each platform](development.md#run-each-platform).
+The [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) has a build of every platform from the latest `main`. To build from source instead, see [run each platform](development.md#run-each-platform).
 
 ### Android TV and Google TV
 

@@ -68,7 +68,7 @@ The app has no server discovery. Enter the server's address in Settings.
 
 ### Can I use it away from home?
 
-Only through a connection the server allows, such as a VPN or an HTTPS reverse proxy in front of the server. The server is built for a private network; see [SECURITY](../SECURITY.md#cleartext-http).
+Only through a connection the server allows, such as a VPN or an HTTPS reverse proxy in front of the server. The server is built for a private network; see [SECURITY](../../SECURITY.md#cleartext-http).
 
 ### Does it record or play in the background?
 

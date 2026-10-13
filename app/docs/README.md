@@ -21,7 +21,7 @@
 | [Development](development.md) | Build and test, running each platform, the TV checklist, CI and snapshot builds |
 | [Dependencies](dependencies.md) | Pinned versions, locking and how to change versions |
 
-The top-level [README](../README.md) introduces the app. [CONTRIBUTING](../CONTRIBUTING.md) and [SECURITY](../SECURITY.md) are at the repository root. The [server's documentation](https://github.com/jamesarich/sofa-king-backend/blob/main/docs/README.md) covers the lineup, sources and the API the app reads.
+The app's [README](../README.md) introduces it. [CONTRIBUTING](../../CONTRIBUTING.md) and [SECURITY](../../SECURITY.md) are at the repository root. The [server's documentation](https://github.com/jamesarich/sofa-king-backend/blob/main/docs/README.md) covers the lineup, sources and the API the app reads.
 
 ## Glossary
 

@@ -20,7 +20,7 @@ The [Backend workflow](../.github/workflows/backend.yml) runs on every pull requ
 - `test` runs `./gradlew test :server:installDist` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. On a pull request it also builds the image for `linux/amd64` without pushing it.
 - `publish` runs only for `main`, after `test` passes. It builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to `ghcr.io/jamesarich/sofa-king-backend` as `:main` and `:sha-<commit>`. The push carries a BuildKit SBOM and max-mode build provenance, which [deploy](docs/deploy.md#inspect-the-published-image) shows how to inspect. Hosts with [automatic updates](docs/deploy.md#update-automatically) install that image.
 
-[Renovate](renovate.json) opens the dependency, base image and workflow action updates as pull requests, which run the same `test` job.
+[`renovate.json`](../renovate.json) at the repository root configures Renovate for the dependency, base image and workflow action updates of every build.
 
 Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own.
 

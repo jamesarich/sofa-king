@@ -25,12 +25,14 @@ The app's [README](../README.md) introduces it. [CONTRIBUTING](../../CONTRIBUTIN
 
 ## Glossary
 
+Terms the app shares with the server are also in the [repository glossary](../../docs/README.md#glossary).
+
 | Term | Meaning |
 | --- | --- |
 | Server | The [Sofa King server](../../backend/README.md). It builds the lineup, holds the guide and relays every stream |
 | Lineup | The channels the server lists. The app shows the playable ones with a numeric display number, in number order |
 | Channel | One lineup entry: its number, name, logo, tags and stream |
-| Tag, category | A label the server gives a channel, such as News. Each tag becomes a filter chip in the guide, and a channel with several tags appears under each |
+| Tag, category | The channel's lineup group, such as News, which the server sends as its tag. Each tag becomes a filter chip in the guide |
 | Guide | The grid of channels and their programs over 24 hours |
 | Program | One scheduled show in the guide. The server's API calls it a programme |
 | Preview | The muted picture of the focused channel in the guide |

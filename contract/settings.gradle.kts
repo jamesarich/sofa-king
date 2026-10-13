@@ -37,3 +37,13 @@ dependencyResolutionManagement {
 
 apply(from = "../gradle/build-cache.settings.gradle.kts")
 rootProject.name = "contract"
+
+// The app and the server each compile this build with their own Kotlin plugin, so all three pin the same Kotlin and
+// kotlinx.serialization.
+val pins = Regex("""^(kotlin|serialization) = "([^"]+)"""", RegexOption.MULTILINE)
+fun pinsOf(catalog: String) = pins.findAll(File(settingsDir, catalog).readText()).associate { it.groupValues[1] to it.groupValues[2] }
+val ownPins = pinsOf("gradle/libs.versions.toml")
+for (consumer in listOf("../app", "../backend")) {
+    val consumerPins = pinsOf("$consumer/gradle/libs.versions.toml")
+    check(consumerPins == ownPins) { "contract pins $ownPins but $consumer pins $consumerPins; move them together" }
+}

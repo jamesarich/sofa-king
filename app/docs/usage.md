@@ -62,6 +62,6 @@ Settings opens from the guide's header, and on a first run the app starts there.
 
 About shows the version and how many channels are loaded. A snapshot's version ends in `-dev.RUN+COMMIT`.
 
-Channels come from the server's lineup. A channel appears when the server reports it as playable and gives it a numeric display number. Each of its tags is a guide category with its own chip, so a channel tagged both Local and News is listed under both; chips show how many channels they list.
+Channels come from the server's lineup. A channel appears when the server reports it as playable and gives it a numeric display number. The server tags each channel with its lineup group, such as News, and each tag is a guide category with its own chip; chips show how many channels they list.
 
 [Troubleshooting](troubleshooting.md) covers connection errors, empty guides and streams that do not play.

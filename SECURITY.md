@@ -1,8 +1,10 @@
-# Security policy
+# Security
 
 ## Reporting a vulnerability
 
-Report vulnerabilities privately through GitHub's private vulnerability reporting: open the [Security tab](https://github.com/jamesarich/sofa-king/security/advisories/new) and choose Report a vulnerability. Do not open a public issue for a vulnerability.
+Do not open a public issue for a security problem. Report it privately through GitHub's private vulnerability reporting: open the [Security tab](https://github.com/jamesarich/sofa-king/security/advisories/new) and choose Report a vulnerability. Include the version from Settings → About or the commit you built, the platform, and the steps to reproduce. Leave out live tokens and private addresses; a redacted example is enough.
+
+A problem in the server, its API or its streams belongs to the [server's security policy](https://github.com/jamesarich/sofa-king-backend/blob/main/SECURITY.md).
 
 ## What the app stores
 

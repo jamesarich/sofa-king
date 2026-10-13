@@ -1,0 +1,75 @@
+name: Bug report
+description: The app does something the documentation says it should not, or fails to do what it says.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report security problems privately, as [SECURITY.md](https://github.com/jamesarich/sofa-king/blob/main/SECURITY.md) describes, not here.
+        Remove tokens and private addresses from everything you paste.
+        [Troubleshooting](https://github.com/jamesarich/sofa-king/blob/main/docs/troubleshooting.md) covers the common problems. A problem the server shows to every client belongs to the [server's issues](https://github.com/jamesarich/sofa-king-backend/issues).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Include the message on screen.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: The version in Settings → About, or the commit you built from.
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android TV or Google TV
+        - Android phone or tablet
+        - Linux desktop
+        - macOS desktop
+        - Windows desktop
+        - iOS
+        - Web
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS version
+      description: For example Chromecast with Google TV, or Firefox on Linux.
+  - type: dropdown
+    id: stream
+    attributes:
+      label: Stream type
+      description: The channel's stream type, if the problem is with playback.
+      options:
+        - HLS
+        - MPEG-TS
+        - Not sure
+        - Not a playback problem
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        The app log around the problem, with tokens and addresses removed. On Android, `adb logcat -s SofaKing`; on the web, the browser console.
+      render: text
+  - type: checkboxes
+    id: redacted
+    attributes:
+      label: Redaction
+      options:
+        - label: I removed tokens and private addresses.
+          required: true

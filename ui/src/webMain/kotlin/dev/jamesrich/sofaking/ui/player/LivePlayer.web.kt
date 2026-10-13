@@ -31,7 +31,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.khronos.webgl.WebGLFramebuffer
 import org.khronos.webgl.WebGLRenderingContext
+import org.khronos.webgl.WebGLRenderingContext.Companion.CLAMP_TO_EDGE
+import org.khronos.webgl.WebGLRenderingContext.Companion.COLOR_ATTACHMENT0
+import org.khronos.webgl.WebGLRenderingContext.Companion.COLOR_BUFFER_BIT
+import org.khronos.webgl.WebGLRenderingContext.Companion.FRAMEBUFFER
+import org.khronos.webgl.WebGLRenderingContext.Companion.LINEAR
+import org.khronos.webgl.WebGLRenderingContext.Companion.RGBA
+import org.khronos.webgl.WebGLRenderingContext.Companion.TEXTURE_2D
+import org.khronos.webgl.WebGLRenderingContext.Companion.TEXTURE_MAG_FILTER
+import org.khronos.webgl.WebGLRenderingContext.Companion.TEXTURE_MIN_FILTER
+import org.khronos.webgl.WebGLRenderingContext.Companion.TEXTURE_WRAP_S
+import org.khronos.webgl.WebGLRenderingContext.Companion.TEXTURE_WRAP_T
+import org.khronos.webgl.WebGLRenderingContext.Companion.UNSIGNED_BYTE
+import org.khronos.webgl.WebGLTexture
 import org.w3c.dom.DISABLED
 import org.w3c.dom.HIDDEN
 import org.w3c.dom.HTMLMediaElement
@@ -75,6 +89,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
     private var captionsOn = false
     private var cueTrack: TextTrack? = null
     private var loaded = false
+    private var awaitingGesture = false
 
     private val drawsInCanvas = MutableStateFlow(true)
     private val frameSize = MutableStateFlow(IntSize(1, 1))
@@ -99,6 +114,9 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
         }
         video.addEventListener("resize") { updateFrameSize() }
         video.textTracks.addEventListener("addtrack") { applyCaptions() }
+        // Capture phase, so the press counts even when the app consumes it.
+        document.addEventListener("keydown", { restoreSound() }, true)
+        document.addEventListener("pointerdown", { restoreSound() }, true)
         video.addEventListener("error") {
             // A cross-origin HLS stream that fails before loading may come from a server that sends no CORS headers
             // on media: play it again as a plain element, which needs none. TS fails for its format and reports.
@@ -126,7 +144,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
         get() = video.volume.toFloat()
         set(value) {
             video.volume = value.toDouble()
-            video.muted = value == 0f
+            video.muted = value == 0f || awaitingGesture
         }
 
     override var playWhenReady: Boolean
@@ -205,19 +223,28 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
         val target = if (inCanvas) rememberWebGLRenderTarget(size) else null
         LaunchedEffect(target) {
             if (target == null) return@LaunchedEffect
-            var shown = -1.0
-            while (true) {
-                withFrameNanos { }
-                val time = video.currentTime
-                if (time == shown && target.size == size) continue
-                if (video.readyState < HAVE_CURRENT_DATA || video.videoWidth != size.width || video.videoHeight != size.height) continue
-                try {
-                    if (target.render { upload(target) }) shown = time
-                } catch (e: Throwable) {
-                    log.w(e) { "drawing video frames in the canvas failed; using the element" }
-                    useElement()
-                    break
+            val frames = VideoFrames(target.webGLContext)
+            try {
+                var shown = -1.0
+                var shownSize = IntSize.Zero
+                while (true) {
+                    withFrameNanos { }
+                    val time = video.currentTime
+                    if (time == shown && size == shownSize) continue
+                    if (video.readyState < HAVE_CURRENT_DATA || video.videoWidth == 0 || video.videoHeight == 0) continue
+                    try {
+                        if (target.render { frames.draw(video, target) }) {
+                            shown = time
+                            shownSize = size
+                        }
+                    } catch (e: Throwable) {
+                        log.w(e) { "drawing video frames in the canvas failed; using the element" }
+                        useElement()
+                        break
+                    }
                 }
+            } finally {
+                frames.release()
             }
         }
         Box(modifier.background(Color.Black)) {
@@ -230,21 +257,6 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
         }
     }
 
-    @OptIn(ExperimentalComposeUiApi::class)
-    private fun upload(target: WebGLRenderTarget) {
-        val gl = target.webGLContext
-        if (target.size.width != video.videoWidth || target.size.height != video.videoHeight) return
-        gl.bindTexture(WebGLRenderingContext.TEXTURE_2D, target.webGlTexture)
-        // The adopted texture's origin is bottom-left; the video's first row is its top.
-        gl.pixelStorei(WebGLRenderingContext.UNPACK_FLIP_Y_WEBGL, 1)
-        try {
-            gl.texSubImage2D(WebGLRenderingContext.TEXTURE_2D, 0, 0, 0, WebGLRenderingContext.RGBA, WebGLRenderingContext.UNSIGNED_BYTE, video)
-        } finally {
-            gl.pixelStorei(WebGLRenderingContext.UNPACK_FLIP_Y_WEBGL, 0)
-            gl.bindTexture(WebGLRenderingContext.TEXTURE_2D, null)
-        }
-    }
-
     private fun useElement() {
         drawsInCanvas.value = false
         applyCaptions()
@@ -254,10 +266,26 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
         stop()
     }
 
-    /** Autoplay with sound needs a user gesture first; a rejected play() leaves the item paused, as a remote's pause would. */
+    /**
+     * Browsers refuse autoplay with sound until the page has had a user gesture. A refused play() is retried muted,
+     * which they allow, and the sound returns on the first key press or pointer press.
+     */
     @OptIn(ExperimentalWasmJsInterop::class)
     private fun startPlayback() {
-        video.play()
+        video.play().unsafeCast<PlayPromise>().catch { error ->
+            if (error.unsafeCast<DomError>().name == "NotAllowedError" && !video.muted) {
+                awaitingGesture = true
+                video.muted = true
+                video.play()
+            }
+            null
+        }
+    }
+
+    private fun restoreSound() {
+        if (!awaitingGesture) return
+        awaitingGesture = false
+        video.muted = video.volume == 0.0
     }
 
     private fun updateFrameSize() {
@@ -293,6 +321,80 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
             active[i]?.let { cue -> cueText(cue).takeIf { it.isNotBlank() }?.let { CaptionCue(AnnotatedString(it)) } }
         }
     }
+}
+
+/**
+ * Copies the video's current frame into a texture of the frame's own size, then scales it into a render target. A
+ * frame can change size before `videoWidth` reports it (a variant switch), so it is never written into a texture of
+ * an assumed size. GL objects are created on the first [draw], inside a render, so Compose's GL state stays known.
+ */
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalWasmJsInterop::class)
+private class VideoFrames(private val gl: WebGLRenderingContext) {
+    private var texture: WebGLTexture? = null
+    private var source: WebGLFramebuffer? = null
+
+    fun draw(video: HTMLVideoElement, target: WebGLRenderTarget) {
+        val texture = texture ?: createTexture().also { texture = it }
+        gl.bindTexture(TEXTURE_2D, texture)
+        gl.texImage2D(TEXTURE_2D, 0, RGBA, RGBA, UNSIGNED_BYTE, video)
+        gl.bindTexture(TEXTURE_2D, null)
+        val source = source ?: gl.createFramebuffer().also { fb ->
+            gl.bindFramebuffer(READ_FRAMEBUFFER, fb)
+            gl.framebufferTexture2D(READ_FRAMEBUFFER, COLOR_ATTACHMENT0, TEXTURE_2D, texture, 0)
+            source = fb
+        }
+        gl.bindFramebuffer(READ_FRAMEBUFFER, source)
+        gl.bindFramebuffer(DRAW_FRAMEBUFFER, target.framebuffer)
+        // The target's origin is bottom-left and the frame's first row is its top, so the blit flips it.
+        gl.unsafeCast<WebGL2Blit>().blitFramebuffer(
+            0, 0, video.videoWidth, video.videoHeight,
+            0, target.size.height, target.size.width, 0,
+            COLOR_BUFFER_BIT, LINEAR,
+        )
+        gl.bindFramebuffer(FRAMEBUFFER, target.framebuffer)
+    }
+
+    fun release() {
+        source?.let(gl::deleteFramebuffer)
+        texture?.let(gl::deleteTexture)
+        source = null
+        texture = null
+    }
+
+    private fun createTexture(): WebGLTexture {
+        val created = gl.createTexture() ?: error("gl.createTexture() returned null")
+        gl.bindTexture(TEXTURE_2D, created)
+        gl.texParameteri(TEXTURE_2D, TEXTURE_MIN_FILTER, LINEAR)
+        gl.texParameteri(TEXTURE_2D, TEXTURE_MAG_FILTER, LINEAR)
+        gl.texParameteri(TEXTURE_2D, TEXTURE_WRAP_S, CLAMP_TO_EDGE)
+        gl.texParameteri(TEXTURE_2D, TEXTURE_WRAP_T, CLAMP_TO_EDGE)
+        gl.bindTexture(TEXTURE_2D, null)
+        return created
+    }
+}
+
+private const val READ_FRAMEBUFFER = 0x8CA8
+private const val DRAW_FRAMEBUFFER = 0x8CA9
+
+/** WebGL2's blit, which the WebGL 1 bindings lack; [rememberWebGLRenderTarget] only hands out WebGL2 contexts. */
+@OptIn(ExperimentalWasmJsInterop::class)
+private external interface WebGL2Blit : JsAny {
+    fun blitFramebuffer(
+        srcX0: Int, srcY0: Int, srcX1: Int, srcY1: Int,
+        dstX0: Int, dstY0: Int, dstX1: Int, dstY1: Int,
+        mask: Int, filter: Int,
+    )
+}
+
+/** The promise play() returns; the bindings type it differently on js and wasm. */
+@OptIn(ExperimentalWasmJsInterop::class)
+private external interface PlayPromise : JsAny {
+    fun catch(onRejected: (JsAny) -> JsAny?): JsAny
+}
+
+@OptIn(ExperimentalWasmJsInterop::class)
+private external interface DomError : JsAny {
+    val name: String
 }
 
 private fun isCrossOrigin(url: String): Boolean = URL(url, window.location.href).origin != window.location.origin

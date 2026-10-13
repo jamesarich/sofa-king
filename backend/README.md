@@ -37,7 +37,7 @@ Only Plex and the Sofa King app have been tested. The others speak the same HDHo
 | Client | Status | Connect with |
 | --- | --- | --- |
 | Plex Live TV & DVR | Tested | HDHomeRun at `SERVER_HOST:9193`, guide `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` ([Plex setup](docs/live-tv.md#plex-live-tv)) |
-| [Sofa King Android TV app](https://github.com/jamesarich/sofa-king) | Tested | Server `http://SERVER_HOST:9193` and the API token |
+| [Sofa King app](../app/README.md) | Tested | Server `http://SERVER_HOST:9193` and the API token |
 | Jellyfin, Emby | Should work, untested | HDHomeRun tuner at `http://SERVER_HOST:9193`, or an M3U tuner with the playlist below; the XMLTV guide below |
 | Channels DVR | Should work, untested | Custom channels source with the M3U playlist and XMLTV guide below |
 | TiviMate, Kodi (IPTV Simple Client) | Should work, untested | The M3U playlist and XMLTV guide below |
@@ -52,7 +52,7 @@ The HDHomeRun routes admit only the addresses in `SOFA_HDHR_ALLOW`, so list ever
 
 ## Quick start
 
-With Docker and JDK 21, from the repository root:
+With Docker and JDK 21, from `backend/`:
 
 ```sh
 ./gradlew :server:installDist

@@ -4,7 +4,7 @@ The image runs the server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jr
 
 ## Quick start
 
-Run from the repository root with JDK 21 installed:
+Run from `backend/` with JDK 21 installed:
 
 ```sh
 ./gradlew :server:installDist
@@ -124,7 +124,7 @@ A [Homepage](https://gethomepage.dev/configs/docker/) instance with access to th
 | `deploy/.env.example` | Optional settings; copy to `deploy/.env` |
 | `deploy/sources.example.json` | Source template; copy to `deploy/config/sources.json` |
 | `deploy/sofa-king-update.sh`, `deploy/systemd/` | Keeps a host on the published image, see [update automatically](#update-automatically) |
-| `.github/workflows/image.yml` | Tests pull requests and pushes to `main`, and publishes the image for `main` |
+| `.github/workflows/backend.yml` (at the repository root) | Tests pull requests and pushes to `main`, and publishes the image for `main` |
 
 `deploy/.env` and `deploy/config/` are ignored by Git.
 
@@ -162,7 +162,7 @@ Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rol
 
 ## The published image
 
-The [Image workflow](../.github/workflows/image.yml) runs on every pull request and every push to `main`. Its `test` job runs the tests and builds the distribution; on a pull request it also builds the image without publishing it. For `main`, the `publish` job then builds the image for `linux/amd64` and `linux/arm64` and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
+The [Backend workflow](../../.github/workflows/backend.yml) runs on every pull request and every push to `main` that changes `backend/` other than its Markdown. Its `test` job runs the tests and builds the distribution; on a pull request it also builds the image without publishing it. For `main`, the `publish` job then builds the image for `linux/amd64` and `linux/arm64` and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
 
 The package is private. Pulling it needs a GitHub account with access to it, and Docker logged in to `ghcr.io` with a [personal access token (classic)](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic) that has the `read:packages` scope. Without access, `docker pull` answers `denied`. To run the published image instead of a local build, tag it as the image `compose.yaml` names and start without building:
 

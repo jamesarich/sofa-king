@@ -21,13 +21,13 @@
 | [Development](development.md) | Build and test, running each platform, the TV checklist, CI and snapshot builds |
 | [Dependencies](dependencies.md) | Pinned versions, locking and how to change versions |
 
-The app's [README](../README.md) introduces it. [CONTRIBUTING](../../CONTRIBUTING.md) and [SECURITY](../../SECURITY.md) are at the repository root. The [server's documentation](https://github.com/jamesarich/sofa-king-backend/blob/main/docs/README.md) covers the lineup, sources and the API the app reads.
+The app's [README](../README.md) introduces it. [CONTRIBUTING](../../CONTRIBUTING.md) and [SECURITY](../../SECURITY.md) are at the repository root. The [server's documentation](../../backend/docs/README.md) covers the lineup, sources and the API the app reads.
 
 ## Glossary
 
 | Term | Meaning |
 | --- | --- |
-| Server | The [Sofa King server](https://github.com/jamesarich/sofa-king-backend). It builds the lineup, holds the guide and relays every stream |
+| Server | The [Sofa King server](../../backend/README.md). It builds the lineup, holds the guide and relays every stream |
 | Lineup | The channels the server lists. The app shows the playable ones with a numeric display number, in number order |
 | Channel | One lineup entry: its number, name, logo, tags and stream |
 | Tag, category | A label the server gives a channel, such as News. Each tag becomes a filter chip in the guide, and a channel with several tags appears under each |

@@ -7,6 +7,7 @@ on:
       - "app/**"
       - "!app/docs/**"
       - "!app/**/*.md"
+      - "gradle/build-cache.settings.gradle.kts"
       - ".github/workflows/ci.yml"
       - ".github/workflows/snapshot.yml"
   push:
@@ -15,6 +16,7 @@ on:
       - "app/**"
       - "!app/docs/**"
       - "!app/**/*.md"
+      - "gradle/build-cache.settings.gradle.kts"
       - ".github/workflows/ci.yml"
       - ".github/workflows/snapshot.yml"
   workflow_dispatch:

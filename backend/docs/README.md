@@ -29,7 +29,7 @@
 | [Development](development.md) | Running without Docker, build, test and the smoke scripts |
 | [Dependencies](dependencies.md) | Pinned versions, Renovate, verification metadata and how to change versions |
 
-The top-level [README](../README.md) introduces the server. [CONTRIBUTING](../CONTRIBUTING.md) and [SECURITY](../SECURITY.md) are at the repository root.
+The server's [README](../README.md) introduces it, beside its [CONTRIBUTING](../CONTRIBUTING.md) and [SECURITY](../SECURITY.md).
 
 ## Glossary
 

@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         The native providers are unofficial clients of each service's public endpoints, and they break when a service changes them.
-        [When a native provider breaks](https://github.com/jamesarich/sofa-king-backend/blob/main/docs/operations.md#when-a-native-provider-breaks) has the steps to check one.
+        [When a native provider breaks](https://github.com/jamesarich/sofa-king/blob/main/backend/docs/operations.md#when-a-native-provider-breaks) has the steps to check one.
   - type: dropdown
     id: service
     attributes:

@@ -49,7 +49,7 @@ ENTRYPOINT ["/usr/bin/tini", "--", "/opt/sofa/bin/server"]
 # Last, so a new revision invalidates no layer above it.
 ARG REVISION=unknown
 LABEL org.opencontainers.image.title="Sofa King backend" \
-      org.opencontainers.image.source="https://github.com/jamesarich/sofa-king-backend" \
+      org.opencontainers.image.source="https://github.com/jamesarich/sofa-king" \
       org.opencontainers.image.licenses="GPL-3.0-only" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.version="${REVISION}"

@@ -1,6 +1,6 @@
 # Troubleshooting and FAQ
 
-Start with the message on screen, then the log. The app logs under the tag `SofaKing`: on Android, `adb logcat -s SofaKing` shows it; on a desktop, `./gradlew :ui:run` prints it; on the web, the browser's console has it. The API token is never logged. Many problems start on the server, so its [troubleshooting](https://github.com/jamesarich/sofa-king-backend/blob/main/docs/troubleshooting.md) is the next place to look.
+Start with the message on screen, then the log. The app logs under the tag `SofaKing`: on Android, `adb logcat -s SofaKing` shows it; on a desktop, `./gradlew :ui:run` prints it; on the web, the browser's console has it. The API token is never logged. Many problems start on the server, so its [troubleshooting](../../backend/docs/troubleshooting.md) is the next place to look.
 
 ## Connecting
 
@@ -17,7 +17,7 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 
 | Symptom | Check |
 | --- | --- |
-| No channels to play | The server lists no channel with a playable source. Check its providers and [source health](https://github.com/jamesarich/sofa-king-backend/blob/main/docs/source-health.md). |
+| No channels to play | The server lists no channel with a playable source. Check its providers and [source health](../../backend/docs/source-health.md). |
 | A channel is missing | The app lists a channel only when the server reports it playable and gives it a numeric display number. |
 | No listing | The channel's guide lists nothing in the window. Check the guide on the server. |
 | No guide for this channel | The server has no guide mapped to the channel. Map one there. |

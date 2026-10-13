@@ -2,7 +2,7 @@
 
 Live TV, Sofa King good.
 
-Sofa King is a live TV app for the channels of your own [Sofa King server](https://github.com/jamesarich/sofa-king-backend). It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide and the streams come from that server; the app includes no channel subscription.
+Sofa King is a live TV app for the channels of your own [Sofa King server](../backend/README.md). It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide and the streams come from that server; the app includes no channel subscription.
 
 ## Why
 

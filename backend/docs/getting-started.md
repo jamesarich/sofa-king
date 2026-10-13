@@ -13,7 +13,7 @@ Replace `SERVER_HOST` with the host's LAN address and `PLEX_SERVER_IP` with the 
 
 ## 1. Start the server
 
-From the repository root, build the server and start it:
+From `backend/`, build the server and start it:
 
 ```sh
 ./gradlew :server:installDist
@@ -125,7 +125,7 @@ The portal's Plex page shows the playlist and guide URLs with this token once yo
 
 ### The Sofa King app
 
-Install the [Sofa King Android TV app](https://github.com/jamesarich/sofa-king) and give it the server address, `http://SERVER_HOST:9193`, and the API token. The portal's Settings page reveals the API token too. The app reads the lineup and the guide, and plays through the server.
+Install the [Sofa King app](../../app/README.md) and give it the server address, `http://SERVER_HOST:9193`, and the API token. The portal's Settings page reveals the API token too. The app reads the lineup and the guide, and plays through the server.
 
 ### An M3U player
 

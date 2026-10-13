@@ -4,7 +4,7 @@ Thanks for working on Sofa King Backend. This guide covers the build, the test s
 
 ## Build and test
 
-You need JDK 21 and FFmpeg. Run commands from the repository root:
+You need JDK 21 and FFmpeg. Run commands from `backend/`:
 
 ```sh
 ./gradlew test
@@ -15,7 +15,7 @@ python3 scripts/live-smoke.py
 
 The tests generate real HLS fixtures with FFmpeg, so FFmpeg must be on the path. The smoke scripts run the installed distribution against disposable servers and temporary directories, so run `:server:installDist` first. See [development](docs/development.md) for what each script covers.
 
-The [Image workflow](.github/workflows/image.yml) runs on every pull request and on every push to `main`, in two jobs:
+The [Backend workflow](../.github/workflows/backend.yml) runs on every pull request and every push to `main` that changes `backend/` other than its Markdown, in two jobs:
 
 - `test` runs `./gradlew test :server:installDist` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. On a pull request it also builds the image for `linux/amd64` without pushing it.
 - `publish` runs only for `main`, after `test` passes. It builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to `ghcr.io/jamesarich/sofa-king-backend` as `:main` and `:sha-<commit>`. The push carries a BuildKit SBOM and max-mode build provenance, which [deploy](docs/deploy.md#inspect-the-published-image) shows how to inspect. Hosts with [automatic updates](docs/deploy.md#update-automatically) install that image.

@@ -13,7 +13,8 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 | The log says `/config is not writable by the user the server runs as` | `config` belongs to another user. Set `UID` and `GID` in `.env` to its owner, or `chown` it to them. Docker creates a missing bind-mount folder as root, so create it before the first start. See [run as your own user](deploy.md#run-as-your-own-user). |
 | The log says `Non-loopback binding with SOFA_HDHR_ENABLED requires SOFA_HDHR_ALLOW` | The HDHomeRun emulation is on with no allow-list. Set `SOFA_HDHR_ALLOW` to the Plex server's address, or `SOFA_HDHR_ENABLED=false` when Plex is not used. |
 | The log says `Not an IP address or CIDR block` | `SOFA_HDHR_ALLOW` holds a placeholder or a hostname. List IP addresses or CIDR blocks. |
-| The log says `must contain at least 32 characters` | A token set in `.env` or its file is too short. The output token needs 32 letters, digits, hyphens or underscores. Leave the API and admin tokens unset to have them generated. |
+| The log says `SOFA_API_TOKEN must contain at least 32 characters` or `SOFA_ADMIN_TOKEN must contain at least 32 characters` | The token set in `.env` or its file is too short. Leave the API and admin tokens unset to have them generated, or use `openssl rand -hex 32`. |
+| The log says `SOFA_OUTPUT_TOKEN must contain at least 32 letters, digits, hyphens or underscores` | The output token is too short or holds other characters. Use `openssl rand -hex 16`. |
 | The log says `Set SOFA_API_TOKEN or SOFA_API_TOKEN_FILE, not both` | Remove one of the two from `.env`. The same holds for each `_FILE` variable. |
 | The log says `/data/backend.sqlite exists but SOFA_DATA_DIR (/config) holds no database` | Move the database as [move from a /data volume](deploy.md#move-from-a-data-volume) describes. |
 | The log says `Source configuration references unset variable` | `config/sources.json` uses `${NAME}` for a variable that `.env` does not set. |
@@ -35,14 +36,14 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 | --- | --- |
 | `/api/v1/channels` is empty | The lineup has not been built, or every channel is off. Add a [lineup policy](lineup-policy.md). With `health.requireVerified`, stations come on as the probes verify a source of each, which takes a while for a large lineup. `GET /api/v1/admin/lineup` shows every entry. |
 | No candidates | Add `sources.json` to the config folder or set `SOFA_SOURCES`, then check `/api/v1/providers` for `IMPORT_FAILED` and the playlist URL and format. |
-| A provider shows `IMPORT_FAILED` for a feed on the Docker host | Use `host.docker.internal` or the LAN address. Loopback is refused. |
+| A provider shows `IMPORT_FAILED` for a playlist on the Docker host | Use `host.docker.internal` or the LAN address. Loopback is refused. |
 | An import stays unchanged | A failed or empty import keeps the previous snapshot. Check the provider status and `allowEmpty`. |
-| Sources stay `UNVERIFIED` or never qualify | Check `docker compose logs` for probe outcomes. Outside Docker, check that `SOFA_FFMPEG` names a working FFmpeg. Check the provider's `probe` setting too, and whether the feed sends credential or custom headers, which are never probed. |
+| Sources stay `UNVERIFIED` or never qualify | Check `docker compose logs` for probe outcomes. Outside Docker, check that `SOFA_FFMPEG` names a working FFmpeg. Under a lineup policy only the sources its stations use are probed, whatever the provider's `probe` setting; without one, check that setting. A provider with `headers` other than `User-Agent`, `Accept`, `Accept-Language`, `Origin` and `Referer` is never probed. See [probing](lineup-policy.md#probing). |
 | A source shows `WITHDRAWN` | The provider's current list does not have that stream. The entry keeps the reference. Replace the source when the provider lists a new URL. |
 | A channel vanished from the lineup | `GET /api/v1/admin/lineup/ENTRY_ID`: `autoDisabledAt` set means the lineup policy turned it off for want of an eligible source. `GET /api/v1/admin/policy/changes` has the change and `GET /api/v1/admin/stations/KEY` the station's candidates. |
 | `503 SOURCE_UNAVAILABLE` | No source of the channel is selectable now. `GET /api/v1/admin/lineup/ENTRY_ID` shows each source's state, and `/api/v1/sources` shows quarantine, probation or a manual disable. |
 | Extensionless HLS answers `410 STREAM_CHANGED` once | The source has not been probed yet. The first fetch detects HLS, stores it and starts a new epoch, so fetch the session again. Set `defaultProtocol` to `hls`, or `stream-type="hls"` on the entry, so unprobed sources start right. |
-| `429 CAPACITY_EXHAUSTED` | Every playback slot holds a watch session. Release unused sessions or wait for their 90-second leases to expire. Previews and idle player sessions give way on their own. Raise `SOFA_MAX_SESSIONS` if the host can take it. |
+| `429 CAPACITY_EXHAUSTED` | Every playback slot holds a watch session or a busy player stream. Release unused sessions or wait for their 90-second leases to expire. Previews and idle player sessions give way on their own. Raise `SOFA_MAX_SESSIONS` if the host can take it. A media request can also answer `429` when its session already has 12 requests in flight. |
 
 ## Guide
 

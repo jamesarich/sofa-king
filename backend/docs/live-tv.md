@@ -1,6 +1,6 @@
 # Live TV: configuration, lineup and sources
 
-This page is the configuration reference for the server: every environment variable, the source file that lists providers and guides, how sources and channels are identified, the lineup, the player outputs and Plex.
+This page is the configuration reference for the server: every environment variable, the source file that lists providers and guides, how sources and channels are identified, the lineup, the player outputs and Plex. To run the server on the LAN without Docker, see [development](development.md#run-without-docker); the tokens each route takes are in [security](../SECURITY.md#credentials-and-the-routes-they-open).
 
 ## Server settings
 
@@ -60,12 +60,12 @@ Each provider object configures one M3U playlist, or with `"type": "native"` one
 | `guideUrl` | Unset | HTTP(S) XMLTV URL; an implicit guide with this provider's id. A native service with a guide of its own, or a published XMLTV, gets the implicit guide without it |
 | `headers` | `{}` | Request headers for playlists, guides and streams (`m3u` only) |
 | `refreshSeconds` | `900` (`3600` for `native`) | Import interval; minimum 60 seconds |
-| `probe` | `true` | Enable automatic source qualification |
+| `probe` | `true` | Enable automatic source qualification. A lineup policy ignores it and probes every source its stations use ([probing](lineup-policy.md#probing)) |
 | `defaultProtocol` | Unset | `hls` or `mpegts` for entries without a `stream-type`; otherwise `.m3u8` implies HLS and other paths imply MPEG-TS. Applies until a probe or media fetch detects the protocol in the stream body |
 | `allowEmpty` | `false` | Allow an empty playlist to withdraw all of this provider's sources |
 | `renewableQuery` | Unset | Query parameter names (case-insensitive) that this provider rotates; replaces the [default list](#source-identity) for its stream URLs |
 
-Keep provider IDs stable: they participate in source identity, and lineup entries refer to sources by ID. Store credentials under the ignored `data/` directory or in the environment.
+Keep provider IDs stable: they participate in source identity, and lineup entries refer to sources by ID. Keep credentials in the environment and reference them as `${NAME}`, or keep the source file in the data directory, which Git ignores.
 
 Failed imports keep the last complete snapshot. Removed sources become unavailable; lineup entries keep referring to them and skip them for playback until they return. With `allowEmpty: false`, an empty playlist also keeps the previous snapshot.
 
@@ -98,7 +98,7 @@ Each guide object configures one XMLTV source, independent of any provider:
 | `headers` | `{}` | Request headers for the guide |
 | `refreshSeconds` | `21600` | Import interval; minimum 300 seconds |
 
-Guides are parsed as a stream. The server keeps the `<channel>` index (and every channel ID seen on a program) for guide mapping, and it keeps programs only for channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programs within one fetch. The download follows up to five redirects and is bounded by a 15-second socket inactivity timeout rather than a total request timeout. It is read as gzip whenever the body starts with the gzip magic bytes, whatever the content type says. A `<!DOCTYPE tv SYSTEM "xmltv.dtd">` declaration is accepted. The DTD is never fetched, and an entity declared in the document fails the import instead of resolving. In UTF-8 and single-byte guides, control characters that XML forbids are dropped before parsing and counted as `controlChars` in the import log line. A UTF-16 guide is parsed as sent. Each guide fails on its own. `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one, the others keep refreshing, and the log line carries the exception class and its message with URLs redacted.
+The server keeps every guide's channel index for guide mapping, and programs only for the channels the lineup maps onto that guide. Adding or changing a mapping triggers a refresh of that guide, so a newly mapped channel has programs within one fetch. Each guide fails on its own: `/api/v1/admin/guides` reports `IMPORT_FAILED` for the failing one, and the others keep refreshing. [Guide imports](architecture.md#guide-imports) describes the parser, its redirects and timeouts, and the XML it accepts.
 
 ### Import limits
 
@@ -121,29 +121,17 @@ The XMLTV limit counts decompressed bytes as they stream past the parser, so it 
 
 ## Lineup
 
-The app sees the lineup and nothing else: `/api/v1/channels`, `/api/v1/guide/query` and `/api/v1/playback-sessions` work on lineup entry IDs. Feed channels that are not in the lineup are candidates. With a [lineup policy](lineup-policy.md) the policy builds the lineup from them; without one, entries are added through the admin API.
+The app sees the lineup and nothing else: `/api/v1/channels`, `/api/v1/guide/query` and `/api/v1/playback-sessions` work on lineup entry IDs. The channels providers list are candidates. With a [lineup policy](lineup-policy.md) the policy builds the lineup from them; without one, entries are added through the admin API, as [build a lineup without a policy](starter-lineup.md#build-a-lineup-without-a-policy) shows.
 
 A lineup entry has a stable UUID (the app's channel ID), a number, a name, an optional group and logo override, and an enabled flag. It also has an ordered list of sources from any providers, the failover order, and an optional guide mapping (guide ID plus XMLTV channel ID). Entries live in SQLite and survive imports and restarts. A disabled entry is kept but not served.
 
-Playback walks an entry's sources in order within each health rank: healthy sources first, then unverified, then suspect, lineup order inside each rank. Quarantined, probation, archived, manually disabled and withdrawn sources are skipped. The channel's `logo` is the override or the first source's feed logo. `tags` carries the group, and `legacyGuideId` carries the mapped XMLTV channel ID.
+Playback takes an entry's sources in the [selection order](source-health.md#source-selection). `tags` carries the group, and `legacyGuideId` carries the mapped XMLTV channel ID.
+
+With a lineup policy, `PATCH` and `DELETE` on `/api/v1/admin/lineup/{id}` write the station's override in the policy instead, and the routes that add, reorder or adopt answer `410` ([lineup policy API](lineup-policy.md#api)).
 
 ### Logos
 
-Clients, players and Plex see every logo at `http://SERVER_HOST:9193/logos/KEY` on this server, not on the host the feed names ([API detail](api.md#logos)). A channel's logo is the entry's own, else the first of its sources' `tvg-logo` values, else the mapped guide channel's `<icon>`.
-
-The server fetches each lineup logo once after an import or lineup change, stores it under `SOFA_DATA_DIR/logos/`, serves it with a day of cache headers and an `ETag`, and refreshes it a week later. A refresh that fails keeps the old file, so retiring a logo host leaves the logos in place. Only image content types up to 2 MiB are accepted. Fetches follow the [upstream address policy](#upstream-addresses) and send no provider headers. A `tvg-logo` or guide `<icon>` with spaces or other unencoded characters is percent-encoded, and a relative one resolves against the playlist or guide URL. A reference that is not an HTTP(S) URL after that counts as no logo. A logo the source never answered stays in the listings and answers `404`, which players show as their placeholder. The source is retried an hour later. The next sweep deletes logos that no entry names.
-
-Without a lineup policy, edit the lineup with the [admin API](api.md#admin-api). The common steps:
-
-1. Find candidates: `GET /api/v1/admin/candidates?q=espn` lists feed channels with their sources and which entries already use them.
-2. Add one: `POST /api/v1/admin/lineup` with `{"channelId": "FEED_CHANNEL_ID"}` copies the candidate's number, name, logo, group and sources. When the candidate's `tvg-id` appears in a configured guide, that guide is mapped automatically, explicit guides first, then provider guides.
-3. Add failover sources: `PATCH /api/v1/admin/lineup/ENTRY_ID` with `{"offerings": ["SOURCE_ID", "OTHER_SOURCE_ID"]}`.
-4. Map the guide: find the XMLTV channel with `GET /api/v1/admin/guides/GUIDE_ID/channels?q=espn`, then `PATCH` with `{"guide": {"guideId": "GUIDE_ID", "channelId": "XMLTV_ID"}}`.
-5. Renumber, rename or hide: `PATCH` with `number`, `name`, `group`, `logo` or `enabled`. `clearGroup`, `clearLogo` and `clearGuide` remove optional values. Reorder with `PUT /api/v1/admin/lineup/order`, listing every entry ID once.
-
-To add every channel of one provider at once, `POST /api/v1/admin/lineup/adopt` with `{"providerId": "whale"}` adds each channel whose sources no entry uses yet.
-
-With a lineup policy, `PATCH` and `DELETE` write the station's override in the policy instead, and the routes that add, reorder or adopt answer `410` ([lineup policy API](lineup-policy.md#api)).
+Clients, players and Plex see every logo at `http://SERVER_HOST:9193/logos/KEY` on this server, not on the logo's source host. A channel's logo is the entry's own, else the first of its sources' `tvg-logo` values, else the mapped guide channel's `<icon>`. The server keeps each logo under `SOFA_DATA_DIR/logos/` and refreshes it weekly; a refresh that fails keeps the stored file, so retiring a logo host leaves the logos in place. [API logos](api.md#logos) describes what clients get, and [architecture](architecture.md#logos) how logos are fetched and stored.
 
 ## Third-party players
 
@@ -214,33 +202,15 @@ SOFA_HDHR_EXTRA_PORTS=8081,8082
 
 The extra ports must differ from `SOFA_PORT`. They are opened only when `SOFA_HDHR_ENABLED` is `true`.
 
-## LAN access
-
-Bind to the LAN address. The first start generates the API and admin tokens and keeps them in `data/secrets.json`; set `SOFA_API_TOKEN` to a secret of at least 32 characters to choose the API token yourself:
-
-```sh
-SOFA_HOST=0.0.0.0 SOFA_HDHR_ALLOW=PLEX_SERVER_IP server/build/install/server/bin/server
-```
-
-Send the token with every `/api/` request, here from another shell:
-
-```sh
-SOFA_API_TOKEN=$(jq -r .apiToken data/secrets.json)
-curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" \
-  http://SERVER_HOST:8080/api/v1/channels
-```
-
-The API token permits playback and source administration, and the lineup admin API when there is no admin token. When it is set, only the admin token opens `/api/v1/admin/*`, and the API token is refused there. Health endpoints are public. Media URLs authorize playback by possession and expire with the session. Use HTTPS when sending a token over a network you do not control. The full token model is in [security](../SECURITY.md#credentials-and-the-routes-they-open).
-
 ## Provider headers
 
 Credentials are sent only to the configured request origin. Cross-origin CDN requests receive only `User-Agent`, `Accept`, `Accept-Language`, `Origin` and `Referer`. Authorization, cookies and custom headers are removed. Redirects are limited to five. HTTPS redirects cannot downgrade to HTTP, and sources configured with HTTPS also reject HTTP media resources.
 
-Providers that need secret headers on a different CDN origin are unsupported. Direct FFmpeg probes skip feeds with credential or custom headers. See [source health](source-health.md).
+Providers that need secret headers on a different CDN origin are unsupported. A provider with any other header is never probed, because FFmpeg cannot scope headers by origin ([probing](lineup-policy.md#probing)).
 
 ## Upstream addresses
 
-Playlist, guide, probe and media requests go only to `http`/`https` URLs without user info. Loopback (`127.0.0.0/8`, `::1`, `localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), unspecified (`0.0.0.0`, `::`) and multicast literals are refused, including as redirect targets. Private LAN addresses (RFC 1918) are allowed. Hostnames are not resolved before the request. A refused media address answers `502 UPSTREAM_REJECTED`, a refused feed or guide address fails that import, and a refused probe target counts as evidence against the source. `SOFA_ALLOW_LOOPBACK_UPSTREAMS=true` permits loopback for local fixtures.
+Playlist, guide, probe and media requests go only to `http`/`https` URLs without user info. Loopback (`127.0.0.0/8`, `::1`, `localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), unspecified (`0.0.0.0`, `::`) and multicast literals are refused, including as redirect targets. Private LAN addresses (RFC 1918) are allowed. Hostnames are not resolved before the request. A refused media address answers `502 UPSTREAM_REJECTED`, a refused playlist or guide address fails that import, and a refused probe target counts as evidence against the source. `SOFA_ALLOW_LOOPBACK_UPSTREAMS=true` permits loopback for local fixtures.
 
 FFmpeg reads sources itself for probes and for the Plex remux. It is started with `-protocol_whitelist http,https,tcp,tls,crypto`, so a playlist that names `file:`, `concat:` or another protocol fails instead of reading files on the server.
 

@@ -1,6 +1,12 @@
 # API
 
-The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_API_TOKEN` is configured, send `Authorization: Bearer $SOFA_API_TOKEN` on API requests. Routes under `/api/v1/admin` take `SOFA_ADMIN_TOKEN` instead when one is configured, sent as `Authorization: Bearer $SOFA_ADMIN_TOKEN`. The examples assume these shell variables hold the tokens and that the server runs under Docker at `SERVER_HOST:9193`; outside Docker the port is 8080. On a loopback server with no token, leave the header out. The token model is in [security](../SECURITY.md#credentials-and-the-routes-they-open).
+The API uses JSON under `/api/v1`. All timestamps are UTC instants. The examples assume `$SOFA_API_TOKEN` and `$SOFA_ADMIN_TOKEN` hold the tokens and that the server runs under Docker at `SERVER_HOST:9193`; outside Docker the port is 8080.
+
+## Tokens
+
+Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin` take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. On a loopback server with no token, leave the header out. A missing or wrong token answers `401 AUTH_REQUIRED`.
+
+These routes take no token: `/healthz`, `/readyz`, `/logos/{key}` and the session media URLs under `/media/sessions/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](../SECURITY.md#credentials-and-the-routes-they-open).
 
 ## Endpoints
 
@@ -11,7 +17,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 | GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities |
 | GET | `/api/v1/channels` | Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match |
 | GET | `/api/v1/providers` | Provider import status and channel counts |
-| GET | `/api/v1/sources` | Source health and manual-disable flags for every feed source |
+| GET | `/api/v1/sources` | Health and manual-disable flag of every source |
 | PATCH | `/api/v1/sources/{id}` | Set `manuallyDisabled` |
 | POST | `/api/v1/guide/query` | Programs overlapping a requested channel/time window |
 | POST | `/api/v1/playback-sessions` | Create a preview or watch session |
@@ -30,7 +36,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 
 Request bodies are limited to 64 KiB, except a policy write through `PUT /api/v1/admin/policy` or the portal's group and provider edits (4 MiB). A larger body answers `413 REQUEST_TOO_LARGE` before the token is checked. Every response carries an `X-Request-Id` header with the id the server's log lines for that request carry. Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams and logos never are. The live TV fields are defined in the [contract](../../contract/src/commonMain/kotlin/dev/jamesrich/sofaking/contract/), which the app compiles against too, and the admin fields in the [server's models](../server/src/main/kotlin/dev/jamesrich/sofaking/backend/api/); see [shared types](#shared-types).
 
-Channel IDs are lineup entry IDs. A channel's `displayNumber`, `name` and `tags` (the group) come from its entry; `logo` is the entry's logo served from this server as the server-relative path `/logos/KEY` (see [logos](#logos)), which a client resolves against the base URL it uses for the API, a proxy included (the server cannot be served under a sub-path); `legacyGuideId` is the mapped XMLTV channel ID; `guideStatus` is `unassigned`, `empty`, `available` or `stale`; `playbackEligible` is true when any of the entry's sources is selectable. Channels are listed in lineup order.
+Channel IDs are lineup entry IDs. A channel's `displayNumber`, `name` and `tags` (the group) come from its entry; `logo` is the channel's logo as the server-relative path `/logos/KEY` (see [logos](#logos)), which a client resolves against the base URL it uses for the API, a proxy included (the server cannot be served under a sub-path); `legacyGuideId` is the mapped XMLTV channel ID; `guideStatus` is `unassigned`, `empty`, `available` or `stale`; `playbackEligible` is true when any of the entry's sources is selectable. Channels are listed in lineup order.
 
 Each provider status reports `lastSuccessAt`, `errorCode` (`IMPORT_FAILED` when the last import kept the previous snapshot), `channels` and `sources` from the last successful import, `skippedEntries`, `skipReasons` and `notes`. Skip reasons are counts by short key, for example `duplicate-source=1, missing-name=3`: `missing-name`, `invalid-url`, `invalid-uuid`, `duplicate-source` (the same source key twice, see [source identity](live-tv.md#source-identity)), `bad-protocol` and `no-extinf`. Notes count imported entries whose identity was derived, for example `merged-key=2, url-identity=724`: `url-identity` (no `channel-id`, `tvg-id` or `channel-uuid`, so the URL is the identity) and `merged-key` (a published identity repeated with another name or number, kept as an alternative source of the first entry). Both are null when empty.
 
@@ -56,7 +62,7 @@ To page through a consistent guide, pass the returned `revision` in subsequent r
 
 ## Open and release playback
 
-Create a session with a catalog channel ID and a unique idempotency key:
+Create a session with a catalog channel ID and a unique idempotency key of 1-128 characters:
 
 ```sh
 curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/api/v1/playback-sessions \
@@ -68,11 +74,11 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/a
   }'
 ```
 
-The server picks the entry's first selectable source: healthy before unverified before suspect, lineup order within a rank. The response contains `id`, `expiresAt`, and a `descriptor` with `protocol`, `mimeType`, relative `url`, and `epoch`. Resolve the URL against the server address and give it to the player.
+The server picks the entry's first selectable source, in the [selection order](source-health.md#source-selection). The response contains `id`, `expiresAt`, and a `descriptor` with `protocol`, `mimeType`, relative `url`, and `epoch`. Resolve the URL against the server address and give it to the player.
 
 The descriptor's `protocol`, `mimeType` and URL suffix (`.m3u8` or `.ts`) come from the source's protocol, not from the upstream path. That protocol is the one a probe or media fetch detected in the stream body and stored in the database; a source without a detection yet uses the import's protocol. If a media fetch finds the other protocol (an M3U behind an extensionless URL, or MPEG-TS behind a `.m3u8` path), the server stores it, increments the epoch and answers `410 STREAM_CHANGED`; fetch the session and open the new URL. Every later session on that source, including after a restart, starts with the detected protocol.
 
-A watch session expires 90 seconds after its last renewal, a preview after 45 seconds. When `SOFA_MAX_SESSIONS` sessions are active, a new request evicts the oldest preview session (its media requests end and later calls on it answer `410 SESSION_EXPIRED`); if every active session is a watch, the request fails with `429 CAPACITY_EXHAUSTED`. Renew and promote a preview without replacing its stream:
+A watch session expires 90 seconds after its last renewal, a preview after 45 seconds. When `SOFA_MAX_SESSIONS` sessions are active, a new open evicts the oldest preview session. With no preview, it evicts the idle external session (an M3U player or HDHomeRun session with no media request in flight) that expires first. An evicted session's media requests end, and later calls on it answer `410 SESSION_EXPIRED`. With neither to evict, the open answers `429 CAPACITY_EXHAUSTED`. Renew and promote a preview without replacing its stream:
 
 ```sh
 curl --fail -X PATCH \
@@ -84,6 +90,8 @@ curl --fail -X PATCH \
 
 Send `{}` to renew without changing intent. Fetch the session periodically; if its descriptor epoch changes, reopen the returned media URL. When the current source stops being selectable, the fetch moves the session to the entry's next selectable source with a new epoch.
 
+A session serves at most 12 media requests at once; one more answers `429 CAPACITY_EXHAUSTED`. A media request for a session whose source is no longer selectable answers `503 SOURCE_UNAVAILABLE` and ends the session's other media requests; fetch the session to move it to the next source. A media URL from an older epoch answers `410 STREAM_CHANGED`, and one for a session that ended answers `410 SESSION_EXPIRED`.
+
 Release the session when playback ends:
 
 ```sh
@@ -92,11 +100,11 @@ curl --fail -X DELETE \
   http://SERVER_HOST:9193/api/v1/playback-sessions/SESSION_ID
 ```
 
-Release is idempotent and cancels active upstream requests. Repeating an open request with the same key returns the same session while it remains active. A reused key with different parameters returns `409 IDEMPOTENCY_CONFLICT`.
+Release is idempotent and cancels active upstream requests. Repeating an open request with the same key returns the same session while it remains active, and `410 SESSION_EXPIRED` once it has ended; open a new session with a new key. A reused key with different parameters returns `409 IDEMPOTENCY_CONFLICT`.
 
 ## Player outputs
 
-`/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer; the API token is accepted as a bearer only, never in a query. With neither token configured (a loopback development server) the routes are open. A URL token lands in player configuration, screenshots and any proxy log between the player and the server, which is why it is a separate token that opens nothing but these routes; this server never logs a query string. Rotate it by changing the variable and re-adding the playlist in each player. Without `SOFA_OUTPUT_TOKEN` the routes answer `401 AUTH_REQUIRED` to anything but the API bearer.
+`/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer. The API token is accepted as a bearer only, never in a query. Without `SOFA_OUTPUT_TOKEN` the routes answer `401 AUTH_REQUIRED` to anything but the API bearer, and with neither token configured (a loopback development server) they are open. [Security](../SECURITY.md#credentials-and-the-routes-they-open) explains why the output token is separate, and [operations](operations.md#rotating-tokens) how to rotate it.
 
 `GET /output/playlist.m3u` lists the enabled lineup in order, `audio/x-mpegurl`:
 
@@ -110,13 +118,13 @@ http://HOST/output/stream/CHANNEL_UUID.m3u8?token=TOKEN
 
 `GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3; `?days=1`-`14` overrides). Times are `YYYYMMDDHHMMSS +0000`.
 
-Each program carries the metadata its guide source provides, in XMLTV order: `<title>`, `<sub-title>`, `<desc>`, `<date>`, `<category>`, `<icon>`, every `<episode-num>` the source gave with its own `system` (`xmltv_ns`, `onscreen`, `dd_progid` and others), `<previously-shown>` with its `start` when known, `<new/>` and `<rating>` with its `system` when known. `<title>`, `<sub-title>`, `<desc>` and the source's categories carry `lang` when the source named the title's language. `<icon>` is the source's own image URL, not one served from this server. A source XMLTV keeps at most 8 categories, 8 episode numbers and the first rating per programme.
+Each program carries the metadata its guide source provides, in XMLTV order: `<title>`, `<sub-title>`, `<desc>`, `<date>`, `<category>`, `<icon>`, every `<episode-num>` the source gave with its own `system` (`xmltv_ns`, `onscreen`, `dd_progid` and others), `<previously-shown>` with its `start` when known, `<new/>` and `<rating>` with its `system` when known. `<title>`, `<sub-title>`, `<desc>` and the source's categories carry `lang` when the source named the title's language. `<icon>` is the source's own image URL, not one served from this server. A source XMLTV keeps at most 8 categories, 8 episode numbers and the first rating per program.
 
 The categories are the source's own, with any kind Plex sorts by (`Movie`, `Sports`, `News`, `Children`, `Series`) first. A program whose source gave none carries its channel's group instead, with `lang="en"`: first the kind Plex sorts by, then the group's own name when it differs. The kind is `Movie` for Movies, `Sports` for Sports, `News` for News, Local and Local News (US), `Children` for Kids & Family, and `Series` for anything else.
 
 A program that is not a movie and has no episode numbering from its source gets `<episode-num system="original-air-date">` with its start time in UTC, `YYYY-MM-DD HH:MM:SS`, since Plex files a program without episode numbering as a movie. A program counts as a movie when its channel is in Movies or a category is `Movie`. A channel with no program in the window, guide mapping or not, gets hourly placeholder programs titled with its name, with the group's categories and that air date, so Plex lists and records it like the rest. The body is streamed.
 
-`tvg-logo` and `<icon>` name the channel's logo at `http://HOST/logos/KEY`, never the feed's own logo host.
+`tvg-logo` and `<icon>` name the channel's logo at `http://HOST/logos/KEY`, never the logo's source host.
 
 `GET /output/stream/{channelId}.m3u8|.ts` opens a watch session for the channel and plays it. An HLS source answers `302` to the session's playlist URL under `/media/sessions/`; the player follows it and fetches playlists, segments and keys through the relay. An MPEG-TS source streams `video/mp2t` in this response through the fan-out. Players never renew, so these sessions live differently from API sessions. A request in flight holds the session, and it is released 60 seconds after its last media request (the player stopped) or when a TS player disconnects. Two players on the same HLS channel share one session; each TS request is its own. At `SOFA_MAX_SESSIONS` the oldest preview session yields first, then an idle player session (a zap left behind), and otherwise the request answers `429 CAPACITY_EXHAUSTED`.
 
@@ -124,11 +132,9 @@ When an unprobed source's descriptor says MPEG-TS and the body is HLS, the reque
 
 ## Logos
 
-Every logo URL a lineup entry carries (its own `logo`, else the first source's `tvg-logo`) is served from this server as `/logos/KEY`, where `KEY` is the lowercase hex SHA-256 of the source URL as the entry or feed carries it. References are normalized when a playlist, guide or import is read (whitespace trimmed, unencoded characters percent-encoded, relative paths resolved against the playlist or guide URL) and the fetch normalizes a stored URL the same way. `/api/v1/channels` names that path alone; the M3U `tvg-logo` and the XMLTV `<icon>` name it with the request's `Host`, since players fetch them as absolute URLs. The route takes no token: players, Plex and browsers fetch logos with no credentials, and a key is only ever the hash of a URL the lineup names, so nothing else is fetched or served through it.
+Every channel logo is served from this server as `/logos/KEY`, where `KEY` is the lowercase hex SHA-256 of the logo's source URL. A channel's logo source is its entry's own `logo`, else the first of its sources' `tvg-logo` values, else the mapped guide channel's `<icon>`. `/api/v1/channels` names the path alone; the M3U `tvg-logo` and the XMLTV `<icon>` name it with the request's `Host`, since players fetch them as absolute URLs. The route takes no token: players, Plex and browsers fetch logos with no credentials, and a key is only ever the hash of a URL the lineup names, so nothing else is fetched or served through it.
 
-The server fetches each logo source once and keeps the file under `SOFA_DATA_DIR/logos/`. It fetches in the background after an import or lineup change, four at a time, or within the first request for a key nothing has fetched yet. A fetch follows the [upstream address policy](live-tv.md#upstream-addresses) and sends no provider headers. It must answer `200` with a `Content-Type` of `image/png`, `image/jpeg`, `image/webp`, `image/gif` or `image/svg+xml`, and a body of at most 2 MiB whose bytes are that kind of image; anything else is refused. The signature decides the stored type, and an SVG must be XML. A PNG or JPEG wider or taller than 512 pixels is stored scaled down to fit 512 by 512, keeping its proportions and a PNG's transparency. A smaller one, a GIF or WebP, and one that would not get smaller are stored as fetched. An SVG is stored and served byte for byte with a `Content-Security-Policy` that forbids scripts.
-
-A cached logo answers `200` with its type, `ETag` (the content hash; `If-None-Match` answers `304`), `Cache-Control: public, max-age=86400` and `X-Content-Type-Options: nosniff`. An unknown key, a refused source or a source that has never answered an image answers `404 RESOURCE_NOT_FOUND`; the listing keeps the URL, the player shows its placeholder, and the server tries the source again an hour later. A logo is refreshed a week after its last fetch, on the next request or sweep; a refresh that fails keeps the stored file. A changed source URL is a new key, so the outputs switch at once. The next sweep deletes the old file, as it deletes every logo the lineup does not name.
+A cached logo answers `200` with its type (PNG, JPEG, WebP, GIF or SVG, at most 2 MiB), `ETag` (the content hash; `If-None-Match` answers `304`), `Cache-Control: public, max-age=86400` and `X-Content-Type-Options: nosniff`. An SVG carries a `Content-Security-Policy` that forbids scripts. An unknown key, a refused source or a source that has never answered an image answers `404 RESOURCE_NOT_FOUND`; the listing keeps the URL, the player shows its placeholder, and the server tries the source again an hour later. A logo is refreshed a week after its last fetch, and a refresh that fails keeps the stored file. A changed source URL is a new key, so the outputs switch at once. [Architecture](architecture.md#logos) describes how the server fetches, checks, scales and stores logos.
 
 The admin API (`/api/v1/admin/lineup`, `/api/v1/admin/candidates`) keeps the source URLs, which admins edit.
 
@@ -147,7 +153,7 @@ With `SOFA_HDHR_ENABLED` the root serves what a Plex server reads from an HDHome
 
 The first device, on `SOFA_PORT`, has `SOFA_HDHR_DEVICE_ID` as its `DeviceID`, or eight hex digits derived from the server identity, and the server identity as its `UDN`. Each device on a port from `SOFA_HDHR_EXTRA_PORTS` is named `SOFA_HDHR_NAME 2`, `SOFA_HDHR_NAME 3` and so on. Its `DeviceID` is derived from the first device's and its position, and its `UDN` is a UUID derived from the server identity and its position. All of them stay the same across restarts.
 
-`/auto/v{number}` opens an external session like a player stream URL. An MPEG-TS source goes through the fan-out. An HLS source is remuxed by FFmpeg (`-c copy -f mpegts -mpegts_flags +resend_headers`). FFmpeg reads the source URL itself, with the provider's headers when they are portable, over `http`, `https`, `tcp`, `tls` and `crypto` only. It takes one video and one audio stream, the highest resolution and the most channels, so other variants are not downloaded. It drops subtitle and data tracks and copies the elementary streams, so CEA-608 captions inside the video pass through. The process is killed and reaped when Plex disconnects or the session ends, and every remux is killed on shutdown. While `SOFA_HDHR_TUNERS` streams are open, or when the session cap or the source refuses one, the request answers `503` with `X-HDHomeRun-Error: 805 All Tuners In Use`, which Plex reports as a busy tuner. A protocol detected on the first fetch of an MPEG-TS descriptor switches to the remux within the request.
+`/auto/v{number}` opens an external session like a player stream URL. An MPEG-TS source goes through the fan-out. An HLS source is remuxed to MPEG-TS with stream copy: one video stream (the highest resolution) and one audio stream (the most channels), with subtitle and data tracks dropped, so CEA-608 captions inside the video pass through. The stream ends when Plex disconnects or the session ends. While `SOFA_HDHR_TUNERS` streams are open, or when the session cap or the source refuses one, the request answers `503` with `X-HDHomeRun-Error: 805 All Tuners In Use`, which Plex reports as a busy tuner. A protocol detected on the first fetch of an MPEG-TS descriptor switches to the remux within the request. [Architecture](architecture.md#hdhomerun-emulation) has the FFmpeg command and how the server manages its processes.
 
 ## Admin API
 
@@ -156,7 +162,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | Method | Path | Response or action |
 | --- | --- | --- |
 | GET | `/api/v1/admin/status` | One summary of the server, described [below](#server-status) |
-| GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Feed channels with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100) |
+| GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Candidates with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100) |
 | GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`. An empty list means nothing is playing |
 | GET | `/api/v1/admin/guides` | Guide import status: `lastSuccessAt`, `errorCode`, `channels`, retained `programmes` |
 | GET | `/api/v1/admin/guides/{id}/channels?q=&limit=` | XMLTV channels of a guide (`channelId`, `displayName`, `icon`) |
@@ -171,7 +177,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | PUT | `/api/v1/admin/policy` | Replace the policy with the body, up to 4 MiB; `If-Match: <revision>` required (428 `PRECONDITION_REQUIRED` without it, 409 `POLICY_CHANGED` when stale or the file changed on disk, 400 `INVALID_POLICY` with every error). Writes atomically, applies, and returns `document` and `apply` |
 | GET | `/api/v1/admin/policy/preview` | What a run would change against the served lineup; writes nothing. Fields are [below](#policy-results) |
 | POST | `/api/v1/admin/policy/apply` | Run the policy now: writes the lineup when it differs, logs each change, and writes assigned numbers and learned aliases back to the file. Fields are [below](#policy-results) |
-| GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current feeds. Fields are [below](#policy-results) |
+| GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current candidates. Fields are [below](#policy-results) |
 | GET | `/api/v1/admin/policy/changes?limit=` | What policy runs changed, newest first, as `{"id", "appliedAt", "change"}`: `change` has the station `key`, `entryId`, `entryName`, `field`, `before`, `after` and the run's cause in `reason`. `limit` 1-1000 (default 100); the server keeps the newest 10,000 |
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
 | GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
@@ -189,7 +195,7 @@ While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /
 | `startedAt`, `uptimeSeconds` | When the server started, and the seconds since |
 | `schemaVersion` | The newest database migration applied |
 | `channels` | Lineup entries: `total`, `enabled`, and `eligible`, the enabled ones with a source eligible for playback |
-| `sources` | Feed sources: `total`, `byStatus` with a count for each health status, and `manuallyDisabled` |
+| `sources` | Sources: `total`, `byStatus` with a count for each health status, and `manuallyDisabled` |
 | `providers`, `guides` | `total`, `pending` (waiting for a first import), `lastImportAt` (the newest successful import), and `failing`, one entry per failed import with `id`, `errorCode` and `lastSuccessAt` |
 | `policy` | With a lineup policy: its `revision`, and `lastRunAt` and `lastRunChanged` of the last apply that built the lineup. Null without one |
 | `plex` | With Plex sync: `lastSyncAt`, `mapped` (channels mapped across all devices) and `lastError`. Null without it |
@@ -216,14 +222,14 @@ The [server's policy models](../server/src/main/kotlin/dev/jamesrich/sofaking/ba
 - `devicesNeeded` and `devicesConfigured` are set with HDHomeRun range devices, and null otherwise.
 - `unmappedCategories` lists the raw categories no group mapping names, each as `{"provider", "category", "stations", "example"}`.
 
-An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings`, `guideStatus` and `createdBy` (`policy` for an entry the policy built, else `manual`). `offerings` lists the entry's sources in failover order, each with `id`, `providerId`, `channelName`, `protocol`, `status` and `manuallyDisabled`. `status` is a health state, or `WITHDRAWN` when no feed lists the source now. While the policy holds a station off for want of an eligible source, the entry also has `autoDisabledAt` and `autoDisabledReason` (`unavailable`).
+An entry has `id`, `position`, `number`, `name`, `group`, `logo`, `enabled`, `guide` (`{"guideId", "channelId"}` or null), `offerings`, `guideStatus` and `createdBy` (`policy` for an entry the policy built, else `manual`). `offerings` lists the entry's sources in failover order, each with `id`, `providerId`, `channelName`, `protocol`, `status` and `manuallyDisabled`. `status` is a health state, or `WITHDRAWN` when no provider lists the source now. While the policy holds a station off for want of an eligible source, the entry also has `autoDisabledAt` and `autoDisabledReason` (`unavailable`).
 
-Create from a feed candidate, copying its number, name, logo, group, sources and (when its `tvg-id` is listed by a configured guide) guide mapping:
+Create from a candidate, copying its number, name, logo, group, sources and (when its `tvg-id` is listed by a configured guide) guide mapping:
 
 ```sh
 curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_HOST:9193/api/v1/admin/lineup \
   -H 'Content-Type: application/json' \
-  --data '{"channelId": "FEED_CHANNEL_ID"}'
+  --data '{"channelId": "CANDIDATE_ID"}'
 ```
 
 Any field in the body overrides the copied value: `id` (a UUID), `number`, `name`, `group`, `logo`, `enabled` (true when absent), `offerings` (source IDs in failover order), `guide`, `position` (insertion index). Without `channelId`, `number` and `name` are required.
@@ -236,7 +242,7 @@ curl --fail -X PATCH -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_
   --data '{"number": "501", "offerings": ["SOURCE_ID", "FALLBACK_SOURCE_ID"], "guide": {"guideId": "gracenote", "channelId": "XMLTV_ID"}}'
 ```
 
-Validation: `number` 1-32 characters without spaces, `name` 1-256, `group` 1-128, `logo` an HTTP(S) URL, at most 64 sources per entry, every source ID known to a configured feed, `guideId` a configured guide. An active session keeps its current source until that source stops being selectable or the session ends.
+Validation: `number` 1-32 characters without spaces, `name` 1-256, `group` 1-128, `logo` an HTTP(S) URL, at most 64 sources per entry, every source ID known to a configured provider, `guideId` a configured guide. An active session keeps its current source until that source stops being selectable or the session ends.
 
 ## Admin portal routes
 
@@ -289,7 +295,7 @@ Errors contain `code`, `message` and `retryable`:
 | 413 | `REQUEST_TOO_LARGE`, answered before the token is checked |
 | 422 | `FORMAT_UNSUPPORTED` (an HLS playlist with variables, content steering or a non-HTTP resource) |
 | 428 | `PRECONDITION_REQUIRED` (a policy write without `If-Match`) |
-| 429 | `CAPACITY_EXHAUSTED` |
+| 429 | `CAPACITY_EXHAUSTED` (no session slot is free or can be freed, or a session already has 12 media requests in flight) |
 | 500 | `INTERNAL_ERROR` |
 | 502 | `UPSTREAM_UNAVAILABLE`, `UPSTREAM_REJECTED`, `INVALID_MANIFEST` |
 | 503 | `NOT_READY`, `SOURCE_UNAVAILABLE` |

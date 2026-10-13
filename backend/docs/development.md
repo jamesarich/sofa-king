@@ -37,7 +37,7 @@ You need JDK 21 and FFmpeg. Run the commands from `backend/`:
    server/build/install/server/bin/server
    ```
 
-   On loopback the API needs no token. To serve other machines, set `SOFA_HOST=0.0.0.0`, and either `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` or `SOFA_HDHR_ENABLED=false`: on a LAN bind the server refuses to start without one of them. The first start then generates an API token and an admin token and keeps them in `data/secrets.json`. No token is logged. `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` set your own values instead.
+   On loopback the API needs no token. To serve other machines, set `SOFA_HOST=0.0.0.0`, and either `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` or `SOFA_HDHR_ENABLED=false`: on a LAN bind the server refuses to start without one of them. The first start then generates an API token and an admin token and keeps them in `data/secrets.json`. No token is logged. `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` set your own values instead, of at least 32 characters. The routes each token opens are in [security](../SECURITY.md#credentials-and-the-routes-they-open).
 
 4. Check the imports. On a LAN bind, `/api/v1/admin/*` takes only the admin token and refuses the API token. The first two lines read both tokens from `data/secrets.json`. On loopback with no tokens, skip them and leave out the headers:
 
@@ -75,7 +75,7 @@ python3 scripts/smoke.py
 python3 scripts/live-smoke.py
 ```
 
-The unit tests cover persistence and migrations, feed and guide imports (including gzip guides), the native provider clients, the lineup and the lineup policy, and source health. They also cover playback sessions, the relay, the admin API and portal, the player outputs, the logo cache, the HDHomeRun routes, the FFmpeg remux and client cleanup. Tests that depend on a response's lifetime or on an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job. `MediaFixture` generates H.264 and AAC HLS with FFmpeg, so FFmpeg is needed to run the suite.
+The unit tests cover persistence and migrations, playlist and guide imports (including gzip guides), the native provider clients, the lineup and the lineup policy, and source health. They also cover playback sessions, the relay, the admin API and portal, the player outputs, the logo cache, the HDHomeRun routes, the FFmpeg remux and client cleanup. Tests that depend on a response's lifetime or on an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job. `MediaFixture` generates H.264 and AAC HLS with FFmpeg, so FFmpeg is needed to run the suite.
 
 The smoke scripts start disposable servers in temporary directories. `smoke.py` verifies the installed application over HTTP, including SIGTERM and restart. `live-smoke.py` generates H.264 and AAC fixtures and builds and edits a lineup through the admin API. It then checks concurrent playback and cancellation, loads the player output with FFmpeg as the player, and checks the lineup across a restart.
 
@@ -84,12 +84,12 @@ The smoke scripts start disposable servers in temporary directories. `smoke.py` 
 | Script | Purpose |
 | --- | --- |
 | `scripts/smoke.py` | Installed-application check over HTTP |
-| `scripts/live-smoke.py` | Fixture feeds through the relay, probes, lineup edits and restart |
-| `scripts/bridge-smoke.py` | Imports one feed into a temporary server, adopts its channels and optionally decodes one |
+| `scripts/live-smoke.py` | Fixture playlists through the relay, probes, lineup edits and restart |
+| `scripts/bridge-smoke.py` | Imports one playlist into a temporary server, adopts its channels and optionally decodes one |
 | `scripts/provider-smoke.py` | Checks one native provider against its live service |
 | `scripts/generate-policy.py` | Generates a [lineup policy](lineup-policy.md#generate-a-policy) from a running server; `python3 -m unittest discover -s scripts -p 'test_*.py'` tests it, including its normalization against the server's golden keys |
 
-To test a provider feed, replace the URLs and channel name:
+To test an M3U provider, replace the URLs and channel name:
 
 ```sh
 python3 scripts/bridge-smoke.py \
@@ -98,7 +98,7 @@ python3 scripts/bridge-smoke.py \
   --decode-channel 'CHANNEL_NAME'
 ```
 
-This imports the feed into a temporary server with probes disabled, adopts every channel into its lineup and optionally decodes the named channel. `--guide` is optional.
+This imports the playlist into a temporary server with probes disabled, adopts every channel into its lineup and optionally decodes the named channel. `--guide` is optional.
 
 To check a [native provider](providers.md) against its live service:
 
@@ -113,4 +113,4 @@ Native provider unit tests run against `ProviderFixture`, a loopback stand-in fo
 
 ## Dependencies
 
-Version changes follow [dependencies](dependencies.md#changing-versions). Run the build with `--write-locks` after a change, review the lockfile diff, update the verification metadata, and run both smoke scripts.
+Version changes follow [dependencies](dependencies.md#changing-versions). Run the build with `--write-locks` after a change, review the lockfile diff, update the verification metadata of the server and the contract, and run both smoke scripts.

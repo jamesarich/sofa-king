@@ -2,7 +2,7 @@
 
 One Kotlin/JVM process serves the HTTP API, the admin portal and the media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programs, the server identity and source health. It also holds probe attempt times, observation history, the logo cache index, native provider state (device IDs, tokens), and the lineup policy's station availability and change log. The logo files sit beside the database in the data directory. Playback sessions and resolved native stream URLs exist in memory.
 
-The terms used here (provider, source, candidate, station, lineup entry) are defined in the [glossary](README.md#glossary). In code, a source is an `Offering`.
+The terms used here (provider, source, candidate, station) are defined in the [glossary](README.md#glossary), and lineup entry in the [repository glossary](../../docs/README.md#glossary). In code, a source is an `Offering`.
 
 ## Modules
 
@@ -72,7 +72,13 @@ sequenceDiagram
 
 Provider imports publish complete snapshots, and an invalid import keeps the previous snapshot. An import whose channels and sources equal the stored ones writes and publishes nothing and triggers no run, except the first success after a start. Guide imports replace one guide's rows atomically. They keep programs only for channels the lineup maps onto that guide and, with a policy, the guide candidates of stations whose guide has nothing ahead; the channel index is kept whole. Immutable in-memory indexes serve catalog requests, and guide programs are read from SQLite by guide, channel and window. SQLite uses WAL, foreign keys, bounded blocking transactions, and versioned atomic migrations whose versions may have gaps.
 
-A source's protocol is the one detected in its stream body, by the probe's HTTP tier or by a media fetch. It is stored per source ID and applied over every published snapshot. Until a detection exists, the import's protocol applies: the entry's `stream-type`, else the feed's `defaultProtocol`, else the path extension.
+A source's protocol is the one detected in its stream body, by the probe's HTTP tier or by a media fetch. It is stored per source ID and applied over every published snapshot. Until a detection exists, the import's protocol applies: the entry's `stream-type`, else the provider's `defaultProtocol`, else the path extension.
+
+## Guide imports
+
+`GuideService` parses each guide as a stream. It keeps the `<channel>` index, and every channel ID seen on a program, for guide mapping, and it keeps programs only for the channels named above (see [lineup](#lineup) for the refresh a new mapping triggers). The download follows up to five redirects and is bounded by a 15-second socket inactivity timeout rather than a total request timeout. It is read as gzip whenever the body starts with the gzip magic bytes, whatever the content type says, and the decompressed size limit counts bytes as they stream past the parser.
+
+A `<!DOCTYPE tv SYSTEM "xmltv.dtd">` declaration is accepted. The DTD is never fetched, and an entity declared in the document fails the import instead of resolving. In UTF-8 and single-byte guides, control characters that XML forbids are dropped before parsing and counted as `controlChars` in the import log line. A UTF-16 guide is parsed as sent. Each guide fails on its own: the failing one reports `IMPORT_FAILED`, the others keep refreshing, and the log line carries the exception class and its message with URLs redacted.
 
 ## Native providers
 
@@ -84,7 +90,7 @@ A `ProviderFailure` is transient (provider evidence, `502` to a session) or not 
 
 ## Identity
 
-The app's channel ID is the lineup entry UUID. Under a lineup policy it is the station override's `id` or one derived from the station key; otherwise it is the `id` an entry was created with, or a random UUID. Entries persist independently of feeds: a withdrawn source leaves the entry in place and is skipped for playback.
+The app's channel ID is the lineup entry UUID. Under a lineup policy it is the station override's `id` or one derived from the station key; otherwise it is the `id` an entry was created with, or a random UUID. Entries persist independently of providers: a withdrawn source leaves the entry in place and is skipped for playback.
 
 Candidate IDs use published `channel-uuid` values. Otherwise they are UUIDs derived from the provider ID and the exact `channel-id` or `tvg-id`, or else from the provider ID and the source key. The source key is the URL's lowercase scheme and authority, its percent-decoded path and its remaining query parameters sorted, after the provider's renewable parameters are dropped (`SourceIdentity.kt`; the default list and the `renewableQuery` override are in [live TV](live-tv.md#source-identity)). Source IDs use explicit `stream-id` values when supplied, and otherwise derive from provider, channel key and source key. A rotated token changes neither ID, and two URLs that differ only by a renewable parameter are one source.
 
@@ -92,35 +98,37 @@ Guide programs belong to a guide ID and XMLTV channel ID. A program's metadata b
 
 ## Lineup
 
-`LineupService` keeps the entries in memory and writes the whole lineup in one transaction on each change, under a mutex. Each entry carries its ordered source IDs and optional guide mapping. When a change maps channels a guide did not retain before, the guide's loop is asked to refresh, and repeated requests before it runs coalesce. `CatalogService` resolves entries against current sources, health and guide coverage. Disabled entries are not served and are unknown to guide queries and playback.
+`LineupService` keeps the entries in memory and writes the whole lineup in one transaction on each change, under a mutex. Each entry carries its ordered source IDs and optional guide mapping. When a change maps channels a guide did not retain before, the guide's loop is asked to refresh, and repeated requests before it runs coalesce. `CatalogService` resolves entries against current sources, health and guide coverage. Disabled entries are not served. A guide query answers a disabled or unknown entry with a `ChannelGuide` row of status `removed` and no programs, and playback answers it `404 CHANNEL_NOT_FOUND`.
 
 ## Lineup policy
 
 With a lineup policy (`SOFA_POLICY`, or `policy.json` in the data directory), `PolicyService` builds the lineup; without one, only the admin API changes the lineup. `StationBuilder` is pure. It turns one snapshot of candidates, guide listings, health and the remembered `station_availability` rows into stations, findings and the numbers it assigned.
 
-`apply` writes the stations through `LineupService.mutate` only when they differ, replaces the availability rows, and logs field changes to `policy_change` (the newest 10,000 are kept). It then writes assigned numbers into the file. `PolicyFile` serializes every write behind one mutex and checks the on-disk SHA-256 against the loaded revision. It writes a temporary file, syncs it to disk and renames it. The loop runs on feed, guide and health triggers after a quiet period, and every 900 seconds. [Lineup policy](lineup-policy.md) describes the file and the run.
+`apply` writes the stations through `LineupService.mutate` only when they differ, replaces the availability rows, and logs field changes to `policy_change` (the newest 10,000 are kept). It then writes assigned numbers into the file. `PolicyFile` serializes every write behind one mutex and checks the on-disk SHA-256 against the loaded revision. It writes a temporary file, syncs it to disk and renames it. The loop runs on provider import, guide import and health triggers after a quiet period, and every 900 seconds. [Lineup policy](lineup-policy.md) describes the file and the run.
 
 ## Plex sync
 
-With `SOFA_PLEX_URL` set, `PlexSync` keeps Plex's channel maps for this server's HDHomeRun devices in step with the lineup. A policy apply that changed the lineup requests a sync, which runs after a 120-second quiet period, and the loop also runs every `SOFA_PLEX_SYNC_MINUTES`. It shares the runtime's HTTP client, sends the token only as the `X-Plex-Token` header, follows no redirects, and keeps its status in memory. The DeviceIDs come from the same `hdhrDeviceId` the HDHomeRun routes report. [Keep Plex in step](live-tv.md#keep-plex-in-step) describes what a sync does.
+With `SOFA_PLEX_URL` set, `PlexSync` keeps Plex's channel maps for this server's HDHomeRun devices in step with the lineup. The start and every policy apply that changed the lineup request a sync, which runs after a 120-second quiet period, and the loop also runs every `SOFA_PLEX_SYNC_MINUTES`. It shares the runtime's HTTP client, sends the token only as the `X-Plex-Token` header and follows no redirects. Each sync's status is stored in the database, and a start reloads the last one, which the API and the portal show until the next sync replaces it. The DeviceIDs come from the same `hdhrDeviceId` the HDHomeRun routes report. [Keep Plex in step](live-tv.md#keep-plex-in-step) describes what a sync does.
 
 ## Playback
 
-Sessions select from the entry's sources: healthy before unverified before suspect, lineup order within a rank. They have preview or watch intent (45-second and 90-second leases), idempotency keys and stream epochs. At capacity the oldest preview session is evicted. Release, expiry, eviction and source disable cancel active media requests.
+Sessions select from the entry's sources in the [selection order](source-health.md#source-selection). They have preview or watch intent (45-second and 90-second leases), idempotency keys and stream epochs. `SessionManager.makeRoom` frees a slot at capacity: it evicts the oldest preview session, else the external session with no request in flight that expires first, and otherwise refuses with `429 CAPACITY_EXHAUSTED`. Release, expiry, eviction and source disable cancel active media requests.
 
 The HLS relay rewrites variant, audio, subtitle, key, initialization-map and segment URLs into opaque session paths. It preserves playlist tags and byte ranges. It forwards the LL-HLS delivery directives `_HLS_msn`, `_HLS_part` and `_HLS_skip` from a playlist request to the upstream playlist. Token lookups are O(1) in both directions. Root and playlist tokens are pinned for the session's epoch, and segments and keys share a 4,096-entry LRU. Limits are 12 active requests per session and 32 concurrent upstream connections across the server. Upstream addresses follow the [address policy](live-tv.md#upstream-addresses); a refused address answers `502 UPSTREAM_REJECTED`.
 
 ## Player outputs
 
-`/output/playlist.m3u` and `/output/guide.xml` are rendered from the catalog and the stored programs on each request; nothing is cached or stored for them. `/output/stream/{id}` opens an external session: a watch session with no idempotency key whose lease is the player's activity. `SessionManager.acquire` and `finished` move its expiry 60 seconds past each media request. A request still in flight exempts it from reaping, and the request handler releases it when a TS response ends. Capacity eviction prefers a preview, then an external session with no request in flight.
+`/output/playlist.m3u` and `/output/guide.xml` are rendered from the catalog and the stored programs on each request; nothing is cached or stored for them. `/output/stream/{id}` opens an external session: a watch session with no idempotency key whose lease is the player's activity. `SessionManager.acquire` and `finished` move its expiry 60 seconds past each media request. A request still in flight exempts it from reaping, and the request handler releases it when a TS response ends. Capacity eviction treats it as described under [playback](#playback).
 
 An HLS source is answered with a redirect to the session's root playlist, so one session serves every player on that channel. An MPEG-TS source is served through the same fan-out as an API session. The handler catches the relay's protocol-mismatch `410` and switches paths within the request.
 
 ## Logos
 
-`LogoCache` keys each lineup logo by the SHA-256 of its source URL. It keeps an in-memory index of the `logo_cache` rows, which name the stored content type, size, content hash, last fetch and last failure. Files live at `data/logos/<key>`, written to a temporary name and moved into place.
+`LogoCache` keys each lineup logo by the SHA-256 of its source URL. It keeps an in-memory index of the `logo_cache` rows, which name the stored content type, size, content hash, last fetch and last failure. Files live at `SOFA_DATA_DIR/logos/<key>`, written to a temporary name and moved into place. The client-facing behavior is in [API logos](api.md#logos).
 
-A fetch goes through `withUpstreamResponse` with the feed address policy and no provider headers, and requires an image content type. It caps the body at 2 MiB, by `Content-Length` first and then during the read. It types the body by its signature, so a mislabeled PNG is stored as PNG and a declared SVG must be markup; anything else is a failure row. Fetches are single-flight per key and share a semaphore of four.
+Logo references are normalized when a playlist, guide or import is read: whitespace is trimmed, unencoded characters are percent-encoded, and a relative path resolves against the playlist or guide URL. A reference that is not an HTTP(S) URL after that counts as no logo. A fetch normalizes a stored URL the same way.
+
+A fetch goes through `withUpstreamResponse` with the [upstream address policy](live-tv.md#upstream-addresses) and no provider headers. It must answer `200` with a `Content-Type` of `image/png`, `image/jpeg`, `image/webp`, `image/gif` or `image/svg+xml`. It caps the body at 2 MiB, by `Content-Length` first and then during the read. It types the body by its signature, so a mislabeled PNG is stored as PNG and a declared SVG must be XML; anything else is a failure row. A PNG or JPEG wider or taller than 512 pixels is stored scaled down to fit 512 by 512, keeping its proportions and a PNG's transparency. A smaller one, a GIF or WebP, and one that would not get smaller are stored as fetched. An SVG is stored and served byte for byte. Fetches are single-flight per key and share a semaphore of four.
 
 `FeedService` and `LineupService` signal a conflated trigger after each import or change. The sweep loop in the runtime scope then fetches every wanted key that is missing, or a week old and not failed within the hour. It deletes the rows and files of logos the lineup does not name. A request for a key with no usable file fetches it inline when the lineup names it. The catalog route sends a channel's logo as the server-relative path `/logos/<key>`, which a client resolves against the base URL it uses, so the channels ETag covers only the catalog revision; the output routes write the absolute `BASE/logos/<key>` from the request `Host`.
 
@@ -128,7 +136,7 @@ A fetch goes through `withUpstreamResponse` with the feed address policy and no 
 
 `HdhrRoutes` renders the discovery, lineup and status documents from the lineup on each request. The device ID is configured or derived from the server identity, so it survives restarts. Each extra port is one more device, with a `DeviceID` derived from the first device's and a UPnP `UDN` derived from the server identity, each with the device's position. `/auto/v{number}` opens an external session per request, never shared, counted against `SOFA_HDHR_TUNERS` separately from the session cap. An MPEG-TS source reuses `MediaRelay`.
 
-An HLS source goes to `TsRemux`, which runs one FFmpeg per response reading the source URL directly. The address policy is checked first, and provider headers go along only when they are portable. FFmpeg runs with `-protocol_whitelist http,https,tcp,tls,crypto` and `-c copy` into `pipe:1`, and the handler copies the pipe into the response. The request's job is attached to the session so it counts as in flight. A watchdog coroutine kills the process when the response is canceled, because a blocked pipe read does not notice cancellation. The process is always destroyed and waited for before the handler returns, and `LiveRuntime.close` kills every remux. The allow-list (`AddressAllowList`) matches IP literals and CIDR blocks against the connection's remote address, and compares IPv4-mapped IPv6 addresses as IPv4.
+An HLS source goes to `TsRemux`, which runs one FFmpeg per response reading the source URL directly. The address policy is checked first, and provider headers go along only when they are portable. The command is `ffmpeg -hide_banner -loglevel warning -nostdin -rw_timeout 15000000 -protocol_whitelist http,https,tcp,tls,crypto [-headers ...] -i URL -sn -dn -c copy -f mpegts -mpegts_flags +resend_headers -flush_packets 1 pipe:1`. Its own stream selection takes one video stream (the highest resolution) and one audio stream (the most channels), so the other variants are not downloaded, and `-sn -dn` drop subtitle and data tracks, which have no reliable MPEG-TS mapping. The handler copies the pipe into the response. The request's job is attached to the session so it counts as in flight. A watchdog coroutine kills the process when the response is canceled, because a blocked pipe read does not notice cancellation. The process is always destroyed and waited for before the handler returns, and `LiveRuntime.close` kills every remux. The allow-list (`AddressAllowList`) matches IP literals and CIDR blocks against the connection's remote address, and compares IPv4-mapped IPv6 addresses as IPv4.
 
 ## Live MPEG-TS relay
 
@@ -138,27 +146,15 @@ When the upstream ends or fails, the relay reconnects with backoff from 0.5 to 8
 
 ## Supported scope
 
-The server supports configured HTTP(S) feeds and guides, native provider clients, the lineup policy, JSON control and admin requests, and the admin portal. It supports HLS and MPEG-TS passthrough, M3U and XMLTV output with per-channel stream URLs for third-party players, and cached lineup logos served from this server. It supports HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification. Recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
+The server supports configured HTTP(S) playlists and guides, native provider clients, the lineup policy, JSON control and admin requests, and the admin portal. It supports HLS and MPEG-TS passthrough, M3U and XMLTV output with per-channel stream URLs for third-party players, and cached lineup logos served from this server. It supports HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification. Recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
 
 ## Operations
 
 Health observation history is pruned to `SOFA_OBSERVATION_RETENTION_DAYS` (default 7) at the start of each probe batch. Source health, strikes and probe attempt times are separate rows and are never pruned.
 
-The channels ETag derives from the lineup, the published channels and sources, each guide's import time, the health table's row count and latest update, and which entries' guides are still current. It also covers the request's `Host`, which the logo URLs carry. A matching `If-None-Match` is answered without building the body.
+The channels `ETag` is a hash of `CatalogService.catalogRevision()`, which derives from the lineup, the published channels and sources, each guide's import time, the health table's row count and latest update, and which entries' guides are still current. Logos in the body are server-relative, so the request's `Host` does not enter it. A matching `If-None-Match` is answered without building the body.
 
-Logback is configured from `SOFA_LOG_LEVEL` and `SOFA_LOG_FORMAT` before the first logger is used, with one appender on stderr: a text pattern that ends with the MDC, or logback's JSON encoder. Ktor's `CallId` gives every request a 16-hex-digit ID, put in the MDC as `requestId` and returned as `X-Request-Id`. `CallLogging` writes one access line per request, except media, logos, player streams, `/auto/v*` and health checks.
-
-Log messages are key=value text. They cover:
-
-- provider imports: counts, skipped entries, duration and failure class
-- logo fetch failures: key, exception class, the message with every URL replaced by `<url>`, and whether a stale file remains
-- guide imports: channels, retained programs and duration, and on failure the exception class and its message with every URL replaced by `<url>`
-- probe batches (outcome counts, duration) and health transitions (source ID, old and new state)
-- lineup policy runs (cause, station, change, assigned-number, learned-alias and finding counts, duration) and each learned alias
-- relay upstream reconnects and failures: source ID, attempt, exception class and HTTP status
-- rejected tokens: route and remote address, at most 30 lines a minute
-
-A request that fails with a closed channel, broken pipe or connection reset, as when a player switches channels mid-body, logs at debug with the exception class. Other request failures log at error. Stream URLs, guide URLs, query tokens and provider exception messages are never logged; a guide failure message is logged only after URL redaction.
+Logback is configured from `SOFA_LOG_LEVEL` and `SOFA_LOG_FORMAT` before the first logger is used, with one appender on stderr: a text pattern that ends with the MDC, or logback's JSON encoder. Ktor's `CallId` gives every request a 16-hex-digit ID, put in the MDC as `requestId` and returned as `X-Request-Id`. `CallLogging` writes the access lines. [Logs](operations.md#logs) describes what the server logs and what it never does.
 
 On SIGTERM the shutdown hook stops the HTTP server, closes the runtime (imports, probes, relay upstreams and sessions) and then the store, in that order, and logs each step.
 

@@ -1,6 +1,7 @@
 name: Backend
 
-# Tests every pull request and push that changes the server's code or build. A push to main, or a manual run on main,
+# Tests every pull request and push that changes the server's or the contract's code or build, the shared build cache
+# settings or this workflow; backend/docs and Markdown are left out. A push to main, or a manual run on main,
 # then publishes the server image for linux/amd64 and linux/arm64 to GitHub Container Registry as
 # ghcr.io/<owner>/sofa-king-backend:main and :sha-<commit>, with a BuildKit SBOM and max-mode provenance stored beside it.
 # Hosts that run deploy/sofa-king-update.sh pull :main, so Markdown alone never redeploys them.

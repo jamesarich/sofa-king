@@ -110,22 +110,18 @@ The portal's Plex page shows the playlist and guide URLs with this token once yo
 
 ### Plex
 
-1. Turn on the HDHomeRun emulation for your Plex server, then apply it:
+Turn on the HDHomeRun emulation for your Plex server, then apply it:
 
-   ```sh
-   printf 'SOFA_HDHR_ENABLED=true\nSOFA_HDHR_ALLOW=PLEX_SERVER_IP\n' >> .env
-   docker compose up -d
-   ```
+```sh
+printf 'SOFA_HDHR_ENABLED=true\nSOFA_HDHR_ALLOW=PLEX_SERVER_IP\n' >> .env
+docker compose up -d
+```
 
-2. In Plex Web, open Settings, then Live TV & DVR, then Set Up Plex DVR. Choose to enter the device's network address manually, and enter `SERVER_HOST:9193`.
-3. At the guide step, choose the XMLTV option and enter `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN`, with the token from `.env`.
-4. Map the channels Plex does not pair on its own, then open Live TV in Plex and play a channel.
-
-[Plex Live TV](live-tv.md#plex-live-tv) covers the details, and [keep Plex in step](live-tv.md#keep-plex-in-step) lets the server update Plex's channel maps itself.
+Then add the tuner at `SERVER_HOST:9193` and the guide at `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` in Plex, with the token from `.env`, as steps 2 to 5 of [Plex Live TV](live-tv.md#plex-live-tv) describe. [Keep Plex in step](live-tv.md#keep-plex-in-step) lets the server update Plex's channel maps itself.
 
 ### The Sofa King app
 
-Install the [Sofa King app](../../app/README.md) and give it the server address, `http://SERVER_HOST:9193`, and the API token. The portal's Settings page reveals the API token too. The app reads the lineup and the guide, and plays through the server.
+Install the [Sofa King app](../../app/README.md) and give it the server address, `http://SERVER_HOST:9193`, and the API token. The portal's Settings page reveals the API token too. The app reads the lineup and its programs, and plays through the server. To use the web app, serve it as [serve the web app](deploy.md#serve-the-web-app) describes.
 
 ### An M3U player
 

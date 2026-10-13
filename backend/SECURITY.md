@@ -29,6 +29,7 @@ Notes on the table:
 - Tokens are compared in constant time. The API token is never accepted in a query string.
 - A token in a URL lands in player configuration, screenshots and proxy logs. That is why the output token is separate from the API token and opens nothing but `/output/*`.
 - Logo URLs and HDHomeRun routes carry no token because the clients that fetch them, Plex and players, send none. Logos are fetched only for URLs the lineup names.
+- Unless `SOFA_CORS_ORIGINS` is set, the server sends no CORS headers, so only pages on its own origin can call it from a browser. A page on a listed origin may call any route with the token it holds, as a bearer header, and read the `ETag` and `X-Request-Id` response headers. Credentialed cross-origin requests are not allowed, so the admin portal's cookie never works from another origin.
 
 ## Request limits
 
@@ -38,7 +39,7 @@ Notes on the table:
 
 ## Outbound requests
 
-The server makes requests to feed, guide, logo and stream hosts that you configure. The upstream address policy applies to all of them:
+The server makes requests to the playlist, guide, logo and stream hosts that you configure. The upstream address policy applies to all of them:
 
 - Only `http` and `https` URLs without user information are fetched.
 - Loopback, link-local, unspecified and multicast addresses are refused, including as redirect targets. Private LAN addresses are allowed, because LAN restream proxies are a common setup.
@@ -54,8 +55,8 @@ Details are in [live TV: upstream addresses and provider headers](docs/live-tv.m
 - Let the server generate the API and admin tokens, or set them to values of at least 32 characters from `openssl rand -hex 32`. Prefer the `_FILE` variables with Docker secrets over plain values in `.env`.
 - Set `SOFA_OUTPUT_TOKEN` when players or Plex use the outputs, from `openssl rand -hex 16`.
 - Set `SOFA_HDHR_ALLOW` to the address of the Plex server, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
-- Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens, and the source file can hold feed URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
-- With [automatic updates](docs/deploy.md#update-automatically), log Docker in to the registry with a token that has only the `read:packages` scope. The updater's database backups hold the same session tokens as the database and are readable by root alone.
+- Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens, and the source file can hold playlist URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
+- With [automatic updates](docs/deploy.md#update-automatically), log Docker in to the registry with a token that has only the `read:packages` scope. The updater's database backups hold the same session tokens as the database. Those in the config folder are readable by the container's user alone, and the fallback backups in the Compose directory by root alone.
 - [Inspect the published image's provenance and SBOM](docs/deploy.md#inspect-the-published-image) before you run it.
 - Use HTTPS, through a reverse proxy, for any token that crosses a network you do not control.
 - Rotate tokens with the steps in [operations](docs/operations.md#rotating-tokens).

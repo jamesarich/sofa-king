@@ -39,7 +39,7 @@ The server supports 17 services. Each one is listed below with its endpoints and
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `dma` and `market` for `localnow`, `market` for `xumo` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
-| `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source |
+| `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source. A lineup policy ignores it ([probing](lineup-policy.md#probing)) |
 
 `headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only. Every native source is HLS.
 
@@ -61,7 +61,7 @@ From the other services' guides the server reads titles, descriptions and times 
 
 ## How a native source plays
 
-A native source's URL is `svc://SERVICE/CHANNEL_ID`: stable, never fetched, and what the lineup refers to. When a session opens the channel, the relay asks the provider to resolve it. The provider fills the service's ad macros (device ID, session ID, cache buster, privacy defaults) or follows the service's redirect, and the relay fetches the master playlist with the headers the service's own client sends. The resolution is cached per source until a minute before it expires: an hour for macro-filled URLs, the token lifetime for tokens, and indefinitely for static URLs. Every session, probe and remux on that source shares it. Nothing a player sees names the service. Media playlists and segments are the relay's opaque session paths, as for any HLS source.
+A native source's URL is `svc://SERVICE/CHANNEL_ID`: stable, never fetched, and what the lineup refers to. When a session opens the channel, the relay asks the provider to resolve it. The provider fills the service's ad macros (device ID, session ID, cache buster, privacy defaults) or follows the service's redirect, and the relay fetches the master playlist with the headers the service's own client sends. The resolution is cached per source until a minute before it expires, and for at most six hours: an hour for macro-filled URLs, the token lifetime for tokens, and six hours for static URLs. Every session, probe and remux on that source shares it. Nothing a player sees names the service. Media playlists and segments are the relay's opaque session paths, as for any HLS source.
 
 A service that cannot answer (its API is down, or a token is refused twice) fails that one resolution. The session answers `502 UPSTREAM_UNAVAILABLE`, Plex sees a busy tuner, and a probe records provider evidence, which never strikes. A channel missing from the service's list is evidence against that source and strikes like a 404. One provider failing never affects another.
 
@@ -115,7 +115,7 @@ Fragility: the page state shape and the video API fields. Some marathons are reg
 
 `zip` selects the member stations for a ZIP code's area at pbs.org. `stations` lists station IDs directly, comma-separated. Each station's `livestream_feeds` are listed only when they expose a clear `non_drm_url`. Feeds that carry only `drm_hls_url` never appear. Names have the form `PBS Create (KDIN)`, and IDs have the form `STATION_ID:PROFILE`. The guide is the station's livestream schedule for today and tomorrow in the station's time zone, matched by feed CID. Streams are `urs.pbs.org` redirects that the relay follows.
 
-Fragility: which feeds are clear is the station's decision, and it changes. The schedule API is the station's.
+Fragility: which livestream feeds are clear is the station's decision, and it changes. The schedule API is the station's.
 
 ### samsung (Samsung TV Plus)
 

@@ -7,7 +7,7 @@ Replace `SERVER_HOST` with the server's LAN address. The server answers on port 
 ## What you need
 
 - A [Sofa King server](../../backend/README.md) on your network with a lineup. Its [getting started](../../backend/docs/getting-started.md) goes from an empty folder to a lineup.
-- The server's API token, `apiToken` in its `secrets.json`. A server bound to loopback may run without one.
+- The server's API token. A token the server generated is `apiToken` in its `secrets.json`; a token set with `SOFA_API_TOKEN` is not stored there. The admin portal's [Settings page](../../backend/docs/admin.md#settings) reveals the API token either way. A server bound to loopback may run without one.
 - One of the devices in the [platforms table](../README.md#platforms).
 
 ## 1. Check the server
@@ -51,12 +51,16 @@ On macOS and Windows, install VLC 3 first, then `sofa-king-snapshot-macos-arm64.
 
 ### Web
 
-A browser lets the page reach the server only when the server allows the page's origin. Unzip `sofa-king-snapshot-web-wasm.zip` and serve it either way:
+The web app is a set of static files: unzip `sofa-king-snapshot-web-wasm.zip`, or `sofa-king-snapshot-web-js.zip`, the same app for browsers without WebAssembly GC. A browser lets the page call the Sofa King server only from an origin the server allows, so serve the files one of two ways:
 
-- From any static web server, with that server's origin, such as `http://192.168.1.20:8080`, in the Sofa King server's `SOFA_CORS_ORIGINS`. Enter the Sofa King server's address in Settings.
-- From a reverse proxy that also forwards `/api/`, `/media/` and `/logos/` to the Sofa King server, so the page and the server share an origin. Enter the proxy's address in Settings.
+- Through a reverse proxy that serves the page and forwards `/api/`, `/media/` and `/logos/` at its origin root to the Sofa King server, so the page and the server share an origin. The server's [deploy guide](../../backend/docs/deploy.md#serve-the-web-app) has Caddy and nginx configurations.
+- From any static web server, with that server's origin, such as `http://192.168.1.20:8080`, in the Sofa King server's `SOFA_CORS_ORIGINS`.
 
-Then open the page. `sofa-king-snapshot-web-js.zip` is the same app for browsers without WebAssembly GC. The web app plays HLS channels only.
+The web app has no default server. Open the page and enter the address in Settings: the proxy's origin with no path, such as `https://tv.example`, behind a proxy, or the Sofa King server's own address otherwise. The browser saves it in localStorage for the page's origin, so each origin that serves the app keeps its own settings.
+
+A sub-path does not work. The server's stream and logo URLs start at `/media/` and `/logos/`, and the app resolves them against the origin of the address you enter, so the proxy must forward those paths at its origin root and the address takes no path.
+
+A page served over HTTPS cannot call a plain-HTTP server, so serve both through the same HTTPS proxy. The web app plays HLS channels only.
 
 ### iOS
 
@@ -64,9 +68,9 @@ There is no published iOS build. On a Mac, build it from source as [run each pla
 
 ## 3. Connect to the server
 
-The first start opens on Connect to your Sofa King server with Settings focused. Press OK, then under Server:
+The first start opens on Connect to your Sofa King server with the header's Settings button focused. Press OK, then under Server:
 
-1. Enter the Server URL with its port, for example `http://SERVER_HOST:9193`. For the web app, enter the proxy's address.
+1. Enter the Server URL with its port, for example `http://SERVER_HOST:9193`. For the web app behind a proxy, enter the proxy's origin, as [web](#web) describes.
 2. Enter the API token, or leave it empty when the server runs without one. The field shows only the last four characters once you leave it.
 3. Select Save & reload.
 

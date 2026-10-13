@@ -2,7 +2,7 @@
 
 A fresh server knows its sources but serves no channels until a [lineup policy](lineup-policy.md) builds them. This guide writes a policy for the free native services: one station per channel, with every other service that carries the same channel attached as a fallback. The stations are sorted into a small set of groups with a block of numbers each. It takes about ten minutes, most of it waiting for imports.
 
-You need a running server ([getting started](getting-started.md)) and its tokens. Generated tokens are in `secrets.json` in the data directory (`deploy/config` with Docker), as `apiToken` and `adminToken`. The examples run from the repository root against the Docker port, and use these shell variables:
+You need a running server ([getting started](getting-started.md)) and its tokens. Generated tokens are in `secrets.json` in the data directory (`deploy/config` with Docker), as `apiToken` and `adminToken`. The examples run from `backend/` against the Docker port, and use these shell variables:
 
 ```sh
 SERVER=http://SERVER_HOST:9193
@@ -71,10 +71,10 @@ The free services carry local news and some station streams, but not the broadca
 - **An antenna tuner** brings in your broadcast stations (ABC, CBS, NBC, FOX, PBS, CW and the rest over the air). A current HDHomeRun serves its lineup as an M3U playlist at `/lineup.m3u` (some older models answer 404), which the server imports like any other:
 
   ```json
-  { "id": "antenna", "playlistUrl": "http://HDHOMERUN_IP/lineup.m3u", "probe": false }
+  { "id": "antenna", "playlistUrl": "http://HDHOMERUN_IP/lineup.m3u" }
   ```
 
-  Add it to `providers` in the sources file, add `{"id": "antenna"}` first in the policy's `providers` so your over-the-air feeds lead any streamed copy of the same station, and add an XMLTV guide that lists your market's stations to `guides`. The tuner has as many streams as it has tuners, so keep `SOFA_MAX_SESSIONS` in mind. Over-the-air channels are usually named by call sign (`WOI-DT`), so they rarely share a key with a streamed copy; join the two with a `names.aliases` entry where you want the streamed one as a fallback.
+  Add it to `providers` in the sources file, add `{"id": "antenna"}` first in the policy's `providers` so your over-the-air channels lead any streamed copy of the same station, and add an XMLTV guide that lists your market's stations to `guides`. The tuner has as many streams as it has tuners, so keep `SOFA_MAX_SESSIONS` in mind. The policy probes every source its stations use, whatever the provider's `probe` setting says, so the server streams each antenna channel for up to about a minute per probe and rechecks a healthy one every six hours, as [source health](source-health.md#automatic-checks) describes. With `health.requireVerified`, an antenna station stays off until a probe has played one of its sources. Over-the-air channels are usually named by call sign (`WOI-DT`), so they rarely share a key with a streamed copy; join the two with a `names.aliases` entry where you want the streamed one as a fallback.
 
 Some services also list other cities' station streams under their own groups (Samsung, Plex). Switch off the ones you don't want with a `DELETE` (below), or add an `exclude` filter to that service's provider entry.
 
@@ -87,5 +87,28 @@ Some services also list other cities' station streams under their own groups (Sa
 - **Check the guide.** `GET /api/v1/channels` (API token) reports each channel's `guideStatus`; `available` is the goal.
 
 Then point your players at it: the [Sofa King app](../README.md#clients), any [M3U/XMLTV player](live-tv.md#third-party-players), or [Plex](live-tv.md#plex-live-tv). A lineup of a few thousand channels is more than Plex saves on one tuner, so split it with `SOFA_HDHR_EXTRA_PORTS`; the preview's `devicesNeeded` says how many devices the enabled stations need.
+
+## Build a lineup without a policy
+
+Without a lineup policy, the lineup changes only through the [admin API](api.md#admin-api), with the shell variables above:
+
+1. Find candidates. This lists the channels providers carry that match `espn`, with their sources and which entries already use them:
+
+   ```sh
+   curl -s "${auth[@]}" "$SERVER/api/v1/admin/candidates?q=espn"
+   ```
+
+2. Add one. This copies the candidate's number, name, logo, group and sources. When the candidate's `tvg-id` appears in a configured guide, that guide is mapped automatically, explicit guides first, then provider guides:
+
+   ```sh
+   curl -s "${auth[@]}" -H 'Content-Type: application/json' "$SERVER/api/v1/admin/lineup" \
+     --data '{"channelId": "CANDIDATE_ID"}'
+   ```
+
+3. Add failover sources with a `PATCH` to `/api/v1/admin/lineup/ENTRY_ID` and `{"offerings": ["SOURCE_ID", "OTHER_SOURCE_ID"]}`.
+4. Map the guide. Find the XMLTV channel with `GET /api/v1/admin/guides/GUIDE_ID/channels?q=espn`, then `PATCH` the entry with `{"guide": {"guideId": "GUIDE_ID", "channelId": "XMLTV_ID"}}`.
+5. Renumber, rename or hide with a `PATCH` of `number`, `name`, `group`, `logo` or `enabled`. `clearGroup`, `clearLogo` and `clearGuide` remove optional values. Reorder with `PUT /api/v1/admin/lineup/order`, listing every entry ID once.
+
+To add every channel of one provider at once, `POST /api/v1/admin/lineup/adopt` with `{"providerId": "whale"}` adds each channel whose sources no entry uses yet.
 
 [Lineup policy](lineup-policy.md) has every field; [the HTTP API](api.md) has every endpoint used here.

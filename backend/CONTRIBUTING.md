@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for working on Sofa King Backend. This guide covers the build, the test suite, commit and pull request conventions, and how to add a native provider. The [docs index](docs/README.md) lists the rest of the documentation.
+Thanks for working on Sofa King Backend. This guide covers the build, the test suite, CI, commit and pull request conventions, and how to add a native provider. The [docs index](docs/README.md) lists the rest of the documentation.
 
 ## Build and test
 
@@ -15,14 +15,16 @@ python3 scripts/live-smoke.py
 
 The tests generate real HLS fixtures with FFmpeg, so FFmpeg must be on the path. The smoke scripts run the installed distribution against disposable servers and temporary directories, so run `:server:installDist` first. See [development](docs/development.md) for what each script covers.
 
-The [Backend workflow](../.github/workflows/backend.yml) runs on every pull request and every push to `main` that changes `backend/` other than its Markdown, in two jobs:
+Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own.
+
+## CI
+
+The [Backend workflow](../.github/workflows/backend.yml) runs on every pull request and every push to `main` that changes `backend/` outside `backend/docs/` and its Markdown, `contract/` outside its Markdown, `gradle/build-cache.settings.gradle.kts` or the workflow itself. It can also be started by hand. It has two jobs:
 
 - `test` runs `./gradlew test :server:installDist` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. On a pull request it also builds the image for `linux/amd64` without pushing it.
-- `publish` runs only for `main`, after `test` passes. It builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to `ghcr.io/jamesarich/sofa-king-backend` as `:main` and `:sha-<commit>`. The push carries a BuildKit SBOM and max-mode build provenance, which [deploy](docs/deploy.md#inspect-the-published-image) shows how to inspect. Hosts with [automatic updates](docs/deploy.md#update-automatically) install that image.
+- `publish` runs only for `main`, on a push or a run started by hand, after `test` passes. It builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to `ghcr.io/jamesarich/sofa-king-backend` as `:main` and `:sha-<commit>`. The push carries a BuildKit SBOM and max-mode build provenance, which [deploy](docs/deploy.md#inspect-the-published-image) shows how to inspect. Hosts with [automatic updates](docs/deploy.md#update-automatically) install that image.
 
 [`renovate.json`](../renovate.json) at the repository root configures Renovate for the dependency, base image and workflow action updates of every build.
-
-Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own.
 
 ## Commits and pull requests
 
@@ -34,7 +36,7 @@ Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conven
 
 ## Dependencies
 
-Versions are pinned in `gradle/libs.versions.toml`, resolved versions are locked, and Gradle checks every artifact against the checksums in `gradle/verification-metadata.xml`. A dependency change updates all three; `scripts/update-verification-metadata.sh` regenerates the checksums from a clean resolve. The [dependencies](docs/dependencies.md) page lists the current versions and the update steps.
+Versions are pinned in `gradle/libs.versions.toml`, resolved versions are locked, and Gradle checks every artifact against the checksums in `gradle/verification-metadata.xml`. The [contract](../contract/README.md) build the server includes has its own lockfiles and `contract/gradle/verification-metadata.xml`. A dependency change updates the catalog, the lockfiles and the verification metadata it affects, in either build; `scripts/update-verification-metadata.sh` regenerates the checksums of both from a clean resolve. The [dependencies](docs/dependencies.md) page lists the current versions and the update steps.
 
 ## Add a native provider
 

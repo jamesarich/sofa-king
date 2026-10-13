@@ -6,6 +6,6 @@ Live TV, Sofa King good: a self-hosted live TV server for a home network, and an
 - [`app/`](app/README.md): the Kotlin Multiplatform client and its [documentation](app/docs/README.md).
 - [`contract/`](contract/README.md): the wire types the server and the app share.
 
-The [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) has a build of the app for every platform from the latest `main`; the server image is `ghcr.io/jamesarich/sofa-king-backend:main`. The [documentation index](docs/README.md) links every page and the shared glossary. [CONTRIBUTING](CONTRIBUTING.md) covers the app's build, CI and conventions, [the server's CONTRIBUTING](backend/CONTRIBUTING.md) the server's, and [SECURITY](SECURITY.md) how to report a vulnerability.
+The [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) has a build of the app for every platform from the latest `main`; the server image is `ghcr.io/jamesarich/sofa-king-backend:main`. The [documentation index](docs/README.md) links every page and the shared glossary. [CONTRIBUTING](CONTRIBUTING.md) covers the conventions both parts share and CI, and links each part's build and tests. [SECURITY](SECURITY.md) covers reporting a vulnerability and links each part's security notes.
 
 Licensed under the [GNU General Public License v3.0](LICENSE).

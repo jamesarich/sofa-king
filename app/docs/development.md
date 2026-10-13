@@ -1,6 +1,6 @@
 # Development
 
-The [contributing guide](../../CONTRIBUTING.md) covers commit and pull request conventions. This page covers the build, the tests, running each platform, the checks on a TV and snapshot builds.
+The [contributing guide](../../CONTRIBUTING.md) covers the commit and pull request conventions and CI. This page covers the app's build, its tests, its code conventions, running each platform, the checks on a TV and snapshot builds.
 
 ## Build and test
 
@@ -24,20 +24,24 @@ Then build and test:
 
 Unit tests cover the API client, catalog and guide mapping, the playback session lifecycle, cache, settings, captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against MockWebServer on the JVM, so no server is needed. `RenderSmokeTest` draws the guide, settings and the player's info bar headless at TV size and writes them to `ui/build/screenshots`.
 
+## Code
+
+Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Put code in `commonMain` unless it needs a platform API, keep `core` free of Compose, preserve coroutine cancellation, and close the sessions, players and HTTP calls you own. [Architecture](architecture.md) describes how the code is organized.
+
 ## Run each platform
 
 | Platform | Command | Needs |
 | --- | --- | --- |
 | Android TV, Google TV, phones | `./gradlew :androidApp:assembleRelease`, then sideload `androidApp/build/outputs/apk/release/androidApp-release.apk` | `adb` |
 | Desktop | `./gradlew :ui:run`; `:ui:packageDistributionForCurrentOS` builds a `.deb`, `.dmg` or `.msi` | VLC 3 installed for playback |
-| Web | `./gradlew :ui:wasmJsBrowserDevelopmentRun`; `:ui:wasmJsBrowserDistribution` writes `ui/build/dist/wasmJs/productionExecutable` (`js` tasks build the JS fallback) | A server whose `SOFA_CORS_ORIGINS` lists the page's origin, or a reverse proxy on the server's origin; HLS streams |
+| Web | `./gradlew :ui:wasmJsBrowserDevelopmentRun`; `:ui:wasmJsBrowserDistribution` writes `ui/build/dist/wasmJs/productionExecutable` (`js` tasks build the JS fallback) | The page's origin allowed by the server, as [getting started](getting-started.md#web) describes; HLS streams |
 | iOS | On a Mac: `cd iosApp && xcodegen && open SofaKing.xcodeproj`, then run the SofaKing scheme | Xcode, XcodeGen; HLS streams |
 
 The iOS framework links only on macOS. Every other target, including the iOS klibs, builds on Linux.
 
 ## Test on a TV
 
-Check these on a real Android TV or Google TV device before a change that touches playback, focus or the remote:
+The tests cannot see focus, the remote's keys or a real decoder. Check these on a real Android TV or Google TV device before a change that touches playback, focus or the remote:
 
 - [ ] Cold start opens the last watched channel, and Back shows the guide focused on it.
 - [ ] The Guide, Menu and Search keys work (the launcher may claim Guide on some devices), and voice search finds a channel.
@@ -53,9 +57,11 @@ Release APKs are minified with R8 and signed with the local debug key, so they a
 
 ## CI and snapshots
 
-[CONTRIBUTING](../../CONTRIBUTING.md#build-and-test) describes the CI jobs. A push to `main` that passes them runs `snapshot.yml`, which builds the APK, both web bundles and the desktop package on Linux, macOS and Windows, and replaces the `snapshot` prerelease. Run `snapshot.yml` from the Actions tab to publish without a push.
+[CONTRIBUTING](../../CONTRIBUTING.md#ci) describes the CI jobs. A push to `main` that passes them runs `snapshot.yml`, which builds the APK, both web bundles and the desktop package on Linux, macOS and Windows, and replaces the `snapshot` prerelease. Run `snapshot.yml` from the Actions tab to publish without a push.
 
-Snapshots pass `-Psofaking.versionCode` (the workflow run number) and `-Psofaking.versionSuffix` (`-dev.N+sha`); Android's `versionName` and the About row append the suffix, and the desktop package keeps the plain version. Set the `ANDROID_DEBUG_KEYSTORE` repository secret to a base64 debug keystore so every snapshot APK installs over the last:
+The app version is `sofaking.version` in `gradle.properties`. Snapshots build the APK, the web bundles and the Linux `.deb` with `-Psofaking.versionCode` (the workflow run number) and `-Psofaking.versionSuffix` (`-dev.RUN+COMMIT`, the run number and the short commit). Android's `versionName` and the About row of those builds append the suffix. The macOS and Windows packages are built without either property, so their About row shows the plain version. Every desktop package's own version is the plain version with a leading `0.` mapped to `1.`, so 0.1.0 packages as 1.1.0.
+
+Set the `ANDROID_DEBUG_KEYSTORE` repository secret to a base64 debug keystore so every snapshot APK installs over the last:
 
 ```sh
 base64 -w0 ~/.android/debug.keystore | gh secret set ANDROID_DEBUG_KEYSTORE --repo jamesarich/sofa-king

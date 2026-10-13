@@ -1,6 +1,6 @@
 name: CI
 
-# The app's code and build; Markdown alone does not run it.
+# The app's code and build, and the contract it shares with the server; Markdown alone does not run it.
 on:
   pull_request:
     paths:

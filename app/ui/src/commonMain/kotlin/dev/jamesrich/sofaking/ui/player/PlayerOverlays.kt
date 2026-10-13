@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -147,21 +146,30 @@ internal fun BoxScope.InfoOverlay(
             .padding(24.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (channel.logo != null) ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
-            Text(channel.label(), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
-            if (scope != null) {
-                Spacer(Modifier.width(16.dp))
-                Text(scope, style = MaterialTheme.typography.labelLarge, color = SofaMauve)
+        // The scope and captions badge wrap under a long name, and a name wider than the bar ends in an ellipsis.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (channel.logo != null) ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
+                Text(
+                    channel.label(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = SofaDusk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
+            if (scope != null) Text(scope, style = MaterialTheme.typography.labelLarge, color = SofaMauve, maxLines = 1)
             if (captionsOn) {
-                Spacer(Modifier.width(16.dp))
                 val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)
                 val advanceDescription = stringResource(Res.string.captions_indicator_timing_description, advance)
                 Text(
                     stringResource(Res.string.captions_indicator_timing, advance),
                     style = MaterialTheme.typography.labelLarge,
                     color = SofaPlum,
+                    maxLines = 1,
                     modifier = Modifier
                         .background(SofaAmber, OverlayShape)
                         .padding(horizontal = 8.dp, vertical = 2.dp)

@@ -162,4 +162,30 @@ class RenderSmokeTest {
         }
         assertTrue(image.hasContent())
     }
+
+    @Test
+    fun `a long channel name keeps the info bar at the bottom`() {
+        val longChannel = channels[0].copy(number = 1414.0, name = "The Curse of Oak Island")
+        val image = render("player-info-long") {
+            Box(Modifier.fillMaxSize()) {
+                InfoOverlay(
+                    lineup = lineup.copy(channels = listOf(longChannel) + channels.drop(1)),
+                    channel = longChannel,
+                    now = now,
+                    captionsOn = true,
+                    captionAdvanceMs = 1_500,
+                    scope = "Favorites 3/10",
+                )
+            }
+        }
+        // A long name once squeezed the captions badge until it wrapped a letter a line and stretched the bar up the screen.
+        assertTrue(image.firstContentRow() > image.height / 3)
+    }
+
+    private fun Image.firstContentRow(): Int {
+        val bitmap = org.jetbrains.skia.Bitmap.makeFromImage(this)
+        val background = bitmap.getColor(0, 0)
+        for (y in 0 until height) for (x in 0 until width step 4) if (bitmap.getColor(x, y) != background) return y
+        return height
+    }
 }

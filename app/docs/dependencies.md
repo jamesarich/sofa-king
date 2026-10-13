@@ -18,11 +18,11 @@
 | JDK toolchain | 21 |
 | Android compile SDK | 37.1 |
 
-Versions are defined in [the version catalog](../gradle/libs.versions.toml) and [the Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Libraries come from Google's Maven repository and Maven Central. Plugins resolve from those two and the Gradle Plugin Portal, as `pluginManagement` in `settings.gradle.kts` declares. The Node, Yarn and Binaryen toolchains for the web targets resolve through the repositories declared in `settings.gradle.kts`.
+Versions are defined in [the version catalog](../../gradle/libs.versions.toml) and [the Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Libraries come from Google's Maven repository and Maven Central. Plugins resolve from those two and the Gradle Plugin Portal, as `pluginManagement` in `settings.gradle.kts` declares. The Node, Yarn and Binaryen toolchains for the web targets resolve through the repositories in [the shared repositories script](../../gradle/repositories.settings.gradle.kts), which every build applies.
 
 Kotlin, the Android Gradle plugin and Compose Multiplatform are preview pins that move together. The combination is outside the published compatibility matrices, so a bump of one usually needs the others. The Android app uses the plugin's built-in Kotlin. The JVM and Android targets compile for Java 21 with the JDK 21 toolchain, and `gradle/gradle-daemon-jvm.properties` runs the Gradle daemon on JDK 21 too.
 
-The app's build includes the [contract](../../contract/README.md) the server shares, which pins Kotlin and kotlinx.serialization separately in `contract/gradle/libs.versions.toml`. The build fails when those pins differ from the app's or the server's, so a Kotlin or kotlinx.serialization bump changes `app/`, `contract/` and `backend/` together in one pull request. The contract keeps its own lockfiles and verification metadata, as its README describes.
+The app, the server and the [contract](../../contract/README.md) share that one catalog, so a Kotlin or kotlinx.serialization bump moves all three in one pull request, with each build's lockfiles. The contract keeps its own lockfiles and verification metadata, as its README describes.
 
 Resolved dependencies are locked per project in `gradle.lockfile`, the root build's plugin classpath in `buildscript-gradle.lockfile`, and the settings script's in `settings-gradle.lockfile`. The Kotlin/JS and Kotlin/Wasm Yarn lockfiles are in `kotlin-js-store`. The wrapper has a pinned distribution checksum.
 
@@ -30,7 +30,7 @@ The app version is `sofaking.version` in `gradle.properties`. Android's `version
 
 ## Changing versions
 
-1. Update the exact versions in [the version catalog](../gradle/libs.versions.toml).
+1. Update the exact versions in [the version catalog](../../gradle/libs.versions.toml).
 2. Run the [build and test](development.md#build-and-test) checks with `--write-locks`. For a web dependency, add `kotlinUpgradeYarnLock kotlinWasmUpgradeYarnLock`.
 3. Review the lockfile changes, then run the same checks without `--write-locks`.
 4. For a change to playback, captions or the remote, run the [checks on a TV](development.md#test-on-a-tv).

@@ -2,7 +2,7 @@
 
 Live TV, Sofa King good.
 
-Sofa King Backend is a self-hosted live TV server for a home network. It builds one channel lineup from free streaming services, M3U playlists and XMLTV guides, and serves it to Plex as an HDHomeRun tuner, to M3U and XMLTV players, and to the Sofa King app on TVs, phones, desktops and the web.
+Sofa King Backend is a self-hosted live TV server for a home network. It builds one channel lineup from free streaming services, M3U playlists and XMLTV guides, and serves it to Plex as an HDHomeRun tuner, to M3U and XMLTV players, and to the Sofa King app on TVs, phones, desktops, iOS and the web.
 
 ## Why
 
@@ -84,4 +84,4 @@ Build and test with `./gradlew test`. [CONTRIBUTING.md](CONTRIBUTING.md) covers 
 
 ## License
 
-Licensed under the GNU General Public License v3.0.
+Licensed under the [GNU General Public License v3.0](../LICENSE).

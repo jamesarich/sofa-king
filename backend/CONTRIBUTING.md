@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for working on Sofa King Backend. This guide covers the build, the test suite, CI, commit and pull request conventions, and how to add a native provider. The [docs index](docs/README.md) lists the rest of the documentation.
+This guide covers the build, the test suite, CI, commit and pull request conventions, and how to add a native provider. The [docs index](docs/README.md) lists the rest of the documentation.
 
 ## Build and test
 

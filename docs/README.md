@@ -1,4 +1,4 @@
-# Documentation
+# Sofa King documentation
 
 Sofa King is a live TV server and the app that watches it. Each part keeps its own pages:
 
@@ -15,7 +15,7 @@ Terms both parts use. Each part's docs index defines the rest.
 | Term | Meaning |
 | --- | --- |
 | Server | The Sofa King server in `backend/`. It builds the lineup, holds the guide data and relays every stream |
-| App | The Sofa King app in `app/`, on Android TV, Google TV, phones, desktops, iPhone and the web |
+| App | The Sofa King app in `app/`, on Android TV, Google TV, phones, desktops, iOS and the web |
 | Lineup | Every lineup entry the server lists, in order. The app, the M3U and XMLTV outputs and Plex all serve the same lineup |
 | Channel, lineup entry | One entry in the lineup: its number, name, group, logo, guide mapping and sources, under a stable ID. The API's channel ID is the lineup entry ID |
 | Group, tag | A channel's lineup group, such as News. The API sends it as the channel's tag, and the app shows each as a filter chip |

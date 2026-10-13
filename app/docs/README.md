@@ -1,4 +1,4 @@
-# Documentation
+# App documentation
 
 ## Guides
 

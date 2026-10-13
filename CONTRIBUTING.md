@@ -37,7 +37,7 @@ A request or response type the app and the server share lives in `contract/`, ne
 
 - `check` runs the app's tests, lint, the Native test compile, the release APK and the wasm web build on Ubuntu. It uploads the test reports when it fails and the `RenderSmokeTest` screenshots every time.
 - `apple` runs on every event except a pull request, so on pushes to `main` and manual runs. It runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators, the UI's iOS tests, and links the iOS framework on macOS. A pull request compiles the iOS tests on Linux in `check` instead.
-- `snapshot` runs for a push to `main` once both pass. It calls `snapshot.yml`, which builds every platform and replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab.
+- `snapshot` runs for a push to `main` once both pass. It calls `snapshot.yml`, which builds every platform but iOS and replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab.
 
 A push to `main`, or a manual run on `main`, that passes `backend.yml` publishes the server image as `ghcr.io/jamesarich/sofa-king-backend:main`; [deploy](backend/docs/deploy.md#the-published-image) describes it.
 

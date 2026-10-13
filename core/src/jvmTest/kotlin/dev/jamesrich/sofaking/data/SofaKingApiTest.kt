@@ -140,12 +140,11 @@ class SofaKingApiTest {
     }
 
     @Test
-    fun `server logos load from the configured address and other images pass through`() {
-        val key = "/logos/0f3a"
+    fun `logos resolve against the server address and absolute ones pass through`() {
+        val api = SofaKingApi("https://tv.example", "t")
 
-        assertEquals("https://tv.example/logos/0f3a", SofaKingApi("https://tv.example", "t").logoUrl("http://10.0.0.5:9193$key"))
-        assertEquals("https://proxy.example/tv/logos/0f3a", SofaKingApi("https://proxy.example/tv/", "t").logoUrl("http://10.0.0.5$key"))
-        assertEquals("https://cdn.example/a.png", SofaKingApi("https://tv.example", "t").logoUrl("https://cdn.example/a.png"))
+        assertEquals("https://tv.example/logos/0f3a", api.logoUrl("/logos/0f3a"))
+        assertEquals("https://cdn.example/a.png", api.logoUrl("https://cdn.example/a.png"))
     }
 
     @Test

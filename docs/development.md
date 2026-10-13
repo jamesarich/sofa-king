@@ -30,7 +30,7 @@ Unit tests cover the API client, catalog and guide mapping, the playback session
 | --- | --- | --- |
 | Android TV, Google TV, phones | `./gradlew :androidApp:assembleRelease`, then sideload `androidApp/build/outputs/apk/release/androidApp-release.apk` | `adb` |
 | Desktop | `./gradlew :ui:run`; `:ui:packageDistributionForCurrentOS` builds a `.deb`, `.dmg` or `.msi` | VLC 3 installed for playback |
-| Web | `./gradlew :ui:wasmJsBrowserDevelopmentRun`; `:ui:wasmJsBrowserDistribution` writes `ui/build/dist/wasmJs/productionExecutable` (`js` tasks build the JS fallback) | The page on the server's origin, through a reverse proxy that forwards `/api/`, `/media/` and `/logos/`; HLS streams |
+| Web | `./gradlew :ui:wasmJsBrowserDevelopmentRun`; `:ui:wasmJsBrowserDistribution` writes `ui/build/dist/wasmJs/productionExecutable` (`js` tasks build the JS fallback) | A server whose `SOFA_CORS_ORIGINS` lists the page's origin, or a reverse proxy on the server's origin; HLS streams |
 | iOS | On a Mac: `cd iosApp && xcodegen && open SofaKing.xcodeproj`, then run the SofaKing scheme | Xcode, XcodeGen; HLS streams |
 
 The iOS framework links only on macOS. Every other target, including the iOS klibs, builds on Linux.

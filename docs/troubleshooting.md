@@ -10,7 +10,7 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 | The Server URL field says to enter the full address | Enter the scheme, host and port, for example `http://192.168.1.10:9193`. Credentials, queries and fragments are refused. |
 | Couldn't reach the Sofa King server | Check the address, the network and that the server is running: `curl --fail http://SERVER_HOST:9193/readyz` answers `ready`. Select Refresh to try again; the app also retries every minute. |
 | `AUTH_REQUIRED` | The API token does not match the server's `SOFA_API_TOKEN`. Its `apiToken` is in the server's `secrets.json`. |
-| Couldn't reach the Sofa King server, in a browser only | The server sends no CORS headers. Serve the web app from a reverse proxy that also forwards `/api/`, `/media/` and `/logos/` to the server, and enter the proxy's address. |
+| Couldn't reach the Sofa King server, in a browser only | The server does not allow the page's origin. Add the origin, such as `http://192.168.1.20:8080`, to the server's `SOFA_CORS_ORIGINS`, or serve the web app from a reverse proxy that also forwards `/api/`, `/media/` and `/logos/` to the server and enter the proxy's address. |
 | A web app on `https://` cannot reach the server | Browsers block requests from an HTTPS page to a plain-HTTP server. Put the server behind the same HTTPS proxy as the page. |
 
 ## Channels and guide
@@ -57,7 +57,7 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 | This stream format isn't supported, on iOS or the web | The channel streams MPEG-TS, which AVPlayer and browsers do not play. Those platforms play HLS channels. |
 | No sound when the web app opens a channel | The browser blocks sound until you interact with the page. Press any key or click, and the sound comes on. |
 | No captions, in Chrome | Chrome's built-in HLS player exposes no caption tracks. Safari exposes the stream's CEA-608 captions. |
-| No info bar or channel list over full-screen video, in a browser | The browser has no WebGL2, or media comes from another origin without CORS headers. Serve the web app from the server's origin. Escape still returns to the guide. |
+| No info bar or channel list over full-screen video, in a browser | The browser has no WebGL2, or the server does not allow the page's origin on media. Add the origin to `SOFA_CORS_ORIGINS` or serve the web app from the server's origin. Escape still returns to the guide. |
 | macOS or Windows will not open the app | Snapshot packages are unsigned. Allow the app in the system's security settings. |
 
 ## FAQ

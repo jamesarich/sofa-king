@@ -45,7 +45,12 @@ Install [VLC](https://www.videolan.org/vlc/) 3, which plays the streams, then in
 
 ### Web
 
-The server sends no CORS headers, so the web app must be served from the server's origin. Unzip `sofa-king-snapshot-web-wasm.zip` and serve it from a reverse proxy that forwards `/api/`, `/media/` and `/logos/` to the server, then open the proxy's address. `sofa-king-snapshot-web-js.zip` is the same app for browsers without WebAssembly GC. The web app plays HLS channels only.
+A browser lets the page reach the server only when the server allows the page's origin. Unzip `sofa-king-snapshot-web-wasm.zip` and serve it either way:
+
+- From any static web server, with that server's origin, such as `http://192.168.1.20:8080`, in the Sofa King server's `SOFA_CORS_ORIGINS`. Enter the Sofa King server's address in Settings.
+- From a reverse proxy that also forwards `/api/`, `/media/` and `/logos/` to the Sofa King server, so the page and the server share an origin. Enter the proxy's address in Settings.
+
+Then open the page. `sofa-king-snapshot-web-js.zip` is the same app for browsers without WebAssembly GC. The web app plays HLS channels only.
 
 ### iOS
 

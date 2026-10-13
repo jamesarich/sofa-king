@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
@@ -23,21 +24,15 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
-import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
-
-/** Window widths below this are compact (a phone in portrait), as Material's window size classes define them. */
-internal const val COMPACT_WIDTH_BELOW_DP = 600
-
-/** Window heights below this are compact (a phone in landscape), as Material's window size classes define them. */
-internal const val COMPACT_HEIGHT_BELOW_DP = 480
+import androidx.window.core.layout.WindowSizeClass
 
 /**
  * How the window is laid out. A TV keeps the layout tuned for a 1080p set seen from a sofa, whatever its size
- * class: a TV and a landscape tablet share one. Everywhere else the window size decides: a compact width narrows
- * the guide's channel column, and a compact width or height drops the preview band so the grid keeps its rows.
+ * class: a TV and a landscape tablet share one. Everywhere else Material's window size class decides: a compact
+ * width narrows the guide's channel column, and a compact width or height drops the preview band so the grid
+ * keeps its rows.
  */
 @Immutable
 internal data class LayoutProfile(val tv: Boolean, val compactWidth: Boolean, val compactHeight: Boolean) {
@@ -47,8 +42,16 @@ internal data class LayoutProfile(val tv: Boolean, val compactWidth: Boolean, va
     companion object {
         val Tv = LayoutProfile(tv = true, compactWidth = false, compactHeight = false)
 
-        fun of(tv: Boolean, widthDp: Int, heightDp: Int): LayoutProfile =
-            if (tv) Tv else LayoutProfile(tv = false, compactWidth = widthDp < COMPACT_WIDTH_BELOW_DP, compactHeight = heightDp < COMPACT_HEIGHT_BELOW_DP)
+        fun of(tv: Boolean, sizeClass: WindowSizeClass): LayoutProfile =
+            if (tv) {
+                Tv
+            } else {
+                LayoutProfile(
+                    tv = false,
+                    compactWidth = !sizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND),
+                    compactHeight = !sizeClass.isHeightAtLeastBreakpoint(WindowSizeClass.HEIGHT_DP_MEDIUM_LOWER_BOUND),
+                )
+            }
     }
 }
 
@@ -58,11 +61,8 @@ internal val LocalLayoutProfile = staticCompositionLocalOf { LayoutProfile.Tv }
 @Composable
 internal fun rememberLayoutProfile(): LayoutProfile {
     val tv = rememberIsTelevision()
-    val size = LocalWindowInfo.current.containerSize
-    val density = LocalDensity.current
-    return remember(tv, size, density) {
-        with(density) { LayoutProfile.of(tv, size.width.toDp().value.toInt(), size.height.toDp().value.toInt()) }
-    }
+    val sizeClass = currentWindowAdaptiveInfoV2().windowSizeClass
+    return remember(tv, sizeClass) { LayoutProfile.of(tv, sizeClass) }
 }
 
 /** TV overscan, which a set may crop: 48dp at the sides, 27dp at the top and bottom. */

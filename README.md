@@ -30,7 +30,7 @@ Sofa King is a live TV app for the channels of your own [Sofa King server](https
 | Android | Android 9 (API 28) or later: Android TV, Google TV, phones and tablets | MPEG-TS and HLS |
 | Desktop | Linux, macOS and Windows, with [VLC](https://www.videolan.org/vlc/) 3 installed | MPEG-TS and HLS |
 | iOS | iOS 16 or later | HLS |
-| Web | Browsers with WebAssembly GC, or the JS build for others, on the server's origin | HLS where the browser plays it |
+| Web | Browsers with WebAssembly GC, or the JS build for others, on an origin the server allows | HLS where the browser plays it |
 
 Every platform needs a Sofa King server it can reach over the network.
 
@@ -69,7 +69,7 @@ Build and test with the command in [development](docs/development.md#build-and-t
 - The app does not discover the server. Enter its address by hand.
 - iOS and the web play HLS channels only; MPEG-TS needs Android or a desktop.
 - The desktop app needs VLC 3 installed.
-- The web app needs the server's origin, because the server sends no CORS headers.
+- The web app needs a server that lists its origin in `SOFA_CORS_ORIGINS`, or a reverse proxy that serves it from the server's origin.
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
 - There is no recording and no background playback. Playback stops when the app leaves the screen.
 - There is no published iOS build. Snapshot APKs use a debug key and the desktop packages are unsigned.

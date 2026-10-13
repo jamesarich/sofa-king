@@ -4,8 +4,8 @@ import java.time.Instant
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.upsert
 
 /** One value a native provider keeps across restarts: its device id, a session token. [expiresAt] null never expires. */
 data class ProviderStateValue(val value: String, val expiresAt: Instant?, val updatedAt: Instant)
@@ -17,8 +17,7 @@ suspend fun BackendStore.providerState(providerId: String, key: String): Provide
 }
 
 suspend fun BackendStore.saveProviderState(providerId: String, key: String, value: String, expiresAt: Instant?, now: Instant) = query {
-    ProviderStates.deleteWhere { (ProviderStates.providerId eq providerId) and (ProviderStates.key eq key) }
-    ProviderStates.insert {
+    ProviderStates.upsert {
         it[ProviderStates.providerId] = providerId
         it[ProviderStates.key] = key
         it[ProviderStates.value] = value

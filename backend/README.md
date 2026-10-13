@@ -10,8 +10,8 @@ Sofa King Backend is a self-hosted live TV server for a home network. It builds 
 - **The service clients run on your server.** Hosted FAST playlists have been taken down after DMCA notices. Here the server talks to the services itself; only Samsung TV Plus and The Roku Channel take their channel lists from a published mirror.
 - **One station per channel.** The same channel from several services becomes one station with the others as fallbacks. Channels whose names only roughly match are merged when their schedules agree, and kept apart otherwise.
 - **Numbers stay put.** Every number the server assigns is written back to the lineup policy file, so a channel keeps its number through rebuilds and on a new server.
-- **Failing sources step aside.** FFmpeg probes every source continuously, quarantines the ones that fail, and playback fails over to the next source, from any service.
-- **Plex stays in step.** The server saves Plex's channel maps itself, adds tuners Plex is missing, and splits a large lineup into devices of 250 channels, the size Plex can save.
+- **Failing sources step aside.** FFmpeg [probes sources](docs/source-health.md) on a schedule, quarantines the ones that fail, and playback fails over to the next source, from any service.
+- **Plex stays in step.** The server saves Plex's channel maps itself and can add the tuners Plex is missing. With extra ports (`SOFA_HDHR_EXTRA_PORTS`), a large lineup spreads over several tuner devices, 250 channels each under a lineup policy, the size Plex can save.
 - **Easy to run.** An admin portal works from a phone browser, with or without JavaScript. A host can update itself from the published image, with a database backup and a rollback when the new image is unhealthy.
 
 ## Features
@@ -37,7 +37,7 @@ Only Plex and the Sofa King app have been tested. The others speak the same HDHo
 | Client | Status | Connect with |
 | --- | --- | --- |
 | Plex Live TV & DVR | Tested | HDHomeRun at `SERVER_HOST:9193`, guide `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` ([Plex setup](docs/live-tv.md#plex-live-tv)) |
-| [Sofa King app](../app/README.md) | Tested | Server `http://SERVER_HOST:9193` and the API token |
+| [Sofa King app](../app/README.md) | Tested | Server `http://SERVER_HOST:9193` and the API token; the web app [behind a proxy](docs/deploy.md#serve-the-web-app) |
 | Jellyfin, Emby | Should work, untested | HDHomeRun tuner at `http://SERVER_HOST:9193`, or an M3U tuner with the playlist below; the XMLTV guide below |
 | Channels DVR | Should work, untested | Custom channels source with the M3U playlist and XMLTV guide below |
 | TiviMate, Kodi (IPTV Simple Client) | Should work, untested | The M3U playlist and XMLTV guide below |
@@ -48,22 +48,11 @@ http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN
 http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN
 ```
 
-The HDHomeRun routes admit only the addresses in `SOFA_HDHR_ALLOW`, so list every client that uses them. [Player outputs](docs/live-tv.md#third-party-players) has the details.
+The HDHomeRun routes admit only the addresses in `SOFA_HDHR_ALLOW`, so list every client that uses them. [Third-party players](docs/live-tv.md#third-party-players) and [Plex Live TV](docs/live-tv.md#plex-live-tv) have the details.
 
 ## Quick start
 
-With Docker and JDK 21, from `backend/`:
-
-```sh
-./gradlew :server:installDist
-mkdir -p deploy/config
-cd deploy && docker compose up -d --build
-docker compose exec sofa-king-backend cat /config/secrets.json
-```
-
-Open `http://SERVER_HOST:9193/admin` and sign in with the `adminToken` from that file. A new server has no channels until you add a `sources.json` and a lineup policy to `deploy/config`. [Getting started](docs/getting-started.md) walks from here to watching a channel. [Deploy with Docker](docs/deploy.md) covers the config folder, secrets, reverse proxies, the published image and automatic updates.
-
-To run without Docker, see [development](docs/development.md#run-without-docker).
+You need Docker and JDK 21, or access to the published image. [Getting started](docs/getting-started.md) builds and starts the server from `backend/`, signs in to the admin portal and walks to a playing channel. [Deploy with Docker](docs/deploy.md) covers the config folder, secrets, reverse proxies, the web app, the published image and automatic updates. To run without Docker, see [development](docs/development.md#run-without-docker).
 
 ## Documentation
 

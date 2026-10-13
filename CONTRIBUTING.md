@@ -1,39 +1,45 @@
 # Contributing
 
-Thanks for working on Sofa King. This guide covers the app in `app/`: the build, the tests, CI, and commit and pull request conventions. Its [docs index](app/docs/README.md) lists the rest of the documentation, and [architecture](app/docs/architecture.md) describes how the code is organized. The server in `backend/` has [its own guide](backend/CONTRIBUTING.md).
+This guide covers the conventions the app in `app/`, the server in `backend/` and the wire types in `contract/` share, and the CI that checks them. Each part has its own build and tests:
 
-## Build and test
+- The app: [development](app/docs/development.md) has the build and test commands, running each platform and the checks on a TV. [app/AGENTS.md](app/AGENTS.md) lists its code constraints.
+- The server: [its contributing guide](backend/CONTRIBUTING.md) has the build, the tests, the smoke scripts and adding a provider.
+- The contract: [its README](contract/README.md) has the rules for changing a wire type.
 
-You need JDK 21 and the Android SDK with API 37.1, set in `app/local.properties`. Run from `app/`:
+## Commits
 
-```sh
-./gradlew :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest :androidApp:lintDebug :androidApp:assembleRelease
-./gradlew :core:compileTestKotlinLinuxX64 :ui:compileTestKotlinIosSimulatorArm64
-```
+Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, in the imperative mood, for example `fix(player): back off on the lineup reload`. The scope names the area:
 
-The second line compiles the Native tests, which reject what the JVM accepts, such as commas or parentheses in backtick test names and JVM-only APIs; run it after any change to common code. Unit tests run against MockWebServer and fakes, so no Sofa King server is needed. [Development](app/docs/development.md) covers what the tests cover and how to run each platform.
+- App: `guide`, `player`, `preview`, `captions`, `settings`, `data`, `web`, `ios`, `desktop`.
+- Server: the scopes in [its guide](backend/CONTRIBUTING.md#commits-and-pull-requests).
+- Either part: `build` and `ci` for the build and workflows, and `docs` for documentation-only changes.
 
-A change to playback, focus or the remote also needs the [checks on a TV](app/docs/development.md#test-on-a-tv): the tests cannot see focus, the remote's keys or a real decoder.
+## Pull requests
 
-The [CI workflow](.github/workflows/ci.yml) runs on every pull request and every push to `main` that changes the app's code or build, not its Markdown alone, in up to three jobs:
-
-- `check` runs both lines above, plus the wasm web build, on Ubuntu. It uploads the test reports when it fails and the `RenderSmokeTest` screenshots every time.
-- `apple` runs only for `main`. It runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators, the UI's iOS tests, and links the iOS framework on macOS.
-- `snapshot` runs only for `main`, after both pass. It builds every platform and replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes.
-
-Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [app/AGENTS.md](app/AGENTS.md). Put code in `commonMain` unless it needs a platform API, keep `core` free of Compose, preserve coroutine cancellation, and close the sessions, players and HTTP calls you own.
-
-## Commits and pull requests
-
-- Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, in the imperative mood, for example `fix(player): back off on the lineup reload` or `feat(guide): jump to the row for a typed number`. Use the area as the scope (`guide`, `player`, `preview`, `captions`, `settings`, `data`, `web`, `ios`, `desktop`), `build` and `ci` for the build and workflows, and `docs` for documentation-only changes. Server changes use the scopes in [its guide](backend/CONTRIBUTING.md#commits-and-pull-requests); a wire change in `contract/` lands with both sides in one pull request.
-- Keep one change per pull request, and describe why it is needed. The diff already shows what changed.
+- Keep one change per pull request. Describe why it is needed first; the diff already shows what changed.
 - Add or update tests with any behavior change. Name tests for the behavior they check.
-- List the checks you ran, including the TV checks when they apply, and add before and after screenshots for a visible change.
 - Keep documentation describing the current behavior, in the same pull request. Put the reasoning behind a change in the commit or the pull request.
+- List the checks you ran, including the [checks on a TV](app/docs/development.md#test-on-a-tv) for a change to the app's playback, focus or remote, and add before and after screenshots for a visible change.
+- Pull requests are squash-merged once CI is green at the head.
 
-## Dependencies
+## Wire changes
 
-Versions are pinned in `app/gradle/libs.versions.toml` and resolved versions are locked. A dependency change updates the catalog, the lockfiles and the table in [dependencies](app/docs/dependencies.md), which lists the update steps.
+A request or response type the app and the server share lives in `contract/`, never in either part. A change to it lands with both sides in one pull request, follows the rules in the [contract's README](contract/README.md), and keeps every fixture in `contract/src/jvmTest/resources/wire`: never edit or delete one. Released apps run against newer servers, so the server must keep answering what those fixtures hold.
+
+## CI
+
+| Workflow | Runs for | What it does |
+| --- | --- | --- |
+| [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown or `app/docs/`), `gradle/build-cache.settings.gradle.kts`, `ci.yml` or `snapshot.yml`; also a manual run | Tests and builds the app |
+| [`backend.yml`](.github/workflows/backend.yml) | Pull requests and pushes to `main` that change `backend/` or `contract/` (not their Markdown or `backend/docs/`), `gradle/build-cache.settings.gradle.kts` or `backend.yml`; also a manual run | Tests and builds the server, and publishes its image from `main` |
+
+`ci.yml` runs up to three jobs:
+
+- `check` runs the app's tests, lint, the Native test compile, the release APK and the wasm web build on Ubuntu. It uploads the test reports when it fails and the `RenderSmokeTest` screenshots every time.
+- `apple` runs on every event except a pull request, so on pushes to `main` and manual runs. It runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators, the UI's iOS tests, and links the iOS framework on macOS. A pull request compiles the iOS tests on Linux in `check` instead.
+- `snapshot` runs for a push to `main` once both pass. It calls `snapshot.yml`, which builds every platform and replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab.
+
+A push to `main`, or a manual run on `main`, that passes `backend.yml` publishes the server image as `ghcr.io/jamesarich/sofa-king-backend:main`; [deploy](backend/docs/deploy.md#the-published-image) describes it.
 
 ## Security
 

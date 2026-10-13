@@ -19,7 +19,7 @@ Sofa King is a live TV app for the channels of your own [Sofa King server](../ba
 - Muted previews that open full screen after 10 seconds, 30 seconds or never ([using Sofa King](docs/usage.md#guide))
 - Favorites, and the last watched channel restored on launch
 - A full-screen player with channel up and down, number entry, the previous channel and a channel list
-- Closed captions, with per-channel timing and style settings on Android ([captions](docs/usage.md#captions))
+- Closed captions, with per-channel timing on Android and a style setting where the app draws them ([captions](docs/usage.md#captions))
 - A saved lineup that shows at once while the app refreshes from the server
 - Reconnection with backoff when a stream fails, and the channel followed by number, then name, when the server's lineup drops its id
 
@@ -30,7 +30,7 @@ Sofa King is a live TV app for the channels of your own [Sofa King server](../ba
 | Android | Android 9 (API 28) or later: Android TV, Google TV, phones and tablets | MPEG-TS and HLS |
 | Desktop | Linux, macOS and Windows, with [VLC](https://www.videolan.org/vlc/) 3 installed | MPEG-TS and HLS |
 | iOS | iOS 16 or later | HLS |
-| Web | Browsers with WebAssembly GC, or the JS build for others, on an origin the server allows | HLS where the browser plays it |
+| Web | Browsers with WebAssembly GC, or the JS build for others, served as [getting started](docs/getting-started.md#web) describes | HLS where the browser plays it |
 
 Every platform needs a Sofa King server it can reach over the network.
 
@@ -55,21 +55,22 @@ The [documentation index](docs/README.md) lists every page. The most used are:
 - [Using Sofa King](docs/usage.md)
 - [Troubleshooting and FAQ](docs/troubleshooting.md)
 - [Architecture](docs/architecture.md)
+- [Security](docs/security.md)
 
 ## Contributing
 
-Build and test with the command in [development](docs/development.md#build-and-test). [CONTRIBUTING.md](../CONTRIBUTING.md) covers CI, the commit conventions and the checks on a TV.
+[Development](docs/development.md) has the build and test commands and the checks on a TV. The repository's [CONTRIBUTING.md](../CONTRIBUTING.md) covers the commit and pull request conventions and CI.
 
 ## Security
 
-[SECURITY.md](../SECURITY.md) describes what the app stores, where the token is sent, cleartext HTTP, and how to report a vulnerability.
+The [security page](docs/security.md) describes what the app stores, where the token is sent, and cleartext HTTP. Report a vulnerability as the repository's [SECURITY.md](../SECURITY.md) describes.
 
 ## Limitations
 
 - The app does not discover the server. Enter its address by hand.
 - iOS and the web play HLS channels only; MPEG-TS needs Android or a desktop.
 - The desktop app needs VLC 3. The `.deb` installs it through apt; on macOS and Windows install it first.
-- The web app needs a server that lists its origin in `SOFA_CORS_ORIGINS`, or a reverse proxy that serves it from the server's origin.
+- The web app has no default server and needs an origin the server allows, as [getting started](docs/getting-started.md#web) describes.
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
 - There is no recording and no background playback. Playback stops when the app leaves the screen.
 - There is no published iOS build. Snapshot APKs use a debug key and the desktop packages are unsigned.

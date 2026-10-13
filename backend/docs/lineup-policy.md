@@ -21,14 +21,14 @@ A minimal policy, which takes every channel of two services, Samsung first:
 
 ## Stations and keys
 
-A station is one channel as the viewer sees it. Feed channels join a station by their **key**, a normalized form of their name:
+A station is one channel as the viewer sees it. Candidates join a station by their **key**, a normalized form of their name:
 
 1. Unicode NFKD without combining marks, lowercase; `&` becomes `and` and `+` becomes `plus`.
 2. Every run of characters other than letters and digits becomes one space; letters of any script survive.
 3. A leading `the` and a trailing `hd` are dropped.
 4. Every space is removed.
 
-`names.version` selects the normalization: version 2, the default, takes all four steps; version 1 stops after step 3 and keeps the spaces. Under version 2 `The Bob Ross Channel` and `Bob Ross Channel` share the key `bobrosschannel`, `BBC News HD` joins `BBC News`, and `Weather Spy` joins `WeatherSpy`. A trailing `tv` or `channel` always stays, so `Tennis Channel`, `Tennis TV` and `Tennis+` are three stations, as are `NFL Network` and `NFL Channel`. A key depends on the name alone, never on what else the feeds carry.
+`names.version` selects the normalization: version 2, the default, takes all four steps; version 1 stops after step 3 and keeps the spaces. Under version 2 `The Bob Ross Channel` and `Bob Ross Channel` share the key `bobrosschannel`, `BBC News HD` joins `BBC News`, and `Weather Spy` joins `WeatherSpy`. A trailing `tv` or `channel` always stays, so `Tennis Channel`, `Tennis TV` and `Tennis+` are three stations, as are `NFL Network` and `NFL Channel`. A key depends on the name alone, never on what else the providers carry.
 
 When two spellings name one station, join them with an alias in `names.aliases`. Both sides are normalized keys:
 
@@ -136,7 +136,7 @@ A station's group is the first of:
 
 ## How a run works
 
-A run is deterministic: everything sorts on values, never on feed or file order.
+A run is deterministic: everything sorts on values, never on provider or file order.
 
 1. **Channels.** Each provider entry takes the live channels that pass its filters and that no earlier entry took. Pinned channels go to their station first. Channels with no current source never start or join a station.
 2. **Stations.** Channels group by key. The leading channel, the lowest by (entry, channel number, channel ID), gives the name, logo and raw group.
@@ -149,7 +149,7 @@ A run is deterministic: everything sorts on values, never on feed or file order.
 9. **Availability.** With `requireVerified`, a station stays off, with reason `unverified`, until one of its sources has qualified healthy once; the run records when as the station's `verifiedAt`. After that, and always without `requireVerified`, a station with no eligible source for `disableAfterHours` turns off until a source qualifies. A station whose channels vanish stays, disabled, for `keepMissingDays`; a key an alias joins into another station merged and does not linger.
 10. **Write.** The lineup is written in one transaction, in number order, only when it differs from the served one. Each change goes to the [change log](#api) with the station key, the field, before and after, and the cause. A station that fails validation is reported and left as it was. Numbers and learned aliases are then written back to the policy file in one revision-checked write.
 
-Runs follow every feed import, guide import and health change, after ten quiet seconds, and every 900 seconds. Until some feed has a live channel, a run leaves the lineup alone.
+Runs follow every provider import, guide import and health change, after ten quiet seconds, and every 900 seconds. Until some provider has a live channel, a run leaves the lineup alone.
 
 ## Probing
 
@@ -162,13 +162,13 @@ A source whose provider configures `headers` other than `User-Agent`, `Accept`, 
 `"required": true` keeps a station in the lineup whatever happens to its sources:
 
 - A required station with no live source stays, disabled, and the run reports `required station has no live source`.
-- A pinned source missing from its feed is reported as `required source missing`. When the feed still lists the channel without a current source, the station keeps the sources that pin last resolved to, as long as the feed still has them, and says so.
+- A pinned source missing from its provider is reported as `required source missing`. When the provider still lists the channel without a current source, the station keeps the sources that pin last resolved to, as long as the provider still has them, and says so.
 - A required station never leaves the lineup for being missing.
 - With `requireVerified`, a required station waits for a verified source like any other, in the lineup and disabled.
 
 ## Findings
 
-Each run reports findings, each starting with the station key; the `groups:` summary of unmapped categories is the exception. Findings cover required or pinned sources missing, stations over the source cap, missing stations, and stations left as they were. They also cover schedule matches the policy kept from merging, because of an override holding more than a number or a `names.never` pair. With HDHomeRun range devices, a lineup that needs more devices than are configured adds an `hdhr:` finding. `GET /api/v1/admin/policy/findings` returns the open findings of a run over the current feeds, and the suggested aliases. With [Plex sync](live-tv.md#keep-plex-in-step) configured, it also carries the last sync's `plex:` findings.
+Each run reports findings, each starting with the station key; the `groups:` summary of unmapped categories is the exception. Findings cover required or pinned sources missing, stations over the source cap, missing stations, and stations left as they were. They also cover schedule matches the policy kept from merging, because of an override holding more than a number or a `names.never` pair. With HDHomeRun range devices, a lineup that needs more devices than are configured adds an `hdhr:` finding. `GET /api/v1/admin/policy/findings` returns the open findings of a run over the current candidates, and the suggested aliases. With [Plex sync](live-tv.md#keep-plex-in-step) configured, it also carries the last sync's `plex:` findings.
 
 ### Unmapped categories
 

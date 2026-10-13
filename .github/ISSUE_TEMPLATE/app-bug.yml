@@ -64,7 +64,7 @@ body:
     attributes:
       label: Logs
       description: |
-        The app log around the problem, with tokens and addresses removed. On Android, `adb logcat -s SofaKing`; on the web, the browser console.
+        The app log around the problem, with tokens and addresses removed. On Android, `adb logcat -s SofaKing`; on a desktop, the lines tagged `SofaKing` that a build from source prints when started with `./gradlew :ui:run` in `app/`; on the web, the browser console.
       render: text
   - type: checkboxes
     id: redacted

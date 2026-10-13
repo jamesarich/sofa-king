@@ -2,21 +2,9 @@
 
 The image runs the server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jre-noble`, pinned by digest) with Ubuntu's FFmpeg, curl and sqlite3, for `linux/amd64` and `linux/arm64`. Everything the server keeps lives in one folder, `/config`. It runs as any non-root user that owns that folder, listens on container port 8080, and reports healthy once `/readyz` answers. The Compose file needs Docker Compose 2.24 or later.
 
-## Quick start
+## Start
 
-Run from `backend/` with JDK 21 installed:
-
-```sh
-./gradlew :server:installDist
-mkdir -p deploy/config
-cd deploy
-docker compose up -d --build
-docker compose exec sofa-king-backend cat /config/secrets.json
-```
-
-1. The first start generates the API and admin tokens and stores them in `config/secrets.json`. The log names the file and the command above, never a token. To read the admin token alone, run `jq -r .adminToken config/secrets.json`.
-2. Open `http://SERVER_HOST:9193/admin` and sign in with the admin token. **Settings** reveals the API token the [Sofa King app](../README.md#clients) needs.
-3. Add your channels. Copy [`sources.example.json`](../deploy/sources.example.json) to `config/sources.json`, edit it as [configure the sources](starter-lineup.md#1-configure-the-sources) describes, and run `docker compose restart`. To build the lineup, put a [lineup policy](lineup-policy.md) in `config/policy.json` too, or follow [build a starter lineup](starter-lineup.md).
+[Getting started](getting-started.md) builds the image from `backend/`, starts it, signs in and walks to a playing channel. To read the admin token alone, run `jq -r .adminToken config/secrets.json` in `deploy`. For the channels, copy [`sources.example.json`](../deploy/sources.example.json) to `config/sources.json` and edit it as [configure the sources](starter-lineup.md#1-configure-the-sources) describes; to build the lineup, put a [lineup policy](lineup-policy.md) in `config/policy.json` too.
 
 The server runs without `deploy/.env`. Copy [`.env.example`](../deploy/.env.example) to `deploy/.env` to change any [server setting](live-tv.md#server-settings); every variable in it reaches the server, so `${NAME}` references in `sources.json` resolve from it. Restart after a change with `docker compose up -d`.
 
@@ -101,6 +89,50 @@ tv.example.com {
 
 Point Plex's HDHomeRun tuner at the published port, not the proxy: `SOFA_HDHR_ALLOW` admits clients by address, and behind a proxy every request comes from the proxy. Keep the proxy on your LAN or VPN, as [security](../SECURITY.md#intended-deployment) describes.
 
+## Serve the web app
+
+The Sofa King app's web build is a static site. Unzip `sofa-king-snapshot-web-wasm.zip` from the [snapshot release](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), or `sofa-king-snapshot-web-js.zip` for browsers without WebAssembly GC. It holds `index.html`, `sofaking.js`, two `.wasm` files and `composeResources/`. The web app plays HLS channels only.
+
+To serve it from the same origin as the API, the proxy forwards exactly `/api/`, `/media/` and `/logos/` at the origin root to the server and serves everything else from the bundle. It must serve `.wasm` files as `application/wasm`, which Caddy's `file_server` and nginx's stock `mime.types` do. The server cannot be served under a sub-path, so neither can the web app.
+
+With [Caddy](https://caddyserver.com/docs/caddyfile/directives/handle):
+
+```caddy
+http://tv.example.lan {
+	@server path /api/* /media/* /logos/*
+	handle @server {
+		reverse_proxy SERVER_HOST:9193
+	}
+	handle {
+		root * /srv/sofa-king-web
+		file_server
+	}
+}
+```
+
+With nginx, inside `http` with the stock `mime.types` included:
+
+```nginx
+server {
+    listen 80;
+    server_name tv.example.lan;
+    root /srv/sofa-king-web;
+
+    location ~ ^/(api|media|logos)/ {
+        proxy_pass http://SERVER_HOST:9193;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+    }
+}
+```
+
+Both serve plain HTTP, like the server on the LAN. For HTTPS, give Caddy a public hostname, or give nginx a certificate, and enter the `https://` address; a page served over HTTPS cannot call a plain-HTTP server, so the proxy is then the only way in.
+
+Open the proxy's address in a browser. The web app does not find the server on its own: in the app's Settings, enter the proxy's own address, the origin with no path such as `http://tv.example.lan`, and the API token, which playback through the proxy needs like any client. The browser saves the address per origin in its `localStorage`. When the proxy terminates TLS, the server reads `X-Forwarded-Proto` as [reverse proxy](#reverse-proxy) describes.
+
+Without a proxy, serve the bundle from any static server and add the page's origin to [`SOFA_CORS_ORIGINS`](live-tv.md#server-settings). The app's Settings then takes the server's own address.
+
 ## Homepage dashboard
 
 A [Homepage](https://gethomepage.dev/configs/docker/) instance with access to the Docker socket lists the server from these labels, which `compose.yaml` carries commented out:
@@ -124,13 +156,13 @@ A [Homepage](https://gethomepage.dev/configs/docker/) instance with access to th
 | `deploy/.env.example` | Optional settings; copy to `deploy/.env` |
 | `deploy/sources.example.json` | Source template; copy to `deploy/config/sources.json` |
 | `deploy/sofa-king-update.sh`, `deploy/systemd/` | Keeps a host on the published image, see [update automatically](#update-automatically) |
-| `.github/workflows/backend.yml` (at the repository root) | Tests pull requests and pushes to `main`, and publishes the image for `main` |
+| `.github/workflows/backend.yml` (at the repository root) | Tests pull requests and pushes to `main`, and publishes the image for `main`, as [contributing](../CONTRIBUTING.md#ci) describes |
 
 `deploy/.env` and `deploy/config/` are ignored by Git.
 
 ## Build
 
-The server is built on the host and copied into the image, so the image build needs only the base image and Ubuntu packages. The third-party jars get their own layer below the server's, so a rebuild after a code change reuses every layer but the top one.
+The server is built on the host and copied into the image, so the image build needs only the base image and Ubuntu packages. The third-party jars get their own layer below the server's, so a rebuild after a code change reuses every layer but the top one. From `backend/`:
 
 ```sh
 ./gradlew :server:installDist
@@ -147,6 +179,8 @@ The Compose file runs the container with a read-only root filesystem; the server
 
 ## Verify
 
+From `backend/deploy`:
+
 ```sh
 curl --fail http://SERVER_HOST:9193/readyz
 docker inspect --format '{{.State.Health.Status}}' sofa-king-backend
@@ -156,15 +190,15 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/a
 
 `/readyz` answers `ready`, and the health status becomes `healthy` after the 30-second start period. Each provider shows `lastSuccessAt` with its channel and source counts, and sources move from `UNVERIFIED` to `HEALTHY` as probes qualify them. A request without the token answers `401 AUTH_REQUIRED`. When `SOFA_API_TOKEN` is set in `.env`, use that value instead of the stored one.
 
-`/api/v1/channels` stays empty until a lineup policy builds the lineup. With `SOFA_OUTPUT_TOKEN` set, `http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN` is the playlist [M3U and XMLTV players](live-tv.md#third-party-players) load; its stream URLs carry the address the request used. For Plex, `curl --fail http://SERVER_HOST:9193/discover.json` from the Plex host shows the tuner that [Plex](live-tv.md#plex-live-tv) is pointed at. When `SOFA_PLEX_TUNER_BASE` lets a sync add devices, set `SOFA_HDHR_PUBLIC_PORTS=9193` so Plex is given the published port.
+`/api/v1/channels` stays empty until a lineup policy, or the admin API, builds the lineup. With `SOFA_OUTPUT_TOKEN` set, `http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN` is the playlist [M3U and XMLTV players](live-tv.md#third-party-players) load; its stream URLs carry the address the request used. For Plex, `curl --fail http://SERVER_HOST:9193/discover.json` from the Plex host shows the tuner that [Plex](live-tv.md#plex-live-tv) is pointed at. When `SOFA_PLEX_TUNER_BASE` lets a sync add devices, set `SOFA_HDHR_PUBLIC_PORTS=9193` so Plex is given the published port.
 
 Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rollback).
 
 ## The published image
 
-The [Backend workflow](../../.github/workflows/backend.yml) runs on every pull request and every push to `main` that changes `backend/` other than its Markdown. Its `test` job runs the tests and builds the distribution; on a pull request it also builds the image without publishing it. For `main`, the `publish` job then builds the image for `linux/amd64` and `linux/arm64` and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
+For `main`, the [Backend workflow](../CONTRIBUTING.md#ci) builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
 
-The package is private. Pulling it needs a GitHub account with access to it, and Docker logged in to `ghcr.io` with a [personal access token (classic)](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic) that has the `read:packages` scope. Without access, `docker pull` answers `denied`. To run the published image instead of a local build, tag it as the image `compose.yaml` names and start without building:
+The package is private. Pulling it needs a GitHub account with access to it, and Docker logged in to `ghcr.io` with a [personal access token (classic)](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic) that has the `read:packages` scope. Without access, `docker pull` answers `denied`. To run the published image instead of a local build, tag it as the image `compose.yaml` names and start without building, from `backend/`:
 
 ```sh
 docker login ghcr.io -u GITHUB_USER
@@ -190,10 +224,10 @@ Compare the commit in the provenance with the `org.opencontainers.image.revision
 
 `deploy/sofa-king-update.sh` keeps a host on the [published image](#the-published-image). When the published image differs from the running one, it:
 
-1. Backs up the database with the running container's `sqlite3` to `backups/` in the config folder, keeping the newest five. The container writes the copy as its own user, readable by that user alone. When that fails, as with an image that has no `sqlite3`, the host's Python 3 writes the copy to `backups/` in the Compose directory instead, readable by root alone. It finds the database through the container's `SOFA_DATA_DIR` and the mount that holds it. The backups hold provider session tokens.
+1. Backs up the database with the running container's `sqlite3` to `backups/` in the config folder. The container writes the copy as its own user, readable by that user alone. When that fails, as with an image that has no `sqlite3`, the host's Python 3 writes the copy to `backups/` in the Compose directory instead, readable by root alone. Each folder keeps the newest five. It finds the database through the container's `SOFA_DATA_DIR` and the mount that holds it. The backups hold provider session tokens.
 2. Tags the running image `sofa-king-backend:previous` and the new one `sofa-king-backend:local`.
 3. Recreates the container and waits up to three minutes for it to report healthy.
-4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` so later runs skip it until a newer one is published.
+4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` in the Compose directory so later runs skip it until a newer one is published.
 
 It needs pull access to the private package, and Python 3 on the host only for the fallback backup. To install it, log Docker in to the registry as root with a personal access token (classic) that has only the `read:packages` scope, then add the script and the timer:
 
@@ -209,7 +243,7 @@ Set `SOFA_UPDATE_DIR` in the service to the Compose directory if it is not `/srv
 
 ## Deploy to a host without a JDK
 
-Run `installDist` on a workstation and let the host's Docker build the image over SSH. Only the distribution (about 50 MB) crosses the network, and the host reuses its cached layers:
+Run `installDist` on a workstation and let the host's Docker build the image over SSH. Only the distribution (about 50 MB) crosses the network, and the host reuses its cached layers. From `backend/` on the workstation:
 
 ```sh
 ./gradlew :server:installDist
@@ -229,7 +263,7 @@ ssh HOST 'cd /srv/sofa-king-backend && gunzip -c sofa-king-backend.tar.gz | dock
 
 ## Move from a /data volume
 
-These steps move a server whose database is in a Docker volume mounted at `/data`, with `sources.json` and `policy/policy.json` mounted beside it, into the config folder. The image refuses to start while a database is mounted at `/data` and `/config` holds none, so stop the updater first. From the Compose directory:
+The server refuses to start while `/data/backend.sqlite` exists and `SOFA_DATA_DIR` (`/config` in the image) holds no database. Its log then says `/data/backend.sqlite exists but SOFA_DATA_DIR (/config) holds no database`. These steps move a server whose database is in a Docker volume mounted at `/data`, with `sources.json` and `policy/policy.json` mounted beside it, into the config folder. Stop the updater first, so it does not start the new image before the move. From the Compose directory:
 
 ```sh
 sudo systemctl stop sofa-king-update.timer
@@ -245,7 +279,7 @@ Then:
 
 1. Replace `compose.yaml` with `deploy/compose.yaml`. To keep the address clients already use, change its port line to `"8080:8080"`; otherwise point the Sofa King app, players and Plex at port 9193.
 2. In `.env`, delete any `SOFA_SOURCES` or `SOFA_POLICY` line, set `UID` and `GID` when `id -u` and `id -g` are not 1000, and keep `SOFA_HDHR_ENABLED=true` when Plex uses the tuner. Tokens set in `.env` keep working.
-3. Install the updater again with the `install` lines in [update automatically](#update-automatically), and delete `backups/failed-image` if a run recorded the new image there.
+3. Install the updater with the `install` lines in [update automatically](#update-automatically), and delete `backups/failed-image` from the Compose directory if a run recorded the new image there.
 4. Start with `docker compose up -d`. The log names `/config/sources.json` and `/config/policy.json`, and `/api/v1/channels` lists the same lineup.
 5. Start the timer again with `sudo systemctl start sofa-king-update.timer`. Once the server has run well for a while, delete the old volume with `docker volume rm sofa-king-backend_sofa-data`.
 

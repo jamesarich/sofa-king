@@ -18,7 +18,13 @@ App (`app/`):
 
 Server (`backend/`):
 
-- [ ] `./gradlew test :server:installDist` passes, and the smoke scripts pass when playback, imports or the lineup changed
+- [ ] `./gradlew test :server:installDist` passes in `backend/`, and the smoke scripts pass when playback, imports or the lineup changed
 - [ ] New or changed variables are in the configuration table in `backend/docs/live-tv.md`
-- [ ] Dependency changes update the version catalog, the lockfiles and `gradle/verification-metadata.xml`, regenerated with `scripts/update-verification-metadata.sh`
-- [ ] A new or changed native provider has sanitized fixtures, a `ProviderFixture` test, `scripts/provider-smoke.py` output below, and its section in `backend/docs/providers.md`
+- [ ] Dependency changes update the version catalog, the lockfiles and `backend/gradle/verification-metadata.xml`, regenerated with `backend/scripts/update-verification-metadata.sh`, which also regenerates `contract/gradle/verification-metadata.xml`
+- [ ] A new or changed native provider has sanitized fixtures, a `ProviderFixture` test, `backend/scripts/provider-smoke.py` output below, and its section in `backend/docs/providers.md`
+
+Contract (`contract/`):
+
+- [ ] The app and the server change together in this pull request
+- [ ] No fixture in `contract/src/jvmTest/resources/wire` is edited or deleted
+- [ ] `./gradlew jvmTest assemble` passes in `contract/`

@@ -1,6 +1,6 @@
 # Operations
 
-This guide covers running a server after the first start: where its state lives, backups and restore, upgrades and rollback, monitoring and logs, native provider failures, and token rotation. Paths assume the Docker stack in [deploy](deploy.md), whose config folder is `deploy/config`; outside Docker, `SOFA_DATA_DIR` (default `data`) is the same directory.
+This guide covers running a server after the first start: where its state lives, backups and restore, upgrades and rollback, monitoring and logs, native provider failures, and token rotation. Paths assume the Docker stack in [deploy](deploy.md), whose config folder is `deploy/config`; outside Docker, `SOFA_DATA_DIR` (default `data`) is the same directory. Commands run from `backend/`.
 
 ## State
 
@@ -10,7 +10,7 @@ The config folder holds everything the server keeps across restarts:
 | --- | --- |
 | `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, the last Plex sync, and the server identity |
 | `logos/` | Cached lineup logos, one file per source URL |
-| `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand |
+| `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand. The updater's fallback backups and its `failed-image` record are in `backups/` in the Compose directory instead |
 | `secrets.json` | The generated API and admin tokens |
 | `sources.json`, `policy.json` | The source file and the lineup policy, when they are kept here |
 
@@ -23,27 +23,26 @@ Back up the whole config folder. The database needs a consistent copy, either fr
 Online, without stopping the server. The image includes `sqlite3`, so one line copies the database into `config/backups/`:
 
 ```sh
+cd deploy
 docker compose exec sofa-king-backend sqlite3 /config/backend.sqlite ".backup '/config/backups/manual.sqlite'"
 ```
 
-Run it from `deploy`. `sqlite3` does not create the folder, so make it first with `mkdir -m 700 config/backups` when it is missing. The copy belongs to the user the container runs as. To keep the rest of the folder with it, archive the folder without the live database and the logo cache:
+`sqlite3` does not create the folder, so make it first with `mkdir -m 700 config/backups` when it is missing. The copy belongs to the user the container runs as. To keep the rest of the folder with it, archive the folder without the live database and the logo cache:
 
 ```sh
-cd deploy
 mkdir -p backup
 tar czf backup/config-$(date +%F).tgz --exclude='backend.sqlite*' --exclude=logos -C config .
 ```
 
-Stopped, which copies everything in one step:
+Stopped, which copies everything in one step, from `backend/deploy`:
 
 ```sh
-cd deploy
 docker compose stop
 tar czf backup/config-$(date +%F).tgz -C config .
 docker compose start
 ```
 
-Keep backups private and out of version control. They contain the generated tokens, the provider session tokens and stream URLs. The [updater](deploy.md#update-automatically) also backs up the database, through the same backup API, to `config/backups/` before each update.
+Keep backups private and out of version control. They contain the generated tokens, the provider session tokens and stream URLs. The [updater](deploy.md#update-automatically) also backs up the database, through the same backup API, to `config/backups/` before each update. When the container cannot take that copy, the updater writes it with the host's Python 3 to `backups/` in the Compose directory, readable by root alone.
 
 ## Restore
 
@@ -58,13 +57,15 @@ cp config/backups/manual.sqlite config/backend.sqlite   # or an updater backup, 
 docker compose start
 ```
 
+An updater fallback backup is `backups/backend-*.sqlite` in the Compose directory.
+
 Restore as the user that owns `config`, so the server can still write the files.
 
 Check the result with `/readyz` and `/api/v1/providers` (see [monitoring](#monitoring)).
 
 ## Upgrade and rollback
 
-A host that runs the updater upgrades itself from the published image, with the backup, the tag and the rollback below done for it; see [update automatically](deploy.md#update-automatically). To upgrade by hand, back up first, and tag the running image so it stays available to roll back to. Then build and start the new version:
+A host that runs the updater upgrades itself from the published image, with the backup, the tag and the rollback below done for it; see [update automatically](deploy.md#update-automatically). To upgrade by hand, back up first, and tag the running image so it stays available to roll back to. Then build and start the new version, from `backend/`:
 
 ```sh
 docker tag sofa-king-backend:local sofa-king-backend:previous
@@ -76,7 +77,7 @@ cd deploy && docker compose up -d
 
 On a host without a JDK, build over SSH as [deploy](deploy.md#deploy-to-a-host-without-a-jdk) shows and run the `docker tag` there first. `docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' sofa-king-backend` prints the commit a running container was built from; `GET /api/v1/admin/status` and the admin portal footer report the same commit as `revision`.
 
-Schema migrations run at startup and only move forward. The server records each applied version in `schema_version`, and a server that does not know a version in the database refuses to start (`Unsupported database schema`). A rollback therefore needs both the previous image and the backup taken before the upgrade. [Restore](#restore) that backup, then start the previous image:
+Schema migrations run at startup and only move forward. The server records each applied version in `schema_version`, and a server that does not know a version in the database refuses to start (`Unsupported database schema`). A rollback therefore needs both the previous image and the backup taken before the upgrade. [Restore](#restore) that backup, then start the previous image, from `backend/`:
 
 ```sh
 docker tag sofa-king-backend:previous sofa-king-backend:local
@@ -108,7 +109,18 @@ The server logs to stderr, which `docker compose logs` shows. `SOFA_LOG_LEVEL` s
 
 Every request gets a random 16-character request id, returned in the `X-Request-Id` response header. Quote it when you report a problem, and search the log for it. Each request also gets one access line, `request method=GET path=/api/v1/channels status=200 durationMs=12`, except media, logos, player streams, `/auto/v*` and the health checks. The path never includes the query, so a token in a URL does not reach the log.
 
-Messages are `key=value` text. They name providers, guides, sources and entries by ID, and they omit stream and guide URLs and tokens. Look for import failures, probe batch counts, health transitions (source ID with its old and new state), `auth failed route=... remote=...` for rejected tokens, and `remux ended exit=` when an HDHomeRun stream stops.
+Messages are `key=value` text that name providers, guides, sources and entries by ID. They cover:
+
+- provider imports: counts, skipped entries, duration and failure class
+- guide imports: channels, retained programs and duration, and on failure the exception class and its message with every URL replaced by `<url>`
+- logo fetch failures: `logo fetch failed key=KEY` with the exception class, the message with every URL replaced by `<url>`, and whether a stale file remains
+- probe batches (outcome counts, duration) and health transitions (source ID, old and new state)
+- lineup policy runs (cause, station, change, assigned-number, learned-alias and finding counts, duration) and each learned alias
+- relay upstream reconnects and failures: source ID, attempt, exception class and HTTP status
+- `remux ended exit=` with FFmpeg's last lines, URLs removed, when an HDHomeRun remux exits with an error
+- rejected tokens: `auth failed route=ROUTE remote=ADDRESS`, at most 30 lines a minute
+
+A request that fails with a closed channel, broken pipe or connection reset, as when a player switches channels mid-body, logs at debug with the exception class. Other request failures log at error. Stream URLs, guide URLs, tokens and provider exception messages are never logged; a guide or logo failure message is logged only after URL redaction.
 
 ## When a native provider breaks
 

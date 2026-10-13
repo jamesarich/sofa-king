@@ -43,7 +43,7 @@ body:
     attributes:
       label: Provider check output
       description: |
-        The output of `python3 scripts/provider-smoke.py --service NAME` from a checkout with `./gradlew :server:installDist` built. Add `--option key=value` for the options your source file sets.
+        The output of `python3 scripts/provider-smoke.py --service NAME`, run in `backend/` after `./gradlew :server:installDist`. Add `--option key=value` for the options your source file sets.
       render: text
     validations:
       required: true

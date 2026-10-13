@@ -37,7 +37,7 @@ All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `
 ## UI
 
 - Use multiplatform Material 3 Expressive components under `SofaKingTheme`. Add `tvFocus` (or use `SofaButton`/`SofaSwitch`) to every focusable control so D-pad focus shows; guide cells keep scale 1 and change color.
-- Support the five-way D-pad and its keyboard equivalents. Use focusRestorer; request focus from effects or callbacks and wait for lazy nodes with requestFocusWhenAttached. The guide's first focus is retried until a cell reports it landed; the header's buttons must never keep focus once channels are on screen. The unconfigured screen starts on Settings.
+- Support the five-way D-pad and its keyboard equivalents. Use focusRestorer; request focus from effects or callbacks and wait for lazy nodes with requestFocusWhenAttached. The guide's first focus is retried until a cell reports it landed; the header's buttons must never keep focus once channels are on screen. The unconfigured screen focuses the header's Settings button (`homeFocusFor`).
 - Preserve 48dp horizontal and 27dp vertical overscan padding.
 - Preserve the guide's 24-hour window, filter and scroll across player navigation. Back from the player focuses the channel being watched (`returnedFrom` ranks first in `initialGuideRow`), shows All when a filter or search hides it, and keeps the time cursor no earlier than now.
 - A cold start opens the last watched channel full screen through the normal session path, decided once by `launchTarget` after the lineup and settings are in; the guide and preview must not compose before that decision. No last channel opens the guide.
@@ -64,7 +64,7 @@ All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `
 - Keep sockets and files off the main thread (`ioDispatcher`). Preserve cancellation and close owned calls/listeners/resources.
 - Keep DataStore corruption recovery, its Android file path and last-good lineup behavior; the lineup cache keeps its byte layout or bumps its version. Never log or print the API token; `AppSettings.toString` hides it and Settings masks all but its last four characters while the field is not being edited.
 - API requests go through `SofaKingApi` with the bearer token; media requests carry none. Transport errors surface as `IOException` on every engine. Guide queries stay within 200 channels and 24 hours.
-- The server's request and response types come from `../contract` (aliased in `SofaKingDto.kt` beside `wireJson`, which ignores unknown fields); change a wire field there, never in the app, and follow `contract/README.md`. Branch on `Wire` constants, not string literals.
+- The server's request and response types come from `../contract` (aliased in `SofaKingDto.kt` beside `wireJson`, which ignores unknown fields); change a wire field there, never in the app, and follow `../contract/README.md`. Branch on `Wire` constants, not string literals.
 
 ## Documentation
 

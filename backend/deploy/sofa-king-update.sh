@@ -28,7 +28,8 @@ healthy() {
   return 1
 }
 # Copies the database to backups/$1 in the config folder with the container's own sqlite3, written as the container's
-# user and readable by it alone. When the exec fails, the host's python3 copies it into the Compose directory instead.
+# user and readable by it alone. When the exec fails, the host's python3 copies it to backups/ in the Compose directory
+# instead, which also holds failed-image.
 backup_database() {
   local name=$1
   # shellcheck disable=SC2016 # $1 and $2 expand in the container's shell.

@@ -1,6 +1,6 @@
 # Sofa King Backend
 
-Use `README.md` for setup, `docs/api.md` for the wire interface and `docs/architecture.md` for implemented service boundaries. Implement working slices, run relevant checks and commit verified changes.
+Use `docs/getting-started.md` for setup, `docs/api.md` for the wire interface and `docs/architecture.md` for implemented service boundaries. Implement working slices, run relevant checks and commit verified changes.
 
 ## Scope
 

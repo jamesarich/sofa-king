@@ -24,7 +24,7 @@ Sofa King Backend is a self-hosted live TV server for a home network. It builds 
 - HLS and MPEG-TS relayed through the server, and an MPEG-TS remux for Plex
 - M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
 - A logo cache, so every client loads logos from this server
-- A JSON API with a Kotlin client module ([API](docs/api.md))
+- A JSON API whose live TV types the app shares ([API](docs/api.md))
 - An [admin portal](docs/admin.md) at `/admin` that shows what needs attention and edits channels, merges, groups and provider priority
 - A Docker image for `linux/amd64` and `linux/arm64`, with an SBOM and build provenance
 

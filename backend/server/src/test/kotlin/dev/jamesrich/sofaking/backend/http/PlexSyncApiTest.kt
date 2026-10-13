@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.*
-import dev.jamesrich.sofaking.backend.api.ApiError
+import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.api.PolicyApplyResult
 import dev.jamesrich.sofaking.backend.api.PolicyFindings

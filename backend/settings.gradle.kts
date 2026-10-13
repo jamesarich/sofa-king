@@ -7,4 +7,5 @@ dependencyResolutionManagement {
 }
 apply(from = "../gradle/build-cache.settings.gradle.kts")
 rootProject.name = "sofa-king-backend"
-include(":api-contract", ":server", ":client")
+includeBuild("../contract")
+include(":server")

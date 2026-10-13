@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.contract.*
 import java.nio.file.Files
 import kotlin.test.*
 

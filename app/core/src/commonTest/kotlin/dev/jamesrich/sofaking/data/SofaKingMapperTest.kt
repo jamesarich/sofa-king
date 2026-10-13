@@ -13,15 +13,34 @@ class SofaKingMapperTest {
         logo: String? = null,
         tags: List<String> = emptyList(),
         eligible: Boolean = true,
-    ) = CatalogChannelDto(id, number, name, logo, tags, eligible)
+    ) = CatalogChannelDto(id, number, name, logo, tags, playbackEligible = eligible)
+
+    private fun catalog(vararg channels: CatalogChannelDto) = CatalogDto(channels = channels.toList())
+
+    private fun guide(vararg channels: ChannelGuideDto) = GuideWindowDto("r1", channels = channels.toList())
+
+    private fun channelGuide(id: String, vararg programmes: ProgrammeDto) = ChannelGuideDto(id, programmes = programmes.toList())
+
+    private fun programme(
+        startsAt: String,
+        endsAt: String,
+        title: String,
+        description: String? = null,
+        subTitle: String? = null,
+        episode: String? = null,
+        isNew: Boolean = false,
+        rating: String? = null,
+        icon: String? = null,
+    ) = ProgrammeDto(
+        startsAt = startsAt, endsAt = endsAt, title = title, description = description,
+        subTitle = subTitle, episode = episode, isNew = isNew, rating = rating, icon = icon,
+    )
 
     @Test
     fun `playable channels map to the app model sorted by number`() {
-        val catalog = CatalogDto(
-            listOf(
-                channel("b", "12", "Twelve", tags = listOf("News", "HD")),
-                channel("a", " 5.1 ", "Five", logo = "http://logo/5.png"),
-            ),
+        val catalog = catalog(
+            channel("b", "12", "Twelve", tags = listOf("News", "HD")),
+            channel("a", " 5.1 ", "Five", logo = "http://logo/5.png"),
         )
 
         val channels = SofaKingMapper.channels(catalog)
@@ -38,7 +57,7 @@ class SofaKingMapperTest {
     @Test
     fun `every tag is a group trimmed and once each in tag order`() {
         val channels = SofaKingMapper.channels(
-            CatalogDto(listOf(channel("a", "1", tags = listOf(" Local ", "", "News", "Local")))),
+            catalog(channel("a", "1", tags = listOf(" Local ", "", "News", "Local"))),
         )
 
         assertEquals(listOf("Local", "News"), channels.single().groups)
@@ -46,13 +65,11 @@ class SofaKingMapperTest {
 
     @Test
     fun `channels the server cannot play or number are left out`() {
-        val catalog = CatalogDto(
-            listOf(
-                channel("x", "7", eligible = false),
-                channel("y", "abc"),
-                channel("z", "", logo = ""),
-                channel("ok", "8", logo = ""),
-            ),
+        val catalog = catalog(
+            channel("x", "7", eligible = false),
+            channel("y", "abc"),
+            channel("z", "", logo = ""),
+            channel("ok", "8", logo = ""),
         )
 
         val channels = SofaKingMapper.channels(catalog)
@@ -64,7 +81,7 @@ class SofaKingMapperTest {
     @Test
     fun `blank tags are skipped and a channel left with none is filed under Other`() {
         val channels = SofaKingMapper.channels(
-            CatalogDto(listOf(channel("a", "1", tags = listOf(" ", "Sports")), channel("b", "2", tags = listOf(" ")))),
+            catalog(channel("a", "1", tags = listOf(" ", "Sports")), channel("b", "2", tags = listOf(" "))),
         )
 
         assertEquals(listOf(listOf("Sports"), listOf("Other")), channels.map { it.groups })
@@ -72,18 +89,13 @@ class SofaKingMapperTest {
 
     @Test
     fun `programmes are grouped by channel sorted by start and read their description`() {
-        val window = GuideWindowDto(
-            "r1",
-            listOf(
-                ChannelGuideDto(
-                    "a",
-                    listOf(
-                        ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Later", description = "Second"),
-                        ProgrammeDto("2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Earlier", description = " "),
-                    ),
-                ),
-                ChannelGuideDto("b", emptyList()),
+        val window = guide(
+            channelGuide(
+                "a",
+                programme("2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Later", description = "Second"),
+                programme("2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Earlier", description = " "),
             ),
+            channelGuide("b"),
         )
 
         val guide = SofaKingMapper.programmes(window)
@@ -100,20 +112,15 @@ class SofaKingMapperTest {
 
     @Test
     fun `programmes with unreadable times or no duration are dropped`() {
-        val window = GuideWindowDto(
-            "r1",
-            listOf(
-                ChannelGuideDto(
-                    "a",
-                    listOf(
-                        ProgrammeDto("not a time", "2026-10-10T12:00:00Z", "Bad start"),
-                        ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Zero length"),
-                        ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T10:00:00Z", "Backwards"),
-                        ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T11:30:00Z", "Kept"),
-                    ),
-                ),
-                ChannelGuideDto("b", listOf(ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Only bad"))),
+        val window = guide(
+            channelGuide(
+                "a",
+                programme("not a time", "2026-10-10T12:00:00Z", "Bad start"),
+                programme("2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Zero length"),
+                programme("2026-10-10T11:00:00Z", "2026-10-10T10:00:00Z", "Backwards"),
+                programme("2026-10-10T11:00:00Z", "2026-10-10T11:30:00Z", "Kept"),
             ),
+            channelGuide("b", programme("2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Only bad")),
         )
 
         val guide = SofaKingMapper.programmes(window)
@@ -124,19 +131,14 @@ class SofaKingMapperTest {
 
     @Test
     fun `programme metadata is read and blank values read as none`() {
-        val window = GuideWindowDto(
-            "r1",
-            listOf(
-                ChannelGuideDto(
-                    "a",
-                    listOf(
-                        ProgrammeDto(
-                            "2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Show",
-                            subTitle = " The Pilot ", episode = "S1 E1", isNew = true, rating = "TV-PG", icon = "https://img/x.jpg",
-                        ),
-                        ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Plain", subTitle = "", episode = " ", rating = ""),
-                    ),
+        val window = guide(
+            channelGuide(
+                "a",
+                programme(
+                    "2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Show",
+                    subTitle = " The Pilot ", episode = "S1 E1", isNew = true, rating = "TV-PG", icon = "https://img/x.jpg",
                 ),
+                programme("2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Plain", subTitle = "", episode = " ", rating = ""),
             ),
         )
 
@@ -149,14 +151,14 @@ class SofaKingMapperTest {
     }
 
     @Test
-    fun `guide status maps from the wire and an unknown or missing one reads as available`() {
-        val statuses = listOf("unassigned", "empty", "available", "stale", "future", null)
-        val catalog = CatalogDto(statuses.mapIndexed { i, status -> channel("$i", "${i + 1}").copy(guideStatus = status) })
+    fun `guide status maps from the wire and an unknown one reads as available`() {
+        val statuses = listOf("unassigned", "empty", "available", "stale", "future")
+        val catalog = CatalogDto(channels = statuses.mapIndexed { i, status -> channel("$i", "${i + 1}").copy(guideStatus = status) })
 
         assertEquals(
             listOf(
                 GuideStatus.UNASSIGNED, GuideStatus.EMPTY, GuideStatus.AVAILABLE,
-                GuideStatus.STALE, GuideStatus.AVAILABLE, GuideStatus.AVAILABLE,
+                GuideStatus.STALE, GuideStatus.AVAILABLE,
             ),
             SofaKingMapper.channels(catalog).map { it.guideStatus },
         )
@@ -164,7 +166,7 @@ class SofaKingMapperTest {
 
     @Test
     fun `logos go through the resolver and one it rejects reads as none`() {
-        val catalog = CatalogDto(listOf(channel("a", "1", logo = "http://x/logos/k"), channel("b", "2", logo = "bad")))
+        val catalog = catalog(channel("a", "1", logo = "http://x/logos/k"), channel("b", "2", logo = "bad"))
 
         val channels = SofaKingMapper.channels(catalog) { raw -> raw.takeIf { "logos" in it }?.replace("http://x", "https://y") }
 

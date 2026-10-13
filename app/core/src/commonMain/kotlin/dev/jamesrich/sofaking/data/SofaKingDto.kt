@@ -1,67 +1,34 @@
 package dev.jamesrich.sofaking.data
 
-import kotlinx.serialization.Serializable
+import dev.jamesrich.sofaking.contract.ApiError
+import dev.jamesrich.sofaking.contract.Catalog
+import dev.jamesrich.sofaking.contract.Channel
+import dev.jamesrich.sofaking.contract.ChannelGuide
+import dev.jamesrich.sofaking.contract.GuideQuery
+import dev.jamesrich.sofaking.contract.GuideWindow
+import dev.jamesrich.sofaking.contract.OpenPlayback
+import dev.jamesrich.sofaking.contract.PlaybackDescriptor
+import dev.jamesrich.sofaking.contract.PlaybackSession
+import dev.jamesrich.sofaking.contract.Programme
+import dev.jamesrich.sofaking.contract.UpdatePlayback
 import kotlinx.serialization.json.Json
 
-/** The wire shapes of the Sofa King server's `/api/v1` resources; fields the app does not read are ignored. */
+/** Reads the server's `/api/v1` resources; fields the app does not know are ignored. */
 internal val wireJson = Json {
     ignoreUnknownKeys = true
     explicitNulls = false
     encodeDefaults = false
 }
 
-@Serializable
-internal data class CatalogDto(val channels: List<CatalogChannelDto>)
-
-@Serializable
-internal data class CatalogChannelDto(
-    val id: String,
-    val displayNumber: String,
-    val name: String,
-    val logo: String? = null,
-    val tags: List<String> = emptyList(),
-    val playbackEligible: Boolean = false,
-    val guideStatus: String? = null,
-)
-
-@Serializable
-internal data class GuideQueryDto(val channelIds: List<String>, val from: String, val to: String, val revision: String? = null)
-
-@Serializable
-internal data class GuideWindowDto(val revision: String, val channels: List<ChannelGuideDto>)
-
-@Serializable
-internal data class ChannelGuideDto(val channelId: String, val programmes: List<ProgrammeDto>)
-
-@Serializable
-internal data class ProgrammeDto(
-    val startsAt: String,
-    val endsAt: String,
-    val title: String,
-    val description: String? = null,
-    val subTitle: String? = null,
-    val episode: String? = null,
-    val isNew: Boolean = false,
-    val rating: String? = null,
-    val icon: String? = null,
-)
-
-@Serializable
-internal data class OpenPlaybackDto(val channelId: String, val intent: String, val idempotencyKey: String)
-
-@Serializable
-internal data class UpdatePlaybackDto(val intent: String? = null)
-
-@Serializable
-internal data class PlaybackDescriptorDto(val protocol: String, val mimeType: String, val url: String, val epoch: Int)
-
-@Serializable
-internal data class PlaybackSessionDto(
-    val id: String,
-    val channelId: String,
-    val intent: String,
-    val descriptor: PlaybackDescriptorDto,
-)
-
-@Serializable
-internal data class ApiErrorDto(val code: String, val message: String)
+// The contract's wire types under names that stay clear of the app's own Channel and Programme models.
+internal typealias CatalogDto = Catalog
+internal typealias CatalogChannelDto = Channel
+internal typealias GuideQueryDto = GuideQuery
+internal typealias GuideWindowDto = GuideWindow
+internal typealias ChannelGuideDto = ChannelGuide
+internal typealias ProgrammeDto = Programme
+internal typealias OpenPlaybackDto = OpenPlayback
+internal typealias UpdatePlaybackDto = UpdatePlayback
+internal typealias PlaybackDescriptorDto = PlaybackDescriptor
+internal typealias PlaybackSessionDto = PlaybackSession
+internal typealias ApiErrorDto = ApiError

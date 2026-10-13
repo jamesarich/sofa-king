@@ -64,7 +64,7 @@ All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `
 - Keep sockets and files off the main thread (`ioDispatcher`). Preserve cancellation and close owned calls/listeners/resources.
 - Keep DataStore corruption recovery, its Android file path and last-good lineup behavior; the lineup cache keeps its byte layout or bumps its version. Never log or print the API token; `AppSettings.toString` hides it and Settings masks all but its last four characters while the field is not being edited.
 - API requests go through `SofaKingApi` with the bearer token; media requests carry none. Transport errors surface as `IOException` on every engine. Guide queries stay within 200 channels and 24 hours.
-- Use kotlinx.serialization with `wireJson` for the server's JSON; unknown fields are ignored.
+- The server's request and response types come from `../contract` (aliased in `SofaKingDto.kt` beside `wireJson`, which ignores unknown fields); change a wire field there, never in the app, and follow `contract/README.md`. Branch on `Wire` constants, not string literals.
 
 ## Documentation
 

@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.health
 
-import dev.jamesrich.sofaking.backend.api.Channel
-import dev.jamesrich.sofaking.backend.api.OpenPlayback
+import dev.jamesrich.sofaking.contract.Channel
+import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.remuxCommand

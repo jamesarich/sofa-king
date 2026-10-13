@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.data
 
+import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,8 +33,8 @@ class SessionTimeoutException(message: String) : IOException(message)
 
 /** What a playback session is for; a preview holds a 45 s lease and is the first evicted at capacity, a watch holds 90 s. */
 enum class PlaybackIntent(internal val wire: String) {
-    PREVIEW("preview"),
-    WATCH("watch");
+    PREVIEW(Wire.Intent.PREVIEW),
+    WATCH(Wire.Intent.WATCH);
 
     internal companion object {
         fun fromWire(value: String): PlaybackIntent? = entries.firstOrNull { it.wire == value }

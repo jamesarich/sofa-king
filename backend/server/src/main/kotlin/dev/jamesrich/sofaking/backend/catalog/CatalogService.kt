@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.HealthStatus
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -49,10 +50,10 @@ class CatalogService(
             tags = listOfNotNull(entry.group),
             legacyGuideId = entry.guide?.channelId,
             guideStatus = when {
-                entry.guide == null -> "unassigned"
-                end == null -> "empty"
-                end > now -> "available"
-                else -> "stale"
+                entry.guide == null -> Wire.GuideStatus.UNASSIGNED
+                end == null -> Wire.GuideStatus.EMPTY
+                end > now -> Wire.GuideStatus.AVAILABLE
+                else -> Wire.GuideStatus.STALE
             },
             playbackEligible = offerings.any { states[it.id]?.let(::eligible) == true },
         )
@@ -74,17 +75,17 @@ class CatalogService(
     fun offering(id: String): Offering? = feeds.offering(id)
 
     suspend fun guide(query: GuideQuery): GuideWindow {
-        if (query.channelIds.size !in 1..200 || query.channelIds.distinct().size != query.channelIds.size) {
+        if (query.channelIds.size !in 1..Wire.GUIDE_MAX_CHANNELS || query.channelIds.distinct().size != query.channelIds.size) {
             throw ApiFailure(400, "INVALID_QUERY", "Request 1 to 200 distinct channel IDs")
         }
         val from = try { Instant.parse(query.from) } catch (_: Exception) { throw ApiFailure(400, "INVALID_QUERY", "Invalid from timestamp") }
         val to = try { Instant.parse(query.to) } catch (_: Exception) { throw ApiFailure(400, "INVALID_QUERY", "Invalid to timestamp") }
-        if (to <= from || Duration.between(from, to) > Duration.ofHours(24)) {
+        if (to <= from || Duration.between(from, to) > Duration.ofHours(Wire.GUIDE_MAX_HOURS.toLong())) {
             throw ApiFailure(400, "INVALID_QUERY", "Guide window must be positive and at most 24 hours")
         }
-        val entries = query.channelIds.map { id -> lineup.entry(id)?.takeIf { it.enabled } ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel ID") }
+        val entries = query.channelIds.map { id -> lineup.entry(id)?.takeIf { it.enabled } ?: throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel ID") }
         val revision = hash("${guides.revision()}:${lineup.revision()}")
-        if (query.revision != null && query.revision != revision) throw ApiFailure(409, "RESYNC_REQUIRED", "Guide revision changed", true)
+        if (query.revision != null && query.revision != revision) throw ApiFailure(409, Wire.ErrorCode.RESYNC_REQUIRED, "Guide revision changed", true)
         val mapped = entries.mapNotNull { entry -> entry.guide?.let { entry to it } }
         val programmes = HashMap<String, List<GuideProgramme>>()
         for ((guideId, group) in mapped.groupBy { it.second.guideId }) {

@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.HealthStatus
@@ -64,11 +65,11 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     private val keys = linkedMapOf<String, Pair<OpenPlayback, String>>()
     suspend fun open(request: OpenPlayback): PlaybackSession = mutex.withLock {
         reap()
-        if (request.intent !in setOf("preview", "watch") || request.idempotencyKey.length !in 1..128)
+        if (request.intent !in setOf(Wire.Intent.PREVIEW, Wire.Intent.WATCH) || request.idempotencyKey.length !in 1..128)
             throw ApiFailure(400, "INVALID_REQUEST", "Invalid playback intent or idempotency key")
         keys[request.idempotencyKey]?.let { (original, id) ->
             if (original != request) throw ApiFailure(409, "IDEMPOTENCY_CONFLICT", "Key already used for another request")
-            return@withLock sessions[id]?.descriptor() ?: throw ApiFailure(410, "SESSION_EXPIRED", "Session was released or expired")
+            return@withLock sessions[id]?.descriptor() ?: throw ApiFailure(410, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
         }
         makeRoom()
         val offering = select(request.channelId)
@@ -83,7 +84,7 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         reap()
         makeRoom()
         val id = UUID.randomUUID().toString()
-        val session = LiveSession(id, OpenPlayback(channelId, "watch", "external:$id"), select(channelId), clock.instant().plus(EXTERNAL_IDLE), external = true)
+        val session = LiveSession(id, OpenPlayback(channelId, Wire.Intent.WATCH, "external:$id"), select(channelId), clock.instant().plus(EXTERNAL_IDLE), external = true)
         sessions[id] = session
         session.descriptor()
     }
@@ -113,9 +114,9 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
      */
     private fun makeRoom() {
         if (sessions.size < capacity) return
-        val victim = sessions.values.firstOrNull { it.intent == "preview" }
+        val victim = sessions.values.firstOrNull { it.intent == Wire.Intent.PREVIEW }
             ?: sessions.values.filter { it.external && !it.busy }.minByOrNull { it.expires }
-            ?: throw ApiFailure(429, "CAPACITY_EXHAUSTED", "Playback capacity exhausted", true)
+            ?: throw ApiFailure(429, Wire.ErrorCode.CAPACITY_EXHAUSTED, "Playback capacity exhausted", true)
         victim.cancel()
         sessions.remove(victim.id)
     }
@@ -134,13 +135,13 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     }
     suspend fun update(id: String, update: UpdatePlayback): PlaybackSession = mutex.withLock {
         val session = active(id)
-        if (update.intent != null && update.intent !in setOf("preview", "watch")) throw ApiFailure(400, "INVALID_REQUEST", "Invalid playback intent")
+        if (update.intent != null && update.intent !in setOf(Wire.Intent.PREVIEW, Wire.Intent.WATCH)) throw ApiFailure(400, "INVALID_REQUEST", "Invalid playback intent")
         update.intent?.let { session.intent = it }
         session.expires = clock.instant().plus(lease(session.intent))
         session.descriptor()
     }
-    /** Watch leases outlast the client's 30-second renewal twice over; abandoned previews free their slot sooner. */
-    private fun lease(intent: String): Duration = if (intent == "watch") Duration.ofSeconds(90) else Duration.ofSeconds(45)
+    /** Leases outlast the app's 15-second renewal several times over; abandoned previews free their slot sooner. */
+    private fun lease(intent: String): Duration = if (intent == Wire.Intent.WATCH) Duration.ofSeconds(90) else Duration.ofSeconds(45)
     suspend fun release(id: String) = mutex.withLock { sessions.remove(id)?.cancel(); Unit }
     suspend fun healthChanged(offeringId: String) = mutex.withLock {
         if (store.health(offeringId)?.let(::eligible) != true) {
@@ -166,7 +167,7 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     suspend fun close() = mutex.withLock { sessions.values.forEach { it.cancel() }; sessions.clear() }
     suspend fun acquire(id: String, epoch: Int, token: String, job: Job): MediaResource = mutex.withLock {
         val session = active(id)
-        if (epoch != session.epoch) throw ApiFailure(410, "STREAM_CHANGED", "Fetch the current session descriptor", true)
+        if (epoch != session.epoch) throw ApiFailure(410, Wire.ErrorCode.STREAM_CHANGED, "Fetch the current session descriptor", true)
         if (catalog.offering(session.offering.id) == null || store.health(session.offering.id)?.let(::eligible) != true) {
             session.cancel()
             throw ApiFailure(503, "SOURCE_UNAVAILABLE", "Source is no longer eligible", true)
@@ -175,7 +176,7 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         val shared = session.offering.protocol == "mpegts" && url == session.offering.url
         // A player reconnecting to a live stream replaces its previous request rather than adding to it.
         if (shared) session.cancel()
-        if (session.requests.size >= 12) throw ApiFailure(429, "CAPACITY_EXHAUSTED", "Too many media requests", true)
+        if (session.requests.size >= 12) throw ApiFailure(429, Wire.ErrorCode.CAPACITY_EXHAUSTED, "Too many media requests", true)
         session.requests += job
         if (session.external) session.expires = clock.instant().plus(EXTERNAL_IDLE)
         MediaResource(session.offering, url, shared)
@@ -189,19 +190,19 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     }
     suspend fun resourcePath(id: String, epoch: Int, url: String): String = mutex.withLock {
         val session = active(id)
-        if (session.epoch != epoch) throw ApiFailure(410, "STREAM_CHANGED", "Fetch current descriptor", true)
+        if (session.epoch != epoch) throw ApiFailure(410, Wire.ErrorCode.STREAM_CHANGED, "Fetch current descriptor", true)
         "/media/sessions/$id/$epoch/${session.resource(url)}"
     }
     /** Lineup order within each health rank: a healthy second choice beats an unverified first choice. */
     private suspend fun select(channelId: String): Offering {
-        val candidates = catalog.offeringsFor(channelId) ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel")
+        val candidates = catalog.offeringsFor(channelId) ?: throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
         return choose(candidates, store.allHealth()) ?: throw ApiFailure(503, "SOURCE_UNAVAILABLE", "No eligible source", true)
     }
     private fun choose(candidates: List<Offering>, states: Map<String, HealthState>): Offering? =
         candidates.sortedBy { selectionRank(states[it.id]?.status) }.firstOrNull { states[it.id]?.let(::eligible) == true }
     private fun active(id: String): LiveSession {
         reap()
-        return sessions[id] ?: throw ApiFailure(410, "SESSION_EXPIRED", "Session was released or expired")
+        return sessions[id] ?: throw ApiFailure(410, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
     }
     /** A player's in-flight request holds its external session; the idle lease only starts once that request ends. */
     private fun reap() {

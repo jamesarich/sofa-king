@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.store.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*

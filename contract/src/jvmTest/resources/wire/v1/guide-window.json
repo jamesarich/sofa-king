@@ -1,0 +1,26 @@
+{
+    "revision": "d7b62e14e34a227430202fc5f335f6c83edc24a557bb7c2e0751f38355514665",
+    "from": "2026-10-10T13:00:00Z",
+    "to": "2026-10-10T14:00:00Z",
+    "channels": [
+        {
+            "channelId": "e765525a-42b9-46cf-821d-d2b5c131c6ba",
+            "status": "available",
+            "programmes": [
+                {
+                    "id": "f29e21f6-585b-34a7-a5e1-4c5d92bb2428",
+                    "channelId": "e765525a-42b9-46cf-821d-d2b5c131c6ba",
+                    "startsAt": "2026-10-10T13:00:00Z",
+                    "endsAt": "2026-10-10T14:00:00Z",
+                    "title": "Morning",
+                    "description": null,
+                    "subTitle": null,
+                    "episode": null,
+                    "isNew": false,
+                    "rating": null,
+                    "icon": null
+                }
+            ]
+        }
+    ]
+}

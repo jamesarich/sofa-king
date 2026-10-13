@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.Channel
+import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.backend.api.ProviderStatus
 import dev.jamesrich.sofaking.backend.api.SourceStatus
 import dev.jamesrich.sofaking.backend.api.UpdateSource

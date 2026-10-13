@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.OutputConfig
-import dev.jamesrich.sofaking.backend.api.PlaybackSession
+import dev.jamesrich.sofaking.contract.PlaybackSession
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import io.ktor.http.ContentType

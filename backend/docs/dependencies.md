@@ -17,7 +17,7 @@
 
 Versions are defined in [the version catalog](../gradle/libs.versions.toml) and [Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Resolved dependencies are locked. Every library comes from Maven Central.
 
-The server targets JVM 21. The `api-contract` and `client` modules compile to JVM 17 bytecode with the Kotlin 2.5 beta compiler, so consumers need a compatible Kotlin compiler.
+The server targets JVM 21. The [contract](../../contract/README.md) it shares with the app compiles to JVM 17 bytecode for the server and Android, and to every other target the app builds; it pins the same Kotlin and kotlinx.serialization versions as the server.
 
 ## Vendored htmx
 

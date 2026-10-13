@@ -206,10 +206,16 @@ fun PlayerScreen(
 
     // The system's next/previous/play/pause (MediaSession, media keys) reach the player through this session.
     val zapRelay = remember { ZapRelay() }
-    val mediaSession = remember(player) { player.openMediaSession { step -> zapRelay.onStep(step) } }
-    DisposableEffect(mediaSession) {
+    // Opened and closed by the effect, never during composition; the publishers below all run after it.
+    var mediaSession by remember { mutableStateOf<MediaSessionHandle?>(null) }
+    DisposableEffect(player) {
+        val session = player.openMediaSession { step -> zapRelay.onStep(step) }
+        mediaSession = session
         player.volume = 1f
-        onDispose { mediaSession.close() }
+        onDispose {
+            session.close()
+            mediaSession = null
+        }
     }
     LaunchedEffect(player) {
         player.status.collect { s ->
@@ -232,7 +238,7 @@ fun PlayerScreen(
 
     fun load(channel: Channel) {
         val metadata = nowPlayingFor(channel)
-        mediaSession.publish(metadata)
+        mediaSession?.publish(metadata)
         tuneJob.job?.cancel()
         // Handed over from the guide preview mid-stream: keep it, and let the caption lead grow back from zero.
         // The same session is promoted to watch, so the stream continues and its lease grows to 90 s.
@@ -357,7 +363,7 @@ fun PlayerScreen(
         while (true) {
             delay(METADATA_REFRESH_MS)
             val channel = currentChannels.getOrNull(index) ?: continue
-            mediaSession.publish(nowPlayingFor(channel))
+            mediaSession?.publish(nowPlayingFor(channel))
         }
     }
 

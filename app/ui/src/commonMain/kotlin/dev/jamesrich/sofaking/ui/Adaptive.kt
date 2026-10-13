@@ -25,6 +25,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.window.core.layout.WindowSizeClass
 
@@ -65,11 +66,14 @@ internal fun rememberLayoutProfile(): LayoutProfile {
     return remember(tv, sizeClass) { LayoutProfile.of(tv, sizeClass) }
 }
 
+private val TV_OVERSCAN_VERTICAL = 27.dp
+private val HANDHELD_MARGIN_VERTICAL = 12.dp
+
 /** TV overscan, which a set may crop: 48dp at the sides, 27dp at the top and bottom. */
-private val TvOverscan = WindowInsets(left = 48.dp, top = 27.dp, right = 48.dp, bottom = 27.dp)
+private val TvOverscan = WindowInsets(left = 48.dp, top = TV_OVERSCAN_VERTICAL, right = 48.dp, bottom = TV_OVERSCAN_VERTICAL)
 
 /** Breathing room beyond the system bars and cutouts on a phone, tablet, desktop or browser. */
-private val HandheldMargin = WindowInsets(left = 16.dp, top = 12.dp, right = 16.dp, bottom = 12.dp)
+private val HandheldMargin = WindowInsets(left = 16.dp, top = HANDHELD_MARGIN_VERTICAL, right = 16.dp, bottom = HANDHELD_MARGIN_VERTICAL)
 
 /**
  * The space a screen keeps clear at the window's edges. A TV keeps the overscan, or the system bars and cutouts
@@ -88,6 +92,13 @@ internal fun screenInsets(): WindowInsets =
 @Composable
 internal fun Modifier.screenPadding(sides: WindowInsetsSides = WindowInsetsSides.Horizontal + WindowInsetsSides.Vertical): Modifier =
     windowInsetsPadding(screenInsets().only(sides))
+
+/**
+ * The vertical margin at a panel's edge inside the screen, where no system bar or cutout reaches: the overscan's on
+ * a TV, so the panel matches the screen's margins, and the small handheld margin elsewhere.
+ */
+@Composable
+internal fun panelEdgeMargin(): Dp = if (LocalLayoutProfile.current.tv) TV_OVERSCAN_VERTICAL else HANDHELD_MARGIN_VERTICAL
 
 /** What drove the app last: the remote or a keyboard, or a finger or mouse. */
 internal enum class InputKind { KEYS, POINTER }

@@ -494,12 +494,15 @@ fun GuideScreen(
     val cellLater = stringResource(Res.string.guide_cell_later)
     val cellNone = stringResource(Res.string.guide_cell_none)
     val noListing = stringResource(Res.string.no_listing)
+    val listingLoading = stringResource(Res.string.listing_loading)
+    val guideLoading = lineup.guideLoading
     val noGuide = stringResource(Res.string.no_guide)
     val guideOutOfDate = stringResource(Res.string.guide_out_of_date)
     val favoriteLabel = stringResource(Res.string.guide_favorite)
     val toggleFavoriteLabel = stringResource(Res.string.guide_toggle_favorite)
     val env = remember(
-        cellAiring, cellLater, cellNone, timeFormat, noListing, noGuide, guideOutOfDate, favoriteLabel, toggleFavoriteLabel,
+        cellAiring, cellLater, cellNone, timeFormat, noListing, listingLoading, guideLoading, noGuide, guideOutOfDate, favoriteLabel,
+        toggleFavoriteLabel,
         minutePx, minStickyTextPx, scrollState, onCellFocused, play, onToggleFavorite,
     ) {
         GuideRowEnv(
@@ -508,6 +511,8 @@ fun GuideScreen(
             cellNone = cellNone,
             timeFormat = timeFormat,
             noListing = noListing,
+            listingLoading = listingLoading,
+            guideLoading = guideLoading,
             noGuide = noGuide,
             guideOutOfDate = guideOutOfDate,
             favoriteLabel = favoriteLabel,
@@ -621,6 +626,7 @@ fun GuideScreen(
                 PreviewBand(
                     focused = focusedState,
                     now = now,
+                    guideLoading = lineup.guideLoading,
                     searchOpen = searchOpen,
                     chips = chips,
                     searchBar = searchBar,
@@ -721,6 +727,7 @@ fun GuideScreen(
 private fun PreviewBand(
     focused: State<FocusedCell?>,
     now: Instant,
+    guideLoading: Boolean,
     searchOpen: Boolean,
     chips: @Composable (Modifier) -> Unit,
     searchBar: @Composable (Modifier) -> Unit,
@@ -744,6 +751,7 @@ private fun PreviewBand(
                     programme = cell?.cell?.programme,
                     live = cell?.cell?.programme?.let { isAiring(it, now) } == true,
                     now = now,
+                    guideLoading = guideLoading,
                     modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds(),
                 )
             }

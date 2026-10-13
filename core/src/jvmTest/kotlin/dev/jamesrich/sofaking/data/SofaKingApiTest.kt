@@ -149,6 +149,12 @@ class SofaKingApiTest {
     }
 
     @Test
+    fun `a server-relative logo path loads from the configured address`() {
+        assertEquals("https://tv.example/logos/0f3a", SofaKingApi("https://tv.example", "t").logoUrl("/logos/0f3a"))
+        assertEquals("https://proxy.example/tv/logos/0f3a", SofaKingApi("https://proxy.example/tv/", "t").logoUrl("/logos/0f3a"))
+    }
+
+    @Test
     fun `HLS descriptors get the MIME type Media3 recognizes and MPEG-TS passes through`() {
         assertEquals("application/x-mpegURL", mediaMimeType(PlaybackDescriptorDto("hls", "application/vnd.apple.mpegurl", "/x.m3u8", 1)))
         assertEquals("application/x-mpegURL", mediaMimeType(PlaybackDescriptorDto("hls", "Application/X-MpegURL", "/x", 1)))

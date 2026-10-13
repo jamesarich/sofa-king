@@ -41,7 +41,13 @@ Sofa King appears with the TV's apps. Phones and tablets take the same APK.
 
 ### Desktop
 
-Install [VLC](https://www.videolan.org/vlc/) 3, which plays the streams, then install the package for your system: `sofa-king-snapshot-linux-amd64.deb`, `sofa-king-snapshot-macos-arm64.dmg` or `sofa-king-snapshot-windows-x64.msi`. The packages are unsigned, so macOS and Windows ask before the first start.
+The desktop app plays streams through [VLC](https://www.videolan.org/vlc/) 3. On Linux, install the package with apt, which installs VLC with it:
+
+```sh
+sudo apt install ./sofa-king-snapshot-linux-amd64.deb
+```
+
+On macOS and Windows, install VLC 3 first, then `sofa-king-snapshot-macos-arm64.dmg` or `sofa-king-snapshot-windows-x64.msi`. Those packages are unsigned, so macOS and Windows ask before the first start.
 
 ### Web
 

@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalWasmDsl::class)
 
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin
@@ -153,4 +154,9 @@ compose.desktop {
             windows { upgradeUuid = "4b04060d-b077-47c9-acc6-f55b71d52d1f" }
         }
     }
+}
+
+// The player is libVLC, which the package cannot bundle; the .deb has apt install VLC with it.
+tasks.withType<AbstractJPackageTask>().configureEach {
+    if (targetFormat == TargetFormat.Deb) freeArgs.addAll("--linux-package-deps", "vlc")
 }

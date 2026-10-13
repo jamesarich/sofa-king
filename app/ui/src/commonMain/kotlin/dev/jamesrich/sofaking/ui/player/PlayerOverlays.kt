@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -48,6 +47,11 @@ import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import dev.jamesrich.sofaking.ui.theme.SofaPlum
 import kotlin.time.Instant
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.semantics.stateDescription
+import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.theme.SofaButton
 
 private val OverlayShape = RoundedCornerShape(8.dp)
 
@@ -81,7 +85,7 @@ internal fun DigitsBadge(text: String) {
         style = MaterialTheme.typography.displayMedium,
         color = SofaDusk,
         modifier = Modifier
-            .padding(horizontal = 48.dp, vertical = 27.dp)
+            .screenPadding()
             .background(SofaOverlayScrim, OverlayShape)
             .padding(horizontal = 16.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
@@ -121,33 +125,52 @@ internal fun ProgressBar(fraction: Float, color: Color = SofaAmber) {
 }
 
 @Composable
-internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean, captionAdvanceMs: Int, scope: String? = null) {
+internal fun BoxScope.InfoOverlay(
+    lineup: Lineup,
+    channel: Channel,
+    now: Instant,
+    captionsOn: Boolean,
+    captionAdvanceMs: Int,
+    scope: String? = null,
+    showKeyHint: Boolean = true,
+) {
     val (current, next) = lineup.nowAndNext(channel, now)
     val timeFormat = rememberTimeFormatter()
     Column(
         Modifier
             .align(Alignment.BottomStart)
-            .padding(horizontal = 48.dp, vertical = 27.dp)
-            .width(720.dp)
+            .screenPadding()
+            .widthIn(max = 720.dp)
+            .fillMaxWidth()
             .background(SofaOverlayScrim, OverlayShape)
             .padding(24.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (channel.logo != null) ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
-            Text(channel.label(), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
-            if (scope != null) {
-                Spacer(Modifier.width(16.dp))
-                Text(scope, style = MaterialTheme.typography.labelLarge, color = SofaMauve)
+        // The scope and captions badge wrap under a long name, and a name wider than the bar ends in an ellipsis.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (channel.logo != null) ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
+                Text(
+                    channel.label(),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = SofaDusk,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
+            if (scope != null) Text(scope, style = MaterialTheme.typography.labelLarge, color = SofaMauve, maxLines = 1)
             if (captionsOn) {
-                Spacer(Modifier.width(16.dp))
                 val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)
                 val advanceDescription = stringResource(Res.string.captions_indicator_timing_description, advance)
                 Text(
                     stringResource(Res.string.captions_indicator_timing, advance),
                     style = MaterialTheme.typography.labelLarge,
                     color = SofaPlum,
+                    maxLines = 1,
                     modifier = Modifier
                         .background(SofaAmber, OverlayShape)
                         .padding(horizontal = 8.dp, vertical = 2.dp)
@@ -203,7 +226,46 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             ProgressBar(programmeProgress(current.start, current.stop, now))
         }
         next?.let { Text(stringResource(Res.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = SofaMauve) }
-        Spacer(Modifier.height(8.dp))
-        Text(stringResource(Res.string.channel_list_hint), style = MaterialTheme.typography.bodySmall, color = SofaMauve)
+        if (showKeyHint) {
+            Spacer(Modifier.height(8.dp))
+            Text(stringResource(Res.string.channel_list_hint), style = MaterialTheme.typography.bodySmall, color = SofaMauve)
+        }
+    }
+}
+
+/**
+ * What the remote's keys do, as buttons for a finger or a mouse; shown with the info bar after a tap or click.
+ * Each action is the same one its key takes. [failed] adds Retry, which OK does on the remote.
+ */
+@Composable
+internal fun BoxScope.TouchControls(
+    captionsOn: Boolean,
+    paused: Boolean,
+    failed: Boolean,
+    onGuide: () -> Unit,
+    onChannelUp: () -> Unit,
+    onChannelDown: () -> Unit,
+    onChannelList: () -> Unit,
+    onCaptions: () -> Unit,
+    onPlayPause: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    val captionsState = stringResource(if (captionsOn) Res.string.captions_on else Res.string.captions_off)
+    FlowRow(
+        Modifier.align(Alignment.TopEnd).screenPadding(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (failed) SofaButton(onClick = onRetry) { Text(stringResource(Res.string.retry)) }
+        SofaButton(onClick = onGuide) { Text(stringResource(Res.string.player_control_guide)) }
+        SofaButton(onClick = onChannelDown) { Text(stringResource(Res.string.player_control_channel_down)) }
+        SofaButton(onClick = onChannelUp) { Text(stringResource(Res.string.player_control_channel_up)) }
+        SofaButton(onClick = onChannelList) { Text(stringResource(Res.string.player_control_channels)) }
+        SofaButton(onClick = onCaptions, modifier = Modifier.semantics { stateDescription = captionsState }) {
+            Text(stringResource(Res.string.player_control_captions))
+        }
+        SofaButton(onClick = onPlayPause) {
+            Text(stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause))
+        }
     }
 }

@@ -85,6 +85,14 @@ import dev.jamesrich.sofaking.ui.rememberVoiceSearch
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlin.time.Duration.Companion.minutes
 import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import dev.jamesrich.sofaking.ui.InputKind
+import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
+import dev.jamesrich.sofaking.ui.screenPadding
 
 internal sealed interface GuideFilter {
     data object All : GuideFilter
@@ -251,7 +259,10 @@ fun GuideScreen(
     val touchExploration = rememberScreenReaderActive()
     val fullScreenAfterMs = autoOpenDelay.afterMs.takeUnless { touchExploration }
     val currentPreviewSound by rememberUpdatedState(previewSound)
-    val dwell = remember(fullScreenAfterMs) { PreviewDwell(suppressedChannelId = returnedFrom, fullScreenAfterMs = fullScreenAfterMs) }
+    val lastInput = LocalLastInput.current
+    val dwell = remember(fullScreenAfterMs) {
+        PreviewDwell(suppressedChannelId = returnedFrom, fullScreenAfterMs = fullScreenAfterMs, pointerDriven = lastInput.kind == InputKind.POINTER)
+    }
     var dwellNonce by remember { mutableIntStateOf(0) }
     var previewMuted by remember { mutableStateOf(true) }
     var previewFailed by remember { mutableStateOf(false) }
@@ -540,7 +551,7 @@ fun GuideScreen(
     // the rest over, muted, so a channel is never found open on return.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        dwell.onKey(uptimeMs())
+        dwell.restart(uptimeMs())
         dwellNonce++
     }
     LaunchedEffect(dwell) {
@@ -588,10 +599,25 @@ fun GuideScreen(
         true
     }
 
-    // The app header above already carries the top overscan margin; 16dp here is spacing, not overscan.
-    Box(modifier.fillMaxSize().onPreviewKeyEvent(onGuideKey)) {
-        Column(modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 27.dp)) {
-            if (PREVIEW_ENABLED) {
+    // A finger or mouse pressing or scrolling anywhere in the guide restarts the rest as a key does, and keeps the
+    // focused channel from opening full screen under it until a key is pressed. Observed, never consumed.
+    val onGuidePointer = Modifier.pointerInput(dwell) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                if (event.type == PointerEventType.Press || event.type == PointerEventType.Scroll) {
+                    dwell.onPointer(uptimeMs())
+                    dwellNonce++
+                }
+            }
+        }
+    }
+
+    // The app header above already carries the top screen margin; 16dp here is spacing, not overscan.
+    val profile = LocalLayoutProfile.current
+    Box(modifier.fillMaxSize().onPreviewKeyEvent(onGuideKey).then(onGuidePointer)) {
+        Column(modifier = Modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).padding(top = 16.dp)) {
+            if (PREVIEW_ENABLED && profile.showsPreviewBand) {
                 PreviewBand(
                     focused = focusedState,
                     now = now,
@@ -615,7 +641,7 @@ fun GuideScreen(
             Spacer(Modifier.height(8.dp))
 
             Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
-                Box(Modifier.width(PIN_WIDTH).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.width(pinWidth(profile)).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
                     VisibleRange(
                         scrollState = scrollState,
                         viewport = viewport,

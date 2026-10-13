@@ -63,6 +63,14 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.context.startKoin
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.runtime.CompositionLocalProvider
+import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
+import dev.jamesrich.sofaking.ui.rememberLastInput
+import dev.jamesrich.sofaking.ui.rememberLayoutProfile
+import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.trackLastInput
 
 /**
  * Starts the app's object graph over [storage]; each platform's entry point calls it once per process, before
@@ -72,11 +80,14 @@ fun initSofaKing(storage: AppStorage) {
     startKoin { modules(appModule(storage)) }
 }
 
-/** The whole app, the same on every platform: the theme, then the screen the user is on. */
+/** The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the user is on. */
 @Composable
 fun App() {
     SofaKingTheme {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { SofaKingApp() }
+        val lastInput = rememberLastInput()
+        CompositionLocalProvider(LocalLayoutProfile provides rememberLayoutProfile(), LocalLastInput provides lastInput) {
+            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp() }
+        }
     }
 }
 
@@ -330,7 +341,7 @@ private fun GuideOrEmpty(
 @Composable
 private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit, onRefresh: () -> Unit, settingsFocus: FocusRequester) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 27.dp),
+        Modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

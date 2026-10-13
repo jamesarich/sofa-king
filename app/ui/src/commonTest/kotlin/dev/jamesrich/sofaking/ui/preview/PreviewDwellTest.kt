@@ -137,4 +137,39 @@ class PreviewDwellTest {
         advance(1)
         assertTrue(thirty.opensFullScreen(now))
     }
+
+    @Test
+    fun `a touch or click restarts the rest but never opens full screen until a key is pressed`() {
+        dwell.onFocus("a", now)
+        advance(6_000)
+        dwell.onPointer(now)
+        assertTrue(dwell.isMuted(now))
+        advance(5_000)
+        assertFalse(dwell.isMuted(now))
+        assertNull(dwell.nextTransitionMs(now))
+        advance(60_000)
+        assertFalse(dwell.opensFullScreen(now))
+        dwell.onKey(now)
+        advance(10_000)
+        assertTrue(dwell.opensFullScreen(now))
+    }
+
+    @Test
+    fun `a dwell started after touch input waits for a key`() {
+        val touched = PreviewDwell(pointerDriven = true)
+        touched.onFocus("a", now)
+        advance(60_000)
+        assertFalse(touched.opensFullScreen(now))
+    }
+
+    @Test
+    fun `a restart on return to the app keeps the input that came before`() {
+        dwell.onFocus("a", now)
+        dwell.onPointer(now)
+        advance(20_000)
+        dwell.restart(now)
+        assertTrue(dwell.isMuted(now))
+        advance(20_000)
+        assertFalse(dwell.opensFullScreen(now))
+    }
 }

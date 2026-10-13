@@ -43,4 +43,12 @@ class PlayerKeysTest {
         assertEquals(PlayerOk.COMMIT_NUMBER, playerOk(hasDigits = true, failed = true, infoVisible = true))
         assertEquals(PlayerOk.RETRY, playerOk(hasDigits = false, failed = true, infoVisible = true))
     }
+
+    @Test
+    fun `a tap closes the channel list before it toggles the info bar`() {
+        assertEquals(PlayerTap.CLOSE_CHANNEL_LIST, playerTap(channelListOpen = true, infoVisible = true))
+        assertEquals(PlayerTap.CLOSE_CHANNEL_LIST, playerTap(channelListOpen = true, infoVisible = false))
+        assertEquals(PlayerTap.HIDE_INFO, playerTap(channelListOpen = false, infoVisible = true))
+        assertEquals(PlayerTap.SHOW_INFO, playerTap(channelListOpen = false, infoVisible = false))
+    }
 }

@@ -6,6 +6,8 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.jamesrich.sofaking.data.AppStorage
 import java.io.File
+import androidx.compose.runtime.LaunchedEffect
+import java.awt.Dimension
 
 /** Sofa King on Linux, macOS and Windows desktops; a keyboard's arrows, Enter and Escape stand in for the remote. */
 fun main() {
@@ -16,6 +18,8 @@ fun main() {
             title = "Sofa King",
             state = rememberWindowState(width = 1280.dp, height = 720.dp),
         ) {
+            // Below this the guide has no room for a row; the layout adapts to anything larger.
+            LaunchedEffect(Unit) { window.minimumSize = Dimension(480, 360) }
             App()
         }
     }

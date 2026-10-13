@@ -19,6 +19,10 @@ internal fun BackHandler(enabled: Boolean = true, onBack: () -> Unit) {
     )
 }
 
+/** True on a TV (Android TV, Google TV), which keeps the sofa layout and the remote's overscan; false elsewhere. */
+@Composable
+internal expect fun rememberIsTelevision(): Boolean
+
 /** True while a screen reader explores by touch (TalkBack), which a channel opening full screen would cut off. */
 @Composable
 internal expect fun rememberScreenReaderActive(): Boolean

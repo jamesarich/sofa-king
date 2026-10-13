@@ -76,6 +76,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import dev.jamesrich.sofaking.ui.InputKind
+import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.screenPadding
 
 private const val ZAP_OVERLAY_MS = 5_000L
 private const val DIGIT_COMMIT_MS = 1_500L
@@ -477,6 +482,14 @@ fun PlayerScreen(
         miniGuideActivity++
     }
 
+    /** A failed channel tunes again now, however many automatic retries have run. */
+    fun retry() {
+        val channel = currentChannels.getOrNull(index) ?: return
+        failure = null
+        recovering = null
+        load(channel)
+    }
+
     /** OK is judged on key-up: a short press acts as [playerOk] decides, a long press recalls the last channel. */
     fun handleCenter(event: KeyEvent): Boolean {
         // With the mini-guide open, its focused row takes OK.
@@ -491,12 +504,7 @@ fun PlayerScreen(
                     val channel = currentChannels.getOrNull(index)
                     when (playerOk(entry.digits.isNotEmpty(), failure != null && channel != null, overlayVisible)) {
                         PlayerOk.COMMIT_NUMBER -> commitEntry()
-                        // A failed channel retries on OK, however many automatic retries have run.
-                        PlayerOk.RETRY -> if (channel != null) {
-                            failure = null
-                            recovering = null
-                            load(channel)
-                        }
+                        PlayerOk.RETRY -> retry()
                         PlayerOk.OPEN_CHANNEL_LIST -> openMiniGuide()
                         PlayerOk.SHOW_INFO -> {
                             overlayVisible = true
@@ -554,6 +562,29 @@ fun PlayerScreen(
         }
     }
 
+    // A tap or click on the video: the channel list closes, or the info bar and its touch controls toggle. Focus
+    // stays on the player surface, so the remote and keyboard keep working after a pointer has been used.
+    fun handleTap() {
+        when (playerTap(miniGuideOpen, overlayVisible)) {
+            PlayerTap.CLOSE_CHANNEL_LIST -> miniGuideOpen = false
+            PlayerTap.HIDE_INFO -> overlayVisible = false
+            PlayerTap.SHOW_INFO -> {
+                overlayVisible = true
+                overlayRequest++
+            }
+        }
+        focus.requestFocus()
+    }
+    val currentHandleTap by rememberUpdatedState(::handleTap)
+
+    /** A touch control's action, after which the info bar stays up for another while and the surface keeps focus. */
+    fun control(action: () -> Unit): () -> Unit = {
+        action()
+        overlayRequest++
+        focus.requestFocus()
+    }
+    val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
+
     fun handleKeyEvent(event: KeyEvent): Boolean {
         val key = event.key
         // The mini-guide's focused list swallows Back before BackHandler sees it, so close it here and
@@ -597,7 +628,8 @@ fun PlayerScreen(
                     }
                 }
             }
-            .onPreviewKeyEvent { event -> handleKeyEvent(event) },
+            .onPreviewKeyEvent { event -> handleKeyEvent(event) }
+            .pointerInput(Unit) { detectTapGestures(onTap = { currentHandleTap() }) },
     ) {
         player.Video(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         Captions(player, captionStyle, captionBottomFraction, Modifier.fillMaxSize())
@@ -609,7 +641,7 @@ fun PlayerScreen(
         } else {
             // Status pills stack top left so a caption toast never covers "Paused" or "Tuning".
             Column(
-                Modifier.align(Alignment.TopStart).padding(horizontal = 48.dp, vertical = 27.dp),
+                Modifier.align(Alignment.TopStart).screenPadding(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 AnimatedVisibility(rememberSettled(buffering && failure == null), enter = PopIn, exit = PopOut) {
@@ -656,7 +688,29 @@ fun PlayerScreen(
             AnimatedVisibility(overlayVisible && !miniGuideOpen, enter = RiseIn, exit = SinkOut) {
                 Box(Modifier.fillMaxSize()) {
                     val scopeLabel = zapScope?.takeIf { scoped }?.let { stringResource(Res.string.zap_scope, it.label, index + 1, channels.size) }
-                    InfoOverlay(lineup = lineup, channel = channel, now = now, captionsOn = captionsOn, captionAdvanceMs = channelAdvance, scope = scopeLabel)
+                    InfoOverlay(
+                        lineup = lineup,
+                        channel = channel,
+                        now = now,
+                        captionsOn = captionsOn,
+                        captionAdvanceMs = channelAdvance,
+                        scope = scopeLabel,
+                        showKeyHint = !pointerDriven,
+                    )
+                    if (pointerDriven) {
+                        TouchControls(
+                            captionsOn = captionsOn,
+                            paused = paused,
+                            failed = failure != null,
+                            onGuide = onExit,
+                            onChannelUp = control { zapStep(1) },
+                            onChannelDown = control { zapStep(-1) },
+                            onChannelList = ::openMiniGuide,
+                            onCaptions = control { toggleCaptions() },
+                            onPlayPause = control { if (player.playWhenReady) player.pause() else player.play() },
+                            onRetry = control { retry() },
+                        )
+                    }
                 }
             }
         }

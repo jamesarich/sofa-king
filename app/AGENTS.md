@@ -29,7 +29,7 @@ All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `
 
 ## Code placement
 
-- Put code in `commonMain`. A platform source set holds only what needs that platform's API, behind an `expect` or an interface; `LivePlayer`, `rememberVoiceSearch`, `KeepScreenOn`, `rememberScreenReaderActive` and the key-repeat accessors are the seams.
+- Put code in `commonMain`. A platform source set holds only what needs that platform's API, behind an `expect` or an interface; `LivePlayer`, `rememberVoiceSearch`, `rememberIsTelevision`, `KeepScreenOn`, `rememberScreenReaderActive` and the key-repeat accessors are the seams.
 - `core` stays free of Compose and Koin so a native host can use it. Its models are plain data classes; `ui/compose-stability.conf` marks them stable.
 - Wire objects through constructors; `appModule` in `ui` is the Koin graph and `initSofaKing` starts it once per process from each entry point.
 - No `java.*`, `android.*` or JVM-only collection APIs in common code: `kotlin.time` for instants and durations, kotlinx-datetime for wall-clock formatting, kotlinx-io for files, Ktor for HTTP, Kermit for logs, `kotlin.uuid` for ids.
@@ -38,7 +38,8 @@ All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `
 
 - Use multiplatform Material 3 Expressive components under `SofaKingTheme`. Add `tvFocus` (or use `SofaButton`/`SofaSwitch`) to every focusable control so D-pad focus shows; guide cells keep scale 1 and change color.
 - Support the five-way D-pad and its keyboard equivalents. Use focusRestorer; request focus from effects or callbacks and wait for lazy nodes with requestFocusWhenAttached. The guide's first focus is retried until a cell reports it landed; the header's buttons must never keep focus once channels are on screen. The unconfigured screen focuses the header's Settings button (`homeFocusFor`).
-- Preserve 48dp horizontal and 27dp vertical overscan padding.
+- Preserve 48dp horizontal and 27dp vertical overscan padding on TV. Pad screens with `screenPadding` (`ui/Adaptive.kt`), which keeps the overscan on TV and the safe-drawing insets everywhere else; never hard-code the margins.
+- Lay out by `LocalLayoutProfile`: a TV (`rememberIsTelevision`) keeps today's metrics at any size, and other windows adapt by the window size class from `currentWindowAdaptiveInfoV2()` (compact width under 600dp, compact height under 480dp). Touch and mouse controls show only after pointer input (`LocalLastInput`), so the TV's screens never change.
 - Preserve the guide's 24-hour window, filter and scroll across player navigation. Back from the player focuses the channel being watched (`returnedFrom` ranks first in `initialGuideRow`), shows All when a filter or search hides it, and keeps the time cursor no earlier than now.
 - A cold start opens the last watched channel full screen through the normal session path, decided once by `launchTarget` after the lineup and settings are in; the guide and preview must not compose before that decision. No last channel opens the guide.
 - Guide and Menu are one shortcut: in the player they open the guide at Now (`Screen.Guide(atNow)`), in the guide they jump to Now. Search opens guide search through `rememberVoiceSearch`, falling back to the text field when the platform has no recognizer. Map remote keys in `playerExit` and `guideShortcut`, not in ad-hoc `when` branches.

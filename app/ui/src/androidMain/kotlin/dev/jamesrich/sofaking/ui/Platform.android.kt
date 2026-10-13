@@ -16,6 +16,18 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import dev.jamesrich.sofaking.ui.guide.voiceQuery
+import android.app.UiModeManager
+import android.content.pm.PackageManager
+import android.content.res.Configuration
+
+@Composable
+internal actual fun rememberIsTelevision(): Boolean {
+    val context = LocalContext.current
+    return remember(context) {
+        context.getSystemService(UiModeManager::class.java)?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+    }
+}
 
 @Composable
 internal actual fun rememberScreenReaderActive(): Boolean {

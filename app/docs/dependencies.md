@@ -5,6 +5,7 @@
 | Kotlin | 2.5.0-Beta1 |
 | Android Gradle plugin | 9.5.0-alpha09 |
 | Compose Multiplatform | 1.13.0-alpha02 |
+| Material 3 Adaptive | 1.3.0 |
 | kotlinx.coroutines | 1.11.0 |
 | kotlinx.serialization | 1.12.0-RC |
 | Ktor | 3.6.0 |

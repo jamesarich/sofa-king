@@ -27,6 +27,8 @@ import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 
 /** The crown-on-sofa mark, decorative wherever the app name is printed beside it. */
 @Composable
@@ -50,9 +52,9 @@ fun MessageScreen(
     onRetry: (() -> Unit)? = null,
     loading: Boolean = false,
 ) {
-    Box(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().screenPadding(), contentAlignment = Alignment.Center) {
         Column(
-            modifier = Modifier.width(640.dp),
+            modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

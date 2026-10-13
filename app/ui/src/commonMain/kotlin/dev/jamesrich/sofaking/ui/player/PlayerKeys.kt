@@ -36,3 +36,13 @@ internal fun Key.playerExit(): PlayerExit? = when (this) {
     Key.Search -> PlayerExit.SEARCH
     else -> null
 }
+
+/** What a tap or click on the video does. */
+internal enum class PlayerTap { CLOSE_CHANNEL_LIST, HIDE_INFO, SHOW_INFO }
+
+/** A tap closes the channel list first; otherwise it toggles the info bar, which carries the touch controls. */
+internal fun playerTap(channelListOpen: Boolean, infoVisible: Boolean): PlayerTap = when {
+    channelListOpen -> PlayerTap.CLOSE_CHANNEL_LIST
+    infoVisible -> PlayerTap.HIDE_INFO
+    else -> PlayerTap.SHOW_INFO
+}

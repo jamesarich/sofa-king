@@ -3,6 +3,10 @@ package dev.jamesrich.sofaking.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.input.key.KeyEvent
 
+/** A browser tab, sized by its window. */
+@Composable
+internal actual fun rememberIsTelevision(): Boolean = false
+
 /** Browsers do not report a touch-exploring screen reader; the preview may open full screen. */
 @Composable
 internal actual fun rememberScreenReaderActive(): Boolean = false

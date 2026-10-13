@@ -3,6 +3,10 @@ package dev.jamesrich.sofaking.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.input.key.KeyEvent
 
+/** A desktop window, sized and placed by its user. */
+@Composable
+internal actual fun rememberIsTelevision(): Boolean = false
+
 /** Desktop screen readers do not explore by touch; the preview may open full screen. */
 @Composable
 internal actual fun rememberScreenReaderActive(): Boolean = false

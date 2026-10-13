@@ -118,6 +118,7 @@ class LineupViewModel(
                 if (last == null) emit(LineupState.Loading)
                 // Cancellation (a server change or refresh while loading) must propagate, not read as a failure.
                 _loading.value = true
+                var lineupMoved = false
                 val result = try {
                     val started = TimeSource.Monotonic.markNow()
                     val channels = repository.loadChannels()
@@ -127,8 +128,11 @@ class LineupViewModel(
                     if (last?.channels != channels) emit(LineupState.Ready(Lineup(channels, last?.guide.orEmpty())))
                     catalogsLoaded.value++
                     val guide = repository.loadGuide(channels)
-                    log.i { "guide: ${guide.values.sumOf { it.size }} programmes for ${guide.size} channels in ${started.elapsedNow()}" }
-                    Result.success(Lineup(channels, guide))
+                    log.i { "guide: ${guide.programmes.values.sumOf { it.size }} programmes for ${guide.programmes.size} channels in ${started.elapsedNow()}" }
+                    // The lineup changed between the catalog and the guide: drop what left and read the catalog again soon.
+                    lineupMoved = guide.removed.isNotEmpty()
+                    if (lineupMoved) log.i { "guide: ${guide.removed.size} channels left the lineup" }
+                    Result.success(Lineup(channels.filterNot { it.guideId in guide.removed }, guide.programmes))
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -153,7 +157,7 @@ class LineupViewModel(
                 // A failed background refresh keeps showing the lineup we already have.
                 result.onFailure { if (last == null) emit(LineupState.Failed(describe(it))) }
                 loadsFinished.value++
-                delay(if (result.isSuccess) REFRESH_INTERVAL else RETRY_INTERVAL)
+                delay(if (result.isSuccess && !lineupMoved) REFRESH_INTERVAL else RETRY_INTERVAL)
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)

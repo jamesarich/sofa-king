@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.data
 
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -28,6 +29,9 @@ class SofaKingRepositoryTest {
         /** One 409 per entry for a guide query that pins a revision, as the server answers when the catalog moved. */
         val conflictsLeft = ConcurrentLinkedQueue<String>()
         val guideQueries = ConcurrentLinkedQueue<String>()
+
+        /** Channel ids the guide answers as gone from the lineup. */
+        val removed = ConcurrentHashMap.newKeySet<String>()
         var catalogRequests = 0
 
         override fun dispatch(request: RecordedRequest): MockResponse {
@@ -50,6 +54,7 @@ class SofaKingRepositoryTest {
                     }
                     val ids = Json.parseToJsonElement(body).jsonObject["channelIds"]!!.jsonArray.map { it.jsonPrimitive.content }
                     val channels = ids.joinToString(",") { id ->
+                        if (id in removed) return@joinToString """{"channelId":"$id","status":"removed","programmes":[]}"""
                         """{"channelId":"$id","status":"available","programmes":[{"id":"p-$id","channelId":"$id","startsAt":"2026-10-10T10:00:00Z","endsAt":"2026-10-10T11:00:00Z","title":"Show $id"}]}"""
                     }
                     json("""{"revision":"$guideRevision","from":"x","to":"y","channels":[$channels]}""")
@@ -107,7 +112,7 @@ class SofaKingRepositoryTest {
 
     @Test
     fun `the guide is queried in chunks of 200 over the half-hour-aligned 24 hour window`() = runTest {
-        val guide = repository().loadGuide(channels(450))
+        val guide = repository().loadGuide(channels(450)).programmes
 
         assertEquals(450, guide.size)
         assertEquals("Show c449", guide["c449"]!!.single().title)
@@ -134,7 +139,7 @@ class SofaKingRepositoryTest {
     fun `a revision that moved under the chunks restarts the guide without one`() = runTest {
         fake.conflictsLeft += "once"
 
-        val guide = repository().loadGuide(channels(250))
+        val guide = repository().loadGuide(channels(250)).programmes
 
         assertEquals(250, guide.size)
         val revisions = fake.guideQueries.map { Json.parseToJsonElement(it).jsonObject["revision"]?.jsonPrimitive?.content }
@@ -143,7 +148,7 @@ class SofaKingRepositoryTest {
 
     @Test
     fun `every chunk after the first pins the revision the first returned`() = runTest {
-        val guide = repository().loadGuide(channels(1_585))
+        val guide = repository().loadGuide(channels(1_585)).programmes
 
         assertEquals(1_585, guide.size)
         val revisions = fake.guideQueries.map { Json.parseToJsonElement(it).jsonObject["revision"]?.jsonPrimitive?.content }
@@ -156,12 +161,22 @@ class SofaKingRepositoryTest {
     fun `a conflict on a later chunk while others are in flight still restarts the whole guide`() = runTest {
         fake.conflictsLeft += "once"
 
-        val guide = repository().loadGuide(channels(1_000))
+        val guide = repository().loadGuide(channels(1_000)).programmes
 
         assertEquals(1_000, guide.size)
         val revisions = fake.guideQueries.map { Json.parseToJsonElement(it).jsonObject["revision"]?.jsonPrimitive?.content }
         // The first attempt's opening chunk, then all five chunks of the restart, unpinned.
         assertEquals(6, revisions.count { it == null })
+    }
+
+    @Test
+    fun `a channel the server removed since the catalog loads as removed with no programmes`() = runTest {
+        fake.removed += "c1"
+
+        val guide = repository().loadGuide(channels(3))
+
+        assertEquals(setOf("c1"), guide.removed)
+        assertEquals(setOf("c0", "c2"), guide.programmes.keys)
     }
 
     @Test

@@ -31,6 +31,10 @@ internal object SofaKingMapper {
         }
     }
 
+    /** Channels the guide answered as gone from the lineup since the catalog was read. */
+    fun removed(window: GuideWindowDto): Set<String> =
+        window.channels.filter { it.status == Wire.GuideStatus.REMOVED }.mapTo(HashSet()) { it.channelId }
+
     private fun toProgramme(channelId: String, dto: ProgrammeDto): Programme? {
         val start = Instant.parseOrNull(dto.startsAt) ?: return null
         val stop = Instant.parseOrNull(dto.endsAt) ?: return null

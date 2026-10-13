@@ -9,6 +9,9 @@ import kotlinx.coroutines.sync.withPermit
 import kotlin.time.Clock
 import kotlin.time.Instant
 
+/** A loaded guide: programmes by channel, and the requested channels the server said have left the lineup. */
+data class GuideLoad(val programmes: Map<String, List<Programme>>, val removed: Set<String>)
+
 /**
  * The lineup from a Sofa King server. The catalog is fetched with its ETag, so an unchanged lineup costs one
  * header round trip; the guide is queried in chunks of [GUIDE_CHUNK] channels over the same window the guide
@@ -37,7 +40,7 @@ class SofaKingRepository(
     }
 
     /** Programmes for [channels] over the guide window. Chunks share one catalog revision; a revision that moves under them restarts without one. */
-    suspend fun loadGuide(channels: List<Channel>): Map<String, List<Programme>> {
+    suspend fun loadGuide(channels: List<Channel>): GuideLoad {
         val from = GuideWindow.start(now())
         val to = GuideWindow.end(from)
         val chunks = channels.map { it.guideId }.distinct().chunked(GUIDE_CHUNK)
@@ -50,8 +53,8 @@ class SofaKingRepository(
     }
 
     /** The first chunk answers the revision the rest pin; the rest run [GUIDE_PARALLEL] at a time, and any failure cancels them all. */
-    private suspend fun query(chunks: List<List<String>>, from: Instant, to: Instant, pinRevision: Boolean): Map<String, List<Programme>> {
-        if (chunks.isEmpty()) return emptyMap()
+    private suspend fun query(chunks: List<List<String>>, from: Instant, to: Instant, pinRevision: Boolean): GuideLoad {
+        if (chunks.isEmpty()) return GuideLoad(emptyMap(), emptySet())
         val first = api.guide(GuideQueryDto(chunks.first(), from.toString(), to.toString(), null))
         val revision = first.revision.takeIf { pinRevision }
         val limit = Semaphore(GUIDE_PARALLEL)
@@ -61,8 +64,12 @@ class SofaKingRepository(
             }.awaitAll()
         }
         val guide = HashMap<String, List<Programme>>()
-        for (window in listOf(first) + rest) guide += SofaKingMapper.programmes(window)
-        return guide
+        val removed = HashSet<String>()
+        for (window in listOf(first) + rest) {
+            guide += SofaKingMapper.programmes(window)
+            removed += SofaKingMapper.removed(window)
+        }
+        return GuideLoad(guide, removed)
     }
 
     companion object {

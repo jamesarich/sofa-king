@@ -115,7 +115,10 @@ class FeedServiceTest {
             assertEquals("RESYNC_REQUIRED", assertFailsWith<ApiFailure> { catalog.guide(query.copy(revision = "old")) }.code)
             assertFailsWith<ApiFailure> { catalog.guide(query.copy(to = "2026-10-12T14:00:00Z")) }
             assertFailsWith<ApiFailure> { catalog.guide(query.copy(channelIds = List(201) { id })) }
-            assertEquals("CHANNEL_NOT_FOUND", assertFailsWith<ApiFailure> { catalog.guide(query.copy(channelIds = listOf("unknown"))) }.code)
+            val withRemoved = catalog.guide(query.copy(from = "2026-10-10T13:30:00Z", channelIds = listOf(id, "unknown"))).channels
+            assertEquals(listOf(id, "unknown"), withRemoved.map { it.channelId })
+            assertEquals("Morning", withRemoved.first().programmes.single().title)
+            assertEquals(Wire.GuideStatus.REMOVED, withRemoved.last().status); assertTrue(withRemoved.last().programmes.isEmpty())
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 

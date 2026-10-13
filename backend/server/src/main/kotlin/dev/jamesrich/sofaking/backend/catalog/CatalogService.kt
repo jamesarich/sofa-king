@@ -83,9 +83,11 @@ class CatalogService(
         if (to <= from || Duration.between(from, to) > Duration.ofHours(Wire.GUIDE_MAX_HOURS.toLong())) {
             throw ApiFailure(400, "INVALID_QUERY", "Guide window must be positive and at most 24 hours")
         }
-        val entries = query.channelIds.map { id -> lineup.entry(id)?.takeIf { it.enabled } ?: throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel ID") }
+        // A client's catalog can name an entry removed or disabled since; it gets a removed row, not a failed query.
+        val requested = query.channelIds.map { id -> id to lineup.entry(id)?.takeIf { it.enabled } }
         val revision = hash("${guides.revision()}:${lineup.revision()}")
         if (query.revision != null && query.revision != revision) throw ApiFailure(409, Wire.ErrorCode.RESYNC_REQUIRED, "Guide revision changed", true)
+        val entries = requested.mapNotNull { it.second }
         val mapped = entries.mapNotNull { entry -> entry.guide?.let { entry to it } }
         val programmes = HashMap<String, List<GuideProgramme>>()
         for ((guideId, group) in mapped.groupBy { it.second.guideId }) {
@@ -96,7 +98,8 @@ class CatalogService(
             revision,
             from.toString(),
             to.toString(),
-            entries.map { entry ->
+            requested.map { (id, entry) ->
+                if (entry == null) return@map ChannelGuide(id, Wire.GuideStatus.REMOVED, emptyList())
                 val rows = programmes[entry.id].orEmpty().map { programme ->
                     val start = programme.startsAt.toString()
                     val end = programme.endsAt.toString()
@@ -105,7 +108,8 @@ class CatalogService(
                         programme.subTitle, episodeLabel(programme.episodeNumbers), programme.isNew, programme.rating?.value, programme.icon,
                     )
                 }
-                ChannelGuide(entry.id, if (entry.guide == null) "unassigned" else if (rows.isEmpty()) "empty" else "available", rows)
+                val status = if (entry.guide == null) Wire.GuideStatus.UNASSIGNED else if (rows.isEmpty()) Wire.GuideStatus.EMPTY else Wire.GuideStatus.AVAILABLE
+                ChannelGuide(entry.id, status, rows)
             },
         )
     }

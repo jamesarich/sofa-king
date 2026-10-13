@@ -23,7 +23,7 @@ class SofaKingRepository(
     /** The catalog alone: small and fast, so the UI can show channels before the guide arrives. */
     suspend fun loadChannels(): List<Channel> {
         return when (val result = api.catalog(etag)) {
-            is CatalogResult.Changed -> SofaKingMapper.channels(result.catalog).also {
+            is CatalogResult.Changed -> SofaKingMapper.channels(result.catalog, api::logoUrl).also {
                 channels = it
                 etag = result.etag
             }

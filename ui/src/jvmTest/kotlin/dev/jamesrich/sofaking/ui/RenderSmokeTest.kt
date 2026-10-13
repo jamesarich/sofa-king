@@ -13,6 +13,7 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.GuideStatus
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
@@ -40,14 +41,48 @@ import kotlin.time.Duration.Companion.minutes
 class RenderSmokeTest {
     private val now = Clock.System.now()
     private val start = now - 20.minutes
+    // A loopback server stands in for the server's /logos/ route; channels without a logo keep an empty slot.
+    private val logo = run {
+        val png = java.io.File("../androidApp/src/main/res/drawable-xhdpi/banner.png").readBytes()
+        val server = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/logos/banner") { exchange ->
+            exchange.responseHeaders.add("Content-Type", "image/png")
+            exchange.sendResponseHeaders(200, png.size.toLong())
+            exchange.responseBody.use { it.write(png) }
+        }
+        server.start()
+        "http://127.0.0.1:${server.address.port}/logos/banner"
+    }
     private val channels = List(8) { i ->
-        Channel("c$i", (i + 2).toDouble(), listOf("News Now", "Sofa Sports", "Movies", "Kids", "Local 4", "Weather", "Music", "Classics")[i], null, listOf(if (i % 2 == 0) "News" else "Sports"))
+        Channel(
+            guideId = "c$i",
+            number = (i + 2).toDouble(),
+            name = listOf("News Now", "Sofa Sports", "Movies", "Kids", "Local 4", "Weather", "Music", "Classics")[i],
+            logo = logo.takeIf { i % 3 != 2 },
+            groups = listOf(if (i % 2 == 0) "News" else "Sports"),
+            guideStatus = when (i) {
+                2 -> GuideStatus.UNASSIGNED
+                3 -> GuideStatus.STALE
+                else -> GuideStatus.AVAILABLE
+            },
+        )
     }
     private val lineup = Lineup(
         channels = channels,
-        guide = channels.associate { channel ->
+        guide = channels.filter { it.guideStatus == GuideStatus.AVAILABLE }.associate { channel ->
             channel.guideId to List(6) { slot ->
-                Programme(channel.guideId, start + (slot * 45).minutes, start + ((slot + 1) * 45).minutes, "${channel.name} show ${slot + 1}", "Episode notes for slot ${slot + 1}.")
+                Programme(
+                    channelId = channel.guideId,
+                    start = start + (slot * 45).minutes,
+                    stop = start + ((slot + 1) * 45).minutes,
+                    title = "${channel.name} show ${slot + 1}",
+                    description = "Episode notes for slot ${slot + 1}.",
+                    subTitle = "Part ${slot + 1}".takeIf { slot % 2 == 0 },
+                    episode = "S1 E${slot + 1}".takeIf { slot % 2 == 0 },
+                    isNew = slot == 0,
+                    rating = "TV-PG".takeIf { slot % 2 == 0 },
+                    icon = logo.takeIf { slot == 0 },
+                )
             }
         },
     )

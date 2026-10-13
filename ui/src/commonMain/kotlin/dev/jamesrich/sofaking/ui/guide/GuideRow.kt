@@ -41,11 +41,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.GuideStatus
 import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
 import dev.jamesrich.sofaking.ui.TimeFormatter
+import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.formatTemplate
-import dev.jamesrich.sofaking.ui.label
 import kotlin.math.roundToInt
 import kotlin.time.Instant
 
@@ -60,6 +62,8 @@ internal class GuideRowEnv(
     val cellNone: String,
     val timeFormat: TimeFormatter,
     val noListing: String,
+    val noGuide: String,
+    val guideOutOfDate: String,
     val favoriteLabel: String,
     val toggleFavoriteLabel: String,
     val minutePx: Float,
@@ -68,7 +72,14 @@ internal class GuideRowEnv(
     val onCellFocused: (Channel, GuideCell) -> Unit,
     val onPlay: (Channel) -> Unit,
     val onToggleFavorite: (Channel) -> Unit,
-)
+) {
+    /** The text of a stretch with no programme, which says why when the server does. */
+    fun noListingFor(channel: Channel): String = when (channel.guideStatus) {
+        GuideStatus.UNASSIGNED -> noGuide
+        GuideStatus.STALE -> guideOutOfDate
+        GuideStatus.EMPTY, GuideStatus.AVAILABLE -> noListing
+    }
+}
 
 @Composable
 internal fun ChannelRow(
@@ -119,12 +130,22 @@ internal fun ChannelRow(
             Modifier.width(PIN_WIDTH).fillMaxHeight().padding(end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                channel.label(),
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            ChannelLogo(channel, LOGO_WIDTH, LOGO_HEIGHT, Modifier.padding(end = 12.dp))
+            // The number above the name, so a long name gets the column's width rather than sharing a line.
+            Column(Modifier.weight(1f)) {
+                Text(
+                    channel.number.formatNumber(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                Text(
+                    channel.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             if (isFavorite) {
                 Text(
                     "★",
@@ -206,7 +227,7 @@ private fun GuideCellItem(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                programme?.title ?: env.noListing,
+                programme?.title ?: env.noListingFor(channel),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium,
@@ -227,7 +248,7 @@ private fun GuideCellItem(
 }
 
 private fun cellDescription(env: GuideRowEnv, channel: Channel, programme: Programme?, airing: Boolean): String = when {
-    programme == null -> formatTemplate(env.cellNone, channel.name, env.noListing)
+    programme == null -> formatTemplate(env.cellNone, channel.name, env.noListingFor(channel))
     else -> formatTemplate(
         if (airing) env.cellAiring else env.cellLater,
         channel.name,

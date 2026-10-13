@@ -10,7 +10,7 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 | The Server URL field says to enter the full address | Enter the scheme, host and port, for example `http://192.168.1.10:9193`. Credentials, queries and fragments are refused. |
 | Couldn't reach the Sofa King server | Check the address, the network and that the server is running: `curl --fail http://SERVER_HOST:9193/readyz` answers `ready`. Select Refresh to try again; the app also retries every minute. |
 | `AUTH_REQUIRED` | The API token does not match the server's `SOFA_API_TOKEN`. Its `apiToken` is in the server's `secrets.json`. |
-| Couldn't reach the Sofa King server, in a browser only | The server sends no CORS headers. Serve the web app from a reverse proxy that also forwards `/api/` and `/media/` to the server, and enter the proxy's address. |
+| Couldn't reach the Sofa King server, in a browser only | The server sends no CORS headers. Serve the web app from a reverse proxy that also forwards `/api/`, `/media/` and `/logos/` to the server, and enter the proxy's address. |
 | A web app on `https://` cannot reach the server | Browsers block requests from an HTTPS page to a plain-HTTP server. Put the server behind the same HTTPS proxy as the page. |
 
 ## Channels and guide
@@ -19,7 +19,11 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 | --- | --- |
 | No channels to play | The server lists no channel with a playable source. Check its providers and [source health](https://github.com/jamesarich/sofa-king-backend/blob/main/docs/source-health.md). |
 | A channel is missing | The app lists a channel only when the server reports it playable and gives it a numeric display number. |
-| No listing | The channel has no guide data on the server. Check its guide mapping there. |
+| No listing | The channel's guide lists nothing in the window. Check the guide on the server. |
+| No guide for this channel | The server has no guide mapped to the channel. Map one there. |
+| Guide out of date | The mapped guide's data has run out. Check that the guide still imports on the server. |
+| A channel shows no logo | The server has no logo for it, or its logo failed to load. On the web, the proxy must forward `/logos/` too. |
+| No program image in the info bar | The guide source gives no image for that program. On the web, images from the guide source's host load only when it sends CORS headers. |
 | The guide fills in after the channels | Programs load after the channel list. The saved lineup stays on screen while it refreshes. |
 | … is no longer on the server | The reloaded lineup has no channel with that number or name. Pick another channel from the guide. |
 | The Guide key does nothing | Some TV launchers take the Guide key for themselves. Menu does the same thing. |

@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -23,14 +26,20 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.ui.ChannelLogo
+import dev.jamesrich.sofaking.ui.ProgrammeBadges
+import dev.jamesrich.sofaking.ui.RemoteImage
 import dev.jamesrich.sofaking.ui.SofaLoader
+import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.SofaAmber
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
@@ -125,6 +134,7 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (channel.logo != null) ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
             Text(channel.label(), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
             if (scope != null) {
                 Spacer(Modifier.width(16.dp))
@@ -146,14 +156,49 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             }
         }
         if (current == null) {
-            Text(stringResource(Res.string.no_listing), style = MaterialTheme.typography.titleMedium, color = SofaDusk)
+            Text(channel.noListingText(), style = MaterialTheme.typography.titleMedium, color = SofaDusk)
         } else {
-            Text(current.title, style = MaterialTheme.typography.titleMedium, color = SofaDusk)
-            Text(
-                timeFormat.range(current.start, current.stop),
-                style = MaterialTheme.typography.bodyMedium,
-                color = SofaMauve,
-            )
+            Row {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            current.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = SofaDusk,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        ProgrammeBadges(
+                            programme = current,
+                            live = false,
+                            fill = SofaAmber,
+                            onFill = SofaPlum,
+                            outline = SofaMauve,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                    Text(
+                        listOfNotNull(timeFormat.range(current.start, current.stop), current.episodeLine()).joinToString("  ·  "),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = SofaMauve,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    current.description?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = SofaMauve, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                current.icon?.let {
+                    RemoteImage(
+                        url = it,
+                        width = 160.dp,
+                        height = 90.dp,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.padding(start = 16.dp).size(width = 160.dp, height = 90.dp).clip(OverlayShape),
+                    )
+                }
+            }
             Spacer(Modifier.height(8.dp))
             ProgressBar(programmeProgress(current.start, current.stop, now))
         }

@@ -13,6 +13,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
+  SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
+  SOFAKING_CACHE_PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
 jobs:
   check:
     name: Test and build (Linux)
@@ -101,3 +106,5 @@ jobs:
     uses: ./.github/workflows/snapshot.yml
     secrets:
       ANDROID_DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+      SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
+      SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}

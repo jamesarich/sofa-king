@@ -6,6 +6,10 @@ on:
     secrets:
       ANDROID_DEBUG_KEYSTORE:
         required: false
+      SOFAKING_CACHE_USERNAME:
+        required: false
+      SOFAKING_CACHE_PASSWORD:
+        required: false
   workflow_dispatch:
 
 concurrency:
@@ -14,6 +18,11 @@ concurrency:
 
 permissions:
   contents: read
+
+# Reads the remote build cache; CI's main run already pushed these outputs.
+env:
+  SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
+  SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
 
 jobs:
   version:

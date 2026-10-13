@@ -12,8 +12,9 @@ android {
         applicationId = "dev.jamesrich.sofaking"
         minSdk = 28
         targetSdk = 37
-        versionCode = 1
-        versionName = providers.gradleProperty("sofaking.version").get()
+        versionCode = providers.gradleProperty("sofaking.versionCode").get().toInt()
+        versionName = providers.gradleProperty("sofaking.version").get() +
+            providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
     }
 
     buildFeatures {

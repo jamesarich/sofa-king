@@ -9,11 +9,12 @@ plugins {
 }
 
 val appVersion = providers.gradleProperty("sofaking.version").get()
+val versionSuffix = providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
 
 // The one version string, from gradle.properties, for the About row on every platform.
 val generateBuildInfo = tasks.register("generateBuildInfo") {
     val output = layout.buildDirectory.dir("generated/buildInfo")
-    val version = appVersion
+    val version = appVersion + versionSuffix
     inputs.property("version", version)
     outputs.dir(output)
     doLast {

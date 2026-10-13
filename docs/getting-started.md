@@ -45,7 +45,7 @@ Install [VLC](https://www.videolan.org/vlc/) 3, which plays the streams, then in
 
 ### Web
 
-The server sends no CORS headers, so the web app must be served from the server's origin. Unzip `sofa-king-snapshot-web-wasm.zip` and serve it from a reverse proxy that forwards `/api/` and `/media/` to the server, then open the proxy's address. `sofa-king-snapshot-web-js.zip` is the same app for browsers without WebAssembly GC. The web app plays HLS channels only.
+The server sends no CORS headers, so the web app must be served from the server's origin. Unzip `sofa-king-snapshot-web-wasm.zip` and serve it from a reverse proxy that forwards `/api/`, `/media/` and `/logos/` to the server, then open the proxy's address. `sofa-king-snapshot-web-js.zip` is the same app for browsers without WebAssembly GC. The web app plays HLS channels only.
 
 ### iOS
 

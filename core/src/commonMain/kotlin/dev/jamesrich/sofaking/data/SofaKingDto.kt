@@ -21,6 +21,7 @@ internal data class CatalogChannelDto(
     val logo: String? = null,
     val tags: List<String> = emptyList(),
     val playbackEligible: Boolean = false,
+    val guideStatus: String? = null,
 )
 
 @Serializable
@@ -38,6 +39,11 @@ internal data class ProgrammeDto(
     val endsAt: String,
     val title: String,
     val description: String? = null,
+    val subTitle: String? = null,
+    val episode: String? = null,
+    val isNew: Boolean = false,
+    val rating: String? = null,
+    val icon: String? = null,
 )
 
 @Serializable

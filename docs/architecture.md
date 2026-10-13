@@ -22,7 +22,7 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 | `App`, `initSofaKing` | Screen selection and the cold-start decision, saved guide state, the shared player and the session's stop/start lifecycle; the graph starts once per process |
 | `LineupViewModel` | Settings flows, lineup state, refresh, cache ownership and the `PlaybackSessions` instance; its store, cache and API factory are constructor arguments |
 | `SofaKingApi` | The server's `/api/v1` JSON requests over Ktor with the bearer token; every engine's transport error surfaces as an `IOException` |
-| `SofaKingRepository`, `SofaKingMapper` | Catalog and guide queries mapped to `Channel` and `Programme` |
+| `SofaKingRepository`, `SofaKingMapper` | Catalog and guide queries mapped to `Channel` (with its logo and guide status) and `Programme` (with its episode, rating, new flag and image) |
 | `PlaybackSessions` | The one playback session: open, promote, renew, release, reopen, replaced streams |
 | `LineupCache`, `ByteStore` | Last complete lineup, keyed by server address, in a file or the browser's localStorage |
 | `DataStoreSettingsStore`, `AppStorage` | Server address, API token, favorites, last channel, caption and preview settings |
@@ -41,7 +41,7 @@ AppStorage → DataStoreSettingsStore → LineupViewModel ← SofaKingRepository
                               GuideScreen / PreviewVideo / PlayerScreen
 ```
 
-The cache loads first on startup or server change. The catalog publishes channels before the guide query completes. The catalog is fetched with its ETag, so an unchanged lineup is a header round trip. The guide is queried in chunks of at most 200 channels over 24 hours from the half hour containing the load time, pinning the revision the first chunk returned on the rest, which run four at a time, and restarting without one on `409 RESYNC_REQUIRED`. Mapping keeps channels with `playbackEligible` and a numeric `displayNumber`, files the channel under every non-blank tag (Other when it has none), and discards programs with invalid timestamps or nonpositive durations. Successful loads update the cache and repeat every three hours. Failed loads retain the available lineup and retry after one minute. Without a valid server address the lineup state is `Unconfigured`.
+The cache loads first on startup or server change. The catalog publishes channels before the guide query completes. The catalog is fetched with its ETag, so an unchanged lineup is a header round trip. The guide is queried in chunks of at most 200 channels over 24 hours from the half hour containing the load time, pinning the revision the first chunk returned on the rest, which run four at a time, and restarting without one on `409 RESYNC_REQUIRED`. Mapping keeps channels with `playbackEligible` and a numeric `displayNumber`, files the channel under every non-blank tag (Other when it has none), moves a logo the server serves under `/logos/` onto the configured server address (the server names its own host from the request, which is wrong behind a proxy), and discards programs with invalid timestamps or nonpositive durations. Successful loads update the cache and repeat every three hours. Failed loads retain the available lineup and retry after one minute. Without a valid server address the lineup state is `Unconfigured`.
 
 Network, decoding and cache work run on the IO dispatcher (the default dispatcher on the web). UI observes StateFlow with lifecycle-aware collection. Canceling a load cancels its HTTP call, including while reading the response body.
 
@@ -62,7 +62,7 @@ A cold start shows the loader until the lineup state and settings are both known
 
 ## UI
 
-Screens use multiplatform Material 3 Expressive components (`Button`, `Switch`, `FilterChip`, `Surface`, `OutlinedTextField`, `LoadingIndicator`) under `MaterialExpressiveTheme` with the expressive motion scheme. `tvFocus` adds the D-pad focus cue, a scale and an outline ring; guide cells keep their size and change color instead. Strings are Compose resources in US English. Back goes through NavigationEvent: the remote's Back on Android, the swipe on iOS, Escape on desktops and the web.
+Screens use multiplatform Material 3 Expressive components (`Button`, `Switch`, `FilterChip`, `Surface`, `OutlinedTextField`, `LoadingIndicator`) under `MaterialExpressiveTheme` with the expressive motion scheme. `tvFocus` adds the D-pad focus cue, a scale and an outline ring; guide cells keep their size and change color instead. Strings are Compose resources in US English. Channel logos and program images load through the API's connection pool (`ImageFetch`), decode with Compose and stay in a small memory cache. Back goes through NavigationEvent: the remote's Back on Android, the swipe on iOS, Escape on desktops and the web.
 
 ## Guide
 

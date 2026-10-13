@@ -483,10 +483,12 @@ fun GuideScreen(
     val cellLater = stringResource(Res.string.guide_cell_later)
     val cellNone = stringResource(Res.string.guide_cell_none)
     val noListing = stringResource(Res.string.no_listing)
+    val noGuide = stringResource(Res.string.no_guide)
+    val guideOutOfDate = stringResource(Res.string.guide_out_of_date)
     val favoriteLabel = stringResource(Res.string.guide_favorite)
     val toggleFavoriteLabel = stringResource(Res.string.guide_toggle_favorite)
     val env = remember(
-        cellAiring, cellLater, cellNone, timeFormat, noListing, favoriteLabel, toggleFavoriteLabel,
+        cellAiring, cellLater, cellNone, timeFormat, noListing, noGuide, guideOutOfDate, favoriteLabel, toggleFavoriteLabel,
         minutePx, minStickyTextPx, scrollState, onCellFocused, play, onToggleFavorite,
     ) {
         GuideRowEnv(
@@ -495,6 +497,8 @@ fun GuideScreen(
             cellNone = cellNone,
             timeFormat = timeFormat,
             noListing = noListing,
+            noGuide = noGuide,
+            guideOutOfDate = guideOutOfDate,
             favoriteLabel = favoriteLabel,
             toggleFavoriteLabel = toggleFavoriteLabel,
             minutePx = minutePx,

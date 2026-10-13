@@ -10,6 +10,8 @@ The Now chip, the Guide key and the Menu key return to the current time on the f
 
 The focused channel plays in a muted preview after a 350 ms delay. After focus has rested on it for 5 seconds the preview's sound comes on, and after 10 seconds the channel opens full screen, continuing the preview's stream. Settings → Guide sets that delay (Off, 10 or 30 seconds) and turns preview sound off; with TalkBack touch exploration on, the channel never opens by itself; any key press restarts both timers and mutes the preview again. OK opens that channel full-screen at once. Back returns to the guide focused on the channel you were watching, including one you changed to in the player, with the preview muted. A filter or search that hides that channel switches back to All, and a time cursor left in the past moves to now. The channel just left does not reopen by itself until focus moves to another channel. Long-press OK on a program toggles its channel's favorite status. In the guide, Back moves from the grid to the selected filter chip, and from the chips or the header it exits the app; open search closes first.
 
+Each channel shows its logo beside its number. The details above the grid show the focused program's episode label and title, a New badge for a first airing, and its rating, when the guide has them. A channel without programs says why: No listing when its guide lists nothing then, No guide for this channel when the server has none mapped, and Guide out of date when the guide's data has run out.
+
 The app shows its saved lineup while refreshing. Channels load before guide data. Automatic refresh runs every three hours; select Refresh to request a new load.
 
 ## Remote controls
@@ -34,6 +36,8 @@ The app shows its saved lineup while refreshing. Channels load before guide data
 On a desktop or in a browser, the arrow keys move like the D-pad, Enter is OK (hold it for a long press), Escape is Back, Page Up and Page Down move a page, the digit keys enter a channel number and C toggles captions. Touch and a mouse select directly.
 
 A channel opened from Favorites or a category chip keeps channel up and down and the channel list inside that filter, and the info bar names it with the channel's place, for example "Sports 3/214". Typing a number outside it widens them to the whole lineup. In the channel list, Up/Down select a channel, OK tunes it and Back closes the list. Leaving the app stops playback and releases its session on the server. Returning opens a new session for the same channel and prepares the stream at the live edge while preserving paused intent.
+
+The info bar shows the channel's logo and the current program's title, badges, episode, time and description, with the program's image when the guide has one.
 
 ## Captions
 

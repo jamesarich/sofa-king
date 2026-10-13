@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -37,7 +38,9 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.formatNumber
+import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaAmber
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
@@ -129,6 +132,7 @@ private fun MiniGuideRowItem(
             color = primary,
             modifier = Modifier.width(96.dp),
         )
+        ChannelLogo(channel, Modifier.padding(end = 16.dp).size(width = 64.dp, height = 40.dp))
         Column(Modifier.weight(1f)) {
             if (row.pinnedLast) {
                 Text(
@@ -145,7 +149,7 @@ private fun MiniGuideRowItem(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                programme?.title ?: stringResource(Res.string.no_listing),
+                programme?.title ?: channel.noListingText(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = secondary,
                 maxLines = 1,

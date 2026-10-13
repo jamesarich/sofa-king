@@ -67,6 +67,7 @@ class LineupCache(
             out.writeNullableText(channel.logo)
             out.writeInt(channel.groups.size)
             for (group in channel.groups) out.writeText(group)
+            out.writeText(channel.guideStatus.name)
         }
         // Empty lists are dropped on read, so skipping them here keeps the file minimal without changing the result.
         val guide = lineup.guide.filterValues { it.isNotEmpty() }
@@ -80,6 +81,11 @@ class LineupCache(
                 out.writeLong(programme.stop.epochSeconds)
                 out.writeText(programme.title)
                 out.writeNullableText(programme.description)
+                out.writeNullableText(programme.subTitle)
+                out.writeNullableText(programme.episode)
+                out.writeByte(if (programme.isNew) 1 else 0)
+                out.writeNullableText(programme.rating)
+                out.writeNullableText(programme.icon)
             }
         }
     }
@@ -93,7 +99,8 @@ class LineupCache(
             val logo = input.readNullableText()
             val groups = List(input.readCount()) { input.readText() }
             require(groups.isNotEmpty()) { "channel without a group" }
-            Channel(guideId = guideId, number = number, name = name, logo = logo, groups = groups)
+            val guideStatus = GuideStatus.valueOf(input.readText())
+            Channel(guideId = guideId, number = number, name = name, logo = logo, groups = groups, guideStatus = guideStatus)
         }
         val channelIds = input.readCount()
         val guide = HashMap<String, List<Programme>>()
@@ -106,8 +113,13 @@ class LineupCache(
                 val stop = Instant.fromEpochSeconds(input.readLong())
                 val title = input.readText()
                 val description = input.readNullableText()
+                val subTitle = input.readNullableText()
+                val episode = input.readNullableText()
+                val isNew = input.readByte() != 0.toByte()
+                val rating = input.readNullableText()
+                val icon = input.readNullableText()
                 if (stop > at) {
-                    programmes.add(Programme(channelId, start, stop, title, description))
+                    programmes.add(Programme(channelId, start, stop, title, description, subTitle, episode, isNew, rating, icon))
                 }
             }
             if (programmes.isNotEmpty()) guide[channelId] = programmes
@@ -142,7 +154,7 @@ class LineupCache(
 
     private companion object {
         /** Bump when the layout changes; a cache with any other version is deleted on read and the lineup refetched. */
-        const val VERSION = 4
+        const val VERSION = 5
         const val MAX_COUNT = 1_000_000
         const val MAX_TEXT_BYTES = 1 shl 20
     }

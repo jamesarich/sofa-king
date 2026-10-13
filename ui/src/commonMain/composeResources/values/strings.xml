@@ -8,6 +8,9 @@
     <string name="unconfigured_hint">Open Settings and enter the server's address and API token.</string>
     <string name="retry">Retry</string>
     <string name="no_listing">No listing</string>
+    <string name="no_guide">No guide for this channel</string>
+    <string name="guide_out_of_date">Guide out of date</string>
+    <string name="programme_new">New</string>
     <string name="up_next">Next: %1$s</string>
     <string name="channel_list_hint">OK for the channel list</string>
     <string name="zap_scope">%1$s %2$d/%3$d</string>

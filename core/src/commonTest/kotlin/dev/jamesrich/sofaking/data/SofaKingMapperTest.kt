@@ -121,4 +121,53 @@ class SofaKingMapperTest {
         assertEquals(listOf("Kept"), guide["a"]?.map { it.title })
         assertNull(guide["b"], "a channel with nothing valid has no entry")
     }
+
+    @Test
+    fun `programme metadata is read and blank values read as none`() {
+        val window = GuideWindowDto(
+            "r1",
+            listOf(
+                ChannelGuideDto(
+                    "a",
+                    listOf(
+                        ProgrammeDto(
+                            "2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Show",
+                            subTitle = " The Pilot ", episode = "S1 E1", isNew = true, rating = "TV-PG", icon = "https://img/x.jpg",
+                        ),
+                        ProgrammeDto("2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Plain", subTitle = "", episode = " ", rating = ""),
+                    ),
+                ),
+            ),
+        )
+
+        val (show, plain) = SofaKingMapper.programmes(window).getValue("a")
+
+        assertEquals(listOf("The Pilot", "S1 E1", "TV-PG", "https://img/x.jpg"), listOf(show.subTitle, show.episode, show.rating, show.icon))
+        assertEquals(true, show.isNew)
+        assertEquals(listOf(null, null, null, null), listOf(plain.subTitle, plain.episode, plain.rating, plain.icon))
+        assertEquals(false, plain.isNew)
+    }
+
+    @Test
+    fun `guide status maps from the wire and an unknown or missing one reads as available`() {
+        val statuses = listOf("unassigned", "empty", "available", "stale", "future", null)
+        val catalog = CatalogDto(statuses.mapIndexed { i, status -> channel("$i", "${i + 1}").copy(guideStatus = status) })
+
+        assertEquals(
+            listOf(
+                GuideStatus.UNASSIGNED, GuideStatus.EMPTY, GuideStatus.AVAILABLE,
+                GuideStatus.STALE, GuideStatus.AVAILABLE, GuideStatus.AVAILABLE,
+            ),
+            SofaKingMapper.channels(catalog).map { it.guideStatus },
+        )
+    }
+
+    @Test
+    fun `logos go through the resolver and one it rejects reads as none`() {
+        val catalog = CatalogDto(listOf(channel("a", "1", logo = "http://x/logos/k"), channel("b", "2", logo = "bad")))
+
+        val channels = SofaKingMapper.channels(catalog) { raw -> raw.takeIf { "logos" in it }?.replace("http://x", "https://y") }
+
+        assertEquals(listOf("https://y/logos/k", null), channels.map { it.logo })
+    }
 }

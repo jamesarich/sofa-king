@@ -40,6 +40,9 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
+import dev.jamesrich.sofaking.ui.ProgrammeBadges
+import dev.jamesrich.sofaking.ui.episodeLine
+import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.player.Captions
@@ -91,7 +94,7 @@ internal fun PreviewDetails(
         )
         if (programme == null) {
             Text(
-                stringResource(Res.string.no_listing),
+                channel.noListingText(),
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -106,18 +109,18 @@ internal fun PreviewDetails(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            if (live) {
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(Res.string.preview_live),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    maxLines = 1,
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                )
-            }
+            ProgrammeBadges(
+                programme = programme,
+                live = live,
+                fill = MaterialTheme.colorScheme.primary,
+                onFill = MaterialTheme.colorScheme.onPrimary,
+                outline = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+        val episode = programme.episodeLine()
+        episode?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Text(
             timeFormat.range(programme.start, programme.stop),
@@ -125,10 +128,11 @@ internal fun PreviewDetails(
             maxLines = 1,
         )
         programme.description?.let {
+            // The band is a fixed 144dp; the episode line takes one of the description's lines.
             Text(
                 it,
                 style = MaterialTheme.typography.bodySmall,
-                maxLines = 3,
+                maxLines = if (episode == null) 3 else 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }

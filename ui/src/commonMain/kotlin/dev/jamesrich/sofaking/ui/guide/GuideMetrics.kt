@@ -7,6 +7,10 @@ internal val PIN_WIDTH = 240.dp
 internal val MINUTE_WIDTH = 6.dp
 // 1080p TV budget (540dp tall): app header 27 + ~46 + 16 spacing, band 144 + 8, header 32 + 4 gaps leave four 56dp rows above the overscan.
 internal val ROW_HEIGHT = 56.dp
+
+/** The logo slot at the start of the pinned column. */
+internal val LOGO_WIDTH = 48.dp
+internal val LOGO_HEIGHT = 32.dp
 internal val HEADER_HEIGHT = 32.dp
 internal val MIN_STICKY_TEXT = 48.dp
 internal const val FOCUS_MARGIN_MINUTES = 30L

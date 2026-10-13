@@ -56,6 +56,30 @@ class LineupCacheTest {
     }
 
     @Test
+    fun `round trip keeps guide status and programme metadata`() = runTest {
+        val episode = Programme(
+            channelId = "3",
+            start = Instant.parse("2026-10-09T10:00:00Z"),
+            stop = Instant.parse("2026-10-09T11:00:00Z"),
+            title = "Show",
+            description = null,
+            subTitle = "The Pilot",
+            episode = "S1 E1",
+            isNew = true,
+            rating = "TV-PG",
+            icon = "https://img.example/show.jpg",
+        )
+        val lineup = Lineup(
+            channels = listOf(channelOne.copy(guideStatus = GuideStatus.STALE), channelThree),
+            guide = mapOf("3" to listOf(episode)),
+        )
+
+        cache().write(lineup)
+
+        assertEquals(lineup, cache().read())
+    }
+
+    @Test
     fun `read drops programmes that have already ended`() = runTest {
         val ended = programme("1", "2026-10-09T08:00:00Z", "2026-10-09T09:00:00Z", "Ended")
         val boundary = programme("1", "2026-10-09T09:00:00Z", "2026-10-09T10:00:00Z", "Ends now")
@@ -127,7 +151,7 @@ class LineupCacheTest {
         cache(key = "k").write(Lineup(listOf(Channel("a", 2.0, "A", null, listOf("G"))), emptyMap()))
 
         val expected = byteArrayOf(
-            0, 0, 0, 4, // version
+            0, 0, 0, 5, // version
             0, 0, 0, 1, 'k'.code.toByte(), // key
             0, 0, 0, 1, // channel count
             0, 0, 0, 1, 'a'.code.toByte(), // guide id
@@ -135,6 +159,8 @@ class LineupCacheTest {
             0, 0, 0, 1, 'A'.code.toByte(), // name
             0, // no logo
             0, 0, 0, 1, 0, 0, 0, 1, 'G'.code.toByte(), // one group
+            0, 0, 0, 9, // guide status
+        ) + "AVAILABLE".encodeToByteArray() + byteArrayOf(
             0, 0, 0, 0, // no guide
         )
         assertEquals(expected.toList(), assertNotNull(store.bytes).toList())

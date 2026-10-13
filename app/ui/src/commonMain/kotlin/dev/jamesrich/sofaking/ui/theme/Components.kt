@@ -5,11 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,10 +70,4 @@ fun SofaButton(
         interactionSource = interactions,
         content = content,
     )
-}
-
-/** A Material 3 switch with the D-pad focus cue. */
-@Composable
-fun SofaSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    Switch(checked = checked, onCheckedChange = onCheckedChange, modifier = modifier.tvFocus(CircleShape))
 }

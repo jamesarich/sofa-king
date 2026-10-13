@@ -32,11 +32,23 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
+import androidx.compose.material3.ripple
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import dev.jamesrich.sofaking.ui.theme.tvFocus
 import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.BuildInfo
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.theme.SofaButton
-import dev.jamesrich.sofaking.ui.theme.SofaSwitch
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
@@ -137,47 +149,44 @@ fun SettingsScreen(
         item { HelpText(stringResource(Res.string.settings_api_token_help)) }
         item { SectionHeader(stringResource(Res.string.settings_section_captions)) }
         item {
-            SettingRow(label = stringResource(Res.string.captions_setting)) {
-                SofaSwitch(
-                    checked = captionsOn,
-                    onCheckedChange = {
-                        captionsOn = it
-                        onCaptionsChanged(it)
-                    },
-                )
-            }
+            ToggleRow(
+                label = stringResource(Res.string.captions_setting),
+                checked = captionsOn,
+                onCheckedChange = {
+                    captionsOn = it
+                    onCaptionsChanged(it)
+                },
+            )
         }
         item {
-            SettingRow(label = stringResource(Res.string.caption_smooth)) {
-                SofaSwitch(
-                    checked = smoothCaptions,
-                    onCheckedChange = {
-                        smoothCaptions = it
-                        onSmoothCaptionsChanged(it)
-                    },
-                )
-            }
+            ToggleRow(
+                label = stringResource(Res.string.caption_smooth),
+                help = stringResource(Res.string.caption_smooth_help),
+                checked = smoothCaptions,
+                onCheckedChange = {
+                    smoothCaptions = it
+                    onSmoothCaptionsChanged(it)
+                },
+            )
         }
-        item { HelpText(stringResource(Res.string.caption_smooth_help)) }
         item {
-            SettingRow(label = stringResource(Res.string.caption_style)) {
-                SofaButton(
-                    onClick = {
-                        captionStyle = if (captionStyle == CaptionStyle.SYSTEM) {
-                            CaptionStyle.LARGE_HIGH_CONTRAST
-                        } else {
-                            CaptionStyle.SYSTEM
-                        }
-                        onCaptionStyleChanged(captionStyle)
-                    },
-                ) {
-                    Text(
-                        stringResource(
-                            if (captionStyle == CaptionStyle.SYSTEM) Res.string.caption_style_system else Res.string.caption_style_large,
-                        ),
+            ChoiceRow(
+                label = stringResource(Res.string.caption_style),
+                choices = CaptionStyle.entries,
+                selected = captionStyle,
+                choiceLabel = {
+                    stringResource(
+                        when (it) {
+                            CaptionStyle.SYSTEM -> Res.string.caption_style_system
+                            CaptionStyle.LARGE_HIGH_CONTRAST -> Res.string.caption_style_large
+                        },
                     )
-                }
-            }
+                },
+                onSelect = {
+                    captionStyle = it
+                    onCaptionStyleChanged(it)
+                },
+            )
         }
         item {
             val lessLabel = stringResource(Res.string.settings_caption_timing_less)
@@ -208,37 +217,35 @@ fun SettingsScreen(
         item { HelpText(stringResource(Res.string.caption_timing_help)) }
         item { SectionHeader(stringResource(Res.string.settings_section_guide)) }
         item {
-            val offLabel = stringResource(Res.string.settings_auto_open_off)
-            val tenLabel = stringResource(Res.string.settings_auto_open_10)
-            val thirtyLabel = stringResource(Res.string.settings_auto_open_30)
-            SettingRow(label = stringResource(Res.string.settings_auto_open)) {
-                SofaButton(
-                    onClick = {
-                        autoOpen = AutoOpenDelay.entries[(autoOpen.ordinal + 1) % AutoOpenDelay.entries.size]
-                        onAutoOpenDelayChanged(autoOpen)
-                    },
-                ) {
-                    Text(
-                        when (autoOpen) {
-                            AutoOpenDelay.OFF -> offLabel
-                            AutoOpenDelay.AFTER_10_SECONDS -> tenLabel
-                            AutoOpenDelay.AFTER_30_SECONDS -> thirtyLabel
+            ChoiceRow(
+                label = stringResource(Res.string.settings_auto_open),
+                help = stringResource(Res.string.settings_auto_open_help),
+                choices = AutoOpenDelay.entries,
+                selected = autoOpen,
+                choiceLabel = {
+                    stringResource(
+                        when (it) {
+                            AutoOpenDelay.OFF -> Res.string.settings_auto_open_off
+                            AutoOpenDelay.AFTER_10_SECONDS -> Res.string.settings_auto_open_10
+                            AutoOpenDelay.AFTER_30_SECONDS -> Res.string.settings_auto_open_30
                         },
                     )
-                }
-            }
+                },
+                onSelect = {
+                    autoOpen = it
+                    onAutoOpenDelayChanged(it)
+                },
+            )
         }
-        item { HelpText(stringResource(Res.string.settings_auto_open_help)) }
         item {
-            SettingRow(label = stringResource(Res.string.settings_preview_sound)) {
-                SofaSwitch(
-                    checked = previewSound,
-                    onCheckedChange = {
-                        previewSound = it
-                        onPreviewSoundChanged(it)
-                    },
-                )
-            }
+            ToggleRow(
+                label = stringResource(Res.string.settings_preview_sound),
+                checked = previewSound,
+                onCheckedChange = {
+                    previewSound = it
+                    onPreviewSoundChanged(it)
+                },
+            )
         }
         item { SectionHeader(stringResource(Res.string.settings_section_about)) }
         item {
@@ -283,6 +290,68 @@ private fun SettingRow(label: String, controls: @Composable () -> Unit) {
     ) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         controls()
+    }
+}
+
+/**
+ * A switch setting as one list row: the whole row is the focus and touch target and OK flips it, so the D-pad never
+ * stops on a bare switch. [help] reads beneath the label and with it.
+ */
+@Composable
+private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, help: String? = null) {
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
+    val shape = MaterialTheme.shapes.medium
+    ListItem(
+        headlineContent = { Text(label, style = MaterialTheme.typography.titleSmall) },
+        supportingContent = help?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
+        colors = ListItemDefaults.colors(
+            containerColor = if (focused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
+        ),
+        modifier = Modifier
+            .width(FIELD_WIDTH)
+            .tvFocus(shape, focusedScale = 1f)
+            .clip(shape)
+            .toggleable(
+                value = checked,
+                interactionSource = interactions,
+                indication = ripple(),
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            ),
+    )
+}
+
+/**
+ * A setting with a few named values, all on screen as connected segments; Left/Right move between them and OK picks
+ * one. [help] reads beneath the segments.
+ */
+@Composable
+private fun <T> ChoiceRow(
+    label: String,
+    choices: List<T>,
+    selected: T,
+    choiceLabel: @Composable (T) -> String,
+    onSelect: (T) -> Unit,
+    help: String? = null,
+) {
+    Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, style = MaterialTheme.typography.titleSmall)
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().focusGroup()) {
+            choices.forEachIndexed { index, choice ->
+                val shape = SegmentedButtonDefaults.itemShape(index, choices.size)
+                SegmentedButton(
+                    selected = choice == selected,
+                    onClick = { onSelect(choice) },
+                    shape = shape,
+                    modifier = Modifier.tvFocus(shape, focusedScale = 1f),
+                ) {
+                    Text(choiceLabel(choice))
+                }
+            }
+        }
+        if (help != null) HelpText(help)
     }
 }
 

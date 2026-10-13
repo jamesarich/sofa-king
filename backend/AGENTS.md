@@ -13,7 +13,7 @@ Use `README.md` for setup, `docs/api.md` for the wire interface and `docs/archit
 
 ## Dependency policy
 
-Use bleeding-edge server-side prereleases. Prefer the latest published Kotlin EAP, Ktor EAP and serialization prerelease, and latest published supporting libraries; pin exact versions, the wrapper checksum and dependency lockfiles. Verify official release/EAP registries before updates and compile/test the complete selected stack. Avoid dynamic versions and unversioned snapshots. Update the dependency reference when pins change.
+Use bleeding-edge server-side prereleases. Prefer the latest published Kotlin EAP and serialization prerelease, and latest published supporting libraries; Kotlin, kotlinx.serialization and Ktor match the versions in `../app`, so one Ktor release serves both and a test can load both on one classpath; pin exact versions, the wrapper checksum and dependency lockfiles. Verify official release/EAP registries before updates and compile/test the complete selected stack. Avoid dynamic versions and unversioned snapshots. Update the dependency reference when pins change.
 
 ## Documentation
 

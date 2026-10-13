@@ -1,6 +1,6 @@
 [versions]
 kotlin = "2.5.0-Beta1"
-ktor = "3.6.0-eap-1682"
+ktor = "3.6.0"
 serialization = "1.12.0-RC"
 exposed = "1.5.1"
 sqlite = "3.53.4.0"

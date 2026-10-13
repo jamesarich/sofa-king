@@ -3,7 +3,7 @@
 | Component | Version |
 | --- | --- |
 | Kotlin | 2.5.0-Beta1 |
-| Ktor | 3.6.0-eap-1682 |
+| Ktor | 3.6.0 |
 | kotlinx.serialization | 1.12.0-RC |
 | kotlinx.coroutines | 1.11.0 |
 | Exposed | 1.5.1 |
@@ -15,7 +15,7 @@
 | Foojay toolchain resolver | 1.0.0 |
 | JDK toolchain | 21 |
 
-Versions are defined in [the version catalog](../gradle/libs.versions.toml) and [Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Resolved dependencies are locked. Ktor artifacts come from the official JetBrains EAP repository; other libraries come from Maven Central.
+Versions are defined in [the version catalog](../gradle/libs.versions.toml) and [Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Resolved dependencies are locked. Every library comes from Maven Central.
 
 The server targets JVM 21. The `api-contract` and `client` modules compile to JVM 17 bytecode with the Kotlin 2.5 beta compiler, so consumers need a compatible Kotlin compiler.
 
@@ -25,7 +25,7 @@ The [admin portal](admin.md) serves htmx from `server/src/main/resources/admin/h
 
 ## Changing versions
 
-[Renovate](../renovate.json) proposes updates for the version catalog, the Gradle wrapper, the Dockerfile base images, Compose and the workflow actions, pinning images and actions by digest. It follows Kotlin, Ktor, kotlinx.serialization and kotlinx.coroutines prereleases, as the dependency policy in `AGENTS.md` asks, and takes Ktor from the EAP repository. Its Gradle manager rewrites the lockfiles and the verification metadata in the same pull request and runs a weekly lock file maintenance. By hand:
+[Renovate](../renovate.json) proposes updates for the version catalog, the Gradle wrapper, the Dockerfile base images, Compose and the workflow actions, pinning images and actions by digest. It follows Kotlin, kotlinx.serialization and kotlinx.coroutines prereleases, as the dependency policy in `AGENTS.md` asks; Ktor follows releases, matching the app. Its Gradle manager rewrites the lockfiles and the verification metadata in the same pull request and runs a weekly lock file maintenance. By hand:
 
 1. Update the exact versions in [the version catalog](../gradle/libs.versions.toml).
 2. Run the build with `--write-locks` and review the lockfile changes.
@@ -33,4 +33,4 @@ The [admin portal](admin.md) serves htmx from `server/src/main/resources/admin/h
 4. Run both smoke scripts, as described in [development](development.md#build-and-test).
 5. For a wrapper update, pin the official distribution checksum in `gradle-wrapper.properties`.
 
-Published versions are listed on the official [Kotlin EAP](https://kotlinlang.org/docs/whatsnew-eap.html), [Ktor EAP](https://ktor.io/eap/) and [Gradle distribution](https://services.gradle.org/distributions/) pages.
+Published versions are listed on the official [Kotlin EAP](https://kotlinlang.org/docs/whatsnew-eap.html), [Ktor](https://github.com/ktorio/ktor/releases) and [Gradle distribution](https://services.gradle.org/distributions/) pages.

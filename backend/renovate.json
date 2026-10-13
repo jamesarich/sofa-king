@@ -18,14 +18,6 @@
       "respectLatest": false
     },
     {
-      "description": "AGENTS.md: track Ktor EAP builds from the JetBrains EAP repository settings.gradle.kts routes io.ktor to",
-      "matchDatasources": ["maven"],
-      "matchPackageNames": ["io.ktor:*"],
-      "registryUrls": ["https://packages.jetbrains.team/maven/p/ktor/eap"],
-      "ignoreUnstable": false,
-      "respectLatest": false
-    },
-    {
       "description": "AGENTS.md: track kotlinx.serialization and kotlinx.coroutines prereleases",
       "matchDatasources": ["maven"],
       "matchPackageNames": ["org.jetbrains.kotlinx:kotlinx-serialization-*", "org.jetbrains.kotlinx:kotlinx-coroutines-*"],

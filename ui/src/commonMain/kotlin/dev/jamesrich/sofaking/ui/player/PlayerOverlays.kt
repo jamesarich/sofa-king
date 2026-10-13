@@ -134,7 +134,7 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (channel.logo != null) ChannelLogo(channel, Modifier.padding(end = 12.dp).size(width = 64.dp, height = 40.dp))
+            if (channel.logo != null) ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
             Text(channel.label(), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
             if (scope != null) {
                 Spacer(Modifier.width(16.dp))
@@ -178,13 +178,12 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
                             modifier = Modifier.padding(start = 8.dp),
                         )
                     }
-                    current.episodeLine()?.let {
-                        Text(it, style = MaterialTheme.typography.bodyMedium, color = SofaDusk, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
                     Text(
-                        timeFormat.range(current.start, current.stop),
+                        listOfNotNull(timeFormat.range(current.start, current.stop), current.episodeLine()).joinToString("  ·  "),
                         style = MaterialTheme.typography.bodyMedium,
                         color = SofaMauve,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     current.description?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = SofaMauve, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -193,6 +192,8 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
                 current.icon?.let {
                     RemoteImage(
                         url = it,
+                        width = 160.dp,
+                        height = 90.dp,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.padding(start = 16.dp).size(width = 160.dp, height = 90.dp).clip(OverlayShape),
                     )

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -14,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideStatus
@@ -36,14 +38,15 @@ internal fun Channel.noListingText(): String = stringResource(
     },
 )
 
-/** The channel's logo, fitted to [modifier]'s size; the slot stays empty without one, so names line up. Decorative: the name is beside it. */
+/** The channel's logo in a [width] by [height] slot that stays empty without one, so names line up. Decorative: the name is beside it. */
 @Composable
-internal fun ChannelLogo(channel: Channel, modifier: Modifier) {
+internal fun ChannelLogo(channel: Channel, width: Dp, height: Dp, modifier: Modifier = Modifier) {
     val logo = channel.logo
+    val slot = modifier.size(width = width, height = height)
     if (logo == null) {
-        Box(modifier)
+        Box(slot)
     } else {
-        RemoteImage(logo, ContentScale.Fit, modifier)
+        RemoteImage(logo, width, height, ContentScale.Fit, slot)
     }
 }
 

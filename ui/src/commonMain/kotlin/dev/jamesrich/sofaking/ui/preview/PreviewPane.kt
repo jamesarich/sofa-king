@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -44,6 +45,7 @@ import dev.jamesrich.sofaking.ui.ProgrammeBadges
 import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.SofaLoader
+import dev.jamesrich.sofaking.ui.WholeLinesText
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.player.Captions
 import dev.jamesrich.sofaking.ui.player.LivePlayer
@@ -84,21 +86,13 @@ internal fun PreviewDetails(
     modifier: Modifier = Modifier,
 ) {
     val timeFormat = rememberTimeFormatter()
-    Column(modifier) {
+    val secondary = MaterialTheme.colorScheme.onSurfaceVariant
+    // Title, one line of details, then as much description as the band has room for in whole lines.
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (channel == null) return@Column
-        Text(
-            channel.label(),
-            style = MaterialTheme.typography.labelLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
         if (programme == null) {
-            Text(
-                channel.noListingText(),
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Text(channel.noListingText(), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(channel.label(), style = MaterialTheme.typography.bodyMedium, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             return@Column
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -114,30 +108,26 @@ internal fun PreviewDetails(
                 live = live,
                 fill = MaterialTheme.colorScheme.primary,
                 onFill = MaterialTheme.colorScheme.onPrimary,
-                outline = MaterialTheme.colorScheme.onSurfaceVariant,
+                outline = secondary,
                 modifier = Modifier.padding(start = 8.dp),
             )
         }
-        val episode = programme.episodeLine()
-        episode?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
+        // The channel comes last: the focused row already names it, so it is the part to lose when space runs out.
         Text(
-            timeFormat.range(programme.start, programme.stop),
-            style = MaterialTheme.typography.labelLarge,
+            listOfNotNull(timeFormat.range(programme.start, programme.stop), programme.episodeLine(), channel.label())
+                .joinToString(DETAIL_SEPARATOR),
+            style = MaterialTheme.typography.bodyMedium,
+            color = secondary,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         programme.description?.let {
-            // The band is a fixed 144dp; the episode line takes one of the description's lines.
-            Text(
-                it,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = if (episode == null) 3 else 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            WholeLinesText(it, MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth().weight(1f))
         }
     }
 }
+
+private const val DETAIL_SEPARATOR = "  ·  "
 
 /**
  * Muted live preview of [channel] on the app's shared [player]. Opens a preview session through [sessions]

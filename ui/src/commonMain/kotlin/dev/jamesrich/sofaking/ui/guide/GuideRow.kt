@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -47,8 +46,8 @@ import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
 import dev.jamesrich.sofaking.ui.TimeFormatter
+import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.formatTemplate
-import dev.jamesrich.sofaking.ui.label
 import kotlin.math.roundToInt
 import kotlin.time.Instant
 
@@ -131,13 +130,22 @@ internal fun ChannelRow(
             Modifier.width(PIN_WIDTH).fillMaxHeight().padding(end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ChannelLogo(channel, Modifier.padding(end = 8.dp).size(width = LOGO_WIDTH, height = LOGO_HEIGHT))
-            Text(
-                channel.label(),
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            ChannelLogo(channel, LOGO_WIDTH, LOGO_HEIGHT, Modifier.padding(end = 12.dp))
+            // The number above the name, so a long name gets the column's width rather than sharing a line.
+            Column(Modifier.weight(1f)) {
+                Text(
+                    channel.number.formatNumber(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                Text(
+                    channel.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             if (isFavorite) {
                 Text(
                     "★",

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.data
 
+import dev.jamesrich.sofaking.contract.Wire
 import kotlin.time.Instant
 
 /** The server's catalog and guide shapes as the app's [Channel] and [Programme] models. */
@@ -48,10 +49,10 @@ internal object SofaKingMapper {
         )
     }
 
-    private fun guideStatus(wire: String?): GuideStatus = when (wire) {
-        "unassigned" -> GuideStatus.UNASSIGNED
-        "empty" -> GuideStatus.EMPTY
-        "stale" -> GuideStatus.STALE
+    private fun guideStatus(wire: String): GuideStatus = when (wire) {
+        Wire.GuideStatus.UNASSIGNED -> GuideStatus.UNASSIGNED
+        Wire.GuideStatus.EMPTY -> GuideStatus.EMPTY
+        Wire.GuideStatus.STALE -> GuideStatus.STALE
         else -> GuideStatus.AVAILABLE
     }
 

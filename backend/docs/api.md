@@ -28,7 +28,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. When `SOFA_A
 | GET | `/auto/v{number}` | MPEG-TS stream of the channel with that lineup number |
 | GET, POST | `/admin`, `/admin/*` | The [admin portal](#admin-portal-routes), HTML |
 
-Request bodies are limited to 64 KiB, except a policy write through `PUT /api/v1/admin/policy` or the portal's group and provider edits (4 MiB). A larger body answers `413 REQUEST_TOO_LARGE` before the token is checked. Every response carries an `X-Request-Id` header with the id the server's log lines for that request carry. Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams and logos never are. The [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/) defines the response fields.
+Request bodies are limited to 64 KiB, except a policy write through `PUT /api/v1/admin/policy` or the portal's group and provider edits (4 MiB). A larger body answers `413 REQUEST_TOO_LARGE` before the token is checked. Every response carries an `X-Request-Id` header with the id the server's log lines for that request carry. Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams and logos never are. The live TV fields are defined in the [contract](../../contract/src/commonMain/kotlin/dev/jamesrich/sofaking/contract/), which the app compiles against too, and the admin fields in the [server's models](../server/src/main/kotlin/dev/jamesrich/sofaking/backend/api/); see [shared types](#shared-types).
 
 Channel IDs are lineup entry IDs. A channel's `displayNumber`, `name` and `tags` (the group) come from its entry; `logo` is the entry's logo served from this server as the server-relative path `/logos/KEY` (see [logos](#logos)), which a client resolves against the base URL it uses for the API, proxy and path prefix included; `legacyGuideId` is the mapped XMLTV channel ID; `guideStatus` is `unassigned`, `empty`, `available` or `stale`; `playbackEligible` is true when any of the entry's sources is selectable. Channels are listed in lineup order.
 
@@ -181,7 +181,7 @@ While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /
 
 ### Server status
 
-`GET /api/v1/admin/status` answers one JSON document, defined in the [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/Status.kt):
+`GET /api/v1/admin/status` answers one JSON document, defined in the [server's status model](../server/src/main/kotlin/dev/jamesrich/sofaking/backend/api/Status.kt):
 
 | Field | Contents |
 | --- | --- |
@@ -201,7 +201,7 @@ curl --fail -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" http://SERVER_HOST:9193
 
 ### Policy results
 
-The [contract module](../api-contract/src/main/kotlin/dev/jamesrich/sofaking/backend/api/Policy.kt) defines these responses.
+The [server's policy models](../server/src/main/kotlin/dev/jamesrich/sofaking/backend/api/Policy.kt) define these responses.
 
 | Response | Fields |
 | --- | --- |
@@ -261,32 +261,11 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/settings/reveal-api-token` | Reveal the API token |
 | POST | `/admin/policy/apply` | Apply the lineup policy now |
 
-## Kotlin client
+## Shared types
 
-The `client` module provides `SofaBackendClient` and a playback handle. The client/contract target JVM 17 and use the Kotlin compiler version in [the version catalog](../gradle/libs.versions.toml).
+The live TV requests and responses above (`/api/v1/bootstrap`, `/api/v1/channels`, `/api/v1/guide/query`, `/api/v1/playback-sessions`) and the error body are Kotlin types in the [contract](../../contract/README.md) build, which the server and the Sofa King app both compile against. `Wire` in the same package names the intents, guide statuses, error codes and guide limits clients act on.
 
-Call these suspending methods from a coroutine. Supply the configured API token, or `null` for unauthenticated localhost access:
-
-```kotlin
-val client = SofaBackendClient("http://localhost:8080", token)
-try {
-    val channel = client.catalog().channels.first()
-    val playback = client.openPlayback(channel.id, "preview")
-    try {
-        playback.promoteToWatching()
-    } finally {
-        playback.close()
-    }
-} finally {
-    client.close()
-}
-```
-
-During playback, collect `playback.state`. For `PlaybackState.Ready`, resolve the descriptor with `client.mediaUrl(descriptor)` and reopen media when `epoch` changes. `Unavailable` supplies an error code and retry flag; `Closed` ends playback.
-
-Handles renew and fetch descriptors every 30 seconds. Close handles when their UI owner ends and close the client when its owner ends. Cleanup runs despite caller cancellation; DELETE has a 12-second deadline, with lease expiry covering unreachable servers.
-
-`openPlayback` generates one idempotency key per call and retries a transport failure or server-side 5xx up to three times with that key inside its 12-second budget, so a retry resumes the session the first attempt created instead of opening another. Client-side errors such as `404 CHANNEL_NOT_FOUND` are not retried.
+The server keeps clients older and newer than itself working: a response keeps every field of the frozen fixtures in `contract/src/jvmTest/resources/wire`, a field no client reads has a default, and the guide query and playback session requests ignore fields the server does not know. Admin requests reject unknown fields.
 
 ## Errors
 

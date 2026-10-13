@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.providers.NativeServices
 import java.net.URI
 import java.nio.file.Files

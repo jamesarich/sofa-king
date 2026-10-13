@@ -1,0 +1,12 @@
+{
+    "id": "cb3644a2-e137-43e8-a048-3be3d90051ae",
+    "channelId": "e765525a-42b9-46cf-821d-d2b5c131c6ba",
+    "intent": "preview",
+    "expiresAt": "2026-10-10T13:00:45Z",
+    "descriptor": {
+        "protocol": "hls",
+        "mimeType": "application/vnd.apple.mpegurl",
+        "url": "/media/sessions/cb3644a2-e137-43e8-a048-3be3d90051ae/1/b7b2beb4-1ad3-42ff-811c-b2b4ea822c0c.m3u8",
+        "epoch": 1
+    }
+}

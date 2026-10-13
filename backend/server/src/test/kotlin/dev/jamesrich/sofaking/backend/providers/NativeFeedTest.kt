@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.health.FailureClass
 import dev.jamesrich.sofaking.backend.health.HealthStatus

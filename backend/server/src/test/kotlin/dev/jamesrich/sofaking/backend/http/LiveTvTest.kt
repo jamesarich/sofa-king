@@ -2,8 +2,8 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.*
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.catalog.*
-import dev.jamesrich.sofaking.backend.client.*
 import dev.jamesrich.sofaking.backend.store.openStore
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -24,18 +24,23 @@ class LiveTvTest {
             try {
                 runtime.feeds.refresh(fixture.feed); runtime.adoptAll()
                 application { backendModule(store, MutableClock(), runtime, token) }
-                assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/channels").status)
+                val unauthorized = client.get("/api/v1/channels")
+                assertEquals(HttpStatusCode.Unauthorized, unauthorized.status)
+                assertKeepsWireFixture("v1/api-error.json", unauthorized.bodyAsText())
                 val catalogResponse = client.get("/api/v1/channels") { bearerAuth(token) }
+                assertKeepsWireFixture("v1/catalog.json", catalogResponse.bodyAsText())
                 val catalog = Json.decodeFromString<Catalog>(catalogResponse.bodyAsText())
                 assertEquals(1, catalog.channels.size)
                 assertFalse(catalogResponse.bodyAsText().contains(fixture.base))
                 assertEquals(HttpStatusCode.NotModified, client.get("/api/v1/channels") { bearerAuth(token); header(HttpHeaders.IfNoneMatch, catalogResponse.headers[HttpHeaders.ETag]!!) }.status)
                 val query = GuideQuery(listOf(catalog.channels.single().id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")
                 val guideResponse = client.post("/api/v1/guide/query") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(query)) }
+                assertKeepsWireFixture("v1/guide-window.json", guideResponse.bodyAsText())
                 assertEquals("Morning", Json.decodeFromString<GuideWindow>(guideResponse.bodyAsText()).channels.single().programmes.single().title)
                 val request = OpenPlayback(catalog.channels.single().id, "preview", "api-test")
                 val opened = client.post("/api/v1/playback-sessions") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(request)) }
                 assertEquals(HttpStatusCode.Created, opened.status)
+                assertKeepsWireFixture("v1/playback-session.json", opened.bodyAsText())
                 val session = Json.decodeFromString<PlaybackSession>(opened.bodyAsText())
                 val master = client.get(session.descriptor.url).bodyAsText()
                 assertFalse(master.contains(fixture.base))
@@ -48,14 +53,19 @@ class LiveTvTest {
                 assertEquals(HttpStatusCode.PartialContent, range.status); assertEquals("fixt", range.bodyAsText())
                 assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }.status)
                 assertEquals(HttpStatusCode.Gone, client.get(session.descriptor.url).status)
-                val sdk = SofaBackendClient("http://localhost", token, client)
-                val handle = sdk.openPlayback(sdk.catalog().channels.single().id, "preview")
-                val initial = (handle.state.value as PlaybackState.Ready).session
-                assertEquals(initial.descriptor, handle.promoteToWatching().descriptor)
-                handle.close()
-                assertEquals(PlaybackState.Closed, handle.state.value)
-                assertEquals(HttpStatusCode.Gone, client.get(initial.descriptor.url).status)
-                sdk.close()
+                val preview = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") {
+                    bearerAuth(token); contentType(ContentType.Application.Json)
+                    setBody(Json.encodeToString(OpenPlayback(catalog.channels.single().id, Wire.Intent.PREVIEW, "api-promote")))
+                }.bodyAsText())
+                val promoted = client.patch("/api/v1/playback-sessions/${preview.id}") {
+                    bearerAuth(token); contentType(ContentType.Application.Json)
+                    setBody("""{"intent":"watch","fromANewerApp":true}""")
+                }
+                val watching = Json.decodeFromString<PlaybackSession>(promoted.bodyAsText())
+                assertEquals(Wire.Intent.WATCH, watching.intent)
+                assertEquals(preview.descriptor, watching.descriptor)
+                assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/playback-sessions/${preview.id}") { bearerAuth(token) }.status)
+                assertEquals(HttpStatusCode.Gone, client.get(preview.descriptor.url).status)
                 val source = Json.decodeFromString<List<SourceStatus>>(client.get("/api/v1/sources") { bearerAuth(token) }.bodyAsText()).single()
                 assertEquals(HttpStatusCode.Unauthorized, client.patch("/api/v1/sources/${source.id}") { setBody("{}") }.status)
                 client.patch("/api/v1/sources/${source.id}") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(UpdateSource(true))) }

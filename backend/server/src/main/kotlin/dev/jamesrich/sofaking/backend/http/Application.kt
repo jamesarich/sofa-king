@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.store.IdentityStore
@@ -165,7 +166,7 @@ fun Application.backendModule(
                 val presented = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()
                 if (!sameSecret(presented, expected)) {
                     call.authFailed()
-                    call.respond(HttpStatusCode.Unauthorized, ApiError("AUTH_REQUIRED", "Bearer token required", false))
+                    call.respond(HttpStatusCode.Unauthorized, ApiError(Wire.ErrorCode.AUTH_REQUIRED, "Bearer token required", false))
                     finish()
                 }
             }
@@ -201,11 +202,11 @@ fun Application.backendModule(
                 runtime.sessions.healthChanged(source.id)
                 call.respond(source)
             }
-            post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.body<GuideQuery>())) }
+            post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.appBody<GuideQuery>())) }
             adminRoutes(runtime, clock, config?.revision ?: "unknown")
-            post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.body<OpenPlayback>())) }
+            post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.appBody<OpenPlayback>())) }
             get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }
-            patch("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.update(call.parameters["id"]!!, call.body<UpdatePlayback>())) }
+            patch("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.update(call.parameters["id"]!!, call.appBody<UpdatePlayback>())) }
             delete("/api/v1/playback-sessions/{id}") { runtime.sessions.release(call.parameters["id"]!!); call.respond(HttpStatusCode.NoContent) }
             get("/media/sessions/{id}/{epoch}/{token}") {
                 val epoch = call.parameters["epoch"]?.toIntOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid stream epoch")

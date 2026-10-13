@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.contract.Wire
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExitTransition
@@ -84,7 +85,7 @@ private const val MINI_GUIDE_IDLE_MS = 8_000L
 private const val METADATA_REFRESH_MS = 60_000L
 private const val STREAM_ENDED = "STREAM_ENDED"
 /** The server's answer when a session is asked for a channel id its lineup no longer has. */
-internal const val CHANNEL_NOT_FOUND = "CHANNEL_NOT_FOUND"
+internal const val CHANNEL_NOT_FOUND = Wire.ErrorCode.CHANNEL_NOT_FOUND
 /** How long the player waits for the lineup it asked for to catch up with the one it holds. */
 private const val LINEUP_SYNC_MS = 2_000L
 private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"

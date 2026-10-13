@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.upstream.isGzip
 import dev.jamesrich.sofaking.backend.upstream.readHead
 import dev.jamesrich.sofaking.backend.upstream.sniffProtocol
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.request
@@ -90,7 +91,7 @@ class MediaRelay(
         protocol: String,
     ): Nothing {
         sessions.protocolObserved(id, epoch, protocol, job)
-        throw ApiFailure(410, "STREAM_CHANGED", "Stream protocol changed; fetch the current session descriptor", true)
+        throw ApiFailure(410, Wire.ErrorCode.STREAM_CHANGED, "Stream protocol changed; fetch the current session descriptor", true)
     }
 
     private suspend fun serveShared(

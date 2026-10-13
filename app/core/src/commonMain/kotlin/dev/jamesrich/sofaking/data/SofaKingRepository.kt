@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.data
 
+import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -65,7 +66,7 @@ class SofaKingRepository(
     }
 
     companion object {
-        const val GUIDE_CHUNK = 200
+        const val GUIDE_CHUNK = Wire.GUIDE_MAX_CHANNELS
 
         /** Guide chunks in flight at once after the first. */
         const val GUIDE_PARALLEL = 4

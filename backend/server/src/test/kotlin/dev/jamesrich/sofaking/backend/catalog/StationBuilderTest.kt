@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.HealthStatus
 import java.time.Duration

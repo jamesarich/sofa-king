@@ -19,7 +19,7 @@
 | [Native providers](providers.md) | The built-in clients for free streaming services, their options and their failure modes |
 | [Lineup policy](lineup-policy.md) | The policy file that rebuilds the whole lineup, its fields, runs, required stations, findings, API and the generator |
 | [Source health](source-health.md) | Probes, failure classes, quarantine and recovery, and manual disables |
-| [HTTP API](api.md) | Endpoints for clients, the player outputs, the HDHomeRun routes, the admin API and portal routes, errors and the Kotlin client |
+| [HTTP API](api.md) | Endpoints for clients, the player outputs, the HDHomeRun routes, the admin API and portal routes, errors and the types the app shares |
 | [Architecture](architecture.md) | Modules, data flow, storage, playback and the logic behind each subsystem |
 
 ## Contributing

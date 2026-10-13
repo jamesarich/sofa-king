@@ -1,0 +1,17 @@
+{
+    "revision": "39d5e7f8cb70160169ff603ab4533bac4332340babef907ee42b74a3ad67935e",
+    "channels": [
+        {
+            "id": "e765525a-42b9-46cf-821d-d2b5c131c6ba",
+            "displayNumber": "5",
+            "name": "Station",
+            "logo": null,
+            "tags": [
+                "News"
+            ],
+            "legacyGuideId": "station",
+            "guideStatus": "available",
+            "playbackEligible": true
+        }
+    ]
+}

@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.Channel
+import dev.jamesrich.sofaking.contract.Channel
 import java.io.ByteArrayInputStream
 import java.io.FilterInputStream
 import java.io.InputStream

@@ -8,9 +8,8 @@ The terms used here (provider, source, candidate, station, lineup entry) are def
 
 | Module | Contents |
 | --- | --- |
-| `api-contract` | Serializable request/response models, including the admin and lineup policy models, JVM 17 |
-| `client` | Ktor client and playback lease handles, JVM 17 |
-| `server` | Ktor Netty server, imports, SQLite storage, lineup, source probes, media relay, player outputs, HDHomeRun emulation and admin portal, JVM 21 |
+| `../contract` | The live TV request and response types the server shares with the app, a Kotlin Multiplatform build included from `settings.gradle.kts` |
+| `server` | The admin, lineup policy and status models, Ktor Netty server, imports, SQLite storage, lineup, source probes, media relay, player outputs, HDHomeRun emulation and admin portal, JVM 21 |
 
 ## Data flow
 

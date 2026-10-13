@@ -3,7 +3,7 @@ kotlin { jvmToolchain(21) }
 application { mainClass = "dev.jamesrich.sofaking.backend.MainKt" }
 dependencies {
     implementation(platform("org.jetbrains.kotlin:kotlin-bom:${libs.versions.kotlin.get()}"))
-    implementation(project(":api-contract"))
+    implementation("dev.jamesrich.sofaking:contract")
     implementation(libs.serialization.json)
     implementation(libs.coroutines)
     implementation(libs.ktor.core)
@@ -27,6 +27,17 @@ dependencies {
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.ktor.test)
     testImplementation(libs.ktor.mock)
-    testImplementation(project(":client"))
 }
 dependencyLocking { lockAllConfigurations() }
+
+// Real responses must keep every field of the wire fixtures the contract's tests decode. The provider keeps the
+// absolute path out of the test task's cache key.
+abstract class WireFixtures : CommandLineArgumentProvider {
+    @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE) abstract val dir: DirectoryProperty
+    override fun asArguments() = listOf("-Dsofaking.wireFixtures=${dir.get().asFile.absolutePath}")
+}
+tasks.test {
+    jvmArgumentProviders += objects.newInstance<WireFixtures>().apply {
+        dir.set(rootProject.layout.projectDirectory.dir("../contract/src/jvmTest/resources/wire"))
+    }
+}

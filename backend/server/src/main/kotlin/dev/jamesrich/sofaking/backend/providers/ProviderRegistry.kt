@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.backend.providers
 
-import dev.jamesrich.sofaking.backend.api.Channel
+import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.catalog.ParsedPlaylist

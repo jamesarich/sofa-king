@@ -97,6 +97,7 @@ kotlin {
             kotlin.srcDir(generateBuildInfo)
             dependencies {
                 api(project(":core"))
+                implementation("dev.jamesrich.sofaking:contract")
                 // App() is this module's public surface, so the app shell compiles against the Compose it runs.
                 api(libs.compose.runtime)
                 api(libs.compose.ui)

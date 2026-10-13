@@ -28,6 +28,7 @@ import androidx.compose.ui.focus.focusRestorer
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -41,7 +42,10 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.ServerAddress
+import dev.jamesrich.sofaking.ui.LocalWindowLayout
 import dev.jamesrich.sofaking.ui.LogoMark
+import dev.jamesrich.sofaking.ui.SizeClass
+import dev.jamesrich.sofaking.ui.screenMargins
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -85,14 +89,19 @@ fun SettingsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 48.dp, vertical = 27.dp)
+            // The safe area includes the soft keyboard, so the field being edited scrolls clear of it.
+            .screenMargins()
             .focusRestorer(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 LogoMark(40.dp)
-                Text(stringResource(Res.string.settings_title), style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    stringResource(Res.string.settings_title),
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.semantics { heading() },
+                )
             }
         }
         // Above the fields: always on screen, and one Up from the URL field, with the keyboard closed.
@@ -264,7 +273,12 @@ fun SettingsScreen(
 
 @Composable
 private fun SectionHeader(title: String) {
-    Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+    Text(
+        title,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(top = 8.dp).semantics { heading() },
+    )
 }
 
 @Composable
@@ -272,16 +286,30 @@ private fun HelpText(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(FIELD_WIDTH))
 }
 
-/** A label with its control(s) beside it; one focus group so Left/Right stay inside the row. */
+/**
+ * A label with its control(s) beside it, or above them in a narrow window so the controls are never pushed off
+ * the edge; one focus group so Left/Right stay inside the row.
+ */
 @Composable
 private fun SettingRow(label: String, controls: @Composable () -> Unit) {
-    Row(
-        modifier = Modifier.focusGroup(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text(label, style = MaterialTheme.typography.titleSmall)
-        controls()
+    if (LocalWindowLayout.current.width == SizeClass.COMPACT) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(label, style = MaterialTheme.typography.titleSmall)
+            Row(
+                modifier = Modifier.focusGroup(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) { controls() }
+        }
+    } else {
+        Row(
+            modifier = Modifier.focusGroup(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(label, style = MaterialTheme.typography.titleSmall)
+            controls()
+        }
     }
 }
 

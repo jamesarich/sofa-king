@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.ui
 
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.speech.RecognizerIntent
 import android.view.accessibility.AccessibilityManager
@@ -15,6 +17,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import dev.jamesrich.sofaking.ui.guide.voiceQuery
 
 @Composable
@@ -32,6 +37,26 @@ internal actual fun KeepScreenOn(on: Boolean) {
         view.keepScreenOn = on
         onDispose { view.keepScreenOn = false }
     }
+}
+
+@Composable
+internal actual fun HideSystemBars(on: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(view, on) {
+        val window = view.context.findActivity()?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        if (on && controller != null) {
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /** The TV's speech recognizer activity; the manifest's `<queries>` entry lets the app see whether one is installed. */

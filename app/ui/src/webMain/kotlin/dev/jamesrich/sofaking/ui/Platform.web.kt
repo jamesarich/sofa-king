@@ -18,3 +18,7 @@ internal actual fun rememberVoiceSearch(prompt: String, onResult: (String?) -> U
 internal actual val KeyEvent.repeatCountOrNull: Int? get() = null
 
 internal actual val KeyEvent.isLongPress: Boolean get() = false
+
+/** A page cannot hide the browser's own bars. */
+@Composable
+internal actual fun HideSystemBars(on: Boolean) = Unit

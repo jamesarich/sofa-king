@@ -4,6 +4,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 internal val PIN_WIDTH = 240.dp
+/** The pinned column in a narrow window: number and name only, no logo. */
+internal val PIN_WIDTH_COMPACT = 160.dp
 internal val MINUTE_WIDTH = 6.dp
 // 1080p TV budget (540dp tall): app header 27 + ~46 + 16 spacing, band 144 + 8, header 32 + 4 gaps leave four 56dp rows above the overscan.
 internal val ROW_HEIGHT = 56.dp

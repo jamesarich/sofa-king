@@ -1,11 +1,15 @@
 package dev.jamesrich.sofaking.ui.theme
 
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import dev.jamesrich.sofaking.ui.LocalWindowLayout
+import dev.jamesrich.sofaking.ui.windowLayoutFor
 import androidx.compose.ui.unit.sp
 
 /**
@@ -59,13 +63,25 @@ private val SofaKingTypography: Typography = Typography().let { base ->
     )
 }
 
-/** Sofa King's dark, TV-sized Material 3 Expressive theme with expressive motion; the same on every platform. */
+/** Material 3's own type scale, for a phone's or a small window's viewing distance. */
+private val CompactTypography: Typography = Typography()
+
+/**
+ * Sofa King's dark Material 3 Expressive theme with expressive motion, the same on every platform. It measures
+ * the space it is given into [LocalWindowLayout]; a compact window takes Material's handheld type scale instead
+ * of the TV-sized one.
+ */
 @Composable
 fun SofaKingTheme(content: @Composable () -> Unit) {
-    MaterialExpressiveTheme(
-        colorScheme = SofaKingColors,
-        typography = SofaKingTypography,
-        motionScheme = MotionScheme.expressive(),
-        content = content,
-    )
+    BoxWithConstraints {
+        val layout = windowLayoutFor(maxWidth, maxHeight)
+        CompositionLocalProvider(LocalWindowLayout provides layout) {
+            MaterialExpressiveTheme(
+                colorScheme = SofaKingColors,
+                typography = if (layout.isCompact) CompactTypography else SofaKingTypography,
+                motionScheme = MotionScheme.expressive(),
+                content = content,
+            )
+        }
+    }
 }

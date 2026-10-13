@@ -3,7 +3,9 @@ package dev.jamesrich.sofaking.ui.guide
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +37,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.MaterialTheme
@@ -72,6 +75,8 @@ internal class GuideRowEnv(
     val onCellFocused: (Channel, GuideCell) -> Unit,
     val onPlay: (Channel) -> Unit,
     val onToggleFavorite: (Channel) -> Unit,
+    val pinWidth: Dp,
+    val showLogo: Boolean,
 ) {
     /** The text of a stretch with no programme, which says why when the server does. */
     fun noListingFor(channel: Channel): String = when (channel.guideStatus) {
@@ -127,10 +132,10 @@ internal fun ChannelRow(
 
     Row(Modifier.fillMaxWidth().height(ROW_HEIGHT)) {
         Row(
-            Modifier.width(PIN_WIDTH).fillMaxHeight().padding(end = 12.dp),
+            Modifier.width(env.pinWidth).fillMaxHeight().padding(end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ChannelLogo(channel, LOGO_WIDTH, LOGO_HEIGHT, Modifier.padding(end = 12.dp))
+            if (env.showLogo) ChannelLogo(channel, LOGO_WIDTH, LOGO_HEIGHT, Modifier.padding(end = 12.dp))
             // The number above the name, so a long name gets the column's width rather than sharing a line.
             Column(Modifier.weight(1f)) {
                 Text(
@@ -185,6 +190,8 @@ private fun GuideCellItem(
     val colors = MaterialTheme.colorScheme
     val cellStartPx = cell.startMinute * env.minutePx
     val interactions = remember { MutableInteractionSource() }
+    // A mouse or trackpad pointer gets its own cue, quieter than focus, since a click plays at once.
+    val hovered by interactions.collectIsHoveredAsState()
     // No focus scale: a cell that starts before the visible edge would grow past the pinned column and clip its text.
     Surface(
         shape = MaterialTheme.shapes.small,
@@ -193,6 +200,7 @@ private fun GuideCellItem(
             airing -> colors.primaryContainer
             else -> colors.surfaceVariant
         },
+        border = if (hovered && !focused) BorderStroke(2.dp, colors.secondary) else null,
         contentColor = if (focused) colors.onPrimary else colors.onSurface,
         modifier = modifier
             .padding(horizontal = 1.dp, vertical = 2.dp)

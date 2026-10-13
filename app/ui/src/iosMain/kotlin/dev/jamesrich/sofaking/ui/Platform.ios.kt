@@ -26,3 +26,7 @@ internal actual fun rememberVoiceSearch(prompt: String, onResult: (String?) -> U
 internal actual val KeyEvent.repeatCountOrNull: Int? get() = null
 
 internal actual val KeyEvent.isLongPress: Boolean get() = false
+
+/** The app runs in landscape, where iOS already hides the status bar. */
+@Composable
+internal actual fun HideSystemBars(on: Boolean) = Unit

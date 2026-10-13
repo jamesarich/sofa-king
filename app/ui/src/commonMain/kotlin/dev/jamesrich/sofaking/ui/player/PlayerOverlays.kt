@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -34,6 +35,9 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.ChannelLogo
+import dev.jamesrich.sofaking.ui.LocalWindowLayout
+import dev.jamesrich.sofaking.ui.SizeClass
+import dev.jamesrich.sofaking.ui.screenMargins
 import dev.jamesrich.sofaking.ui.ProgrammeBadges
 import dev.jamesrich.sofaking.ui.RemoteImage
 import dev.jamesrich.sofaking.ui.SofaLoader
@@ -81,7 +85,7 @@ internal fun DigitsBadge(text: String) {
         style = MaterialTheme.typography.displayMedium,
         color = SofaDusk,
         modifier = Modifier
-            .padding(horizontal = 48.dp, vertical = 27.dp)
+            .screenMargins()
             .background(SofaOverlayScrim, OverlayShape)
             .padding(horizontal = 16.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
@@ -124,21 +128,32 @@ internal fun ProgressBar(fraction: Float, color: Color = SofaAmber) {
 internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant, captionsOn: Boolean, captionAdvanceMs: Int, scope: String? = null) {
     val (current, next) = lineup.nowAndNext(channel, now)
     val timeFormat = rememberTimeFormatter()
+    // A narrow window drops the program art and the remote hint, which a phone's own controls make moot anyway.
+    val narrow = LocalWindowLayout.current.width == SizeClass.COMPACT
+    val short = LocalWindowLayout.current.height == SizeClass.COMPACT
     Column(
         Modifier
             .align(Alignment.BottomStart)
-            .padding(horizontal = 48.dp, vertical = 27.dp)
-            .width(720.dp)
+            .screenMargins()
+            .widthIn(max = 720.dp)
+            .fillMaxWidth()
             .background(SofaOverlayScrim, OverlayShape)
-            .padding(24.dp)
+            .padding(if (short) 16.dp else 24.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (channel.logo != null) ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 12.dp))
-            Text(channel.label(), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
+            Text(
+                channel.label(),
+                style = MaterialTheme.typography.headlineSmall,
+                color = SofaDusk,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
             if (scope != null) {
                 Spacer(Modifier.width(16.dp))
-                Text(scope, style = MaterialTheme.typography.labelLarge, color = SofaMauve)
+                Text(scope, style = MaterialTheme.typography.labelLarge, color = SofaMauve, maxLines = 1)
             }
             if (captionsOn) {
                 Spacer(Modifier.width(16.dp))
@@ -148,6 +163,7 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
                     stringResource(Res.string.captions_indicator_timing, advance),
                     style = MaterialTheme.typography.labelLarge,
                     color = SofaPlum,
+                    maxLines = 1,
                     modifier = Modifier
                         .background(SofaAmber, OverlayShape)
                         .padding(horizontal = 8.dp, vertical = 2.dp)
@@ -186,10 +202,10 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
                         overflow = TextOverflow.Ellipsis,
                     )
                     current.description?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = SofaMauve, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = SofaMauve, maxLines = if (short) 1 else 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                current.icon?.let {
+                current.icon?.takeUnless { narrow }?.let {
                     RemoteImage(
                         url = it,
                         width = 160.dp,
@@ -203,7 +219,9 @@ internal fun BoxScope.InfoOverlay(lineup: Lineup, channel: Channel, now: Instant
             ProgressBar(programmeProgress(current.start, current.stop, now))
         }
         next?.let { Text(stringResource(Res.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = SofaMauve) }
-        Spacer(Modifier.height(8.dp))
-        Text(stringResource(Res.string.channel_list_hint), style = MaterialTheme.typography.bodySmall, color = SofaMauve)
+        if (!narrow && !short) {
+            Spacer(Modifier.height(8.dp))
+            Text(stringResource(Res.string.channel_list_hint), style = MaterialTheme.typography.bodySmall, color = SofaMauve)
+        }
     }
 }

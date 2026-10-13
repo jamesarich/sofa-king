@@ -18,3 +18,7 @@ internal actual fun rememberVoiceSearch(prompt: String, onResult: (String?) -> U
 internal actual val KeyEvent.repeatCountOrNull: Int? get() = null
 
 internal actual val KeyEvent.isLongPress: Boolean get() = false
+
+/** A desktop window keeps its title bar; full screen is the window manager's. */
+@Composable
+internal actual fun HideSystemBars(on: Boolean) = Unit

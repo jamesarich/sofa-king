@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -72,6 +73,10 @@ import dev.jamesrich.sofaking.ui.player.DigitsBadge
 import dev.jamesrich.sofaking.ui.player.digitValue
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
 import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
+import dev.jamesrich.sofaking.ui.LocalWindowLayout
+import dev.jamesrich.sofaking.ui.SizeClass
+import dev.jamesrich.sofaking.ui.screenMargins
+import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -249,7 +254,11 @@ fun GuideScreen(
     // restarted by any key. Both run only while a cell holds focus with search closed, so typing never opens a channel.
     // TalkBack reads the grid aloud as focus moves; a channel opening full screen would cut that off.
     val touchExploration = rememberScreenReaderActive()
-    val fullScreenAfterMs = autoOpenDelay.afterMs.takeUnless { touchExploration }
+    // A window too small for the preview band has no picture to rest on, so nothing opens by itself either.
+    val layout = LocalWindowLayout.current
+    val showPreview = PREVIEW_ENABLED && layout.showsPreview
+    val pinWidth = if (layout.width == SizeClass.COMPACT) PIN_WIDTH_COMPACT else PIN_WIDTH
+    val fullScreenAfterMs = autoOpenDelay.afterMs.takeUnless { touchExploration || !showPreview }
     val currentPreviewSound by rememberUpdatedState(previewSound)
     val dwell = remember(fullScreenAfterMs) { PreviewDwell(suppressedChannelId = returnedFrom, fullScreenAfterMs = fullScreenAfterMs) }
     var dwellNonce by remember { mutableIntStateOf(0) }
@@ -489,7 +498,7 @@ fun GuideScreen(
     val toggleFavoriteLabel = stringResource(Res.string.guide_toggle_favorite)
     val env = remember(
         cellAiring, cellLater, cellNone, timeFormat, noListing, noGuide, guideOutOfDate, favoriteLabel, toggleFavoriteLabel,
-        minutePx, minStickyTextPx, scrollState, onCellFocused, play, onToggleFavorite,
+        minutePx, minStickyTextPx, scrollState, onCellFocused, play, onToggleFavorite, pinWidth,
     ) {
         GuideRowEnv(
             cellAiring = cellAiring,
@@ -507,6 +516,8 @@ fun GuideScreen(
             onCellFocused = onCellFocused,
             onPlay = play,
             onToggleFavorite = onToggleFavorite,
+            pinWidth = pinWidth,
+            showLogo = pinWidth == PIN_WIDTH,
         )
     }
 
@@ -588,10 +599,25 @@ fun GuideScreen(
         true
     }
 
-    // The app header above already carries the top overscan margin; 16dp here is spacing, not overscan.
+    // Without the band the shared player has nothing to show, so a stream it still holds (the channel just
+    // watched) stops and its session goes free rather than playing on unseen; the app does not resume it on
+    // return either.
+    if (!showPreview) {
+        LaunchedEffect(previewPlayer) {
+            if (previewPlayer.status.value.state != PlaybackState.IDLE) previewPlayer.stop()
+            sessions.release(forget = true)
+        }
+    }
+
+    // The app header above already carries the top margin; the gap here is spacing, not overscan.
     Box(modifier.fillMaxSize().onPreviewKeyEvent(onGuideKey)) {
-        Column(modifier = Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 27.dp)) {
-            if (PREVIEW_ENABLED) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .screenMargins(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom)
+                .padding(top = if (layout.height == SizeClass.COMPACT) 8.dp else 16.dp),
+        ) {
+            if (showPreview) {
                 PreviewBand(
                     focused = focusedState,
                     now = now,
@@ -615,7 +641,7 @@ fun GuideScreen(
             Spacer(Modifier.height(8.dp))
 
             Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
-                Box(Modifier.width(PIN_WIDTH).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.width(pinWidth).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
                     VisibleRange(
                         scrollState = scrollState,
                         viewport = viewport,

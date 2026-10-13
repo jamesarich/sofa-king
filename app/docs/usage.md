@@ -37,7 +37,9 @@ Channels come from the server's lineup. The app lists a channel when the server 
 | Search | Search by voice | Open guide search by voice |
 | Back | Close search; move from the grid to the selected filter chip; exit from the chips or header | Close the channel list or return to the guide |
 
-On a desktop or in a browser, the arrow keys move like the D-pad, Enter is OK (hold it for a long press), Escape is Back, Page Up and Page Down move a page, the digit keys enter a channel number and C toggles captions. Touch and a mouse select directly.
+On a desktop or in a browser, the arrow keys move like the D-pad, Enter is OK (hold it for a long press), Escape is Back, Page Up and Page Down move a page, the digit keys enter a channel number and C toggles captions. Touch and a mouse select directly: tap or click a program to watch its channel, and long-press it to toggle the favorite. In the player a tap acts as OK (information, then the channel list, or a retry after a failure), a tap outside the open channel list closes it, and a swipe up or down changes channel.
+
+In a window narrower than 600 dp or shorter than 480 dp, such as a phone held sideways, the guide leaves out the preview and gives the room to the grid; nothing then opens full screen by itself.
 
 A channel opened from Favorites or a category chip keeps channel up and down and the channel list inside that filter, and the info bar names it with the channel's place, for example "Sports 3/214". Typing a number outside it widens them to the whole lineup. In the channel list, Up/Down select a channel, OK tunes it and Back closes the list. Leaving the app stops playback and releases its session on the server. Returning opens a new session for the same channel and prepares the stream at the live edge while preserving paused intent.
 

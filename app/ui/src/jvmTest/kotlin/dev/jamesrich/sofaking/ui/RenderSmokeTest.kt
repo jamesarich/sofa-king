@@ -34,9 +34,18 @@ import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 
+/** A window to lay the screens out in, in dp at [density]. */
+enum class ScreenSize(val label: String, val widthDp: Int, val heightDp: Int, val density: Float) {
+    TV("tv", 960, 540, 2f),
+    PHONE_LANDSCAPE("phone-landscape", 800, 360, 3f),
+    PHONE_PORTRAIT("phone-portrait", 360, 800, 3f),
+    TABLET_PORTRAIT("tablet-portrait", 800, 1280, 2f),
+    DESKTOP_NARROW("desktop-narrow", 560, 720, 1f),
+}
+
 /**
- * Renders the main screens headless on the JVM through Skia, as a 1080p TV lays them out (960x540 dp at 2x), and
- * writes each to build/screenshots for review. Fails when a screen throws or draws nothing but the background.
+ * Renders the main screens headless on the JVM through Skia at each [ScreenSize], from a 1080p TV (960x540 dp at 2x)
+ * to a phone held either way, and writes each to build/screenshots/<size> for review. Fails when a screen throws or draws nothing but the background.
  */
 class RenderSmokeTest {
     private val now = Clock.System.now()
@@ -88,8 +97,13 @@ class RenderSmokeTest {
     )
 
     /** Runs the scene on this thread's event loop, so effects resume where the frames draw; each frame yields to them. */
-    private fun render(name: String, content: @Composable () -> Unit): Image = runBlocking {
-        val image = ImageComposeScene(width = 1920, height = 1080, density = Density(2f), coroutineContext = coroutineContext.minusKey(Job)) {
+    private fun render(name: String, size: ScreenSize = ScreenSize.TV, content: @Composable () -> Unit): Image = runBlocking {
+        val image = ImageComposeScene(
+            width = (size.widthDp * size.density).toInt(),
+            height = (size.heightDp * size.density).toInt(),
+            density = Density(size.density),
+            coroutineContext = coroutineContext.minusKey(Job),
+        ) {
             SofaKingTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { content() }
             }
@@ -103,7 +117,7 @@ class RenderSmokeTest {
             }
             scene.render(frame)
         }
-        val out = File("build/screenshots/$name.png")
+        val out = File("build/screenshots/${size.label}/$name.png")
         out.parentFile.mkdirs()
         out.writeBytes(requireNotNull(image.encodeToData(EncodedImageFormat.PNG)).bytes)
         image
@@ -119,7 +133,8 @@ class RenderSmokeTest {
 
     @Test
     fun `the guide renders its grid and preview band`() {
-        val image = render("guide") {
+        for (size in ScreenSize.entries) {
+        val image = render("guide", size) {
             GuideScreen(
                 lineup = lineup,
                 favorites = setOf("c1"),
@@ -137,12 +152,14 @@ class RenderSmokeTest {
                 previewSound = false,
             )
         }
-        assertTrue(image.hasContent())
+        assertTrue(image.hasContent(), "$size")
+        }
     }
 
     @Test
     fun `settings renders its fields and switches`() {
-        val image = render("settings") {
+        for (size in ScreenSize.entries) {
+        val image = render("settings", size) {
             SettingsScreen(
                 settings = AppSettings(serverUrl = "http://sofa.lan:9193", apiToken = "s3cret-token", captionsEnabled = true),
                 onSave = { _, _ -> },
@@ -150,16 +167,19 @@ class RenderSmokeTest {
                 channelCount = channels.size,
             )
         }
-        assertTrue(image.hasContent())
+        assertTrue(image.hasContent(), "$size")
+        }
     }
 
     @Test
     fun `the player's info bar renders over the picture`() {
-        val image = render("player-info") {
+        for (size in ScreenSize.entries) {
+        val image = render("player-info", size) {
             Box(Modifier.fillMaxSize()) {
                 InfoOverlay(lineup = lineup, channel = channels[0], now = now, captionsOn = true, captionAdvanceMs = 1_500, scope = "News 1/4")
             }
         }
-        assertTrue(image.hasContent())
+        assertTrue(image.hasContent(), "$size")
+        }
     }
 }

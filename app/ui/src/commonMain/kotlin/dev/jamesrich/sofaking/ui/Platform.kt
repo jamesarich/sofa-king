@@ -28,6 +28,13 @@ internal expect fun rememberScreenReaderActive(): Boolean
 internal expect fun KeepScreenOn(on: Boolean)
 
 /**
+ * Hides the system bars while [on], for full-screen video on a phone or tablet; a swipe from the edge shows them
+ * for a moment. Restored when this leaves composition. Nothing to hide on a TV, a desktop or in a browser.
+ */
+@Composable
+internal expect fun HideSystemBars(on: Boolean)
+
+/**
  * Speech input for the guide search. The returned function starts it and is false when the platform has no
  * recognizer, so the caller opens the text field instead; [onResult] gets the spoken query, or null when dismissed.
  */

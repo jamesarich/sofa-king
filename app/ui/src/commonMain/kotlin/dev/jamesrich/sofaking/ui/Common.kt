@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -50,13 +52,14 @@ fun MessageScreen(
     onRetry: (() -> Unit)? = null,
     loading: Boolean = false,
 ) {
-    Box(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 27.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().screenMargins(), contentAlignment = Alignment.Center) {
+        // Scrolls when a short window (a phone held sideways) cannot fit the mark, the message and Retry.
         Column(
-            modifier = Modifier.width(640.dp),
+            modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            LogoMark(96.dp)
+            LogoMark(if (LocalWindowLayout.current.height == SizeClass.COMPACT) 56.dp else 96.dp)
             Text(stringResource(Res.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
             if (loading) SofaLoader(size = 56.dp)

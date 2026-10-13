@@ -8,11 +8,12 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +36,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import org.jetbrains.compose.resources.stringResource
@@ -48,6 +50,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.ui.HideSystemBars
 import dev.jamesrich.sofaking.ui.KeepScreenOn
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.isLongPress
@@ -68,6 +71,7 @@ import dev.jamesrich.sofaking.ui.SinkOut
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
+import dev.jamesrich.sofaking.ui.screenMargins
 import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlinx.coroutines.CancellationException
@@ -105,6 +109,16 @@ private data class Failure(val code: String, val attempt: Int, val immediate: Bo
 
 /** How long a zap rests before the new channel is tuned, so pressing through channels does not open a session per press. */
 internal const val ZAP_SETTLE_MS = 400L
+
+/** How far a finger travels up or down the picture before the swipe changes channel. */
+private val SWIPE_ZAP_DISTANCE = 64.dp
+
+/** The channel step for a vertical swipe of [draggedPx] (negative is up): up is the next channel, as Up is. */
+internal fun swipeZapStep(draggedPx: Float, thresholdPx: Float): Int? = when {
+    draggedPx <= -thresholdPx -> 1
+    draggedPx >= thresholdPx -> -1
+    else -> null
+}
 
 /** A zap from a tuned channel waits [ZAP_SETTLE_MS]; the first tune, which may take over the preview's stream, does not. */
 internal fun zapSettleMs(tuned: Channel?, next: Channel): Long =
@@ -160,7 +174,8 @@ fun PlayerScreen(
     val currentOnChannelChanged by rememberUpdatedState(onChannelChanged)
     val currentOnCaptionsChanged by rememberUpdatedState(onCaptionsChanged)
     val currentOnCaptionAdvanceChanged by rememberUpdatedState(onCaptionAdvanceChanged)
-    val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
+    // Zero until the host has laid out its window on some platforms; the fraction needs a height.
+    val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }.coerceAtLeast(1)
     val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(windowHeightDp)
     var index by remember { mutableIntStateOf(channels.indexOfFirst { it.guideId == startChannel?.guideId }.coerceAtLeast(0)) }
     // What load() last tuned and what was watched before it, so a refreshed lineup can be followed by identity.
@@ -477,7 +492,26 @@ fun PlayerScreen(
         miniGuideActivity++
     }
 
-    /** OK is judged on key-up: a short press acts as [playerOk] decides, a long press recalls the last channel. */
+    /** A short OK, or a tap on the picture: [playerOk] decides between committing digits, retrying, the list and info. */
+    fun pressOk() {
+        val channel = currentChannels.getOrNull(index)
+        when (playerOk(entry.digits.isNotEmpty(), failure != null && channel != null, overlayVisible)) {
+            PlayerOk.COMMIT_NUMBER -> commitEntry()
+            // A failed channel retries on OK, however many automatic retries have run.
+            PlayerOk.RETRY -> if (channel != null) {
+                failure = null
+                recovering = null
+                load(channel)
+            }
+            PlayerOk.OPEN_CHANNEL_LIST -> openMiniGuide()
+            PlayerOk.SHOW_INFO -> {
+                overlayVisible = true
+                overlayRequest++
+            }
+        }
+    }
+
+    /** OK is judged on key-up: a short press acts as [pressOk], a long press recalls the last channel. */
     fun handleCenter(event: KeyEvent): Boolean {
         // With the mini-guide open, its focused row takes OK.
         if (miniGuideOpen || currentChannels.isEmpty()) return false
@@ -487,23 +521,7 @@ fun PlayerScreen(
                 true
             }
             KeyEventType.KeyUp -> {
-                if (centerGesture.onKeyUp() == CenterPress.SHORT) {
-                    val channel = currentChannels.getOrNull(index)
-                    when (playerOk(entry.digits.isNotEmpty(), failure != null && channel != null, overlayVisible)) {
-                        PlayerOk.COMMIT_NUMBER -> commitEntry()
-                        // A failed channel retries on OK, however many automatic retries have run.
-                        PlayerOk.RETRY -> if (channel != null) {
-                            failure = null
-                            recovering = null
-                            load(channel)
-                        }
-                        PlayerOk.OPEN_CHANNEL_LIST -> openMiniGuide()
-                        PlayerOk.SHOW_INFO -> {
-                            overlayVisible = true
-                            overlayRequest++
-                        }
-                    }
-                }
+                if (centerGesture.onKeyUp() == CenterPress.SHORT) pressOk()
                 true
             }
             else -> false
@@ -581,10 +599,26 @@ fun PlayerScreen(
         }
     }
 
+    // Touch and a mouse stand in for the remote: a tap acts as OK (and closes the channel list), a swipe up or
+    // down changes channel as Up and Down do.
+    val onTap by rememberUpdatedState<() -> Unit> {
+        if (miniGuideOpen) miniGuideOpen = false else if (currentChannels.isNotEmpty()) pressOk()
+    }
+    val onSwipe by rememberUpdatedState<(Int) -> Unit> { step -> if (!miniGuideOpen && currentChannels.isNotEmpty()) zapStep(step) }
+    val swipePx = with(LocalDensity.current) { SWIPE_ZAP_DISTANCE.toPx() }
     Box(
         Modifier
             .fillMaxSize()
             .background(SofaScrim)
+            .pointerInput(Unit) { detectTapGestures { onTap() } }
+            .pointerInput(swipePx) {
+                var dragged = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { dragged = 0f },
+                    onDragEnd = { swipeZapStep(dragged, swipePx)?.let { onSwipe(it) } },
+                    onVerticalDrag = { _, delta -> dragged += delta },
+                )
+            }
             .focusRequester(focus)
             .focusable()
             .semantics {
@@ -602,6 +636,7 @@ fun PlayerScreen(
         player.Video(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         Captions(player, captionStyle, captionBottomFraction, Modifier.fillMaxSize())
         KeepScreenOn(playing)
+        HideSystemBars(true)
 
         val channel = currentChannels.getOrNull(index)
         if (channel == null) {
@@ -609,7 +644,7 @@ fun PlayerScreen(
         } else {
             // Status pills stack top left so a caption toast never covers "Paused" or "Tuning".
             Column(
-                Modifier.align(Alignment.TopStart).padding(horizontal = 48.dp, vertical = 27.dp),
+                Modifier.align(Alignment.TopStart).screenMargins(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 AnimatedVisibility(rememberSettled(buffering && failure == null), enter = PopIn, exit = PopOut) {

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +39,9 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.ChannelLogo
+import dev.jamesrich.sofaking.ui.LocalWindowLayout
+import dev.jamesrich.sofaking.ui.SizeClass
+import dev.jamesrich.sofaking.ui.screenMargins
 import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -49,8 +53,8 @@ import dev.jamesrich.sofaking.ui.theme.SofaPlum
 import kotlin.time.Instant
 
 /**
- * Bottom 40% channel list over the video. OK tunes and closes it through [onTune]; Back and the idle
- * timer are handled by the owner. Focus starts on the current channel's row.
+ * Bottom 40% channel list over the video, 60% in a short window so it still lists more than a row. OK tunes
+ * and closes it through [onTune]; Back and the idle timer are handled by the owner. Focus starts on the current channel's row.
  */
 @Composable
 internal fun BoxScope.MiniGuide(
@@ -68,14 +72,15 @@ internal fun BoxScope.MiniGuide(
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { requestFocusWhenAttached(focusRequester) }
 
+    val layout = LocalWindowLayout.current
     Box(
         Modifier
             .align(Alignment.BottomStart)
             .fillMaxWidth()
-            .fillMaxHeight(0.4f)
+            .fillMaxHeight(if (layout.height == SizeClass.COMPACT) 0.6f else 0.4f)
             .background(SofaOverlayScrimDense),
     ) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight().padding(horizontal = 48.dp, vertical = 27.dp)) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight().screenMargins(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).padding(top = layout.verticalMargin)) {
             Text(
                 stringResource(Res.string.mini_guide_title),
                 style = MaterialTheme.typography.titleMedium,
@@ -129,7 +134,7 @@ private fun MiniGuideRowItem(
             channel.number.formatNumber(),
             style = MaterialTheme.typography.titleMedium,
             color = primary,
-            modifier = Modifier.width(96.dp),
+            modifier = Modifier.width(if (LocalWindowLayout.current.width == SizeClass.COMPACT) 56.dp else 96.dp),
         )
         ChannelLogo(channel, 64.dp, 40.dp, Modifier.padding(end = 16.dp))
         Column(Modifier.weight(1f)) {

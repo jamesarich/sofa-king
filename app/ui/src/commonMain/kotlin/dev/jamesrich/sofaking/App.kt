@@ -4,9 +4,10 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -39,7 +42,10 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.ui.LocalWindowLayout
 import dev.jamesrich.sofaking.ui.LogoMark
+import dev.jamesrich.sofaking.ui.SizeClass
+import dev.jamesrich.sofaking.ui.screenMargins
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
@@ -51,6 +57,7 @@ import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
+import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -162,12 +169,19 @@ private fun SofaKingApp(vm: LineupViewModel = koinViewModel()) {
     // in front. The item and playWhenReady survive; on return a fresh session is opened for the same channel
     // and intent and the item is prepared at its URL, at the live edge or still paused.
     val currentScreen by rememberUpdatedState(screen)
+    // A guide too small for its preview band holds no stream, so there is nothing to resume under it.
+    val previewShown by rememberUpdatedState(PREVIEW_ENABLED && LocalWindowLayout.current.showsPreview)
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         player.stop()
         sessions.releaseAsync()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (currentScreen != Screen.Settings && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
+        val resumable = when (currentScreen) {
+            Screen.Settings -> false
+            is Screen.Guide -> previewShown
+            is Screen.Player -> true
+        }
+        if (resumable && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
             captionSync.effectiveUs = captionSync.advanceUs
             scope.launch { resume(player, sessions) }
         }
@@ -326,35 +340,57 @@ private fun GuideOrEmpty(
     }
 }
 
-/** App bar above the guide, inside the overscan margins; the mark sits within the buttons' height so no grid row is lost. */
+/**
+ * App bar above the guide, inside the screen margins; the mark sits within the buttons' height so no grid row is
+ * lost. A narrow window keeps the mark and the buttons and drops the name and the loader's word.
+ */
 @Composable
 private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit, onRefresh: () -> Unit, settingsFocus: FocusRequester) {
+    val narrow = LocalWindowLayout.current.width == SizeClass.COMPACT
+    val appName = stringResource(Res.string.app_name)
     Row(
-        Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, top = 27.dp),
+        Modifier.fillMaxWidth().screenMargins(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LogoMark(40.dp)
-        Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+        LogoMark(40.dp, Modifier.semantics { if (narrow) contentDescription = appName })
+        if (narrow) {
+            Spacer(Modifier.weight(1f))
+        } else {
+            Text(
+                appName,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
         // The lineup on screen stays usable while it refreshes; the loader only says new data is on its way.
         AnimatedVisibility(
             visible = refreshing,
             enter = PopIn,
             exit = PopOut,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val refreshingLabel = stringResource(Res.string.refreshing)
+            Row(
+                Modifier.semantics(mergeDescendants = true) { if (narrow) contentDescription = refreshingLabel },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 SofaLoader(size = 28.dp)
-                Text(
-                    stringResource(Res.string.refreshing),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (!narrow) {
+                    Text(
+                        refreshingLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
         // The last text is kept so the notice reads while it fades out.
         var lastNotice by remember { mutableStateOf("") }
         LaunchedEffect(notice) { if (notice != null) lastNotice = notice }
-        AnimatedVisibility(visible = notice != null, enter = PopIn, exit = PopOut) {
+        AnimatedVisibility(visible = notice != null, enter = PopIn, exit = PopOut, modifier = Modifier.weight(1f, fill = false)) {
             Text(
                 notice ?: lastNotice,
                 style = MaterialTheme.typography.labelLarge,
@@ -363,8 +399,8 @@ private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        SofaButton(onClick = onRefresh) { Text(stringResource(Res.string.refresh)) }
-        SofaButton(onClick = onSettings, modifier = Modifier.focusRequester(settingsFocus)) { Text(stringResource(Res.string.settings)) }
+        SofaButton(onClick = onRefresh) { Text(stringResource(Res.string.refresh), maxLines = 1) }
+        SofaButton(onClick = onSettings, modifier = Modifier.focusRequester(settingsFocus)) { Text(stringResource(Res.string.settings), maxLines = 1) }
     }
 }
 

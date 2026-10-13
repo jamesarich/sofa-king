@@ -65,7 +65,7 @@ jobs:
         run: >-
           ./gradlew --continue
           :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest
-          :core:compileTestKotlinLinuxX64 :ui:compileTestKotlinIosSimulatorArm64
+          :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
           :androidApp:lintDebug :androidApp:assembleRelease
           :ui:wasmJsBrowserDistribution
       - name: Upload reports
@@ -106,11 +106,14 @@ jobs:
         with:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
-      - name: Test Apple targets and link the iOS framework
+      # The device targets cannot run tests here, so they only compile.
+      - name: Test Apple targets, compile the device targets and link the iOS framework
         run: >-
           ./gradlew --continue
           :core:iosSimulatorArm64Test :core:macosArm64Test :core:tvosSimulatorArm64Test
           :core:watchosSimulatorArm64Test :ui:iosSimulatorArm64Test
+          :core:compileKotlinIosArm64 :core:compileKotlinTvosArm64 :core:compileKotlinWatchosArm64
+          :ui:compileKotlinIosArm64
           :ui:linkDebugFrameworkIosSimulatorArm64
       - name: Upload reports
         if: failure()

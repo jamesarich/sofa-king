@@ -25,6 +25,8 @@ targets:
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+        # core has no tvosX64 target, so simulator builds are Apple silicon only.
+        "EXCLUDED_ARCHS[sdk=appletvsimulator*]": x86_64
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../core/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         OTHER_LDFLAGS: [-framework, SofaKingCore]
     preBuildScripts:

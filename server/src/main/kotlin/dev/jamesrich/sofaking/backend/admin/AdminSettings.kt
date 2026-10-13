@@ -64,6 +64,7 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
             s("SOFA_ALLOW_LOOPBACK_UPSTREAMS", config.allowLoopbackUpstreams, false),
             s("SOFA_LOG_LEVEL", config.logging.level, "info"),
             s("SOFA_LOG_FORMAT", config.logging.format, "text"),
+            s("SOFA_CORS_ORIGINS", config.corsOrigins.joinToString(), ""),
         )),
         SettingGroup("Tokens", listOf(
             secret("SOFA_API_TOKEN", config.apiToken, "Opens /api/v1; the Sofa King app needs it"),

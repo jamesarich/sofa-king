@@ -17,6 +17,7 @@ dependencies {
     implementation(libs.ktor.body.limit)
     implementation(libs.ktor.rate.limit)
     implementation(libs.ktor.call.id)
+    implementation(libs.ktor.cors)
     implementation(libs.ktor.call.logging)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)

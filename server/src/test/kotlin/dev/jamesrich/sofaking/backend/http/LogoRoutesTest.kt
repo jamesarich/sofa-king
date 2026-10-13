@@ -43,12 +43,12 @@ class LogoRoutesTest {
 
                 val catalogResponse = client.get("/api/v1/channels") { bearerAuth(token) }
                 val channels = Json.decodeFromString<Catalog>(catalogResponse.bodyAsText()).channels
-                assertEquals("$base$logoPath", channels.single { it.displayNumber == "11" }.logo)
+                assertEquals(logoPath, channels.single { it.displayNumber == "11" }.logo, "the catalog's logos are server-relative")
                 assertNull(channels.single { it.displayNumber == "5" }.logo)
                 assertEquals(HttpStatusCode.NotModified, client.get("/api/v1/channels") { bearerAuth(token); header(HttpHeaders.IfNoneMatch, catalogResponse.headers[HttpHeaders.ETag]!!) }.status)
-                // The body depends on the Host the client used, so the ETag does too.
-                assertEquals(HttpStatusCode.OK, client.get("/api/v1/channels") { bearerAuth(token); header(HttpHeaders.Host, "tv.lan:9193"); header(HttpHeaders.IfNoneMatch, catalogResponse.headers[HttpHeaders.ETag]!!) }.status)
-                assertEquals("http://tv.lan:9193$logoPath", Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token); header(HttpHeaders.Host, "tv.lan:9193") }.bodyAsText()).channels.single { it.displayNumber == "11" }.logo)
+                // The body is the same whatever Host the client used, so the ETag is too.
+                assertEquals(HttpStatusCode.NotModified, client.get("/api/v1/channels") { bearerAuth(token); header(HttpHeaders.Host, "tv.lan:9193"); header(HttpHeaders.IfNoneMatch, catalogResponse.headers[HttpHeaders.ETag]!!) }.status)
+                assertEquals(logoPath, Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token); header(HttpHeaders.Host, "tv.lan:9193") }.bodyAsText()).channels.single { it.displayNumber == "11" }.logo)
 
                 val playlist = client.get("/output/playlist.m3u?token=$output").bodyAsText()
                 assertTrue(playlist.contains(" tvg-logo=\"$base$logoPath\" group-title=\"News\",Logo Station"), playlist)
@@ -80,7 +80,7 @@ class LogoRoutesTest {
                 val svgUrl = "${fixture.base}/logo.svg"
                 client.patch("/api/v1/admin/lineup/$entry") { bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"logo":"$svgUrl"}""") }
                 val svgPath = "/logos/${LogoCache.keyOf(svgUrl)}"
-                assertEquals("$base$svgPath", Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single { it.displayNumber == "11" }.logo)
+                assertEquals(svgPath, Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single { it.displayNumber == "11" }.logo)
                 assertTrue(client.get("/output/playlist.m3u?token=$output").bodyAsText().contains("tvg-logo=\"$base$svgPath\""))
                 val svg = client.get(svgPath)
                 assertEquals(HttpStatusCode.OK, svg.status)

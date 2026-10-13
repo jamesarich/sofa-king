@@ -5,6 +5,11 @@ import dev.jamesrich.sofaking.backend.logging.LogSettings
 import java.nio.file.Files
 import java.nio.file.Path
 
+/** One browser origin allowed to call the server cross-origin: [host] carries the port when the origin names one. */
+data class CorsOrigin(val scheme: String, val host: String) {
+    override fun toString(): String = "$scheme://$host"
+}
+
 /** Player outputs: the token the M3U, XMLTV and stream URLs carry, and how far ahead the XMLTV reaches. */
 data class OutputConfig(
     val token: String? = null,
@@ -77,6 +82,8 @@ data class ServerConfig(
     val logging: LogSettings = LogSettings(),
     /** `SOFA_REVISION`, the commit the image was built from; `unknown` outside the image. */
     val revision: String = "unknown",
+    /** `SOFA_CORS_ORIGINS`: the browser origins that may call the API from another origin; empty sends no CORS headers. */
+    val corsOrigins: List<CorsOrigin> = emptyList(),
 ) {
     companion object {
         /** Where earlier images kept the database; a database there and none in the data directory stops the start. */
@@ -223,8 +230,21 @@ data class ServerConfig(
                 plex,
                 logging = LogSettings.from(environment),
                 revision = environment["SOFA_REVISION"]?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown",
+                corsOrigins = corsOrigins(environment["SOFA_CORS_ORIGINS"]),
             )
         }
+
+        internal fun corsOrigins(value: String?): List<CorsOrigin> =
+            value.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }.map { origin ->
+                val uri = runCatching { java.net.URI(origin) }.getOrNull()
+                val scheme = uri?.scheme?.lowercase()
+                require(
+                    uri != null && (scheme == "http" || scheme == "https") && !uri.host.isNullOrEmpty() && uri.rawUserInfo == null &&
+                        uri.rawPath.isNullOrEmpty() && uri.rawQuery == null && uri.rawFragment == null,
+                ) { "SOFA_CORS_ORIGINS takes origins like https://tv.example.com or http://host:8080, separated by commas: $origin" }
+                val host = uri!!.host.lowercase()
+                CorsOrigin(scheme!!, if (uri.port == -1) host else "$host:${uri.port}")
+            }.distinct()
 
         private fun plexConfig(environment: Map<String, String>, hdhrEnabled: Boolean): PlexConfig? {
             val url = environment["SOFA_PLEX_URL"]

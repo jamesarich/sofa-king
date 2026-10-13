@@ -26,6 +26,7 @@ import io.ktor.server.plugins.compression.condition
 import io.ktor.server.plugins.compression.deflate
 import io.ktor.server.plugins.compression.gzip
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -95,6 +96,17 @@ fun Application.backendModule(
         format { call ->
             "request method=${call.request.httpMethod.value} path=${routedPath(call.request.path()) ?: "-"} " +
                 "status=${call.response.status()?.value ?: "-"} durationMs=${call.processingTimeMillis()}"
+        }
+    }
+    // Bearer tokens, not cookies, authorize the API, so credentials stay off; the portal's cookie never crosses origins.
+    config?.corsOrigins?.takeIf { it.isNotEmpty() }?.let { origins ->
+        install(CORS) {
+            origins.forEach { allowHost(it.host, schemes = listOf(it.scheme)) }
+            allowMethod(HttpMethod.Put); allowMethod(HttpMethod.Patch); allowMethod(HttpMethod.Delete)
+            allowHeader(HttpHeaders.Authorization); allowHeader(HttpHeaders.ContentType)
+            allowHeader(HttpHeaders.IfNoneMatch); allowHeader(HttpHeaders.IfMatch); allowHeader(HttpHeaders.XRequestId)
+            exposeHeader(HttpHeaders.ETag); exposeHeader(HttpHeaders.XRequestId)
+            maxAgeInSeconds = 600
         }
     }
     install(RequestBodyLimit) { bodyLimit { call -> requestBodyLimit(call.request.httpMethod, routedPath(call.request.path())) } }
@@ -172,15 +184,14 @@ fun Application.backendModule(
         if (runtime != null) {
             get("/api/v1/channels") {
                 // The revision is cheap; the body is not, so answer a matching If-None-Match before building it.
-                // Logo URLs derive from the request Host, so the ETag covers it too.
+                // Logos are server-relative, so a client behind any proxy or path prefix resolves them on its own base URL.
                 val revision = runtime.catalog.catalogRevision()
-                val base = publicBase(call)
-                val etag = "\"${hash("$revision:$base")}\""
+                val etag = "\"${hash(revision)}\""
                 call.response.header(HttpHeaders.ETag, etag)
                 if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) call.respond(HttpStatusCode.NotModified)
                 else {
                     val catalog = runtime.catalog.catalog(revision)
-                    call.respond(catalog.copy(channels = catalog.channels.map { channel -> channel.copy(logo = channel.logo?.let { runtime.logos.publicUrl(base, it) }) }))
+                    call.respond(catalog.copy(channels = catalog.channels.map { channel -> channel.copy(logo = channel.logo?.let { runtime.logos.publicUrl("", it) }) }))
                 }
             }
             get("/api/v1/providers") { call.respond(runtime.feeds.providers()) }

@@ -38,6 +38,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_PLEX_TUNER_BASE` | Unset | Scheme and host Plex reaches this server's tuners on, as `http(s)://HOST` with no port, path, query or credentials, for example `http://192.168.1.3`. When set, a sync adds devices Plex lacks |
 | `SOFA_LOG_LEVEL` | `info` | Log level for every logger: `trace`, `debug`, `info`, `warn`, `error` or `off` |
 | `SOFA_LOG_FORMAT` | `text` | `text` for one line per event, or `json` for one JSON object per line with the level, logger, message and request id. Logs go to stderr. See [logs](operations.md#logs) |
+| `SOFA_CORS_ORIGINS` | unset | Comma-separated browser origins, such as `https://tv.example.com,http://192.168.1.20:8080`, that may call the API from a page on another origin, for example the Sofa King web app served elsewhere. Each is `scheme://host[:port]` with no path; `*` is not accepted. Unset sends no CORS headers, so only pages on the server's own origin can use the API from a browser. Tokens still authorize every call; cookies never cross origins |
 | `SOFA_REVISION` | `unknown`; the image sets it | The commit the server was built from, reported by `GET /api/v1/admin/status` and the admin portal footer. The image sets it from its `REVISION` build argument |
 | `TZ` | UTC | Time zone of the process, for example `America/Chicago`. The server stores and serves its times in UTC either way |
 

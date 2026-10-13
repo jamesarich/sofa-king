@@ -19,6 +19,7 @@ ktor-compression = { module = "io.ktor:ktor-server-compression", version.ref = "
 ktor-body-limit = { module = "io.ktor:ktor-server-body-limit", version.ref = "ktor" }
 ktor-rate-limit = { module = "io.ktor:ktor-server-rate-limit", version.ref = "ktor" }
 ktor-call-id = { module = "io.ktor:ktor-server-call-id", version.ref = "ktor" }
+ktor-cors = { module = "io.ktor:ktor-server-cors", version.ref = "ktor" }
 ktor-call-logging = { module = "io.ktor:ktor-server-call-logging", version.ref = "ktor" }
 ktor-test = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
 exposed-core = { module = "org.jetbrains.exposed:exposed-core", version.ref = "exposed" }

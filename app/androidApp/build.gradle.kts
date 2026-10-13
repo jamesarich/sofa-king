@@ -20,6 +20,12 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     buildTypes {
         release {
             // Debug builds compose an 8 s first guide frame on a Chromecast; R8 + non-debuggable is the TV build.
@@ -28,6 +34,14 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+// In AGP 9.5 with Compose enabled, GenerateComposePreviewRunfilesTask requires unit tests to be enabled
+// for all variants so that Android XML resources can be packaged for Layoutlib.
+androidComponents {
+    beforeVariants { variantBuilder ->
+        variantBuilder.hostTests[com.android.build.api.variant.HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
     }
 }
 

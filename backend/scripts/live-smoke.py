@@ -70,8 +70,8 @@ PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4
 
 def check_logos(base, upstream, hls_channel, playlist, guide, data):
     """Every output names the cached copy on this server; the logo route serves it without a token."""
-    assert hls_channel['logo'].startswith(base + '/logos/'), hls_channel
-    logo_url = hls_channel['logo']
+    assert hls_channel['logo'].startswith('/logos/'), hls_channel
+    logo_url = base + hls_channel['logo']
     assert f'tvg-logo="{logo_url}"' in playlist and upstream not in playlist, playlist
     assert f'<icon src="{logo_url}"/>' in guide and upstream not in guide, guide
     with urlopen(logo_url, timeout=5) as response:

@@ -14,9 +14,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration.Companion.seconds
 import org.slf4j.LoggerFactory
 
 /**
@@ -70,11 +72,12 @@ class TsRemux(private val ffmpeg: String) {
         }
     }
 
+    /** Suspends on the exit rather than blocking the request thread while FFmpeg winds down. */
     private suspend fun reap(process: Process) {
         process.destroy()
-        if (!runInterruptible { process.waitFor(2, TimeUnit.SECONDS) }) {
+        if (withTimeoutOrNull(2.seconds) { process.onExit().await() } == null) {
             process.destroyForcibly()
-            runInterruptible { process.waitFor(5, TimeUnit.SECONDS) }
+            withTimeoutOrNull(5.seconds) { process.onExit().await() }
         }
     }
 

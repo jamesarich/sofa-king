@@ -1,7 +1,13 @@
 package dev.jamesrich.sofaking.data
 
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.core.okio.WebLocalStorage
+import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.PreferencesSerializer
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.emptyPreferences
@@ -11,15 +17,9 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.browser.localStorage
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.float
@@ -30,9 +30,18 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlin.io.encoding.Base64
 
-/** Settings and the lineup cache in the browser's localStorage, which outlives the tab (DataStore's own web store does not). */
+/**
+ * Settings in DataStore's own localStorage store, which outlives the tab and coordinates writes across tabs, and the
+ * lineup cache in one localStorage entry beside it. Settings an older build kept under `<prefix>.settings` move over
+ * once on the first read.
+ */
 fun AppStorage.Companion.inBrowser(prefix: String = "sofaking"): AppStorage = AppStorage(
-    settings = LocalStorageDataStore("$prefix.settings"),
+    settings = PreferenceDataStoreFactory.create(
+        storage = WebLocalStorage(PreferencesSerializer, "$prefix.preferences"),
+        corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+        migrations = listOf(LegacyLocalStorageMigration("$prefix.settings")),
+        scope = CoroutineScope(ioDispatcher + SupervisorJob()),
+    ),
     lineupCache = LocalStorageByteStore("$prefix.lineupCache"),
 )
 
@@ -50,46 +59,28 @@ class LocalStorageByteStore(private val key: String) : ByteStore {
 }
 
 /**
- * Preferences as one JSON object in localStorage, each value tagged with its type so its key can be rebuilt.
- * Single-tab: another tab's writes are seen on the next load, not live.
+ * Moves the hand-written store's one JSON object, each value tagged with its type, into DataStore, then removes it.
+ * An entry that cannot be read is dropped rather than failing every read of the settings.
  */
-internal class LocalStorageDataStore(private val key: String) : DataStore<Preferences> {
-    private val mutex = Mutex()
-    private val state = MutableStateFlow(load())
+internal class LegacyLocalStorageMigration(private val key: String) : DataMigration<Preferences> {
+    override suspend fun shouldMigrate(currentData: Preferences): Boolean = localStorage.getItem(key) != null
 
-    override val data: Flow<Preferences> = state.asStateFlow()
-
-    override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences = mutex.withLock {
-        val updated = transform(state.value).toPreferences()
-        localStorage.setItem(key, encode(updated))
-        state.value = updated
-        updated
+    override suspend fun migrate(currentData: Preferences): Preferences {
+        val text = localStorage.getItem(key) ?: return currentData
+        val prefs = currentData.toMutablePreferences()
+        try {
+            decodeInto(prefs, text)
+        } catch (_: Exception) {
+            return currentData
+        }
+        return prefs.toPreferences()
     }
 
-    private fun load(): Preferences = try {
-        localStorage.getItem(key)?.let(::decode) ?: emptyPreferences()
-    } catch (_: Exception) {
-        emptyPreferences()
+    override suspend fun cleanUp() {
+        localStorage.removeItem(key)
     }
 
-    private fun encode(prefs: Preferences): String = JsonObject(
-        prefs.asMap().entries.associate { (key, value) ->
-            val tagged = when (value) {
-                is Boolean -> tag("b", JsonPrimitive(value))
-                is Int -> tag("i", JsonPrimitive(value))
-                is Long -> tag("l", JsonPrimitive(value))
-                is Float -> tag("f", JsonPrimitive(value))
-                is Double -> tag("d", JsonPrimitive(value))
-                is String -> tag("s", JsonPrimitive(value))
-                is Set<*> -> tag("ss", JsonArray(value.map { JsonPrimitive(it as String) }))
-                else -> error("unsupported preference type for ${key.name}")
-            }
-            key.name to tagged
-        },
-    ).toString()
-
-    private fun decode(text: String): Preferences {
-        val prefs = emptyPreferences().toMutablePreferences()
+    private fun decodeInto(prefs: MutablePreferences, text: String) {
         for ((name, tagged) in Json.parseToJsonElement(text).jsonObject) {
             val entry = tagged.jsonObject
             val value = entry.getValue("v")
@@ -103,9 +94,5 @@ internal class LocalStorageDataStore(private val key: String) : DataStore<Prefer
                 "ss" -> prefs[stringSetPreferencesKey(name)] = value.jsonArray.mapTo(HashSet()) { it.jsonPrimitive.content }
             }
         }
-        return prefs.toPreferences()
     }
-
-    private fun tag(type: String, value: kotlinx.serialization.json.JsonElement) =
-        JsonObject(mapOf("t" to JsonPrimitive(type), "v" to value))
 }

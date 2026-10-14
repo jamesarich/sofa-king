@@ -148,9 +148,11 @@ internal fun authorizeOutput(call: ApplicationCall, outputToken: String?, apiTok
     }
 }
 
+private val HOST_HEADER = Regex("[A-Za-z0-9.\\-\\[\\]:]{1,253}")
+
 /** The address the player reached us by, so generated URLs work through port mappings; `X-Forwarded-Proto` names a TLS proxy. */
 internal fun publicBase(call: ApplicationCall): String {
-    val host = call.request.headers[HttpHeaders.Host]?.takeIf { it.matches(Regex("[A-Za-z0-9.\\-\\[\\]:]{1,253}")) }
+    val host = call.request.headers[HttpHeaders.Host]?.takeIf { it.matches(HOST_HEADER) }
         ?: "${call.request.origin.localAddress}:${call.request.origin.localPort}"
     val scheme = call.request.headers["X-Forwarded-Proto"]?.takeIf { it == "https" } ?: call.request.origin.scheme
     return "$scheme://$host"
@@ -158,7 +160,9 @@ internal fun publicBase(call: ApplicationCall): String {
 
 internal fun tokenQuery(token: String?): String = token?.let { "?token=" + URLEncoder.encode(it, Charsets.UTF_8) } ?: ""
 
-private fun attribute(value: String): String = value.replace('"', '\'').replace(Regex("[\\r\\n]"), " ").trim()
+private val LINE_BREAK = Regex("[\\r\\n]")
+
+private fun attribute(value: String): String = value.replace('"', '\'').replace(LINE_BREAK, " ").trim()
 
 private val xmltvFormat = DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneOffset.UTC)
 

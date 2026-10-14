@@ -200,17 +200,13 @@ class ProbeWorker(
 
     internal fun classify(error: String): FailureClass =
         when {
-            Regex("(?i)(HTTP error |server returned )(401|403)\\b").containsMatchIn(error) -> FailureClass.AUTH
+            AUTH_ERROR.containsMatchIn(error) -> FailureClass.AUTH
 
-            Regex("(?i)(HTTP error |server returned )429\\b").containsMatchIn(error) -> FailureClass.RATE_LIMIT
+            RATE_LIMIT_ERROR.containsMatchIn(error) -> FailureClass.RATE_LIMIT
 
-            Regex(
-                "(?i)HTTP error 5[0-9]{2}|server returned 5(XX|[0-9]{2})|connection refused|failed to resolve|network is unreachable|connection timed out|connection reset|broken pipe|TLS handshake",
-            ).containsMatchIn(error) -> FailureClass.PROVIDER
+            PROVIDER_ERROR.containsMatchIn(error) -> FailureClass.PROVIDER
 
-            Regex(
-                "(?i)decoder .*not found|unknown decoder|permission denied|no space left|cannot allocate memory|resource temporarily unavailable|protocol not found",
-            ).containsMatchIn(error) -> FailureClass.LOCAL
+            LOCAL_ERROR.containsMatchIn(error) -> FailureClass.LOCAL
 
             else -> FailureClass.OFFERING
         }
@@ -247,8 +243,8 @@ class ProbeWorker(
                     FailureClass.PROVIDER
                 } else {
                     val progress = Files.readString(output)
-                    val frames = Regex("(?m)^frame=(\\d+)$").findAll(progress).lastOrNull()?.groupValues?.get(1)?.toLongOrNull() ?: 0
-                    val micros = Regex("(?m)^out_time_us=(\\d+)$").findAll(progress).lastOrNull()?.groupValues?.get(1)?.toLongOrNull() ?: 0
+                    val frames = FRAME_LINE.findAll(progress).lastOrNull()?.groupValues?.get(1)?.toLongOrNull() ?: 0
+                    val micros = OUT_TIME_LINE.findAll(progress).lastOrNull()?.groupValues?.get(1)?.toLongOrNull() ?: 0
                     // FFmpeg 6 reports no frame count when copying, so a recheck stands on the output time alone.
                     val enoughFrames = recheck || frames >= config.decodeSeconds
                     if (owned.exitValue() == 0 && enoughFrames && micros >= (config.decodeSeconds - 1) * 1_000_000L) {
@@ -276,6 +272,22 @@ class ProbeWorker(
             }
         }
 }
+
+/** FFmpeg error lines, by the failure they show. */
+private val AUTH_ERROR = Regex("(?i)(HTTP error |server returned )(401|403)\\b")
+private val RATE_LIMIT_ERROR = Regex("(?i)(HTTP error |server returned )429\\b")
+private val PROVIDER_ERROR =
+    Regex(
+        "(?i)HTTP error 5[0-9]{2}|server returned 5(XX|[0-9]{2})|connection refused|failed to resolve|network is unreachable|connection timed out|connection reset|broken pipe|TLS handshake",
+    )
+private val LOCAL_ERROR =
+    Regex(
+        "(?i)decoder .*not found|unknown decoder|permission denied|no space left|cannot allocate memory|resource temporarily unavailable|protocol not found",
+    )
+
+/** Lines of FFmpeg's `-progress` output. */
+private val FRAME_LINE = Regex("(?m)^frame=(\\d+)$")
+private val OUT_TIME_LINE = Regex("(?m)^out_time_us=(\\d+)$")
 
 /** The FFmpeg command that reads [seconds] of [offering]'s first video stream, decoding it or, with [copy], copying it. */
 internal fun decodeCommand(ffmpeg: String, offering: Offering, headers: Map<String, String>, seconds: Int, copy: Boolean): List<String> {

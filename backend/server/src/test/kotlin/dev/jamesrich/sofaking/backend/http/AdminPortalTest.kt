@@ -270,6 +270,7 @@ class AdminPortalTest {
             val icon = client.get("/admin/static/icon.svg")
             assertEquals(HttpStatusCode.OK, icon.status)
             assertEquals(ContentType.Image.SVG, icon.contentType()?.withoutParameters())
+            assertEquals("private, max-age=86400", icon.headers[HttpHeaders.CacheControl])
             assertFalse(icon.bodyAsText().contains("<script"))
         }
     }

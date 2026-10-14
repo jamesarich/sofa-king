@@ -11,10 +11,11 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.UIKitView
 import dev.jamesrich.sofaking.data.PlaybackStream
-import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -33,10 +34,13 @@ import platform.AVFoundation.AVMediaSelectionOption
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
+import platform.AVFoundation.AVPlayerItemFailedToPlayToEndTimeNotification
+import platform.AVFoundation.AVPlayerItemPlaybackStalledNotification
 import platform.AVFoundation.AVPlayerItemStatusFailed
 import platform.AVFoundation.AVPlayerItemErrorLogEvent
 import platform.AVFoundation.AVPlayerItemStatusReadyToPlay
 import platform.AVFoundation.AVPlayerLayer
+import platform.AVFoundation.AVPlayerRateDidChangeNotification
 import platform.AVFoundation.AVPlayerTimeControlStatusPlaying
 import platform.AVFoundation.AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate
 import platform.AVFoundation.asset
@@ -54,17 +58,13 @@ import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSData
 import platform.Foundation.NSDate
 import platform.Foundation.NSError
-import platform.Foundation.NSKeyValueObservingOptionNew
-import platform.Foundation.NSKeyValueObservingProtocol
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLErrorDomain
 import platform.Foundation.NSURLErrorTimedOut
 import platform.Foundation.NSURLSession
-import platform.Foundation.addObserver
 import platform.Foundation.dataTaskWithURL
-import platform.Foundation.removeObserver
 import platform.MediaPlayer.MPMediaItemArtwork
 import platform.MediaPlayer.MPMediaItemPropertyArtist
 import platform.MediaPlayer.MPMediaItemPropertyArtwork
@@ -77,7 +77,6 @@ import platform.QuartzCore.CATransaction
 import platform.UIKit.UIColor
 import platform.UIKit.UIImage
 import platform.UIKit.UIView
-import platform.darwin.NSObject
 import platform.darwin.NSObjectProtocol
 import kotlin.time.Clock
 
@@ -90,8 +89,9 @@ actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
 
 /**
  * The iOS player on AVPlayer. It plays HLS (AVFoundation has no raw MPEG-TS over HTTP) and draws the stream's
- * closed captions in the viewer's iOS caption style. AVFoundation reports state through KVO; each change is read
- * again on the main thread into [status], which is all the screens need.
+ * closed captions in the viewer's iOS caption style. Kotlin cannot override the KVO callback, so the state is read
+ * on each command and each player notification (rate change, stall, failure, end), then every quarter second only
+ * until it settles: playing with a frame on screen, paused, idle, failed or ended.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer {
@@ -111,22 +111,26 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
     override val cues: StateFlow<List<CaptionCue>> = MutableStateFlow(emptyList<CaptionCue>()).asStateFlow()
 
-    private val endObserver: NSObjectProtocol = NSNotificationCenter.defaultCenter.addObserverForName(
-        name = AVPlayerItemDidPlayToEndTimeNotification,
-        `object` = null,
-        queue = NSOperationQueue.mainQueue,
-    ) { _ ->
-        ended = true
-        publishStatus()
+    private val wake = Channel<Unit>(Channel.CONFLATED)
+
+    private val observers: List<NSObjectProtocol> = listOf(
+        AVPlayerItemDidPlayToEndTimeNotification,
+        AVPlayerItemFailedToPlayToEndTimeNotification,
+        AVPlayerItemPlaybackStalledNotification,
+        AVPlayerRateDidChangeNotification,
+    ).map { name ->
+        NSNotificationCenter.defaultCenter.addObserverForName(name = name, `object` = null, queue = NSOperationQueue.mainQueue) { note ->
+            if (note?.name == AVPlayerItemDidPlayToEndTimeNotification) ended = true
+            refresh()
+        }
     }
 
-    /** KVO may call from any thread; the state is read again on the main thread. */
-    private val observer = KeyValueObserver { scope.launch { publishStatus() } }
-
     init {
-        // A key path through currentItem follows each new item without re-registering.
-        for (key in PLAYER_KEYS) av.addObserver(observer, forKeyPath = key, options = NSKeyValueObservingOptionNew, context = null)
-        playerLayer.addObserver(observer, forKeyPath = READY_FOR_DISPLAY, options = NSKeyValueObservingOptionNew, context = null)
+        scope.launch {
+            for (signal in wake) {
+                while (!publishStatus()) delay(250)
+            }
+        }
     }
 
     override val currentChannelId: String? get() = stream?.channelId
@@ -146,7 +150,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         set(value) {
             field = value
             if (value) av.play() else av.pause()
-            publishStatus()
+            refresh()
         }
 
     override fun setCaptionsEnabled(enabled: Boolean) {
@@ -169,13 +173,13 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         av.replaceCurrentItemWithPlayerItem(AVPlayerItem(uRL = url))
         applyCaptions()
         if (playWhenReady) av.play()
-        publishStatus()
+        refresh()
     }
 
     override fun stop() {
         av.pause()
         av.replaceCurrentItemWithPlayerItem(null)
-        publishStatus()
+        refresh()
     }
 
     override fun play() {
@@ -269,9 +273,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     }
 
     override fun release() {
-        NSNotificationCenter.defaultCenter.removeObserver(endObserver)
-        for (key in PLAYER_KEYS) av.removeObserver(observer, forKeyPath = key)
-        playerLayer.removeObserver(observer, forKeyPath = READY_FOR_DISPLAY)
+        observers.forEach(NSNotificationCenter.defaultCenter::removeObserver)
         av.pause()
         av.replaceCurrentItemWithPlayerItem(null)
         scope.cancel()
@@ -284,7 +286,14 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         item.selectMediaOption(option, group)
     }
 
-    private fun publishStatus() {
+    /** Publishes the state now and keeps reading it until it settles. */
+    private fun refresh() {
+        publishStatus()
+        wake.trySend(Unit)
+    }
+
+    /** Publishes the state; true once it is settled and needs no further reads until something changes. */
+    private fun publishStatus(): Boolean {
         val item = av.currentItem
         val playing = av.timeControlStatus == AVPlayerTimeControlStatusPlaying
         val state = when {
@@ -303,18 +312,13 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         }
         _status.value = PlayerStatus(state, playing, playWhenReady)
         // Like Android's shutter, it covers only from a reset until the first frame, not each rebuffer.
-        hasFrame.value = item != null && playerLayer.readyForDisplay
-    }
-}
-
-private val PLAYER_KEYS = listOf("timeControlStatus", "currentItem.status")
-private const val READY_FOR_DISPLAY = "readyForDisplay"
-
-/** Hands every KVO change to [onChange]; what changed is read from the player itself. */
-@OptIn(ExperimentalForeignApi::class)
-private class KeyValueObserver(private val onChange: () -> Unit) : NSObject(), NSKeyValueObservingProtocol {
-    override fun observeValueForKeyPath(keyPath: String?, ofObject: Any?, change: Map<Any?, *>?, context: COpaquePointer?) {
-        onChange()
+        val shown = item != null && playerLayer.readyForDisplay
+        hasFrame.value = shown
+        return when {
+            item == null || ended || item.status == AVPlayerItemStatusFailed -> true
+            playWhenReady -> playing && shown
+            else -> item.status == AVPlayerItemStatusReadyToPlay && shown
+        }
     }
 }
 
@@ -324,7 +328,8 @@ private class KeyValueObserver(private val onChange: () -> Unit) : NSObject(), N
  */
 private fun playerErrorFor(error: NSError?, httpStatus: Long?): PlayerError {
     if (httpStatus != null && httpStatus >= 400) return PlayerError("ERROR_CODE_IO_BAD_HTTP_STATUS", streamGone = httpStatus == 410L)
-    val code = when (error?.domain) {
+    if (error == null) return PlayerError("ERROR_CODE_UNSPECIFIED")
+    val code = when (error.domain) {
         NSURLErrorDomain -> if (error.code == NSURLErrorTimedOut) "ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT" else "ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"
         AVFoundationErrorDomain -> when (error.code) {
             AVErrorFileFormatNotRecognized, AVErrorFailedToParse -> "ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED"

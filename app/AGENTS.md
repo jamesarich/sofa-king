@@ -1,6 +1,6 @@
 # Sofa King app
 
-Kotlin Multiplatform: `core` (data, no Compose, every target its dependencies publish), `ui` (Compose Multiplatform screens for Android, JVM desktop, iOS, js and wasmJs), `androidApp` (the Android TV app shell) and `iosApp` (SwiftUI host). Read README, docs/README.md and docs/architecture.md for current setup and behavior.
+Kotlin Multiplatform: `core` (data, no Compose, every target its dependencies publish), `ui` (Compose Multiplatform screens for Android, JVM desktop, iOS, js and wasmJs), `androidApp` (the Android TV app shell) `iosApp` (SwiftUI host) and `tvosApp` (the SwiftUI Apple TV app on `core`'s `SofaKingTv`, since Compose does not render on tvOS). Read README, docs/README.md and docs/architecture.md for current setup and behavior.
 
 ## Build
 
@@ -23,15 +23,15 @@ Dependencies are locked; docs/dependencies.md has the update steps (`--write-loc
 All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `commonTest`, `jvmTest` or `androidHostTest`.
 
 - `core/.../data`: `SofaKingApi` (Ktor, `wireJson`), `SofaKingRepository` and `SofaKingMapper` (catalog and chunked guide queries to `Channel` and `Programme`), `PlaybackSessions`, `LineupCache`, `DataStoreSettingsStore`. `core/.../LineupViewModel` owns settings flows, lineup state, refresh, the cache and the one `PlaybackSessions`.
-- `ui/.../App.kt` routes between screens and holds the player; `Launch.kt` makes the cold-start decision; `AppModule.kt` is the Koin graph.
+- `ui/.../App.kt` routes between screens and holds the player; `Launch.kt` makes the cold-start decision; `AppGraph.kt` holds the process-wide objects.
 - `ui/.../ui/guide`, `ui/preview`, `ui/player`, `ui/settings`: screens. Key mapping, back, focus and timing decisions are plain functions or classes beside the composables (`GuideKeys`, `GuideBack`, `PlayerKeys`, `PreviewDwell`, `launchTarget`), unit-tested without a device; put new decisions there too.
 - Platform source sets (`androidMain`, `jvmMain`, `iosMain`, `webMain`) hold the `LivePlayer` implementations and the other `expect` seams.
 
 ## Code placement
 
 - Put code in `commonMain`. A platform source set holds only what needs that platform's API, behind an `expect` or an interface; `LivePlayer`, `rememberVoiceSearch`, `rememberIsTelevision`, `KeepScreenOn`, `rememberScreenReaderActive` and the key-repeat accessors are the seams.
-- `core` stays free of Compose and Koin so a native host can use it. Its models are plain data classes; `ui/compose-stability.conf` marks them stable.
-- Wire objects through constructors; `appModule` in `ui` is the Koin graph and `initSofaKing` starts it once per process from each entry point.
+- `core` stays free of Compose so a native host can use it. Its models are plain data classes; `ui/compose-stability.conf` marks them stable.
+- Wire objects through constructors; `AppGraph` in `ui` holds the one settings store, `initSofaKing` starts it once per process from each entry point, and screens get `LineupViewModel` from lifecycle's `viewModel { }`.
 - No `java.*`, `android.*` or JVM-only collection APIs in common code: `kotlin.time` for instants and durations, kotlinx-datetime for wall-clock formatting, kotlinx-io for files, Ktor for HTTP, Kermit for logs, `kotlin.uuid` for ids.
 
 ## UI

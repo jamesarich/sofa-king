@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
+import java.util.HexFormat
 import java.util.concurrent.atomic.AtomicReference
 
 class ApiFailure(
@@ -274,4 +275,4 @@ class FeedService(
         }
 }
 
-fun hash(value: String): String = MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }
+fun hash(value: String): String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.toByteArray()))

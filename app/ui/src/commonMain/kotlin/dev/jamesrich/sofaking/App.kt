@@ -17,9 +17,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,9 +31,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.withStateAtLeast
 import dev.jamesrich.sofaking.data.AppSettings
-import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
@@ -60,9 +60,9 @@ import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import org.jetbrains.compose.resources.stringResource
-import org.koin.compose.viewmodel.koinViewModel
-import org.koin.core.context.startKoin
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.runtime.CompositionLocalProvider
 import dev.jamesrich.sofaking.ui.LocalLastInput
@@ -71,14 +71,6 @@ import dev.jamesrich.sofaking.ui.rememberLastInput
 import dev.jamesrich.sofaking.ui.rememberLayoutProfile
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.trackLastInput
-
-/**
- * Starts the app's object graph over [storage]; each platform's entry point calls it once per process, before
- * the first [App], because DataStore allows one instance per file and composition can be recreated.
- */
-fun initSofaKing(storage: AppStorage) {
-    startKoin { modules(appModule(storage)) }
-}
 
 /** The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the user is on. */
 @Composable
@@ -91,24 +83,33 @@ fun App() {
     }
 }
 
+/** The screen the user is on; it survives a restore, but the one-shot arrival details marked [Transient] do not. */
+@Serializable
 private sealed interface Screen {
     /**
      * [atNow] moves the guide's cursor to the current time on arrival (the Guide key from the player); [search]
      * opens its search by voice (the Search key); [returnedFrom] is the channel the player was left on, which
-     * the guide focuses and the preview must not reopen by itself until focus moves. None survives a restore.
+     * the guide focuses and the preview must not reopen by itself until focus moves.
      */
-    data class Guide(val atNow: Boolean = false, val search: Boolean = false, val returnedFrom: String? = null) : Screen
-    /** [scope] is the guide filter the channel was picked from, which Up and Down stay in; it does not survive a restore. */
-    data class Player(val guideId: String, val scope: ZapScope? = null) : Screen
+    @Serializable
+    data class Guide(
+        val atNow: Boolean = false,
+        @Transient val search: Boolean = false,
+        @Transient val returnedFrom: String? = null,
+    ) : Screen
+    /** [scope] is the guide filter the channel was picked from, which Up and Down stay in. */
+    @Serializable
+    data class Player(val guideId: String, @Transient val scope: ZapScope? = null) : Screen
+    @Serializable
     data object Settings : Screen
 }
 
 @Composable
-private fun SofaKingApp(vm: LineupViewModel = koinViewModel()) {
+private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewModel() }) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
-    var screen by rememberSaveable(stateSaver = ScreenSaver) { mutableStateOf<Screen>(Screen.Guide()) }
+    var screen by rememberSerializable { mutableStateOf<Screen>(Screen.Guide()) }
     // A short word from the player on its way back to the guide: the channel it was asked for is gone.
     var notice by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(notice) {
@@ -388,21 +389,3 @@ private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit,
 }
 
 private const val NOTICE_MS = 5_000L
-
-private val ScreenSaver = Saver<Screen, String>(
-    save = {
-        when (it) {
-            is Screen.Guide -> if (it.atNow) "guide:now" else "guide"
-            Screen.Settings -> "settings"
-            is Screen.Player -> "player:${it.guideId}"
-        }
-    },
-    restore = {
-        when {
-            it == "settings" -> Screen.Settings
-            it.startsWith("player:") -> Screen.Player(it.removePrefix("player:"))
-            it == "guide:now" -> Screen.Guide(atNow = true)
-            else -> Screen.Guide()
-        }
-    },
-)

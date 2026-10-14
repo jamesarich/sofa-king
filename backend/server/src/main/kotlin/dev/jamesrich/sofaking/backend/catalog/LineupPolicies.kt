@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.contract.*
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.HexFormat
 import java.util.UUID
 import kotlinx.serialization.json.Json
 
@@ -26,7 +27,7 @@ internal fun parsePolicy(bytes: ByteArray): LineupPolicy = policyJson.decodeFrom
 
 /** The SHA-256 of the file bytes, hex. */
 internal fun policyRevision(bytes: ByteArray): String =
-    java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+    HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes))
 
 /** Reads [path] and fails with every validation error at once. */
 fun loadPolicy(path: Path, providerIds: Set<String>): LoadedPolicy {

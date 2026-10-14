@@ -10,7 +10,7 @@ Use JDK 21 and an Android SDK configured in `app/local.properties`. The app's Gr
 /home/james/.claude/bin/gradle-queue -C app -- :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest :androidApp:lintDebug :androidApp:assembleRelease
 ```
 
-After a change to common code also run `:core:compileTestKotlinLinuxX64 :ui:compileTestKotlinIosSimulatorArm64`: Native rejects commas and parentheses in backtick test names and JVM-only APIs that the JVM accepts. Unit tests run against MockWebServer and fakes; no server is needed for offline development. Install release builds on TVs only when requested; release APKs use R8 and the local debug key.
+After a change to common code also run `:core:compileTestKotlinLinuxX64 :ui:compileTestKotlinIosSimulatorArm64`: Native rejects commas and parentheses in backtick test names and JVM-only APIs that the JVM accepts. Unit tests run against Ktor's `MockEngine` (`FakeHttp` in `core` common tests), MockWebServer for JVM socket cases, and fakes; no server is needed for offline development. Install release builds on TVs only when requested; release APKs use R8 and the local debug key.
 
 One test class: `/home/james/.claude/bin/gradle-queue -C app -- :ui:jvmTest --tests 'dev.jamesrich.sofaking.ui.preview.PreviewDwellTest'` (`:core:jvmTest` for the data layer). A new worktree needs a copy of `app/local.properties`.
 

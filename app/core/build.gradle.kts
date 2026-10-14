@@ -52,6 +52,7 @@ kotlin {
             api(libs.kotlinx.coroutines.core)
             api(libs.lifecycle.viewmodel)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.serialization.protobuf)
             implementation("dev.jamesrich.sofaking:contract")
             api(libs.kotlinx.io.core)
             implementation(libs.ktor.client.core)
@@ -62,6 +63,7 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)

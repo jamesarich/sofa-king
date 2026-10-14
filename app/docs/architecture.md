@@ -52,7 +52,7 @@ Network, decoding and cache work run on the IO dispatcher (the default dispatche
 | Android | `files/datastore/settings.preferences_pb` | `files/lineup-cache.bin` |
 | Desktop | `<dir>/datastore/settings.preferences_pb` | `<dir>/lineup-cache.bin` |
 | iOS | `datastore/settings.preferences_pb` under Application Support | `lineup-cache.bin` under Application Support |
-| Web | localStorage of the page's origin, one JSON entry under `sofaking.settings` | localStorage, base64 under `sofaking.lineupCache` |
+| Web | DataStore's localStorage store for the page's origin, under `sofaking.preferences`; an older build's `sofaking.settings` entry moves there on first read | localStorage, base64 under `sofaking.lineupCache` |
 
 On a desktop, `<dir>` is the OS's per-user app data directory:
 
@@ -62,7 +62,7 @@ On a desktop, `<dir>` is the OS's per-user app data directory:
 | macOS | `~/Library/Application Support/Sofa King` |
 | Windows | `%APPDATA%\Sofa King`, or `Sofa King` in the home directory when `APPDATA` is unset |
 
-DataStore allows one instance per file, so the graph holds it as a single and each entry point starts the graph once. The lineup cache is a versioned binary layout (big-endian numbers, length-prefixed UTF-8) that every platform reads and writes the same way.
+DataStore allows one instance per file, so the graph holds it as a single and each entry point starts the graph once. The lineup cache is a big-endian version number followed by a kotlinx-serialization protobuf record, which every platform reads and writes the same way; a cache with another version is deleted and the lineup refetched.
 
 ## Launch
 

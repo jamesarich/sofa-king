@@ -30,8 +30,8 @@ A request or response type the app and the server share lives in `contract/`, ne
 
 | Workflow | Runs for | What it does |
 | --- | --- | --- |
-| [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown or `app/docs/`), `gradle/build-cache.settings.gradle.kts`, `ci.yml` or `snapshot.yml`; also a manual run | Tests and builds the app |
-| [`backend.yml`](.github/workflows/backend.yml) | Pull requests and pushes to `main` that change `backend/` or `contract/` (not their Markdown or `backend/docs/`), `gradle/build-cache.settings.gradle.kts` or `backend.yml`; also a manual run | Tests and builds the server, and publishes its image from `main` |
+| [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown or `app/docs/`), the shared `gradle/` directory or `build-logic/`, `ci.yml` or `snapshot.yml`; also a manual run | Tests and builds the app |
+| [`backend.yml`](.github/workflows/backend.yml) | Pull requests and pushes to `main` that change `backend/` or `contract/` (not their Markdown or `backend/docs/`), the shared `gradle/` directory or `build-logic/`, or `backend.yml`; also a manual run | Tests and builds the server, and publishes its image from `main` |
 
 `ci.yml` runs up to three jobs:
 

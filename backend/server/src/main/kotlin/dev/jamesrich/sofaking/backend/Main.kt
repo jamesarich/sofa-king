@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend
 import dev.jamesrich.sofaking.backend.admin.PlexStatusSource
 import dev.jamesrich.sofaking.backend.http.backendModule
 import dev.jamesrich.sofaking.backend.store.openStore
+import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
@@ -25,27 +26,26 @@ fun main(): Unit = runBlocking<Unit> {
         }
     val ports = listOf(config.port) + if (config.hdhr.enabled) config.hdhr.extraPorts else emptyList()
     val plexStatus = runtime.plex?.let { sync -> PlexStatusSource { sync.status() } }
-    val server = embeddedServer(Netty, configure = { ports.forEach { p -> connector { host = config.host; port = p } } }) {
-        backendModule(store, clock, runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr, plexStatus, config)
-    }
-    // The JVM halts as soon as its shutdown hooks return, so the hook itself runs the whole ordered close.
     val closed = AtomicBoolean(false)
-    fun shutdown() {
+    fun close() {
         if (!closed.compareAndSet(false, true)) return
-        server.stop(1000, 5000)
-        log.info("shutdown: server stopped")
         runBlocking { runtime.close() }
         log.info("shutdown: runtime closed")
         store.close()
         log.info("shutdown: store closed")
     }
-    val hook = Thread(::shutdown, "sofa-shutdown")
-    Runtime.getRuntime().addShutdownHook(hook)
+    // Ktor stops with its defaults, a 1 s grace period and a 5 s timeout.
+    val server = embeddedServer(Netty, configure = { ports.forEach { p -> connector { host = config.host; port = p } } }) {
+        backendModule(store, clock, runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr, plexStatus, config)
+        // Ktor's own shutdown hook stops the server, which raises this before the hook returns and the JVM halts.
+        monitor.subscribe(ApplicationStopped) {
+            log.info("shutdown: server stopped")
+            close()
+        }
+    }
     try {
         server.start(wait = true)
     } finally {
-        shutdown()
-        try { Runtime.getRuntime().removeShutdownHook(hook) }
-        catch (_: IllegalStateException) { /* JVM shutdown is already running. */ }
+        close()
     }
 }

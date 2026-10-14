@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.androidx.baselineprofile)
     id("sofaking.kotlin")
     id("sofaking.android")
 }
@@ -48,4 +49,5 @@ dependencies {
     implementation(project(":ui"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
 }

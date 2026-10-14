@@ -1,7 +1,12 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.upstream.Hop
+import dev.jamesrich.sofaking.backend.upstream.REDIRECT_STATUSES
+import dev.jamesrich.sofaking.backend.upstream.RedirectProblem
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.UpstreamRejectedException
+import dev.jamesrich.sofaking.backend.upstream.followRedirects
+import dev.jamesrich.sofaking.backend.upstream.sameOrigin
 import io.ktor.client.HttpClient
 import io.ktor.client.request.header
 import io.ktor.client.request.prepareRequest
@@ -24,6 +29,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
@@ -39,7 +45,7 @@ class Fetched(
     fun text(): String = body.toString(Charsets.UTF_8)
 
     fun json(): JsonElement = try {
-        lenientJson.parseToJsonElement(text())
+        ByteArrayInputStream(body).use { lenientJson.decodeFromStream(JsonElement.serializer(), it) }
     } catch (e: Exception) {
         throw ProviderFailure("Response is not JSON", cause = e)
     }
@@ -57,8 +63,9 @@ internal val lenientJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
 /**
  * Provider API traffic: GET and POST under the upstream address policy, redirects followed by hand (the shared
- * client never follows them), bodies bounded, gzip recognized by its magic bytes. Headers go to every hop, so
- * callers pass only what the service's own web client sends.
+ * client never follows them), bodies bounded, gzip recognized by its magic bytes. Headers go to every hop except
+ * `Authorization` and `Cookie`, which stay on the caller's origin, so callers pass only what the service's own web
+ * client sends.
  */
 class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPolicy) {
     suspend fun get(url: String, headers: Map<String, String> = emptyMap(), limit: Int = DEFAULT_LIMIT, follow: Boolean = true): Fetched =
@@ -70,55 +77,60 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
     private suspend fun request(
         method: HttpMethod, url: String, headers: Map<String, String>, body: String?, contentType: String?, limit: Int, follow: Boolean,
     ): Fetched {
-        var target = try { URI(url) } catch (_: Exception) { throw ProviderFailure("Invalid provider URL", transient = false) }
-        var redirects = 0
-        while (true) {
-            try {
-                policy.check(target)
-            } catch (e: UpstreamRejectedException) {
-                throw ProviderFailure("Provider address refused", transient = false, cause = e)
+        val start = try { URI(url) } catch (_: Exception) { throw ProviderFailure("Invalid provider URL", transient = false) }
+        return followRedirects(start, reject = { problem ->
+            when (problem) {
+                RedirectProblem.TOO_MANY -> throw ProviderFailure("Too many provider redirects")
+                RedirectProblem.INVALID -> throw ProviderFailure("Invalid provider redirect", transient = false)
+                RedirectProblem.INSECURE -> throw ProviderFailure("Insecure provider redirect", transient = false)
             }
-            val hop = target
-            val result = try {
-                http.prepareRequest(hop.toString()) {
-                    this.method = method
-                    headers.forEach { (key, value) -> header(key, value) }
-                    if (body != null) {
-                        contentType(ContentType.parse(contentType ?: "application/json"))
-                        setBody(body)
-                    }
-                }.execute { response ->
-                    val status = response.status.value
-                    val location = response.headers[HttpHeaders.Location]
-                    val cookies = response.headers.getAll(HttpHeaders.SetCookie).orEmpty().map { it.substringBefore(';').trim() }.filter { '=' in it }
-                    if (status in REDIRECTS && location != null && follow) {
-                        response.bodyAsChannel().cancel(null)
-                        Fetched(status, ByteArray(0), null, hop.toString(), location, cookies)
-                    } else {
-                        val bytes = response.bodyAsChannel().readBuffer(limit.toLong() + 1).readByteArray()
-                        if (bytes.size > limit) throw ProviderFailure("Provider response exceeds ${limit / 1024} KiB")
-                        Fetched(status, gunzipped(bytes, limit), response.headers[HttpHeaders.ContentType], hop.toString(), location, cookies)
-                    }
+        }) { hop -> send(method, start, hop, headers, body, contentType, limit, follow) }
+    }
+
+    private suspend fun send(
+        method: HttpMethod, start: URI, hop: URI, headers: Map<String, String>, body: String?, contentType: String?, limit: Int, follow: Boolean,
+    ): Hop<Fetched> {
+        try {
+            policy.check(hop)
+        } catch (e: UpstreamRejectedException) {
+            throw ProviderFailure("Provider address refused", transient = false, cause = e)
+        }
+        // Like a browser's fetch, credentials stay with the origin the caller addressed.
+        val crossOrigin = !sameOrigin(start, hop)
+        return try {
+            http.prepareRequest(hop.toString()) {
+                this.method = method
+                headers.forEach { (key, value) -> if (!crossOrigin || key.lowercase() !in CREDENTIAL_HEADERS) header(key, value) }
+                if (body != null) {
+                    contentType(ContentType.parse(contentType ?: "application/json"))
+                    setBody(body)
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ProviderFailure) {
-                throw e
-            } catch (e: Exception) {
-                // Exception messages can carry the URL and so a token; keep the class, drop the text.
-                throw ProviderFailure("Provider request failed (${e.javaClass.simpleName})", cause = e)
+            }.execute { response ->
+                val status = response.status.value
+                val location = response.headers[HttpHeaders.Location]
+                val cookies = response.headers.getAll(HttpHeaders.SetCookie).orEmpty().map { it.substringBefore(';').trim() }.filter { '=' in it }
+                if (status in REDIRECT_STATUSES && location != null && follow) {
+                    response.bodyAsChannel().cancel(null)
+                    Hop.Redirect(location)
+                } else {
+                    val bytes = response.bodyAsChannel().readBuffer(limit.toLong() + 1).readByteArray()
+                    if (bytes.size > limit) throw ProviderFailure("Provider response exceeds ${limit / 1024} KiB")
+                    Hop.Done(Fetched(status, gunzipped(bytes, limit), response.headers[HttpHeaders.ContentType], hop.toString(), location, cookies))
+                }
             }
-            if (result.status !in REDIRECTS || result.location == null || !follow) return result
-            if (++redirects > 5) throw ProviderFailure("Too many provider redirects")
-            val next = try { hop.resolve(result.location) } catch (_: IllegalArgumentException) { throw ProviderFailure("Invalid provider redirect", transient = false) }
-            if (hop.scheme == "https" && next.scheme != "https") throw ProviderFailure("Insecure provider redirect", transient = false)
-            target = next
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ProviderFailure) {
+            throw e
+        } catch (e: Exception) {
+            // Exception messages can carry the URL and so a token; keep the class, drop the text.
+            throw ProviderFailure("Provider request failed (${e.javaClass.simpleName})", cause = e)
         }
     }
 
     companion object {
         const val DEFAULT_LIMIT = 32 * 1024 * 1024
-        private val REDIRECTS = setOf(301, 302, 303, 307, 308)
+        private val CREDENTIAL_HEADERS = setOf("authorization", "cookie", "proxy-authorization")
 
         /** The inflated size is bounded by [limit] too: a small gzip can expand far past the compressed cap. */
         internal fun gunzipped(bytes: ByteArray, limit: Int = DEFAULT_LIMIT): ByteArray =

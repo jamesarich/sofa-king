@@ -52,6 +52,18 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 - [ ] Background and foreground transitions resume the same channel.
 - [ ] Audio, captions and decoder recovery work on the full-screen player.
 
+## Baseline Profile
+
+The release APK ships a Baseline Profile, so Android compiles the code a cold start, the guide and a channel change run ahead of time instead of interpreting it on the first launches. `:baselineprofile` records it with Macrobenchmark's `BaselineProfileRule`, and the `androidx.baselineprofile` plugin writes it under `androidApp/src/release/generated/baselineProfiles`. CI does not regenerate it.
+
+Regenerate it after a large change to startup, the guide or the player, with one device connected over `adb` that already has the app installed and its server set up, since the journey needs a lineup to draw:
+
+```sh
+./gradlew :androidApp:generateBaselineProfile
+```
+
+The device needs Android 13 or later, or root. The run installs the generator's build over the existing app, which must therefore be signed with the same key, and `android.injected.androidTest.leaveApksInstalledAfterRun` in `gradle.properties` keeps it installed afterwards, with its settings. Commit the regenerated profile files.
+
 ## Signing
 
 Release APKs are minified with R8 and signed with the local debug key, so they are for testing. Distributing one needs a release signing configuration.

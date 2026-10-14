@@ -19,8 +19,11 @@ for build in build-logic contract app backend; do
 done
 
 # Gradle names the build it ran from in each lockfile's header comment; keep the old header when nothing else changed.
-git diff --name-only -- '*.lockfile' | while read -r lockfile; do
-  if ! git diff -U0 -- "$lockfile" | grep -q '^[-+][^-+#]'; then
+# List the files first: git checkout inside a loop fed by git diff races it for the index lock.
+# Lockfile paths hold no spaces, and macOS's bash 3.2 has no mapfile.
+changed=$(git --no-optional-locks diff --name-only -- '*.lockfile')
+for lockfile in $changed; do
+  if ! git --no-optional-locks diff -U0 -- "$lockfile" | grep -q '^[-+][^-+#]'; then
     git checkout -- "$lockfile"
   fi
 done

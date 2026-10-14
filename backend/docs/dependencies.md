@@ -15,7 +15,7 @@
 | Foojay toolchain resolver | 1.0.0 |
 | JDK toolchain | 21 |
 
-Versions are defined in [the version catalog](../gradle/libs.versions.toml) and [Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Resolved dependencies are locked. Every library comes from Maven Central.
+Versions are defined in [the version catalog](../../gradle/libs.versions.toml) and [Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Resolved dependencies are locked. Every library comes from Maven Central.
 
 The server targets JVM 21. The [contract](../../contract/README.md) it shares with the app compiles to JVM 17 bytecode for the server and Android, and to every other target the app builds; it pins the same Kotlin and kotlinx.serialization versions as the server.
 
@@ -27,7 +27,7 @@ The [admin portal](admin.md) serves htmx from `server/src/main/resources/admin/h
 
 [Renovate](../../renovate.json) proposes updates for the version catalog, the Gradle wrapper, the Dockerfile base images, Compose and the workflow actions, pinning images and actions by digest. It follows Kotlin, kotlinx.serialization and kotlinx.coroutines prereleases, as the dependency policy in `AGENTS.md` asks; Ktor follows releases, matching the app. Its Gradle manager rewrites the lockfiles and the verification metadata in the same pull request and runs a weekly lock file maintenance. By hand:
 
-1. Update the exact versions in [the version catalog](../gradle/libs.versions.toml).
+1. Update the exact versions in [the version catalog](../../gradle/libs.versions.toml).
 2. Run the build with `--write-locks` in `backend/`, and in `contract/` too when the contract's dependencies changed, and review the lockfile changes.
 3. Run `scripts/update-verification-metadata.sh` and review the new checksums in `gradle/verification-metadata.xml` and `../contract/gradle/verification-metadata.xml`, which it regenerates together. Gradle checks every resolved artifact against that file and fails the build on a mismatch or an unlisted artifact. The script refreshes dependencies and reruns every task, so it records artifacts a warm Gradle cache skips, such as BOM `.module` files, and it prints the changed lines. Set `GRADLEW` to run Gradle through a wrapper command of your own. The `kotlinx-coroutines-bom` 1.8.0 entry is resolved only by CI's Gradle setup; the script fails if it goes missing.
 4. Run both smoke scripts, as described in [development](development.md#build-and-test).

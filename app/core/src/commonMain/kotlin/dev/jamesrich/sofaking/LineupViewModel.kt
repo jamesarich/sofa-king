@@ -119,13 +119,17 @@ class LineupViewModel(
                 // Cancellation (a server change or refresh while loading) must propagate, not read as a failure.
                 _loading.value = true
                 var lineupMoved = false
+                var interim: Lineup? = null
                 val result = try {
                     val started = TimeSource.Monotonic.markNow()
                     val channels = repository.loadChannels()
                     log.i { "lineup: ${channels.size} channels in ${started.elapsedNow()}" }
                     // Channels first so the guide is usable while the programmes arrive. A cached guide stays in
                     // place for channels it still covers; it is replaced once the new guide is in.
-                    if (last?.channels != channels) emit(LineupState.Ready(Lineup(channels, last?.guide.orEmpty())))
+                    if (last?.channels != channels) {
+                        interim = Lineup(channels, last?.guide.orEmpty(), guideLoading = true)
+                        emit(LineupState.Ready(interim))
+                    }
                     catalogsLoaded.value++
                     val guide = repository.loadGuide(channels)
                     log.i { "guide: ${guide.programmes.values.sumOf { it.size }} programmes for ${guide.programmes.size} channels in ${started.elapsedNow()}" }
@@ -155,7 +159,13 @@ class LineupViewModel(
                     }
                 }
                 // A failed background refresh keeps showing the lineup we already have.
-                result.onFailure { if (last == null) emit(LineupState.Failed(describe(it))) }
+                result.onFailure {
+                    when {
+                        last == null -> emit(LineupState.Failed(describe(it)))
+                        // The new channels stay on screen; their programmes are no longer on the way.
+                        interim != null -> emit(LineupState.Ready(interim.copy(guideLoading = false)))
+                    }
+                }
                 loadsFinished.value++
                 delay(if (result.isSuccess && !lineupMoved) REFRESH_INTERVAL else RETRY_INTERVAL)
             }

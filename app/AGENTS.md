@@ -1,6 +1,6 @@
 # Sofa King app
 
-Kotlin Multiplatform: `core` (data, no Compose, every target its dependencies publish), `ui` (Compose Multiplatform screens for Android, JVM desktop, iOS, js and wasmJs), `androidApp` (the Android TV app shell) and `iosApp` (SwiftUI host). Read README, docs/README.md and docs/architecture.md for current setup and behavior.
+Kotlin Multiplatform: `core` (data, no Compose, every target its dependencies publish), `ui` (Compose Multiplatform screens for Android, JVM desktop, iOS, js and wasmJs), `androidApp` (the Android TV app shell) `iosApp` (SwiftUI host) and `tvosApp` (the SwiftUI Apple TV app on `core`'s `SofaKingTv`, since Compose does not render on tvOS). Read README, docs/README.md and docs/architecture.md for current setup and behavior.
 
 ## Build
 
@@ -36,7 +36,7 @@ All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `
 
 ## UI
 
-- Use multiplatform Material 3 Expressive components under `SofaKingTheme`. Add `tvFocus` (or use `SofaButton`/`SofaSwitch`) to every focusable control so D-pad focus shows; guide cells keep scale 1 and change color.
+- Use multiplatform Material 3 Expressive components under `SofaKingTheme`. Add `tvFocus` (or use `SofaButton`) to every focusable control so D-pad focus shows; guide cells and Settings rows keep scale 1. A switch setting is a `ListItem` made `toggleable` so the whole row takes focus, and a choice of a few values is a `SingleChoiceSegmentedButtonRow`.
 - Support the five-way D-pad and its keyboard equivalents. Use focusRestorer; request focus from effects or callbacks and wait for lazy nodes with requestFocusWhenAttached. The guide's first focus is retried until a cell reports it landed; the header's buttons must never keep focus once channels are on screen. The unconfigured screen focuses the header's Settings button (`homeFocusFor`).
 - Preserve 48dp horizontal and 27dp vertical overscan padding on TV. Pad screens with `screenPadding` (`ui/Adaptive.kt`), which keeps the overscan on TV and the safe-drawing insets everywhere else; never hard-code the margins.
 - Lay out by `LocalLayoutProfile`: a TV (`rememberIsTelevision`) keeps today's metrics at any size, and other windows adapt by the window size class from `currentWindowAdaptiveInfoV2()` (compact width under 600dp, compact height under 480dp). Touch and mouse controls show only after pointer input (`LocalLastInput`), so the TV's screens never change.

@@ -9,7 +9,9 @@ on:
       - "!app/**/*.md"
       - "contract/**"
       - "!contract/**/*.md"
-      - "gradle/build-cache.settings.gradle.kts"
+      - "gradle/**"
+      - "build-logic/**"
+      - "!build-logic/**/*.md"
       - ".github/workflows/ci.yml"
       - ".github/workflows/snapshot.yml"
   push:
@@ -20,7 +22,9 @@ on:
       - "!app/**/*.md"
       - "contract/**"
       - "!contract/**/*.md"
-      - "gradle/build-cache.settings.gradle.kts"
+      - "gradle/**"
+      - "build-logic/**"
+      - "!build-logic/**/*.md"
       - ".github/workflows/ci.yml"
       - ".github/workflows/snapshot.yml"
   workflow_dispatch:
@@ -60,7 +64,7 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.konan
-          key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
       - name: Test, lint and build
         run: >-
           ./gradlew --continue
@@ -105,13 +109,13 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.konan
-          key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
-      - name: Test Apple targets and link the iOS framework
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+      - name: Test Apple targets and link the iOS and tvOS frameworks
         run: >-
           ./gradlew --continue
           :core:iosSimulatorArm64Test :core:macosArm64Test :core:tvosSimulatorArm64Test
           :core:watchosSimulatorArm64Test :ui:iosSimulatorArm64Test
-          :ui:linkDebugFrameworkIosSimulatorArm64
+          :ui:linkDebugFrameworkIosSimulatorArm64 :core:linkDebugFrameworkTvosSimulatorArm64
       - name: Upload reports
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -83,6 +83,7 @@ internal fun PreviewDetails(
     programme: Programme?,
     live: Boolean,
     now: Instant,
+    guideLoading: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val timeFormat = rememberTimeFormatter()
@@ -91,7 +92,7 @@ internal fun PreviewDetails(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (channel == null) return@Column
         if (programme == null) {
-            Text(channel.noListingText(), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(channel.noListingText(guideLoading), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(channel.label(), style = MaterialTheme.typography.bodyMedium, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             return@Column
         }

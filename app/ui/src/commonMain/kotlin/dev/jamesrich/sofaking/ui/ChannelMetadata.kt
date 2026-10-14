@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideStatus
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.resources.*
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 private val BadgeShape = RoundedCornerShape(4.dp)
@@ -28,15 +29,19 @@ private val BadgeShape = RoundedCornerShape(4.dp)
 /** The episode label and title, for example "S2 E5  The Pilot", or null when the guide has neither. */
 internal fun Programme.episodeLine(): String? = listOfNotNull(episode, subTitle).joinToString("  ").ifEmpty { null }
 
-/** What to show in place of a programme: why the channel has none, as far as the server says. */
+/**
+ * What to show in place of a programme: why the channel has none, as far as the server says, or that its programmes
+ * are still on the way while [guideLoading].
+ */
+internal fun Channel.noListingRes(guideLoading: Boolean): StringResource = when (guideStatus) {
+    GuideStatus.UNASSIGNED -> Res.string.no_guide
+    GuideStatus.STALE -> Res.string.guide_out_of_date
+    GuideStatus.EMPTY, GuideStatus.AVAILABLE -> if (guideLoading) Res.string.listing_loading else Res.string.no_listing
+}
+
+/** The text of [noListingRes]. */
 @Composable
-internal fun Channel.noListingText(): String = stringResource(
-    when (guideStatus) {
-        GuideStatus.UNASSIGNED -> Res.string.no_guide
-        GuideStatus.STALE -> Res.string.guide_out_of_date
-        GuideStatus.EMPTY, GuideStatus.AVAILABLE -> Res.string.no_listing
-    },
-)
+internal fun Channel.noListingText(guideLoading: Boolean): String = stringResource(noListingRes(guideLoading))
 
 /** The channel's logo in a [width] by [height] slot that stays empty without one, so names line up. Decorative: the name is beside it. */
 @Composable

@@ -30,9 +30,13 @@ The app version is `sofaking.version` in `gradle.properties`. Android's `version
 
 ## Changing versions
 
+[Dependabot](../../.github/dependabot.yml) proposes updates every Monday: one pull request for Kotlin, the Android Gradle plugin and Compose Multiplatform together, one for the other libraries' minor and patch releases, one for each major release, and one each for the Gradle wrappers, the workflow actions and the server's base images. A prerelease pin is offered newer prereleases; a release pin is offered releases. The [lockfiles workflow](../../CONTRIBUTING.md#ci) then commits the new lockfiles to the pull request and runs CI. Check the result as in steps 3 to 7 below before merging.
+
+By hand:
+
 1. Update the exact versions in [the version catalog](../../gradle/libs.versions.toml).
-2. Run the [build and test](development.md#build-and-test) checks with `--write-locks`. For a web dependency, add `kotlinUpgradeYarnLock kotlinWasmUpgradeYarnLock`.
-3. Review the lockfile changes, then run the same checks without `--write-locks`.
+2. Run `gradle/update-locks.sh` from the repository root, on macOS: it rewrites the lockfiles of build-logic, the contract, the app and the server, including the Apple and web configurations and the Yarn lockfiles. On Linux the Apple configurations keep their old lock state. `GRADLEW` overrides the Gradle command.
+3. Review the lockfile changes, then run the [build and test](development.md#build-and-test) checks.
 4. For a change to playback, captions or the remote, run the [checks on a TV](development.md#test-on-a-tv).
 5. For a wrapper update, pin the official distribution checksum in `gradle-wrapper.properties`.
 6. For a Kotlin or kotlinx.serialization bump, change the same pins in `contract/` and `backend/`, and follow the [contract's](../../contract/README.md) and the [server's](../../backend/docs/dependencies.md#changing-versions) update steps.

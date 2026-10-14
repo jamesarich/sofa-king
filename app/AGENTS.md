@@ -16,7 +16,7 @@ One test class: `/home/james/.claude/bin/gradle-queue -C app -- :ui:jvmTest --te
 
 A change to playback, focus or the remote also needs the TV checklist in docs/development.md, which only a person with a TV can run; say so rather than claiming it.
 
-Dependencies are locked; docs/dependencies.md has the update steps (`--write-locks`, review the lockfile diff, rerun without it). Commits use Conventional Commits, `type(scope): summary` in the imperative, scoped by area: `guide`, `player`, `preview`, `captions`, `settings`, `data`, `web`, `ios`, `desktop`, `build`, `ci`, `docs`.
+Dependencies are locked; docs/dependencies.md has the update steps (`../gradle/update-locks.sh` on macOS, review the lockfile diff, run the checks). Commits use Conventional Commits, `type(scope): summary` in the imperative, scoped by area: `guide`, `player`, `preview`, `captions`, `settings`, `data`, `web`, `ios`, `desktop`, `build`, `ci`, `docs`.
 
 ## Code map
 

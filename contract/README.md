@@ -12,4 +12,4 @@ The server's admin, policy and status models stay in `backend/server`. Build and
 
 Kotlin and kotlinx.serialization come from the repository's one catalog, `../gradle/libs.versions.toml`, which the app and the server load too, so all three always compile with the same pins.
 
-Its resolved dependencies are locked in `gradle.lockfile`, `buildscript-gradle.lockfile` and `settings-gradle.lockfile`, and Gradle checks every artifact against `gradle/verification-metadata.xml`. After a version change, run `./gradlew jvmTest assemble --write-locks` here and review the lockfile diff, then run `backend/scripts/update-verification-metadata.sh`, which regenerates this build's checksums with the server's.
+Its resolved dependencies are locked in `gradle.lockfile`, `buildscript-gradle.lockfile` and `settings-gradle.lockfile`, and Gradle checks every artifact against `gradle/verification-metadata.xml`. After a version change, run `gradle/update-locks.sh` from the repository root and review the lockfile diff, then run `backend/scripts/update-verification-metadata.sh`, which regenerates this build's checksums with the server's.

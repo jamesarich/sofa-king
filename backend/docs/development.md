@@ -135,4 +135,4 @@ Native clients are unofficial. Keep the request shape close to the service's own
 
 ## Dependencies
 
-Version changes follow [dependencies](dependencies.md#changing-versions). Run the build with `--write-locks` after a change, review the lockfile diff, update the verification metadata of the server and the contract, and run both smoke scripts.
+Version changes follow [dependencies](dependencies.md#changing-versions). Run `../gradle/update-locks.sh` after a change, review the lockfile diff, update the verification metadata of the server and the contract, and run both smoke scripts.

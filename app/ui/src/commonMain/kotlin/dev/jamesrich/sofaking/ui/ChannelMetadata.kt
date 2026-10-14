@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideStatus
 import dev.jamesrich.sofaking.data.Programme
@@ -51,7 +52,7 @@ internal fun ChannelLogo(channel: Channel, width: Dp, height: Dp, modifier: Modi
     if (logo == null) {
         Box(slot)
     } else {
-        RemoteImage(logo, width, height, ContentScale.Fit, slot)
+        AsyncImage(logo, contentDescription = null, modifier = slot, contentScale = ContentScale.Fit)
     }
 }
 

@@ -23,6 +23,7 @@ activity-compose = "1.14.0-alpha03"
 media3 = "1.11.1"
 profileinstaller = "1.4.1"
 vlcj = "4.8.3"
+coil = "3.6.3"
 exposed = "1.5.1"
 sqlite = "3.53.4.0"
 logback = "1.6.5"
@@ -54,6 +55,8 @@ lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecyc
 kermit = { module = "co.touchlab:kermit", version.ref = "kermit" }
 
 # Compose Multiplatform
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }

@@ -10,6 +10,6 @@ Released apps and servers outlive any one commit, so the types change only in wa
 
 The server's admin, policy and status models stay in `backend/server`. Build and test from this directory with `./gradlew jvmTest assemble`, or as part of either consumer's build.
 
-`gradle/libs.versions.toml` pins Kotlin and kotlinx.serialization on its own. The app and the server each compile this build with their own Kotlin plugin, so `settings.gradle.kts` fails every build that includes it unless `app/gradle/libs.versions.toml` and `backend/gradle/libs.versions.toml` pin the same two versions. A Kotlin or kotlinx.serialization bump changes all three catalogs in one pull request.
+Kotlin and kotlinx.serialization come from the repository's one catalog, `../gradle/libs.versions.toml`, which the app and the server load too, so all three always compile with the same pins.
 
 Its resolved dependencies are locked in `gradle.lockfile`, `buildscript-gradle.lockfile` and `settings-gradle.lockfile`, and Gradle checks every artifact against `gradle/verification-metadata.xml`. After a version change, run `./gradlew jvmTest assemble --write-locks` here and review the lockfile diff, then run `backend/scripts/update-verification-metadata.sh`, which regenerates this build's checksums with the server's.

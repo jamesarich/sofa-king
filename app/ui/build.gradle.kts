@@ -1,14 +1,5 @@
-@file:OptIn(ExperimentalWasmDsl::class)
-
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
-import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
-import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
-import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin
-import org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenEnvSpec
-import org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenPlugin
-import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsEnvSpec
-import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsPlugin
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -16,14 +7,9 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
+    id("sofaking.kotlin")
+    id("sofaking.android")
 }
-
-dependencyLocking { lockAllConfigurations() }
-
-// Node and Binaryen resolve through the repositories declared in settings, which forbids project repositories.
-plugins.withType<NodeJsPlugin> { the<NodeJsEnvSpec>().downloadBaseUrl = null }
-plugins.withType<WasmNodeJsPlugin> { the<WasmNodeJsEnvSpec>().downloadBaseUrl = null }
-plugins.withType<BinaryenPlugin> { the<BinaryenEnvSpec>().downloadBaseUrl = null }
 
 val appVersion = providers.gradleProperty("sofaking.version").get()
 val versionSuffix = providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
@@ -51,14 +37,10 @@ val generateBuildInfo = tasks.register("generateBuildInfo") {
 }
 
 kotlin {
-    jvmToolchain(21)
-
     // Every target Compose Multiplatform renders on. Android covers Android TV, Google TV and phones;
     // the JVM covers Linux, macOS and Windows desktops.
     android {
         namespace = "dev.jamesrich.sofaking.ui"
-        compileSdk { version = release(37) { minorApiLevel = 1 } }
-        minSdk = 28
         androidResources { enable = true }
         withHostTest { isIncludeAndroidResources = true }
     }

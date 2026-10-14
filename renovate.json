@@ -18,11 +18,6 @@
       "respectLatest": false
     },
     {
-      "description": "app/, backend/ and contract/ pin the same Kotlin and kotlinx.serialization; the contract build fails when they differ",
-      "matchPackageNames": ["org.jetbrains.kotlin:*", "org.jetbrains.kotlin.*", "org.jetbrains.kotlinx:kotlinx-serialization-*"],
-      "groupName": "Kotlin and kotlinx.serialization"
-    },
-    {
       "description": "AGENTS.md: track kotlinx.serialization and kotlinx.coroutines prereleases",
       "matchDatasources": ["maven"],
       "matchPackageNames": ["org.jetbrains.kotlinx:kotlinx-serialization-*", "org.jetbrains.kotlinx:kotlinx-coroutines-*"],

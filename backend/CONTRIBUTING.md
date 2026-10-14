@@ -19,7 +19,7 @@ Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conven
 
 ## CI
 
-The [Backend workflow](../.github/workflows/backend.yml) runs on every pull request and every push to `main` that changes `backend/` outside `backend/docs/` and its Markdown, `contract/` outside its Markdown, `gradle/build-cache.settings.gradle.kts` or the workflow itself. It can also be started by hand. It has two jobs:
+The [Backend workflow](../.github/workflows/backend.yml) runs on every pull request and every push to `main` that changes `backend/` outside `backend/docs/` and its Markdown, `contract/` outside its Markdown, the shared `../gradle/` directory or `../build-logic/`, or the workflow itself. It can also be started by hand. It has two jobs:
 
 - `test` runs `./gradlew test :server:installDist` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. On a pull request it also builds the image for `linux/amd64` without pushing it.
 - `publish` runs only for `main`, on a push or a run started by hand, after `test` passes. It builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to `ghcr.io/jamesarich/sofa-king-backend` as `:main` and `:sha-<commit>`. The push carries a BuildKit SBOM and max-mode build provenance, which [deploy](docs/deploy.md#inspect-the-published-image) shows how to inspect. Hosts with [automatic updates](docs/deploy.md#update-automatically) install that image.
@@ -36,7 +36,7 @@ The [Backend workflow](../.github/workflows/backend.yml) runs on every pull requ
 
 ## Dependencies
 
-Versions are pinned in `gradle/libs.versions.toml`, resolved versions are locked, and Gradle checks every artifact against the checksums in `gradle/verification-metadata.xml`. The [contract](../contract/README.md) build the server includes has its own lockfiles and `contract/gradle/verification-metadata.xml`. A dependency change updates the catalog, the lockfiles and the verification metadata it affects, in either build; `scripts/update-verification-metadata.sh` regenerates the checksums of both from a clean resolve. The [dependencies](docs/dependencies.md) page lists the current versions and the update steps.
+Versions are pinned in the repository's one catalog, `../gradle/libs.versions.toml`, resolved versions are locked, and Gradle checks every artifact against the checksums in `gradle/verification-metadata.xml`. The [contract](../contract/README.md) build the server includes has its own lockfiles and `contract/gradle/verification-metadata.xml`. A dependency change updates the catalog, the lockfiles and the verification metadata it affects, in either build; `scripts/update-verification-metadata.sh` regenerates the checksums of both from a clean resolve. The [dependencies](docs/dependencies.md) page lists the current versions and the update steps.
 
 ## Add a native provider
 

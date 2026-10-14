@@ -639,20 +639,22 @@ fun PlayerScreen(
         if (channel == null) {
             Text(stringResource(Res.string.no_channels), style = MaterialTheme.typography.titleLarge, color = SofaDusk, modifier = Modifier.align(Alignment.Center))
         } else {
+            val popIn = PopIn
+            val popOut = PopOut
             // Status pills stack top left so a caption toast never covers "Paused" or "Tuning".
             Column(
                 Modifier.align(Alignment.TopStart).screenPadding(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                AnimatedVisibility(rememberSettled(buffering && failure == null), enter = PopIn, exit = PopOut) {
+                AnimatedVisibility(rememberSettled(buffering && failure == null), enter = popIn, exit = popOut) {
                     StatusPill(stringResource(Res.string.tuning), busy = true)
                 }
-                AnimatedVisibility(paused && failure == null, enter = PopIn, exit = PopOut) {
+                AnimatedVisibility(paused && failure == null, enter = popIn, exit = popOut) {
                     StatusPill(stringResource(Res.string.player_paused))
                 }
                 AnimatedContent(
                     targetState = captionToast,
-                    transitionSpec = { PopIn togetherWith PopOut },
+                    transitionSpec = { popIn togetherWith popOut },
                     label = "captionToast",
                 ) { toast ->
                     if (toast != null) StatusPill(stringResource(toast.outcome.labelRes()), MaterialTheme.typography.titleLarge)
@@ -665,7 +667,7 @@ fun PlayerScreen(
             AnimatedContent(
                 targetState = pendingDigits.ifEmpty { noticeText.orEmpty() },
                 modifier = Modifier.align(Alignment.TopEnd),
-                transitionSpec = { PopIn togetherWith PopOut },
+                transitionSpec = { popIn togetherWith popOut },
                 contentKey = { it.isNotEmpty() },
                 label = "digits",
             ) { text ->

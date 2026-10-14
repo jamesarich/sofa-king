@@ -42,7 +42,18 @@
       "enabled": false
     },
     {
-      "description": "Kotlin, the Android Gradle plugin and Compose Multiplatform are preview pins that move together",
+      "description": "Merge minor, patch and digest updates once every check on the branch's head is green. Renovate merges by itself rather than through GitHub's auto-merge, so it judges the Lockfiles workflow's commit and the CI runs that commit dispatches, and needs no branch protection",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "minimumReleaseAge": "3 days",
+      "automerge": true
+    },
+    {
+      "description": "Kotlin, the Android Gradle plugin and Compose Multiplatform are preview pins that move together; merged by hand",
       "matchDatasources": [
         "maven",
         "gradle-plugin"
@@ -55,7 +66,8 @@
         "org.jetbrains.compose",
         "org.jetbrains.compose.*"
       ],
-      "groupName": "Kotlin, AGP and Compose Multiplatform"
+      "groupName": "Kotlin, AGP and Compose Multiplatform",
+      "automerge": false
     },
     {
       "matchCategories": [
@@ -110,5 +122,8 @@
     "41898282+github-actions[bot]@users.noreply.github.com"
   ],
   "semanticCommitType": "build",
-  "prHourlyLimit": 0
+  "prHourlyLimit": 0,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "platformAutomerge": false
 }

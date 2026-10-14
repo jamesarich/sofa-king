@@ -30,7 +30,7 @@ The app version is `sofaking.version` in `gradle.properties`. Android's `version
 
 ## Changing versions
 
-[Dependabot](../../.github/dependabot.yml) proposes updates every Monday: one pull request for Kotlin, the Android Gradle plugin and Compose Multiplatform together, one for the other libraries' minor and patch releases, one for each major release, and one each for the Gradle wrappers, the workflow actions and the server's base images. A prerelease pin is offered newer prereleases; a release pin is offered releases. The [lockfiles workflow](../../CONTRIBUTING.md#ci) then commits the new lockfiles to the pull request and runs CI. Check the result as in steps 3 to 7 below before merging.
+[Renovate](../../renovate.json) proposes updates for the version catalog, the Gradle wrappers, the workflow actions and the server's base images, with Kotlin, the Android Gradle plugin and Compose Multiplatform in one pull request. It follows Kotlin, kotlinx.serialization and kotlinx.coroutines prereleases, and lists every pending update on its Dependency Dashboard issue. The [lockfiles workflow](../../CONTRIBUTING.md#ci) then commits the new lockfiles to the pull request and runs CI. Check the result as in steps 3 to 7 below before merging.
 
 By hand:
 

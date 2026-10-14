@@ -25,7 +25,7 @@ The [admin portal](admin.md) serves htmx from `server/src/main/resources/admin/h
 
 ## Changing versions
 
-[Dependabot](../../.github/dependabot.yml) proposes weekly updates for the version catalog, the Gradle wrappers, the Dockerfile base images and the workflow actions, keeping actions and images pinned by digest. A prerelease pin, such as Kotlin's EAP or kotlinx.serialization's RC, is offered newer prereleases, as the dependency policy in `AGENTS.md` asks; a release pin is offered releases. The [lockfiles workflow](../../CONTRIBUTING.md#ci) rewrites the lockfiles and runs `scripts/update-verification-metadata.sh` on the pull request before CI checks it. Run the smoke scripts before merging a bump to Ktor, FFmpeg handling or the base image. By hand:
+[Renovate](../../renovate.json) proposes updates for the version catalog, the Gradle wrappers, the Dockerfile base images and the workflow actions, pinning images and actions by digest. It follows Kotlin, kotlinx.serialization and kotlinx.coroutines prereleases, as the dependency policy in `AGENTS.md` asks; Ktor follows releases, matching the app. Renovate's own lockfile updates run on Linux without the Android SDK, so they are incomplete. The [lockfiles workflow](../../CONTRIBUTING.md#ci) rewrites the lockfiles and runs `scripts/update-verification-metadata.sh` on the pull request before CI checks it. Run the smoke scripts before merging a bump to Ktor, FFmpeg handling or the base image. By hand:
 
 1. Update the exact versions in [the version catalog](../../gradle/libs.versions.toml).
 2. Run `gradle/update-locks.sh` from the repository root, on macOS, which rewrites every build's lockfiles, and review the lockfile changes.

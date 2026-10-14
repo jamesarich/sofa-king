@@ -10,6 +10,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.suspendCancellableCoroutine
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -99,6 +100,9 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     private val drawsInCanvas = MutableStateFlow(true)
     private val frameSize = MutableStateFlow(IntSize(1, 1))
 
+    /** False from a reset until the new stream's first frame is on screen; rebuffering keeps the last frame. */
+    private val hasFrame = MutableStateFlow(false)
+
     private val _status = MutableStateFlow(PlayerStatus())
     private val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
     private val _cues = MutableStateFlow<List<CaptionCue>>(emptyList())
@@ -112,6 +116,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         video.addEventListener("waiting") { _status.update { it.copy(state = PlaybackState.BUFFERING) } }
         video.addEventListener("canplay") { _status.update { it.copy(state = PlaybackState.READY) } }
         video.addEventListener("ended") { _status.update { it.copy(state = PlaybackState.ENDED, isPlaying = false) } }
+        // The element shows its first frame itself; in the canvas it is on screen once drawn.
+        video.addEventListener("loadeddata") { if (!drawsInCanvas.value) hasFrame.value = true }
         video.addEventListener("loadedmetadata") {
             loaded = true
             updateFrameSize()
@@ -177,6 +183,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         val url = stream?.url ?: return
         _status.update { it.copy(state = PlaybackState.BUFFERING) }
         loaded = false
+        hasFrame.value = false
         video.src = url
         if (playWhenReady) startPlayback()
     }
@@ -187,6 +194,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         video.load()
         cueTrack = null
         _cues.value = emptyList()
+        hasFrame.value = false
         _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
     }
 
@@ -204,25 +212,39 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         playWhenReady = false
     }
 
-    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = object : MediaSessionHandle {
-        override fun publish(nowPlaying: NowPlaying) {
-            document.title = "${nowPlaying.title} - $appName"
-        }
+    /**
+     * The page title and the browser's Media Session: its metadata reaches the OS media controls, and their media
+     * keys come back here. Browsers without the API keep the title alone.
+     */
+    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
+        setMediaAction("play") { play() }
+        setMediaAction("pause") { pause() }
+        setMediaAction("nexttrack") { onZapStep(1) }
+        setMediaAction("previoustrack") { onZapStep(-1) }
+        return object : MediaSessionHandle {
+            override fun publish(nowPlaying: NowPlaying) {
+                document.title = "${nowPlaying.title} - $appName"
+                setMediaMetadata(nowPlaying.title, nowPlaying.subtitle, nowPlaying.artworkUrl)
+            }
 
-        override fun close() {
-            document.title = appName
+            override fun close() {
+                document.title = appName
+                for (action in MEDIA_ACTIONS) clearMediaAction(action)
+                clearMediaMetadata()
+            }
         }
     }
 
     /**
      * Draws each decoded frame into a WebGL texture inside Compose's canvas, so overlays draw over the picture as on
      * other platforms. An element view would sit above the canvas and hide them; it remains the fallback when the
-     * browser has no WebGL2 or the stream is cross-origin without CORS, which taints the frames.
+     * browser has no WebGL2 or the stream is cross-origin without CORS, which taints the frames. A frame is drawn
+     * when the video presents one (`requestVideoFrameCallback`), so a paused or stalled stream costs nothing.
      */
     @OptIn(ExperimentalComposeUiApi::class)
     @Composable
     override fun Video(modifier: Modifier, shutter: @Composable () -> Unit) {
-        val state by status.collectAsState()
+        val showsFrame by hasFrame.collectAsState()
         val inCanvas by drawsInCanvas.collectAsState()
         val size by frameSize.collectAsState()
         val target = if (inCanvas) rememberWebGLRenderTarget(size) else null
@@ -230,25 +252,21 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
             if (target == null) return@LaunchedEffect
             val frames = VideoFrames(target.webGLContext)
             try {
-                var shown = -1.0
-                var shownSize = IntSize.Zero
+                // A new target starts empty, so the current frame goes in at once, even while paused.
                 while (true) {
-                    withFrameNanos { }
-                    val time = video.currentTime
-                    if (time == shown && size == shownSize) continue
-                    if (video.readyState < HAVE_CURRENT_DATA || video.videoWidth == 0 || video.videoHeight == 0) continue
-                    try {
-                        var drawn = false
-                        target.render { drawn = frames.draw(video, target) }
-                        if (drawn) {
-                            shown = time
-                            shownSize = size
+                    if (video.readyState >= HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
+                        try {
+                            var drawn = false
+                            target.render { drawn = frames.draw(video, target) }
+                            if (drawn) hasFrame.value = true
+                        } catch (e: Throwable) {
+                            log.w(e) { "drawing video frames in the canvas failed; using the element" }
+                            hasFrame.value = video.readyState >= HAVE_CURRENT_DATA
+                            useElement()
+                            break
                         }
-                    } catch (e: Throwable) {
-                        log.w(e) { "drawing video frames in the canvas failed; using the element" }
-                        useElement()
-                        break
                     }
+                    awaitVideoFrame(video)
                 }
             } finally {
                 frames.release()
@@ -260,7 +278,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
             } else {
                 HtmlElementView(factory = { video }, modifier = Modifier.matchParentSize())
             }
-            if (state.state != PlaybackState.READY) shutter()
+            if (!showsFrame) shutter()
         }
     }
 
@@ -408,6 +426,57 @@ private external interface PlayPromise : JsAny {
 @OptIn(ExperimentalWasmJsInterop::class)
 private external interface DomError : JsAny {
     val name: String
+}
+
+/**
+ * Suspends until [video] presents its next frame. Browsers without `requestVideoFrameCallback` (Firefox before
+ * 132) wait for the next display frame instead.
+ */
+@OptIn(ExperimentalWasmJsInterop::class)
+private suspend fun awaitVideoFrame(video: HTMLVideoElement) {
+    if (!hasVideoFrameCallback(video)) {
+        withFrameNanos { }
+        return
+    }
+    suspendCancellableCoroutine { continuation ->
+        val handle = requestVideoFrame(video) { continuation.resumeWith(Result.success(Unit)) }
+        continuation.invokeOnCancellation { cancelVideoFrame(video, handle) }
+    }
+}
+
+@OptIn(ExperimentalWasmJsInterop::class)
+private fun hasVideoFrameCallback(video: HTMLVideoElement): Boolean = js("'requestVideoFrameCallback' in video")
+
+@OptIn(ExperimentalWasmJsInterop::class)
+private fun requestVideoFrame(video: HTMLVideoElement, onFrame: () -> Unit): Int =
+    js("video.requestVideoFrameCallback(function () { onFrame(); })")
+
+@OptIn(ExperimentalWasmJsInterop::class)
+private fun cancelVideoFrame(video: HTMLVideoElement, handle: Int) {
+    js("video.cancelVideoFrameCallback(handle);")
+}
+
+private val MEDIA_ACTIONS = listOf("play", "pause", "nexttrack", "previoustrack")
+
+/** An action the browser doesn't know throws; it is skipped, as the spec advises. */
+@OptIn(ExperimentalWasmJsInterop::class)
+private fun setMediaAction(action: String, handler: () -> Unit) {
+    js("if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, function () { handler(); }); } catch (e) {} }")
+}
+
+@OptIn(ExperimentalWasmJsInterop::class)
+private fun clearMediaAction(action: String) {
+    js("if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, null); } catch (e) {} }")
+}
+
+@OptIn(ExperimentalWasmJsInterop::class)
+private fun setMediaMetadata(title: String, artist: String, artworkUrl: String?) {
+    js("if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: title, artist: artist, artwork: artworkUrl ? [{ src: artworkUrl }] : [] }); }")
+}
+
+@OptIn(ExperimentalWasmJsInterop::class)
+private fun clearMediaMetadata() {
+    js("if ('mediaSession' in navigator) { navigator.mediaSession.metadata = null; }")
 }
 
 private fun isCrossOrigin(url: String): Boolean = URL(url, window.location.href).origin != window.location.origin

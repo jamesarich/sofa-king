@@ -147,23 +147,16 @@ class LineupCacheTest {
     }
 
     @Test
-    fun `the layout is the one DataOutputStream wrote`() = runTest {
-        cache(key = "k").write(Lineup(listOf(Channel("a", 2.0, "A", null, listOf("G"))), emptyMap()))
-
-        val expected = byteArrayOf(
+    fun `a cache in the hand-written version 5 layout is deleted`() = runTest {
+        store.bytes = byteArrayOf(
             0, 0, 0, 5, // version
             0, 0, 0, 1, 'k'.code.toByte(), // key
-            0, 0, 0, 1, // channel count
-            0, 0, 0, 1, 'a'.code.toByte(), // guide id
-            0x40, 0, 0, 0, 0, 0, 0, 0, // 2.0 as an IEEE 754 double
-            0, 0, 0, 1, 'A'.code.toByte(), // name
-            0, // no logo
-            0, 0, 0, 1, 0, 0, 0, 1, 'G'.code.toByte(), // one group
-            0, 0, 0, 9, // guide status
-        ) + "AVAILABLE".encodeToByteArray() + byteArrayOf(
+            0, 0, 0, 0, // no channels
             0, 0, 0, 0, // no guide
         )
-        assertEquals(expected.toList(), assertNotNull(store.bytes).toList())
+
+        assertNull(cache(key = "k").read())
+        assertNull(store.bytes)
     }
 
     @Test

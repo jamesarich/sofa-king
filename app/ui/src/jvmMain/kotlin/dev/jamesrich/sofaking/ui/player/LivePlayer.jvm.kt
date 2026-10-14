@@ -29,6 +29,8 @@ import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.ColorType
 import org.jetbrains.skia.ImageInfo
+import org.jetbrains.skia.Pixmap
+import org.jetbrains.skia.impl.BufferUtil
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
@@ -77,11 +79,15 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     private var stream: PlaybackStream? = null
     private var captionsOn = false
 
-    /** The latest frame, swapped in under [frameLock]; [frameCount] invalidates the canvas without recomposing. */
+    /**
+     * Two bitmaps: libVLC's thread copies each frame into [back], then swaps it to the front under [frameLock], which
+     * the canvas holds while it draws [image], so a frame is never drawn while it is being written. [frameCount]
+     * invalidates the canvas without recomposing.
+     */
     private val frameLock = Any()
-    private var bitmap: Bitmap? = null
+    private var front: Bitmap? = null
+    private var back: Bitmap? = null
     private var image: ImageBitmap? = null
-    private var pixels = ByteArray(0)
     private val frameCount = mutableIntStateOf(0)
     private var hasFrame by mutableStateOf(false)
 
@@ -157,15 +163,17 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
         Box(modifier) {
             Canvas(Modifier.matchParentSize()) {
                 frameCount.intValue
-                val frame = synchronized(frameLock) { image } ?: return@Canvas
-                val scale = min(size.width / frame.width, size.height / frame.height)
-                val drawn = Size(frame.width * scale, frame.height * scale)
-                val origin = Offset((size.width - drawn.width) / 2, (size.height - drawn.height) / 2)
-                drawImage(
-                    frame,
-                    dstOffset = IntOffset(origin.x.roundToInt(), origin.y.roundToInt()),
-                    dstSize = IntSize(drawn.width.roundToInt(), drawn.height.roundToInt()),
-                )
+                synchronized(frameLock) {
+                    val frame = image ?: return@Canvas
+                    val scale = min(size.width / frame.width, size.height / frame.height)
+                    val drawn = Size(frame.width * scale, frame.height * scale)
+                    val origin = Offset((size.width - drawn.width) / 2, (size.height - drawn.height) / 2)
+                    drawImage(
+                        frame,
+                        dstOffset = IntOffset(origin.x.roundToInt(), origin.y.roundToInt()),
+                        dstSize = IntSize(drawn.width.roundToInt(), drawn.height.roundToInt()),
+                    )
+                }
             }
             if (!hasFrame) shutter()
         }
@@ -174,6 +182,13 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     override fun release() {
         vlc.release()
         factory.release()
+        synchronized(frameLock) {
+            image = null
+            front?.close()
+            back?.close()
+            front = null
+            back = null
+        }
     }
 
     private fun applyCaptions() {
@@ -187,11 +202,11 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
 
     private inner class Formats : BufferFormatCallback {
         override fun getBufferFormat(sourceWidth: Int, sourceHeight: Int): BufferFormat {
+            val info = ImageInfo(sourceWidth, sourceHeight, ColorType.BGRA_8888, ColorAlphaType.PREMUL)
+            // The front keeps showing until a frame of the new size replaces it.
             synchronized(frameLock) {
-                val info = ImageInfo(sourceWidth, sourceHeight, ColorType.BGRA_8888, ColorAlphaType.PREMUL)
-                bitmap = Bitmap().apply { allocPixels(info) }
-                image = bitmap?.asComposeImageBitmap()
-                pixels = ByteArray(sourceWidth * sourceHeight * 4)
+                back?.close()
+                back = Bitmap().apply { allocPixels(info) }
             }
             return RV32BufferFormat(sourceWidth, sourceHeight)
         }
@@ -201,13 +216,24 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
 
     private inner class Frames : RenderCallback {
         override fun display(mediaPlayer: MediaPlayer, nativeBuffers: Array<out ByteBuffer>, bufferFormat: BufferFormat) {
+            // Only libVLC's thread writes the back bitmap and the canvas never reads it, so the copy needs no lock.
+            val target = synchronized(frameLock) { back } ?: return
+            val info = target.imageInfo
+            val source = nativeBuffers[0]
+            if (source.capacity() < info.minRowBytes * info.height) return
+            val into = target.peekPixels() ?: return
+            Pixmap.make(info, BufferUtil.getPointerFromByteBuffer(source), info.minRowBytes).use { it.readPixels(into) }
+            target.notifyPixelsChanged()
             synchronized(frameLock) {
-                val target = bitmap ?: return
-                val source = nativeBuffers[0]
-                source.rewind()
-                source.get(pixels, 0, min(pixels.size, source.remaining()))
-                target.installPixels(pixels)
-                target.notifyPixelsChanged()
+                val old = front
+                back = if (old != null && old.imageInfo == info) {
+                    old
+                } else {
+                    old?.close()
+                    Bitmap().apply { allocPixels(info) }
+                }
+                front = target
+                image = target.asComposeImageBitmap()
             }
             hasFrame = true
             frameCount.intValue++

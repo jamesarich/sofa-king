@@ -15,6 +15,7 @@ plugins {
     alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 dependencyLocking { lockAllConfigurations() }
@@ -109,7 +110,6 @@ kotlin {
                 implementation(libs.compose.components.resources)
                 implementation(libs.lifecycle.viewmodel.compose)
                 implementation(libs.lifecycle.runtime.compose)
-                implementation(libs.koin.compose.viewmodel)
                 implementation(libs.kermit)
                 implementation(libs.kotlinx.datetime)
             }

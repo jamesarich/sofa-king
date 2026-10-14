@@ -28,8 +28,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -78,6 +78,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.rememberScreenReaderActive
@@ -94,28 +95,15 @@ import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.screenPadding
 
+@Serializable
 internal sealed interface GuideFilter {
+    @Serializable
     data object All : GuideFilter
+    @Serializable
     data object Favorites : GuideFilter
+    @Serializable
     data class Group(val name: String) : GuideFilter
 }
-
-private val GuideFilterSaver = Saver<GuideFilter, String>(
-    save = {
-        when (it) {
-            GuideFilter.All -> "all"
-            GuideFilter.Favorites -> "favorites"
-            is GuideFilter.Group -> "group:${it.name}"
-        }
-    },
-    restore = {
-        when {
-            it == "favorites" -> GuideFilter.Favorites
-            it.startsWith("group:") -> GuideFilter.Group(it.removePrefix("group:"))
-            else -> GuideFilter.All
-        }
-    },
-)
 
 /** How often the initial focus is retried after the row refused it, before the header keeps focus. */
 private const val INITIAL_FOCUS_ATTEMPTS = 3
@@ -202,7 +190,7 @@ fun GuideScreen(
 
     val filters = remember(lineup.channels) { guideFilters(lineup.channels) }
     val filterCounts = remember(lineup.channels, favorites) { guideFilterCounts(lineup.channels, favorites) }
-    var filter by rememberSaveable(stateSaver = GuideFilterSaver) { mutableStateOf<GuideFilter>(GuideFilter.All) }
+    var filter by rememberSerializable { mutableStateOf<GuideFilter>(GuideFilter.All) }
     val activeFilter = filter.takeIf { it in filters } ?: GuideFilter.All
 
     val searchState = rememberTextFieldState()

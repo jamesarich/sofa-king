@@ -7,7 +7,7 @@ Sofa King is a Kotlin Multiplatform project. One Compose Multiplatform UI on Mat
 | Module | What it holds | Targets |
 | --- | --- | --- |
 | `core` | Models, the server API, repository, playback sessions, lineup cache, settings store and `LineupViewModel`. No Compose. | Android, JVM, iOS, macOS, tvOS, watchOS, Linux, js, wasmJs |
-| `ui` | Every screen, the app shell, the guide and player logic, the Koin graph, and the desktop, web and iOS entry points | Android, JVM, iOS, js, wasmJs |
+| `ui` | Every screen, the app shell, the guide and player logic, the app graph, and the desktop, web and iOS entry points | Android, JVM, iOS, js, wasmJs |
 | `androidApp` | The Android application: manifest, launcher and TV banner, `MainActivity` | Android |
 | `iosApp` | The SwiftUI host for the `SofaKingUi` framework, as an XcodeGen spec | iOS |
 

@@ -31,12 +31,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.ProgrammeBadges
-import dev.jamesrich.sofaking.ui.RemoteImage
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.label
@@ -221,10 +221,9 @@ internal fun BoxScope.InfoOverlay(
                     }
                 }
                 current.icon?.let {
-                    RemoteImage(
-                        url = it,
-                        width = 160.dp,
-                        height = 90.dp,
+                    AsyncImage(
+                        model = it,
+                        contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.padding(start = 16.dp).size(width = 160.dp, height = 90.dp).clip(OverlayShape),
                     )

@@ -1,6 +1,6 @@
 # Development
 
-The [contributing guide](../CONTRIBUTING.md) covers commit and pull request conventions and the steps to add a native provider. This page covers running the server from a build, the test suite and the scripts that exercise a running server.
+The [contributing guide](../../CONTRIBUTING.md) covers the commit and pull request conventions and CI. This page covers running the server from a build, its tests, its code conventions, the scripts that exercise a running server and adding a native provider.
 
 ## Run without Docker
 
@@ -37,7 +37,7 @@ You need JDK 21 and FFmpeg. Run the commands from `backend/`:
    server/build/install/server/bin/server
    ```
 
-   On loopback the API needs no token. To serve other machines, set `SOFA_HOST=0.0.0.0`, and either `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` or `SOFA_HDHR_ENABLED=false`: on a LAN bind the server refuses to start without one of them. The first start then generates an API token and an admin token and keeps them in `data/secrets.json`. No token is logged. `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` set your own values instead, of at least 32 characters. The routes each token opens are in [security](../SECURITY.md#credentials-and-the-routes-they-open).
+   On loopback the API needs no token. To serve other machines, set `SOFA_HOST=0.0.0.0`, and either `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` or `SOFA_HDHR_ENABLED=false`: on a LAN bind the server refuses to start without one of them. The first start then generates an API token and an admin token and keeps them in `data/secrets.json`. No token is logged. `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` set your own values instead, of at least 32 characters. The routes each token opens are in [security](security.md#credentials-and-the-routes-they-open).
 
 4. Check the imports. On a LAN bind, `/api/v1/admin/*` takes only the admin token and refuses the API token. The first two lines read both tokens from `data/secrets.json`. On loopback with no tokens, skip them and leave out the headers:
 
@@ -67,7 +67,7 @@ Keep `data/` across restarts. It holds the database, the logo cache, the generat
 
 ## Build and test
 
-Use JDK 21 and FFmpeg. Run from `backend/`:
+Use JDK 21 and FFmpeg on the path. Run every command from `backend/`:
 
 ```sh
 ./gradlew test :server:installDist
@@ -78,6 +78,10 @@ python3 scripts/live-smoke.py
 The unit tests cover persistence and migrations, playlist and guide imports (including gzip guides), the native provider clients, the lineup and the lineup policy, and source health. They also cover playback sessions, the relay, the admin API and portal, the player outputs, the logo cache, the HDHomeRun routes, the FFmpeg remux and client cleanup. Tests that depend on a response's lifetime or on an FFmpeg client run the server on a real Netty socket (`RealServer`), because the Ktor test host hands a streamed body to a background job. `MediaFixture` generates H.264 and AAC HLS with FFmpeg, so FFmpeg is needed to run the suite.
 
 The smoke scripts start disposable servers in temporary directories. `smoke.py` verifies the installed application over HTTP, including SIGTERM and restart. `live-smoke.py` generates H.264 and AAC fixtures and builds and edits a lineup through the admin API. It then checks concurrent playback and cancellation, loads the player output with FFmpeg as the player, and checks the lineup across a restart.
+
+## Code
+
+Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Keep network and media work outside database transactions, preserve coroutine cancellation, and close the HTTP clients, jobs and processes you own. [Architecture](architecture.md) describes how the code is organized.
 
 ## Scripts
 
@@ -110,6 +114,24 @@ python3 scripts/provider-smoke.py --service pbs --option zip=ZIP_CODE
 This starts a temporary server with that one provider and adopts its channels. It opens sessions on three of them, expecting an HLS master from the relay, and decodes five seconds of two with FFmpeg. `--resolve`, `--decode`, `--seconds` and `--pick NAME,NAME` adjust it.
 
 Native provider unit tests run against `ProviderFixture`, a loopback stand-in for each service's API fed by the sanitized documents under `server/src/test/resources/providers/`. Every client takes its base URLs from options, so a test can point it there.
+
+## Add a native provider
+
+A native provider is a client for one free streaming service, built into the server. The [providers](providers.md) page describes the existing clients and how they are configured.
+
+1. Implement `ProviderClient` in `server/src/main/kotlin/dev/jamesrich/sofaking/backend/providers/`. The interface has `service`, `channels()`, `resolve(channelId)` and an optional `guide(wanted)`. Use the `ProviderContext` the registry passes in for HTTP, options, the shared cache and durable state (`provider_state`). Throw `ProviderFailure` with `transient = true` when the service is at fault and `transient = false` when the channel is gone from it. Keep tokens and URLs out of exception messages.
+2. Register the service. Add its name and whether it has a guide of its own to the `NativeServices` map in `ProviderClient.kt`, and add a branch to `ProviderRegistry.client`. If the service publishes an XMLTV guide that the server should use by default, add it to `NativeServices.defaultGuideUrl`.
+3. Add fixtures. Save the sanitized service responses under `server/src/test/resources/providers/`, named for the service, for example `example-channels.json`. Remove tokens, cookies, device identifiers and anything personal before committing a fixture.
+4. Add a test. Write a `ProviderFixture`-based test beside the others in `server/src/test/kotlin/dev/jamesrich/sofaking/backend/providers/`, for example `ExampleClientTest.kt`. Point the client's base URLs at the fixture through its options, load the fixtures with `ProviderFixture.resource(...)`, and assert the channel list, a resolve, and the guide if the service has one. Include a case for a failing service and one for a channel that is gone.
+5. Run `./gradlew test`, then check the service against its live endpoints:
+
+   ```sh
+   python3 scripts/provider-smoke.py --service example
+   ```
+
+6. Document the service in [providers](providers.md): add it to the service list and the configuration table, and write a section covering its endpoints, its guide and its fragility.
+
+Native clients are unofficial. Keep the request shape close to the service's own client, and keep the fixtures small.
 
 ## Dependencies
 

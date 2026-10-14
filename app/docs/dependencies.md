@@ -10,6 +10,7 @@
 | kotlinx.serialization | 1.12.0-RC |
 | Ktor | 3.6.0 |
 | DataStore | 1.3.0-rc01 |
+| Coil | 3.6.3 |
 | Media3 | 1.11.1 |
 | vlcj | 4.8.3 |
 | Gradle | 9.9.0-milestone-2 |

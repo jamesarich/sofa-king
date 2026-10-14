@@ -87,7 +87,7 @@ tv.example.com {
       traefik.http.services.sofa-king.loadbalancer.server.port: "8080"
 ```
 
-Point Plex's HDHomeRun tuner at the published port, not the proxy: `SOFA_HDHR_ALLOW` admits clients by address, and behind a proxy every request comes from the proxy. Keep the proxy on your LAN or VPN, as [security](../SECURITY.md#intended-deployment) describes.
+Point Plex's HDHomeRun tuner at the published port, not the proxy: `SOFA_HDHR_ALLOW` admits clients by address, and behind a proxy every request comes from the proxy. Keep the proxy on your LAN or VPN, as [security](security.md#intended-deployment) describes.
 
 ## Serve the web app
 
@@ -156,7 +156,7 @@ A [Homepage](https://gethomepage.dev/configs/docker/) instance with access to th
 | `deploy/.env.example` | Optional settings; copy to `deploy/.env` |
 | `deploy/sources.example.json` | Source template; copy to `deploy/config/sources.json` |
 | `deploy/sofa-king-update.sh`, `deploy/systemd/` | Keeps a host on the published image, see [update automatically](#update-automatically) |
-| `.github/workflows/backend.yml` (at the repository root) | Tests pull requests and pushes to `main`, and publishes the image for `main`, as [contributing](../CONTRIBUTING.md#ci) describes |
+| `.github/workflows/backend.yml` (at the repository root) | Tests pull requests and pushes to `main`, and publishes the image for `main`, as [contributing](../../CONTRIBUTING.md#ci) describes |
 
 `deploy/.env` and `deploy/config/` are ignored by Git.
 
@@ -196,7 +196,7 @@ Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rol
 
 ## The published image
 
-For `main`, the [Backend workflow](../CONTRIBUTING.md#ci) builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
+For `main`, the [Backend workflow](../../CONTRIBUTING.md#ci) builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
 
 The package is private. Pulling it needs a GitHub account with access to it, and Docker logged in to `ghcr.io` with a [personal access token (classic)](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic) that has the `read:packages` scope. Without access, `docker pull` answers `denied`. To run the published image instead of a local build, tag it as the image `compose.yaml` names and start without building, from `backend/`:
 

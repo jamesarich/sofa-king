@@ -6,7 +6,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. The examples
 
 Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin` take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. On a loopback server with no token, leave the header out. A missing or wrong token answers `401 AUTH_REQUIRED`.
 
-These routes take no token: `/healthz`, `/readyz`, `/logos/{key}` and the session media URLs under `/media/sessions/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](../SECURITY.md#credentials-and-the-routes-they-open).
+These routes take no token: `/healthz`, `/readyz`, `/logos/{key}` and the session media URLs under `/media/sessions/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
 
 ## Endpoints
 
@@ -104,7 +104,7 @@ Release is idempotent and cancels active upstream requests. Repeating an open re
 
 ## Player outputs
 
-`/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer. The API token is accepted as a bearer only, never in a query. Without `SOFA_OUTPUT_TOKEN` the routes answer `401 AUTH_REQUIRED` to anything but the API bearer, and with neither token configured (a loopback development server) they are open. [Security](../SECURITY.md#credentials-and-the-routes-they-open) explains why the output token is separate, and [operations](operations.md#rotating-tokens) how to rotate it.
+`/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer. The API token is accepted as a bearer only, never in a query. Without `SOFA_OUTPUT_TOKEN` the routes answer `401 AUTH_REQUIRED` to anything but the API bearer, and with neither token configured (a loopback development server) they are open. [Security](security.md#credentials-and-the-routes-they-open) explains why the output token is separate, and [operations](operations.md#rotating-tokens) how to rotate it.
 
 `GET /output/playlist.m3u` lists the enabled lineup in order, `audio/x-mpegurl`:
 

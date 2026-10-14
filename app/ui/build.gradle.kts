@@ -58,7 +58,8 @@ kotlin {
             commonWebpackConfig { outputFileName = "sofaking.js" }
             testTask { enabled = false }
         }
-        nodejs()
+        // Coil's JS decoder loads skiko, whose glue writes to `window`; give Node one so the test binary loads.
+        nodejs { testTask { nodeJsArgs += listOf("--import", "data:text/javascript,globalThis.window ??= globalThis") } }
         binaries.executable()
     }
     wasmJs {
@@ -90,6 +91,8 @@ kotlin {
                 implementation(libs.compose.material3.adaptive)
                 implementation(libs.navigationevent.compose)
                 implementation(libs.compose.components.resources)
+                implementation(libs.coil.compose)
+                implementation(libs.coil.network.ktor3)
                 implementation(libs.lifecycle.viewmodel.compose)
                 implementation(libs.lifecycle.runtime.compose)
                 implementation(libs.kermit)

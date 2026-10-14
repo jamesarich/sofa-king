@@ -1,8 +1,6 @@
-# Sofa King
+# Sofa King app
 
-Live TV, Sofa King good.
-
-Sofa King is a live TV app for the channels of your own [Sofa King server](../backend/README.md). It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide and the streams come from that server; the app includes no channel subscription.
+The Sofa King app is a live TV app for the channels of your own [Sofa King server](../backend/README.md). It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide and the streams come from that server; the app includes no channel subscription.
 
 ## Why
 
@@ -74,7 +72,6 @@ The [security page](docs/security.md) describes what the app stores, where the t
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
 - There is no recording and no background playback. Playback stops when the app leaves the screen.
 - There is no published iOS build. Snapshot APKs use a debug key and the desktop packages are unsigned.
-- The repository is private. Snapshot downloads need access to it.
 
 ## License
 

@@ -1,6 +1,6 @@
 # Security
 
-This page covers what the app stores, where it sends the API token, and its cleartext HTTP. To report a vulnerability, follow the [repository's security policy](../../SECURITY.md#reporting-a-vulnerability). The [server's security policy](../../backend/SECURITY.md) covers its tokens, routes and limits.
+This page covers what the app stores, where it sends the API token, and its cleartext HTTP. To report a vulnerability, follow the [repository's security policy](../../SECURITY.md#reporting-a-vulnerability). The [server's security page](../../backend/docs/security.md) covers its tokens, routes and limits.
 
 ## What the app stores
 

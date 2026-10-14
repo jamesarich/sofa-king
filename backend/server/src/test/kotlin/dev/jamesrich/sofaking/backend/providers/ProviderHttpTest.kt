@@ -1,7 +1,9 @@
 package dev.jamesrich.sofaking.backend.providers
 
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPOutputStream
+import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class ProviderHttpTest {
@@ -17,5 +19,24 @@ class ProviderHttpTest {
     @Test fun `gzip that inflates within the cap is returned whole`() {
         val payload = ByteArray(64 * 1024) { (it % 251).toByte() }
         assertContentEquals(payload, ProviderHttp.gunzipped(gzip(payload), 64 * 1024))
+    }
+
+    @Test fun `a redirect to another origin drops the credentials and keeps the other headers`() = runBlocking<Unit> {
+        ProviderFixture().use { fixture ->
+            val elsewhere = fixture.base.replace("127.0.0.1", "localhost")
+            fixture.route("/start") { Canned(302, location = "/same") }
+            fixture.route("/same") { Canned(302, location = "$elsewhere/cdn") }
+            fixture.json("/cdn", """{"ok":true}""")
+            val headers = mapOf("Authorization" to "Bearer secret", "Cookie" to "s=1", "User-Agent" to "web", "csrf-token" to "c")
+            val http = ProviderHttp(ProviderFixture.httpClient(), UpstreamPolicy(allowLoopback = true))
+            val answer = http.get("${fixture.base}/start", headers)
+            assertEquals("$elsewhere/cdn", answer.url)
+            assertEquals("Bearer secret", fixture.lastHeaders.getValue("/same")["authorization"], "a same-origin hop keeps the token")
+            val cdn = fixture.lastHeaders.getValue("/cdn")
+            assertNull(cdn["authorization"])
+            assertNull(cdn["cookie"])
+            assertEquals("web", cdn["user-agent"])
+            assertEquals("c", cdn["csrf-token"])
+        }
     }
 }

@@ -1,7 +1,9 @@
 package dev.jamesrich.sofaking.data
 
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -14,13 +16,14 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.URLBuilder
 import io.ktor.http.Url
-import io.ktor.http.appendPathSegments
 import io.ktor.http.content.TextContent
+import io.ktor.http.encodeURLPathPart
 import io.ktor.http.isSuccess
 import io.ktor.http.takeFrom
 import kotlinx.coroutines.CancellationException
 import kotlinx.io.IOException
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.encodeToString
 
 /** An error answer from the server: HTTP [status] with the API's [code], or `HTTP_<status>` when the body was not one. */
 class SofaKingException(
@@ -42,41 +45,48 @@ internal sealed interface CatalogResult {
  */
 class SofaKingApi(
     baseUrl: String,
-    private val token: String,
-    private val http: HttpClient = apiHttpClient,
+    token: String,
+    http: HttpClient = apiHttpClient,
 ) {
     private val base: Url = Url(baseUrl.trimEnd('/'))
 
+    // Shares the pool's engine; the base path ends in a slash so relative endpoints resolve under it. JSON stays
+    // with wireJson by hand: Ktor's ContentNegotiation converter pulls OpenAPI schema, YAML and a kotlinx-datetime
+    // compatibility build into every target for two lines of encoding.
+    private val http = http.config {
+        defaultRequest {
+            url("$base/api/v1/")
+            if (token.isNotEmpty()) bearerAuth(token)
+        }
+    }
+
     internal suspend fun catalog(etag: String?): CatalogResult = call {
-        val response = http.get(endpoint("channels")) {
-            authorize()
+        val response = http.get("channels") {
             if (etag != null) header(HttpHeaders.IfNoneMatch, etag)
         }
         if (response.status.value == 304) return@call CatalogResult.NotModified
-        CatalogResult.Changed(decode<CatalogDto>(response), response.headers[HttpHeaders.ETag])
+        CatalogResult.Changed(response.decode(), response.headers[HttpHeaders.ETag])
     }
 
     internal suspend fun guide(query: GuideQueryDto): GuideWindowDto = call {
-        decode(http.post(endpoint("guide", "query")) { json(wireJson.encodeToString(GuideQueryDto.serializer(), query)) })
+        http.post("guide/query") { json(query) }.decode()
     }
 
     internal suspend fun openSession(channelId: String, intent: String, idempotencyKey: String): PlaybackSessionDto = call {
-        val body = wireJson.encodeToString(OpenPlaybackDto.serializer(), OpenPlaybackDto(channelId, intent, idempotencyKey))
-        decode(http.post(endpoint("playback-sessions")) { json(body) })
+        http.post("playback-sessions") { json(OpenPlaybackDto(channelId, intent, idempotencyKey)) }.decode()
     }
 
     internal suspend fun session(id: String): PlaybackSessionDto = call {
-        decode(http.get(endpoint("playback-sessions", id)) { authorize() })
+        http.get(sessionPath(id)).decode()
     }
 
     /** Renews the lease; [intent] changes preview to watch (or back) without replacing the stream. */
     internal suspend fun updateSession(id: String, intent: String?): PlaybackSessionDto = call {
-        val body = wireJson.encodeToString(UpdatePlaybackDto.serializer(), UpdatePlaybackDto(intent))
-        decode(http.patch(endpoint("playback-sessions", id)) { json(body) })
+        http.patch(sessionPath(id)) { json(UpdatePlaybackDto(intent)) }.decode()
     }
 
     internal suspend fun releaseSession(id: String) = call {
-        http.delete(endpoint("playback-sessions", id)) { authorize() }.checkSuccess()
+        http.delete(sessionPath(id)).checkSuccess()
     }
 
     /** The absolute media URL for a descriptor, whose [PlaybackDescriptorDto.url] is relative to the server. */
@@ -93,22 +103,17 @@ class SofaKingApi(
         null
     }
 
-    private fun endpoint(vararg segments: String): Url =
-        URLBuilder(base).appendPathSegments("api", "v1").appendPathSegments(*segments).build()
+    /** The session's endpoint, relative to the API, with [id] encoded as one path segment. */
+    private fun sessionPath(id: String) = "playback-sessions/" + id.encodeURLPathPart()
 
-    private fun HttpRequestBuilder.authorize() {
-        if (token.isNotEmpty()) header(HttpHeaders.Authorization, "Bearer $token")
+    private inline fun <reified T> HttpRequestBuilder.json(body: T) {
+        setBody(TextContent(wireJson.encodeToString(body), JSON))
     }
 
-    private fun HttpRequestBuilder.json(text: String) {
-        authorize()
-        setBody(TextContent(text, JSON))
-    }
-
-    private suspend inline fun <reified T> decode(response: HttpResponse): T {
-        response.checkSuccess()
+    private suspend inline fun <reified T> HttpResponse.decode(): T {
+        checkSuccess()
         return try {
-            wireJson.decodeFromString(response.bodyAsText())
+            wireJson.decodeFromString(bodyAsText())
         } catch (e: SerializationException) {
             throw IOException("Unreadable answer from the server", e)
         } catch (e: IllegalArgumentException) {

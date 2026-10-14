@@ -34,12 +34,12 @@
       "allowedVersions": "!/-compat$/"
     },
     {
-      "description": "CI pins JDK 21, the toolchain every build compiles with, and Ubuntu 24.04, whose FFmpeg 6.1 matches the server image",
+      "description": "JDK 21 matches every build's toolchain and the Gradle daemon JVM, and the backend runner's Ubuntu 24.04 matches the server image's noble base and its FFmpeg 6.1, so a bump means changing those too: list it on the dashboard instead of opening a PR",
       "matchDepNames": [
         "java-jdk",
         "ubuntu"
       ],
-      "enabled": false
+      "dependencyDashboardApproval": true
     },
     {
       "description": "Merge minor, patch and digest updates once every check on the branch's head is green. Renovate merges by itself rather than through GitHub's auto-merge, so it judges the Lockfiles workflow's commit and the CI runs that commit dispatches, and needs no branch protection",

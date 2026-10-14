@@ -1,6 +1,6 @@
 # Sofa King app
 
-Kotlin Multiplatform: `core` (data, no Compose, every target its dependencies publish), `ui` (Compose Multiplatform screens for Android, JVM desktop, iOS, js and wasmJs), `androidApp` (the Android TV app shell) and `iosApp` (SwiftUI host). Read README, docs/README.md and docs/architecture.md for current setup and behavior.
+Kotlin Multiplatform: `core` (data, no Compose, every target its dependencies publish), `ui` (Compose Multiplatform screens for Android, JVM desktop, iOS, js and wasmJs), `androidApp` (the Android TV app shell) `iosApp` (SwiftUI host) and `tvosApp` (the SwiftUI Apple TV app on `core`'s `SofaKingTv`, since Compose does not render on tvOS). Read README, docs/README.md and docs/architecture.md for current setup and behavior.
 
 ## Build
 

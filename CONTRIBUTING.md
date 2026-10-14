@@ -56,7 +56,7 @@ Versions are pinned in the shared catalog and resolved versions are locked in ev
 | --- | --- | --- |
 | [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown or `app/docs/`), the shared `gradle/` directory or `build-logic/`, `ci.yml` or `snapshot.yml`; also a manual run | Tests and builds the app, and publishes the snapshot from `main` |
 | [`backend.yml`](.github/workflows/backend.yml) | Pull requests and pushes to `main` that change `backend/` or `contract/` (not their Markdown or `backend/docs/`), the shared `gradle/` directory or `build-logic/`, or `backend.yml`; also a manual run | Tests and builds the server, and publishes its image from `main` |
-| [`lockfiles.yml`](.github/workflows/lockfiles.yml) | Renovate pull requests that change the catalog, a Gradle wrapper, a settings file or a lockfile; also a manual run on any branch but `main` | Rewrites the lockfiles and verification metadata, commits them to the branch and runs `ci.yml` and `backend.yml` on that commit |
+| [`lockfiles.yml`](.github/workflows/lockfiles.yml) | Renovate pull requests that change the catalog, a Gradle wrapper or a settings file; also a manual run on any branch but `main` | Rewrites the lockfiles and verification metadata, commits them to the branch and runs `ci.yml` and `backend.yml` on that commit |
 
 `ci.yml` runs up to three jobs:
 

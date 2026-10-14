@@ -1,7 +1,7 @@
 name: Lockfiles
 
 # Rewrites the lockfiles and verification metadata on a Renovate branch that changes the catalog, a wrapper, a settings
-# plugin or a lockfile, and on any branch on demand. The locks and verification jobs run the new versions' Gradle code with
+# plugin, and on any branch on demand. The locks and verification jobs run the new versions' Gradle code with
 # a read-only token and hand their changes over as a patch. The push job commits them to the branch and starts CI and
 # Backend on that commit, since a push made with the workflow token starts no workflows of its own. renovate.json lists
 # that commit's author in gitIgnoredAuthors, so Renovate keeps rebasing the branch and this workflow runs again.
@@ -11,8 +11,6 @@ on:
       - "gradle/libs.versions.toml"
       - "**/gradle-wrapper.properties"
       - "**/settings.gradle.kts"
-      # Renovate's weekly lock file maintenance, which resolves on Linux only.
-      - "**/*.lockfile"
   workflow_dispatch:
 
 concurrency:

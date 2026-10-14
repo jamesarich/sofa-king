@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.HtmlElementView
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.HLS_MIME_TYPE
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.app_name
+import org.jetbrains.compose.resources.stringResource
 import dev.jamesrich.sofaking.data.PlaybackStream
 import kotlinx.browser.document
 import kotlinx.browser.window
@@ -65,7 +68,8 @@ private val HAVE_CURRENT_DATA = HTMLMediaElement.HAVE_CURRENT_DATA
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
-    val player = remember(captionSync) { HtmlLivePlayer(captionSync) }
+    val appName = stringResource(Res.string.app_name)
+    val player = remember(captionSync) { HtmlLivePlayer(captionSync, appName) }
     DisposableEffect(player) { onDispose { player.release() } }
     return player
 }
@@ -75,7 +79,7 @@ actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
  * Browsers play HLS natively (Safari, recent Chromium) and have no MPEG-TS demuxer, so a TS-only channel reports
  * an unsupported format.
  */
-internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlayer {
+internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val appName: String) : LivePlayer {
     private val video = (document.createElement("video") as HTMLVideoElement).apply {
         setAttribute("playsinline", "")
         // A cross-origin stream's frames can be drawn into WebGL only when fetched with CORS.
@@ -202,11 +206,11 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync) : LivePlaye
 
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = object : MediaSessionHandle {
         override fun publish(nowPlaying: NowPlaying) {
-            document.title = "${nowPlaying.title} - Sofa King"
+            document.title = "${nowPlaying.title} - $appName"
         }
 
         override fun close() {
-            document.title = "Sofa King"
+            document.title = appName
         }
     }
 

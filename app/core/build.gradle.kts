@@ -1,33 +1,14 @@
-@file:OptIn(ExperimentalWasmDsl::class)
-
-import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
-import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
-import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin
-import org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenEnvSpec
-import org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenPlugin
-import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsEnvSpec
-import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsPlugin
-
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.kotlin.serialization)
+    id("sofaking.kotlin")
+    id("sofaking.android")
 }
 
-dependencyLocking { lockAllConfigurations() }
-
-// Node and Binaryen resolve through the repositories declared in settings, which forbids project repositories.
-plugins.withType<NodeJsPlugin> { the<NodeJsEnvSpec>().downloadBaseUrl = null }
-plugins.withType<WasmNodeJsPlugin> { the<WasmNodeJsEnvSpec>().downloadBaseUrl = null }
-plugins.withType<BinaryenPlugin> { the<BinaryenEnvSpec>().downloadBaseUrl = null }
-
 kotlin {
-    jvmToolchain(21)
-
     android {
         namespace = "dev.jamesrich.sofaking.core"
-        compileSdk { version = release(37) { minorApiLevel = 1 } }
-        minSdk = 28
         withHostTest {}
     }
     jvm()
@@ -37,8 +18,13 @@ kotlin {
     iosArm64()
     iosSimulatorArm64()
     macosArm64()
-    tvosArm64()
-    tvosSimulatorArm64()
+    // The SwiftUI Apple TV app (tvosApp) links core directly, since Compose Multiplatform has no tvOS renderer.
+    listOf(tvosArm64(), tvosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "SofaKingCore"
+            isStatic = true
+        }
+    }
     watchosArm64()
     watchosSimulatorArm64()
     linuxX64()

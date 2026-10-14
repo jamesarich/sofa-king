@@ -1,16 +1,15 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+    id("sofaking.kotlin")
+    id("sofaking.android")
 }
 
 android {
     namespace = "dev.jamesrich.sofaking"
-    compileSdk { version = release(37) { minorApiLevel = 1 } }
 
     defaultConfig {
         applicationId = "dev.jamesrich.sofaking"
-        minSdk = 28
-        targetSdk = 37
         versionCode = providers.gradleProperty("sofaking.versionCode").get().toInt()
         versionName = providers.gradleProperty("sofaking.version").get() +
             providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
@@ -44,12 +43,6 @@ androidComponents {
         variantBuilder.hostTests[com.android.build.api.variant.HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
     }
 }
-
-kotlin {
-    jvmToolchain(21)
-}
-
-dependencyLocking { lockAllConfigurations() }
 
 dependencies {
     implementation(project(":ui"))

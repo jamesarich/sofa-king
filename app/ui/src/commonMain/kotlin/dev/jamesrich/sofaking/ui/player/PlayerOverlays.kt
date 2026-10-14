@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -27,6 +28,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.resources.*
@@ -119,9 +121,15 @@ internal fun BoxScope.FailureCard(code: String) {
 /** Thin amber-on-dusk bar; [fraction] is 0..1. [color] is the filled part, for rows whose background is already amber. */
 @Composable
 internal fun ProgressBar(fraction: Float, color: Color = SofaAmber) {
-    Box(Modifier.fillMaxWidth().height(4.dp).background(SofaOverlayTrack)) {
-        Box(Modifier.fillMaxWidth(fraction).height(4.dp).background(color))
-    }
+    LinearProgressIndicator(
+        progress = { fraction },
+        modifier = Modifier.fillMaxWidth().height(4.dp),
+        color = color,
+        trackColor = SofaOverlayTrack,
+        strokeCap = StrokeCap.Butt,
+        gapSize = 0.dp,
+        drawStopIndicator = {},
+    )
 }
 
 @Composable
@@ -179,7 +187,7 @@ internal fun BoxScope.InfoOverlay(
             }
         }
         if (current == null) {
-            Text(channel.noListingText(), style = MaterialTheme.typography.titleMedium, color = SofaDusk)
+            Text(channel.noListingText(lineup.guideLoading), style = MaterialTheme.typography.titleMedium, color = SofaDusk)
         } else {
             Row {
                 Column(Modifier.weight(1f)) {

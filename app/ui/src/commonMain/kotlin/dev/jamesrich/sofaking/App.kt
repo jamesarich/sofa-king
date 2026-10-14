@@ -347,33 +347,41 @@ private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LogoMark(40.dp)
-        Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-        // The lineup on screen stays usable while it refreshes; the loader only says new data is on its way.
-        AnimatedVisibility(
-            visible = refreshing,
-            enter = PopIn,
-            exit = PopOut,
+        Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
+        // Status sits right of the name in whatever the buttons leave, so a long notice ellipsizes rather than
+        // squeezing Refresh and Settings.
+        Row(
+            Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SofaLoader(size = 28.dp)
+            // The lineup on screen stays usable while it refreshes; the loader only says new data is on its way.
+            AnimatedVisibility(
+                visible = refreshing,
+                enter = PopIn,
+                exit = PopOut,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SofaLoader(size = 28.dp)
+                    Text(
+                        stringResource(Res.string.refreshing),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            // The last text is kept so the notice reads while it fades out.
+            var lastNotice by remember { mutableStateOf("") }
+            LaunchedEffect(notice) { if (notice != null) lastNotice = notice }
+            AnimatedVisibility(visible = notice != null, enter = PopIn, exit = PopOut, modifier = Modifier.weight(1f, fill = false)) {
                 Text(
-                    stringResource(Res.string.refreshing),
+                    notice ?: lastNotice,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-        // The last text is kept so the notice reads while it fades out.
-        var lastNotice by remember { mutableStateOf("") }
-        LaunchedEffect(notice) { if (notice != null) lastNotice = notice }
-        AnimatedVisibility(visible = notice != null, enter = PopIn, exit = PopOut) {
-            Text(
-                notice ?: lastNotice,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
         SofaButton(onClick = onRefresh) { Text(stringResource(Res.string.refresh)) }
         SofaButton(onClick = onSettings, modifier = Modifier.focusRequester(settingsFocus)) { Text(stringResource(Res.string.settings)) }

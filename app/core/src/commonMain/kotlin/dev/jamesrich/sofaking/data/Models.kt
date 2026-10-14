@@ -48,6 +48,8 @@ data class Lineup(
     val channels: List<Channel>,
     /** Programmes per [Channel.guideId], sorted by start. */
     val guide: Map<String, List<Programme>>,
+    /** The channels are in and their programmes are still on the way, so a channel without any may yet have some. */
+    val guideLoading: Boolean = false,
 ) {
     fun nowAndNext(channel: Channel, at: Instant): Pair<Programme?, Programme?> {
         val programmes = guide[channel.guideId].orEmpty()

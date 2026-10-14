@@ -13,7 +13,7 @@ struct ChannelListView: View {
         }
         .navigationTitle("Sofa King")
         .toolbar {
-            NavigationLink { SettingsView() } label: { Label("Settings", systemImage: "gear") }
+            NavigationLink { SettingsView() } label: { Label("Settings", systemImage: "gear").labelStyle(.iconOnly) }
         }
         .fullScreenCover(item: $playing) { channel in
             PlayerView(channel: channel)

@@ -22,6 +22,14 @@ final class AppModel {
     private var watches: [Watch] = []
 
     init() {
+        #if DEBUG
+        // `xcrun simctl launch booted dev.jamesrich.sofaking.tv -serverUrl http://host:port -apiToken TOKEN`
+        // saves a server without typing on the simulator's keyboard.
+        let args = UserDefaults.standard
+        if let url = args.string(forKey: "serverUrl") {
+            core.saveServer(url: url, apiToken: args.string(forKey: "apiToken") ?? "")
+        }
+        #endif
         watches.append(core.watchState { [weak self] in self?.state = $0 })
         watches.append(core.watchSettings { [weak self] in self?.settings = $0 })
     }

@@ -1,9 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-buildscript {
-    configurations.classpath { resolutionStrategy.activateDependencyLocking() }
-}
-
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)

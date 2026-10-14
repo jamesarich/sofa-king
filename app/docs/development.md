@@ -90,4 +90,4 @@ tools/render-banner.sh
 
 ## Dependencies
 
-Version changes follow [dependencies](dependencies.md#changing-versions). Run `gradle/update-locks.sh` after a change, review the lockfile diff, and run the checks.
+Version changes follow [dependencies](dependencies.md#changing-versions). Run the checks after a change.

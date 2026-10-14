@@ -13,13 +13,6 @@
   ],
   "packageRules": [
     {
-      "description": "The lockfiles workflow rewrites the Gradle lockfiles and verification metadata on macOS; Renovate's own run cannot resolve the app's builds",
-      "matchManagers": [
-        "gradle"
-      ],
-      "skipArtifactsUpdate": true
-    },
-    {
       "description": "Conventional Commits scope: workflow changes are ci",
       "matchManagers": [
         "github-actions"
@@ -42,7 +35,7 @@
       "dependencyDashboardApproval": true
     },
     {
-      "description": "Merge minor, patch and digest updates once every check on the branch's head is green. Renovate merges by itself rather than through GitHub's auto-merge, so it judges the Lockfiles workflow's commit and the CI runs that commit dispatches, and needs no branch protection",
+      "description": "Merge minor, patch and digest updates once every check on the branch's head is green. Renovate merges by itself rather than through GitHub's auto-merge, so it needs no branch protection",
       "matchUpdateTypes": [
         "minor",
         "patch",
@@ -117,9 +110,6 @@
       ],
       "enabled": false
     }
-  ],
-  "gitIgnoredAuthors": [
-    "41898282+github-actions[bot]@users.noreply.github.com"
   ],
   "semanticCommitType": "build",
   "prHourlyLimit": 0,

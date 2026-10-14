@@ -14,13 +14,13 @@ App (`app/`):
 - [ ] The build and test checks in `app/docs/development.md` pass, including the Native test compile after a change to common code
 - [ ] A change to playback, focus or the remote passed the checks on a TV, listed below
 - [ ] A visible change has before and after screenshots
-- [ ] Dependency changes update the version catalog, the lockfiles and `app/docs/dependencies.md`
+- [ ] Dependency changes update the version catalog and `app/docs/dependencies.md`
 
 Server (`backend/`):
 
 - [ ] `./gradlew test :server:installDist` passes in `backend/`, and the smoke scripts pass when playback, imports or the lineup changed
 - [ ] New or changed variables are in the configuration table in `backend/docs/live-tv.md`
-- [ ] Dependency changes update the version catalog, the lockfiles and `backend/gradle/verification-metadata.xml`, regenerated with `backend/scripts/update-verification-metadata.sh`, which also regenerates `contract/gradle/verification-metadata.xml`
+- [ ] Dependency changes update the version catalog and `backend/docs/dependencies.md`
 - [ ] A new or changed native provider has sanitized fixtures, a `ProviderFixture` test, `backend/scripts/provider-smoke.py` output below, and its section in `backend/docs/providers.md`
 
 Contract (`contract/`):

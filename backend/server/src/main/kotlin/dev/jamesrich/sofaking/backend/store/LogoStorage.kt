@@ -38,8 +38,7 @@ suspend fun BackendStore.logos(): List<LogoRecord> = query {
 }
 
 suspend fun BackendStore.saveLogo(record: LogoRecord) = query {
-    LogoCacheRows.deleteWhere { LogoCacheRows.key eq record.key }
-    LogoCacheRows.insert {
+    LogoCacheRows.upsert {
         it[key] = record.key
         it[sourceUrl] = record.sourceUrl
         it[contentType] = record.contentType

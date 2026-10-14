@@ -13,18 +13,20 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration.Companion.seconds
 import org.slf4j.LoggerFactory
 
 data class ProbeConfig(
@@ -240,7 +242,7 @@ class ProbeWorker(
                 val command = decodeCommand(ffmpeg, offering, headers, config.decodeSeconds, recheck)
                 process = ProcessBuilder(command).redirectOutput(output.toFile()).redirectError(errors.toFile()).start()
                 val owned = process
-                val exited = runInterruptible { owned.waitFor(config.deadlineSeconds, TimeUnit.SECONDS) }
+                val exited = withTimeoutOrNull(config.deadlineSeconds.seconds) { owned.onExit().await() } != null
                 if (!exited) {
                     FailureClass.PROVIDER
                 } else {
@@ -262,9 +264,11 @@ class ProbeWorker(
             } finally {
                 process?.let {
                     it.destroy()
-                    if (!it.waitFor(2, TimeUnit.SECONDS)) {
-                        it.destroyForcibly()
-                        it.waitFor(2, TimeUnit.SECONDS)
+                    withContext(NonCancellable) {
+                        if (withTimeoutOrNull(2.seconds) { it.onExit().await() } == null) {
+                            it.destroyForcibly()
+                            withTimeoutOrNull(2.seconds) { it.onExit().await() }
+                        }
                     }
                 }
                 Files.deleteIfExists(output)

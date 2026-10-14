@@ -150,8 +150,7 @@ class BackendStore internal constructor(
         val initial = HealthState().encode()
         writeHealth { changed ->
             val key = "feed:${snapshot.providerId}"
-            Metadata.deleteWhere { Metadata.key eq key }
-            Metadata.insert { it[Metadata.key] = key; it[value] = encoded }
+            Metadata.upsert { it[Metadata.key] = key; it[value] = encoded }
             OfferingHealth.batchInsert(snapshot.offerings, ignore = true) { offering ->
                 this[OfferingHealth.offeringId] = offering.id
                 this[OfferingHealth.stateJson] = initial
@@ -171,8 +170,7 @@ class BackendStore internal constructor(
     suspend fun savePlexStatus(status: PlexStatus) {
         val encoded = Json.encodeToString(status)
         query {
-            Metadata.deleteWhere { Metadata.key eq PLEX_STATUS_KEY }
-            Metadata.insert { it[key] = PLEX_STATUS_KEY; it[value] = encoded }
+            Metadata.upsert { it[key] = PLEX_STATUS_KEY; it[value] = encoded }
         }
     }
 
@@ -186,8 +184,7 @@ class BackendStore internal constructor(
     }
 
     suspend fun markProbeAttempt(offeringId: String, at: Instant) = query {
-        ProbeAttempts.deleteWhere { ProbeAttempts.offeringId eq offeringId }
-        ProbeAttempts.insert { it[ProbeAttempts.offeringId] = offeringId; it[attemptedAt] = at.toString() }
+        ProbeAttempts.upsert { it[ProbeAttempts.offeringId] = offeringId; it[attemptedAt] = at.toString() }
         Unit
     }
 
@@ -199,8 +196,7 @@ class BackendStore internal constructor(
     suspend fun recordProtocol(offeringId: String, protocol: String, at: Instant) {
         require(protocol in setOf("hls", "mpegts")) { "Unsupported protocol" }
         query {
-            OfferingProtocols.deleteWhere { OfferingProtocols.offeringId eq offeringId }
-            OfferingProtocols.insert {
+            OfferingProtocols.upsert {
                 it[OfferingProtocols.offeringId] = offeringId
                 it[OfferingProtocols.protocol] = protocol
                 it[observedAt] = at.toString()

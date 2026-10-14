@@ -1,8 +1,6 @@
-# Sofa King Backend
+# Sofa King server
 
-Live TV, Sofa King good.
-
-Sofa King Backend is a self-hosted live TV server for a home network. It builds one channel lineup from free streaming services, M3U playlists and XMLTV guides, and serves it to Plex as an HDHomeRun tuner, to M3U and XMLTV players, and to the Sofa King app on TVs, phones, desktops, iOS and the web.
+The Sofa King server is a self-hosted live TV server for a home network. It builds one channel lineup from free streaming services, M3U playlists and XMLTV guides, and serves it to Plex as an HDHomeRun tuner, to M3U and XMLTV players, and to the Sofa King app on TVs, phones, desktops, iOS and the web.
 
 ## Why
 
@@ -68,11 +66,11 @@ The [documentation index](docs/README.md) lists every page. The most used are:
 
 ## Contributing
 
-Build and test with `./gradlew test`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the commit conventions, the test scripts and how to add a native provider.
+[Development](docs/development.md) has the build and test commands, the smoke scripts and how to add a native provider. The repository's [CONTRIBUTING.md](../CONTRIBUTING.md) covers the commit and pull request conventions and CI.
 
 ## Security
 
-[SECURITY.md](SECURITY.md) describes which token opens which routes, the request limits, the outbound address policy, and how to report a vulnerability.
+The [security page](docs/security.md) describes the intended deployment, which token opens which routes, the request limits and the outbound address policy. Report a vulnerability as the repository's [SECURITY.md](../SECURITY.md) describes.
 
 ## Limitations
 
@@ -80,7 +78,7 @@ Build and test with `./gradlew test`. [CONTRIBUTING.md](CONTRIBUTING.md) covers 
 - The HDHomeRun remux of an HLS source carries one video stream and one audio stream.
 - The native providers are unofficial clients of public service endpoints. They stop working when a service changes them.
 - DRM channels are skipped by the native providers. M3U playlists are not filtered for DRM.
-- The repository and its image are private. Pulling the image needs access to the package.
+- The published image is private. Pulling it needs access to the package; anyone can build it from the repository instead.
 
 ## License
 

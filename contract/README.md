@@ -1,4 +1,4 @@
-# Contract
+# Sofa King contract
 
 The live TV request and response types of the server's `/api/v1`, shared by the server in [`backend/`](../backend/README.md) and the app in [`app/`](../app/README.md). A Kotlin Multiplatform build with `kotlinx.serialization` types and the `Wire` constants only: no `Json` instance and no Ktor. Both builds include it, so a change here compiles and tests both, and lands with both sides in one pull request.
 

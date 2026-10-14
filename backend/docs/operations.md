@@ -144,7 +144,7 @@ The [native providers](providers.md) call each service's public endpoints. A ser
    ```
 
    Send `false` to clear the override. To remove a whole provider, delete it from the source file and restart. Its sources stop being offered, and entries skip them.
-5. A fix to a native client is a change to the client itself. See [contributing](../CONTRIBUTING.md#add-a-native-provider).
+5. A fix to a native client is a change to the client itself. See [add a native provider](development.md#add-a-native-provider).
 
 ## Rotating tokens
 

@@ -2,11 +2,11 @@
 
 Sofa King is a live TV server and the app that watches it. Each part keeps its own pages:
 
-- [Server documentation](../backend/docs/README.md): getting started, deploying with Docker, the lineup and its policy, providers and sources, Plex and the player outputs, the HTTP API, operations and troubleshooting.
+- [Server documentation](../backend/docs/README.md): getting started, deploying with Docker, the lineup and its policy, providers and sources, Plex and the player outputs, the HTTP API, operations, troubleshooting, security, architecture and development.
 - [App documentation](../app/docs/README.md): getting started on each platform, using the guide and the player, troubleshooting, security, architecture and development.
 - [Contract](../contract/README.md): the wire types the server and the app share, and the rules for changing them.
 
-[CONTRIBUTING](../CONTRIBUTING.md) covers the shared conventions and CI, and [SECURITY](../SECURITY.md) how to report a vulnerability. The server has its own [CONTRIBUTING](../backend/CONTRIBUTING.md) and [SECURITY](../backend/SECURITY.md) for its build, tokens and routes; the app's build is in its [development](../app/docs/development.md) page and its security notes in its [security](../app/docs/security.md) page.
+[CONTRIBUTING](../CONTRIBUTING.md) covers the repository's layout, the shared conventions and CI, and [SECURITY](../SECURITY.md) how to report a vulnerability. Each part keeps its build in its development page ([app](../app/docs/development.md), [server](../backend/docs/development.md)) and its security notes in its security page ([app](../app/docs/security.md), [server](../backend/docs/security.md)).
 
 ## Glossary
 

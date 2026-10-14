@@ -1,6 +1,6 @@
 # Live TV: configuration, lineup and sources
 
-This page is the configuration reference for the server: every environment variable, the source file that lists providers and guides, how sources and channels are identified, the lineup, the player outputs and Plex. To run the server on the LAN without Docker, see [development](development.md#run-without-docker); the tokens each route takes are in [security](../SECURITY.md#credentials-and-the-routes-they-open).
+This page is the configuration reference for the server: every environment variable, the source file that lists providers and guides, how sources and channels are identified, the lineup, the player outputs and Plex. To run the server on the LAN without Docker, see [development](development.md#run-without-docker); the tokens each route takes are in [security](security.md#credentials-and-the-routes-they-open).
 
 ## Server settings
 

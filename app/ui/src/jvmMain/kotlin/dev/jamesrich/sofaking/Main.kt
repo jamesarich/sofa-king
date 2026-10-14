@@ -5,6 +5,9 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.jamesrich.sofaking.data.AppStorage
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.app_name
+import org.jetbrains.compose.resources.stringResource
 import java.io.File
 import androidx.compose.runtime.LaunchedEffect
 import java.awt.Dimension
@@ -15,7 +18,7 @@ fun main() {
     application {
         Window(
             onCloseRequest = ::exitApplication,
-            title = "Sofa King",
+            title = stringResource(Res.string.app_name),
             state = rememberWindowState(width = 1280.dp, height = 720.dp),
         ) {
             // Below this the guide has no room for a row; the layout adapts to anything larger.

@@ -179,7 +179,7 @@ private fun TimelineStripContent(
     modifier: Modifier,
     content: @Composable () -> Unit,
 ) {
-    Box(modifier.clipToBounds().horizontalScroll(scrollState)) {
+    Box(modifier.clipToBounds().horizontalScroll(scrollState, overscrollEffect = null)) {
         content()
         if (nowMinute != null) {
             Box(

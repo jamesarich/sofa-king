@@ -106,12 +106,12 @@ jobs:
         with:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ hashFiles('app/gradle/libs.versions.toml') }}
-      - name: Test Apple targets and link the iOS framework
+      - name: Test Apple targets and link the iOS and tvOS frameworks
         run: >-
           ./gradlew --continue
           :core:iosSimulatorArm64Test :core:macosArm64Test :core:tvosSimulatorArm64Test
           :core:watchosSimulatorArm64Test :ui:iosSimulatorArm64Test
-          :ui:linkDebugFrameworkIosSimulatorArm64
+          :ui:linkDebugFrameworkIosSimulatorArm64 :core:linkDebugFrameworkTvosSimulatorArm64
       - name: Upload reports
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

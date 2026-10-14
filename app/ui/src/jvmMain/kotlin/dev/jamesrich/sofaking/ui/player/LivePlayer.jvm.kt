@@ -211,11 +211,23 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
             return RV32BufferFormat(sourceWidth, sourceHeight)
         }
 
+        override fun newFormatSize(bufferWidth: Int, bufferHeight: Int, displayWidth: Int, displayHeight: Int) = Unit
+
         override fun allocatedBuffers(buffers: Array<out ByteBuffer>) = Unit
     }
 
     private inner class Frames : RenderCallback {
-        override fun display(mediaPlayer: MediaPlayer, nativeBuffers: Array<out ByteBuffer>, bufferFormat: BufferFormat) {
+        override fun lock(mediaPlayer: MediaPlayer) = Unit
+
+        override fun unlock(mediaPlayer: MediaPlayer) = Unit
+
+        override fun display(
+            mediaPlayer: MediaPlayer,
+            nativeBuffers: Array<out ByteBuffer>,
+            bufferFormat: BufferFormat,
+            displayWidth: Int,
+            displayHeight: Int,
+        ) {
             // Only libVLC's thread writes the back bitmap and the canvas never reads it, so the copy needs no lock.
             val target = synchronized(frameLock) { back } ?: return
             val info = target.imageInfo

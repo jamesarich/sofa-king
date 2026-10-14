@@ -12,7 +12,7 @@
 | DataStore | 1.3.0-rc01 |
 | Coil | 3.6.3 |
 | Media3 | 1.11.1 |
-| vlcj | 4.8.3 |
+| vlcj | 4.12.1 |
 | Gradle | 9.9.0-milestone-2 |
 | Foojay toolchain resolver | 1.0.0 |
 | JDK toolchain | 21 |

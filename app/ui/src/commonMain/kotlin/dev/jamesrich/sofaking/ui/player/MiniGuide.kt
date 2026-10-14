@@ -48,6 +48,7 @@ import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrimDense
 import dev.jamesrich.sofaking.ui.theme.SofaPlum
 import kotlin.time.Instant
 import androidx.compose.foundation.layout.WindowInsetsSides
+import dev.jamesrich.sofaking.ui.panelEdgeMargin
 import dev.jamesrich.sofaking.ui.screenPadding
 
 /**
@@ -77,7 +78,7 @@ internal fun BoxScope.MiniGuide(
             .fillMaxHeight(0.4f)
             .background(SofaOverlayScrimDense),
     ) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).padding(top = 27.dp)) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).padding(top = panelEdgeMargin())) {
             Text(
                 stringResource(Res.string.mini_guide_title),
                 style = MaterialTheme.typography.titleMedium,
@@ -95,6 +96,7 @@ internal fun BoxScope.MiniGuide(
                         row = row,
                         channel = channel,
                         programme = lineup.nowAndNext(channel, now).first,
+                        guideLoading = lineup.guideLoading,
                         now = now,
                         onClick = { onTune(row.channelIndex) },
                         modifier = if (position == focusRow) Modifier.focusRequester(focusRequester) else Modifier,
@@ -110,6 +112,7 @@ private fun MiniGuideRowItem(
     row: MiniGuideRow,
     channel: Channel,
     programme: Programme?,
+    guideLoading: Boolean,
     now: Instant,
     onClick: () -> Unit,
     modifier: Modifier,
@@ -150,7 +153,7 @@ private fun MiniGuideRowItem(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                programme?.title ?: channel.noListingText(),
+                programme?.title ?: channel.noListingText(guideLoading),
                 style = MaterialTheme.typography.bodyMedium,
                 color = secondary,
                 maxLines = 1,

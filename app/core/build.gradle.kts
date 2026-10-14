@@ -37,8 +37,13 @@ kotlin {
     iosArm64()
     iosSimulatorArm64()
     macosArm64()
-    tvosArm64()
-    tvosSimulatorArm64()
+    // The SwiftUI Apple TV app (tvosApp) links core directly, since Compose Multiplatform has no tvOS renderer.
+    listOf(tvosArm64(), tvosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "SofaKingCore"
+            isStatic = true
+        }
+    }
     watchosArm64()
     watchosSimulatorArm64()
     linuxX64()

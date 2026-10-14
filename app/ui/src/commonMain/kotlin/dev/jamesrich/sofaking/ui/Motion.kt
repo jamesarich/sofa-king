@@ -2,34 +2,42 @@ package dev.jamesrich.sofaking.ui
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.VisibilityThreshold
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.unit.IntOffset
 import kotlinx.coroutines.delay
 
-/** Small things (pills, badges, the header loader) pop in on a soft bounce and fade out. */
-val PopIn: EnterTransition = fadeIn(tween(120)) + scaleIn(spring(Spring.DampingRatioMediumBouncy, Spring.StiffnessMediumLow), initialScale = 0.8f)
-val PopOut: ExitTransition = fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.9f)
+/** Small things (pills, badges, the header loader) pop in on the theme's fast spatial spring and fade out. */
+val PopIn: EnterTransition
+    @Composable @ReadOnlyComposable get() = MaterialTheme.motionScheme.let {
+        fadeIn(it.fastEffectsSpec()) + scaleIn(it.fastSpatialSpec(), initialScale = 0.8f)
+    }
+val PopOut: ExitTransition
+    @Composable @ReadOnlyComposable get() = MaterialTheme.motionScheme.let {
+        fadeOut(it.fastEffectsSpec()) + scaleOut(it.fastEffectsSpec(), targetScale = 0.9f)
+    }
 
-/** Panels rise from the bottom edge on a spatial spring and sink a little as they fade. */
-val RiseIn: EnterTransition = fadeIn(tween(160)) +
-    slideInVertically(spring(Spring.DampingRatioLowBouncy, Spring.StiffnessMediumLow, IntOffset.VisibilityThreshold)) { it / 4 }
-val SinkOut: ExitTransition = fadeOut(tween(180)) + slideOutVertically(tween(180)) { it / 8 }
+/** Panels rise from the bottom edge on the theme's spatial spring and sink a little as they fade. */
+val RiseIn: EnterTransition
+    @Composable @ReadOnlyComposable get() = MaterialTheme.motionScheme.let {
+        fadeIn(it.defaultEffectsSpec()) + slideInVertically(it.defaultSpatialSpec()) { h -> h / 4 }
+    }
+val SinkOut: ExitTransition
+    @Composable @ReadOnlyComposable get() = MaterialTheme.motionScheme.let {
+        fadeOut(it.fastEffectsSpec()) + slideOutVertically(it.fastEffectsSpec()) { h -> h / 8 }
+    }
 
 /**
  * [target], but shown only once it has held for [showAfterMs] and then kept for at least [holdMs], so a

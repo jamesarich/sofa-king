@@ -13,6 +13,13 @@
   ],
   "packageRules": [
     {
+      "description": "Conventional Commits type: dependency updates are build. config:recommended's semantic prefix rules set fix for runtime dependencies, so a top-level semanticCommitType alone is overridden",
+      "matchPackageNames": [
+        "*"
+      ],
+      "semanticCommitType": "build"
+    },
+    {
       "description": "Conventional Commits scope: workflow changes are ci",
       "matchManagers": [
         "github-actions"
@@ -111,7 +118,6 @@
       "enabled": false
     }
   ],
-  "semanticCommitType": "build",
   "prHourlyLimit": 0,
   "automergeType": "pr",
   "automergeStrategy": "squash",

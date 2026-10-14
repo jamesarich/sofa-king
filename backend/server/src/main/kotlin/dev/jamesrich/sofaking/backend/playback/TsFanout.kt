@@ -42,6 +42,9 @@ data class FanoutConfig(
 /** The MPEG-TS null packet (PID 0x1FFF); players discard it, so it keeps a socket alive without touching the stream. */
 internal val TS_NULL_PACKET: ByteArray = ByteArray(TS_PACKET) { 0xFF.toByte() }.also { it[0] = TS_SYNC; it[1] = 0x1F; it[2] = 0xFF.toByte(); it[3] = 0x10 }
 
+/** How much of the upstream body one read takes. */
+private const val READ_SIZE = 32 * 1024
+
 /**
  * One upstream MPEG-TS connection fanned out to every session playing the same source.
  * Only whole packets are forwarded, so inserted null packets never split a packet.
@@ -187,23 +190,27 @@ internal class TsFanout(
     private suspend fun pump() {
         connect { body ->
             if (started.isCompleted) log.info("relay reconnected offering={} attempt={}", key, reconnects)
-            val buffer = ByteArray(32 * 1024)
-            var carry = ByteArray(0)
+            // One working buffer: the unsent tail stays at its front and each read lands after it.
+            var work = ByteArray(READ_SIZE + 3 * TS_PACKET)
+            var carried = 0
             var synced = false
             var junk = 0
             while (true) {
-                val read = body.readAvailable(buffer, 0, buffer.size)
+                if (work.size - carried < READ_SIZE) work = work.copyOf(carried + READ_SIZE)
+                val read = body.readAvailable(work, carried, READ_SIZE)
                 if (read < 0) break
                 if (read == 0) continue
-                val bytes = if (carry.isEmpty()) buffer.copyOf(read) else carry + buffer.copyOf(read)
+                val size = carried + read
                 var offset = 0
                 if (!synced) {
-                    if (!started.isCompleted) sniffProtocol(bytes)?.let { if (it != "mpegts") throw UpstreamProtocolException(it) }
-                    val sync = tsSyncOffset(bytes, 3)
+                    if (!started.isCompleted) sniffProtocol(work.copyOf(size))?.let { if (it != "mpegts") throw UpstreamProtocolException(it) }
+                    val sync = tsSyncOffset(work, 3, to = size)
                     if (sync == null) {
                         junk += read
                         if (junk > 64 * 1024) throw IllegalStateException("No MPEG-TS sync in upstream body")
-                        carry = bytes.copyOfRange(maxOf(0, bytes.size - 3 * TS_PACKET), bytes.size)
+                        val keep = minOf(size, 3 * TS_PACKET)
+                        work.copyInto(work, 0, size - keep, size)
+                        carried = keep
                         continue
                     }
                     junk = 0
@@ -211,17 +218,19 @@ internal class TsFanout(
                     synced = true
                 }
                 var end = offset
-                while (end + TS_PACKET <= bytes.size && bytes[end] == TS_SYNC) end += TS_PACKET
+                while (end + TS_PACKET <= size && work[end] == TS_SYNC) end += TS_PACKET
                 if (end > offset) {
-                    broadcast(bytes.copyOfRange(offset, end))
+                    // Readers hold on to what they are sent, so each broadcast gets its own copy.
+                    broadcast(work.copyOfRange(offset, end))
                     chunks++
                     dataSinceTick = true
                     lastDataAt = now()
                     if (!started.isCompleted) started.complete(Unit)
                 }
                 // A packet without a sync byte means alignment was lost; search again from it.
-                if (end + TS_PACKET <= bytes.size) synced = false
-                carry = bytes.copyOfRange(end, bytes.size)
+                if (end + TS_PACKET <= size) synced = false
+                work.copyInto(work, 0, end, size)
+                carried = size - end
             }
         }
     }

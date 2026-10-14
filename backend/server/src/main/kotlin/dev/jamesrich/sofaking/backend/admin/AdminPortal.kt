@@ -29,6 +29,7 @@ import dev.jamesrich.sofaking.backend.http.publicBase
 import dev.jamesrich.sofaking.backend.http.tokenQuery
 import io.ktor.http.*
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.http.content.staticResources
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.receiveParameters
 import io.ktor.server.response.*
@@ -123,8 +124,7 @@ class AdminPortal(
                 call.response.cookies.append(sessionCookie("", maxAge = 0, secure = false))
                 seeOther(call, "/admin")
             }
-            get("/static/htmx.min.js") { call.resource("/admin/htmx.min.js", ContentType.Text.JavaScript) }
-            get("/static/icon.svg") { call.resource("/admin/icon.svg", ContentType.Image.SVG) }
+            staticResources("/static", "admin") { modify { _, call -> call.response.header(HttpHeaders.CacheControl, "private, max-age=86400") } }
             get("/lineup") { call.html(lineupPage(chrome(call.session()), lineupView(LineupFilter.from(call.request.queryParameters)))) }
             get("/lineup/{id}") {
                 val session = call.session()
@@ -550,12 +550,6 @@ private suspend fun seeOther(call: ApplicationCall, location: String) {
 
 private suspend fun ApplicationCall.html(body: String, status: HttpStatusCode = HttpStatusCode.OK) =
     respondText(body, ContentType.Text.Html.withCharset(Charsets.UTF_8), status)
-
-private suspend fun ApplicationCall.resource(path: String, type: ContentType) {
-    val bytes = AdminPortal::class.java.getResourceAsStream(path)?.use { it.readBytes() } ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
-    response.header(HttpHeaders.CacheControl, "private, max-age=86400")
-    respondBytes(bytes, type)
-}
 
 private fun guideStatus(entry: LineupEntryRecord, coverage: Map<String, Map<String, Instant>>, now: Instant): String {
     val guide = entry.guide ?: return "unassigned"

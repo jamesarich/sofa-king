@@ -46,6 +46,7 @@ class MediaRelay(
     private companion object {
         /** A gzip-encoded resource is buffered to be inflated; keys are bytes, anything near this is not a key. */
         const val ENCODED_LIMIT = 8 * 1024 * 1024
+        val DIRECTIVE_VALUE = Regex("[A-Za-z0-9_,]{1,32}")
     }
     internal val shared = SharedStreams(scope, fanout)
 
@@ -77,7 +78,7 @@ class MediaRelay(
     ): String {
         val directives =
             listOf("_HLS_msn", "_HLS_part", "_HLS_skip").mapNotNull { name ->
-                call.request.queryParameters[name]?.takeIf { it.matches(Regex("[A-Za-z0-9_,]{1,32}")) }?.let { "$name=$it" }
+                call.request.queryParameters[name]?.takeIf { it.matches(DIRECTIVE_VALUE) }?.let { "$name=$it" }
             }
         if (directives.isEmpty()) return url
         return url + (if (URI(url).rawQuery == null) "?" else "&") + directives.joinToString("&")

@@ -47,14 +47,19 @@ internal suspend fun <T> HttpClient.withUpstreamResponse(
     consume: suspend (HttpResponse) -> T,
 ): T {
     val origin = URI(credentialOrigin)
-
-    suspend fun follow(
-        target: URI,
-        redirects: Int,
-    ): T {
+    val start = try { URI(url) } catch (_: Exception) { throw UpstreamRejectedException("Invalid upstream address") }
+    return followRedirects(start, reject = { problem ->
+        throw UpstreamRejectedException(
+            when (problem) {
+                RedirectProblem.TOO_MANY -> "Too many upstream redirects"
+                RedirectProblem.INVALID -> "Invalid redirect location"
+                RedirectProblem.INSECURE -> "Insecure upstream redirect"
+            },
+        )
+    }) { target ->
         policy.check(target)
         if (origin.scheme == "https" && target.scheme != "https") throw UpstreamRejectedException("Insecure upstream redirect")
-        return prepareGet(target.toString()) {
+        prepareGet(target.toString()) {
             providerHeaders.forEach { (key, value) ->
                 if (sameOrigin(origin, target) || key.lowercase() in portableHeaders) header(key, value)
             }
@@ -71,27 +76,54 @@ internal suspend fun <T> HttpClient.withUpstreamResponse(
                 }
             }
         }.execute { response ->
-            if (response.status.value in setOf(301, 302, 303, 307, 308)) {
-                if (redirects >= 5) throw UpstreamRejectedException("Too many upstream redirects")
+            if (response.status.value in REDIRECT_STATUSES) {
                 val location = response.headers[HttpHeaders.Location] ?: throw UpstreamRejectedException("Missing redirect location")
-                val next = try { target.resolve(location) } catch (_: IllegalArgumentException) { throw UpstreamRejectedException("Invalid redirect location") }
-                if (target.scheme == "https" && next.scheme != "https") throw UpstreamRejectedException("Insecure upstream redirect")
                 response.bodyAsChannel().cancel(null)
-                follow(next, redirects + 1)
+                Hop.Redirect(location)
             } else {
-                consume(response)
+                Hop.Done(consume(response))
             }
         }
     }
-    val start = try { URI(url) } catch (_: Exception) { throw UpstreamRejectedException("Invalid upstream address") }
-    return follow(start, 0)
+}
+
+internal val REDIRECT_STATUSES = setOf(301, 302, 303, 307, 308)
+
+/** What one request answered: the caller's result, or a redirect to follow. */
+internal sealed interface Hop<out T> {
+    class Done<T>(val value: T) : Hop<T>
+
+    class Redirect(val location: String) : Hop<Nothing>
+}
+
+internal enum class RedirectProblem { TOO_MANY, INVALID, INSECURE }
+
+/**
+ * Redirects followed by hand, for a client that never follows them itself. [send] makes one request and has closed
+ * its response by the time it returns, so a hop never stays open behind the next. At most [max] redirects; an
+ * unparseable location or a step down from https goes to [reject].
+ */
+internal suspend fun <T> followRedirects(start: URI, max: Int = 5, reject: (RedirectProblem) -> Nothing, send: suspend (URI) -> Hop<T>): T {
+    var target = start
+    var redirects = 0
+    while (true) {
+        when (val hop = send(target)) {
+            is Hop.Done -> return hop.value
+            is Hop.Redirect -> {
+                if (++redirects > max) reject(RedirectProblem.TOO_MANY)
+                val next = try { target.resolve(hop.location) } catch (_: IllegalArgumentException) { reject(RedirectProblem.INVALID) }
+                if (target.scheme == "https" && next.scheme != "https") reject(RedirectProblem.INSECURE)
+                target = next
+            }
+        }
+    }
 }
 
 internal fun probeHeadersSafe(headers: Map<String, String>): Boolean = headers.keys.all { it.lowercase() in portableHeaders }
 
 private val portableHeaders = setOf("user-agent", "accept", "accept-language", "origin", "referer")
 
-private fun sameOrigin(
+internal fun sameOrigin(
     left: URI,
     right: URI,
 ): Boolean {

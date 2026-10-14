@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Report security problems privately, as [SECURITY.md](https://github.com/jamesarich/sofa-king/blob/main/backend/SECURITY.md) describes, not here.
+        Report security problems privately, as [SECURITY.md](https://github.com/jamesarich/sofa-king/blob/main/SECURITY.md) describes, not here.
         Remove tokens, provider URLs with credentials and private addresses from everything you paste.
         [Troubleshooting](https://github.com/jamesarich/sofa-king/blob/main/backend/docs/troubleshooting.md) covers the common problems.
   - type: textarea

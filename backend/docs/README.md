@@ -20,16 +20,17 @@
 | [Lineup policy](lineup-policy.md) | The policy file that rebuilds the whole lineup, its fields, runs, required stations, findings, API and the generator |
 | [Source health](source-health.md) | Probes, failure classes, quarantine and recovery, source selection, and manual disables |
 | [HTTP API](api.md) | Endpoints for clients, the player outputs, the HDHomeRun routes, the admin API and portal routes, errors and the types the app shares |
+| [Security](security.md) | The intended deployment, which credential opens which routes, request limits, outbound requests and a hardening checklist |
 | [Architecture](architecture.md) | Modules, data flow, storage, guide imports, playback, logos, the HDHomeRun remux and the logic behind each subsystem |
 
 ## Contributing
 
 | Page | What it covers |
 | --- | --- |
-| [Development](development.md) | Running without Docker, build, test and the smoke scripts |
+| [Development](development.md) | Running without Docker, build and test, code conventions, the smoke scripts and adding a native provider |
 | [Dependencies](dependencies.md) | Pinned versions, Renovate, verification metadata and how to change versions |
 
-The server's [README](../README.md) introduces it, beside its [CONTRIBUTING](../CONTRIBUTING.md) and [SECURITY](../SECURITY.md).
+The server's [README](../README.md) introduces it. The repository's [CONTRIBUTING](../../CONTRIBUTING.md) covers the conventions the server shares with the app and CI, and its [SECURITY](../../SECURITY.md) how to report a vulnerability. The [app's documentation](../../app/docs/README.md) covers the client that reads the API.
 
 ## Glossary
 

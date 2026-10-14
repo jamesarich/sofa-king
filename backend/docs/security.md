@@ -1,8 +1,6 @@
 # Security
 
-## Reporting a vulnerability
-
-Do not open a public issue for a security problem. Report it privately through GitHub's private vulnerability reporting on this repository (Security tab, then Report a vulnerability). Include the commit or image revision, the route or code path involved, and the steps to reproduce. Leave out live tokens, provider URLs with credentials and private addresses; a redacted example is enough.
+This page covers the server's intended deployment, which credential opens which routes, the request limits, the outbound address policy and a hardening checklist. To report a vulnerability, follow the [repository's security policy](../../SECURITY.md#reporting-a-vulnerability). The [app's security page](../../app/docs/security.md) covers what the app stores and where it sends the token.
 
 ## Intended deployment
 
@@ -14,7 +12,7 @@ The server is designed for a private network. It has no accounts, no per-user ac
 | --- | --- | --- |
 | API token (`SOFA_API_TOKEN`) | `Authorization: Bearer` | `/api/v1/*`, except `/api/v1/admin/*` when an admin token is set. Also accepted as a bearer on `/output/*` |
 | Admin token (`SOFA_ADMIN_TOKEN`) | `Authorization: Bearer` | `/api/v1/admin/*`. The API token is refused there once this is set |
-| Admin portal session | `sofa_admin` cookie, set by signing in at `/admin` with the admin token (or the API token when no admin token is set) | `/admin/*`, the [admin portal](docs/admin.md). Actions also need the session's CSRF token |
+| Admin portal session | `sofa_admin` cookie, set by signing in at `/admin` with the admin token (or the API token when no admin token is set) | `/admin/*`, the [admin portal](admin.md). Actions also need the session's CSRF token |
 | Output token (`SOFA_OUTPUT_TOKEN`) | `?token=` query or bearer | `/output/*`: the playlist, the guide and the stream URLs |
 | None | | `/healthz`, `/readyz`, `/logos/{key}`, the admin sign-in page (`GET /admin` and `POST /admin/login`) and the portal icon `/admin/static/icon.svg` |
 | None; client address allow-list | | The HDHomeRun routes (`/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/auto/v{number}`). `SOFA_HDHR_ALLOW` admits the listed addresses and answers everyone else `403` |
@@ -48,7 +46,7 @@ The server makes requests to the playlist, guide, logo and stream hosts that you
 - Redirects are limited to five, and an HTTPS redirect cannot downgrade to HTTP.
 - FFmpeg, which probes sources and remuxes them for Plex, may open only the `http`, `https`, `tcp`, `tls` and `crypto` protocols. A playlist that names `file:`, `concat:` or any other protocol cannot make it read files in the container.
 
-Details are in [live TV: upstream addresses and provider headers](docs/live-tv.md#provider-headers).
+Details are in [live TV: upstream addresses and provider headers](live-tv.md#provider-headers).
 
 ## Hardening checklist
 
@@ -56,7 +54,7 @@ Details are in [live TV: upstream addresses and provider headers](docs/live-tv.m
 - Set `SOFA_OUTPUT_TOKEN` when players or Plex use the outputs, from `openssl rand -hex 16`.
 - Set `SOFA_HDHR_ALLOW` to the address of the Plex server, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 - Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens, and the source file can hold playlist URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
-- With [automatic updates](docs/deploy.md#update-automatically), log Docker in to the registry with a token that has only the `read:packages` scope. The updater's database backups hold the same session tokens as the database. Those in the config folder are readable by the container's user alone, and the fallback backups in the Compose directory by root alone.
-- [Inspect the published image's provenance and SBOM](docs/deploy.md#inspect-the-published-image) before you run it.
+- With [automatic updates](deploy.md#update-automatically), log Docker in to the registry with a token that has only the `read:packages` scope. The updater's database backups hold the same session tokens as the database. Those in the config folder are readable by the container's user alone, and the fallback backups in the Compose directory by root alone.
+- [Inspect the published image's provenance and SBOM](deploy.md#inspect-the-published-image) before you run it.
 - Use HTTPS, through a reverse proxy, for any token that crosses a network you do not control.
-- Rotate tokens with the steps in [operations](docs/operations.md#rotating-tokens).
+- Rotate tokens with the steps in [operations](operations.md#rotating-tokens).

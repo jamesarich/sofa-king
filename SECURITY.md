@@ -2,11 +2,16 @@
 
 ## Reporting a vulnerability
 
-Do not open a public issue for a security problem. Report it privately through GitHub's private vulnerability reporting: open the [Security tab](https://github.com/jamesarich/sofa-king/security/advisories/new) and choose Report a vulnerability. Include the app's version from Settings → About and its platform, or the server's commit or image revision, and the steps to reproduce. Leave out live tokens and private addresses; a redacted example is enough.
+Do not open a public issue for a security problem. Report it privately through GitHub's private vulnerability reporting: open the [Security tab](https://github.com/jamesarich/sofa-king/security/advisories/new) and choose Report a vulnerability. Include the steps to reproduce and what they affect:
+
+- For the app, its version from Settings → About and its platform.
+- For the server, its commit or image revision and the route or code path involved.
+
+Leave out live tokens, provider URLs with credentials and private addresses; a redacted example is enough.
 
 ## The server
 
-The server's [security policy](backend/SECURITY.md) covers its intended deployment, which token opens which routes, the request limits, the outbound address policy and a hardening checklist. A problem in the server, its API or its streams belongs there.
+The server's [security page](backend/docs/security.md) covers its intended deployment, which token opens which routes, the request limits, the outbound address policy and a hardening checklist.
 
 ## The app
 

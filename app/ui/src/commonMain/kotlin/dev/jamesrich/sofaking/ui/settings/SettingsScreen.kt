@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -191,14 +193,18 @@ fun SettingsScreen(
         item {
             val lessLabel = stringResource(Res.string.settings_caption_timing_less)
             val moreLabel = stringResource(Res.string.settings_caption_timing_more)
+            // A button that disables at its end of the range hands focus to the other, not to another row.
+            val lessFocus = remember { FocusRequester() }
+            val moreFocus = remember { FocusRequester() }
             SettingRow(label = stringResource(Res.string.caption_timing)) {
                 SofaButton(
                     onClick = {
                         captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = -1)
                         onCaptionAdvanceChanged(captionAdvance)
+                        if (captionAdvance <= AppSettings.CAPTION_ADVANCE_RANGE_MS.first) moreFocus.requestFocus()
                     },
                     enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE_MS.first,
-                    modifier = Modifier.semantics { contentDescription = lessLabel },
+                    modifier = Modifier.focusRequester(lessFocus).semantics { contentDescription = lessLabel },
                 ) { Text("−") }
                 Text(
                     stringResource(Res.string.caption_timing_value, CaptionPolicy.advanceLabel(captionAdvance)),
@@ -208,9 +214,10 @@ fun SettingsScreen(
                     onClick = {
                         captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = 1)
                         onCaptionAdvanceChanged(captionAdvance)
+                        if (captionAdvance >= AppSettings.CAPTION_ADVANCE_RANGE_MS.last) lessFocus.requestFocus()
                     },
                     enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE_MS.last,
-                    modifier = Modifier.semantics { contentDescription = moreLabel },
+                    modifier = Modifier.focusRequester(moreFocus).semantics { contentDescription = moreLabel },
                 ) { Text("+") }
             }
         }
@@ -325,7 +332,7 @@ private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean
 
 /**
  * A setting with a few named values, all on screen as connected segments; Left/Right move between them and OK picks
- * one. [help] reads beneath the segments.
+ * one. Up or Down into the row lands on the selected value. [help] reads beneath the segments.
  */
 @Composable
 private fun <T> ChoiceRow(
@@ -338,14 +345,22 @@ private fun <T> ChoiceRow(
 ) {
     Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().focusGroup()) {
+        val selectedFocus = remember { FocusRequester() }
+        SingleChoiceSegmentedButtonRow(
+            Modifier
+                .fillMaxWidth()
+                .focusProperties { onEnter = { selectedFocus.requestFocus() } }
+                .focusGroup(),
+        ) {
             choices.forEachIndexed { index, choice ->
                 val shape = SegmentedButtonDefaults.itemShape(index, choices.size)
                 SegmentedButton(
                     selected = choice == selected,
                     onClick = { onSelect(choice) },
                     shape = shape,
-                    modifier = Modifier.tvFocus(shape, focusedScale = 1f),
+                    modifier = Modifier
+                        .then(if (choice == selected) Modifier.focusRequester(selectedFocus) else Modifier)
+                        .tvFocus(shape, focusedScale = 1f),
                 ) {
                     Text(choiceLabel(choice))
                 }

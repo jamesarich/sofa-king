@@ -6,3 +6,6 @@ local.properties
 *.iml
 .DS_Store
 captures/
+
+# Kotlin/JS and Kotlin/Wasm write their Yarn lockfiles here; they are not kept.
+kotlin-js-store/

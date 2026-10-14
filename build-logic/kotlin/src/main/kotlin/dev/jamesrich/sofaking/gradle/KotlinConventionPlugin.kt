@@ -17,15 +17,13 @@ import org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnPlugin
 import org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnRootEnvSpec
 
 /**
- * What every project in the three builds shares: locked dependencies, the JDK 21 toolchain for Kotlin, and the web
- * toolchains (Node, Yarn, Binaryen) resolved through the repositories in `gradle/repositories.settings.gradle.kts`.
+ * What every project in the three builds shares: the JDK 21 toolchain for Kotlin and the web toolchains (Node, Yarn,
+ * Binaryen) resolved through the repositories in `gradle/repositories.settings.gradle.kts`.
  * Apply it to each project, the root of a multi-project build included, since the Kotlin plugin adds the web
  * toolchain plugins to the root as well as to each web module.
  */
 class KotlinConventionPlugin : Plugin<Project> {
     override fun apply(project: Project) = with(project) {
-        dependencyLocking.lockAllConfigurations()
-
         plugins.withType(KotlinBasePlugin::class.java) {
             extensions.getByType(KotlinTopLevelExtension::class.java).jvmToolchain(JDK)
         }

@@ -25,7 +25,7 @@ Commits use Conventional Commits, `type(scope): summary` in the imperative, scop
 
 ## Dependency policy
 
-Use bleeding-edge server-side prereleases: the latest published Kotlin EAP and serialization prerelease, and the latest published supporting libraries. Versions come from the repository's one catalog, `../gradle/libs.versions.toml`, which the app and the contract share, so one Kotlin, kotlinx.serialization and Ktor release serves both and a test can load both on one classpath. Pin exact versions, the wrapper checksum, the dependency lockfiles and `gradle/verification-metadata.xml`. Verify official release/EAP registries before updates and compile/test the complete selected stack. Avoid dynamic versions and unversioned snapshots. docs/dependencies.md has the update steps; update its table when pins change.
+Use bleeding-edge server-side prereleases: the latest published Kotlin EAP and serialization prerelease, and the latest published supporting libraries. Versions come from the repository's one catalog, `../gradle/libs.versions.toml`, which the app and the contract share, so one Kotlin, kotlinx.serialization and Ktor release serves both and a test can load both on one classpath. Pin exact versions and the wrapper checksum. Verify official release/EAP registries before updates and compile/test the complete selected stack. Avoid dynamic versions and unversioned snapshots. docs/dependencies.md has the update steps; update its table when pins change.
 
 ## Documentation
 

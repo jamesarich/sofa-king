@@ -11,12 +11,42 @@
     "docker-compose",
     "github-actions"
   ],
-  "lockFileMaintenance": {
-    "enabled": true
-  },
   "packageRules": [
     {
-      "description": "Kotlin, the Android Gradle plugin and Compose Multiplatform are preview pins that move together",
+      "description": "Conventional Commits scope: workflow changes are ci",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "semanticCommitType": "ci"
+    },
+    {
+      "description": "The 0.6.x-compat builds are a compatibility artifact, not newer releases",
+      "matchPackageNames": [
+        "org.jetbrains.kotlinx:kotlinx-datetime"
+      ],
+      "allowedVersions": "!/-compat$/"
+    },
+    {
+      "description": "JDK 21 matches every build's toolchain and the Gradle daemon JVM, and the backend runner's Ubuntu 24.04 matches the server image's noble base and its FFmpeg 6.1, so a bump means changing those too: list it on the dashboard instead of opening a PR",
+      "matchDepNames": [
+        "java-jdk",
+        "ubuntu"
+      ],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Merge minor, patch and digest updates once every check on the branch's head is green. Renovate merges by itself rather than through GitHub's auto-merge, so it needs no branch protection",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "minimumReleaseAge": "3 days",
+      "automerge": true
+    },
+    {
+      "description": "Kotlin, the Android Gradle plugin and Compose Multiplatform are preview pins that move together; merged by hand",
       "matchDatasources": [
         "maven",
         "gradle-plugin"
@@ -29,7 +59,8 @@
         "org.jetbrains.compose",
         "org.jetbrains.compose.*"
       ],
-      "groupName": "Kotlin, AGP and Compose Multiplatform"
+      "groupName": "Kotlin, AGP and Compose Multiplatform",
+      "automerge": false
     },
     {
       "matchCategories": [
@@ -80,7 +111,9 @@
       "enabled": false
     }
   ],
-  "gitIgnoredAuthors": [
-    "41898282+github-actions[bot]@users.noreply.github.com"
-  ]
+  "semanticCommitType": "build",
+  "prHourlyLimit": 0,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "platformAutomerge": false
 }

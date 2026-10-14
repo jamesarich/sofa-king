@@ -5,8 +5,6 @@ plugins {
 
 kotlin { jvmToolchain(21) }
 
-dependencyLocking { lockAllConfigurations() }
-
 dependencies {
     compileOnly(libs.android.gradle.api)
     compileOnly(libs.kotlin.gradle.plugin)

@@ -8,7 +8,7 @@ This guide covers how the repository is laid out, the conventions the app, the s
 
 ## Repository layout
 
-The repository holds three Gradle builds, each with its own wrapper and lockfiles. Build each from its own directory:
+The repository holds three Gradle builds, each with its own wrapper. Build each from its own directory:
 
 | Directory | Build | Checks |
 | --- | --- | --- |
@@ -20,9 +20,8 @@ They share these files at the root:
 
 - `gradle/libs.versions.toml`, the one version catalog, so a Kotlin or kotlinx.serialization bump moves every build at once.
 - `gradle/repositories.settings.gradle.kts` and `gradle/build-cache.settings.gradle.kts`, the repositories and the remote build cache every build's settings apply.
-- `build-logic/`, the convention plugins: `sofaking.kotlin` (dependency locking, the JDK 21 toolchain and the web toolchain repositories) and `sofaking.android` (the SDK levels).
+- `build-logic/`, the convention plugins: `sofaking.kotlin` (the JDK 21 toolchain and the web toolchain repositories) and `sofaking.android` (the SDK levels).
 - `settings.gradle.kts`, which includes all three builds for one IDE import only; CI never builds from the root.
-- `gradle/update-locks.sh`, which rewrites every build's lockfiles after a version change.
 - [`renovate.json`](renovate.json), which proposes the dependency, wrapper, base image and workflow action updates of every build.
 
 ## Commits
@@ -48,7 +47,7 @@ A request or response type the app and the server share lives in `contract/`, ne
 
 ## Dependencies
 
-Versions are pinned in the shared catalog and resolved versions are locked in every build. The server and the contract also check every artifact against their `gradle/verification-metadata.xml`. Renovate opens update pull requests, and the `lockfiles.yml` workflow rewrites their lockfiles and verification metadata before CI checks them. Each part's dependencies page lists its versions and the update steps: [app](app/docs/dependencies.md), [server](backend/docs/dependencies.md), and the [contract's README](contract/README.md).
+Versions are pinned exactly in the shared catalog, with no lockfiles or verification metadata, so an update pull request changes only the pin. Renovate opens those pull requests and merges minor, patch and digest updates once CI passes. Each part's dependencies page lists its versions and the update steps: [app](app/docs/dependencies.md), [server](backend/docs/dependencies.md), and the [contract's README](contract/README.md).
 
 ## CI
 
@@ -56,15 +55,12 @@ Versions are pinned in the shared catalog and resolved versions are locked in ev
 | --- | --- | --- |
 | [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown or `app/docs/`), the shared `gradle/` directory or `build-logic/`, `ci.yml` or `snapshot.yml`; also a manual run | Tests and builds the app, and publishes the snapshot from `main` |
 | [`backend.yml`](.github/workflows/backend.yml) | Pull requests and pushes to `main` that change `backend/` or `contract/` (not their Markdown or `backend/docs/`), the shared `gradle/` directory or `build-logic/`, or `backend.yml`; also a manual run | Tests and builds the server, and publishes its image from `main` |
-| [`lockfiles.yml`](.github/workflows/lockfiles.yml) | Renovate pull requests that change the catalog, a Gradle wrapper, a settings file or a lockfile; also a manual run on any branch but `main` | Rewrites the lockfiles and verification metadata, commits them to the branch and runs `ci.yml` and `backend.yml` on that commit |
 
 `ci.yml` runs up to three jobs:
 
 - `check` runs the app's tests, lint, the Native test compile, the release APK and the wasm web build on Ubuntu. It uploads the test reports when it fails and the `RenderSmokeTest` screenshots every time.
 - `apple` runs on every event except a pull request, so on pushes to `main` and manual runs. It runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators, the UI's iOS tests, and links the iOS framework on macOS. A pull request compiles the iOS tests on Linux in `check` instead.
 - `snapshot` runs for a push to `main` once both pass. It calls `snapshot.yml`, which builds every platform but iOS and replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab.
-
-`lockfiles.yml` runs `gradle/update-locks.sh` on macOS, then `backend/scripts/update-verification-metadata.sh` on Ubuntu, both with a read-only token. A third job commits their changes as `build(deps): refresh the lockfiles and verification metadata` and starts CI and Backend on it, because a push made with the workflow token starts no workflows. `renovate.json` lists that commit's author in `gitIgnoredAuthors`, so Renovate keeps rebasing the branch, and each rebase runs the workflow again.
 
 `backend.yml` runs three jobs:
 

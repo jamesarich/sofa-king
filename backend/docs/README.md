@@ -28,7 +28,7 @@
 | Page | What it covers |
 | --- | --- |
 | [Development](development.md) | Running without Docker, build and test, code conventions, the smoke scripts and adding a native provider |
-| [Dependencies](dependencies.md) | Pinned versions, Renovate, verification metadata and how to change versions |
+| [Dependencies](dependencies.md) | Pinned versions, Renovate and how to change versions |
 
 The server's [README](../README.md) introduces it. The repository's [CONTRIBUTING](../../CONTRIBUTING.md) covers the conventions the server shares with the app and CI, and its [SECURITY](../../SECURITY.md) how to report a vulnerability. The [app's documentation](../../app/docs/README.md) covers the client that reads the API.
 

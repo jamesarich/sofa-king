@@ -71,7 +71,7 @@ A cold start shows the loader until the lineup state and settings are both known
 
 ## UI
 
-Screens use multiplatform Material 3 Expressive components (`Button`, `Switch`, `FilterChip`, `Surface`, `OutlinedTextField`, `LoadingIndicator`) under `MaterialExpressiveTheme` with the expressive motion scheme. `tvFocus` adds the D-pad focus cue, a scale and an outline ring; guide cells keep their size and change color instead. Strings are Compose resources in US English. Channel logos and program images load through the API's connection pool (`ImageFetch`), decode with Compose and stay in a small memory cache. Back goes through NavigationEvent: the remote's Back on Android, the swipe on iOS, Escape on desktops and the web.
+Screens use multiplatform Material 3 Expressive components (`Button`, `Switch`, `FilterChip`, `Surface`, `OutlinedTextField`, `LoadingIndicator`) under `MaterialExpressiveTheme` with the expressive motion scheme. `tvFocus` adds the D-pad focus cue, a scale and an outline ring; guide cells keep their size and change color instead. Strings are Compose resources in US English. Channel logos and program images load with Coil over the API's connection pool (`ui/Images.kt`), decoded to their slot's size and kept in Coil's memory cache and, except on the web, its disk cache. Back goes through NavigationEvent: the remote's Back on Android, the swipe on iOS, Escape on desktops and the web.
 
 ## Guide
 

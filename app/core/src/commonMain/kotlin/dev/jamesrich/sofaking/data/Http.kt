@@ -21,3 +21,6 @@ internal val apiHttpClient: HttpClient by lazy {
         }
     }
 }
+
+/** The same pool for channel logos and program images, which go out without the token. */
+val mediaHttpClient: HttpClient get() = apiHttpClient

@@ -80,7 +80,7 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
-    fun `setLastChannel keeps the ten most recent channels, newest first, without repeats`() = runTest {
+    fun `setLastChannel keeps the ten most recent channels newest first without repeats`() = runTest {
         val store = newStore()
         assertEquals(emptyList(), store.settings.first().recentChannels)
 

@@ -12,24 +12,27 @@ A session lasts 12 hours from sign-in, or until you sign out. Sessions are held 
 
 ## Pages
 
-The navigation groups the pages into the overview, Lineup (Channels, Merges, Required), Setup (Groups, Providers, Plex, Settings) and System (Jobs, Events, About). A count beside Merges, Required, Providers, Plex or Jobs says how many things there need a look. On a phone the navigation folds into a Menu button that carries the total. The footer of every signed-in page shows the server's revision and how long it has been up, and the theme switch: Auto follows the device's light or dark setting, Light and Dark pin one in a cookie.
+The navigation groups the pages into the overview, Lineup (Channels, Merges, Required), Setup (Groups, Providers, Plex, Settings) and System (Jobs, Events, About, API). A count beside Merges, Required, Providers, Plex or Jobs says how many things there need a look. On a phone the navigation folds into a Menu button that carries the total. The footer of every signed-in page shows the server's revision and how long it has been up, and the theme switch: Auto follows the device's light or dark setting, Light and Dark pin one in a cookie.
 
 | Page | What it shows | What it changes |
 | --- | --- | --- |
-| Overview | What needs attention, each with a link to where it is fixed and to the doc that explains it. Then the channels on and their guide coverage, the last Plex sync, required channels on, merges to settle, providers importing, who is watching and the last lineup run | Ignore an item until it changes, or show it again |
-| Channels | The lineup, 100 channels a page. Each row has the number, name, group, source count, guide state and state. Search by name, number or station key, filter by group, state, guide state, required, override or changed in the last run, and sort by any column | Hide or show a channel from its row |
-| Channel | One channel: its state, why it is off, its station key, guide, and sources in failover order with their provider, protocol and health | Rename, renumber or regroup it, and hide or show it |
+| Overview | What needs attention, each with a link to where it is fixed and to the doc that explains it. Then the channels on and their guide coverage, the last Plex sync, required channels on, merges to settle, providers importing, who is watching (the channel, the programme on now, the player and its address, how long it has watched, the bytes sent and when its lease ends) and the last lineup run | Ignore an item until it changes, or show it again; stop a session |
+| Channels | The lineup, 100 channels a page. Each row has the number, name, group, source count, guide state and state. Search by name, number or station key, filter by group, state, guide state, required, override or changed in the last run, and sort by any column | Hide or show a channel from its row; select channels and hide, show or regroup them together |
+| Channel | One channel: its state, why it is off, its station key, guide, and sources in failover order with their provider, protocol and health | Rename, renumber or regroup it, and hide or show it; disable, enable or probe a source |
 | Merges | With a policy: the suggested aliases and open findings of a run over the current candidates, the learned aliases and the pairs kept apart | Accept a suggestion, dismiss it, or keep a learned pair apart. Each write applies the policy |
 | Required | With a policy: the required stations from the last run, off ones first, with their pins, live source count, source health and state | Nothing |
 | Groups | With a policy: the number blocks and the groups without one, the default group, the unmapped categories, the category map, the weak categories and the name patterns | Each of those |
 | Providers | Each provider's channels, last import and status, and each guide's. With a policy, the provider entries in priority order, with what each takes and the stations each leads | With a policy: reorder, hide, show, add or remove provider entries |
 | Plex | The last Plex sync with each tuner's DVR and mapped channels, each HDHomeRun device with its address and channel count, the devices the lineup needs, the M3U and XMLTV URLs, and the Plex setup steps | Nothing; the output token stays hidden until you choose to reveal it |
-| Settings | The lineup policy's file, revision, contents and last run, every `SOFA_` variable as the server runs with it, each token's origin, the source file's providers and guides, and the newest policy changes | Apply the policy now; reveal the API token |
+| Settings | The lineup policy's file, revision, contents and last run, the runtime settings, every startup `SOFA_` variable as the server runs with it, each token's origin, the source file's providers and guides, and the newest policy changes | Apply the policy now; save the runtime settings; reveal the API token |
 | Jobs | Every background job: each provider and guide import, the lineup policy run, Plex sync and the logo sweep, with its interval, last run, duration, result and next due time | Run a job now |
 | Events | The newest 500 log lines at INFO and above since the server started, newest first, filtered by level and by text. With JavaScript the list refreshes every 10 seconds | Nothing |
 | About | The revision, start time, schema version, JVM, OS, FFmpeg version, data directory, logging and memory, the status the admin API reports, and a support snapshot to paste into a bug report | Download the snapshot |
+| API | Every HTTP route the server serves, grouped by area, with its token, parameters, body and responses, from the server's OpenAPI document | Download the OpenAPI document |
 
 The overview lists, as needing attention: failed provider or guide imports, a failed Plex sync or tuners missing from Plex, and too few tuners for the lineup. It also lists required channels that are off, merge suggestions, open findings, unmapped categories, on-air channels whose guide ended, and channels waiting for a verified source. A failing import reads as a check while its last success is under a day old and as broken after that, with how long it has failed; one that has never imported since the server started is broken. Ignore keeps an item off the list, in the database, until its text changes, for instance when another provider fails or the reason changes; the ignored items sit under the list and can be shown again.
+
+On the overview, Stop asks once, then ends the session: the player sees its stream end and may open the channel again. An M3U or Plex player that keeps requesting media opens a new session at once.
 
 On the Channels page, the state filter offers on and off, and with a policy also unverified. The guide filter offers channels with programs, and channels whose guide is missing or ended. With a policy, "Has an override" keeps the stations whose policy entry holds something set by hand (a number a run wrote back does not count), and "Changed in the last run" keeps the entries the newest run that changed anything touched. A column header sorts by that column; the same header again reverses it. A row is tinted red when the channel is on and none of its sources is healthy, and amber when it is on and its guide ended or holds nothing ahead.
 
@@ -37,7 +40,9 @@ On the Jobs page, Run now starts an import or a guide import at once, and a poli
 
 The About page's support snapshot is JSON with the admin API's status, the server facts, every job's last run and the overview's items. It holds no token, URL or secret. Copy it from the box, or download it with the button.
 
-On the Channel page, the group is picked from the groups the lineup and the policy name. "Policy decides", or "No group" without a policy, removes a group set by hand.
+On the Channel page, the group is picked from the groups the lineup and the policy name. "Policy decides", or "No group" without a policy, removes a group set by hand. Each source has Disable, which asks once and then takes the source out of selection as [source health](source-health.md#inspect-or-disable-a-source) describes, Enable, which puts it back at once, and Probe now, which puts the source at the front of the probe queue; the health updates when the probe is done. Probe now is absent when probes are off.
+
+On the Channels page, each row has a checkbox, and "Select all on this page" ticks the page. Hide, Show and Set group act on the selection: with a policy, one edit writes every selected station's override and applies, after the confirmation the [group and provider edits](#group-and-provider-edits) describe; without one, the edit changes the lineup entries after a confirmation that lists what turns off or on. The selection and the filters survive the edit.
 
 On the Merges page, accepting a suggestion adds it to `names.aliases`, and dismissing it adds the pair to `names.never`. Keeping a learned alias apart adds the pair to `names.never` and drops the alias.
 
@@ -57,7 +62,9 @@ When the policy changed since the page loaded, the edit is not saved. The confir
 
 ## Settings
 
-The Settings page marks each `SOFA_` variable that has its default value, and notes the source and policy files when they were found in the data directory. It shows the newest 50 entries of the policy change log, with more on request.
+The Settings page starts with the runtime settings: the log level, how many days ahead the XMLTV guide reaches, the Plex sync interval, the streams each HDHomeRun device may open and the sessions the server holds at once. Save applies them at once, keeps them in the database across restarts, and they take precedence over the environment; the page says beside each which value it follows. Saving the environment's own value puts a setting back to following the environment, as "Back to the environment's values" does for all of them. A value out of range is refused with the form kept; the streams per device cannot exceed the sessions at once. Plex reads a device's tuner count when it adds the device, so a changed count shows in Plex after the device is re-added, while the server enforces it at once. A saved value that no longer fits is dropped at start, with a warning in the log.
+
+Under those, the startup settings mark each `SOFA_` variable that has its default value, and notes the source and policy files when they were found in the data directory. It shows the newest 50 entries of the policy change log, with more on request.
 
 It reports each token as generated (stored in `secrets.json`), set (in the environment or through its `_FILE` variable) or not set. It shows no token until you choose "Reveal the API token", which shows the API token the Sofa King app needs. It describes the source file by provider, kind, host and refresh interval, with header and option names. It never shows a URL path or query, a header value or an option value.
 

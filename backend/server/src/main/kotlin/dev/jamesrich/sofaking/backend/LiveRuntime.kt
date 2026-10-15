@@ -5,6 +5,9 @@ import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.logging.applyLogLevel
+import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
+import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.plex.HdhrDevice
 import dev.jamesrich.sofaking.backend.plex.PlexSync
@@ -58,6 +61,10 @@ class LiveRuntime(
     val startedAt: java.time.Instant = java.time.Instant.now(),
     /** The background jobs, for the portal's Jobs page. */
     val jobs: Jobs = Jobs(Clock.systemUTC()),
+    /** The settings the operator can change without a restart. */
+    val settings: RuntimeSettings = RuntimeSettings(store, RuntimeValues.DEFAULT, Clock.systemUTC()),
+    /** The probe worker, when probes run; the portal's "Probe now" goes through it. */
+    val probes: ProbeWorker? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -80,6 +87,10 @@ class LiveRuntime(
             }
             val scope = backgroundScope()
             val jobs = Jobs(clock)
+            val settings = RuntimeSettings(store, RuntimeValues.of(config), clock)
+            for (problem in settings.load()) runtimeLog.warn("runtime settings: dropped a saved value: {}", problem)
+            // The level the operator saved outranks the environment's from here on; logback read the environment's at start.
+            settings.onChange { applyLogLevel(it.logLevel) }
             try {
                 val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
                 lateinit var logos: LogoCache
@@ -100,13 +111,14 @@ class LiveRuntime(
                     val ports = config.hdhr.publicPorts(config.port)
                     PlexSync(
                         plexConfig, http, clock, { val serverId = store.serverId(); List(config.hdhr.devices) { n -> HdhrDevice(n, hdhrDeviceId(config.hdhr, serverId, n), ports[n]) } },
-                        plexDebounceMillis, initial = store.plexStatus(), persist = store::savePlexStatus, jobs = jobs,
+                        plexDebounceMillis, settings.current.plexSyncMinutes * 60_000L, initial = store.plexStatus(), persist = store::savePlexStatus, jobs = jobs,
                     )
                 }
                 val catalog = CatalogService(feeds, guides, lineup, store, clock)
                 logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) }, jobs = jobs)
                 logos.initialize()
-                val sessions = SessionManager(catalog, store, clock, config.maxSessions)
+                val sessions = SessionManager(catalog, store, clock, settings.current.maxSessions)
+                settings.onChange { values -> sessions.capacity = values.maxSessions; plex?.setInterval(values.plexSyncMinutes) }
                 policyService = loadedPolicy?.let { loaded ->
                     lateinit var service: PolicyService
                     val sizing = if (config.hdhr.enabled) HdhrSizing(config.hdhr.devices, config.hdhr.deviceSize) else null
@@ -125,14 +137,9 @@ class LiveRuntime(
                 policyService?.requestRun("startup")
                 plex?.start(scope)
                 plex?.requestSync("startup")
-                val runtime = LiveRuntime(
-                    store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
-                    policyService, plex, started, jobs,
-                )
-                scope.launchEvery("session-expire", 1000) { sessions.expire() }
                 // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.
                 val service = policyService
-                if (probes && (service != null || sources.providers.any { it.probe })) {
+                val worker = if (probes && (service != null || sources.providers.any { it.probe })) {
                     val probeConfig =
                         ProbeConfig(
                             parallelism = config.probeParallelism,
@@ -140,13 +147,17 @@ class LiveRuntime(
                             observationRetention = java.time.Duration.ofDays(config.observationRetentionDays.toLong()),
                         )
                     val targets = service?.let { { it.probeTargets() } }
-                    scope.launch(CoroutineName("probe-worker")) {
-                        ProbeWorker(
-                            feeds, store, clock, config.ffmpeg, http, probeConfig, onObserved = { id -> sessions.healthChanged(id) },
-                            onHealthChanged = { service?.requestRun("health") }, targets = targets,
-                        ).run()
-                    }
-                }
+                    ProbeWorker(
+                        feeds, store, clock, config.ffmpeg, http, probeConfig, onObserved = { id -> sessions.healthChanged(id) },
+                        onHealthChanged = { service?.requestRun("health") }, targets = targets,
+                    )
+                } else null
+                val runtime = LiveRuntime(
+                    store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
+                    policyService, plex, started, jobs, settings, worker,
+                )
+                scope.launchEvery("session-expire", 1000) { sessions.expire() }
+                if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }
                 return runtime
             } catch (failure: Throwable) { scope.cancel(); http.close(); throw failure }
         }

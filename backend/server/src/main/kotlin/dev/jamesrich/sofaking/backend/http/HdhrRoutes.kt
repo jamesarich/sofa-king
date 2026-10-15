@@ -110,7 +110,7 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
         if (!guard(call)) return@get
         val base = publicBase(call)
         val device = device(call)
-        call.respond(Discover(friendlyName = name(device), deviceId = deviceId(device), baseUrl = base, lineupUrl = "$base/lineup.json", tunerCount = config.tuners))
+        call.respond(Discover(friendlyName = name(device), deviceId = deviceId(device), baseUrl = base, lineupUrl = "$base/lineup.json", tunerCount = runtime.settings.current.hdhrTuners))
     }
     get("/lineup.json") {
         if (!guard(call)) return@get
@@ -153,7 +153,7 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
         val number = call.parameters["number"]!!
         val entry = runtime.lineup.entries().firstOrNull { it.enabled && it.number == number } ?: throw ApiFailure(404, "CHANNEL_NOT_FOUND", "Unknown channel number")
         val tuners = tuners[device(call)]
-        if (tuners.incrementAndGet() > config.tuners) {
+        if (tuners.incrementAndGet() > runtime.settings.current.hdhrTuners) {
             tuners.decrementAndGet()
             tunersBusy(call)
             return@get
@@ -169,7 +169,8 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
                     throw ApiFailure(503, "SOURCE_UNAVAILABLE", "Source could not be resolved", true)
                 }
                 runtime.feeds.upstream.check(URI(stream.url))
-                runtime.remux.stream(call, stream.url, stream.headers.takeIf(::probeHeadersSafe).orEmpty())
+                val bytes = runtime.sessions.bytesOf(session.id)
+                runtime.remux.stream(call, stream.url, stream.headers.takeIf(::probeHeadersSafe).orEmpty()) { bytes.addAndGet(it.toLong()) }
                 false
             }
         } catch (e: ApiFailure) {

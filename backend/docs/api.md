@@ -116,7 +116,7 @@ http://HOST/output/stream/CHANNEL_UUID.m3u8?token=TOKEN
 
 `tvg-id` is the channel ID, the same value the XMLTV uses, so players match guide and channel without a name lookup. `HOST` is the `Host` header of the request, so the URLs work through a port mapping; `X-Forwarded-Proto: https` switches the scheme. The stream suffix follows the protocol of the source the channel would play now: `.m3u8` for HLS, `.ts` for MPEG-TS and for a channel without an eligible source, which lists but fails at play time. After a source's protocol is detected (a probe or a fetch), the suffix changes on the player's next playlist refresh.
 
-`GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3; `?days=1`-`14` overrides). Times are `YYYYMMDDHHMMSS +0000`.
+`GET /output/guide.xml` is XMLTV: one `<channel id="CHANNEL_UUID">` per enabled channel with the name and the number as `<display-name>` values and the logo as `<icon>`, then `<programme>` elements from three hours ago to `days` ahead (`SOFA_XMLTV_DAYS`, default 3, or the value saved in the portal's [runtime settings](admin.md#settings); `?days=1`-`14` overrides). Times are `YYYYMMDDHHMMSS +0000`.
 
 Each program carries the metadata its guide source provides, in XMLTV order: `<title>`, `<sub-title>`, `<desc>`, `<date>`, `<category>`, `<icon>`, every `<episode-num>` the source gave with its own `system` (`xmltv_ns`, `onscreen`, `dd_progid` and others), `<previously-shown>` with its `start` when known, `<new/>` and `<rating>` with its `system` when known. `<title>`, `<sub-title>`, `<desc>` and the source's categories carry `lang` when the source named the title's language. `<icon>` is the source's own image URL, not one served from this server. A source XMLTV keeps at most 8 categories, 8 episode numbers and the first rating per program.
 
@@ -163,7 +163,7 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | --- | --- | --- |
 | GET | `/api/v1/admin/status` | One summary of the server, described [below](#server-status) |
 | GET | `/api/v1/admin/candidates?q=&provider=&limit=&offset=` | Candidates with their sources (`id`, `protocol`, `status`, `manuallyDisabled`) and the lineup entries using them; `q` matches name, exact number or `tvg-id`, case-insensitively; `limit` 1-1000 (default 100) |
-| GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`. An empty list means nothing is playing |
+| GET | `/api/v1/admin/sessions` | Live playback sessions: `id`, `channelId`, `intent`, `external` (an M3U or HDHomeRun player), `busy` (a media request in flight), `providerId` of the source playing, `expiresAt`, `startedAt`, `client` (the player's address, once it made a request) and `bytes` sent to the player so far. An empty list means nothing is playing |
 | GET | `/api/v1/admin/guides` | Guide import status: `lastSuccessAt`, `errorCode`, `channels`, retained `programmes` |
 | GET | `/api/v1/admin/guides/{id}/channels?q=&limit=` | XMLTV channels of a guide (`channelId`, `displayName`, `icon`) |
 | GET | `/api/v1/admin/lineup` | Every entry in lineup order |
@@ -257,6 +257,9 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET | `/admin/lineup` | Channels, filtered and sorted by the query (`q`, `group`, `state`, `guide`, `required`, `override`, `changed`, `sort`, `dir`, `page`) |
 | GET | `/admin/lineup/{id}` | One channel |
 | POST | `/admin/lineup/{id}/visibility`, `/admin/lineup/{id}/edit` | Hide or show a channel; rename, renumber or regroup it |
+| POST | `/admin/lineup/{id}/sources/{offeringId}/disable`, `/admin/lineup/{id}/sources/{offeringId}/probe` | Disable (`disabled=true`, after `confirm=yes`) or enable a source; queue a probe of it now |
+| POST | `/admin/lineup/bulk` | Hide, show or regroup the selected channels (`op` of `hide`, `show` or `group`, `id` for each, `target` for the group), after `confirm=yes` |
+| POST | `/admin/sessions/{id}/stop` | End a playback session, after `confirm=yes` |
 | GET | `/admin/merges` | Suggested and learned aliases |
 | POST | `/admin/merges/accept`, `/admin/merges/dismiss`, `/admin/merges/never` | Accept a suggestion, dismiss it, or keep a learned pair apart |
 | GET | `/admin/required` | Required stations |
@@ -265,6 +268,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET, POST | `/admin/plex`, `/admin/plex/reveal` | Plex and the device addresses; reveal the output token |
 | GET | `/admin/settings?changes=` | Settings and the newest policy changes, 50 by default |
 | POST | `/admin/settings/reveal-api-token` | Reveal the API token |
+| POST | `/admin/settings/runtime`, `/admin/settings/runtime/check` | Save the runtime settings (`op` of `save` or `reset`); say whether the form holds a change |
 | POST | `/admin/policy/apply` | Apply the lineup policy now |
 | POST | `/admin/attention/ignore`, `/admin/attention/show` | Ignore an overview item (`key`, `fingerprint`) until its text changes; show it again (`key`) |
 | POST | `/admin/theme` | Pin the colour scheme: `theme` of `light`, `dark` or `auto`, then back to the portal path in `back` |
@@ -273,6 +277,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET | `/admin/system/events?level=&q=` | The newest 500 log lines at INFO and above; `level` of `warn` or `error` narrows them, `q` matches the logger or message |
 | GET | `/admin/system/about` | The server, the status and the support snapshot |
 | GET | `/admin/system/snapshot.json` | The support snapshot as a JSON download |
+| GET | `/admin/api`, `/admin/api/openapi.json` | The API reference, and the OpenAPI 3.1 document it is rendered from |
 
 ## Shared types
 

@@ -207,7 +207,7 @@ fun Application.backendModule(
             }
             post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.appBody<GuideQuery>())) }
             adminRoutes(runtime, clock, config?.revision ?: "unknown")
-            post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.appBody<OpenPlayback>())) }
+            post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.appBody<OpenPlayback>(), call.request.origin.remoteAddress)) }
             get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }
             patch("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.update(call.parameters["id"]!!, call.appBody<UpdatePlayback>())) }
             delete("/api/v1/playback-sessions/{id}") { runtime.sessions.release(call.parameters["id"]!!); call.respond(HttpStatusCode.NoContent) }

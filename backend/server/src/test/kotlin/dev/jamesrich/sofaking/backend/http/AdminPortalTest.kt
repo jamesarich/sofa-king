@@ -62,6 +62,9 @@ class AdminPortalTest {
     private suspend fun HttpClient.post(path: String, vararg fields: Pair<String, String>): HttpResponse =
         submitForm(path, parameters { for ((name, value) in fields) append(name, value) })
 
+    /** Whether the page has an input named [name] holding [value], whatever other attributes sit between. */
+    private fun input(html: String, name: String, value: String): Boolean = Regex("""name="$name"[^>]*value="$value"""").containsMatchIn(html)
+
     private fun stationsIn(file: Path): JsonObject = Json.parseToJsonElement(Files.readString(file)).jsonObject["stations"]?.jsonObject ?: JsonObject(emptyMap())
 
     @Test fun `sign-in takes the admin token and sets a session cookie that never holds it`() = testApplication {
@@ -678,6 +681,188 @@ class AdminPortalTest {
             val elsewhere = browser.post("/admin/theme", "theme" to "auto", "back" to "https://evil.example/", "csrf" to field(page, "csrf"))
             assertEquals("/admin", elsewhere.headers[HttpHeaders.Location], "only a portal path is returned to")
             assertFalse(browser.get("/admin").bodyAsText().contains("data-theme="))
+        }
+    }
+
+    @Test fun `watching now lists each session with its player, and Stop ends it after a confirmation`() = testApplication {
+        portal {
+            runtime.adoptAll()
+            browser.signIn()
+            val station = runtime.lineup.entries().single { it.name == "Station" && runtime.feeds.offering(it.offeringIds.first())?.providerId == "fixture" }
+            val opened = browser.post("/api/v1/playback-sessions") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody("""{"channelId":"${station.id}","intent":"watch","idempotencyKey":"portal-watch"}""")
+            }
+            assertEquals(HttpStatusCode.Created, opened.status, opened.bodyAsText())
+            val sessionId = Json.parseToJsonElement(opened.bodyAsText()).jsonObject["id"]!!.jsonPrimitive.content
+            val overview = browser.get("/admin").bodyAsText()
+            assertTrue(overview.contains("1 session") && overview.contains("Sofa King app") && overview.contains("localhost"), "the session, its player and its address are listed: $overview")
+            assertTrue(overview.contains("/admin/lineup/${station.id}") && overview.contains("via fixture"), "the channel links to its page and names its source")
+            if (station.guide != null) assertTrue(overview.contains("Morning"), "the programme on now is named")
+            assertTrue(overview.contains("/admin/sessions/$sessionId/stop"), "each session has a Stop")
+            val listed = Json.parseToJsonElement(browser.get("/api/v1/admin/sessions") { bearerAuth(admin) }.bodyAsText()).jsonArray.single().jsonObject
+            assertEquals("localhost", listed["client"]!!.jsonPrimitive.content)
+            assertEquals(0, listed["bytes"]!!.jsonPrimitive.int)
+
+            val csrf = field(overview, "csrf")
+            val asked = browser.post("/admin/sessions/$sessionId/stop", "csrf" to csrf)
+            assertEquals(HttpStatusCode.OK, asked.status)
+            assertTrue(asked.bodyAsText().contains("role=\"dialog\"") && asked.bodyAsText().contains("Stop the session on Station?"), "stopping asks first")
+            assertEquals(1, runtime.sessions.count(), "nothing stops before the confirm")
+            val stopped = browser.post("/admin/sessions/$sessionId/stop", "csrf" to csrf, "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, stopped.status)
+            assertEquals(0, runtime.sessions.count())
+            assertTrue(browser.get("/admin").bodyAsText().contains("Stopped the session on Station."))
+            val again = browser.post("/admin/sessions/$sessionId/stop", "csrf" to csrf, "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, again.status, "a session that already ended is reported, not an error")
+        }
+    }
+
+    @Test fun `a source is disabled from the channel page after a confirmation, and enabled again at once`() = testApplication {
+        portal {
+            runtime.adoptAll()
+            browser.signIn()
+            val station = runtime.lineup.entries().single { it.name == "Station" && runtime.feeds.offering(it.offeringIds.first())?.providerId == "fixture" }
+            val offeringId = station.offeringIds.first()
+            val page = browser.get("/admin/lineup/${station.id}?q=stat").bodyAsText()
+            assertTrue(page.contains("/admin/lineup/${station.id}/sources/$offeringId/disable") && page.contains(">Disable<"), page)
+            assertTrue(page.contains("Probes are off on this server"), "no Probe now without a probe worker")
+            val csrf = field(page, "csrf")
+            val asked = browser.post("/admin/lineup/${station.id}/sources/$offeringId/disable", "disabled" to "true", "q" to "stat", "csrf" to csrf)
+            assertEquals(HttpStatusCode.OK, asked.status)
+            assertTrue(asked.bodyAsText().contains("role=\"dialog\"") && asked.bodyAsText().contains("Disable source 1 from fixture?"), asked.bodyAsText())
+            assertFalse(runtime.store.health(offeringId)!!.manuallyDisabled, "nothing changes before the confirm")
+            val disabled = browser.post("/admin/lineup/${station.id}/sources/$offeringId/disable", "disabled" to "true", "q" to "stat", "csrf" to csrf, "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, disabled.status, disabled.bodyAsText())
+            assertEquals("/admin/lineup/${station.id}?q=stat", disabled.headers[HttpHeaders.Location])
+            assertTrue(runtime.store.health(offeringId)!!.manuallyDisabled)
+            val after = browser.get("/admin/lineup/${station.id}").bodyAsText()
+            assertTrue(after.contains("Disabled the source from fixture.") && after.contains("Disabled by hand") && after.contains(">Enable<"), after)
+            val enabled = browser.post("/admin/lineup/${station.id}/sources/$offeringId/disable", "disabled" to "false", "csrf" to csrf)
+            assertEquals(HttpStatusCode.SeeOther, enabled.status)
+            assertFalse(runtime.store.health(offeringId)!!.manuallyDisabled)
+            val probe = browser.post("/admin/lineup/${station.id}/sources/$offeringId/probe", "csrf" to csrf)
+            assertEquals(HttpStatusCode.SeeOther, probe.status)
+            assertTrue(browser.get("/admin/lineup/${station.id}").bodyAsText().contains("Probes are off on this server."))
+        }
+    }
+
+    @Test fun `a bulk edit writes every selected station's override in one policy edit, once confirmed`() = testApplication {
+        portal(basePolicy) {
+            runtime.policy!!.apply("test")
+            browser.signIn()
+            val page = browser.get("/admin/lineup").bodyAsText()
+            assertTrue(page.contains("form=\"bulk\"") && page.contains("Select all on this page"), "every row has a checkbox of the bulk form")
+            assertFalse(page.contains("checked"), "nothing is selected at first")
+            assertTrue(browser.get("/admin/lineup?select=page").bodyAsText().contains("checked"), "the link selects the page")
+            val ids = listOf(stationId("twin sports"), stationId("ts station"))
+            val csrf = field(page, "csrf")
+            val revision = field(page, "revision")
+            val none = browser.post("/admin/lineup/bulk", "op" to "hide", "csrf" to csrf, "revision" to revision)
+            assertEquals(HttpStatusCode.BadRequest, none.status)
+            assertTrue(none.bodyAsText().contains("Select at least one channel first."))
+
+            val fields = arrayOf("op" to "hide", "id" to ids[0], "id" to ids[1], "csrf" to csrf, "revision" to revision)
+            val asked = browser.post("/admin/lineup/bulk", *fields)
+            assertEquals(HttpStatusCode.OK, asked.status)
+            val dialog = asked.bodyAsText()
+            assertTrue(dialog.contains("Save: hide 2 channels?") && dialog.contains("2 channels turn off") && dialog.contains("Twin Sports") && dialog.contains("TS Station"), dialog)
+            assertTrue(dialog.contains("value=\"${ids[0]}\" form=\"bulk\" aria-label=\"Select Twin Sports\" checked"), "the selection is kept while the edit waits")
+            assertTrue(stationsIn(policyFile!!).values.none { "enabled" in it.jsonObject }, "nothing is saved before the confirm; the run only learns numbers")
+            val saved = browser.post("/admin/lineup/bulk", *fields, "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, saved.status, saved.bodyAsText())
+            assertEquals("/admin/lineup", saved.headers[HttpHeaders.Location])
+            val stations = stationsIn(policyFile)
+            assertEquals(false, stations.getValue("twin sports").jsonObject["enabled"]!!.jsonPrimitive.boolean)
+            assertEquals(false, stations.getValue("ts station").jsonObject["enabled"]!!.jsonPrimitive.boolean)
+            assertFalse(runtime.lineup.entry(ids[0])!!.enabled); assertFalse(runtime.lineup.entry(ids[1])!!.enabled)
+            assertTrue(browser.get("/admin/lineup").bodyAsText().contains("Saved: hide 2 channels."))
+
+            val grouped = browser.post("/admin/lineup/bulk", "op" to "group", "target" to "Sports", "id" to ids[0], "q" to "twin", "csrf" to csrf, "revision" to runtime.policy!!.document().revision, "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, grouped.status, grouped.bodyAsText())
+            assertEquals("/admin/lineup?q=twin", grouped.headers[HttpHeaders.Location], "the filters survive the edit")
+            assertEquals("Sports", stationsIn(policyFile).getValue("twin sports").jsonObject["group"]!!.jsonPrimitive.content)
+            assertEquals("Sports", runtime.lineup.entry(ids[0])!!.group)
+        }
+    }
+
+    @Test fun `without a policy a bulk edit changes the lineup entries after a confirmation`() = testApplication {
+        portal {
+            runtime.adoptAll()
+            browser.signIn()
+            val page = browser.get("/admin/lineup").bodyAsText()
+            val entries = runtime.lineup.entries().filter { it.name in setOf("TS Station", "Twin Sports") }
+            val fields = entries.map { "id" to it.id }.toTypedArray()
+            val asked = browser.post("/admin/lineup/bulk", "op" to "hide", *fields, "csrf" to field(page, "csrf"))
+            assertEquals(HttpStatusCode.OK, asked.status)
+            assertTrue(asked.bodyAsText().contains("2 channels turn off"), asked.bodyAsText())
+            assertTrue(entries.all { runtime.lineup.entry(it.id)!!.enabled })
+            val saved = browser.post("/admin/lineup/bulk", "op" to "hide", *fields, "csrf" to field(page, "csrf"), "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, saved.status, saved.bodyAsText())
+            assertTrue(entries.none { runtime.lineup.entry(it.id)!!.enabled })
+            val regrouped = browser.post("/admin/lineup/bulk", "op" to "group", "target" to "News", *fields, "csrf" to field(page, "csrf"), "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, regrouped.status)
+            assertTrue(entries.all { runtime.lineup.entry(it.id)!!.group == "News" })
+        }
+    }
+
+    @Test fun `runtime settings are saved from the settings page, apply at once and refuse bad values`() = testApplication {
+        portal(basePolicy) {
+            browser.signIn()
+            val page = browser.get("/admin/settings").bodyAsText()
+            assertTrue(page.contains("Runtime settings") && page.contains("Startup settings") && input(page, "SOFA_XMLTV_DAYS", "3"), page)
+            assertTrue(page.contains("No changes") && page.contains("hx-post=\"/admin/settings/runtime/check\""), "the Save control starts disabled and the form asks on change")
+            assertFalse(Regex("""<div class="name mono">SOFA_MAX_SESSIONS</div>""").containsMatchIn(page), "a runtime setting is not listed among the startup ones")
+            val csrf = field(page, "csrf")
+            val values = mapOf("SOFA_LOG_LEVEL" to "info", "SOFA_XMLTV_DAYS" to "3", "SOFA_PLEX_SYNC_MINUTES" to "60", "SOFA_HDHR_TUNERS" to "2", "SOFA_MAX_SESSIONS" to "4")
+            fun fields(vararg changes: Pair<String, String>) = (values + changes).map { it.key to it.value }.toTypedArray()
+            val unchanged = browser.post("/admin/settings/runtime/check", *fields(), "csrf" to csrf).bodyAsText()
+            assertTrue(unchanged.contains("No changes") && unchanged.contains("disabled"), unchanged)
+            val changed = browser.post("/admin/settings/runtime/check", *fields("SOFA_XMLTV_DAYS" to "7"), "csrf" to csrf).bodyAsText()
+            assertTrue(changed.contains(">Save<") && !changed.contains("disabled"), changed)
+
+            val refused = browser.post("/admin/settings/runtime", *fields("SOFA_HDHR_TUNERS" to "9"), "op" to "save", "csrf" to csrf)
+            assertEquals(HttpStatusCode.BadRequest, refused.status)
+            assertTrue(refused.bodyAsText().contains("SOFA_HDHR_TUNERS must be between 1 and SOFA_MAX_SESSIONS (4)"), refused.bodyAsText())
+            assertTrue(input(refused.bodyAsText(), "SOFA_HDHR_TUNERS", "9"), "the refused values stay in the form")
+            assertEquals(2, runtime.settings.current.hdhrTuners)
+
+            val saved = browser.post("/admin/settings/runtime", *fields("SOFA_XMLTV_DAYS" to "7", "SOFA_LOG_LEVEL" to "warn", "SOFA_MAX_SESSIONS" to "6", "SOFA_HDHR_TUNERS" to "5"), "op" to "save", "csrf" to csrf)
+            assertEquals(HttpStatusCode.SeeOther, saved.status, saved.bodyAsText())
+            assertEquals("/admin/settings#runtime", saved.headers[HttpHeaders.Location])
+            with(runtime.settings.current) { assertEquals(7, guideDays); assertEquals("warn", logLevel); assertEquals(6, maxSessions); assertEquals(5, hdhrTuners); assertEquals(60, plexSyncMinutes) }
+            assertEquals(setOf("SOFA_XMLTV_DAYS", "SOFA_LOG_LEVEL", "SOFA_MAX_SESSIONS", "SOFA_HDHR_TUNERS"), runtime.settings.saved)
+            assertEquals(6, runtime.sessions.capacity, "the session cap follows at once")
+            val after = browser.get("/admin/settings").bodyAsText()
+            assertTrue(after.contains("Saved the runtime settings; they apply now.") && after.contains("Saved here; the environment has 3.") && input(after, "SOFA_XMLTV_DAYS", "7"), after)
+            assertTrue(browser.get("/admin/system/about").bodyAsText().contains("warn, text"), "About reports the level in use")
+
+            val reset = browser.post("/admin/settings/runtime", "op" to "reset", "csrf" to csrf)
+            assertEquals(HttpStatusCode.SeeOther, reset.status)
+            assertEquals(4, runtime.settings.current.maxSessions)
+            assertTrue(runtime.settings.saved.isEmpty())
+            assertTrue(browser.get("/admin/settings").bodyAsText().contains("follow the environment again"))
+            assertEquals(HttpStatusCode.Forbidden, browser.post("/admin/settings/runtime", *fields(), "op" to "save").status, "the save needs the CSRF token")
+        }
+    }
+
+    @Test fun `the API page renders the OpenAPI document behind the session`() = testApplication {
+        portal {
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/api").status)
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/api/openapi.json").status, "the document needs the session too")
+            browser.signIn()
+            val page = browser.get("/admin/api")
+            assertEquals(HttpStatusCode.OK, page.status)
+            val html = page.bodyAsText()
+            for (shown in listOf("/api/v1/channels", "/api/v1/admin/sessions", "/output/guide.xml", "PATCH", "Takes: admin token", "Download the OpenAPI document", "id=\"api-playback\"")) assertTrue(html.contains(shown), shown)
+            assertTrue(html.contains("aria-current=\"page\">API<"), "the nav marks the page")
+            val document = browser.get("/admin/api/openapi.json")
+            assertEquals(HttpStatusCode.OK, document.status)
+            assertEquals(ContentType.Application.Json, document.contentType()?.withoutParameters())
+            val spec = Json.parseToJsonElement(document.bodyAsText()).jsonObject
+            assertEquals("3.1.0", spec["openapi"]!!.jsonPrimitive.content)
+            val paths = spec["paths"]!!.jsonObject.keys
+            for (path in listOf("/healthz", "/api/v1/bootstrap", "/api/v1/playback-sessions/{id}", "/api/v1/admin/policy/apply", "/auto/v{number}")) assertTrue(path in paths, path)
         }
     }
 }

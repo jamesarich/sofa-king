@@ -8,6 +8,8 @@ import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.api.StationOverride
 import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
+import dev.jamesrich.sofaking.backend.api.UpdateSource
+import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LoadedPolicy
@@ -126,6 +128,19 @@ class AdminPortal(
                 else call.response.cookies.append(themeCookie("", maxAge = 0))
                 seeOther(call, back)
             }
+            action("/sessions/{id}/stop") { session, form ->
+                val id = call.parameters["id"]!!
+                val row = overview().sessions.firstOrNull { it.active.id == id }
+                when {
+                    row == null -> { session.flash.set(Flash("That session already ended.", Tone.WARN)); seeOther(call, "/admin#watching") }
+                    form["confirm"] != "yes" -> call.html(overviewPage(chrome(call, session), overview().let { OverviewView(it, stop = StopConfirm(row)) }))
+                    else -> {
+                        runtime.sessions.release(id)
+                        session.flash.set(Flash("Stopped the session on ${row.channel ?: row.active.channelId}."))
+                        seeOther(call, "/admin#watching")
+                    }
+                }
+            }
             action("/attention/ignore") { session, form ->
                 val key = form["key"]?.trim().orEmpty().take(64)
                 val fingerprint = form["fingerprint"]?.trim().orEmpty().take(64)
@@ -159,7 +174,10 @@ class AdminPortal(
                 seeOther(call, "/admin")
             }
             staticResources("/static", "admin") { modify { _, call -> call.response.header(HttpHeaders.CacheControl, "private, max-age=86400") } }
-            get("/lineup") { call.html(lineupPage(chrome(), lineupView(LineupFilter.from(call.request.queryParameters)))) }
+            get("/lineup") {
+                val view = lineupView(LineupFilter.from(call.request.queryParameters))
+                call.html(lineupPage(chrome(), if (call.request.queryParameters["select"] == "page") LineupView(view, selectAll = true) else view))
+            }
             get("/lineup/{id}") {
                 val view = stationView(call.parameters["id"]!!, LineupFilter.from(call.request.queryParameters))
                 // 404 would be replaced by the API's JSON error page.
@@ -182,6 +200,38 @@ class AdminPortal(
                     )
                 }
             }
+            action("/lineup/{id}/sources/{offeringId}/disable") { session, form ->
+                val id = call.parameters["id"]!!
+                val offeringId = call.parameters["offeringId"]!!
+                val filter = LineupFilter.from(form)
+                val disabled = form["disabled"]?.toBooleanStrictOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "disabled must be true or false")
+                val back = "/admin/lineup/$id" + filter.query().let { if (it.isEmpty()) "" else "?$it" }
+                val view = stationView(id, filter) ?: run { call.html(goneStationPage(chrome(call, session)), HttpStatusCode.Gone); return@action }
+                val source = view.sources.firstOrNull { it.id == offeringId } ?: run {
+                    session.flash.set(Flash("That source no longer carries the channel.", Tone.WARN)); seeOther(call, back); return@action
+                }
+                if (disabled && form["confirm"] != "yes") {
+                    call.html(stationPage(chrome(call, session), StationView(view, disableConfirm = source)))
+                    return@action
+                }
+                runtime.feeds.updateSource(offeringId, UpdateSource(manuallyDisabled = disabled))
+                runtime.sessions.healthChanged(offeringId)
+                session.flash.set(Flash((if (disabled) "Disabled" else "Enabled") + " the source from ${source.provider}.", Tone.OK, offeringId))
+                seeOther(call, back)
+            }
+            action("/lineup/{id}/sources/{offeringId}/probe") { session, form ->
+                val id = call.parameters["id"]!!
+                val offeringId = call.parameters["offeringId"]!!
+                val back = "/admin/lineup/$id" + LineupFilter.from(form).query().let { if (it.isEmpty()) "" else "?$it" }
+                val probes = runtime.probes
+                session.flash.set(when {
+                    probes == null -> Flash("Probes are off on this server.", Tone.WARN, offeringId)
+                    probes.probeNow(offeringId) -> Flash("Queued a probe; the health updates when it is done.", Tone.OK, offeringId)
+                    else -> Flash("A probe of that source is already running, or it is gone.", Tone.WARN, offeringId)
+                })
+                seeOther(call, back)
+            }
+            action("/lineup/bulk") { session, form -> bulkAction(call, session, form) }
             get("/merges") { call.html(mergesPage(chrome(), mergesView())) }
             action("/merges/never") { session, form -> policyAction(call, session, form, "Kept apart") { policy, from, to, revision -> policy.neverMerge(from, to, revision) } }
             action("/merges/accept") { session, form -> policyAction(call, session, form, "Merged") { policy, from, to, revision -> policy.addAlias(from, to, revision) } }
@@ -224,6 +274,28 @@ class AdminPortal(
                 call.respondText(snapshot().toJson(), ContentType.Application.Json)
             }
             action("/settings/reveal-api-token") { session, _ -> call.html(settingsPage(chrome(call, session), settingsView(50, revealApiToken = true))) }
+            action("/settings/runtime/check") { _, form ->
+                // The form asks, on every change, whether its values differ from what the server uses; the answer is the Save control alone.
+                val proposed = form.names().associateWith { form[it].orEmpty() }
+                call.html(runtimeSaveFragment(runtimeChanged(runtime.settings.current, proposed)))
+            }
+            action("/settings/runtime") { session, form ->
+                val proposed = if (form["op"] == "reset") emptyMap() else RuntimeValues.NAMES.associateWith { form[it]?.trim().orEmpty() }
+                try {
+                    val before = runtime.settings.current
+                    val after = runtime.settings.update(proposed)
+                    session.flash.set(Flash(if (form["op"] == "reset") "Runtime settings follow the environment again." else if (before == after) "Nothing changed." else "Saved the runtime settings; they apply now."))
+                    seeOther(call, "/admin/settings#runtime")
+                } catch (e: ApiFailure) {
+                    val view = settingsView(50)
+                    call.html(settingsPage(chrome(call, session, Flash("Not saved: ${e.message}", Tone.BAD)), SettingsView(view, runtime = view.runtime!!.let { RuntimeSettingsView(it.current, it.environment, it.saved, it.plex, listOf(e.message), proposed) })), HttpStatusCode.BadRequest)
+                }
+            }
+            get("/api") { call.html(apiPage(chrome(), apiReference)) }
+            get("/api/openapi.json") {
+                call.session()
+                call.respondText(apiReference.json, ContentType.Application.Json)
+            }
             action("/policy/apply") { session, _ ->
                 val policy = runtime.policy
                 if (policy == null) {
@@ -286,7 +358,7 @@ class AdminPortal(
             config?.revision ?: "unknown", runtime.startedAt.toString(), java.time.Duration.between(runtime.startedAt, now).seconds.coerceAtLeast(0), runtime.store.schemaVersion(),
             "${Runtime.version()} (${System.getProperty("java.vendor")})", "${System.getProperty("os.name")} ${System.getProperty("os.version")} ${System.getProperty("os.arch")}",
             ffmpeg.get() ?: ffmpegVersion(config?.ffmpeg ?: "ffmpeg").also(ffmpeg::set),
-            config?.dataDirectory?.toAbsolutePath()?.toString(), config?.logging?.level ?: "info", config?.logging?.format ?: "text",
+            config?.dataDirectory?.toAbsolutePath()?.toString(), runtime.settings.current.logLevel, config?.logging?.format ?: "text",
             (runtimeInfo.totalMemory() - runtimeInfo.freeMemory()) / 1_048_576, runtimeInfo.maxMemory() / 1_048_576,
         )
     }
@@ -374,7 +446,7 @@ class AdminPortal(
      */
     private suspend fun policyEdit(
         call: ApplicationCall, session: AdminSession, form: Parameters, page: String,
-        parse: (LineupPolicy) -> PolicyEdit, render: suspend (Chrome, EditErrors?, Confirm?) -> String,
+        parse: (LineupPolicy) -> PolicyEdit, action: String = "$page/edit", back: String? = null, render: suspend (Chrome, EditErrors?, Confirm?) -> String,
     ) {
         val section = sectionOf(form["op"])
         val policy = runtime.policy
@@ -399,7 +471,7 @@ class AdminPortal(
             val impact = impactOf(policy.run().stations, policy.run(LoadedPolicy(policy.file.path, candidate, "candidate")).stations)
             if (stale || !impact.isEmpty) {
                 val fields = form.entries().filter { it.key !in setOf("csrf", "revision", "confirm") }.flatMap { (name, values) -> values.map { name to it } }
-                val confirm = Confirm("$page/edit", edit.describe, fields, current, impact, stale, "$page#${edit.section}")
+                val confirm = Confirm(action, edit.describe, fields, current, impact, stale, back ?: "$page#${edit.section}")
                 call.html(render(chrome(call, session), null, confirm), if (stale) HttpStatusCode.Conflict else HttpStatusCode.OK)
                 return
             }
@@ -410,7 +482,7 @@ class AdminPortal(
             return
         }
         session.flash.set(Flash("Saved: ${edit.describe}. ${thousands(result.enabledStations)} channels on of ${thousands(result.stations)}."))
-        seeOther(call, "$page#${edit.section}")
+        seeOther(call, back ?: "$page#${edit.section}")
     }
 
     private suspend fun groupsView(): GroupsView? {
@@ -493,9 +565,76 @@ class AdminPortal(
             suggestions = applied?.result?.suggestedAliases?.size, findings = applied?.result?.findings?.size, unverified = unverified,
             providersOk = providers.count { it.errorCode == null && it.lastSuccessAt != null }, providersTotal = providers.size,
             plex = plex?.let { PlexSummary(it.lastSyncAt, it.lastError, it.devices.size, it.devices.sumOf { d -> d.mapped }, it.missingDevices.size, it.syncMinutes) },
-            sessions = runtime.sessions.snapshot().map { it to runtime.lineup.entry(it.channelId)?.name },
+            sessions = sessionRows(now),
             lastRun = applied?.result, policy = policy != null,
         )
+    }
+
+    /** The live sessions with their channel's name and the programme it airs now, read once per guide. */
+    private suspend fun sessionRows(now: Instant): List<SessionRow> {
+        val active = runtime.sessions.snapshot()
+        if (active.isEmpty()) return emptyList()
+        val entries = active.associate { it.channelId to runtime.lineup.entry(it.channelId) }
+        val onNow = HashMap<String, String>()
+        for ((guideId, group) in entries.values.filterNotNull().mapNotNull { entry -> entry.guide?.let { it.guideId to it.channelId } }.groupBy({ it.first }, { it.second })) {
+            for ((channelId, programmes) in runtime.guides.programmes(guideId, group, now, now.plusSeconds(1))) {
+                programmes.firstOrNull()?.let { onNow["$guideId/$channelId"] = it.title }
+            }
+        }
+        return active.map { session ->
+            val entry = entries[session.channelId]
+            SessionRow(session, entry?.name, entry?.guide?.let { onNow["${it.guideId}/${it.channelId}"] })
+        }
+    }
+
+    /**
+     * The bulk edit of the selected channels: with a policy, one edit of their overrides, previewed like any policy
+     * edit; without one, the lineup entries themselves, after a confirmation that lists what changes.
+     */
+    private suspend fun bulkAction(call: ApplicationCall, session: AdminSession, form: Parameters) {
+        val filter = LineupFilter.from(form)
+        val ids = form.getAll("id").orEmpty().distinct()
+        val op = form["op"]
+        val query = filter.query().let { if (it.isEmpty()) "" else "?$it" }
+        val page = "/admin/lineup$query"
+        suspend fun refuse(message: String) =
+            call.html(lineupPage(chrome(call, session, Flash("Not saved: $message", Tone.BAD)), LineupView(lineupView(filter), selected = ids.toSet())), HttpStatusCode.BadRequest)
+        if (ids.isEmpty()) { refuse("Select at least one channel first."); return }
+        val policy = runtime.policy
+        if (policy != null) {
+            val stations = policy.lastApplied()?.stations.orEmpty().associateBy { it.id }
+            val keys = ids.mapNotNull { stations[it]?.key }
+            if (keys.size < ids.size) { refuse("${plural(ids.size - keys.size, "selected channel")} ${if (ids.size - keys.size == 1) "is" else "are"} not in the last policy run; reload the page."); return }
+            // A refused edit is explained by the notice; the page keeps the selection so the operator can correct it.
+            policyEdit(call, session, form, page, { bulkEdit(op, form["target"], keys) }, action = "/admin/lineup/bulk", back = page) { chrome, _, confirm ->
+                lineupPage(chrome, LineupView(lineupView(filter), selected = ids.toSet(), confirm = confirm))
+            }
+            return
+        }
+        val entries = ids.mapNotNull { runtime.lineup.entry(it) }
+        val update = when (op) {
+            "hide" -> UpdateLineupEntry(enabled = false)
+            "show" -> UpdateLineupEntry(enabled = true)
+            "group" -> form["target"]?.trim().orEmpty().let { if (it.isEmpty()) UpdateLineupEntry(clearGroup = true) else UpdateLineupEntry(group = it) }
+            else -> { refuse("Unknown edit ${op ?: ""}".trim()); return }
+        }
+        if (form["confirm"] != "yes") {
+            val describe = when (op) { "hide" -> "hide ${plural(entries.size, "channel")}"; "show" -> "show ${plural(entries.size, "channel")}"; else -> "move ${plural(entries.size, "channel")} to ${update.group ?: "no group"}" }
+            val impact = Impact(
+                entries.count { it.enabled }, entries.count { if (update.enabled != null) update.enabled else it.enabled },
+                if (op == "group") entries.map { Moved(it.name, it.group, update.group) } else emptyList(), emptyList(), emptyList(),
+                if (op == "hide") entries.filter { it.enabled }.map { Moved(it.name, "on", "off") } else emptyList(),
+                if (op == "show") entries.filter { !it.enabled }.map { Moved(it.name, "off", "on") } else emptyList(),
+                emptyList(), emptyList(),
+            )
+            val fields = form.entries().filter { it.key !in setOf("csrf", "revision", "confirm") }.flatMap { (name, values) -> values.map { name to it } }
+            call.html(lineupPage(chrome(call, session), LineupView(lineupView(filter), selected = ids.toSet(), confirm = Confirm("/admin/lineup/bulk", describe, fields, "", impact, false, page))))
+            return
+        }
+        var changed = 0
+        for (entry in entries) { runtime.lineup.update(entry.id, update); changed++ }
+        session.flash.set(Flash("Changed ${plural(changed, "channel")}."))
+        seeOther(call, page)
     }
 
     private suspend fun rows(): List<StationRow> {
@@ -546,11 +685,12 @@ class AdminPortal(
         val health = runtime.store.allHealth()
         val sources = row.entry.offeringIds.map { offeringId ->
             val offering = runtime.feeds.offering(offeringId)
-            if (offering == null) SourceLine("gone", null, "", "WITHDRAWN")
-            else SourceLine(offering.providerId, runtime.feeds.channel(offering.channelId)?.name, offering.protocol, health[offeringId]?.status?.name ?: "UNVERIFIED")
+            val state = health[offeringId]
+            if (offering == null) SourceLine(offeringId, "gone", null, "", "WITHDRAWN", state?.manuallyDisabled == true)
+            else SourceLine(offeringId, offering.providerId, runtime.feeds.channel(offering.channelId)?.name, offering.protocol, state?.status?.name ?: "UNVERIFIED", state?.manuallyDisabled == true)
         }
         val guideName = row.entry.guide?.let { runtime.guides.channel(it.guideId, it.channelId)?.displayName?.let { name -> "$name (${it.guideId})" } }
-        return StationView(row, sources, guideName, filter, runtime.policy?.document()?.revision, groupChoices(rows), error)
+        return StationView(row, sources, guideName, filter, runtime.policy?.document()?.revision, groupChoices(rows), error, probes = runtime.probes != null)
     }
 
     private suspend fun mergesView(): MergesView? {
@@ -607,6 +747,7 @@ class AdminPortal(
             changeLimit,
             apiTokenSet = config?.apiToken != null,
             revealedApiToken = config?.apiToken?.takeIf { revealApiToken },
+            runtime = RuntimeSettingsView(runtime.settings.current, runtime.settings.environment, runtime.settings.saved, runtime.plex != null),
         )
     }
 

@@ -1,0 +1,456 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sofa King server",
+    "version": "1",
+    "description": "The live TV server's HTTP interface: the API the Sofa King app uses under /api/v1, the admin API under /api/v1/admin, the player outputs under /output, the logo cache and the HDHomeRun emulation Plex reads. The admin portal under /admin is HTML and is not described here. Timestamps are UTC instants."
+  },
+  "servers": [{ "url": "/" }],
+  "tags": [
+    { "name": "Health", "description": "Public checks that take no token." },
+    { "name": "Live TV", "description": "The catalog and guide the app reads. Bearer: the API token." },
+    { "name": "Playback", "description": "Sessions that select a source and relay its media. Bearer: the API token; the media URLs take none." },
+    { "name": "Sources", "description": "Provider and source health. Bearer: the API token." },
+    { "name": "Outputs", "description": "The M3U playlist, XMLTV guide and player streams. Token: the output token as ?token= or a bearer, or the API bearer." },
+    { "name": "Logos", "description": "Cached channel logos, public." },
+    { "name": "HDHomeRun", "description": "What Plex reads from an HDHomeRun tuner. No token; clients are admitted by address (SOFA_HDHR_ALLOW)." },
+    { "name": "Admin", "description": "The server, its sessions, candidates, guides and the lineup. Bearer: the admin token, or the API token when none is set." },
+    { "name": "Policy", "description": "The lineup policy and its runs. Bearer: the admin token." },
+    { "name": "Plex", "description": "Plex Live TV sync. Bearer: the admin token." }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiToken": { "type": "http", "scheme": "bearer", "description": "SOFA_API_TOKEN" },
+      "adminToken": { "type": "http", "scheme": "bearer", "description": "SOFA_ADMIN_TOKEN, or SOFA_API_TOKEN when no admin token is set" },
+      "outputToken": { "type": "apiKey", "in": "query", "name": "token", "description": "SOFA_OUTPUT_TOKEN; also accepted as a bearer" }
+    },
+    "parameters": {
+      "id": { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+    },
+    "responses": {
+      "Error": {
+        "description": "An error: code, message and whether a retry may succeed.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+      }
+    },
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "required": ["code", "message", "retryable"],
+        "properties": { "code": { "type": "string", "example": "AUTH_REQUIRED" }, "message": { "type": "string" }, "retryable": { "type": "boolean" } }
+      },
+      "Bootstrap": {
+        "type": "object",
+        "properties": {
+          "serverId": { "type": "string" }, "serverTime": { "type": "string", "format": "date-time" }, "apiVersion": { "type": "integer" },
+          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" } } }
+        }
+      },
+      "Catalog": {
+        "type": "object",
+        "properties": { "revision": { "type": "string" }, "channels": { "type": "array", "items": { "$ref": "#/components/schemas/Channel" } } }
+      },
+      "Channel": {
+        "type": "object",
+        "description": "A lineup entry as the app sees it. The id is the lineup entry id; logo is a server-relative /logos/KEY path.",
+        "properties": {
+          "id": { "type": "string" }, "displayNumber": { "type": "string" }, "name": { "type": "string" }, "logo": { "type": ["string", "null"] },
+          "tags": { "type": "array", "items": { "type": "string" } }, "legacyGuideId": { "type": ["string", "null"] },
+          "guideStatus": { "type": "string", "enum": ["unassigned", "empty", "available", "stale"] }, "playbackEligible": { "type": "boolean" }
+        }
+      },
+      "GuideQuery": {
+        "type": "object",
+        "required": ["channelIds", "from", "to"],
+        "properties": {
+          "channelIds": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 200 },
+          "from": { "type": "string", "format": "date-time" }, "to": { "type": "string", "format": "date-time", "description": "At most 24 hours after from" },
+          "revision": { "type": ["string", "null"], "description": "A revision from an earlier window; a changed one answers 409 RESYNC_REQUIRED" }
+        }
+      },
+      "GuideWindow": {
+        "type": "object",
+        "properties": {
+          "revision": { "type": "string" }, "from": { "type": "string" }, "to": { "type": "string" },
+          "channels": { "type": "array", "items": { "$ref": "#/components/schemas/ChannelGuide" } }
+        }
+      },
+      "ChannelGuide": {
+        "type": "object",
+        "properties": {
+          "channelId": { "type": "string" }, "status": { "type": "string", "description": "ok, or removed for an entry the lineup no longer has" },
+          "programmes": { "type": "array", "items": { "$ref": "#/components/schemas/Programme" } }
+        }
+      },
+      "Programme": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "channelId": { "type": "string" }, "startsAt": { "type": "string", "format": "date-time" }, "endsAt": { "type": "string", "format": "date-time" },
+          "title": { "type": "string" }, "description": { "type": ["string", "null"] }, "subTitle": { "type": ["string", "null"] }, "episode": { "type": ["string", "null"] },
+          "isNew": { "type": "boolean" }, "rating": { "type": ["string", "null"] }, "icon": { "type": ["string", "null"] }
+        }
+      },
+      "OpenPlayback": {
+        "type": "object",
+        "required": ["channelId", "idempotencyKey"],
+        "properties": {
+          "channelId": { "type": "string" }, "intent": { "type": "string", "enum": ["preview", "watch"], "default": "watch" },
+          "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 128 }
+        }
+      },
+      "UpdatePlayback": { "type": "object", "properties": { "intent": { "type": ["string", "null"], "enum": ["preview", "watch", null] } } },
+      "PlaybackSession": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "channelId": { "type": "string" }, "intent": { "type": "string" }, "expiresAt": { "type": "string", "format": "date-time" },
+          "descriptor": {
+            "type": "object",
+            "properties": {
+              "protocol": { "type": "string", "enum": ["hls", "mpegts"] }, "mimeType": { "type": "string" },
+              "url": { "type": "string", "description": "Relative; resolve against the server address" }, "epoch": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ProviderStatus": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "lastSuccessAt": { "type": ["string", "null"] }, "errorCode": { "type": ["string", "null"] },
+          "channels": { "type": "integer" }, "sources": { "type": "integer" }, "skippedEntries": { "type": "integer" },
+          "skipReasons": { "type": ["string", "null"] }, "notes": { "type": ["string", "null"] }
+        }
+      },
+      "SourceStatus": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "channelId": { "type": "string" }, "providerId": { "type": "string" },
+          "status": { "type": "string", "enum": ["UNVERIFIED", "HEALTHY", "SUSPECT", "PROBATION", "QUARANTINED", "ARCHIVED"] },
+          "manuallyDisabled": { "type": "boolean" }, "lastQualifiedAt": { "type": ["string", "null"] }, "nextCheckAt": { "type": ["string", "null"] }
+        }
+      },
+      "UpdateSource": { "type": "object", "required": ["manuallyDisabled"], "properties": { "manuallyDisabled": { "type": "boolean" } } },
+      "ServerStatus": {
+        "type": "object",
+        "properties": {
+          "revision": { "type": "string" }, "startedAt": { "type": "string", "format": "date-time" }, "uptimeSeconds": { "type": "integer" }, "schemaVersion": { "type": "integer" },
+          "channels": { "type": "object", "properties": { "total": { "type": "integer" }, "enabled": { "type": "integer" }, "eligible": { "type": "integer" } } },
+          "sources": { "type": "object", "properties": { "total": { "type": "integer" }, "byStatus": { "type": "object", "additionalProperties": { "type": "integer" } }, "manuallyDisabled": { "type": "integer" } } },
+          "providers": { "$ref": "#/components/schemas/StatusImports" }, "guides": { "$ref": "#/components/schemas/StatusImports" },
+          "policy": { "type": ["object", "null"], "properties": { "revision": { "type": "string" }, "lastRunAt": { "type": ["string", "null"] }, "lastRunChanged": { "type": ["boolean", "null"] } } },
+          "plex": { "type": ["object", "null"], "properties": { "lastSyncAt": { "type": ["string", "null"] }, "mapped": { "type": "integer" }, "lastError": { "type": ["string", "null"] } } },
+          "activeSessions": { "type": "integer" }
+        }
+      },
+      "StatusImports": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer" }, "pending": { "type": "integer" }, "lastImportAt": { "type": ["string", "null"] },
+          "failing": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "errorCode": { "type": "string" }, "lastSuccessAt": { "type": ["string", "null"] } } } }
+        }
+      },
+      "ActiveSession": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "channelId": { "type": "string" }, "intent": { "type": "string" }, "external": { "type": "boolean", "description": "An M3U or HDHomeRun player" },
+          "busy": { "type": "boolean", "description": "A media request in flight" }, "providerId": { "type": "string" }, "expiresAt": { "type": "string", "format": "date-time" },
+          "startedAt": { "type": "string", "format": "date-time" }, "client": { "type": ["string", "null"], "description": "The player's address" }, "bytes": { "type": "integer", "description": "Bytes relayed to the player" }
+        }
+      },
+      "CandidatePage": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer" },
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/Candidate" } }
+        }
+      },
+      "Candidate": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "providerId": { "type": "string" }, "displayNumber": { "type": "string" }, "name": { "type": "string" }, "logo": { "type": ["string", "null"] },
+          "group": { "type": ["string", "null"] }, "legacyGuideId": { "type": ["string", "null"] },
+          "offerings": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "protocol": { "type": "string" }, "status": { "type": "string" }, "manuallyDisabled": { "type": "boolean" } } } },
+          "lineupEntryIds": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "GuideStatus": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "lastSuccessAt": { "type": ["string", "null"] }, "errorCode": { "type": ["string", "null"] }, "channels": { "type": "integer" }, "programmes": { "type": "integer" } }
+      },
+      "GuideChannelInfo": { "type": "object", "properties": { "channelId": { "type": "string" }, "displayName": { "type": "string" }, "icon": { "type": ["string", "null"] } } },
+      "GuideMapping": { "type": "object", "required": ["guideId", "channelId"], "properties": { "guideId": { "type": "string" }, "channelId": { "type": "string" } } },
+      "LineupEntry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "position": { "type": "integer" }, "number": { "type": "string" }, "name": { "type": "string" }, "group": { "type": ["string", "null"] },
+          "logo": { "type": ["string", "null"] }, "enabled": { "type": "boolean" }, "guide": { "oneOf": [{ "$ref": "#/components/schemas/GuideMapping" }, { "type": "null" }] },
+          "offerings": { "type": "array", "description": "The entry's sources in failover order", "items": { "type": "object", "properties": {
+            "id": { "type": "string" }, "providerId": { "type": ["string", "null"] }, "channelName": { "type": ["string", "null"] }, "protocol": { "type": ["string", "null"] },
+            "status": { "type": "string", "description": "A health status, or WITHDRAWN when no provider lists the source now" }, "manuallyDisabled": { "type": "boolean" } } } },
+          "guideStatus": { "type": "string", "enum": ["unassigned", "empty", "available", "stale"] }, "createdBy": { "type": "string", "enum": ["policy", "manual"] },
+          "autoDisabledAt": { "type": ["string", "null"] }, "autoDisabledReason": { "type": ["string", "null"] }
+        }
+      },
+      "CreateLineupEntry": {
+        "type": "object",
+        "description": "With channelId, the candidate's number, name, logo, group, sources and guide mapping are copied and any field here overrides them; without it, number and name are required.",
+        "properties": {
+          "channelId": { "type": ["string", "null"] }, "id": { "type": ["string", "null"], "description": "A UUID" }, "number": { "type": ["string", "null"] }, "name": { "type": ["string", "null"] },
+          "group": { "type": ["string", "null"] }, "logo": { "type": ["string", "null"] }, "enabled": { "type": "boolean", "default": true },
+          "offerings": { "type": ["array", "null"], "items": { "type": "string" } }, "guide": { "oneOf": [{ "$ref": "#/components/schemas/GuideMapping" }, { "type": "null" }] }, "position": { "type": ["integer", "null"] }
+        }
+      },
+      "UpdateLineupEntry": {
+        "type": "object",
+        "description": "Absent fields keep their value; the clear flags remove optional values. Sending enabled clears autoDisabledAt and autoDisabledReason.",
+        "properties": {
+          "number": { "type": ["string", "null"] }, "name": { "type": ["string", "null"] }, "group": { "type": ["string", "null"] }, "logo": { "type": ["string", "null"] },
+          "enabled": { "type": ["boolean", "null"] }, "offerings": { "type": ["array", "null"], "items": { "type": "string" } },
+          "guide": { "oneOf": [{ "$ref": "#/components/schemas/GuideMapping" }, { "type": "null" }] }, "position": { "type": ["integer", "null"], "description": "Not with a policy" },
+          "clearGroup": { "type": "boolean" }, "clearLogo": { "type": "boolean" }, "clearGuide": { "type": "boolean" }
+        }
+      },
+      "ReorderLineup": { "type": "object", "required": ["ids"], "properties": { "ids": { "type": "array", "items": { "type": "string" }, "description": "Every entry once" } } },
+      "AdoptProvider": { "type": "object", "required": ["providerId"], "properties": { "providerId": { "type": "string" }, "enabled": { "type": "boolean", "default": true } } },
+      "AdoptResult": { "type": "object", "properties": { "added": { "type": "integer" }, "skipped": { "type": "integer" } } },
+      "PolicyDocument": {
+        "type": "object",
+        "properties": { "revision": { "type": "string", "description": "The file's SHA-256, also the ETag" }, "path": { "type": "string" }, "policy": { "type": "object", "description": "The lineup policy; see docs/lineup-policy.md" } }
+      },
+      "PolicyApplyResult": {
+        "type": "object",
+        "properties": {
+          "appliedAt": { "type": "string" }, "revision": { "type": "string" }, "changed": { "type": "boolean" }, "stations": { "type": "integer" }, "enabledStations": { "type": "integer" },
+          "changes": { "type": "integer" }, "assigned": { "type": "object", "additionalProperties": { "type": "string" } }, "findings": { "type": "array", "items": { "type": "string" } },
+          "suggestedAliases": { "type": "array", "items": { "type": "string" } }, "learned": { "type": "object", "additionalProperties": { "type": "string" } },
+          "devicesNeeded": { "type": ["integer", "null"] }, "devicesConfigured": { "type": ["integer", "null"] },
+          "unmappedCategories": { "type": "array", "items": { "$ref": "#/components/schemas/UnmappedCategory" } }
+        }
+      },
+      "PolicyPreview": {
+        "type": "object",
+        "properties": {
+          "generatedAt": { "type": "string" }, "revision": { "type": "string" }, "stations": { "type": "integer" }, "enabledStations": { "type": "integer" },
+          "added": { "type": "array", "items": { "type": "string" } },
+          "removed": { "type": "array", "items": { "type": "object", "properties": { "key": { "type": "string" }, "entryId": { "type": "string" }, "name": { "type": "string" } } } },
+          "changes": { "type": "array", "items": { "type": "object", "properties": { "key": { "type": "string" }, "entryId": { "type": ["string", "null"] }, "field": { "type": "string" }, "before": { "type": ["string", "null"] }, "after": { "type": ["string", "null"] } } } },
+          "merges": { "type": "array", "items": { "type": "object" } }, "splits": { "type": "array", "items": { "type": "object" } }, "counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+          "findings": { "type": "array", "items": { "type": "string" } }, "suggestedAliases": { "type": "array", "items": { "type": "string" } },
+          "learned": { "type": "object", "additionalProperties": { "type": "string" } }, "devicesNeeded": { "type": ["integer", "null"] }, "devicesConfigured": { "type": ["integer", "null"] },
+          "unmappedCategories": { "type": "array", "items": { "$ref": "#/components/schemas/UnmappedCategory" } }
+        }
+      },
+      "PolicyFindings": {
+        "type": "object",
+        "properties": {
+          "generatedAt": { "type": "string" }, "revision": { "type": "string" }, "findings": { "type": "array", "items": { "type": "string" } },
+          "suggestedAliases": { "type": "array", "items": { "type": "string" } }, "unmappedCategories": { "type": "array", "items": { "$ref": "#/components/schemas/UnmappedCategory" } }
+        }
+      },
+      "UnmappedCategory": { "type": "object", "properties": { "provider": { "type": "string" }, "category": { "type": "string" }, "stations": { "type": "integer" }, "example": { "type": "string" } } },
+      "PolicyChangeEntry": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" }, "appliedAt": { "type": "string" },
+          "change": { "type": "object", "properties": {
+            "key": { "type": ["string", "null"] }, "entryId": { "type": ["string", "null"] }, "entryName": { "type": "string" }, "field": { "type": ["string", "null"] },
+            "before": { "type": ["string", "null"] }, "after": { "type": ["string", "null"] }, "reason": { "type": "string", "description": "The run's cause" } } }
+        }
+      },
+      "StationExplanation": { "type": "object", "description": "The station the policy builds for a key, its pins, and every candidate that names the key or joins it, each taken, skipped or claimed with a reason." },
+      "PlexStatus": {
+        "type": "object",
+        "properties": {
+          "syncMinutes": { "type": "integer" }, "lastSyncAt": { "type": ["string", "null"] }, "lastCause": { "type": ["string", "null"], "enum": ["startup", "policy", "interval", "api", "now", null] },
+          "lastError": { "type": ["string", "null"] }, "dvrs": { "type": "array", "items": { "type": "string" } },
+          "devices": { "type": "array", "items": { "type": "object", "properties": { "deviceId": { "type": "string" }, "device": { "type": "integer" }, "plexKey": { "type": "string" }, "dvr": { "type": "string" }, "mapped": { "type": "integer" }, "added": { "type": "boolean" } } } },
+          "missingDevices": { "type": "array", "items": { "type": "string" } }, "findings": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "Discover": {
+        "type": "object",
+        "properties": {
+          "FriendlyName": { "type": "string" }, "Manufacturer": { "type": "string" }, "ManufacturerURL": { "type": "string" }, "ModelNumber": { "type": "string" },
+          "FirmwareName": { "type": "string" }, "FirmwareVersion": { "type": "string" }, "DeviceID": { "type": "string" }, "DeviceAuth": { "type": "string" },
+          "BaseURL": { "type": "string" }, "LineupURL": { "type": "string" }, "TunerCount": { "type": "integer" }
+        }
+      },
+      "LineupItem": { "type": "object", "properties": { "GuideNumber": { "type": "string" }, "GuideName": { "type": "string" }, "URL": { "type": "string" } } }
+    }
+  },
+  "paths": {
+    "/healthz": { "get": { "tags": ["Health"], "summary": "Liveness", "security": [], "responses": { "200": { "description": "ok, as text" } } } },
+    "/readyz": { "get": { "tags": ["Health"], "summary": "Database readiness", "security": [], "responses": { "200": { "description": "ready, as text" }, "503": { "$ref": "#/components/responses/Error" } } } },
+    "/api/v1/bootstrap": {
+      "get": { "tags": ["Live TV"], "summary": "Server id, time and capabilities", "security": [{ "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Bootstrap" } } } }, "503": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/channels": {
+      "get": { "tags": ["Live TV"], "summary": "The catalog: the enabled lineup entries as channels", "description": "Carries an ETag; If-None-Match answers 304.", "security": [{ "apiToken": [] }],
+        "parameters": [{ "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Catalog" } } } }, "304": { "description": "Unchanged" } } }
+    },
+    "/api/v1/guide/query": {
+      "post": { "tags": ["Live TV"], "summary": "Programmes overlapping a window for up to 200 channels", "security": [{ "apiToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideQuery" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideWindow" } } } }, "409": { "description": "RESYNC_REQUIRED: the revision changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/providers": {
+      "get": { "tags": ["Sources"], "summary": "Each provider's import status and counts", "security": [{ "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ProviderStatus" } } } } } } }
+    },
+    "/api/v1/sources": {
+      "get": { "tags": ["Sources"], "summary": "Every source's health and manual-disable flag", "security": [{ "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SourceStatus" } } } } } } }
+    },
+    "/api/v1/sources/{id}": {
+      "patch": { "tags": ["Sources"], "summary": "Disable or enable a source by hand", "description": "A disabled source is never selected or probed; sessions playing it move on.", "security": [{ "apiToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateSource" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SourceStatus" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/playback-sessions": {
+      "post": { "tags": ["Playback"], "summary": "Open a preview or watch session", "description": "Picks the channel's first selectable source. Repeating a key returns the same session while it lives; a key reused with other parameters answers 409 IDEMPOTENCY_CONFLICT. At capacity the oldest preview, then an idle player session, yields; otherwise 429 CAPACITY_EXHAUSTED.", "security": [{ "apiToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenPlayback" } } } },
+        "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/playback-sessions/{id}": {
+      "get": { "tags": ["Playback"], "summary": "The current descriptor", "description": "Moves the session to the next selectable source, with a new epoch, when the current one stopped being selectable.", "security": [{ "apiToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
+      "patch": { "tags": ["Playback"], "summary": "Renew the lease; optionally change the intent", "description": "A watch session expires 90 s after its last renewal, a preview 45 s. Send {} to renew alone.", "security": [{ "apiToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlayback" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaybackSession" } } } }, "410": { "$ref": "#/components/responses/Error" } } },
+      "delete": { "tags": ["Playback"], "summary": "Release the session", "description": "Idempotent; cancels its upstream requests.", "security": [{ "apiToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "204": { "description": "Released" } } }
+    },
+    "/media/sessions/{id}/{epoch}/{token}": {
+      "get": { "tags": ["Playback"], "summary": "A playlist, segment, key or live TS stream of the session", "description": "No token: the random resource token authorizes it until the session ends or its epoch changes. An older epoch answers 410 STREAM_CHANGED; a source no longer selectable answers 503 SOURCE_UNAVAILABLE; more than 12 requests at once answer 429.", "security": [],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "epoch", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "token", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "Range", "in": "header", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "application/vnd.apple.mpegurl, video/mp2t or the resource's own type" }, "206": { "description": "A range of the resource" }, "404": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/output/playlist.m3u": {
+      "get": { "tags": ["Outputs"], "summary": "The enabled lineup as an M3U playlist", "description": "audio/x-mpegurl; tvg-id is the channel id, URLs use the request's Host. The stream suffix follows the protocol of the source the channel would play now.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+        "responses": { "200": { "description": "" }, "401": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/output/guide.xml": {
+      "get": { "tags": ["Outputs"], "summary": "The lineup's programmes as XMLTV", "description": "From three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+        "parameters": [{ "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 14 } }],
+        "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/output/stream/{channelId}.{suffix}": {
+      "get": { "tags": ["Outputs"], "summary": "Open a player session for the channel and stream it", "description": "An HLS source answers 302 to the session's playlist; an MPEG-TS source streams video/mp2t here. The session is released 60 s after the last media request.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+        "parameters": [{ "name": "channelId", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "suffix", "in": "path", "required": true, "schema": { "type": "string", "enum": ["m3u8", "ts"] } }],
+        "responses": { "200": { "description": "video/mp2t" }, "302": { "description": "To the session's playlist under /media/sessions/" }, "404": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" }, "503": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/logos/{key}": {
+      "get": { "tags": ["Logos"], "summary": "A cached channel logo", "description": "key is the lowercase hex SHA-256 of the logo's source URL. Carries an ETag and Cache-Control: public, max-age=86400.", "security": [],
+        "parameters": [{ "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "PNG, JPEG, WebP, GIF or SVG" }, "304": { "description": "Unchanged" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/discover.json": { "get": { "tags": ["HDHomeRun"], "summary": "The device Plex discovers", "security": [], "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Discover" } } } }, "403": { "description": "The client address is not allowed" } } } },
+    "/lineup.json": { "get": { "tags": ["HDHomeRun"], "summary": "The device's channels", "security": [], "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LineupItem" } } } } }, "403": { "description": "The client address is not allowed" } } } },
+    "/lineup_status.json": { "get": { "tags": ["HDHomeRun"], "summary": "Scan status: nothing to scan", "security": [], "responses": { "200": { "description": "" } } } },
+    "/lineup.post": { "post": { "tags": ["HDHomeRun"], "summary": "Accepts Plex's channel-scan request", "security": [], "responses": { "200": { "description": "No body" } } } },
+    "/device.xml": { "get": { "tags": ["HDHomeRun"], "summary": "The UPnP root description", "security": [], "responses": { "200": { "description": "application/xml" } } } },
+    "/auto/v{number}": {
+      "get": { "tags": ["HDHomeRun"], "summary": "An MPEG-TS stream of the channel with that lineup number", "description": "While the device's streams are all open, or the source refuses, 503 with X-HDHomeRun-Error: 805 All Tuners In Use.", "security": [],
+        "parameters": [{ "name": "number", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "video/mp2t" }, "404": { "$ref": "#/components/responses/Error" }, "503": { "description": "All tuners in use" } } }
+    },
+    "/api/v1/admin/status": {
+      "get": { "tags": ["Admin"], "summary": "One summary of the server", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ServerStatus" } } } } } }
+    },
+    "/api/v1/admin/sessions": {
+      "get": { "tags": ["Admin"], "summary": "Live playback sessions", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ActiveSession" } } } } } } }
+    },
+    "/api/v1/admin/candidates": {
+      "get": { "tags": ["Admin"], "summary": "Provider channels with their sources and the entries using them", "security": [{ "adminToken": [] }],
+        "parameters": [
+          { "name": "q", "in": "query", "schema": { "type": "string" }, "description": "Matches the name, the exact number or the tvg-id" },
+          { "name": "provider", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } }
+        ],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CandidatePage" } } } } } }
+    },
+    "/api/v1/admin/guides": {
+      "get": { "tags": ["Admin"], "summary": "Each guide's import status", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GuideStatus" } } } } } } }
+    },
+    "/api/v1/admin/guides/{id}/channels": {
+      "get": { "tags": ["Admin"], "summary": "The XMLTV channels of a guide", "security": [{ "adminToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "q", "in": "query", "schema": { "type": "string" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GuideChannelInfo" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/lineup": {
+      "get": { "tags": ["Admin"], "summary": "Every lineup entry in order", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LineupEntry" } } } } } } },
+      "post": { "tags": ["Admin"], "summary": "Create an entry", "description": "410 POLICY_MANAGED while a lineup policy builds the lineup.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateLineupEntry" } } } },
+        "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LineupEntry" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/lineup/order": {
+      "put": { "tags": ["Admin"], "summary": "Reorder the lineup", "description": "410 POLICY_MANAGED while a lineup policy builds the lineup.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReorderLineup" } } } },
+        "responses": { "200": { "description": "The lineup", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LineupEntry" } } } } }, "410": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/lineup/adopt": {
+      "post": { "tags": ["Admin"], "summary": "Add every channel of a provider that no entry uses", "description": "410 POLICY_MANAGED while a lineup policy builds the lineup.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdoptProvider" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdoptResult" } } } }, "410": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/lineup/{id}": {
+      "get": { "tags": ["Admin"], "summary": "One entry", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LineupEntry" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
+      "patch": { "tags": ["Admin"], "summary": "Update an entry", "description": "With a policy, writes the station's override and applies it; If-Match may carry the policy revision.", "security": [{ "adminToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "If-Match", "in": "header", "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateLineupEntry" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LineupEntry" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } },
+      "delete": { "tags": ["Admin"], "summary": "Remove an entry", "description": "With a policy, writes enabled: false into the station's override instead.", "security": [{ "adminToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "If-Match", "in": "header", "schema": { "type": "string" } }],
+        "responses": { "204": { "description": "Removed" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy": {
+      "get": { "tags": ["Policy"], "summary": "The lineup policy the server runs with", "description": "404 POLICY_NOT_CONFIGURED without one. The revision is also the ETag.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyDocument" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
+      "put": { "tags": ["Policy"], "summary": "Replace the policy and apply it", "description": "The body is the whole policy, up to 4 MiB. If-Match is required: 428 PRECONDITION_REQUIRED without it, 409 POLICY_CHANGED when stale, 400 INVALID_POLICY with every error.", "security": [{ "adminToken": [] }],
+        "parameters": [{ "name": "If-Match", "in": "header", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "document and apply", "content": { "application/json": { "schema": { "type": "object", "properties": { "document": { "$ref": "#/components/schemas/PolicyDocument" }, "apply": { "$ref": "#/components/schemas/PolicyApplyResult" } } } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "428": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/preview": {
+      "get": { "tags": ["Policy"], "summary": "What a run would change; writes nothing", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyPreview" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/apply": {
+      "post": { "tags": ["Policy"], "summary": "Run the policy now", "description": "Writes the lineup when it differs, logs each change and writes assigned numbers and learned aliases back to the file.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyApplyResult" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/findings": {
+      "get": { "tags": ["Policy"], "summary": "Open findings of a run over the current candidates", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PolicyFindings" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/policy/changes": {
+      "get": { "tags": ["Policy"], "summary": "What runs changed, newest first", "description": "The server keeps the newest 10,000.", "security": [{ "adminToken": [] }],
+        "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 } }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PolicyChangeEntry" } } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/stations/{key}": {
+      "get": { "tags": ["Policy"], "summary": "Why a station key is what it is", "security": [{ "adminToken": [] }],
+        "parameters": [{ "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StationExplanation" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/plex": {
+      "get": { "tags": ["Plex"], "summary": "The last Plex sync", "description": "404 PLEX_NOT_CONFIGURED when SOFA_PLEX_URL is unset.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlexStatus" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/plex/sync": {
+      "post": { "tags": ["Plex"], "summary": "Sync Plex now", "description": "A failure is reported in lastError, not as an error response.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlexStatus" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    }
+  }
+}

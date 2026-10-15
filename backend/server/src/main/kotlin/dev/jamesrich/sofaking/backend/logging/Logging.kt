@@ -67,6 +67,12 @@ fun configureLogging(context: LoggerContext, settings: LogSettings, stream: Outp
     }
 }
 
+/** Sets the root logger's level to [level] (one of [LogSettings.LEVELS]) on the running logback context. */
+fun applyLogLevel(level: String) {
+    val context = org.slf4j.LoggerFactory.getILoggerFactory() as? LoggerContext ?: return
+    context.getLogger(Logger.ROOT_LOGGER_NAME).level = Level.toLevel(level, Level.INFO)
+}
+
 /**
  * Configures logback from the environment before the first logger is used. An invalid value falls back to its
  * default here; `ServerConfig` then refuses to start with a message naming the variable.

@@ -35,7 +35,8 @@ class TsRemux(private val ffmpeg: String) {
     fun active(): Int = processes.size
 
     /** Streams [url] remuxed to `video/mp2t` into [call]; returns when the client hangs up or FFmpeg exits. */
-    suspend fun stream(call: ApplicationCall, url: String, headers: Map<String, String>) {
+    /** [sent] is told each chunk's size as it goes to the player. */
+    suspend fun stream(call: ApplicationCall, url: String, headers: Map<String, String>, sent: (Int) -> Unit = {}) {
         val command = remuxCommand(ffmpeg, url, headers)
         // Creating the log file and forking FFmpeg block; the call's Netty thread must not do either.
         val (errors, process) = withContext(Dispatchers.IO) {
@@ -59,6 +60,7 @@ class TsRemux(private val ffmpeg: String) {
                             if (read < 0) break
                             if (read == 0) continue
                             writeFully(buffer, 0, read)
+                            sent(read)
                             flush()
                         }
                         ended = true

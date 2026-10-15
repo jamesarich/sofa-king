@@ -118,3 +118,9 @@ internal object AttentionIgnores : Table("attention_ignore") {
     val ignoredAt = text("ignored_at")
     override val primaryKey = PrimaryKey(itemKey)
 }
+internal object RuntimeSettings : Table("runtime_setting") {
+    val key = text("key")
+    val value = text("value")
+    val updatedAt = text("updated_at")
+    override val primaryKey = PrimaryKey(key)
+}

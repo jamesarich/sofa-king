@@ -10,6 +10,8 @@ import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.api.PolicyUnmappedCategory
 import dev.jamesrich.sofaking.backend.api.ProviderStatus
 import dev.jamesrich.sofaking.backend.api.SourcePin
+import java.time.Duration
+import java.time.Instant
 import kotlinx.html.*
 
 /** Where the docs an attention item links live: this repository's backend docs, by file and heading. */
@@ -34,6 +36,12 @@ internal class GuideCoverage(val available: Int, val stale: Int, val empty: Int,
 
 internal class PlexSummary(val lastSyncAt: String?, val lastError: String?, val dvrDevices: Int, val mapped: Int, val missing: Int, val syncMinutes: Int)
 
+/** One live session on the overview: the session, its channel's name and what that channel airs now. */
+internal class SessionRow(val active: ActiveSession, val channel: String?, val onNow: String?)
+
+/** A session the operator asked to stop, waiting for the confirmation. */
+internal class StopConfirm(val row: SessionRow)
+
 internal class OverviewView(
     val attention: List<Attention>,
     /** Items the operator ignored until they change. */
@@ -44,9 +52,16 @@ internal class OverviewView(
     val providersOk: Int, val providersTotal: Int,
     /** Null when Plex sync is not configured. */
     val plex: PlexSummary?,
-    val sessions: List<Pair<ActiveSession, String?>>,
+    val sessions: List<SessionRow>,
     val lastRun: PolicyApplyResult?, val policy: Boolean,
-)
+    val stop: StopConfirm? = null,
+) {
+    /** [view] with a stop confirmation. */
+    constructor(view: OverviewView, stop: StopConfirm?) : this(
+        view.attention, view.ignored, view.stations, view.enabled, view.guide, view.required, view.requiredOff, view.suggestions, view.findings, view.unverified,
+        view.providersOk, view.providersTotal, view.plex, view.sessions, view.lastRun, view.policy, stop,
+    )
+}
 
 internal class LineupView(
     val filter: LineupFilter, val rows: List<StationRow>, val matches: Int, val total: Int, val pages: Int, val groups: List<String>,
@@ -55,14 +70,31 @@ internal class LineupView(
     /** Groups a station can be put in: the lineup's groups and the policy's numbered groups. */
     val groupChoices: List<String> = groups,
     val enabled: Int = 0,
-)
+    /** Every row's checkbox starts checked, from the "Select all on this page" link. */
+    val selectAll: Boolean = false,
+    /** The entry ids whose checkboxes stay checked, after a refused bulk edit. */
+    val selected: Set<String> = emptySet(),
+    /** A bulk edit waiting for the operator. */
+    val confirm: Confirm? = null,
+) {
+    /** [view] with the selection state of a bulk edit. */
+    constructor(view: LineupView, selectAll: Boolean = view.selectAll, selected: Set<String> = view.selected, confirm: Confirm? = view.confirm) : this(
+        view.filter, view.rows, view.matches, view.total, view.pages, view.groups, view.revision, view.groupChoices, view.enabled, selectAll, selected, confirm,
+    )
+}
 
-internal class SourceLine(val provider: String, val channel: String?, val protocol: String, val status: String)
+internal class SourceLine(val id: String, val provider: String, val channel: String?, val protocol: String, val status: String, val disabled: Boolean = false)
 
 internal class StationView(
     val row: StationRow, val sources: List<SourceLine>, val guideName: String?, val filter: LineupFilter, val revision: String?, val groupChoices: List<String>,
     val error: String? = null,
-)
+    /** Whether a probe worker runs, so "Probe now" has somewhere to go. */
+    val probes: Boolean = false,
+    /** A source the operator asked to disable, waiting for the confirmation. */
+    val disableConfirm: SourceLine? = null,
+) {
+    constructor(view: StationView, disableConfirm: SourceLine?) : this(view.row, view.sources, view.guideName, view.filter, view.revision, view.groupChoices, view.error, view.probes, disableConfirm)
+}
 
 internal class MergesView(
     val revision: String, val learned: Map<String, String>, val never: List<List<String>>, val suggestions: List<Pair<String, String>>,
@@ -183,22 +215,40 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
         }
     }
     div("cols") {
-        panel("Watching now", aside = { span("muted") { +plural(view.sessions.size, "session") } }) {
+        panel("Watching now", id = "watching", aside = { span("muted") { +plural(view.sessions.size, "session") } }) {
             if (view.sessions.isEmpty()) p("muted") { +"Nobody is watching." }
             else div("scroll") {
                 table {
                     caption("sr") { +"Watching now" }
-                    thead { tr { col("Channel"); col("Source"); col("Player"); col("Lease ends") } }
+                    thead { tr { col("Channel"); col("On now"); col("Player"); col("Watching for"); col("Sent", "num"); col("Lease ends"); col("Action", "sr") } }
                     tbody {
-                        for ((active, name) in view.sessions) tr {
-                            td { +(name ?: active.channelId); if (active.busy) { +" "; chip("streaming", Tone.OK) } }
-                            td { +active.providerId }
-                            td { +(if (active.external) "M3U or Plex" else "Sofa King app") }
-                            td("nowrap") { ago(active.expiresAt, now) }
+                        for (row in view.sessions) {
+                            val active = row.active
+                            tr(chrome.flash?.takeIf { it.target == active.id }?.let { if (it.tone == Tone.BAD) "err-row" else "flash" }) {
+                                td {
+                                    if (row.channel != null) a("/admin/lineup/${active.channelId}", classes = "rowlink") { +row.channel } else +active.channelId
+                                    if (active.busy) { +" "; chip("streaming", Tone.OK) }
+                                    br(); span("muted small") { +"via ${active.providerId}" }
+                                }
+                                td { if (row.onNow != null) +row.onNow else span("muted") { +"No guide" } }
+                                td {
+                                    +(if (active.external) "M3U or Plex" else "Sofa King app")
+                                    if (active.client != null) { br(); span("muted small mono") { +active.client } }
+                                }
+                                td("nowrap") { +since(active.startedAt, now) }
+                                td("num nowrap") { +bytesText(active.bytes) }
+                                td("nowrap") { ago(active.expiresAt, now) }
+                                td {
+                                    postForm("/admin/sessions/${active.id}/stop", chrome.session, keepScroll = true) {
+                                        button(type = ButtonType.submit, classes = "small quiet") { attributes["aria-label"] = "Stop the session on ${row.channel ?: active.channelId}"; +"Stop" }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
+            p("muted small") { +"Sent counts the bytes relayed to the player over this session. Stop ends the session; the player sees its stream end and may open a new one." }
         }
         if (view.policy) panel("Last lineup run", aside = { a("/admin/settings#changes") { +"Change log" } }) {
             val run = view.lastRun
@@ -211,6 +261,31 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
             }
         }
     }
+    view.stop?.let { stop ->
+        val name = stop.row.channel ?: stop.row.active.channelId
+        askDialog(chrome, "Stop the session on $name?", "/admin/sessions/${stop.row.active.id}/stop", "/admin#watching", "Stop", danger = true) {
+            p { +"The ${if (stop.row.active.external) "M3U or Plex player" else "Sofa King app"}${stop.row.active.client?.let { " at $it" } ?: ""} loses its stream. It can open the channel again." }
+        }
+    }
+}
+
+/** A running time as "12 min" or "2 h 5 min"; [startedAt] is an instant. */
+internal fun since(startedAt: String, now: Instant): String {
+    val from = runCatching { Instant.parse(startedAt) }.getOrNull() ?: return ""
+    val s = Duration.between(from, now).seconds.coerceAtLeast(0)
+    return when {
+        s >= 3600 -> "${s / 3600} h ${s % 3600 / 60} min"
+        s >= 60 -> "${s / 60} min"
+        else -> "$s s"
+    }
+}
+
+/** A byte count as "1.2 GB", "340 MB", "12 KB" or "0 B". */
+internal fun bytesText(bytes: Long): String = when {
+    bytes >= 1_073_741_824 -> "%.1f GB".format(java.util.Locale.US, bytes / 1_073_741_824.0)
+    bytes >= 1_048_576 -> "${bytes / 1_048_576} MB"
+    bytes >= 1024 -> "${bytes / 1024} KB"
+    else -> "$bytes B"
 }
 
 private fun stateChip(row: StationRow): Pair<String, Tone> {
@@ -317,11 +392,35 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
         a("/admin/lineup") { +"Show every channel" }
     }
     else div("panel tight") {
+        // The row checkboxes belong to this form through their form attribute, so the row actions stay their own forms.
+        form(action = "/admin/lineup/bulk", method = FormMethod.post, classes = "bulk") {
+            id = "bulk"
+            attributes["aria-label"] = "Selected channels"
+            hiddenInput(name = "csrf") { value = session.csrf }
+            view.revision?.let { revision -> hiddenInput(name = "revision") { value = revision } }
+            filterFields(filter)
+            span("label") { +"Selected:" }
+            button(type = ButtonType.submit, classes = "small") { name = "op"; value = "hide"; +"Hide" }
+            button(type = ButtonType.submit, classes = "small") { name = "op"; value = "show"; +"Show" }
+            label("sr") { htmlFor = "bulk-group"; +"Group" }
+            select {
+                id = "bulk-group"; name = "target"
+                option { value = ""; +(if (view.revision != null) "Policy decides" else "No group") }
+                for (group in view.groupChoices) option { value = group; +group }
+            }
+            button(type = ButtonType.submit, classes = "small") { name = "op"; value = "group"; +"Set group" }
+            span("muted small") {
+                val query = filter.query()
+                if (view.selectAll) a("/admin/lineup" + query.let { if (it.isEmpty()) "" else "?$it" }) { +"Clear selection" }
+                else a("/admin/lineup?" + listOf(query, "select=page").filter { it.isNotEmpty() }.joinToString("&")) { +"Select all on this page" }
+            }
+        }
         div("scroll") {
             table("stack") {
                 caption("sr") { +"Channels" }
                 thead {
                     tr {
+                        th(classes = "sel") { attributes["scope"] = "col"; span("sr") { +"Select" } }
                         fun TR.sortable(key: String, label: String, classes: String? = null) = th(classes = classes) {
                             attributes["scope"] = "col"
                             val sorted = filter.sort == key
@@ -344,6 +443,15 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
                         val entry = row.entry
                         id = "row-${entry.id}"
                         val edit = "/admin/lineup/${entry.id}" + filter.query().let { if (it.isEmpty()) "" else "?$it" }
+                        td("sel") {
+                            attributes["data-cell"] = "select"
+                            checkBoxInput(name = "id") {
+                                value = entry.id
+                                attributes["form"] = "bulk"
+                                attributes["aria-label"] = "Select ${entry.name}"
+                                checked = view.selectAll || entry.id in view.selected
+                            }
+                        }
                         td("num") { attributes["data-cell"] = "number"; +entry.number }
                         td {
                             attributes["data-cell"] = "name"
@@ -392,6 +500,7 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
         if (filter.page < view.pages) a("/admin/lineup?" + filter.query(filter.page + 1), classes = "btn") { attributes["rel"] = "next"; +"Next" }
         else span("btn") { attributes["aria-disabled"] = "true"; +"Next" }
     }
+    confirmDialog(chrome, view.confirm)
 }
 
 /** A row action: the CSRF token, the policy revision and the filters set, so the page comes back as it was. */
@@ -477,10 +586,10 @@ internal fun stationPage(chrome: Chrome, view: StationView): String = layout(vie
         else div("scroll") {
             table {
                 caption("sr") { +"Sources, in failover order" }
-                thead { tr { col("#", "num"); col("Provider"); col("Channel"); col("Protocol"); col("Health") } }
+                thead { tr { col("#", "num"); col("Provider"); col("Channel"); col("Protocol"); col("Health"); col("Actions") } }
                 tbody {
                     view.sources.forEachIndexed { index, source ->
-                        tr {
+                        tr(chrome.flash?.takeIf { it.target == source.id }?.let { if (it.tone == Tone.BAD) "err-row" else "flash" }) {
                             td("num") { +(index + 1).toString() }
                             td { +source.provider }
                             td { +(source.channel ?: "") }
@@ -488,11 +597,40 @@ internal fun stationPage(chrome: Chrome, view: StationView): String = layout(vie
                             td {
                                 val tone = when (source.status) { "HEALTHY" -> Tone.OK; "UNVERIFIED", "PROBATION" -> Tone.WARN; "WITHDRAWN", "ARCHIVED" -> Tone.OFF; else -> Tone.BAD }
                                 chip(source.status.lowercase().replaceFirstChar { it.uppercase() }, tone)
+                                if (source.disabled) { +" "; chip("Disabled by hand", Tone.OFF) }
+                            }
+                            td {
+                                if (source.status == "WITHDRAWN") return@td
+                                div("actions") {
+                                    postForm("/admin/lineup/${entry.id}/sources/${source.id}/disable", chrome.session, keepScroll = true) {
+                                        filterFields(view.filter)
+                                        hiddenInput(name = "disabled") { value = (!source.disabled).toString() }
+                                        button(type = ButtonType.submit, classes = "small") {
+                                            attributes["aria-label"] = (if (source.disabled) "Enable" else "Disable") + " source ${index + 1} from ${source.provider}"
+                                            +(if (source.disabled) "Enable" else "Disable")
+                                        }
+                                    }
+                                    if (view.probes && !source.disabled && source.status != "ARCHIVED") postForm("/admin/lineup/${entry.id}/sources/${source.id}/probe", chrome.session, keepScroll = true) {
+                                        filterFields(view.filter)
+                                        button(type = ButtonType.submit, classes = "small quiet") { attributes["aria-label"] = "Probe source ${index + 1} from ${source.provider} now"; +"Probe now" }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+        p("muted small") {
+            +"A disabled source is never selected or probed until it is enabled again; a session playing it moves to the next source. "
+            +(if (view.probes) "Probe now puts the source at the front of the probe queue; its health updates within a minute or so." else "Probes are off on this server, so there is no Probe now.")
+        }
+    }
+    view.disableConfirm?.let { source ->
+        askDialog(chrome, "Disable source ${view.sources.indexOf(source) + 1} from ${source.provider}?", "/admin/lineup/${entry.id}/sources/${source.id}/disable", back, "Disable", danger = true) {
+            filterFields(view.filter)
+            hiddenInput(name = "disabled") { value = "true" }
+            p { +"The channel stops using this source until you enable it again. Anyone watching it now moves to the next source, or loses the channel when this is the only one." }
         }
     }
 }

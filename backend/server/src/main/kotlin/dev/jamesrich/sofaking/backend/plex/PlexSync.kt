@@ -63,7 +63,7 @@ class PlexSync(
     private val devices: suspend () -> List<HdhrDevice>,
     /** Quiet time after a lineup change before the sync, so a burst of changes is one sync. */
     private val debounceMillis: Long = 120_000,
-    private val intervalMillis: Long = config.syncMinutes * 60_000L,
+    intervalMillis: Long = config.syncMinutes * 60_000L,
     /** The status a previous run stored, shown until this run's first sync replaces it. */
     initial: PlexStatus? = null,
     /** Stores each sync's status; a failure is logged and the sync still counts. */
@@ -74,10 +74,24 @@ class PlexSync(
     private val log = LoggerFactory.getLogger(PlexSync::class.java)
     private val mutex = Mutex()
     private val trigger = Trigger<String>(Trigger.CONFLATED)
-    private val status = AtomicReference(initial?.copy(syncMinutes = config.syncMinutes) ?: PlexStatus(config.syncMinutes))
+    @Volatile private var intervalMillis: Long = intervalMillis
+    private val syncMinutes: Int get() = (intervalMillis / 60_000L).toInt()
+    private val status = AtomicReference(initial?.copy(syncMinutes = syncMinutes) ?: PlexStatus(syncMinutes))
 
     init {
+        register()
+    }
+
+    private fun register() {
         jobs.register("plex", "Plex sync", Duration.ofMillis(intervalMillis)) { requestSync("now") }
+    }
+
+    /** Syncs every [minutes] from the next sync on; the status and the Jobs page follow. */
+    fun setInterval(minutes: Int) {
+        if (minutes * 60_000L == intervalMillis) return
+        intervalMillis = minutes * 60_000L
+        register()
+        status.updateAndGet { it.copy(syncMinutes = minutes) }
     }
 
     fun status(): PlexStatus = status.get()
@@ -161,7 +175,7 @@ class PlexSync(
         val error = errors.takeIf { it.isNotEmpty() }?.joinToString("; ")?.take(1000)
         if (error != null) findings += "plex: sync failed: $error"
         val next = PlexStatus(
-            config.syncMinutes, clock.instant().toString(), cause, error, touched.toList(), mapped.sortedBy { it.device }, missing.map { it.id }, findings,
+            syncMinutes, clock.instant().toString(), cause, error, touched.toList(), mapped.sortedBy { it.device }, missing.map { it.id }, findings,
         )
         status.set(next)
         try { persist(next) } catch (e: CancellationException) { throw e } catch (e: Exception) {

@@ -32,6 +32,7 @@ class DataStoreSettingsStore(
                 apiToken = prefs[API_TOKEN].orEmpty(),
                 favorites = prefs[FAVORITES] ?: emptySet(),
                 lastChannel = prefs[LAST_CHANNEL],
+                recentChannels = recentChannels(prefs),
                 captionsEnabled = prefs[CAPTIONS_ENABLED] ?: false,
                 captionAdvanceMs = advanceMs(prefs),
                 captionAdvanceByChannel = channelAdvances(prefs),
@@ -63,7 +64,11 @@ class DataStoreSettingsStore(
     }
 
     override suspend fun setLastChannel(guideId: String) {
-        dataStore.edit { prefs -> prefs[LAST_CHANNEL] = guideId }
+        dataStore.edit { prefs ->
+            prefs[LAST_CHANNEL] = guideId
+            val recent = listOf(guideId) + recentChannels(prefs).filterNot { it == guideId }
+            prefs[RECENT_CHANNELS] = recent.take(AppSettings.MAX_RECENT_CHANNELS).joinToString(SEPARATOR.toString())
+        }
     }
 
     override suspend fun setCaptionsEnabled(enabled: Boolean) {
@@ -100,6 +105,10 @@ class DataStoreSettingsStore(
     private fun advanceMs(prefs: Preferences): Int =
         (prefs[CAPTION_ADVANCE_MS] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
 
+    /** Guide ids separated by tabs, most recent first; a string set would lose the order. */
+    private fun recentChannels(prefs: Preferences): List<String> =
+        prefs[RECENT_CHANNELS].orEmpty().split(SEPARATOR).filter { it.isNotEmpty() }.distinct().take(AppSettings.MAX_RECENT_CHANNELS)
+
     /** Entries are `guideId<TAB>ms`; anything malformed is skipped. */
     private fun channelAdvances(prefs: Preferences): Map<String, Int> = prefs[CHANNEL_CAPTION_ADVANCE_MS].orEmpty().mapNotNull { entry ->
         val id = entry.substringBeforeLast(SEPARATOR, missingDelimiterValue = "")
@@ -112,6 +121,7 @@ class DataStoreSettingsStore(
         val API_TOKEN = stringPreferencesKey("api_token")
         val FAVORITES = stringSetPreferencesKey("favorites")
         val LAST_CHANNEL = stringPreferencesKey("last_channel")
+        val RECENT_CHANNELS = stringPreferencesKey("recent_channels")
         val CAPTIONS_ENABLED = booleanPreferencesKey("captions_enabled")
         val CAPTION_ADVANCE_MS = intPreferencesKey("caption_advance_ms")
         val CHANNEL_CAPTION_ADVANCE_MS = stringSetPreferencesKey("channel_caption_advance_ms")

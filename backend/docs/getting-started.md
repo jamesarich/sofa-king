@@ -8,7 +8,7 @@ Replace `SERVER_HOST` with the host's LAN address and `PLEX_SERVER_IP` with the 
 
 - A Linux host, `amd64` or `arm64`, with Docker Engine and Docker Compose 2.24 or later.
 - A copy of this repository on the host.
-- JDK 21 to build the image, or access to the private image package to pull the published one.
+- JDK 21 to build the image, or nothing more to pull the published one.
 - `jq` and `openssl` for the shell steps.
 
 ## 1. Start the server
@@ -22,10 +22,9 @@ cd deploy
 docker compose up -d --build
 ```
 
-With access to the published image, you can skip the build. Pull the image and tag it with the name `compose.yaml` runs:
+To skip the build, pull the published image, which needs no login, and tag it with the name `compose.yaml` runs:
 
 ```sh
-docker login ghcr.io -u GITHUB_USER
 docker pull ghcr.io/jamesarich/sofa-king-backend:main
 docker tag ghcr.io/jamesarich/sofa-king-backend:main sofa-king-backend:local
 mkdir -p deploy/config

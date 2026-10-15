@@ -40,6 +40,8 @@ Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conven
 
 The iOS framework links only on macOS. Every other target, including the iOS klibs, builds on Linux.
 
+Both Swift hosts take their version from the catalog's `sofaking` through `tools/version-xcconfig.sh`, declare the Entertainment App Store category and no non-exempt encryption in `project.yml`, and have no asset catalog yet, so they run with no app icon. A release build needs `Assets.xcassets` with the iOS `AppIcon` (1024x1024) and, on tvOS, the App Icon & Top Shelf Image stack (icon layers at 400x240 and 1280x768, Top Shelf images at 1920x720 and 2320x720, a 1920x1080 launch image), then `ASSETCATALOG_COMPILER_APPICON_NAME` in each `project.yml`.
+
 ## Test on a TV
 
 The tests cannot see focus, the remote's keys or a real decoder. Check these on a real Android TV or Google TV device before a change that touches playback, focus or the remote:
@@ -97,6 +99,16 @@ Regenerate the TV banner after changing the vector mark. Requires ImageMagick an
 ```sh
 tools/render-banner.sh
 ```
+
+## Icons
+
+Regenerate the desktop and web icons after changing the vector mark. Requires ImageMagick 7:
+
+```sh
+tools/render-icons.sh
+```
+
+It writes `ui/icons/sofa-king.png`, `.ico` and `.icns` for the Linux, Windows and macOS packages, and `favicon.svg`, `icon-192.png`, `icon-512.png` and `apple-touch-icon.png` under `ui/src/webMain/resources` for the web page and its manifest. The packaging tasks use jpackage's default icon while a file is missing.
 
 ## Dependencies
 

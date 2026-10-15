@@ -113,6 +113,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      version: ${{ steps.names.outputs.version }}
     env:
       PUBLISH: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     steps:
@@ -142,6 +144,7 @@ jobs:
         run: |
           echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sofa-king-backend" >> "$GITHUB_OUTPUT"
           echo "revision=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "version=$(sed -n 's/^sofaking = "\(.*\)"$/\1/p' ../gradle/libs.versions.toml)" >> "$GITHUB_OUTPUT"
 
       # Each platform keeps its own layer cache; main writes it and pull requests read it.
       - id: build
@@ -149,7 +152,9 @@ jobs:
         with:
           context: backend
           platforms: linux/${{ matrix.arch }}
-          build-args: REVISION=${{ steps.names.outputs.revision }}
+          build-args: |
+            REVISION=${{ steps.names.outputs.revision }}
+            VERSION=${{ steps.names.outputs.version }}
           outputs: type=image,name=${{ steps.names.outputs.image }},push-by-digest=true,name-canonical=true,push=${{ env.PUBLISH }}
           sbom: ${{ env.PUBLISH == 'true' }}
           provenance: ${{ env.PUBLISH == 'true' && 'mode=max' || 'false' }}
@@ -195,13 +200,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Each platform's index carries its SBOM and provenance, and the joined index keeps them.
+      # Each platform's index carries its SBOM and provenance, and the joined index keeps them. The index annotations
+      # repeat the image labels, which the registry reads from the index rather than from a platform's config.
       - name: Tag the multi-platform image
         working-directory: ${{ runner.temp }}/digests
+        env:
+          VERSION: ${{ needs.image.outputs.version }}
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sofa-king-backend"
           docker buildx imagetools create \
             --tag "$image:main" \
             --tag "$image:sha-${GITHUB_SHA::7}" \
+            --annotation "index:org.opencontainers.image.title=Sofa King backend" \
+            --annotation "index:org.opencontainers.image.description=Live TV server: imports free streaming services and playlists into one lineup, relays the streams and emulates an HDHomeRun for Plex" \
+            --annotation "index:org.opencontainers.image.source=https://github.com/jamesarich/sofa-king" \
+            --annotation "index:org.opencontainers.image.licenses=GPL-3.0-only" \
+            --annotation "index:org.opencontainers.image.revision=${GITHUB_SHA::7}" \
+            --annotation "index:org.opencontainers.image.version=$VERSION" \
             $(printf "$image@sha256:%s " *)
           docker buildx imagetools inspect "$image:main"

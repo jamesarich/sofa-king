@@ -169,7 +169,7 @@ The server is built on the host and copied into the image, so the image build ne
 REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml build
 ```
 
-`REVISION` stamps the image's `org.opencontainers.image.revision` label and sets `SOFA_REVISION`, which [`/api/v1/admin/status`](api.md#server-status) and the admin portal footer report; the build works without it. The build targets the platform of the Docker host that runs it, `linux/amd64` or `linux/arm64`. To build for another platform, for example an amd64 host from an Apple Silicon machine, set `DOCKER_DEFAULT_PLATFORM=linux/amd64`. `docker compose up -d` does not rebuild an existing image, so pass `--build` after a new `installDist`.
+`REVISION` stamps the image's `org.opencontainers.image.revision` label and sets `SOFA_REVISION`, which [`/api/v1/admin/status`](api.md#server-status) and the admin portal footer report; `VERSION` stamps `org.opencontainers.image.version`, which the workflow reads from the catalog's `sofaking` version. The build works without either. The build targets the platform of the Docker host that runs it, `linux/amd64` or `linux/arm64`. To build for another platform, for example an amd64 host from an Apple Silicon machine, set `DOCKER_DEFAULT_PLATFORM=linux/amd64`. `docker compose up -d` does not rebuild an existing image, so pass `--build` after a new `installDist`.
 
 ### Container limits
 
@@ -200,10 +200,9 @@ Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rol
 
 For `main`, the [Backend workflow](../../CONTRIBUTING.md#ci) builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
 
-The package is private. Pulling it needs a GitHub account with access to it, and Docker logged in to `ghcr.io` with a [personal access token (classic)](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic) that has the `read:packages` scope. Without access, `docker pull` answers `denied`. To run the published image instead of a local build, tag it as the image `compose.yaml` names and start without building, from `backend/`:
+The package is public, so pulling it needs no login. To run the published image instead of a local build, tag it as the image `compose.yaml` names and start without building, from `backend/`:
 
 ```sh
-docker login ghcr.io -u GITHUB_USER
 docker pull ghcr.io/jamesarich/sofa-king-backend:main
 docker tag ghcr.io/jamesarich/sofa-king-backend:main sofa-king-backend:local
 cd deploy && docker compose up -d --no-build
@@ -213,7 +212,7 @@ Docker pulls the variant for the host, so the same tag serves `amd64` and `arm64
 
 ### Inspect the published image
 
-Each published image, for `linux/amd64` and `linux/arm64`, carries a BuildKit SBOM and max-mode build provenance in the registry. The provenance records how the image was built, including the source repository, the commit and the build arguments. The SBOM lists the packages inside the image. With Docker logged in to `ghcr.io`, print them:
+Each published image, for `linux/amd64` and `linux/arm64`, carries a BuildKit SBOM and max-mode build provenance in the registry. The provenance records how the image was built, including the source repository, the commit and the build arguments. The SBOM lists the packages inside the image. Print them:
 
 ```sh
 docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king-backend:main --format '{{json .Provenance}}'
@@ -231,10 +230,9 @@ Compare the commit in the provenance with the `org.opencontainers.image.revision
 3. Recreates the container and waits up to three minutes for it to report healthy.
 4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` in the Compose directory so later runs skip it until a newer one is published.
 
-It needs pull access to the private package, and Python 3 on the host only for the fallback backup. To install it, log Docker in to the registry as root with a personal access token (classic) that has only the `read:packages` scope, then add the script and the timer:
+It needs Python 3 on the host only for the fallback backup. To install it, add the script and the timer:
 
 ```sh
-sudo docker login ghcr.io -u GITHUB_USER
 sudo install -m 755 deploy/sofa-king-update.sh /srv/sofa-king-backend/
 sudo install -m 644 deploy/systemd/sofa-king-update.service deploy/systemd/sofa-king-update.timer /etc/systemd/system/
 sudo systemctl daemon-reload

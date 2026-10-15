@@ -138,8 +138,36 @@ compose.desktop {
             modules("java.instrument", "java.management", "jdk.unsupported")
             packageName = "Sofa King"
             packageVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
-            // Fixed so each MSI upgrades the installed app in place.
-            windows { upgradeUuid = "4b04060d-b077-47c9-acc6-f55b71d52d1f" }
+            description = "Live TV for your own Sofa King server"
+            vendor = "James Rich"
+            copyright = "Copyright 2026 James Rich. Licensed under the GPL-3.0-only."
+            licenseFile.set(rootProject.layout.projectDirectory.file("../LICENSE"))
+            // The icons come from tools/render-icons.sh; a missing file leaves jpackage's default icon.
+            val icons = layout.projectDirectory.dir("icons")
+            fun icon(name: String) = icons.file(name).takeIf { it.asFile.exists() }
+            linux {
+                packageName = "sofa-king"
+                debMaintainer = "2199651+jamesarich@users.noreply.github.com"
+                menuGroup = "AudioVideo;Video;TV"
+                appCategory = "video"
+                shortcut = true
+                icon("sofa-king.png")?.let { iconFile.set(it) }
+            }
+            windows {
+                menuGroup = "Sofa King"
+                menu = true
+                shortcut = true
+                perUserInstall = true
+                // Fixed so each MSI upgrades the installed app in place.
+                upgradeUuid = "4b04060d-b077-47c9-acc6-f55b71d52d1f"
+                icon("sofa-king.ico")?.let { iconFile.set(it) }
+            }
+            macOS {
+                bundleID = "dev.jamesrich.sofaking"
+                dockName = "Sofa King"
+                appCategory = "public.app-category.entertainment"
+                icon("sofa-king.icns")?.let { iconFile.set(it) }
+            }
         }
     }
 }

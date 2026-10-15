@@ -18,8 +18,17 @@ targets:
       path: SofaKing/Info.plist
       properties:
         CFBundleDisplayName: Sofa King
+        # XcodeGen fills in the bundle name, identifier, version (from Version.xcconfig), executable and package type.
+        LSApplicationCategoryType: public.app-category.entertainment
+        NSHumanReadableCopyright: "© 2026 James Rich. GPL-3.0-only; source at https://github.com/jamesarich/sofa-king."
+        # Only HTTPS and the system's TLS, so export compliance needs no declaration on each upload.
+        ITSAppUsesNonExemptEncryption: false
         CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen: {}
+        # The Compose theme is dark only, so the system's keyboard, alerts and sheets match it.
+        UIUserInterfaceStyle: Dark
+        # Landscape only, which on iPad requires full screen (no Split View or Slide Over).
+        UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         # The Sofa King server serves plain HTTP on the LAN, as Android's network_security_config allows.

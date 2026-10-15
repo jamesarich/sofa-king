@@ -14,10 +14,9 @@ class GuideListItemsTest {
     @Test
     fun `a later line follows the row of a channel with upcoming matches`() {
         val items = guideListItems(channels, mapOf("101" to listOf(later)))
-        assertEquals(
-            listOf("100#100.0", "101#101.0", "later:101#101.0", "102#102.0"),
-            items.map { it.key },
-        )
+        // A Double prints as "100.0" on the JVM and "100" on JS, so the keys are built the way the items build them.
+        val (c100, c101, c102) = channels.map { "${it.guideId}#${it.number}" }
+        assertEquals(listOf(c100, c101, "later:$c101", c102), items.map { it.key })
         assertEquals(GuideListItem.Later(channels[1], listOf(later)), items[2])
     }
 

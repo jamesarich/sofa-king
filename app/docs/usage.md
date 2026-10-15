@@ -27,7 +27,7 @@ Channels come from the server's lineup. The app lists a channel when the server 
 | D-pad Left / Right | Move focus | Toggle the info bar; adjust caption timing when captions and the info bar are on |
 | OK | Watch the channel | Show the info bar; on the info bar, open the channel list. Also tunes an entered number or retries a failed stream |
 | Long-press OK | Toggle favorite | Return to the previously watched channel |
-| Channel Up / Down | Move a page (4 rows) | The channel above / below in the guide |
+| Channel Up / Down | Move a page (4 rows) | The next higher / lower channel number |
 | Captions (CC) | | Toggle captions |
 | Play/Pause | | Pause or resume; resume after 30 seconds returns to live |
 | Digits | Move to the row with that number, showing All when the filter hides it; OK or a 1.5-second pause commits | Enter a channel number; OK or a 1.5-second pause tunes it |

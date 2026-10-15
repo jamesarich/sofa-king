@@ -41,13 +41,20 @@ internal fun Key.playerExit(): PlayerExit? = when (this) {
  * What a key does in the player once exits and digits are taken. [LEFT] and [RIGHT] adjust the caption lead while
  * captions and the info bar are on, and toggle the info bar otherwise; the screen decides which.
  */
-internal enum class PlayerAction { TOGGLE_CAPTIONS, ZAP_UP, ZAP_DOWN, LAST_CHANNEL, PLAY_PAUSE, PLAY, PAUSE, TOGGLE_INFO, LEFT, RIGHT }
+internal enum class PlayerAction {
+    TOGGLE_CAPTIONS, ZAP_UP, ZAP_DOWN, CHANNEL_UP, CHANNEL_DOWN, LAST_CHANNEL, PLAY_PAUSE, PLAY, PAUSE, TOGGLE_INFO, LEFT, RIGHT
+}
 
-/** Up and Channel Up zap up, Down and Channel Down zap down; Media Previous and Last Channel recall the last channel. */
+/**
+ * Up and Down zap the way they move the guide, Channel Up and Channel Down step the channel number; Media Previous
+ * and Last Channel recall the last channel.
+ */
 internal fun Key.playerAction(): PlayerAction? = when (this) {
     Key.Captions, Key.C -> PlayerAction.TOGGLE_CAPTIONS
-    Key.DirectionUp, Key.ChannelUp -> PlayerAction.ZAP_UP
-    Key.DirectionDown, Key.ChannelDown -> PlayerAction.ZAP_DOWN
+    Key.DirectionUp -> PlayerAction.ZAP_UP
+    Key.DirectionDown -> PlayerAction.ZAP_DOWN
+    Key.ChannelUp -> PlayerAction.CHANNEL_UP
+    Key.ChannelDown -> PlayerAction.CHANNEL_DOWN
     Key.MediaPrevious, Key.LastChannel -> PlayerAction.LAST_CHANNEL
     Key.MediaPlayPause -> PlayerAction.PLAY_PAUSE
     Key.MediaPlay -> PlayerAction.PLAY
@@ -59,12 +66,13 @@ internal fun Key.playerAction(): PlayerAction? = when (this) {
 }
 
 /**
- * Channels a zap action moves through the lineup, in the direction the same key moves the guide's grid: Up is the
- * channel above the current one in the guide (negative), Down the channel below it (positive).
+ * Channels a zap action moves through the lineup, which the guide lists by channel number. The D-pad follows the
+ * guide: Up is the channel above the current one (negative), Down the channel below it (positive). Channel Up and
+ * Channel Down say what they do: the next higher (positive) or lower (negative) channel number.
  */
 internal fun PlayerAction.zapStep(): Int? = when (this) {
-    PlayerAction.ZAP_UP -> -1
-    PlayerAction.ZAP_DOWN -> 1
+    PlayerAction.ZAP_UP, PlayerAction.CHANNEL_DOWN -> -1
+    PlayerAction.ZAP_DOWN, PlayerAction.CHANNEL_UP -> 1
     else -> null
 }
 

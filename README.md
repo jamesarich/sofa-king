@@ -10,14 +10,14 @@
   <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-FFB547?labelColor=14111F"></a>
   <a href="app/README.md"><img alt="App: Kotlin Multiplatform" src="https://img.shields.io/badge/app-Kotlin_Multiplatform-C9B8FF?labelColor=14111F"></a>
   <a href="backend/README.md"><img alt="Server: Ktor in Docker" src="https://img.shields.io/badge/server-Ktor_in_Docker-C9B8FF?labelColor=14111F"></a>
-  <a href="app/README.md#platforms"><img alt="Platforms: Android TV, Android, desktop, iOS, web" src="https://img.shields.io/badge/platforms-Android_TV_·_Android_·_desktop_·_iOS_·_web-C9B8FF?labelColor=14111F"></a>
+  <a href="app/README.md#platforms"><img alt="Platforms: Android TV, Android, desktop, iOS, Apple TV, web" src="https://img.shields.io/badge/platforms-Android_TV_·_Android_·_desktop_·_iOS_·_Apple_TV_·_web-C9B8FF?labelColor=14111F"></a>
 </p>
 
 <p align="center">
   <img src="docs/images/guide.png" alt="The guide in the desktop app: category chips, the focused channel's program and its muted preview, and a grid of channels over the afternoon" width="800">
 </p>
 
-A self-hosted live TV server for a home network, and an app that watches it on Android TV, Google TV, phones, desktops, iOS and the web.
+A self-hosted live TV server for a home network, and an app that watches it on Android TV, Google TV, phones, desktops, iOS, Apple TV and the web.
 
 - **One lineup from free TV.** The server merges free streaming services, M3U playlists and XMLTV guides into one numbered lineup, with fallbacks across services.
 - **Plays anywhere.** The same lineup goes to the app, to Plex as an HDHomeRun tuner, and to M3U and XMLTV players.

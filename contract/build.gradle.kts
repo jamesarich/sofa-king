@@ -7,10 +7,10 @@ plugins {
 }
 
 group = "dev.jamesrich.sofaking"
-version = "0.1.0"
+version = libs.versions.sofaking.get()
 
 kotlin {
-    // The server runs on Java 17; Android consumes this variant too.
+    // Java 17 bytecode, the lowest the JVM server and Android both load; the JDK 21 toolchain compiles it.
     jvm { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
     // Every target the app's core module builds, except android.

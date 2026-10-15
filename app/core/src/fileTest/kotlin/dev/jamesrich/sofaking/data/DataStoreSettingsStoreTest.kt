@@ -98,6 +98,16 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `the guide filter is kept and cleared`() = runTest {
+        val store = newStore()
+        assertEquals(null, store.settings.first().guideFilter)
+        store.setGuideFilter("group:News")
+        assertEquals("group:News", store.settings.first().guideFilter)
+        store.setGuideFilter(null)
+        assertEquals(null, store.settings.first().guideFilter)
+    }
+
+    @Test
     fun `captions are off until the user turns them on`() = runTest {
         assertFalse(newStore().settings.first().captionsEnabled)
     }

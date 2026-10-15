@@ -42,7 +42,7 @@ import dev.jamesrich.sofaking.ui.theme.tvFocus
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
-/** Visible time range above the channel names, for example "Today 1:00 PM - 2:30 PM". Reads scroll in its own scope. */
+/** Visible time range above the channel names, for example "Today 1:00 PM - 2:30 PM" or "Tomorrow 9:00 AM - 10:30 AM". Reads scroll in its own scope. */
 @Composable
 internal fun VisibleRange(
     scrollState: ScrollState,
@@ -52,9 +52,10 @@ internal fun VisibleRange(
     now: Instant,
     timeFormat: TimeFormatter,
     todayLabel: String,
+    tomorrowLabel: String,
     rangeFormat: String,
 ) {
-    val label by remember(windowStart, now, todayLabel, rangeFormat) {
+    val label by remember(windowStart, now, todayLabel, tomorrowLabel, rangeFormat) {
         derivedStateOf {
             if (viewport.intValue == 0) {
                 ""
@@ -66,7 +67,11 @@ internal fun VisibleRange(
                 )
                 val start = windowStart + startMinute.minutes
                 val end = windowStart + endMinute.minutes
-                val day = if (timeFormat.sameDay(start, now)) todayLabel else timeFormat.day(start)
+                val day = when (timeFormat.daysBetween(now, start)) {
+                    0 -> todayLabel
+                    1 -> tomorrowLabel
+                    else -> timeFormat.day(start)
+                }
                 formatTemplate(rangeFormat, day, timeFormat.format(start), timeFormat.format(end))
             }
         }
@@ -196,5 +201,6 @@ private fun TimelineStripContent(
 internal fun GuideFilter.label(): String = when (this) {
     GuideFilter.All -> stringResource(Res.string.filter_all)
     GuideFilter.Favorites -> stringResource(Res.string.filter_favorites)
+    GuideFilter.Recent -> stringResource(Res.string.filter_recent)
     is GuideFilter.Group -> name
 }

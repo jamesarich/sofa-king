@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.ui.guide
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.Test
 
 class GuideFilterMovesTest {
@@ -17,7 +18,7 @@ class GuideFilterMovesTest {
         val local = Channel("5", 5.0, "KSNV", null, listOf("Local", "News"))
         val filters = guideFilters(listOf(local) + all)
         assertEquals(
-            listOf(GuideFilter.All, GuideFilter.Favorites, GuideFilter.Group("Local"), GuideFilter.Group("News"), GuideFilter.Group("Sports")),
+            listOf(GuideFilter.All, GuideFilter.Favorites, GuideFilter.Recent, GuideFilter.Group("Local"), GuideFilter.Group("News"), GuideFilter.Group("Sports")),
             filters,
         )
     }
@@ -25,12 +26,30 @@ class GuideFilterMovesTest {
     @Test
     fun `counts include a channel in each of its groups`() {
         val local = Channel("5", 5.0, "KSNV", null, listOf("Local", "News"))
-        val counts = guideFilterCounts(listOf(local) + all, favorites = setOf("300", "gone"))
+        val counts = guideFilterCounts(listOf(local) + all, favorites = setOf("300", "gone"), recent = listOf("101", "gone", "5"))
         assertEquals(5, counts[GuideFilter.All])
         assertEquals(1, counts[GuideFilter.Favorites])
+        assertEquals(2, counts[GuideFilter.Recent])
         assertEquals(1, counts[GuideFilter.Group("Local")])
         assertEquals(3, counts[GuideFilter.Group("News")])
         assertEquals(2, counts[GuideFilter.Group("Sports")])
+    }
+
+    @Test
+    fun `recent channels keep their order and skip ones that left the lineup`() {
+        assertEquals(listOf("301", "100"), recentChannels(all, listOf("301", "gone", "100")).map { it.guideId })
+        assertEquals(emptyList(), recentChannels(all, emptyList()))
+    }
+
+    @Test
+    fun `a filter round trips through its key and All is stored as nothing`() {
+        assertNull(GuideFilter.All.key())
+        for (filter in listOf(GuideFilter.Favorites, GuideFilter.Recent, GuideFilter.Group("Local News"))) {
+            assertEquals(filter, guideFilterFromKey(filter.key()))
+        }
+        assertEquals(GuideFilter.All, guideFilterFromKey(null))
+        assertEquals(GuideFilter.All, guideFilterFromKey("nonsense"))
+        assertEquals(GuideFilter.All, guideFilterFromKey("group:"))
     }
 
     @Test

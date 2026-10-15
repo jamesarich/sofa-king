@@ -3,8 +3,11 @@ package dev.jamesrich.sofaking.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
+import dev.jamesrich.sofaking.data.ClockFormat
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.daysUntil
 import kotlinx.datetime.format
 import kotlinx.datetime.format.DayOfWeekNames
 import kotlinx.datetime.format.Padding
@@ -18,7 +21,7 @@ private val processStart = TimeSource.Monotonic.markNow()
 /** Milliseconds on a monotonic clock that does not jump with the wall clock; the rest timers and pause rules read it. */
 internal fun uptimeMs(): Long = processStart.elapsedNow().inWholeMilliseconds
 
-private val clockFormat = LocalTime.Format {
+private val twelveHourFormat = LocalTime.Format {
     amPmHour(Padding.NONE)
     char(':')
     minute()
@@ -26,21 +29,47 @@ private val clockFormat = LocalTime.Format {
     amPmMarker("AM", "PM")
 }
 
-/** Wall-clock times and days in one [zone], for example "1:30 PM" and "Mon"; the app's strings are US English. */
+private val twentyFourHourFormat = LocalTime.Format {
+    hour()
+    char(':')
+    minute()
+}
+
+/**
+ * Wall-clock times and days in one [zone], for example "1:30 PM" (or "13:30" with [twentyFourHour]) and "Mon";
+ * the app's strings are US English.
+ */
 @Immutable
-internal class TimeFormatter(val zone: TimeZone) {
+internal class TimeFormatter(val zone: TimeZone, val twentyFourHour: Boolean = false) {
+    private val clockFormat = if (twentyFourHour) twentyFourHourFormat else twelveHourFormat
+
     fun format(instant: Instant): String = instant.toLocalDateTime(zone).time.format(clockFormat)
 
     fun day(instant: Instant): String = DayOfWeekNames.ENGLISH_ABBREVIATED.names[instant.toLocalDateTime(zone).dayOfWeek.ordinal]
 
     fun sameDay(a: Instant, b: Instant): Boolean = a.toLocalDateTime(zone).date == b.toLocalDateTime(zone).date
 
+    /** Calendar days from [from] to [to] in the zone: 0 on the same day, 1 when [to] is tomorrow. */
+    fun daysBetween(from: Instant, to: Instant): Int = from.toLocalDateTime(zone).date.daysUntil(to.toLocalDateTime(zone).date)
+
     fun range(start: Instant, stop: Instant): String = "${format(start)} - ${format(stop)}"
 }
 
-/** The device zone's formatter; read once per composition, as the zone was before. */
+/** The clock format the screens write times in; the app provides the setting, and the default follows the platform. */
+internal val LocalClockFormat = staticCompositionLocalOf { ClockFormat.AUTO }
+
+/** The device zone's formatter in the [LocalClockFormat]; read once per composition, as the zone was before. */
 @Composable
-internal fun rememberTimeFormatter(): TimeFormatter = remember { TimeFormatter(TimeZone.currentSystemDefault()) }
+internal fun rememberTimeFormatter(): TimeFormatter {
+    val format = LocalClockFormat.current
+    val systemTwentyFourHour = rememberSystem24HourClock()
+    val twentyFourHour = when (format) {
+        ClockFormat.AUTO -> systemTwentyFourHour
+        ClockFormat.TWELVE_HOUR -> false
+        ClockFormat.TWENTY_FOUR_HOUR -> true
+    }
+    return remember(twentyFourHour) { TimeFormatter(TimeZone.currentSystemDefault(), twentyFourHour) }
+}
 
 private val placeholder = Regex("%(\\d+)\\$[sd]")
 

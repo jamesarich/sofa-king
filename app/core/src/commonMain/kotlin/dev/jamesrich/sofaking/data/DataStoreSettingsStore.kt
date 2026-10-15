@@ -33,6 +33,7 @@ class DataStoreSettingsStore(
                 favorites = prefs[FAVORITES] ?: emptySet(),
                 lastChannel = prefs[LAST_CHANNEL],
                 recentChannels = recentChannels(prefs),
+                guideFilter = prefs[GUIDE_FILTER],
                 captionsEnabled = prefs[CAPTIONS_ENABLED] ?: false,
                 captionAdvanceMs = advanceMs(prefs),
                 captionAdvanceByChannel = channelAdvances(prefs),
@@ -69,6 +70,10 @@ class DataStoreSettingsStore(
             prefs[LAST_CHANNEL] = guideId
             prefs[RECENT_CHANNELS] = AppSettings.recentWith(recentChannels(prefs), guideId).joinToString(SEPARATOR.toString())
         }
+    }
+
+    override suspend fun setGuideFilter(key: String?) {
+        dataStore.edit { prefs -> if (key == null) prefs.remove(GUIDE_FILTER) else prefs[GUIDE_FILTER] = key }
     }
 
     override suspend fun setCaptionsEnabled(enabled: Boolean) {
@@ -126,6 +131,7 @@ class DataStoreSettingsStore(
         val FAVORITES = stringSetPreferencesKey("favorites")
         val LAST_CHANNEL = stringPreferencesKey("last_channel")
         val RECENT_CHANNELS = stringPreferencesKey("recent_channels")
+        val GUIDE_FILTER = stringPreferencesKey("guide_filter")
         val CAPTIONS_ENABLED = booleanPreferencesKey("captions_enabled")
         val CAPTION_ADVANCE_MS = intPreferencesKey("caption_advance_ms")
         val CHANNEL_CAPTION_ADVANCE_MS = stringSetPreferencesKey("channel_caption_advance_ms")

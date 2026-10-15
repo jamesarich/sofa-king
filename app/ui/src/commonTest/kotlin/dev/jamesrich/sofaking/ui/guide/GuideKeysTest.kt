@@ -25,6 +25,28 @@ class GuideKeysTest {
     }
 
     @Test
+    fun `Info opens the program details`() {
+        assertEquals(GuideShortcut.DETAILS, Key.Info.guideShortcut())
+    }
+
+    @Test
+    fun `Fast Forward and Rewind move a day`() {
+        assertEquals(GuideShortcut.DAY_FORWARD, Key.MediaFastForward.guideShortcut())
+        assertEquals(GuideShortcut.DAY_FORWARD, Key.MediaSkipForward.guideShortcut())
+        assertEquals(GuideShortcut.DAY_BACK, Key.MediaRewind.guideShortcut())
+        assertEquals(GuideShortcut.DAY_BACK, Key.MediaSkipBackward.guideShortcut())
+    }
+
+    @Test
+    fun `a day jump stays between the live window and the last loadable day`() {
+        assertEquals(1, dayOffsetAfter(0, GuideShortcut.DAY_FORWARD))
+        assertEquals(0, dayOffsetAfter(0, GuideShortcut.DAY_BACK))
+        assertEquals(MAX_DAY_OFFSET, dayOffsetAfter(MAX_DAY_OFFSET, GuideShortcut.DAY_FORWARD))
+        assertEquals(MAX_DAY_OFFSET - 1, dayOffsetAfter(MAX_DAY_OFFSET, GuideShortcut.DAY_BACK))
+        assertEquals(2, dayOffsetAfter(2, GuideShortcut.NOW))
+    }
+
+    @Test
     fun `Up and Down step one row`() {
         assertEquals(GridStep(-1, paged = false), Key.DirectionUp.gridStep())
         assertEquals(GridStep(1, paged = false), Key.DirectionDown.gridStep())

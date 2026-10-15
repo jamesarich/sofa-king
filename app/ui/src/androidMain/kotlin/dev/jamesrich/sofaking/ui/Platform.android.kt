@@ -31,6 +31,13 @@ internal actual fun rememberIsTelevision(): Boolean {
     }
 }
 
+/** The system's "Use 24-hour format" setting; read once, as the zone is, so the guide does not reformat under the user. */
+@Composable
+internal actual fun rememberSystem24HourClock(): Boolean {
+    val context = LocalContext.current
+    return remember(context) { android.text.format.DateFormat.is24HourFormat(context) }
+}
+
 /** TalkBack's touch exploration, followed while the screen is up: it can be switched on over an open guide. */
 @Composable
 internal actual fun rememberScreenReaderActive(): Boolean {

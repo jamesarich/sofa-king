@@ -586,11 +586,14 @@ internal data class LineupFilter(
         fun from(parameters: Parameters) = LineupFilter(
             parameters["q"]?.trim().orEmpty().take(200),
             parameters["group"].orEmpty().take(200),
-            parameters["state"]?.takeIf { it in setOf("enabled", "hidden", "unverified") }.orEmpty(),
+            parameters["state"]?.takeIf { it in STATES }.orEmpty(),
             parameters["required"] == "true",
             parameters["page"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1,
-            parameters["guide"]?.takeIf { it in setOf("available", "missing") }.orEmpty(),
+            parameters["guide"]?.takeIf { it in GUIDE_STATES }.orEmpty(),
         )
+
+        private val STATES = setOf("enabled", "hidden", "unverified")
+        private val GUIDE_STATES = setOf("available", "missing")
     }
 }
 

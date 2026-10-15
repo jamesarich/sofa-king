@@ -129,6 +129,8 @@ object StationBuilder {
         val (live, ghosts) = all.partition { it.offerings.isNotEmpty() }
         val keys = stationKeys(policy.names)
         val liveOfferings = live.flatMapTo(HashSet()) { candidate -> candidate.offerings.map { it.id } }
+        // A pin names its provider, so only that provider's channels are matched against it.
+        val liveByProvider = live.groupBy { it.providerId }
         val entries = policy.providers.map(::CompiledEntry)
         val overrides = policy.stations.toSortedMap()
 
@@ -137,7 +139,7 @@ object StationBuilder {
         val matchedPins = HashSet<Pair<String, Int>>()
         for ((key, override) in overrides) {
             override.sources.forEachIndexed { index, pin ->
-                for (candidate in live.filter { pinMatches(pin, it) }.sortedWith(compareBy<FeedCandidate, BigDecimal?>(NUMBER_ORDER) { numberValue(it.channel.displayNumber) }.thenBy { it.channel.id })) {
+                for (candidate in liveByProvider[pin.provider].orEmpty().filter { pinMatches(pin, it) }.sortedWith(compareBy<FeedCandidate, BigDecimal?>(NUMBER_ORDER) { numberValue(it.channel.displayNumber) }.thenBy { it.channel.id })) {
                     matchedPins += key to index
                     val owner = pinnedTo[candidate.channel.id]
                     if (owner == null) pinnedTo[candidate.channel.id] = key to index

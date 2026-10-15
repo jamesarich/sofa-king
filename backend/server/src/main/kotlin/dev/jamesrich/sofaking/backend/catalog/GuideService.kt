@@ -160,9 +160,11 @@ class GuideService(
 }
 
 private val urlInMessage = Regex("""https?://[^\s"'\]\[<>]+""")
+private val whitespace = Regex("\\s+")
 
 /** The exception's message with every URL (and so any query token) replaced by `<url>`, on one line, bounded. */
-internal fun redactedMessage(e: Throwable): String {
-    val message = e.message?.takeIf { it.isNotBlank() } ?: e.cause?.message ?: return ""
-    return urlInMessage.replace(message, "<url>").replace(Regex("\\s+"), " ").trim().take(300)
-}
+internal fun redactedMessage(e: Throwable): String =
+    redactedMessage(e.message?.takeIf { it.isNotBlank() } ?: e.cause?.message ?: return "")
+
+/** [message] with every URL replaced by `<url>`, on one line, bounded; FFmpeg's and the fetchers' lines carry tokens in URLs. */
+internal fun redactedMessage(message: String): String = urlInMessage.replace(message, "<url>").replace(whitespace, " ").trim().take(300)

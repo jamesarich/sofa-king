@@ -5,7 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.store.BackendStore
-import dev.jamesrich.sofaking.backend.upstream.FFMPEG_PROTOCOL_WHITELIST
+import dev.jamesrich.sofaking.backend.upstream.ffmpegBase
 import dev.jamesrich.sofaking.backend.upstream.probeHeadersSafe
 import io.ktor.client.HttpClient
 import java.nio.file.Files
@@ -291,13 +291,11 @@ private val OUT_TIME_LINE = Regex("(?m)^out_time_us=(\\d+)$")
 
 /** The FFmpeg command that reads [seconds] of [offering]'s first video stream, decoding it or, with [copy], copying it. */
 internal fun decodeCommand(ffmpeg: String, offering: Offering, headers: Map<String, String>, seconds: Int, copy: Boolean): List<String> {
-    val command = mutableListOf(ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-rw_timeout", "15000000")
-    command += FFMPEG_PROTOCOL_WHITELIST
+    val command = ffmpegBase(ffmpeg, "error", headers)
     // The HLS demuxer handles segment boundaries itself; reconnect-at-EOF there loops on the first segment.
     if (offering.protocol == "mpegts") {
         command += listOf("-reconnect", "1", "-reconnect_at_eof", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5")
     }
-    if (headers.isNotEmpty()) command += listOf("-headers", headers.entries.joinToString("") { "${it.key}: ${it.value}\r\n" })
     command += listOf("-i", offering.url, "-t", seconds.toString(), "-map", "0:v:0")
     if (copy) command += listOf("-c", "copy")
     command += listOf("-an", "-progress", "pipe:1", "-f", "null", "-")

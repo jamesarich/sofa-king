@@ -25,8 +25,8 @@ docker compose up -d --build
 To skip the build, pull the published image, which needs no login, and tag it with the name `compose.yaml` runs:
 
 ```sh
-docker pull ghcr.io/jamesarich/sofa-king-backend:main
-docker tag ghcr.io/jamesarich/sofa-king-backend:main sofa-king-backend:local
+docker pull ghcr.io/jamesarich/sofa-king:main
+docker tag ghcr.io/jamesarich/sofa-king:main sofa-king-backend:local
 mkdir -p deploy/config
 cd deploy
 docker compose up -d --no-build

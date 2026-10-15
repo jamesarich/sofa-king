@@ -198,13 +198,13 @@ Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rol
 
 ## The published image
 
-For `main`, the [Backend workflow](../../CONTRIBUTING.md#ci) builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king-backend:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
+For `main`, the [Backend workflow](../../CONTRIBUTING.md#ci) builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
 
 The package is public, so pulling it needs no login. To run the published image instead of a local build, tag it as the image `compose.yaml` names and start without building, from `backend/`:
 
 ```sh
-docker pull ghcr.io/jamesarich/sofa-king-backend:main
-docker tag ghcr.io/jamesarich/sofa-king-backend:main sofa-king-backend:local
+docker pull ghcr.io/jamesarich/sofa-king:main
+docker tag ghcr.io/jamesarich/sofa-king:main sofa-king-backend:local
 cd deploy && docker compose up -d --no-build
 ```
 
@@ -215,8 +215,8 @@ Docker pulls the variant for the host, so the same tag serves `amd64` and `arm64
 Each published image, for `linux/amd64` and `linux/arm64`, carries a BuildKit SBOM and max-mode build provenance in the registry. The provenance records how the image was built, including the source repository, the commit and the build arguments. The SBOM lists the packages inside the image. Print them:
 
 ```sh
-docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king-backend:main --format '{{json .Provenance}}'
-docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king-backend:main --format '{{json .SBOM}}'
+docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king:main --format '{{json .Provenance}}'
+docker buildx imagetools inspect ghcr.io/jamesarich/sofa-king:main --format '{{json .SBOM}}'
 ```
 
 Compare the commit in the provenance with the `org.opencontainers.image.revision` label of the image you run.

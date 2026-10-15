@@ -7,7 +7,7 @@ set -euo pipefail
 umask 077
 
 dir=${SOFA_UPDATE_DIR:?set SOFA_UPDATE_DIR to the directory with compose.yaml}
-image=${SOFA_UPDATE_IMAGE:-ghcr.io/jamesarich/sofa-king-backend:main}
+image=${SOFA_UPDATE_IMAGE:-ghcr.io/jamesarich/sofa-king:main}
 container=${SOFA_UPDATE_CONTAINER:-sofa-king-backend}
 local_tag=${SOFA_UPDATE_LOCAL_TAG:-sofa-king-backend:local}
 previous_tag=${SOFA_UPDATE_PREVIOUS_TAG:-sofa-king-backend:previous}

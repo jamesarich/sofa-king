@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.store
 
 import java.nio.file.Files
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.sqlite.SQLiteConnection
 import kotlin.test.*
 
 class DatabaseFactoryTest {
@@ -22,9 +23,10 @@ class DatabaseFactoryTest {
         val db = databaseAt(dir)
         var open = true
         try {
-            val first = transaction(db) { exec("CREATE TABLE t(v TEXT)"); connection.connection }
-            val second = transaction(db) { exec("INSERT INTO t VALUES ('a')"); connection.connection }
-            assertSame(first, second)
+            val first = transaction(db) { exec("CREATE TABLE t(v TEXT)"); (connection.connection as java.sql.Connection).unwrap(SQLiteConnection::class.java) }
+            val second = transaction(db) { exec("INSERT INTO t VALUES ('a')"); (connection.connection as java.sql.Connection).unwrap(SQLiteConnection::class.java) }
+            assertSame(first, second, "both transactions ran on the same physical connection")
+            assertFalse(first.isClosed, "returning a handle leaves the physical connection open")
             assertTrue(Files.exists(dir.resolve("backend.sqlite-wal")), "no checkpoint-and-delete after each transaction")
             assertEquals(1, transaction(db) { exec("SELECT COUNT(*) FROM t") { it.next(); it.getInt(1) } })
             closeDatabase(db)

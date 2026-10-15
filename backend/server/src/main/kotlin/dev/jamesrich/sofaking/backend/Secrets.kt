@@ -1,15 +1,10 @@
 package dev.jamesrich.sofaking.backend
 
+import dev.jamesrich.sofaking.backend.io.atomicWrite
 import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
 import java.nio.file.AccessDeniedException
-import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
-import java.nio.file.StandardOpenOption
-import java.nio.file.attribute.PosixFilePermissions
 import java.security.SecureRandom
 import java.util.HexFormat
 import kotlinx.serialization.json.Json
@@ -79,37 +74,12 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
     private fun write(values: Map<String, String>) {
         val bytes = (Json { prettyPrint = true }.encodeToString(JsonObject.serializer(), JsonObject(values.mapValues { JsonPrimitive(it.value) })) + "\n").toByteArray()
         val directory = path.toAbsolutePath().parent
-        val temp =
-            try {
-                Files.createDirectories(directory)
-                createOwnerOnly(directory)
-            } catch (e: AccessDeniedException) {
-                throw IllegalArgumentException("$directory is not writable by the user the server runs as, so ${path.fileName} cannot be stored there")
-            }
         try {
-            FileChannel.open(temp, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING).use { channel ->
-                val buffer = ByteBuffer.wrap(bytes)
-                while (buffer.hasRemaining()) channel.write(buffer)
-                channel.force(true)
-            }
-            Files.move(temp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-            runCatching { FileChannel.open(directory, StandardOpenOption.READ).use { it.force(true) } }
-        } finally {
-            Files.deleteIfExists(temp)
+            Files.createDirectories(directory)
+            atomicWrite(path, bytes)
+        } catch (_: AccessDeniedException) {
+            throw IllegalArgumentException("$directory is not writable by the user the server runs as, so ${path.fileName} cannot be stored there")
         }
-    }
-
-    /** An empty temporary file beside [path], created readable and writable by its owner alone where the file system has POSIX permissions. */
-    private fun createOwnerOnly(directory: Path): Path {
-        val posix = Files.getFileStore(directory).supportsFileAttributeView("posix")
-        repeat(10) {
-            val candidate = directory.resolve(".${path.fileName}.${HexFormat.of().formatHex(ByteArray(6).also(random::nextBytes))}.tmp")
-            try {
-                return if (posix) Files.createFile(candidate, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")))
-                else Files.createFile(candidate)
-            } catch (_: FileAlreadyExistsException) { /* Try another name. */ }
-        }
-        throw IOException("No free temporary name beside $path")
     }
 
     companion object {

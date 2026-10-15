@@ -254,7 +254,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/login` | Sign in with the form field `token`. 10 attempts a minute per client address, then `429` |
 | POST | `/admin/logout` | Sign out |
 | GET | `/admin/static/icon.svg`, `/admin/static/htmx.min.js` | The portal's icon (public) and htmx (signed in) |
-| GET | `/admin/lineup` | Channels, filtered by the query |
+| GET | `/admin/lineup` | Channels, filtered and sorted by the query (`q`, `group`, `state`, `guide`, `required`, `override`, `changed`, `sort`, `dir`, `page`) |
 | GET | `/admin/lineup/{id}` | One channel |
 | POST | `/admin/lineup/{id}/visibility`, `/admin/lineup/{id}/edit` | Hide or show a channel; rename, renumber or regroup it |
 | GET | `/admin/merges` | Suggested and learned aliases |
@@ -266,6 +266,13 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET | `/admin/settings?changes=` | Settings and the newest policy changes, 50 by default |
 | POST | `/admin/settings/reveal-api-token` | Reveal the API token |
 | POST | `/admin/policy/apply` | Apply the lineup policy now |
+| POST | `/admin/attention/ignore`, `/admin/attention/show` | Ignore an overview item (`key`, `fingerprint`) until its text changes; show it again (`key`) |
+| POST | `/admin/theme` | Pin the colour scheme: `theme` of `light`, `dark` or `auto`, then back to the portal path in `back` |
+| GET | `/admin/system/jobs` | Background jobs with their last run and next due time |
+| POST | `/admin/system/jobs/{id}/run` | Run a job now |
+| GET | `/admin/system/events?level=&q=` | The newest 500 log lines at INFO and above; `level` of `warn` or `error` narrows them, `q` matches the logger or message |
+| GET | `/admin/system/about` | The server, the status and the support snapshot |
+| GET | `/admin/system/snapshot.json` | The support snapshot as a JSON download |
 
 ## Shared types
 

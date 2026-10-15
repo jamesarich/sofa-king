@@ -110,3 +110,11 @@ internal object StationAvailabilityRows : Table("station_availability") {
     val updatedAt = text("updated_at")
     override val primaryKey = PrimaryKey(key)
 }
+
+/** Overview items the operator ignored until they change: the item's key and the fingerprint of its text when ignored. */
+internal object AttentionIgnores : Table("attention_ignore") {
+    val itemKey = text("item_key")
+    val fingerprint = text("fingerprint")
+    val ignoredAt = text("ignored_at")
+    override val primaryKey = PrimaryKey(itemKey)
+}

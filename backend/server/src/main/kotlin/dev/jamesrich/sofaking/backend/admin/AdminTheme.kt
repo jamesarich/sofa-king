@@ -9,12 +9,16 @@ import kotlinx.html.stream.createHTML
 
 /**
  * What every signed-in page carries besides its content: the session, the render time, a one-shot notice, nav counts,
- * and the server revision and start time for the footer.
+ * the server revision and start time for the footer, the colour scheme the operator chose, and the page to come back
+ * to after choosing one.
  */
 internal class Chrome(
     val session: AdminSession, val now: Instant, val flash: Flash? = null, val badges: Map<String, Int> = emptyMap(),
-    val revision: String? = null, val startedAt: Instant? = null,
+    val revision: String? = null, val startedAt: Instant? = null, val theme: String? = null, val back: String = "/admin",
 )
+
+/** The schemes the operator can pin; anything else follows the device. */
+internal val THEMES = listOf("light", "dark")
 
 /** A running time as "3 d 4 h", "5 h 12 min" or "7 min". */
 internal fun uptime(from: Instant, now: Instant): String {
@@ -40,13 +44,17 @@ private val STYLESHEET_HREF: String = STYLESHEET_PATH + "?v=" + Chrome::class.ja
 /** The crown-on-a-sofa mark of the TV app's banner, drawn inline so it needs no image request. */
 private const val MARK = """<svg viewBox="0 0 120 120" aria-hidden="true" focusable="false"><path fill="#B3A1EA" d="M22,46 Q22,40 28,40 L92,40 Q98,40 98,46 L98,70 L22,70 Z"/><path fill="#C9B8FF" d="M10,62 Q10,58 14,58 L106,58 Q110,58 110,62 L110,92 L10,92 Z"/><path fill="#C9B8FF" d="M6,58 Q6,52 12,52 L20,52 L20,96 L6,96 Z"/><path fill="#C9B8FF" d="M100,52 L108,52 Q114,52 114,58 L114,96 L100,96 Z"/><path fill="#9C8AD4" d="M20,72 L100,72 L100,75 L20,75 Z M14,96 L14,104 L20,104 L20,96 Z M100,96 L100,104 L106,104 L106,96 Z"/><path fill="#FFB547" d="M36,46 L36,30 L48,38 L60,20 L72,38 L84,30 L84,46 Z"/><path fill="#E0902A" d="M36,40 L84,40 L84,46 L36,46 Z"/><path fill="#14111F" d="M60,42 L62,44 L60,46 L58,44 Z"/></svg>"""
 
+/** The browser chrome's colour beside each scheme's page background. */
+private const val DARK_THEME_COLOR = "#14111F"
+private const val LIGHT_THEME_COLOR = "#F7F4FC"
+
 private const val HTMX_CONFIG =
     """{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"historyCacheSize":0,"refreshOnHistoryMiss":true,""" +
         """"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"4..","swap":true,"error":false},{"code":"...","swap":false,"error":true}]}"""
 
 internal class NavItem(val href: String, val label: String, val badge: String? = null)
 
-/** The portal's sections: the overview, then what the household watches, then how the server is set up. */
+/** The portal's sections: the overview, what the household watches, how the server is set up, and the server itself. */
 internal val NAV: List<Pair<String?, List<NavItem>>> = listOf(
     null to listOf(NavItem("/admin", "Overview")),
     "Lineup" to listOf(NavItem("/admin/lineup", "Channels"), NavItem("/admin/merges", "Merges", "merges"), NavItem("/admin/required", "Required", "required")),
@@ -54,15 +62,27 @@ internal val NAV: List<Pair<String?, List<NavItem>>> = listOf(
         NavItem("/admin/groups", "Groups", "groups"), NavItem("/admin/providers", "Providers", "providers"), NavItem("/admin/plex", "Plex", "plex"),
         NavItem("/admin/settings", "Settings"),
     ),
+    "System" to listOf(NavItem("/admin/system/jobs", "Jobs", "jobs"), NavItem("/admin/system/events", "Events"), NavItem("/admin/system/about", "About")),
 )
 
-/** The shared page: the brand bar, the grouped nav and sign-out for a signed-in [chrome], htmx boosting its links and forms. */
-internal fun layout(title: String, chrome: Chrome?, current: String?, content: MAIN.() -> Unit): String = "<!DOCTYPE html>\n" + createHTML(prettyPrint = false).html {
+/**
+ * The shared page: the brand bar, the grouped nav and sign-out for a signed-in [chrome], htmx boosting its links and
+ * forms. [theme] pins the colour scheme; null follows the device.
+ */
+internal fun layout(title: String, chrome: Chrome?, current: String?, theme: String? = chrome?.theme, content: MAIN.() -> Unit): String = "<!DOCTYPE html>\n" + createHTML(prettyPrint = false).html {
     lang = "en"
+    if (theme in THEMES) attributes["data-theme"] = theme!!
     head {
         meta(charset = "utf-8")
         meta(name = "viewport", content = "width=device-width, initial-scale=1")
-        meta(name = "theme-color", content = "#14111F")
+        when (theme) {
+            "light" -> meta(name = "theme-color", content = LIGHT_THEME_COLOR)
+            "dark" -> meta(name = "theme-color", content = DARK_THEME_COLOR)
+            else -> {
+                meta(name = "theme-color", content = LIGHT_THEME_COLOR) { attributes["media"] = "(prefers-color-scheme: light)" }
+                meta(name = "theme-color", content = DARK_THEME_COLOR)
+            }
+        }
         meta(name = "htmx-config", content = HTMX_CONFIG)
         title { +"$title · Sofa King admin" }
         link(rel = "icon", href = "/admin/static/icon.svg", type = "image/svg+xml")
@@ -82,15 +102,25 @@ internal fun layout(title: String, chrome: Chrome?, current: String?, content: M
                     span { +"Sofa King"; +" "; small { +"admin" } }
                 }
                 if (chrome != null) {
-                    nav("main") {
-                        attributes["aria-label"] = "Portal"
-                        for ((label, items) in NAV) div("navgroup") {
-                            if (label != null) span("navlabel") { +label }
-                            for (item in items) a(item.href) {
-                                if (item.href == current) attributes["aria-current"] = "page"
-                                +item.label
-                                val count = item.badge?.let { chrome.badges[it] } ?: 0
-                                if (count > 0) span("count") { attributes["aria-label"] = "$count need attention"; +count.toString() }
+                    // On a phone the nav folds into this disclosure; on a wide screen the stylesheet shows it open with no summary.
+                    details("menu") {
+                        summary {
+                            +"Menu"
+                            val here = NAV.flatMap { it.second }.firstOrNull { it.href == current }
+                            if (here != null) span("muted") { +" · ${here.label}" }
+                            val total = chrome.badges.values.sum()
+                            if (total > 0) span("count") { attributes["aria-label"] = "$total need attention"; +total.toString() }
+                        }
+                        nav("main") {
+                            attributes["aria-label"] = "Portal"
+                            for ((label, items) in NAV) div("navgroup") {
+                                if (label != null) span("navlabel") { +label }
+                                for (item in items) a(item.href) {
+                                    if (item.href == current) attributes["aria-current"] = "page"
+                                    +item.label
+                                    val count = item.badge?.let { chrome.badges[it] } ?: 0
+                                    if (count > 0) span("count") { attributes["aria-label"] = "$count need attention"; +count.toString() }
+                                }
                             }
                         }
                     }
@@ -103,9 +133,22 @@ internal fun layout(title: String, chrome: Chrome?, current: String?, content: M
             content()
         }
         footer {
-            +"Sofa King well organized."
-            if (chrome?.revision != null) { +" Revision "; code { +chrome.revision }; +"." }
-            if (chrome?.startedAt != null) +" Up ${uptime(chrome.startedAt, chrome.now)}."
+            span {
+                +"Sofa King well organized."
+                if (chrome?.revision != null) { +" Revision "; code { +chrome.revision }; +"." }
+                if (chrome?.startedAt != null) +" Up ${uptime(chrome.startedAt, chrome.now)}."
+            }
+            if (chrome != null) form(action = "/admin/theme", method = FormMethod.post, classes = "inline theme") {
+                attributes["aria-label"] = "Colour scheme"
+                hiddenInput(name = "csrf") { value = chrome.session.csrf }
+                hiddenInput(name = "back") { value = chrome.back }
+                span("muted") { +"Theme" }
+                for ((value, label) in listOf("auto" to "Auto", "light" to "Light", "dark" to "Dark")) button(type = ButtonType.submit, classes = "small quiet") {
+                    name = "theme"; this.value = value
+                    attributes["aria-pressed"] = ((chrome.theme ?: "auto") == value).toString()
+                    +label
+                }
+            }
         }
         val flash = chrome?.flash
         if (flash != null) div("toast ${flash.tone.css}") { attributes["role"] = "status"; +flash.message }
@@ -136,6 +179,12 @@ internal fun FlowContent.notice(message: String?, details: List<String> = emptyL
 }
 
 internal fun FlowContent.chip(text: String, tone: Tone) = span("chip ${tone.css}") { +text }
+
+/** A column header with `scope="col"`, so a cell reads with its column. */
+internal fun TR.col(text: String, classes: String? = null) = th(classes = classes) {
+    attributes["scope"] = "col"
+    +text
+}
 
 internal fun FlowContent.panel(title: String?, id: String? = null, aside: (FlowContent.() -> Unit)? = null, block: DIV.() -> Unit) = section {
     if (id != null) this.id = id

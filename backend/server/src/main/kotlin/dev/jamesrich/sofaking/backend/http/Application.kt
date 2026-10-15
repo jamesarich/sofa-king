@@ -32,6 +32,7 @@ import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.util.AttributeKey
 import io.ktor.util.cio.ChannelIOException
 import io.ktor.utils.io.ClosedByteChannelException
 import io.ktor.utils.io.ConnectionClosedException
@@ -84,6 +85,8 @@ fun Application.backendModule(
     // The portal signs in with the admin token, or the API token when no admin token is set.
     val portal = runtime?.let { AdminPortal(it, adminToken ?: apiToken, outputs, hdhr, clock, plexStatus, config) }
     attributes.computeIfAbsent(AuthFailureLogKey) { AuthFailureLog(clock) }
+    // The path routing resolves, decoded once per request; the plugins below and the token guard read it from the call.
+    intercept(ApplicationCallPipeline.Setup) { routedPath(call.request.path())?.let { call.attributes.put(RoutedPathKey, it) } }
     install(CallId) {
         generate(length = 16, dictionary = "0123456789abcdef")
         replyToHeader(HttpHeaders.XRequestId)
@@ -93,9 +96,9 @@ fun Application.backendModule(
         level = Level.INFO
         logger = accessLog
         callIdMdc("requestId")
-        filter { call -> accessLogged(routedPath(call.request.path())) }
+        filter { call -> accessLogged(call.routedPath) }
         format { call ->
-            "request method=${call.request.httpMethod.value} path=${routedPath(call.request.path()) ?: "-"} " +
+            "request method=${call.request.httpMethod.value} path=${call.routedPath ?: "-"} " +
                 "status=${call.response.status()?.value ?: "-"} durationMs=${call.processingTimeMillis()}"
         }
     }
@@ -110,7 +113,7 @@ fun Application.backendModule(
             maxAgeInSeconds = 600
         }
     }
-    install(RequestBodyLimit) { bodyLimit { call -> requestBodyLimit(call.request.httpMethod, routedPath(call.request.path())) } }
+    install(RequestBodyLimit) { bodyLimit { call -> requestBodyLimit(call.request.httpMethod, call.routedPath) } }
     if (portal != null) install(RateLimit) {
         register(ADMIN_LOGIN_LIMIT) {
             rateLimiter(limit = ADMIN_LOGINS_PER_MINUTE, refillPeriod = 1.minutes)
@@ -121,14 +124,14 @@ fun Application.backendModule(
     install(Compression) {
         gzip { priority = 1.0 }
         deflate { priority = 0.9 }
-        condition { compressible(routedPath(request.path())) }
+        condition { compressible(request.call.routedPath) }
     }
     install(StatusPages) {
         status(HttpStatusCode.NotFound) { call, status -> call.respond(status, ApiError("RESOURCE_NOT_FOUND", "Resource not found", false)) }
         exception<Throwable> { call, cause ->
             // The body limit fails the read, so its exception can arrive wrapped in a closed-channel one.
             if (cause !is CancellationException && generateSequence(cause) { it.cause }.take(4).any { it is PayloadTooLargeException }) {
-                val limit = requestBodyLimit(call.request.httpMethod, routedPath(call.request.path()))
+                val limit = requestBodyLimit(call.request.httpMethod, call.routedPath)
                 call.respond(HttpStatusCode.PayloadTooLarge, ApiError("REQUEST_TOO_LARGE", tooLargeMessage(limit), false))
                 return@exception
             }
@@ -152,7 +155,7 @@ fun Application.backendModule(
         // A validator, such as the body limit, may have answered already.
         if (call.isHandled) { finish(); return@intercept }
         // Decide on the path routing resolves, so no spelling of a guarded route skips its token.
-        val path = routedPath(call.request.path())
+        val path = call.routedPath
         if (path == null) {
             call.respond(HttpStatusCode.BadRequest, ApiError("INVALID_REQUEST", "Invalid request path", false))
             finish()
@@ -228,6 +231,11 @@ internal fun routedPath(raw: String): String? {
     if (segments.any { it == "." || it == ".." || it.contains('/') }) return null
     return segments.joinToString("/", prefix = "/")
 }
+
+internal val RoutedPathKey = AttributeKey<String>("RoutedPath")
+
+/** The path routing resolves for this call, computed once at setup; null when [routedPath] refused the raw path. */
+internal val ApplicationCall.routedPath: String? get() = attributes.getOrNull(RoutedPathKey)
 
 /** Responses worth compressing: API documents, the portal, the playlist and the guide. Media and logos never are. */
 internal fun compressible(path: String?): Boolean = path != null && (

@@ -8,9 +8,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
-import kotlinx.io.files.SystemTemporaryDirectory
 import kotlinx.io.readByteArray
-import kotlin.random.Random
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,7 +18,7 @@ import kotlin.time.Instant
 
 /** The cache's DataStore in a real file: the path every platform with a file system uses. */
 class LineupCacheFileTest {
-    private val dir = Path(SystemTemporaryDirectory, "sofaking-test-${Random.nextLong().toULong()}")
+    private val dir = testDirectory()
     private val file = Path(dir, "lineup-cache.bin")
     private val now = Instant.parse("2026-10-09T10:00:00Z")
     private val channel = Channel("1", 1.0, "One", null, listOf("Other"))

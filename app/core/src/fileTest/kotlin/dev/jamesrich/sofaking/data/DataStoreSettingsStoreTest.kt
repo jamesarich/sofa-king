@@ -9,8 +9,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
-import kotlinx.io.files.SystemTemporaryDirectory
-import kotlin.random.Random
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -19,7 +17,7 @@ import kotlin.test.assertTrue
 
 /** The settings store over the DataStore file every platform with a file system uses, on every such target. */
 class DataStoreSettingsStoreTest {
-    private val dir = Path(SystemTemporaryDirectory, "sofaking-test-${Random.nextLong().toULong()}")
+    private val dir = testDirectory()
     private val file = Path(dir, "settings.preferences_pb")
 
     /** One DataStore per test: a second instance over the same file would not see the first one's writes. */

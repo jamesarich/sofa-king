@@ -5,7 +5,8 @@ import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
-import dev.jamesrich.sofaking.data.ByteStore
+import androidx.datastore.core.DataStore
+import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
@@ -16,9 +17,11 @@ import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.SofaKingRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,8 +30,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -46,8 +50,8 @@ sealed interface LineupState {
     data class Failed(val message: String) : LineupState
 }
 
-/** A server address and token the API can be built from. */
-private data class Server(val url: String, val token: String)
+/** A server address and token the API can be built from, and the one API client built from them. */
+private data class Server(val url: String, val token: String, val api: SofaKingApi)
 
 /**
  * The lineup, the settings and the one playback session, for every screen. [newApi] builds the API client for a
@@ -55,7 +59,7 @@ private data class Server(val url: String, val token: String)
  */
 class LineupViewModel(
     private val store: SettingsStore,
-    private val cacheStore: ByteStore,
+    private val lineupCache: DataStore<CachedLineup?>,
     /** The one playback session the app holds; screens tune through it and the host releases it when stopped. */
     val sessions: PlaybackSessions = PlaybackSessions(),
     private val newApi: (url: String, token: String) -> SofaKingApi = ::SofaKingApi,
@@ -63,117 +67,134 @@ class LineupViewModel(
     val settings: StateFlow<AppSettings?> = store.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    private val reloads = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** Each reload request; one from [reloadLineup] carries the deferred its caller waits on. */
+    private val reloads = MutableSharedFlow<CompletableDeferred<Lineup?>?>(extraBufferCapacity = 1)
 
     private val _loading = MutableStateFlow(false)
 
     /** True while the catalog and guide are being fetched, including a background or manual refresh. */
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
-    /** Counts of catalogs published and loads finished (either way), so [reloadLineup] can wait for the load it asked for. */
-    private val catalogsLoaded = MutableStateFlow(0)
-    private val loadsFinished = MutableStateFlow(0)
-
     /** The last lineup loaded, with the server key it came from; read and written only inside [state]'s transform. */
     private var lastGood: Pair<String, Lineup>? = null
 
-    /** The server as Settings has it, or null while the address is not a usable URL. */
-    private val server = store.settings
-        .map { s -> ServerAddress.normalizeUrl(s.serverUrl)?.let { Server(it, s.apiToken) } }
+    /** The server as Settings has it, with one API client for the sessions and the repository, or null while the address is not a usable URL. */
+    private val server = settings.filterNotNull()
+        .map { s -> ServerAddress.normalizeUrl(s.serverUrl)?.let { it to s.apiToken } }
         .distinctUntilChanged()
+        .map { found -> found?.let { (url, token) -> Server(url, token, newApi(url, token)) } }
+        .shareIn(viewModelScope, SharingStarted.Eagerly, replay = 1)
 
     init {
         // A new address or token releases the session held on the old server before anything tunes on the new one.
         viewModelScope.launch {
-            server.collect { sessions.configure(it?.let { s -> newApi(s.url, s.token) }) }
+            server.collect { sessions.configure(it?.api) }
         }
     }
 
     /** One repository per server, so its catalog ETag survives every refresh; rebuilt only when the server changes. */
-    private val serverRepository = server.map { s -> s?.let { it to SofaKingRepository(newApi(it.url, it.token)) } }
+    private val serverRepository = server.map { s -> s?.let { it to SofaKingRepository(it.api) } }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<LineupState> = combine(serverRepository, reloads.onStart { emit(Unit) }) { found, _ -> found }
-        .transformLatest { found ->
-            if (found == null) {
-                emit(LineupState.Unconfigured)
-                return@transformLatest
-            }
-            val (server, repository) = found
-            val key = server.url
-            val cache = LineupCache(cacheStore, key)
-            // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
-            // so the last good lineup shows at once and the network load replaces it below.
-            var last: Lineup? = lastGood?.takeIf { it.first == key }?.second
-            if (last == null) {
-                val cacheStarted = TimeSource.Monotonic.markNow()
-                cache.read()?.let { cached ->
-                    log.i { "cache: ${cached.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}" }
-                    last = cached
-                    lastGood = key to cached
-                    emit(LineupState.Ready(cached))
-                }
-            }
-            while (true) {
-                if (last == null) emit(LineupState.Loading)
-                // Cancellation (a server change or refresh while loading) must propagate, not read as a failure.
-                _loading.value = true
-                var lineupMoved = false
-                var interim: Lineup? = null
-                val result = try {
-                    val started = TimeSource.Monotonic.markNow()
-                    val channels = repository.loadChannels()
-                    log.i { "lineup: ${channels.size} channels in ${started.elapsedNow()}" }
-                    // Channels first so the guide is usable while the programmes arrive. A cached guide stays in
-                    // place for channels it still covers; it is replaced once the new guide is in.
-                    if (last?.channels != channels) {
-                        interim = Lineup(channels, last?.guide.orEmpty(), guideLoading = true)
-                        emit(LineupState.Ready(interim))
-                    }
-                    catalogsLoaded.value++
-                    val guide = repository.loadGuide(channels)
-                    log.i { "guide: ${guide.programmes.values.sumOf { it.size }} programmes for ${guide.programmes.size} channels in ${started.elapsedNow()}" }
-                    // The lineup changed between the catalog and the guide: drop what left and read the catalog again soon.
-                    lineupMoved = guide.removed.isNotEmpty()
-                    if (lineupMoved) log.i { "guide: ${guide.removed.size} channels left the lineup" }
-                    Result.success(Lineup(channels.filterNot { it.guideId in guide.removed }, guide.programmes))
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Result.failure(e)
-                } finally {
-                    // Also on cancellation, or a refresh or server change mid-load leaves the loader spinning.
-                    _loading.value = false
-                }
-                result.onSuccess {
-                    last = it
-                    lastGood = key to it
-                    emit(LineupState.Ready(it))
-                    // A cache write failure must not fail the load or delay the next refresh.
-                    try {
-                        cache.write(it)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        log.w(e) { "lineup cache write failed" }
-                    }
-                }
-                // A failed background refresh keeps showing the lineup we already have.
-                result.onFailure {
-                    when {
-                        last == null -> emit(LineupState.Failed(describe(it)))
-                        // The new channels stay on screen; their programmes are no longer on the way.
-                        interim != null -> emit(LineupState.Ready(interim.copy(guideLoading = false)))
-                    }
-                }
-                loadsFinished.value++
-                delay(if (result.isSuccess && !lineupMoved) REFRESH_INTERVAL else RETRY_INTERVAL)
+    val state: StateFlow<LineupState> = combine(serverRepository, reloads.onStart { emit(null) }) { found, request -> found to request }
+        .transformLatest { (found, request) ->
+            // The request, if any, is answered by the first load below; a server change or another reload that
+            // cancels this transform answers it with nothing.
+            var pending = request
+            try {
+                load(found, onCatalog = { lineup -> pending?.complete(lineup); pending = null })
+            } finally {
+                pending?.complete(null)
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
 
+    /** Loads [found]'s lineup, cache first, then from the network every [REFRESH_INTERVAL]; [onCatalog] gets the first load's catalog, or null when it fails. */
+    private suspend fun FlowCollector<LineupState>.load(found: Pair<Server, SofaKingRepository>?, onCatalog: (Lineup?) -> Unit) {
+        if (found == null) {
+            emit(LineupState.Unconfigured)
+            return
+        }
+        val (server, repository) = found
+        val key = server.url
+        val cache = LineupCache(lineupCache, key)
+        // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
+        // so the last good lineup shows at once and the network load replaces it below.
+        var last: Lineup? = lastGood?.takeIf { it.first == key }?.second
+        if (last == null) {
+            val cacheStarted = TimeSource.Monotonic.markNow()
+            cache.read()?.let { cached ->
+                log.i { "cache: ${cached.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}" }
+                last = cached
+                lastGood = key to cached
+                emit(LineupState.Ready(cached))
+            }
+        }
+        while (true) {
+            if (last == null) emit(LineupState.Loading)
+            // Cancellation (a server change or refresh while loading) must propagate, not read as a failure.
+            _loading.value = true
+            var lineupMoved = false
+            var interim: Lineup? = null
+            val result = try {
+                val started = TimeSource.Monotonic.markNow()
+                val channels = repository.loadChannels()
+                log.i { "lineup: ${channels.size} channels in ${started.elapsedNow()}" }
+                // Channels first so the guide is usable while the programmes arrive. A cached guide stays in
+                // place for channels it still covers; it is replaced once the new guide is in.
+                if (last?.channels != channels) {
+                    interim = Lineup(channels, last?.guide.orEmpty(), guideLoading = true)
+                    emit(LineupState.Ready(interim))
+                }
+                onCatalog(interim ?: last)
+                val guide = repository.loadGuide(channels)
+                log.i { "guide: ${guide.programmes.values.sumOf { it.size }} programmes for ${guide.programmes.size} channels in ${started.elapsedNow()}" }
+                // The lineup changed between the catalog and the guide: drop what left and read the catalog again soon.
+                lineupMoved = guide.removed.isNotEmpty()
+                if (lineupMoved) log.i { "guide: ${guide.removed.size} channels left the lineup" }
+                Result.success(Lineup(channels.filterNot { it.guideId in guide.removed }, guide.programmes))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            } finally {
+                // Also on cancellation, or a refresh or server change mid-load leaves the loader spinning.
+                _loading.value = false
+            }
+            result.onSuccess {
+                last = it
+                lastGood = key to it
+                emit(LineupState.Ready(it))
+                // A cache write failure must not fail the load or delay the next refresh.
+                try {
+                    cache.write(it)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    log.w(e) { "lineup cache write failed" }
+                }
+            }
+            // A failed background refresh keeps showing the lineup we already have.
+            result.onFailure {
+                onCatalog(null)
+                val shown = interim
+                when {
+                    // The new channels stay on screen without programmes until a retry brings the guide; they are
+                    // not cached, so a cold start still shows the last complete lineup.
+                    shown != null -> {
+                        val kept = shown.copy(guideLoading = false)
+                        last = kept
+                        emit(LineupState.Ready(kept))
+                    }
+                    last == null -> emit(LineupState.Failed(describe(it)))
+                }
+            }
+            delay(if (result.isSuccess && !lineupMoved) REFRESH_INTERVAL else RETRY_INTERVAL)
+        }
+    }
+
     fun refresh() {
-        reloads.tryEmit(Unit)
+        reloads.tryEmit(null)
     }
 
     /**
@@ -181,14 +202,9 @@ class LineupViewModel(
      * failed or nothing came back in time. The guide may still be loading when it returns.
      */
     suspend fun reloadLineup(): Lineup? {
-        val catalogs = catalogsLoaded.value
-        val loads = loadsFinished.value
-        refresh()
-        val catalogArrived = withTimeoutOrNull(RELOAD_WAIT) {
-            combine(catalogsLoaded, loadsFinished) { c, l -> c > catalogs || l > loads }.first { it }
-            catalogsLoaded.value > catalogs
-        } ?: false
-        return if (catalogArrived) (state.value as? LineupState.Ready)?.lineup else null
+        val request = CompletableDeferred<Lineup?>()
+        if (!reloads.tryEmit(request)) return null
+        return withTimeoutOrNull(RELOAD_WAIT) { request.await() }
     }
 
     fun saveServer(url: String, apiToken: String) = viewModelScope.launch { store.setServer(url, apiToken) }

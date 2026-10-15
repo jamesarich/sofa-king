@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.data
 
 import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.core.okio.WebLocalStorage
 import androidx.datastore.preferences.core.MutablePreferences
@@ -28,12 +29,11 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import kotlin.io.encoding.Base64
 
 /**
- * Settings in DataStore's own localStorage store, which outlives the tab and coordinates writes across tabs, and the
- * lineup cache in one localStorage entry beside it. Settings an older build kept under `<prefix>.settings` move over
- * once on the first read.
+ * Settings and the lineup cache in DataStore's own localStorage stores, which outlive the tab and coordinate writes
+ * across tabs. Settings an older build kept under `<prefix>.settings` move over once on the first read; a lineup cache
+ * an older build wrote by hand under `<prefix>.lineupCache` does not decode and is replaced.
  */
 fun AppStorage.Companion.inBrowser(prefix: String = "sofaking"): AppStorage = AppStorage(
     settings = PreferenceDataStoreFactory.create(
@@ -42,21 +42,12 @@ fun AppStorage.Companion.inBrowser(prefix: String = "sofaking"): AppStorage = Ap
         migrations = listOf(LegacyLocalStorageMigration("$prefix.settings")),
         scope = CoroutineScope(ioDispatcher + SupervisorJob()),
     ),
-    lineupCache = LocalStorageByteStore("$prefix.lineupCache"),
+    lineupCache = DataStoreFactory.create(
+        storage = WebLocalStorage(CachedLineupSerializer, "$prefix.lineupCache"),
+        corruptionHandler = ReplaceFileCorruptionHandler { null },
+        scope = CoroutineScope(ioDispatcher + SupervisorJob()),
+    ),
 )
-
-/** A [ByteStore] in one localStorage entry, base64-encoded; a write over the quota throws and keeps the previous entry. */
-class LocalStorageByteStore(private val key: String) : ByteStore {
-    override fun read(): ByteArray? = localStorage.getItem(key)?.let { Base64.decode(it) }
-
-    override fun write(bytes: ByteArray) {
-        localStorage.setItem(key, Base64.encode(bytes))
-    }
-
-    override fun delete() {
-        localStorage.removeItem(key)
-    }
-}
 
 /**
  * Moves the hand-written store's one JSON object, each value tagged with its type, into DataStore, then removes it.

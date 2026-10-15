@@ -27,6 +27,7 @@ class LiveTvTest {
                 val unauthorized = client.get("/api/v1/channels")
                 assertEquals(HttpStatusCode.Unauthorized, unauthorized.status)
                 assertKeepsWireFixture("v1/api-error.json", unauthorized.bodyAsText())
+                assertKeepsWireFixture("v1/bootstrap.json", client.get("/api/v1/bootstrap") { bearerAuth(token) }.bodyAsText())
                 val catalogResponse = client.get("/api/v1/channels") { bearerAuth(token) }
                 assertKeepsWireFixture("v1/catalog.json", catalogResponse.bodyAsText())
                 val catalog = Json.decodeFromString<Catalog>(catalogResponse.bodyAsText())

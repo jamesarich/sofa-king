@@ -41,7 +41,7 @@ fun AppStorage.Companion.onAppleTv(cachesDirectory: String, defaults: NSUserDefa
         migrations = listOf(CachesFileMigration(Path(cachesDirectory, "datastore", "settings.preferences_pb"))),
         scope = CoroutineScope(ioDispatcher + SupervisorJob()),
     ),
-    lineupCache = FileByteStore(Path(cachesDirectory, "lineup-cache.bin")),
+    lineupCache = lineupCacheDataStore(Path(cachesDirectory, "lineup-cache.bin").toString()),
 )
 
 /** A DataStore [Storage] holding the serialized preferences as one `NSData` entry of [defaults] under [key]. */

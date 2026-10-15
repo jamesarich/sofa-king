@@ -5,6 +5,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.jamesrich.sofaking.data.AppStorage
+import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
 import org.jetbrains.compose.resources.stringResource

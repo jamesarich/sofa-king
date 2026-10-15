@@ -14,7 +14,7 @@ Sofa King is a Kotlin Multiplatform project. One Compose Multiplatform UI on Mat
 
 `core` targets everything its dependencies publish, so a native host such as a SwiftUI tvOS app can use the same data layer without Compose. Windows native is absent because DataStore has no mingw build; the JVM covers Windows desktops.
 
-All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless it needs a platform API; each `expect` has one `actual` per platform source set (`androidMain`, `jvmMain`, `iosMain`, `webMain`).
+All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless it needs a platform API; each `expect` has one `actual` per platform source set (`androidMain`, `jvmMain`, `iosMain`, `webMain`). `fileMain` (Android, JVM and native) holds the stores that live in files, since the web targets keep theirs in the browser.
 
 ## Components
 
@@ -25,7 +25,7 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 | `SofaKingApi` | The server's `/api/v1` JSON requests over Ktor with the bearer token; every engine's transport error surfaces as an `IOException` |
 | `SofaKingRepository`, `SofaKingMapper` | Catalog and guide queries mapped to `Channel` (with its logo and guide status) and `Programme` (with its episode, rating, new flag and image) |
 | `PlaybackSessions` | The one playback session: open, promote, renew, release, reopen, replaced streams |
-| `LineupCache`, `ByteStore` | Last complete lineup, keyed by server address, in a file or the browser's localStorage |
+| `LineupCache` | Last complete lineup, keyed by server address, in a DataStore file or the browser's localStorage |
 | `DataStoreSettingsStore`, `AppStorage` | Server address, API token, favorites, last channel, caption and preview settings |
 | `GuideScreen` | Grid, time window, filtering and D-pad navigation |
 | `PreviewVideo` | Muted preview on the shared player through a preview session |
@@ -54,7 +54,7 @@ Network, decoding and cache work run on the IO dispatcher (the default dispatche
 | Desktop | `<dir>/datastore/settings.preferences_pb` | `<dir>/lineup-cache.bin` |
 | iOS | `datastore/settings.preferences_pb` under Application Support | `lineup-cache.bin` under Application Support |
 | Apple TV | `NSUserDefaults`, under `sofaking.preferences`, since tvOS may purge any file; an older build's file under Caches moves there on first read | `lineup-cache.bin` under Caches |
-| Web | DataStore's localStorage store for the page's origin, under `sofaking.preferences`; an older build's `sofaking.settings` entry moves there on first read | localStorage, base64 under `sofaking.lineupCache` |
+| Web | DataStore's localStorage store for the page's origin, under `sofaking.preferences`; an older build's `sofaking.settings` entry moves there on first read | DataStore's localStorage store under `sofaking.lineupCache` |
 
 On a desktop, `<dir>` is the OS's per-user app data directory:
 
@@ -64,7 +64,7 @@ On a desktop, `<dir>` is the OS's per-user app data directory:
 | macOS | `~/Library/Application Support/Sofa King` |
 | Windows | `%APPDATA%\Sofa King`, or `Sofa King` in the home directory when `APPDATA` is unset |
 
-DataStore allows one instance per file, so the graph holds it as a single and each entry point starts the graph once. The lineup cache is a big-endian version number followed by a kotlinx-serialization protobuf record, which every platform reads and writes the same way; a cache with another version is deleted and the lineup refetched.
+Both are DataStores, so writes replace the file whole and a file that does not read is replaced with an empty one. DataStore allows one instance per file, so the graph holds each as a single and each entry point starts the graph once. The lineup cache is one kotlinx-serialization protobuf record, which every platform reads and writes the same way; a cache that does not decode, such as one an older build wrote with a version header, is replaced and the lineup refetched.
 
 ## Launch
 

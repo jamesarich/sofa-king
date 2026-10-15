@@ -78,9 +78,8 @@ internal class ProvidersView(
 )
 
 internal fun signInPage(enabled: Boolean, error: String? = null): String = layout("Sign in", null, null) {
-    div("panel") {
-        attributes["style"] = "max-width:440px;margin:8vh auto 0"
-        h1 { attributes["style"] = "margin-top:0"; +"Sign in" }
+    div("panel signin") {
+        h1("mt-0") { +"Sign in" }
         if (!enabled) {
             p { +"The portal needs a token to sign in with. Set SOFA_ADMIN_TOKEN (or SOFA_API_TOKEN) and restart the server." }
             return@div
@@ -118,7 +117,7 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
         a("/admin/lineup?state=enabled", classes = "tile") {
             span("label") { +"Channels on" }
             span("value") { +thousands(view.enabled); small { +" of ${thousands(view.stations)}" } }
-            div("meter") { span { attributes["style"] = "width:${if (view.stations == 0) 0 else view.enabled * 100 / view.stations}%" } }
+            div("meter") { span { attributes["data-fill"] = (if (view.stations == 0) 0 else view.enabled * 100 / view.stations / 5 * 5).toString() } }
         }
         a("/admin/lineup?state=enabled&guide=missing", classes = "tile" + if (view.guide.total > 0 && view.guide.percent < 90) " warn" else "") {
             span("label") { +"Guide coverage" }
@@ -267,8 +266,7 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
         p { +"No channel matches these filters." }
         a("/admin/lineup") { +"Show every channel" }
     }
-    else div("panel") {
-        attributes["style"] = "padding:4px 12px"
+    else div("panel tight") {
         div("scroll") {
             table("stack") {
                 thead { tr { th(classes = "num") { +"No." }; th { +"Channel" }; th(classes = "wide-only") { +"Group" }; th(classes = "wide-only num") { +"Sources" }; th(classes = "wide-only") { +"Guide" }; th { +"State" }; th { span("wide-only") { +"Actions" } } } }
@@ -335,10 +333,9 @@ private fun FlowContent.rowForm(action: String, session: AdminSession, view: Lin
 internal fun stationPage(chrome: Chrome, view: StationView): String = layout(view.row.entry.name, chrome, "/admin/lineup") {
     val entry = view.row.entry
     val back = "/admin/lineup" + view.filter.query().let { if (it.isEmpty()) "" else "?$it" }
-    p { attributes["style"] = "margin:16px 0 0"; a(back) { +"← Channels" } }
+    p("mt-16") { a(back) { +"← Channels" } }
     h1 { +"${entry.number} · ${entry.name}" }
-    div("chips") {
-        attributes["style"] = "margin:0 0 18px"
+    div("chips mb-18") {
         stateChip(view.row).let { (text, tone) -> chip(text, tone) }
         if (view.row.required) chip("Required", Tone.WARN)
         guideChip(view.row.guideStatus).let { (text, tone) -> chip(text, tone) }
@@ -352,8 +349,7 @@ internal fun stationPage(chrome: Chrome, view: StationView): String = layout(vie
                 view.revision?.let { revision -> hiddenInput(name = "revision") { value = revision } }
                 filterFields(view.filter)
                 div("formgrid") {
-                    div("field") {
-                        attributes["style"] = "grid-column:1/-1"
+                    div("field span-all") {
                         label { htmlFor = "s-name"; +"Name" }
                         textInput(name = "name") { id = "s-name"; value = entry.name; required = true; maxLength = "256" }
                     }
@@ -509,8 +505,7 @@ internal fun requiredPage(chrome: Chrome, view: RequiredView?): String = layout(
             span("value") { +thousands(view.rows.count { it.station.offeringIds.isEmpty() }) }
         }
     }
-    div("panel") {
-        attributes["style"] = "padding:4px 12px"
+    div("panel tight") {
         div("scroll") {
             table {
                 thead { tr { th(classes = "num") { +"No." }; th { +"Station" }; th { +"Pins" }; th(classes = "num") { +"Live sources" }; th { +"Health" }; th { +"State" } } }
@@ -590,8 +585,7 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex & p
             dt { +"Runs" }; dd { +"After each lineup change and every ${status.syncMinutes} min" }
             if (status.missingDevices.isNotEmpty()) { dt { +"Not in Plex" }; dd { chip(status.missingDevices.joinToString(), Tone.BAD) } }
         }
-        if (status.devices.isNotEmpty()) div("scroll") {
-            attributes["style"] = "margin-top:12px"
+        if (status.devices.isNotEmpty()) div("scroll mt-12") {
             table {
                 thead { tr { th { +"Tuner" }; th { +"Device ID" }; th { +"DVR" }; th(classes = "num") { +"Channels mapped" } } }
                 tbody {
@@ -612,7 +606,7 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex & p
             +"${thousands(view.enabledChannels)} channels on, across ${plural(view.devices.size, "device")} of up to ${view.tuners} streams each"
             if (view.devicesNeeded != null) {
                 +"; the lineup needs ${view.devicesNeeded}. "
-                if (view.devicesNeeded > view.devices.size) span { attributes["style"] = "color:var(--error)"; +"Add ports to SOFA_HDHR_EXTRA_PORTS." }
+                if (view.devicesNeeded > view.devices.size) span("error-text") { +"Add ports to SOFA_HDHR_EXTRA_PORTS." }
             } else +"."
         }
         div("scroll") {
@@ -628,8 +622,7 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex & p
             dt { +"Playlist" }; dd { code { +view.playlist } }
             dt { +"Guide" }; dd { code { +view.guide } }
         }
-        if (view.tokenConfigured && !view.revealed) div {
-            attributes["style"] = "margin-top:12px"
+        if (view.tokenConfigured && !view.revealed) div("mt-12") {
             postForm("/admin/plex/reveal", chrome.session) { button(type = ButtonType.submit) { +"Reveal the output token" } }
         }
         if (!view.tokenConfigured) p("muted") { +"Set SOFA_OUTPUT_TOKEN so players and Plex can fetch these URLs when the server takes tokens." }

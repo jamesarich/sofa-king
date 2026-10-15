@@ -96,6 +96,20 @@ class ProbeWorker(
         }
     }
 
+    /**
+     * Puts [offeringId] at the front of the queue, so the next free worker probes it whether or not it is due. False
+     * when no provider lists the offering or a probe of it is already in flight.
+     */
+    suspend fun probeNow(offeringId: String): Boolean {
+        val offering = feeds.offering(offeringId) ?: return false
+        return mutex.withLock {
+            if (offeringId in inFlight) return@withLock false
+            pending.removeAll { it.id == offeringId }
+            pending.addFirst(offering)
+            true
+        }
+    }
+
     /** Probes one claimed offering; false when nothing is due. */
     suspend fun step(): Boolean {
         val offering = claim() ?: return false

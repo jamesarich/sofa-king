@@ -102,7 +102,7 @@ Use `Authorization: Bearer $SOFA_API_TOKEN` for the `/api/v1` checks, and `Autho
 
 ## Logs
 
-The server logs to stderr, which `docker compose logs` shows. The admin portal's [Events page](admin.md#pages) shows the newest 500 lines at INFO and above since the server started, whatever the level, and its Jobs page the last run of each import, policy run, Plex sync and logo sweep. `SOFA_LOG_LEVEL` sets the level (`info` by default) and `SOFA_LOG_FORMAT` the format:
+The server logs to stderr, which `docker compose logs` shows. The admin portal's [Events page](admin.md#pages) shows the newest 500 lines at INFO and above since the server started, whatever the level, and its Jobs page the last run of each import, policy run, Plex sync and logo sweep. `SOFA_LOG_LEVEL` sets the level (`info` by default); the portal's [runtime settings](admin.md#settings) change it without a restart and take precedence, as they do for the XMLTV days, the Plex sync interval, the streams per HDHomeRun device and the sessions at once. `SOFA_LOG_FORMAT` sets the format:
 
 - `text`, the default: one line per event with the time in UTC, the level, the thread and the logger, then the message. A line written while handling a request ends with `requestId=...`.
 - `json`: one JSON object per line from logback's JSON encoder, with the level, the logger, the formatted message and the request id. Use it when a log collector parses the output.

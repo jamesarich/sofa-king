@@ -51,7 +51,7 @@ With a [lineup policy](lineup-policy.md), a station none of whose sources is sel
 
 ## Inspect or disable a source
 
-These routes take the API token. With Docker the server is at `SERVER_HOST:9193`; outside Docker the port is 8080. List source IDs and health states:
+The admin portal's [Channel page](admin.md#pages) disables, enables and probes a source with a click. These routes do the same with the API token. With Docker the server is at `SERVER_HOST:9193`; outside Docker the port is 8080. List source IDs and health states:
 
 ```sh
 curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" \

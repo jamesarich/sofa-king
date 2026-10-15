@@ -33,7 +33,7 @@ class EffectiveSettingsTest {
 
     @Test fun `a setting is marked default only when it equals the default`() {
         val defaults = effectiveSettings(ServerConfig.fromEnvironment(emptyMap()))
-        for (name in listOf("SOFA_HOST", "SOFA_PORT", "SOFA_DATA_DIR", "SOFA_MAX_SESSIONS", "SOFA_FFMPEG")) assertTrue(setting(defaults, name).isDefault, name)
+        for (name in listOf("SOFA_HOST", "SOFA_PORT", "SOFA_DATA_DIR", "SOFA_FFMPEG")) assertTrue(setting(defaults, name).isDefault, name)
         assertEquals("127.0.0.1", setting(defaults, "SOFA_HOST").value)
         assertEquals("not set", setting(defaults, "SOFA_SOURCES").value)
         assertTrue(setting(defaults, "SOFA_SOURCES").isDefault)
@@ -45,7 +45,7 @@ class EffectiveSettingsTest {
         )
         assertEquals("9193", setting(custom, "SOFA_PORT").value)
         assertFalse(setting(custom, "SOFA_PORT").isDefault)
-        assertFalse(setting(custom, "SOFA_MAX_SESSIONS").isDefault)
+        assertTrue(custom.flatMap { it.settings }.none { it.name == "SOFA_MAX_SESSIONS" }, "a runtime setting is edited on its own panel, not listed here")
         assertEquals("/srv/sofa/sources.json", setting(custom, "SOFA_SOURCES").value)
         assertEquals("Found in SOFA_DATA_DIR; SOFA_SOURCES is unset", setting(custom, "SOFA_SOURCES").note)
     }

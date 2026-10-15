@@ -56,7 +56,7 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
             authorizeOutput(call, config.token, apiToken)
             val days = call.request.queryParameters["days"]?.let { raw ->
                 raw.toIntOrNull()?.takeIf { it in 1..14 } ?: throw ApiFailure(400, "INVALID_QUERY", "days must be between 1 and 14")
-            } ?: config.guideDays
+            } ?: runtime.settings.current.guideDays
             val now = clock.instant()
             val from = now.minus(Duration.ofHours(3))
             val to = now.plus(Duration.ofDays(days.toLong()))
@@ -114,7 +114,7 @@ internal suspend fun serveExternal(
 ) {
     val sessions = runtime.sessions
     if (shareHls) sessions.externalFor(channelId)?.let { hls(it); return }
-    val opened = sessions.openExternal(channelId)
+    val opened = sessions.openExternal(channelId, call.request.origin.remoteAddress)
     var release = true
     try {
         var current = opened

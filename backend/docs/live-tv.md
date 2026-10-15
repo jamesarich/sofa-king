@@ -16,16 +16,16 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_API_TOKEN` | Generated on a non-loopback bind | API bearer token, at least 32 characters. On a non-loopback bind, an unset token is generated at the first start, stored in `SOFA_DATA_DIR/secrets.json` and reused; the admin portal's Settings page reveals it. On loopback, unset leaves the API open |
 | `SOFA_ADMIN_TOKEN` | Generated on a non-loopback bind | Bearer token for `/api/v1/admin/*` and the admin portal, at least 32 characters. On a non-loopback bind, an unset token is generated and stored like the API token; the log says where, never the token. On loopback, unset means the API token administers the lineup too |
 | `SOFA_API_TOKEN_FILE`, `SOFA_ADMIN_TOKEN_FILE`, `SOFA_OUTPUT_TOKEN_FILE`, `SOFA_PLEX_TOKEN_FILE` | Unset | A file holding the token, for Docker secrets. The value is read at start without its trailing line break and validated like the variable. Setting a variable and its `_FILE` variant, or naming an unreadable file, stops the start |
-| `SOFA_MAX_SESSIONS` | `4` | Maximum active playback sessions, 1-16 |
+| `SOFA_MAX_SESSIONS` | `4` | Maximum active playback sessions, 1-16. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
 | `SOFA_FFMPEG` | `ffmpeg` | FFmpeg executable used by source probes and the HDHomeRun remux |
 | `SOFA_PROBE_PARALLELISM` | `6` | Concurrent source probes, 1-32 |
 | `SOFA_RESTREAM_ORIGINS` | Unset | Comma-separated `host[:port]` list of LAN restream proxies whose 502 counts as source evidence, for example `RESTREAM_HOST:3000` |
 | `SOFA_OBSERVATION_RETENTION_DAYS` | `7` | Days of health observation history to keep, 1-3650 |
 | `SOFA_ALLOW_LOOPBACK_UPSTREAMS` | `false` | Allow playlist, guide and stream URLs on loopback (`127.0.0.1`, `::1`, `localhost`); for local fixtures only |
 | `SOFA_OUTPUT_TOKEN` | Unset | Token for the [player outputs](#third-party-players) under `/output/*`, at least 32 letters, digits, hyphens or underscores. It goes in the URL, so it is separate from the API token. Unset, only the API token (as a bearer) opens them |
-| `SOFA_XMLTV_DAYS` | `3` | Days ahead the XMLTV output carries, 1-14 |
+| `SOFA_XMLTV_DAYS` | `3` | Days ahead the XMLTV output carries, 1-14. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
 | `SOFA_HDHR_ENABLED` | `true`; `false` in `deploy/compose.yaml` | Serve the [HDHomeRun emulation](#plex-live-tv) (`/discover.json`, `/lineup.json`, `/auto/v*`) at the root. The server binary defaults to `true`. The Compose file passes `false` unless `deploy/.env` sets `SOFA_HDHR_ENABLED=true` |
-| `SOFA_HDHR_TUNERS` | `2` | Tuners each device exposes, which is the number of HDHomeRun streams open at once on that device, 1 to `SOFA_MAX_SESSIONS` |
+| `SOFA_HDHR_TUNERS` | `2` | Tuners each device exposes, which is the number of HDHomeRun streams open at once on that device, 1 to `SOFA_MAX_SESSIONS`. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
 | `SOFA_HDHR_DEVICE_ID` | Derived from the server identity | Eight hex digits Plex identifies the tuner by; keep it stable or Plex sees a new device |
 | `SOFA_HDHR_NAME` | `Sofa King` | Friendly name Plex shows, 1-64 characters without control characters |
 | `SOFA_HDHR_ALLOW` | Unset | Client IPs or CIDR blocks admitted to the HDHomeRun routes, comma separated (for example `PLEX_SERVER_IP` or `LAN_CIDR`). Required when `SOFA_HOST` is not loopback and HDHomeRun is enabled: the server refuses to start without it. On loopback, unset admits every address that reaches the port |
@@ -34,9 +34,9 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_HDHR_PUBLIC_PORTS` | `SOFA_PORT`, then `SOFA_HDHR_EXTRA_PORTS` | The host ports Plex reaches each device on, comma separated, one per device in device order. Set it when Docker publishes the ports under other numbers |
 | `SOFA_PLEX_URL` | Unset | The Plex server to [keep in step](#keep-plex-in-step) with the lineup, as `http(s)://HOST[:PORT]` with no path, query or credentials (for example `http://host.docker.internal:32400`). Set it with `SOFA_PLEX_TOKEN`; requires `SOFA_HDHR_ENABLED` |
 | `SOFA_PLEX_TOKEN` | Unset | The Plex server's `X-Plex-Token`, at least 8 characters without spaces, control characters or DEL. A secret: it is sent only as a request header and never logged |
-| `SOFA_PLEX_SYNC_MINUTES` | `60` | Minutes between Plex syncs when the lineup does not change, 5 to 1440 |
+| `SOFA_PLEX_SYNC_MINUTES` | `60` | Minutes between Plex syncs when the lineup does not change, 5 to 1440. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
 | `SOFA_PLEX_TUNER_BASE` | Unset | Scheme and host Plex reaches this server's tuners on, as `http(s)://HOST` with no port, path, query or credentials, for example `http://192.168.1.3`. When set, a sync adds devices Plex lacks |
-| `SOFA_LOG_LEVEL` | `info` | Log level for every logger: `trace`, `debug`, `info`, `warn`, `error` or `off` |
+| `SOFA_LOG_LEVEL` | `info` | Log level for every logger: `trace`, `debug`, `info`, `warn`, `error` or `off`. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
 | `SOFA_LOG_FORMAT` | `text` | `text` for one line per event, or `json` for one JSON object per line with the level, logger, message and request id. Logs go to stderr. See [logs](operations.md#logs) |
 | `SOFA_CORS_ORIGINS` | unset | Comma-separated browser origins, such as `https://tv.example.com,http://192.168.1.20:8080`, that may call the API from a page on another origin, for example the Sofa King web app served elsewhere. Each is `scheme://host[:port]` with no path; `*` is not accepted. Unset sends no CORS headers, so only pages on the server's own origin can use the API from a browser. Tokens still authorize every call; cookies never cross origins |
 | `SOFA_REVISION` | `unknown`; the image sets it | The commit the server was built from, reported by `GET /api/v1/admin/status` and the admin portal footer. The image sets it from its `REVISION` build argument |

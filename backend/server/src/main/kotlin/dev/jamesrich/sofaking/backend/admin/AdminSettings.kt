@@ -8,6 +8,8 @@ import dev.jamesrich.sofaking.backend.api.PolicyApplyResult
 import dev.jamesrich.sofaking.backend.api.PolicyChangeEntry
 import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.GuideConfig
+import dev.jamesrich.sofaking.backend.logging.LogSettings
+import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import kotlinx.html.*
 
 /** One effective setting: the variable that sets it, its value as the server uses it, and whether that is the default. */
@@ -20,13 +22,26 @@ internal class SourceSummary(val id: String, val kind: String, val where: String
 
 internal class PolicySummary(val path: String, val revision: String, val policy: LineupPolicy, val lastRun: PolicyApplyResult?)
 
+/**
+ * The runtime settings as the page edits them: [current] is what the server uses, [environment] what it started with,
+ * [saved] the names whose value comes from the database. [plex] says whether Plex sync is configured, so the interval
+ * reads as applying to it or as waiting for it. [errors] are a refused save's messages, and [proposed] its values.
+ */
+internal class RuntimeSettingsView(
+    val current: RuntimeValues, val environment: RuntimeValues, val saved: Set<String>, val plex: Boolean,
+    val errors: List<String> = emptyList(), val proposed: Map<String, String>? = null,
+)
+
 internal class SettingsView(
     val groups: List<SettingGroup>, val providers: List<SourceSummary>, val guides: List<SourceSummary>, val policy: PolicySummary?,
     val changes: List<PolicyChangeEntry>, val changeLimit: Int,
     val apiTokenSet: Boolean = false,
     /** The API token, only on the page answering the reveal action. */
     val revealedApiToken: String? = null,
-)
+    val runtime: RuntimeSettingsView? = null,
+) {
+    constructor(view: SettingsView, runtime: RuntimeSettingsView?) : this(view.groups, view.providers, view.guides, view.policy, view.changes, view.changeLimit, view.apiTokenSet, view.revealedApiToken, runtime)
+}
 
 private const val SET = "set"
 private const val GENERATED = "generated"
@@ -56,13 +71,11 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
             s("SOFA_DATA_DIR", config.dataDirectory, java.nio.file.Path.of("data")),
             s("SOFA_SOURCES", config.sourcesFile, null, found("SOFA_SOURCES")),
             s("SOFA_POLICY", config.policyFile, null, found("SOFA_POLICY")),
-            s("SOFA_MAX_SESSIONS", config.maxSessions, 4),
             s("SOFA_FFMPEG", config.ffmpeg, "ffmpeg"),
             s("SOFA_PROBE_PARALLELISM", config.probeParallelism, 6),
             s("SOFA_RESTREAM_ORIGINS", config.restreamOrigins.sorted().joinToString(), ""),
             s("SOFA_OBSERVATION_RETENTION_DAYS", config.observationRetentionDays, 7),
             s("SOFA_ALLOW_LOOPBACK_UPSTREAMS", config.allowLoopbackUpstreams, false),
-            s("SOFA_LOG_LEVEL", config.logging.level, "info"),
             s("SOFA_LOG_FORMAT", config.logging.format, "text"),
             s("SOFA_CORS_ORIGINS", config.corsOrigins.joinToString(), ""),
         )),
@@ -72,10 +85,8 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
             secret("SOFA_OUTPUT_TOKEN", config.outputs.token, "Players and Plex fetch /output with it; reveal it on the Plex page"),
             secret("SOFA_PLEX_TOKEN", plex?.token, "Sent to Plex only"),
         )),
-        SettingGroup("Player outputs", listOf(s("SOFA_XMLTV_DAYS", config.outputs.guideDays, 3))),
         SettingGroup("HDHomeRun", listOf(
             s("SOFA_HDHR_ENABLED", hdhr.enabled, true),
-            s("SOFA_HDHR_TUNERS", hdhr.tuners, 2),
             s("SOFA_HDHR_DEVICE_ID", hdhr.deviceId ?: "derived from the server identity", "derived from the server identity"),
             s("SOFA_HDHR_NAME", hdhr.friendlyName, "Sofa King"),
             s("SOFA_HDHR_ALLOW", hdhr.allow.joinToString(), ""),
@@ -85,7 +96,6 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
         )),
         SettingGroup("Plex sync", listOf(
             s("SOFA_PLEX_URL", plex?.url, null),
-            s("SOFA_PLEX_SYNC_MINUTES", plex?.syncMinutes ?: 60, 60),
             s("SOFA_PLEX_TUNER_BASE", plex?.tunerBase, null),
         )),
     )
@@ -118,9 +128,79 @@ private fun every(seconds: Long): String = when {
     else -> "every $seconds s"
 }
 
+/** The Save control of the runtime settings form: "No changes" and disabled while the fields match what the server uses. */
+internal fun FlowContent.runtimeSave(changed: Boolean) = div("actions") {
+    id = "runtime-save"
+    button(type = ButtonType.submit, classes = "primary") {
+        name = "op"; value = "save"
+        disabled = !changed
+        +(if (changed) "Save" else "No changes")
+    }
+    button(type = ButtonType.submit, classes = "quiet") { name = "op"; value = "reset"; +"Back to the environment's values" }
+}
+
+/** The Save control alone, as the answer to the form's check request. */
+internal fun runtimeSaveFragment(changed: Boolean): String = kotlinx.html.stream.createHTML(prettyPrint = false).div { runtimeSave(changed) }
+
+/** Whether [proposed], the form's values by name, differs from what the server uses. */
+internal fun runtimeChanged(current: RuntimeValues, proposed: Map<String, String>): Boolean =
+    current.byName().any { (name, value) -> proposed[name]?.trim()?.lowercase() != value }
+
+private fun FlowContent.runtimePanel(chrome: Chrome, view: RuntimeSettingsView) = panel("Runtime settings", id = "runtime") {
+    val values = view.proposed ?: view.current.byName()
+    p("muted small") { +"These apply as soon as they are saved, survive restarts and take precedence over the environment. Saving the environment's own value puts the setting back to following the environment." }
+    if (view.errors.isNotEmpty()) notice("Not saved:", view.errors)
+    form(action = "/admin/settings/runtime", method = FormMethod.post, classes = "stack") {
+        id = "runtime-form"
+        // With JavaScript, every change asks the server whether the form differs from what runs; without it the button is Save.
+        attributes["hx-post"] = "/admin/settings/runtime/check"
+        attributes["hx-trigger"] = "change, load"
+        attributes["hx-target"] = "#runtime-save"
+        attributes["hx-select"] = "#runtime-save"
+        attributes["hx-swap"] = "outerHTML"
+        hiddenInput(name = "csrf") { value = chrome.session.csrf }
+        div("runtime") {
+            fun DIV.hint(name: String, environment: String) = span("hint") {
+                +(if (name in view.saved) "Saved here; the environment has $environment." else "From the environment.")
+            }
+            div("field") {
+                label { htmlFor = "r-level"; +"Log level" }
+                select {
+                    id = "r-level"; name = RuntimeValues.LOG_LEVEL
+                    for (level in LogSettings.LEVELS) option { value = level; selected = level == values[RuntimeValues.LOG_LEVEL]; +level }
+                }
+                hint(RuntimeValues.LOG_LEVEL, view.environment.logLevel)
+            }
+            div("field") {
+                label { htmlFor = "r-days"; +"XMLTV days ahead" }
+                numberInput(name = RuntimeValues.GUIDE_DAYS) { id = "r-days"; value = values.getValue(RuntimeValues.GUIDE_DAYS); min = "1"; max = "14"; required = true }
+                hint(RuntimeValues.GUIDE_DAYS, view.environment.guideDays.toString())
+            }
+            div("field") {
+                label { htmlFor = "r-plex"; +"Plex sync every (minutes)" }
+                numberInput(name = RuntimeValues.PLEX_SYNC_MINUTES) { id = "r-plex"; value = values.getValue(RuntimeValues.PLEX_SYNC_MINUTES); min = "5"; max = "1440"; required = true }
+                if (view.plex) hint(RuntimeValues.PLEX_SYNC_MINUTES, view.environment.plexSyncMinutes.toString())
+                else span("hint") { +"Plex sync is not set up; this applies once SOFA_PLEX_URL and SOFA_PLEX_TOKEN are." }
+            }
+            div("field") {
+                label { htmlFor = "r-tuners"; +"Streams per HDHomeRun device" }
+                numberInput(name = RuntimeValues.HDHR_TUNERS) { id = "r-tuners"; value = values.getValue(RuntimeValues.HDHR_TUNERS); min = "1"; max = "16"; required = true }
+                hint(RuntimeValues.HDHR_TUNERS, view.environment.hdhrTuners.toString())
+            }
+            div("field") {
+                label { htmlFor = "r-sessions"; +"Sessions at once" }
+                numberInput(name = RuntimeValues.MAX_SESSIONS) { id = "r-sessions"; value = values.getValue(RuntimeValues.MAX_SESSIONS); min = "1"; max = "16"; required = true }
+                hint(RuntimeValues.MAX_SESSIONS, view.environment.maxSessions.toString())
+            }
+        }
+        p("muted small") { +"Plex reads a device's tuner count when it adds the device, so a change here shows in Plex after the device is re-added; the server enforces it at once. Streams per device cannot exceed the sessions at once." }
+        runtimeSave(view.proposed != null && runtimeChanged(view.current, view.proposed))
+    }
+}
+
 internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("Settings", chrome, "/admin/settings") {
     val now = chrome.now
-    pageHead("Settings", "How this server is configured right now: environment variables, the source file and the lineup policy. Change a variable in the server's environment (.env) and restart; edit groups and providers on their pages.")
+    pageHead("Settings", "How this server is configured: the lineup policy, the settings that change at once, the ones that take a restart, the source file and the change log. Edit groups and providers on their pages.")
     panel("Lineup policy", id = "policy") {
         val policy = view.policy
         if (policy == null) { p("muted") { +"No lineup policy. Add policy.json to the data directory, or set SOFA_POLICY to a policy file in a writable directory, and restart; the server then builds the lineup from it." }; return@panel }
@@ -152,6 +232,9 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
             span("muted small") { +"Runs the policy over the current feeds and writes the lineup. Runs also follow every import and every 15 minutes." }
         }
     }
+    view.runtime?.let { runtimePanel(chrome, it) }
+    h2("mt-16") { +"Startup settings" }
+    p("muted small") { +"Read from the server's environment (.env) when it starts. Change one there and restart the server." }
     div("cols") {
         for (group in view.groups) panel(group.title) {
             div("settings") {

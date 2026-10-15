@@ -315,4 +315,24 @@ class ProbeWorkerTest {
             } finally { Files.deleteIfExists(local) }
         }
     }
+
+    @Test fun `probe now puts a source at the front of the queue whether or not it is due`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-probe-now-")
+        try { HttpClient(CIO).use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            val config = FeedConfig("p", "http://example.test/feed.m3u")
+            val channel = Channel("station", "5", "Station")
+            val offering = Offering("source", channel.id, "p", "http://example.test/live.m3u8", "hls")
+            store.saveSnapshot(FeedSnapshot("p", listOf(channel), listOf(offering), clock.now.toString()))
+            val feeds = FeedService(listOf(config), store, http, clock); feeds.initialize()
+            val probed = mutableListOf<String>()
+            val worker = ProbeWorker(feeds, store, clock, "unused") { target, _ -> probed += target.id; null }
+            assertTrue(worker.step()); assertFalse(worker.step(), "a healthy source is not due again for hours")
+            assertFalse(worker.probeNow("nothing"), "an unknown source is refused")
+            assertTrue(worker.probeNow(offering.id))
+            assertTrue(worker.step(), "the asked-for probe runs at once")
+            assertEquals(listOf("source", "source"), probed)
+            assertFalse(worker.step())
+        } } } finally { dir.toFile().deleteRecursively() }
+    }
 }

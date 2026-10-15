@@ -16,6 +16,7 @@ import io.ktor.client.statement.request
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.plugins.origin
 import io.ktor.server.response.header
 import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondBytesWriter
@@ -59,7 +60,7 @@ class MediaRelay(
         token: String,
     ) = coroutineScope {
         val job = coroutineContext[Job]!!
-        val resource = sessions.acquire(id, epoch, token, job)
+        val resource = sessions.acquire(id, epoch, token, job, call.request.origin.remoteAddress)
         try {
             // A native source resolves to its playable URL now; the headers it needs go with every request to it.
             val stream = try {
@@ -126,6 +127,7 @@ class MediaRelay(
             call.respondBytesWriter(contentType = ContentType.parse("video/mp2t")) {
                 for (chunk in reader.chunks) {
                     writeFully(chunk)
+                    resource.bytes.addAndGet(chunk.size.toLong())
                     flush()
                 }
             }
@@ -175,6 +177,7 @@ class MediaRelay(
                             bytes.toString(Charsets.UTF_8),
                             URI(response.request.url.toString()),
                         ) { url -> sessions.resourcePath(id, epoch, url) }
+                    resource.bytes.addAndGet(rewritten.length.toLong())
                     call.respondText(rewritten, ContentType.parse("application/vnd.apple.mpegurl"))
                 } else {
                     val contentType =
@@ -188,13 +191,16 @@ class MediaRelay(
                     if (encoded) {
                         val raw = head + body.readBuffer(ENCODED_LIMIT + 1L - head.size).readByteArray()
                         if (raw.size > ENCODED_LIMIT) throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Encoded resource too large", true)
-                        call.respondBytes(if (isGzip(raw)) inflateHead(raw, ENCODED_LIMIT * 8) else raw, contentType)
+                        val plain = if (isGzip(raw)) inflateHead(raw, ENCODED_LIMIT * 8) else raw
+                        resource.bytes.addAndGet(plain.size.toLong())
+                        call.respondBytes(plain, contentType)
                     } else {
                         response.headers[HttpHeaders.ContentRange]?.let { call.response.header(HttpHeaders.ContentRange, it) }
                         response.headers[HttpHeaders.AcceptRanges]?.let { call.response.header(HttpHeaders.AcceptRanges, it) }
                         call.respondBytesWriter(contentType = contentType, status = response.status) {
                             writeFully(head)
-                            body.copyTo(this)
+                            resource.bytes.addAndGet(head.size.toLong())
+                            resource.bytes.addAndGet(body.copyTo(this))
                         }
                     }
                 }

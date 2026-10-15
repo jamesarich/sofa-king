@@ -231,6 +231,58 @@ internal fun FlowContent.confirmDialog(chrome: Chrome, confirm: Confirm?) {
     }
 }
 
+/**
+ * A yes-or-no dialog for an action that cannot be undone: [title] asks the question, [block] adds the action's hidden
+ * fields and the explanation, and the form posts to [action] with `confirm=yes`; Cancel goes back to [back].
+ */
+internal fun FlowContent.askDialog(chrome: Chrome, title: String, action: String, back: String, verb: String, danger: Boolean = false, block: FORM.() -> Unit) {
+    div("modal") {
+        div("dialog") {
+            attributes["role"] = "dialog"
+            attributes["aria-modal"] = "true"
+            attributes["aria-labelledby"] = "confirm-title"
+            h2 { id = "confirm-title"; +title }
+            form(action = action, method = FormMethod.post) {
+                hiddenInput(name = "csrf") { value = chrome.session.csrf }
+                hiddenInput(name = "confirm") { value = "yes" }
+                block()
+                div("actions") {
+                    a(back, classes = "btn quiet") { attributes["autofocus"] = "autofocus"; +"Cancel" }
+                    button(type = ButtonType.submit, classes = if (danger) "danger" else "primary") { +verb }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The bulk edit the Channels page offers over the selected stations, by key: hide, show or set the group of each,
+ * written into their overrides in one policy edit. [op] and [group] come from the form.
+ */
+internal fun bulkEdit(op: String?, group: String?, keys: List<String>): PolicyEdit {
+    if (keys.isEmpty()) bad("Select at least one channel")
+    val count = "${keys.size} ${if (keys.size == 1) "channel" else "channels"}"
+    fun each(describe: String, change: (MutableMap<String, JsonElement>) -> Unit) = PolicyEdit(describe, "bulk") { tree ->
+        val stations = (tree["stations"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+        for (key in keys) {
+            val station = (stations[key] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+            change(station)
+            if (station.isEmpty()) stations.remove(key) else stations[key] = JsonObject(station)
+        }
+        JsonObject(tree.toMutableMap().apply { put("stations", JsonObject(stations.toSortedMap())) })
+    }
+    return when (op) {
+        "hide" -> each("hide $count") { it["enabled"] = JsonPrimitive(false) }
+        "show" -> each("show $count") { it["enabled"] = JsonPrimitive(true) }
+        "group" -> {
+            val target = group?.trim().orEmpty()
+            if (target.isEmpty()) each("let the policy group $count") { it.remove("group") }
+            else each("move $count to $target") { it["group"] = JsonPrimitive(target) }
+        }
+        else -> bad("Unknown edit ${op ?: ""}".trim())
+    }
+}
+
 /** A policy edit form: the CSRF token, the revision the page showed, and the [op]. */
 internal fun FlowContent.editForm(action: String, chrome: Chrome, revision: String, op: String, classes: String = "inline", block: FORM.() -> Unit) =
     form(action = action, method = FormMethod.post, classes = classes) {

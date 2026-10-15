@@ -20,9 +20,9 @@ struct SettingsView: View {
                     .textInputAutocapitalization(.never)
                 SecureField("API token", text: $token)
             }
+            // Saving a changed address or token reloads the lineup by itself.
             Button("Save") {
                 model.core.saveServer(url: url, apiToken: token)
-                model.core.refresh()
                 dismiss()
             }
         }

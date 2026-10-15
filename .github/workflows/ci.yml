@@ -48,7 +48,7 @@ defaults:
 jobs:
   check:
     name: Test and build (Linux)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -88,11 +88,9 @@ jobs:
           path: app/ui/build/screenshots/
           if-no-files-found: ignore
 
-  # macOS minutes bill at 10x on a private repo, so Apple tests run on main and on demand; PRs compile the
-  # iOS test klib on Linux above.
+  # Apple targets and the two Swift hosts, which only macOS can build.
   apple:
     name: Test (Apple)
-    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
@@ -119,6 +117,19 @@ jobs:
           :core:compileKotlinIosArm64 :core:compileKotlinTvosArm64 :core:compileKotlinWatchosArm64
           :ui:compileKotlinIosArm64
           :ui:linkDebugFrameworkIosSimulatorArm64 :core:linkDebugFrameworkTvosSimulatorArm64
+      # The SwiftUI hosts compile against the frameworks linked above; their pre-build script reuses that Gradle work.
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build the iOS host
+        working-directory: app/iosApp
+        run: >-
+          xcodegen && xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug
+          -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build
+      - name: Build the Apple TV host
+        working-directory: app/tvosApp
+        run: >-
+          xcodegen && xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug
+          -destination 'generic/platform=tvOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build
       - name: Upload reports
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

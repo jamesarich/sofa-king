@@ -1,7 +1,6 @@
 plugins { application; alias(libs.plugins.kotlin.jvm); alias(libs.plugins.kotlin.serialization); id("sofaking.kotlin") }
 application { mainClass = "dev.jamesrich.sofaking.backend.MainKt" }
 dependencies {
-    implementation(platform("org.jetbrains.kotlin:kotlin-bom:${libs.versions.kotlin.get()}"))
     implementation("dev.jamesrich.sofaking:contract")
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)

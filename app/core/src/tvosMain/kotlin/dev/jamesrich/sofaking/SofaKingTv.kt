@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.onAppleTv
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -36,9 +37,9 @@ data class NowNext(val now: Programme?, val next: Programme?)
  */
 @OptIn(ExperimentalForeignApi::class)
 class SofaKingTv {
-    // tvOS may purge any file while the app is closed and only Caches is guaranteed writable.
-    private val storage = AppStorage.inDirectory(
-        requireNotNull(
+    // The settings live in NSUserDefaults, which tvOS keeps; the lineup cache in Caches, which it may purge.
+    private val storage = AppStorage.onAppleTv(
+        cachesDirectory = requireNotNull(
             NSFileManager.defaultManager.URLForDirectory(
                 directory = NSCachesDirectory,
                 inDomain = NSUserDomainMask,
@@ -55,8 +56,6 @@ class SofaKingTv {
     fun watchState(onChange: (LineupState) -> Unit): Watch = watch(viewModel.state, onChange)
 
     fun watchSettings(onChange: (AppSettings) -> Unit): Watch = watch(viewModel.settings.filterNotNull(), onChange)
-
-    fun watchLoading(onChange: (Boolean) -> Unit): Watch = watch(viewModel.loading, onChange)
 
     /** Streams the server replaced under the held session; the player swaps to the new URL. */
     fun watchReplaced(onChange: (PlaybackStream) -> Unit): Watch = watch(viewModel.sessions.replaced, onChange)
@@ -87,13 +86,15 @@ class SofaKingTv {
 
     fun refresh() = viewModel.refresh()
 
+    fun toggleFavorite(guideId: String) {
+        viewModel.toggleFavorite(guideId)
+    }
+
     fun nowAndNext(lineup: Lineup, channel: Channel): NowNext =
         lineup.nowAndNext(channel, Clock.System.now()).let { (now, next) -> NowNext(now, next) }
 
-    /** Milliseconds since the epoch, which Swift turns into a `Date`. */
+    /** The program's start in milliseconds since the epoch, which Swift turns into a `Date`. */
     fun epochMs(programme: Programme): Long = programme.start.toEpochMilliseconds()
-
-    fun stopEpochMs(programme: Programme): Long = programme.stop.toEpochMilliseconds()
 
     private fun <T> watch(flow: Flow<T>, onChange: (T) -> Unit): Watch = Watch(scope.launch { flow.collect { onChange(it) } })
 }

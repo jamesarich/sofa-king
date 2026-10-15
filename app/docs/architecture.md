@@ -53,6 +53,7 @@ Network, decoding and cache work run on the IO dispatcher (the default dispatche
 | Android | `files/datastore/settings.preferences_pb` | `files/lineup-cache.bin` |
 | Desktop | `<dir>/datastore/settings.preferences_pb` | `<dir>/lineup-cache.bin` |
 | iOS | `datastore/settings.preferences_pb` under Application Support | `lineup-cache.bin` under Application Support |
+| Apple TV | `NSUserDefaults`, under `sofaking.preferences`, since tvOS may purge any file; an older build's file under Caches moves there on first read | `lineup-cache.bin` under Caches |
 | Web | DataStore's localStorage store for the page's origin, under `sofaking.preferences`; an older build's `sofaking.settings` entry moves there on first read | localStorage, base64 under `sofaking.lineupCache` |
 
 On a desktop, `<dir>` is the OS's per-user app data directory:

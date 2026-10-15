@@ -96,5 +96,11 @@ class SofaKingTv {
     /** The program's start in milliseconds since the epoch, which Swift turns into a `Date`. */
     fun epochMs(programme: Programme): Long = programme.start.toEpochMilliseconds()
 
+    /** The program's end in milliseconds since the epoch. */
+    fun endEpochMs(programme: Programme): Long = programme.stop.toEpochMilliseconds()
+
+    /** The program's description; the property clashes with `NSObject.description`, so Swift reads it here. */
+    fun summary(programme: Programme): String? = programme.description
+
     private fun <T> watch(flow: Flow<T>, onChange: (T) -> Unit): Watch = Watch(scope.launch { flow.collect { onChange(it) } })
 }

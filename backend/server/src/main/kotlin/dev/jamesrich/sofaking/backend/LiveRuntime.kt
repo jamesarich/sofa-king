@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
+import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.plex.HdhrDevice
 import dev.jamesrich.sofaking.backend.plex.PlexSync
@@ -55,6 +56,8 @@ class LiveRuntime(
     val plex: PlexSync? = null,
     /** When the runtime started, for the uptime the status reports. */
     val startedAt: java.time.Instant = java.time.Instant.now(),
+    /** The background jobs, for the portal's Jobs page. */
+    val jobs: Jobs = Jobs(Clock.systemUTC()),
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -76,15 +79,16 @@ class LiveRuntime(
                 install(HttpTimeout) { requestTimeoutMillis = 60_000; connectTimeoutMillis = 5000; socketTimeoutMillis = 15_000 }
             }
             val scope = backgroundScope()
+            val jobs = Jobs(clock)
             try {
                 val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
                 lateinit var logos: LogoCache
                 var policyService: PolicyService? = null
                 val providers = ProviderRegistry.create(sources.providers, http, store, clock, policy)
-                val feeds = FeedService(sources.providers, store, http, clock, policy, providers) { logos.requestSweep(); policyService?.requestRun("feeds") }
+                val feeds = FeedService(sources.providers, store, http, clock, policy, providers, jobs) { logos.requestSweep(); policyService?.requestRun("feeds") }
                 feeds.initialize()
                 lateinit var lineup: LineupService
-                val guides = GuideService(sources.allGuides, store, http, clock, policy, providers, onImported = { policyService?.requestRun("guides") }) {
+                val guides = GuideService(sources.allGuides, store, http, clock, policy, providers, onImported = { policyService?.requestRun("guides") }, jobs = jobs) {
                     val mapped = lineup.wanted()
                     val extra = policyService?.wantedGuides().orEmpty()
                     if (extra.isEmpty()) mapped else (mapped.keys + extra.keys).associateWith { id -> mapped[id].orEmpty() + extra[id].orEmpty() }
@@ -96,11 +100,11 @@ class LiveRuntime(
                     val ports = config.hdhr.publicPorts(config.port)
                     PlexSync(
                         plexConfig, http, clock, { val serverId = store.serverId(); List(config.hdhr.devices) { n -> HdhrDevice(n, hdhrDeviceId(config.hdhr, serverId, n), ports[n]) } },
-                        plexDebounceMillis, initial = store.plexStatus(), persist = store::savePlexStatus,
+                        plexDebounceMillis, initial = store.plexStatus(), persist = store::savePlexStatus, jobs = jobs,
                     )
                 }
                 val catalog = CatalogService(feeds, guides, lineup, store, clock)
-                logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) })
+                logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) }, jobs = jobs)
                 logos.initialize()
                 val sessions = SessionManager(catalog, store, clock, config.maxSessions)
                 policyService = loadedPolicy?.let { loaded ->
@@ -109,7 +113,7 @@ class LiveRuntime(
                     val file = PolicyFile(loaded, providerIds) { service.requestRun("policy") }
                     service = PolicyService(
                         file, feeds, guides, lineup, store, clock, sizing, policyDebounceMillis,
-                        onLineupChanged = { plex?.requestSync("policy") }, extraFindings = { plex?.findings().orEmpty() },
+                        onLineupChanged = { plex?.requestSync("policy") }, extraFindings = { plex?.findings().orEmpty() }, jobs = jobs,
                     )
                     service
                 }
@@ -123,7 +127,7 @@ class LiveRuntime(
                 plex?.requestSync("startup")
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
-                    policyService, plex, started,
+                    policyService, plex, started, jobs,
                 )
                 scope.launchEvery("session-expire", 1000) { sessions.expire() }
                 // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.

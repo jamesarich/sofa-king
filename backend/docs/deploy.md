@@ -177,6 +177,8 @@ The Compose file runs the container with a read-only root filesystem; the server
 
 `mem_limit` (4 GiB) covers the JVM and its FFmpeg processes, and the heap is 75% of it (`SERVER_OPTS`; `JAVA_OPTS` adds to those flags). Each FFmpeg process takes tens of megabytes, so raise the limit with `SOFA_MAX_SESSIONS` or `SOFA_PROBE_PARALLELISM`.
 
+`SERVER_OPTS` also sets `-Djava.net.preferIPv4Stack=true`. The server connects to the first address a host resolves to, and Docker's resolver answers with IPv6 addresses first for many CDN hosts while the default Compose network has no IPv6 route, which fails every request to those hosts with a socket error. `SERVER_OPTS` comes last on the JVM command line, so `JAVA_OPTS` cannot undo it; on a host whose Docker network routes IPv6, set the whole `SERVER_OPTS` in `.env` without that flag.
+
 ## Verify
 
 From `backend/deploy`:

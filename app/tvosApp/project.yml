@@ -12,6 +12,9 @@ targets:
     type: application
     platform: tvOS
     sources: [SofaKingTV]
+    dependencies:
+      - target: TopShelf
+        embed: true
     configFiles:
       Debug: ../build/Version.xcconfig
       Release: ../build/Version.xcconfig
@@ -24,6 +27,15 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         NSLocalNetworkUsageDescription: Sofa King connects to your Sofa King server on this network.
+        # The Top Shelf opens a channel with `sofaking://channel/<guideId>`.
+        CFBundleURLTypes:
+          - CFBundleURLName: dev.jamesrich.sofaking.tv
+            CFBundleURLSchemes: [sofaking]
+    # The app group carries the recent channels to the Top Shelf extension; both targets must be signed for it.
+    entitlements:
+      path: SofaKingTV/SofaKingTV.entitlements
+      properties:
+        com.apple.security.application-groups: [group.dev.jamesrich.sofaking]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking.tv
@@ -38,3 +50,28 @@ targets:
         script: |
           cd "$SRCROOT/.."
           ./gradlew :core:embedAndSignAppleFrameworkForXcode
+  # The Top Shelf extension shows the recent channels; it reads them from the app group, so it needs no Kotlin framework.
+  TopShelf:
+    type: app-extension
+    platform: tvOS
+    sources: [TopShelf, SofaKingTV/TopShelfChannels.swift]
+    configFiles:
+      Debug: ../build/Version.xcconfig
+      Release: ../build/Version.xcconfig
+    info:
+      path: TopShelf/Info.plist
+      properties:
+        CFBundleDisplayName: Sofa King
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.tv-top-shelf
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ContentProvider
+        # Channel logos come from the server over plain HTTP, as in the app.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    entitlements:
+      path: TopShelf/TopShelf.entitlements
+      properties:
+        com.apple.security.application-groups: [group.dev.jamesrich.sofaking]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking.tv.topshelf

@@ -10,7 +10,7 @@ internal data class Migration(val version: Int, val sql: String)
 internal fun foundationMigrations(): List<Migration> = listOf(
     "V001__foundation.sql", "V002__offering_health.sql", "V003__probe_attempt_and_indexes.sql", "V004__offering_protocol.sql",
     "V010__lineup_and_guides.sql", "V030__logo_cache.sql", "V040__lineup_entry_curation.sql", "V041__curation.sql", "V050__provider_state.sql",
-    "V060__station_availability.sql", "V070__drop_curation.sql", "V080__programme_details.sql",
+    "V060__station_availability.sql", "V070__drop_curation.sql", "V080__programme_details.sql", "V090__attention_ignore.sql",
 ).map { resource ->
     val sql = checkNotNull(Migration::class.java.getResourceAsStream("/db/$resource")) {
         "Missing migration $resource"

@@ -31,10 +31,12 @@ COPY --from=split /app/lib /opt/sofa/lib
 # Any uid that owns a bind-mounted /config can run the image (user: "UID:GID"); it writes nothing else but /tmp.
 # SOFA_HDHR_ALLOW is required for the LAN bind unless SOFA_HDHR_ENABLED=false; unset API and admin tokens are generated.
 # The start script reads SERVER_OPTS (APP_NAME + _OPTS) and JAVA_OPTS; the image sets the former so JAVA_OPTS stays the operator's knob.
+# preferIPv4Stack: the HTTP client connects to the first resolved address, and a container without an IPv6 route is still
+# handed AAAA records first for CDN hosts.
 ENV SOFA_HOST=0.0.0.0 \
     SOFA_PORT=8080 \
     SOFA_DATA_DIR=/config \
-    SERVER_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
+    SERVER_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError -Djava.net.preferIPv4Stack=true"
 
 USER sofa
 WORKDIR /opt/sofa

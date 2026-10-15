@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking.backend.catalog
 import dev.jamesrich.sofaking.backend.api.GuideChannelInfo
 import dev.jamesrich.sofaking.backend.api.GuideStatus
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
+import dev.jamesrich.sofaking.backend.jobs.JobOutcome
+import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.StoredGuide
 import dev.jamesrich.sofaking.backend.store.guides
@@ -46,6 +48,8 @@ class GuideService(
     private val providers: ProviderRegistry? = null,
     /** Runs after each successful import. */
     private val onImported: () -> Unit = {},
+    /** Where each import is recorded for the portal's Jobs page. */
+    private val jobs: Jobs = Jobs(clock),
     /** Guide id to the XMLTV channel ids the lineup maps onto it. */
     private val wanted: () -> Map<String, Set<String>>,
 ) {
@@ -58,6 +62,10 @@ class GuideService(
     private val published = AtomicReference(Published(emptyMap()))
     private val statuses = AtomicReference(configs.map { GuideStatus(it.id) })
     private val locks = configs.associate { it.id to Mutex() }
+
+    init {
+        for (config in configs) jobs.register("guide:${config.id}", "Guide ${config.id}", Duration.ofSeconds(config.refreshSeconds)) { requestRefresh(config.id) }
+    }
     private val triggers = configs.associate { it.id to Channel<Unit>(Channel.CONFLATED) }
 
     suspend fun initialize() {
@@ -98,7 +106,7 @@ class GuideService(
     suspend fun programmes(guideId: String, channelIds: Collection<String>, from: Instant, to: Instant): Map<String, List<GuideProgramme>> =
         if (guideId !in locks) emptyMap() else store.programmes(guideId, channelIds, from, to)
 
-    suspend fun refresh(config: GuideConfig) = locks.getValue(config.id).withLock {
+    suspend fun refresh(config: GuideConfig) = locks.getValue(config.id).withLock { jobs.record("guide:${config.id}") {
         val started = clock.instant()
         try {
             val wantedIds = wanted()[config.id].orEmpty()
@@ -129,6 +137,7 @@ class GuideService(
                 config.id, parsed.channels.size, parsed.programmes.size, wantedIds.size, parsed.controlCharacters, Duration.between(started, clock.instant()).toMillis(),
             )
             onImported()
+            JobOutcome(true, "${parsed.channels.size} channels, ${parsed.programmes.size} programmes")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -137,8 +146,9 @@ class GuideService(
                 "guide import guide={} failed class={} message=\"{}\" durationMs={}",
                 config.id, e.javaClass.simpleName, redactedMessage(e), Duration.between(started, clock.instant()).toMillis(),
             )
+            JobOutcome(false, "IMPORT_FAILED (${e.javaClass.simpleName})")
         }
-    }
+    } }
 
     /** Asks the guide's loop to refresh soon; repeated requests before it runs coalesce into one. */
     fun requestRefresh(guideId: String) {

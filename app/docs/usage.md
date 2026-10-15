@@ -43,7 +43,7 @@ On a TV the screens keep 48 dp at the sides and 27 dp at the top and bottom clea
 
 A channel opened from Favorites or a category chip keeps channel up and down and the channel list inside that filter, and the info bar names it with the channel's place, for example "Sports 3/214". Typing a number outside it widens them to the whole lineup. Leaving the app stops playback and releases its session on the server. Returning opens a new session for the same channel and prepares the stream at the live edge while preserving paused intent.
 
-The channel list opens on OK, Left or Right while the info bar shows. Its chips are Favorites, the guide filter the channel was opened from, and All; Up/Down select a channel, Left/Right move along the chips from the top row, OK tunes the focused channel and Back closes the list. Each row shows the channel's number, logo, name, the program on now with its progress, and the next program with its start time. The last channel watched is pinned above the All and filter lists. Picking a channel under All from a filtered player widens channel up and down to the whole lineup.
+The channel list opens on OK, Left or Right while the info bar shows. Its chips are Recent (the channels watched lately, newest first), Favorites, the guide filter the channel was opened from, and All; Up/Down select a channel, Left/Right move along the chips from the top row, OK tunes the focused channel and Back closes the list. Each row shows the channel's number, logo, name, the program on now with its progress, and the next program with its start time. The last channel watched is pinned above the All and filter lists. Picking a channel under All from a filtered player widens channel up and down to the whole lineup.
 
 The info bar shows the channel's logo and the current program's title, badges, episode, time and description, with the program's image when the guide source has one. The first three bars after install end with a one-line key legend, which the stream card carries from then on.
 
@@ -62,6 +62,10 @@ Where captions are drawn depends on the platform:
 - In a browser, the app draws them in the selected style while it draws the video into its own canvas. When it falls back to the browser's video element, without WebGL2 or when the server sends no CORS headers on media, the browser draws them. Chrome's built-in HLS player shows none.
 
 On Android, caption timing shifts captions against the picture so live captions align with speech. Press CC, then within three seconds use Right to show them earlier or Left to show them later, in half-second steps, up to 8 seconds either way; each press keeps the window open and the toast shows the timing. The info bar shows the channel's timing as "CC 2.0 s early" or "CC 1.5 s late". Timing is saved per channel; Settings sets the default timing, in the same steps and range. Showing captions earlier buffers the video by that much, so it also means a longer wait when a channel starts; showing them later does not.
+
+## Apple TV
+
+The Apple TV app lists the channels, favorites first, with the program on now and next; select one to watch it. Hold the touch surface on a channel for Program details, which shows the program's image, episode, rating, time left, description and what follows, with Watch and the favorite toggle, or add the channel to the favorites from the same menu. In the player, swipe down for the transport bar: its menu stars the channel and lists the recent channels, the favorites and every channel, so switching never leaves the player. The Home screen's Top Shelf shows the last ten channels watched, newest first, while the app is in the top row; selecting one opens the app on that channel.
 
 ## Settings
 

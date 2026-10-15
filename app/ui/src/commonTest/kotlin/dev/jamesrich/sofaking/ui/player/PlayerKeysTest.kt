@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.ui.input.key.Key
+import dev.jamesrich.sofaking.ui.guide.gridStep
+import kotlin.math.sign
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.Test
@@ -50,6 +52,15 @@ class PlayerKeysTest {
         assertEquals(PlayerAction.ZAP_UP, Key.ChannelUp.playerAction())
         assertEquals(PlayerAction.ZAP_DOWN, Key.DirectionDown.playerAction())
         assertEquals(PlayerAction.ZAP_DOWN, Key.ChannelDown.playerAction())
+    }
+
+    @Test
+    fun `a zap moves through the lineup the way the same key moves the guide grid`() {
+        assertEquals(Key.DirectionUp.gridStep()!!.rows, PlayerAction.ZAP_UP.zapStep())
+        assertEquals(Key.DirectionDown.gridStep()!!.rows, PlayerAction.ZAP_DOWN.zapStep())
+        assertEquals(Key.ChannelUp.gridStep()!!.rows.sign, PlayerAction.ZAP_UP.zapStep()!!.sign)
+        assertEquals(Key.ChannelDown.gridStep()!!.rows.sign, PlayerAction.ZAP_DOWN.zapStep()!!.sign)
+        assertNull(PlayerAction.TOGGLE_INFO.zapStep())
     }
 
     @Test

@@ -80,6 +80,6 @@ The guide opens and fills in: channels first, then their programs.
 
 Move through the guide with the D-pad or the arrow keys. The focused channel plays in a muted preview; its sound comes on after 5 seconds and it opens full screen after 10. Press OK to open it at once.
 
-In the player, Up and Down change channels and Back returns to the guide. The next start opens the channel you last watched.
+In the player, Up and Down change channels in the direction they move the guide and Back returns to the guide. The next start opens the channel you last watched.
 
 [Using Sofa King](usage.md) has every control, captions and the settings. [Troubleshooting](troubleshooting.md) covers a guide that stays empty or a channel that does not play.

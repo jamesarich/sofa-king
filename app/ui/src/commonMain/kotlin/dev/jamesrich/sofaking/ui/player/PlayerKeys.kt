@@ -58,6 +58,16 @@ internal fun Key.playerAction(): PlayerAction? = when (this) {
     else -> null
 }
 
+/**
+ * Channels a zap action moves through the lineup, in the direction the same key moves the guide's grid: Up is the
+ * channel above the current one in the guide (negative), Down the channel below it (positive).
+ */
+internal fun PlayerAction.zapStep(): Int? = when (this) {
+    PlayerAction.ZAP_UP -> -1
+    PlayerAction.ZAP_DOWN -> 1
+    else -> null
+}
+
 /** Where a key goes while the channel list is open. */
 internal enum class MiniGuideKey { LIST, SWALLOWED, PLAYER }
 

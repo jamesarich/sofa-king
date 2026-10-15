@@ -14,7 +14,7 @@ The server is designed for a private network. It has no accounts, no per-user ac
 | Admin token (`SOFA_ADMIN_TOKEN`) | `Authorization: Bearer` | `/api/v1/admin/*`. The API token is refused there once this is set |
 | Admin portal session | `sofa_admin` cookie, set by signing in at `/admin` with the admin token (or the API token when no admin token is set) | `/admin/*`, the [admin portal](admin.md). Actions also need the session's CSRF token |
 | Output token (`SOFA_OUTPUT_TOKEN`) | `?token=` query or bearer | `/output/*`: the playlist, the guide and the stream URLs |
-| None | | `/healthz`, `/readyz`, `/logos/{key}`, the admin sign-in page (`GET /admin` and `POST /admin/login`) and the portal icon `/admin/static/icon.svg` |
+| None | | `/healthz`, `/readyz`, `/logos/{key}`, the admin sign-in page (`GET /admin` and `POST /admin/login`), the portal icon `/admin/static/icon.svg` and its stylesheet `/admin/static/admin.css` |
 | None; client address allow-list | | The HDHomeRun routes (`/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/auto/v{number}`). `SOFA_HDHR_ALLOW` admits the listed addresses and answers everyone else `403` |
 | Session URL | | `/media/sessions/{id}/{epoch}/{token}`. `{token}` is random per resource, and the URL stops working when the session ends or its epoch changes |
 

@@ -277,9 +277,9 @@ internal fun groupsPage(chrome: Chrome, view: GroupsView?, errors: EditErrors? =
                         td {
                             editForm(action, chrome, view.revision, "block", classes = "actions") {
                                 hiddenInput(name = "group") { value = block.group }
-                                numberInput(name = "start") {
+                                numberInput(name = "start", classes = "w-number") {
                                     value = block.start.toString(); min = "1"; max = "999999"; required = true
-                                    attributes["aria-label"] = "First number of ${block.group}"; attributes["style"] = "width:7.5em"
+                                    attributes["aria-label"] = "First number of ${block.group}"
                                 }
                                 button(type = ButtonType.submit, classes = "small") { +"Save" }
                             }

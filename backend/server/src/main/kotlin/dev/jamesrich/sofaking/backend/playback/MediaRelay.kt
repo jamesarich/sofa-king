@@ -34,6 +34,8 @@ import kotlinx.io.readByteArray
 import java.net.URI
 import kotlin.coroutines.coroutineContext
 
+private val MEDIA_STATUSES = setOf(200, 206)
+
 class MediaRelay(
     private val http: HttpClient,
     private val feeds: FeedService,
@@ -151,7 +153,7 @@ class MediaRelay(
                 unbounded = true,
                 policy = feeds.upstream,
             ) { response ->
-                if (response.status.value !in setOf(200, 206)) {
+                if (response.status.value !in MEDIA_STATUSES) {
                     throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
                 }
                 val body = response.bodyAsChannel()

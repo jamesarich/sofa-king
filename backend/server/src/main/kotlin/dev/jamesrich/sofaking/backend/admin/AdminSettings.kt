@@ -147,8 +147,7 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
                 }
             }
         }
-        div("actions") {
-            attributes["style"] = "margin-top:14px"
+        div("actions mt-14") {
             postForm("/admin/policy/apply", chrome.session) { button(type = ButtonType.submit, classes = "primary") { +"Apply now" } }
             span("muted small") { +"Runs the policy over the current feeds and writes the lineup. Runs also follow every import and every 15 minutes." }
         }
@@ -169,9 +168,8 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
                         if (setting.note != null) div("muted small") { +setting.note }
                     }
                 }
-                if (group.title == "Tokens" && view.apiTokenSet) div {
+                if (group.title == "Tokens" && view.apiTokenSet) div("mt-12") {
                     attributes["id"] = "api-token"
-                    attributes["style"] = "margin-top:12px"
                     val token = view.revealedApiToken
                     if (token == null) postForm("/admin/settings/reveal-api-token", chrome.session) { button(type = ButtonType.submit) { +"Reveal the API token" } }
                     else {

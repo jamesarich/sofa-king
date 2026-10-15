@@ -2,7 +2,6 @@ package dev.jamesrich.sofaking.backend.http
 
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.origin
-import io.ktor.server.request.path
 import io.ktor.util.AttributeKey
 import java.time.Clock
 import org.slf4j.LoggerFactory
@@ -35,6 +34,6 @@ internal val AuthFailureLogKey = AttributeKey<AuthFailureLog>("AuthFailureLog")
 
 /** Records a rejected token for this call in the application's [AuthFailureLog], when it has one. */
 internal fun ApplicationCall.authFailed() {
-    val route = routedPath(request.path()) ?: "-"
+    val route = routedPath ?: "-"
     application.attributes.getOrNull(AuthFailureLogKey)?.failed(route, request.origin.remoteAddress)
 }

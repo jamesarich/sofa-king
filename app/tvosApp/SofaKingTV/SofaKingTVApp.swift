@@ -19,6 +19,8 @@ final class AppModel {
     let core = SofaKingTv()
     private(set) var state: LineupState = LineupStateLoading.shared
     private(set) var settings: AppSettings?
+    /// Whether the one cold-start decision, opening the last channel, has been made.
+    var launchDecided = false
     private var watches: [Watch] = []
 
     init() {
@@ -35,8 +37,6 @@ final class AppModel {
     }
 
     var lineup: Lineup? { (state as? LineupStateReady)?.lineup }
-
-    func channel(id: String) -> Channel? { lineup?.channels.first { $0.guideId == id } }
 }
 
 struct ContentView: View {

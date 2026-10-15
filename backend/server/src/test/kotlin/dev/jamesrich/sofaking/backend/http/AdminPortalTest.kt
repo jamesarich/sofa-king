@@ -94,7 +94,8 @@ class AdminPortalTest {
             val dashboard = browser.get("/admin")
             assertTrue(dashboard.bodyAsText().contains("Providers"))
             assertEquals("no-store", dashboard.headers[HttpHeaders.CacheControl])
-            assertTrue(dashboard.headers["Content-Security-Policy"]!!.contains("script-src 'self'"))
+            assertTrue(dashboard.headers["Content-Security-Policy"]!!.contains("script-src 'self'; style-src 'self'"))
+            assertFalse(dashboard.bodyAsText().contains(" style=\""), "no inline style, which the policy would block")
             val lineup = browser.get("/admin/lineup")
             assertEquals(HttpStatusCode.OK, lineup.status)
             assertEquals(HttpStatusCode.OK, browser.get("/admin/static/htmx.min.js").status)
@@ -262,6 +263,20 @@ class AdminPortalTest {
             val html = browser.get("/admin/providers").bodyAsText()
             for (id in listOf("fixture", "alt", "twin", "ts", "broken")) assertTrue(html.contains(">$id<"), id)
             assertFalse(html.contains("/feed.m3u"), "no source URL reaches the page")
+        }
+    }
+
+    @Test fun `the stylesheet is served without a session and every page links it by content version`() = testApplication {
+        portal {
+            val signIn = client.get("/admin").bodyAsText()
+            val href = Regex("""href="(/admin/static/admin\.css\?v=[0-9a-f]{16})"""").find(signIn)?.groupValues?.get(1)
+            assertNotNull(href, signIn.take(400))
+            val sheet = client.get(href)
+            assertEquals(HttpStatusCode.OK, sheet.status)
+            assertEquals(ContentType.Text.CSS, sheet.contentType()?.withoutParameters())
+            assertEquals("private, max-age=86400", sheet.headers[HttpHeaders.CacheControl])
+            assertTrue(sheet.bodyAsText().contains("--plum:"))
+            assertFalse(signIn.contains("<style"), "the page carries no inline stylesheet")
         }
     }
 

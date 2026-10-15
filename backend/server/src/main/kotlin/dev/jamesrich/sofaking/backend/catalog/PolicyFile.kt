@@ -1,10 +1,7 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
+import dev.jamesrich.sofaking.backend.io.atomicWrite
 import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import java.nio.file.StandardOpenOption
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -60,7 +57,7 @@ class PolicyFile(initial: LoadedPolicy, private val providerIds: Set<String>, pr
             }
             val errors = validatePolicy(policy, providerIds)
             if (errors.isNotEmpty()) throw ApiFailure(400, "INVALID_POLICY", errors.joinToString("; "))
-            atomicWrite(next)
+            atomicWrite(path, next)
             LoadedPolicy(path, policy, policyRevision(next)).also { loaded.set(it) }
         }
     }
@@ -72,24 +69,6 @@ class PolicyFile(initial: LoadedPolicy, private val providerIds: Set<String>, pr
             onReloaded()
         } catch (e: Exception) {
             log.warn("lineup policy on disk is invalid; keeping revision {}: {}", loaded.get().revision, e.message?.lineSequence()?.firstOrNull())
-        }
-    }
-
-    private fun atomicWrite(bytes: ByteArray) {
-        val directory = path.toAbsolutePath().parent
-        val temp = Files.createTempFile(directory, ".${path.fileName}.", ".tmp")
-        try {
-            runCatching { Files.setPosixFilePermissions(temp, Files.getPosixFilePermissions(path)) }
-            FileChannel.open(temp, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING).use { channel ->
-                val buffer = ByteBuffer.wrap(bytes)
-                while (buffer.hasRemaining()) channel.write(buffer)
-                channel.force(true)
-            }
-            Files.move(temp, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-            // The rename is durable only once the directory entry is; not every platform can open a directory.
-            runCatching { FileChannel.open(directory, StandardOpenOption.READ).use { it.force(true) } }
-        } finally {
-            Files.deleteIfExists(temp)
         }
     }
 }

@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.logos
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.catalog.normalizeLogoUrl
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
+import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.LogoRecord
 import dev.jamesrich.sofaking.backend.store.deleteLogo
@@ -17,7 +18,6 @@ import io.ktor.utils.io.readBuffer
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
@@ -98,6 +98,11 @@ class LogoCache(
     /** The bytes of a cached record, or null when the file is gone. */
     suspend fun read(record: LogoRecord): ByteArray? = withContext(Dispatchers.IO) {
         try { Files.readAllBytes(directory.resolve(record.key)) } catch (_: NoSuchFileException) { null }
+    }
+
+    /** The cached record's file, for the route to stream, or null when it is gone. */
+    suspend fun file(record: LogoRecord): Path? = withContext(Dispatchers.IO) {
+        directory.resolve(record.key).takeIf { Files.isRegularFile(it) }
     }
 
     /** Fetches every wanted logo that is missing or due, [parallelism] at a time, and deletes the ones no longer wanted. */
@@ -183,15 +188,8 @@ class LogoCache(
         }
     }
 
-    private suspend fun write(key: String, bytes: ByteArray) = withContext(Dispatchers.IO) {
-        val temporary = Files.createTempFile(directory, "$key.", ".tmp")
-        try {
-            Files.write(temporary, bytes)
-            Files.move(temporary, directory.resolve(key), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-        } finally {
-            Files.deleteIfExists(temporary)
-        }
-    }
+    // A logo lost to a crash is fetched again, so the write is atomic but not synced.
+    private suspend fun write(key: String, bytes: ByteArray) = withContext(Dispatchers.IO) { atomicWrite(directory.resolve(key), bytes, sync = false) }
 
     private suspend fun evict(key: String) {
         records.remove(key)

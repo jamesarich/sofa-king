@@ -26,3 +26,23 @@ class LogoUrlsTest {
         assertNull(normalizeLogoUrl("http://h/" + "x".repeat(2048)))
     }
 }
+
+class PercentEncodeTest {
+    @Test fun `unreserved and delimiter characters pass, everything else is UTF-8 percent-encoded`() {
+        assertEquals("abc-._~:/?#[]@!$&'()*+,;=09", percentEncode("abc-._~:/?#[]@!$&'()*+,;=09"))
+        assertEquals("a%20b", percentEncode("a b"))
+        assertEquals("%22q%22", percentEncode("\"q\""))
+        assertEquals("caf%C3%A9", percentEncode("café"))
+        assertEquals("%F0%9F%93%BA", percentEncode("📺"), "a surrogate pair is one code point, four bytes")
+        assertEquals("%7F%01", percentEncode("\u007f\u0001"), "control characters are encoded")
+    }
+
+    @Test fun `an existing escape is kept while a bare or malformed percent is encoded`() {
+        assertEquals("a%20b", percentEncode("a%20b"))
+        assertEquals("100%25", percentEncode("100%"))
+        assertEquals("%25zz", percentEncode("%zz"))
+        assertEquals("%252", percentEncode("%2"), "two hex digits must follow")
+        assertEquals("%2F%25", percentEncode("%2F%"))
+        assertEquals("", percentEncode(""))
+    }
+}

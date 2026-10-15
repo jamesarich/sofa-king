@@ -26,6 +26,16 @@ data class PlayerStatus(
  */
 data class PlayerError(val code: String, val streamGone: Boolean = false)
 
+/** Media3's error-code names, which the other engines report under too so one failure card reads them all. */
+object PlayerErrorCodes {
+    const val NETWORK_CONNECTION_FAILED = "ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"
+    const val NETWORK_CONNECTION_TIMEOUT = "ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT"
+    const val BAD_HTTP_STATUS = "ERROR_CODE_IO_BAD_HTTP_STATUS"
+    const val PARSING_CONTAINER_UNSUPPORTED = "ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED"
+    const val DECODING_FAILED = "ERROR_CODE_DECODING_FAILED"
+    const val UNSPECIFIED = "ERROR_CODE_UNSPECIFIED"
+}
+
 /** What the system's now-playing surfaces (MediaSession, lock screen, browser media keys) show for a channel. */
 @Immutable
 data class NowPlaying(val title: String, val subtitle: String, val artworkUrl: String?)

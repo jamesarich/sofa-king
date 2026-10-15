@@ -333,16 +333,16 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
  * status of a failed segment or playlist; 410 is the relay closing the session.
  */
 private fun playerErrorFor(error: NSError?, httpStatus: Long?): PlayerError {
-    if (httpStatus != null && httpStatus >= 400) return PlayerError("ERROR_CODE_IO_BAD_HTTP_STATUS", streamGone = httpStatus == 410L)
-    if (error == null) return PlayerError("ERROR_CODE_UNSPECIFIED")
+    if (httpStatus != null && httpStatus >= 400) return PlayerError(PlayerErrorCodes.BAD_HTTP_STATUS, streamGone = httpStatus == 410L)
+    if (error == null) return PlayerError(PlayerErrorCodes.UNSPECIFIED)
     val code = when (error.domain) {
-        NSURLErrorDomain -> if (error.code == NSURLErrorTimedOut) "ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT" else "ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"
+        NSURLErrorDomain -> if (error.code == NSURLErrorTimedOut) PlayerErrorCodes.NETWORK_CONNECTION_TIMEOUT else PlayerErrorCodes.NETWORK_CONNECTION_FAILED
         AVFoundationErrorDomain -> when (error.code) {
-            AVErrorFileFormatNotRecognized, AVErrorFailedToParse -> "ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED"
-            AVErrorDecoderNotFound, AVErrorDecodeFailed -> "ERROR_CODE_DECODING_FAILED"
-            else -> "ERROR_CODE_UNSPECIFIED"
+            AVErrorFileFormatNotRecognized, AVErrorFailedToParse -> PlayerErrorCodes.PARSING_CONTAINER_UNSUPPORTED
+            AVErrorDecoderNotFound, AVErrorDecodeFailed -> PlayerErrorCodes.DECODING_FAILED
+            else -> PlayerErrorCodes.UNSPECIFIED
         }
-        else -> "ERROR_CODE_UNSPECIFIED"
+        else -> PlayerErrorCodes.UNSPECIFIED
     }
     return PlayerError(code)
 }

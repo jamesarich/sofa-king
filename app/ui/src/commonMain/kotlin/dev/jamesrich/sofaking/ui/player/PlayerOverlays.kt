@@ -1,8 +1,9 @@
 package dev.jamesrich.sofaking.ui.player
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,18 +37,17 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.ChannelLogo
+import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
+import dev.jamesrich.sofaking.ui.PopIn
+import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.ProgrammeBadges
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
-import dev.jamesrich.sofaking.ui.theme.SofaAmber
-import dev.jamesrich.sofaking.ui.theme.SofaDusk
-import dev.jamesrich.sofaking.ui.theme.SofaMauve
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
-import dev.jamesrich.sofaking.ui.theme.SofaPlum
 import kotlin.time.Instant
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.widthIn
@@ -75,7 +75,25 @@ internal fun StatusPill(text: String, style: TextStyle = MaterialTheme.typograph
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (busy) SofaLoader(size = 22.dp)
-        Text(text, style = style, color = SofaDusk)
+        Text(text, style = style, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+/** The digits being typed, or the miss notice for them, top right; keyed on presence so each digit updates it in place. */
+@Composable
+internal fun BoxScope.ChannelNumberBadge(numbers: ChannelNumberInput) {
+    val miss = numbers.miss
+    val noticeText = if (miss != null) stringResource(Res.string.no_channel_number, miss) else null
+    val popIn = PopIn
+    val popOut = PopOut
+    AnimatedContent(
+        targetState = numbers.entry.digits.ifEmpty { noticeText.orEmpty() },
+        modifier = Modifier.align(Alignment.TopEnd),
+        transitionSpec = { popIn togetherWith popOut },
+        contentKey = { it.isNotEmpty() },
+        label = "digits",
+    ) { text ->
+        if (text.isNotEmpty()) DigitsBadge(text)
     }
 }
 
@@ -85,7 +103,7 @@ internal fun DigitsBadge(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.displayMedium,
-        color = SofaDusk,
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .screenPadding()
             .background(SofaOverlayScrim, OverlayShape)
@@ -112,15 +130,15 @@ internal fun BoxScope.FailureCard(code: String) {
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(stringResource(failureReasonRes(code)), style = MaterialTheme.typography.headlineSmall, color = SofaDusk)
-        Text(stringResource(Res.string.cant_play_retry), style = MaterialTheme.typography.bodyMedium, color = SofaDusk)
-        Text(code, style = MaterialTheme.typography.bodySmall, color = SofaMauve)
+        Text(stringResource(failureReasonRes(code)), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+        Text(stringResource(Res.string.cant_play_retry), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(code, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-/** Thin amber-on-dusk bar; [fraction] is 0..1. [color] is the filled part, for rows whose background is already amber. */
+/** Thin primary-colored bar; [fraction] is 0..1. [color] is the filled part, for rows whose background is already primary. */
 @Composable
-internal fun ProgressBar(fraction: Float, color: Color = SofaAmber) {
+internal fun ProgressBar(fraction: Float, color: Color = MaterialTheme.colorScheme.primary) {
     LinearProgressIndicator(
         progress = { fraction },
         modifier = Modifier.fillMaxWidth().height(4.dp),
@@ -166,29 +184,29 @@ internal fun BoxScope.InfoOverlay(
                 Text(
                     channel.label(),
                     style = MaterialTheme.typography.headlineSmall,
-                    color = SofaDusk,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (scope != null) Text(scope, style = MaterialTheme.typography.labelLarge, color = SofaMauve, maxLines = 1)
+            if (scope != null) Text(scope, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             if (captionsOn && captionAdvanceMs != null) {
                 val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)
                 val advanceDescription = stringResource(Res.string.captions_indicator_timing_description, advance)
                 Text(
                     stringResource(Res.string.captions_indicator_timing, advance),
                     style = MaterialTheme.typography.labelLarge,
-                    color = SofaPlum,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     maxLines = 1,
                     modifier = Modifier
-                        .background(SofaAmber, OverlayShape)
+                        .background(MaterialTheme.colorScheme.primary, OverlayShape)
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                         .semantics { contentDescription = advanceDescription },
                 )
             }
         }
         if (current == null) {
-            Text(channel.noListingText(lineup.guideLoading), style = MaterialTheme.typography.titleMedium, color = SofaDusk)
+            Text(channel.noListingText(lineup.guideLoading), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
         } else {
             Row {
                 Column(Modifier.weight(1f)) {
@@ -196,7 +214,7 @@ internal fun BoxScope.InfoOverlay(
                         Text(
                             current.title,
                             style = MaterialTheme.typography.titleMedium,
-                            color = SofaDusk,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
@@ -204,21 +222,21 @@ internal fun BoxScope.InfoOverlay(
                         ProgrammeBadges(
                             programme = current,
                             live = false,
-                            fill = SofaAmber,
-                            onFill = SofaPlum,
-                            outline = SofaMauve,
+                            fill = MaterialTheme.colorScheme.primary,
+                            onFill = MaterialTheme.colorScheme.onPrimary,
+                            outline = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 8.dp),
                         )
                     }
                     Text(
-                        listOfNotNull(timeFormat.range(current.start, current.stop), current.episodeLine()).joinToString("  ·  "),
+                        listOfNotNull(timeFormat.range(current.start, current.stop), current.episodeLine()).joinToString(DETAIL_SEPARATOR),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = SofaMauve,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     current.description?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = SofaMauve, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 current.icon?.let {
@@ -233,10 +251,10 @@ internal fun BoxScope.InfoOverlay(
             Spacer(Modifier.height(8.dp))
             ProgressBar(programmeProgress(current.start, current.stop, now))
         }
-        next?.let { Text(stringResource(Res.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = SofaMauve) }
+        next?.let { Text(stringResource(Res.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         if (showKeyHint) {
             Spacer(Modifier.height(8.dp))
-            Text(stringResource(Res.string.channel_list_hint), style = MaterialTheme.typography.bodySmall, color = SofaMauve)
+            Text(stringResource(Res.string.channel_list_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

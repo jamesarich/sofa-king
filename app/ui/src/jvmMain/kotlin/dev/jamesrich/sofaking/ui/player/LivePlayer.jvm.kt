@@ -295,7 +295,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
 
         override fun error(mediaPlayer: MediaPlayer) {
             _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
-            _errors.tryEmit(PlayerError("ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"))
+            _errors.tryEmit(PlayerError(PlayerErrorCodes.NETWORK_CONNECTION_FAILED))
         }
     }
 }

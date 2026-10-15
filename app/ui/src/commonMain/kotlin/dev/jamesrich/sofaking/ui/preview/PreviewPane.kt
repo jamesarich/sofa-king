@@ -1,4 +1,3 @@
-
 package dev.jamesrich.sofaking.ui.preview
 
 import androidx.compose.animation.AnimatedVisibility
@@ -15,11 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,6 +31,7 @@ import androidx.lifecycle.withStateAtLeast
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.PlaybackIntent
@@ -128,14 +126,13 @@ internal fun PreviewDetails(
     }
 }
 
-private const val DETAIL_SEPARATOR = "  ·  "
-
 /**
  * Muted live preview of [channel] on the app's shared [player]. Opens a preview session through [sessions]
  * [PREVIEW_DEBOUNCE_MS] after focus rests on a different channel; a stream the player already holds (the
  * channel just watched) keeps playing and its session goes back to preview intent. The player belongs to
  * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
- * [muted] follows the guide's rest timers; [onFailedChanged] tells the guide when the preview has no picture.
+ * [muted] follows the guide's rest timers; [failed] is the guide's record that the preview has no picture, set through
+ * [onFailedChanged].
  */
 @Composable
 internal fun PreviewVideo(
@@ -145,19 +142,18 @@ internal fun PreviewVideo(
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
     muted: Boolean,
+    failed: Boolean,
     onFailedChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val status by player.status.collectAsStateWithLifecycle()
     val buffering = status.state == PlaybackState.BUFFERING
-    var failed by remember { mutableStateOf(false) }
-    LaunchedEffect(failed) { onFailedChanged(failed) }
     LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
     // Bumped when the relay answers 410, so the tune effect reopens the channel at once instead of after the debounce.
     var retune by remember { mutableIntStateOf(0) }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(player) {
+    LaunchedEffect(player) {
         player.volume = 0f
         // Back from a paused full screen: rejoin the live edge rather than play from where it paused.
         if (!player.playWhenReady) {
@@ -165,14 +161,13 @@ internal fun PreviewVideo(
             player.stop()
             if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) player.prepare()
         }
-        onDispose {}
     }
     LaunchedEffect(player) {
-        player.status.collect { if (it.state == PlaybackState.READY) failed = false }
+        player.status.collect { if (it.state == PlaybackState.READY) onFailedChanged(false) }
     }
     LaunchedEffect(player) {
         player.errors.collect { error ->
-            if (error.streamGone && retune < MAX_STREAM_GONE_RETUNES) retune++ else failed = true
+            if (error.streamGone && retune < MAX_STREAM_GONE_RETUNES) retune++ else onFailedChanged(true)
         }
     }
 
@@ -194,7 +189,7 @@ internal fun PreviewVideo(
         }
         if (!held && retune == 0) delay(PREVIEW_DEBOUNCE_MS)
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
-            failed = false
+            onFailedChanged(false)
             // Stopped before the session changes hands: releasing the old session ends its stream, which would
             // otherwise surface as a player error. This also resets the renderers, as the full screen does.
             player.stop()
@@ -204,7 +199,7 @@ internal fun PreviewVideo(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            failed = true
+            onFailedChanged(true)
             return@LaunchedEffect
         }
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {

@@ -10,8 +10,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -29,12 +31,17 @@ internal actual fun rememberIsTelevision(): Boolean {
     }
 }
 
+/** TalkBack's touch exploration, followed while the screen is up: it can be switched on over an open guide. */
 @Composable
 internal actual fun rememberScreenReaderActive(): Boolean {
-    val context = LocalContext.current
-    return remember(context) {
-        context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true
+    val manager = LocalContext.current.getSystemService(AccessibilityManager::class.java)
+    var active by remember(manager) { mutableStateOf(manager?.isTouchExplorationEnabled == true) }
+    DisposableEffect(manager) {
+        val listener = AccessibilityManager.TouchExplorationStateChangeListener { active = it }
+        manager?.addTouchExplorationStateChangeListener(listener)
+        onDispose { manager?.removeTouchExplorationStateChangeListener(listener) }
     }
+    return active
 }
 
 @Composable

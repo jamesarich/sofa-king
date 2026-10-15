@@ -37,6 +37,37 @@ internal fun Key.playerExit(): PlayerExit? = when (this) {
     else -> null
 }
 
+/**
+ * What a key does in the player once exits and digits are taken. [LEFT] and [RIGHT] adjust the caption lead while
+ * captions and the info bar are on, and toggle the info bar otherwise; the screen decides which.
+ */
+internal enum class PlayerAction { TOGGLE_CAPTIONS, ZAP_UP, ZAP_DOWN, LAST_CHANNEL, PLAY_PAUSE, PLAY, PAUSE, TOGGLE_INFO, LEFT, RIGHT }
+
+/** Up and Channel Up zap up, Down and Channel Down zap down; Media Previous and Last Channel recall the last channel. */
+internal fun Key.playerAction(): PlayerAction? = when (this) {
+    Key.Captions, Key.C -> PlayerAction.TOGGLE_CAPTIONS
+    Key.DirectionUp, Key.ChannelUp -> PlayerAction.ZAP_UP
+    Key.DirectionDown, Key.ChannelDown -> PlayerAction.ZAP_DOWN
+    Key.MediaPrevious, Key.LastChannel -> PlayerAction.LAST_CHANNEL
+    Key.MediaPlayPause -> PlayerAction.PLAY_PAUSE
+    Key.MediaPlay -> PlayerAction.PLAY
+    Key.MediaPause -> PlayerAction.PAUSE
+    Key.Info -> PlayerAction.TOGGLE_INFO
+    Key.DirectionLeft -> PlayerAction.LEFT
+    Key.DirectionRight -> PlayerAction.RIGHT
+    else -> null
+}
+
+/** Where a key goes while the channel list is open. */
+internal enum class MiniGuideKey { LIST, SWALLOWED, PLAYER }
+
+/** Up and Down move focus inside the list, Left and Right do nothing, and every other key acts as it does in the player. */
+internal fun Key.inMiniGuide(): MiniGuideKey = when (this) {
+    Key.DirectionUp, Key.DirectionDown -> MiniGuideKey.LIST
+    Key.DirectionLeft, Key.DirectionRight -> MiniGuideKey.SWALLOWED
+    else -> MiniGuideKey.PLAYER
+}
+
 /** What a tap or click on the video does. */
 internal enum class PlayerTap { CLOSE_CHANNEL_LIST, HIDE_INFO, SHOW_INFO }
 

@@ -71,9 +71,14 @@ jobs:
       - name: Install FFmpeg
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
-      # gradle.properties caps workers at 2 for the shared home server; the runner has its cores to itself.
       - name: Test and build the distribution
-        run: ./gradlew --console=plain --max-workers="$(nproc)" test :server:installDist
+        run: ./gradlew --console=plain test :server:installDist
+
+      # The deploy and smoke scripts have no Gradle task; the runner image ships shellcheck.
+      - name: Check the shell and Python tooling
+        run: |
+          shellcheck deploy/*.sh
+          python3 -I -m unittest discover -s scripts -p 'test_*.py'
 
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

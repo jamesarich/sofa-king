@@ -54,17 +54,18 @@ Versions are pinned exactly in the shared catalog, with no lockfiles or verifica
 | Workflow | Runs for | What it does |
 | --- | --- | --- |
 | [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown or `app/docs/`), the shared `gradle/` directory or `build-logic/`, `ci.yml` or `snapshot.yml`; also a manual run | Tests and builds the app, and publishes the snapshot from `main` |
+| [`dependency-review.yml`](.github/workflows/dependency-review.yml) | Every pull request | Fails a pull request that adds a dependency with a known high-severity vulnerability |
 | [`backend.yml`](.github/workflows/backend.yml) | Pull requests and pushes to `main` that change `backend/` or `contract/` (not their Markdown or `backend/docs/`), the shared `gradle/` directory or `build-logic/`, or `backend.yml`; also a manual run | Tests and builds the server, and publishes its image from `main` |
 
 `ci.yml` runs up to three jobs:
 
 - `check` runs the app's tests, lint, the Native test compile, the release APK and the wasm web build on Ubuntu. It uploads the test reports when it fails and the `RenderSmokeTest` screenshots every time.
-- `apple` runs on every event except a pull request, so on pushes to `main` and manual runs. It runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators, the UI's iOS tests, and links the iOS framework on macOS. A pull request compiles the iOS tests on Linux in `check` instead.
+- `apple` runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators and the UI's iOS tests, links the iOS and tvOS frameworks, and builds the two SwiftUI hosts in `app/iosApp` and `app/tvosApp` with XcodeGen and `xcodebuild`, on macOS.
 - `snapshot` runs for a push to `main` once both pass. It calls `snapshot.yml`, which builds every platform but iOS and replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab.
 
 `backend.yml` runs three jobs:
 
-- `test` runs `./gradlew test :server:installDist` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there.
+- `test` runs `./gradlew test :server:installDist` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. It then runs `shellcheck` over `backend/deploy` and the unit tests in `backend/scripts`.
 - `image` builds the image from the tested distribution for `linux/amd64` and `linux/arm64`, each on a runner of its own architecture. A pull request builds both without pushing them.
 - `publish` runs for `main`, on a push or a manual run, once both images are built. It tags them together as `ghcr.io/jamesarich/sofa-king-backend:main` and `:sha-<commit>`, with a BuildKit SBOM and max-mode build provenance, which [deploy](backend/docs/deploy.md#inspect-the-published-image) shows how to inspect. Hosts with [automatic updates](backend/docs/deploy.md#update-automatically) install that image.
 

@@ -45,7 +45,7 @@ class LaunchTest {
     }
 
     @Test
-    fun `a chosen startup channel opens full screen, or the guide once the lineup lost it`() {
+    fun `a chosen startup channel opens full screen or the guide once the lineup lost it`() {
         assertEquals(LaunchTarget.Player("1"), launchTarget(ready, AppSettings(lastChannel = "2", startup = StartupTarget.CHANNEL, startupChannel = "1")))
         assertEquals(LaunchTarget.Guide, launchTarget(ready, AppSettings(lastChannel = "2", startup = StartupTarget.CHANNEL, startupChannel = "9")))
         assertEquals(LaunchTarget.Guide, launchTarget(ready, AppSettings(lastChannel = "2", startup = StartupTarget.CHANNEL, startupChannel = null)))

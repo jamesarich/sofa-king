@@ -11,6 +11,8 @@ data class AppSettings(
     val favorites: Set<String> = emptySet(),
     /** [Channel.guideId] of the channel watched most recently, to reopen on launch. */
     val lastChannel: String? = null,
+    /** The channels watched most recently, newest first, at most [RECENT_CHANNELS]; the guide's Recent chip lists them. */
+    val recentChannels: List<String> = emptyList(),
     val captionsEnabled: Boolean = false,
     /** How many milliseconds ahead captions render, to offset live captioning delay. */
     val captionAdvanceMs: Int = DEFAULT_CAPTION_ADVANCE_MS,
@@ -29,7 +31,7 @@ data class AppSettings(
     /** Keeps the token out of logs and crash reports; everything else prints as a data class would. */
     override fun toString(): String =
         "AppSettings(serverUrl=$serverUrl, apiToken=${if (apiToken.isEmpty()) "unset" else "set"}, favorites=$favorites, " +
-            "lastChannel=$lastChannel, captionsEnabled=$captionsEnabled, captionAdvanceMs=$captionAdvanceMs, " +
+            "lastChannel=$lastChannel, recentChannels=$recentChannels, captionsEnabled=$captionsEnabled, captionAdvanceMs=$captionAdvanceMs, " +
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound)"
 
@@ -37,6 +39,13 @@ data class AppSettings(
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
         val CAPTION_ADVANCE_RANGE_MS = 0..8_000
         const val CAPTION_ADVANCE_STEP_MS = 500
+
+        /** How many recently watched channels are kept. */
+        const val RECENT_CHANNELS = 10
+
+        /** [recent] with [guideId] moved to the front, trimmed to [RECENT_CHANNELS]. */
+        fun recentWith(recent: List<String>, guideId: String): List<String> =
+            (listOf(guideId) + recent.filterNot { it == guideId }).take(RECENT_CHANNELS)
     }
 }
 
@@ -57,6 +66,7 @@ interface SettingsStore {
 
     suspend fun toggleFavorite(guideId: String)
 
+    /** Records [guideId] as the channel being watched: the last channel, and the front of the recent list. */
     suspend fun setLastChannel(guideId: String)
 
     suspend fun setCaptionsEnabled(enabled: Boolean)

@@ -57,6 +57,10 @@ Where captions are drawn depends on the platform:
 
 On Android, caption timing buffers video so delayed live captions align with speech. While captions are on, press OK to show the info bar, then use Left/Right to adjust timing in half-second steps, from 0 to 8 seconds. Timing is saved per channel; Settings sets the default timing, in the same steps and range. More timing also means a longer wait when a channel starts.
 
+## Apple TV
+
+The Apple TV app lists the channels, favorites first, with the program on now and next; select one to watch it. Hold the touch surface on a channel for Program details, which shows the program's image, episode, rating, time left, description and what follows, with Watch and the favorite toggle, or add the channel to the favorites from the same menu. In the player, swipe down for the transport bar: its menu stars the channel and lists the recent channels, the favorites and every channel, so switching never leaves the player. The Home screen's Top Shelf shows the last ten channels watched, newest first, while the app is in the top row; selecting one opens the app on that channel.
+
 ## Settings
 
 Settings opens from the guide's header. Switches and choices apply at once. The server fields apply when you select Save & reload, at the top of the page.

@@ -80,6 +80,24 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `setLastChannel keeps the ten most recent channels newest first without repeats`() = runTest {
+        val store = newStore()
+        assertEquals(emptyList(), store.settings.first().recentChannels)
+
+        store.setLastChannel("1")
+        store.setLastChannel("2")
+        store.setLastChannel("1")
+        assertEquals(listOf("1", "2"), store.settings.first().recentChannels)
+
+        for (id in 3..12) store.setLastChannel(id.toString())
+        val recent = store.settings.first().recentChannels
+        assertEquals(AppSettings.RECENT_CHANNELS, recent.size)
+        assertEquals("12", recent.first())
+        assertEquals("12", store.settings.first().lastChannel)
+        assertFalse(recent.contains("1") || recent.contains("2"), "the oldest channels drop off: $recent")
+    }
+
+    @Test
     fun `captions are off until the user turns them on`() = runTest {
         assertFalse(newStore().settings.first().captionsEnabled)
     }

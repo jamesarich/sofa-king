@@ -1,4 +1,5 @@
 import SwiftUI
+import TVServices
 import SofaKingCore
 
 @main
@@ -21,7 +22,10 @@ final class AppModel {
     private(set) var settings: AppSettings?
     /// Whether the one cold-start decision, opening the last channel, has been made.
     var launchDecided = false
+    /// A channel a `sofaking://channel/<guideId>` link (the Top Shelf) asked for; the list or the player takes it and clears it.
+    var requestedChannel: String?
     private var watches: [Watch] = []
+    private var published: [TopShelfChannel] = []
 
     init() {
         #if DEBUG
@@ -32,11 +36,37 @@ final class AppModel {
             core.saveServer(url: url, apiToken: args.string(forKey: "apiToken") ?? "")
         }
         #endif
-        watches.append(core.watchState { [weak self] in self?.state = $0 })
-        watches.append(core.watchSettings { [weak self] in self?.settings = $0 })
+        watches.append(core.watchState { [weak self] in
+            self?.state = $0
+            self?.publishTopShelf()
+        })
+        watches.append(core.watchSettings { [weak self] in
+            self?.settings = $0
+            self?.publishTopShelf()
+        })
     }
 
     var lineup: Lineup? { (state as? LineupStateReady)?.lineup }
+
+    var favorites: Set<String> { Set(settings?.favorites.compactMap { $0 as? String } ?? []) }
+
+    /// The channels watched most recently, newest first, as the lineup lists them now.
+    var recentChannels: [Channel] {
+        guard let lineup, let recent = settings?.recentChannels else { return [] }
+        let byId = Dictionary(lineup.channels.map { ($0.guideId, $0) }, uniquingKeysWith: { first, _ in first })
+        return recent.compactMap { ($0 as? String).flatMap { byId[$0] } }
+    }
+
+    /// Hands the recent channels to the Top Shelf extension whenever they, or the lineup behind them, change.
+    private func publishTopShelf() {
+        let channels = recentChannels.map {
+            TopShelfChannel(guideId: $0.guideId, number: $0.number.formatted(), name: $0.name, logo: $0.logo)
+        }
+        guard channels != published, lineup != nil else { return }
+        published = channels
+        TopShelfChannels.save(channels)
+        TVTopShelfContentProvider.topShelfContentDidChange()
+    }
 }
 
 struct ContentView: View {
@@ -59,6 +89,9 @@ struct ContentView: View {
             default:
                 ProgressView("Loading the lineup")
             }
+        }
+        .onOpenURL { url in
+            if let guideId = TopShelfChannels.guideId(from: url) { model.requestedChannel = guideId }
         }
     }
 }

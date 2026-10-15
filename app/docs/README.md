@@ -5,7 +5,7 @@
 | Page | What it covers |
 | --- | --- |
 | [Getting started](getting-started.md) | From a running Sofa King server to a channel playing on a TV, a desktop, a phone or a browser, including serving the web app |
-| [Using Sofa King](usage.md) | The guide, the channels it lists, previews, the player, the remote and keyboard controls, captions and the settings |
+| [Using Sofa King](usage.md) | The guide, the channels it lists, previews, the player, the remote and keyboard controls, captions, the Apple TV app and the settings |
 | [Troubleshooting and FAQ](troubleshooting.md) | Symptoms and fixes for connecting, the lineup and guide, playback, captions and each platform, and common questions |
 
 ## Reference

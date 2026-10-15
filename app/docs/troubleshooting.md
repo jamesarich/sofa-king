@@ -36,13 +36,13 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Symptom | Check |
 | --- | --- |
 | Can't play this channel | The server could not open a playback session, the stream ended, or the failure has no closer headline; the code names why. Press OK to retry or pick another channel. |
-| Can't reach the stream | The player could not connect to the stream or lost it. On iOS, and on a desktop with VLC installed, every failure the player reports shows this headline; in a browser, every one except an unsupported format. The player reconnects with backoff; press OK to retry now. |
-| The stream refused the connection | On Android, the server's relay answered the stream request with an HTTP error, for example while it switches sources. The player reconnects with backoff; press OK to retry now. |
-| This stream format isn't supported | On Android, the player could not read or decode the stream. In a browser, the channel streams MPEG-TS or another format the browser does not play; the web app plays HLS channels. |
+| Can't reach the stream | The player could not connect to the stream or lost it. On a desktop with VLC installed, every failure the player reports shows this headline; on iOS, a connection that failed or timed out; in a browser, every one except an unsupported format. The player reconnects with backoff; press OK to retry now. |
+| The stream refused the connection | On Android and iOS, the server's relay answered the stream request with an HTTP error, for example while it switches sources. The player reconnects with backoff; press OK to retry now. |
+| This stream format isn't supported | On Android, the player could not read or decode the stream; on iOS, it did not recognize the format. In a browser, the channel streams MPEG-TS or another format the browser does not play; the web app plays HLS channels. |
 | `CAPACITY_EXHAUSTED` | Every playback slot on the server holds a watch session, from this app or another client, or one session has more than 12 media requests open at once. Stop a session, or raise the server's `SOFA_MAX_SESSIONS`. |
 | `CHANNEL_NOT_FOUND` | The server's lineup changed. The app reloads it and follows the channel by number, then name. |
 | Preview unavailable | The server refused the preview session or the stream failed. The channel does not open full screen by itself. Focus another channel and come back. |
-| A stream stops and comes back | Failed and ended streams reconnect after 2, 4, 8 and 15 seconds, then every 30 seconds, while the player is open. On Android, a stream the server replaced, which its relay answers with 410, reconnects at once. OK retries immediately. |
+| A stream stops and comes back | Failed and ended streams reconnect after 2, 4, 8 and 15 seconds, then every 30 seconds, while the player is open. On Android and iOS, a stream the server replaced, which its relay answers with 410, reconnects at once. OK retries immediately. |
 | The picture freezes but no error shows | A stream that stalls without closing is not reconnected automatically. Press OK, or change channel and back. |
 | A channel starts slowly with captions on | An earlier caption timing buffers the stream by that much. Lower the channel's timing or the default; a later timing needs no buffer. |
 | No working source for this channel right now | The server answered `SOURCE_UNAVAILABLE`: every source for the channel is down or quarantined. The server rechecks sources on its own; the card counts down to the next try, and OK tries at once. |
@@ -63,7 +63,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Symptom | Check |
 | --- | --- |
 | `VLC_NOT_INSTALLED` on a desktop | The desktop app plays through libVLC. Install VLC 3 (`sudo apt install vlc` on Ubuntu or Debian; a `.deb` installed with `apt install` brings it along), then restart the app. |
-| Can't reach the stream on an MPEG-TS channel, on iOS | AVPlayer plays HLS channels only. Watch MPEG-TS channels on Android or a desktop. |
+| An MPEG-TS channel does not play on iOS | AVPlayer plays HLS channels only. Watch MPEG-TS channels on Android or a desktop. |
 | No sound when the web app opens a channel | The browser blocks sound until you interact with the page. Press any key or click, and the sound comes on. |
 | No captions, in Chrome | Chrome's built-in HLS player exposes no caption tracks. Safari exposes the stream's CEA-608 captions. |
 | No info bar or channel list over full-screen video, in a browser | The browser has no WebGL2, or the server sends no CORS headers on media for the page's origin. Serve the web app one of the ways [getting started](getting-started.md#web) describes. Escape still returns to the guide. |

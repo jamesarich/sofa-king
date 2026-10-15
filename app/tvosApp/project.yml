@@ -2,6 +2,8 @@
 # The app is SwiftUI on top of core's SofaKingCore framework: Compose Multiplatform does not render on tvOS.
 name: SofaKingTV
 options:
+  # Writes ../build/Version.xcconfig (MARKETING_VERSION from the catalog's `sofaking` version) before generating.
+  preGenCommand: ../tools/version-xcconfig.sh
   bundleIdPrefix: dev.jamesrich
   deploymentTarget:
     tvOS: "17.0"
@@ -10,6 +12,9 @@ targets:
     type: application
     platform: tvOS
     sources: [SofaKingTV]
+    configFiles:
+      Debug: ../build/Version.xcconfig
+      Release: ../build/Version.xcconfig
     info:
       path: SofaKingTV/Info.plist
       properties:
@@ -22,8 +27,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking.tv
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         # core has no tvosX64 target, so simulator builds are Apple silicon only.
         "EXCLUDED_ARCHS[sdk=appletvsimulator*]": x86_64

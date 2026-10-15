@@ -12,7 +12,7 @@ android {
     defaultConfig {
         applicationId = "dev.jamesrich.sofaking"
         versionCode = providers.gradleProperty("sofaking.versionCode").get().toInt()
-        versionName = providers.gradleProperty("sofaking.version").get() +
+        versionName = libs.versions.sofaking.get() +
             providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
     }
 

@@ -1,6 +1,8 @@
 # XcodeGen spec for the iOS host; `xcodegen` in this directory writes SofaKing.xcodeproj.
 name: SofaKing
 options:
+  # Writes ../build/Version.xcconfig (MARKETING_VERSION from the catalog's `sofaking` version) before generating.
+  preGenCommand: ../tools/version-xcconfig.sh
   bundleIdPrefix: dev.jamesrich
   deploymentTarget:
     iOS: "16.0"
@@ -9,6 +11,9 @@ targets:
     type: application
     platform: iOS
     sources: [SofaKing]
+    configFiles:
+      Debug: ../build/Version.xcconfig
+      Release: ../build/Version.xcconfig
     info:
       path: SofaKing/Info.plist
       properties:
@@ -24,8 +29,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         # ui has no iosX64 target, so simulator builds are Apple silicon only.
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64

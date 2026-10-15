@@ -23,6 +23,10 @@ internal fun BackHandler(enabled: Boolean = true, onBack: () -> Unit) {
 @Composable
 internal expect fun rememberIsTelevision(): Boolean
 
+/** True when the platform's own clock preference is 24-hour (Android's system setting, else the locale's pattern). */
+@Composable
+internal expect fun rememberSystem24HourClock(): Boolean
+
 /** True while a screen reader explores by touch (TalkBack), which a channel opening full screen would cut off. */
 @Composable
 internal expect fun rememberScreenReaderActive(): Boolean

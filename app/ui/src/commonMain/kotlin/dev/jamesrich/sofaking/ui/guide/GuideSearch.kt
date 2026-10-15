@@ -1,9 +1,14 @@
 package dev.jamesrich.sofaking.ui.guide
 
+import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.formatNumber
+import kotlin.time.Instant
 
 /** Matching for the guide search row. Case- and accent-insensitive. */
 internal object GuideSearch {
+    /** How many upcoming matches a channel's "Later" line shows. */
+    const val MAX_UPCOMING = 3
+
     /** Lowercased with accents removed, so "Télé" and "tele" compare equal. */
     fun normalize(text: String): String = buildString(text.length) {
         for (char in text.lowercase()) {
@@ -23,6 +28,22 @@ internal object GuideSearch {
         return normalize(number.formatNumber()).startsWith(needle) ||
             normalize(name).contains(needle) ||
             (programmeTitle != null && normalize(programmeTitle).contains(needle))
+    }
+
+    /**
+     * The programmes of one channel that start after [after] and before [before] whose title or episode title
+     * holds [query], in start order, at most [MAX_UPCOMING]; empty for a blank query. The airing programme is the
+     * grid's own match, so it is left out.
+     */
+    fun upcoming(query: String, programmes: List<Programme>, after: Instant, before: Instant): List<Programme> {
+        val needle = normalize(query.trim())
+        if (needle.isEmpty()) return emptyList()
+        return programmes.asSequence()
+            .filter { it.start > after && it.start < before }
+            .filter { normalize(it.title).contains(needle) || (it.subTitle?.let { sub -> normalize(sub).contains(needle) } == true) }
+            .sortedBy { it.start }
+            .take(MAX_UPCOMING)
+            .toList()
     }
 
     /**

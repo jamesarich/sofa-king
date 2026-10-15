@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.FakeHttp
+import dev.jamesrich.sofaking.data.GuideWindow
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
 import dev.jamesrich.sofaking.data.MemoryDataStore
@@ -34,6 +35,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
@@ -47,7 +49,9 @@ class LineupViewModelTest {
         override val settings = MutableStateFlow(initial)
         override suspend fun setServer(serverUrl: String, apiToken: String) = settings.update { it.copy(serverUrl = serverUrl, apiToken = apiToken) }
         override suspend fun toggleFavorite(guideId: String) = settings.update { it.copy(favorites = it.favorites xor guideId) }
-        override suspend fun setLastChannel(guideId: String) = settings.update { it.copy(lastChannel = guideId) }
+        override suspend fun setLastChannel(guideId: String) =
+            settings.update { it.copy(lastChannel = guideId, recentChannels = AppSettings.recentWith(it.recentChannels, guideId)) }
+        override suspend fun setGuideFilter(key: String?) = settings.update { it.copy(guideFilter = key) }
         override suspend fun setCaptionsEnabled(enabled: Boolean) = settings.update { it.copy(captionsEnabled = enabled) }
         override suspend fun setCaptionAdvanceMs(ms: Int) = settings.update { it.copy(captionAdvanceMs = ms) }
         override suspend fun setChannelCaptionAdvance(guideId: String, ms: Int) = settings.update { it.copy(captionAdvanceByChannel = it.captionAdvanceByChannel + (guideId to ms)) }
@@ -66,6 +70,7 @@ class LineupViewModelTest {
         var failGuide = false
         val removed = mutableSetOf<String>()
         var catalogRequests = 0
+        var guideRequests = 0
 
         val http = FakeHttp(scope) { request ->
             when (request.path) {
@@ -77,9 +82,13 @@ class LineupViewModelTest {
                 }
                 "/api/v1/guide/query" -> {
                     if (failGuide) return@FakeHttp apiError(503, "NOT_READY")
+                    guideRequests++
+                    // One programme per channel at the start of the window asked for, so a second day reads apart from the first.
+                    val from = Regex(""""from":"([^"]+)"""").find(request.body)?.groupValues?.get(1)
+                    val start = from?.let { Instant.parse(it) } ?: Instant.parse("2026-10-10T10:00:00Z")
                     val rows = channelIds.joinToString(",") { id ->
                         if (id in removed) """{"channelId":"$id","status":"removed","programmes":[]}"""
-                        else """{"channelId":"$id","status":"available","programmes":[{"id":"p-$id","channelId":"$id","startsAt":"2026-10-10T10:00:00Z","endsAt":"2026-10-10T11:00:00Z","title":"Show $id"}]}"""
+                        else """{"channelId":"$id","status":"available","programmes":[{"id":"p-$id","channelId":"$id","startsAt":"$start","endsAt":"${start + 1.hours}","title":"Show $id"}]}"""
                     }
                     json("""{"revision":"r","from":"x","to":"y","channels":[$rows]}""")
                 }
@@ -192,6 +201,31 @@ class LineupViewModelTest {
         advanceTimeBy(3.hours + 1.minutes)
         assertEquals(2, server.catalogRequests)
         assertEquals(listOf("c1"), viewModel.state.value.lineup.channels.map { it.guideId })
+    }
+
+    @Test
+    fun `a day ahead is loaded once and merged into the guide until the live window passes it`() = viewModelTest {
+        val server = FakeServer(this)
+        val viewModel = start(server)
+        viewModel.state.first { it is LineupState.Ready && !it.lineup.guideLoading }
+        val live = GuideWindow.start(Clock.System.now())
+        val tomorrow = live + 24.hours
+
+        viewModel.loadGuideWindow(tomorrow)
+        viewModel.loadGuideWindow(tomorrow)
+        val lineup = viewModel.state.first { it is LineupState.Ready && it.lineup.guide.getValue("c1").size == 2 }.lineup
+        assertEquals(listOf(live, tomorrow), lineup.guide.getValue("c1").map { it.start })
+        assertEquals(2, server.guideRequests)
+
+        // The live window itself is never an extra day, and a loaded day is not asked for again.
+        viewModel.loadGuideWindow(live)
+        viewModel.loadGuideWindow(tomorrow)
+        runCurrent()
+        assertEquals(2, server.guideRequests)
+
+        // A refresh keeps the extra day beside the fresh live guide.
+        advanceTimeBy(3.hours + 1.minutes)
+        assertEquals(2, viewModel.state.value.lineup.guide.getValue("c1").size)
     }
 
     @Test

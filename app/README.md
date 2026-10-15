@@ -13,7 +13,7 @@ The Sofa King app is a live TV app for the channels of your own [Sofa King serve
 
 ## Features
 
-- A program guide covering 24 hours, with category and favorite filters, search and voice search
+- A program guide covering 24 hours, a day at a time up to a week ahead, with category, favorite and recent filters, program details, search and voice search
 - Muted previews that open full screen after 10 seconds, 30 seconds or never ([using Sofa King](docs/usage.md#guide))
 - Favorites, and the last watched channel restored on launch
 - A full-screen player with channel up and down, number entry, the previous channel and a channel list

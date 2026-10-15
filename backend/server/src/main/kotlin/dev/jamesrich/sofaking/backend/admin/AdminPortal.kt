@@ -50,10 +50,10 @@ private const val PAGE_SIZE = 100
 private val SESSION = AttributeKey<AdminSession>("AdminSession")
 private const val HTMX_PATH = "/admin/static/htmx.min.js"
 private const val ICON_PATH = "/admin/static/icon.svg"
-/** The sign-in form and the brand icon its tab shows; everything else needs a session. */
-private val PUBLIC_PATHS = setOf("/admin", "/admin/login", ICON_PATH)
+/** The sign-in form, the brand icon its tab shows and the stylesheet; everything else needs a session. */
+private val PUBLIC_PATHS = setOf("/admin", "/admin/login", ICON_PATH, STYLESHEET_PATH)
 private const val CSP =
-    "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 
 /** Whether [path], as routing resolves it, belongs to the portal. */
 internal fun isPortalPath(path: String): Boolean = path == "/admin" || path.startsWith("/admin/")
@@ -79,7 +79,7 @@ class AdminPortal(
      * Returns false once it has answered.
      */
     internal suspend fun admit(call: ApplicationCall, path: String): Boolean {
-        if (path != HTMX_PATH && path != ICON_PATH) call.response.header(HttpHeaders.CacheControl, "no-store")
+        if (path != HTMX_PATH && path != ICON_PATH && path != STYLESHEET_PATH) call.response.header(HttpHeaders.CacheControl, "no-store")
         call.response.header("Content-Security-Policy", CSP)
         call.response.header("X-Frame-Options", "DENY")
         call.response.header("X-Content-Type-Options", "nosniff")

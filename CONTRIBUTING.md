@@ -62,6 +62,8 @@ Versions are pinned exactly in the shared catalog, with no lockfiles or verifica
 - `apple` runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators and the UI's iOS tests, links the iOS and tvOS frameworks, and builds the two SwiftUI hosts in `app/iosApp` and `app/tvosApp` with XcodeGen and `xcodebuild`, on macOS.
 - `snapshot` runs for a push to `main` once both pass. It calls `snapshot.yml`, which builds every platform but iOS and replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab.
 
+Every Gradle job restores the Gradle user home that the same job last saved from `main` (pull requests only read it), and the app jobs keep `~/.konan`, the Kotlin/Native distribution, per Kotlin version. Pushes to `main` also write the remote build cache in `gradle/build-cache.settings.gradle.kts`, which every other build reads. The configuration cache travels with the Gradle user home only when the `GRADLE_ENCRYPTION_KEY` repository secret holds a key from `openssl rand -base64 16`; without it every run configures the build from scratch, about half a minute per job.
+
 `backend.yml` runs three jobs:
 
 - `test` runs `./gradlew test :server:installDist` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. It then runs `shellcheck` over `backend/deploy` and the unit tests in `backend/scripts`.

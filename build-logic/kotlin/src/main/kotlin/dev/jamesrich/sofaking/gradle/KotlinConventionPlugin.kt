@@ -2,7 +2,8 @@ package dev.jamesrich.sofaking.gradle
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.jetbrains.kotlin.gradle.dsl.KotlinTopLevelExtension
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import org.jetbrains.kotlin.gradle.dsl.KotlinBaseExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin
 import org.jetbrains.kotlin.gradle.targets.js.EnvSpec
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
@@ -22,10 +23,11 @@ import org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnRootEnvSpec
  * Apply it to each project, the root of a multi-project build included, since the Kotlin plugin adds the web
  * toolchain plugins to the root as well as to each web module.
  */
+@OptIn(ExperimentalWasmDsl::class) // The Binaryen and Wasm Node toolchain specs are still experimental.
 class KotlinConventionPlugin : Plugin<Project> {
     override fun apply(project: Project) = with(project) {
         plugins.withType(KotlinBasePlugin::class.java) {
-            extensions.getByType(KotlinTopLevelExtension::class.java).jvmToolchain(JDK)
+            extensions.getByType(KotlinBaseExtension::class.java).jvmToolchain(JDK)
         }
 
         // The settings refuse project repositories, which is where these plugins would otherwise add their own.

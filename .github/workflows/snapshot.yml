@@ -40,7 +40,7 @@ jobs:
     name: Android, web and Linux desktop
     needs: version
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: app
@@ -55,6 +55,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       # A fixed key lets each snapshot install over the last; without the secret every run signs with a new debug key.
       - name: Restore the signing key
         env:
@@ -98,7 +99,7 @@ jobs:
             format: msi
             asset: sofa-king-snapshot-windows-x64.msi
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -113,7 +114,10 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
-          cache-read-only: true
+          # Only this job runs on Windows, so it keeps its own Gradle home; read-only, it started cold every time
+          # and spent most of its run downloading. macOS reads the Apple job's.
+          cache-read-only: ${{ matrix.os != 'windows-latest' }}
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       # The same version as the Linux job, so every package in one snapshot shows one About row.
       - name: Package
         env:

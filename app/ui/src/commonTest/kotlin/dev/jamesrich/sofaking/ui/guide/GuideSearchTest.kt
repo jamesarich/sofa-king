@@ -1,8 +1,12 @@
 package dev.jamesrich.sofaking.ui.guide
 
+import dev.jamesrich.sofaking.data.Programme
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.Test
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Instant
 
 class GuideSearchTest {
     @Test
@@ -52,5 +56,24 @@ class GuideSearchTest {
     fun `decomposed accents fold the same as precomposed ones`() {
         assertTrue(GuideSearch.normalize("Télé") == "tele")
         assertTrue(GuideSearch.matches("tele", 7.0, "Télé Québec", null))
+    }
+
+    private val now = Instant.parse("2026-10-12T18:00:00Z")
+    private fun show(title: String, startHours: Int, subTitle: String? = null) =
+        Programme("c", now + startHours.hours, now + (startHours + 1).hours, title, null, subTitle = subTitle)
+
+    @Test
+    fun `upcoming matches titles and episode titles after now in start order`() {
+        val programmes = listOf(show("Jeopardy!", 4), show("News", 1, subTitle = "Jeopardy champions"), show("Jeopardy!", 0), show("Jeopardy!", -1))
+        val later = GuideSearch.upcoming("jeopardy", programmes, after = now, before = now + 24.hours)
+        assertEquals(listOf(1, 4), later.map { ((it.start - now).inWholeHours).toInt() })
+    }
+
+    @Test
+    fun `upcoming stops at the window and at three matches`() {
+        val programmes = (1..6).map { show("Jeopardy!", it) }
+        assertEquals(GuideSearch.MAX_UPCOMING, GuideSearch.upcoming("jeopardy", programmes, now, now + 24.hours).size)
+        assertEquals(2, GuideSearch.upcoming("jeopardy", programmes, now, now + 3.hours).size)
+        assertTrue(GuideSearch.upcoming("", programmes, now, now + 24.hours).isEmpty())
     }
 }

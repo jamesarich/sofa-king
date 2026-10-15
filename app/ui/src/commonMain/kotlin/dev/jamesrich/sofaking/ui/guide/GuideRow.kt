@@ -36,10 +36,15 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import dev.jamesrich.sofaking.ui.theme.tvFocus
 import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.ChannelLogo
@@ -76,6 +81,12 @@ internal class GuideRowEnv(
     val onCellFocused: (Channel, GuideCell) -> Unit,
     val onPlay: (Channel) -> Unit,
     val onToggleFavorite: (Channel) -> Unit,
+    /** A held OK, or the Info key, opens the programme's details. */
+    val onOpenDetails: (Channel, GuideCell) -> Unit,
+    val detailsLabel: String,
+    val laterLabel: String,
+    /** A Later line's programme was chosen: the grid jumps to its cell. */
+    val onJumpTo: (Channel, Programme) -> Unit,
 ) {
     /** The text of a stretch with no programme, as [noListingRes] decides. */
     fun noListingFor(channel: Channel): String = when (channel.noListingRes(guideLoading)) {
@@ -131,7 +142,9 @@ internal fun ChannelRow(
     }
 
     val profile = LocalLayoutProfile.current
-    Row(Modifier.fillMaxWidth().height(ROW_HEIGHT)) {
+    val density = LocalGuideDensity.current
+    val compact = density == GuideDensity.COMPACT
+    Row(Modifier.fillMaxWidth().height(rowHeight(density))) {
         Row(
             Modifier.width(pinWidth(profile)).fillMaxHeight().padding(end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -148,7 +161,7 @@ internal fun ChannelRow(
                 if (!profile.compactWidth) {
                     Text(
                         channel.name,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -170,6 +183,7 @@ internal fun ChannelRow(
                         cell = cell,
                         airing = cell.programme != null && cell.covers(nowMinute),
                         env = env,
+                        compact = compact,
                         focusRequester = cellFocus[index],
                         modifier = Modifier.width(MINUTE_WIDTH * cell.minutes.toFloat()).fillMaxHeight(),
                     )
@@ -185,6 +199,7 @@ private fun GuideCellItem(
     cell: GuideCell,
     airing: Boolean,
     env: GuideRowEnv,
+    compact: Boolean,
     focusRequester: FocusRequester,
     modifier: Modifier,
 ) {
@@ -212,19 +227,24 @@ private fun GuideCellItem(
             .semantics(mergeDescendants = true) {
                 // Built only when the semantics tree is read, so a grid of hundreds of cells formats nothing for sighted use.
                 contentDescription = cellDescription(env, channel, programme, airing)
+                // Favorite stays a direct action for screen readers; sighted use goes through the details.
                 customActions = listOf(
                     CustomAccessibilityAction(env.toggleFavoriteLabel) {
                         env.onToggleFavorite(channel)
                         true
                     },
+                    CustomAccessibilityAction(env.detailsLabel) {
+                        env.onOpenDetails(channel, cell)
+                        true
+                    },
                 )
             }
-            // OK plays and a held OK toggles the favorite, from the D-pad, a keyboard, touch or a mouse.
+            // OK plays and a held OK opens the programme's details, from the D-pad, a keyboard, touch or a mouse.
             .combinedClickable(
                 interactionSource = interactions,
                 indication = null,
-                onLongClickLabel = env.toggleFavoriteLabel,
-                onLongClick = { env.onToggleFavorite(channel) },
+                onLongClickLabel = env.detailsLabel,
+                onLongClick = { env.onOpenDetails(channel, cell) },
                 onClick = { env.onPlay(channel) },
             ),
     ) {
@@ -239,7 +259,7 @@ private fun GuideCellItem(
                 programme?.title ?: env.noListingFor(channel),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium,
+                style = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium,
             )
             if (focused && programme != null) {
                 Text(
@@ -247,7 +267,7 @@ private fun GuideCellItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall.copy(
-                        lineHeight = 22.sp,
+                        lineHeight = if (compact) 16.sp else 22.sp,
                         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
                     ),
                 )
@@ -282,3 +302,49 @@ private fun Modifier.stickyStart(scrollState: ScrollState, cellStartPx: Float, m
 
 internal fun isAiring(programme: Programme, now: Instant): Boolean =
     programme.start <= now && programme.stop > now
+
+/**
+ * The search's "Later today" line under a channel: one chip per upcoming programme that matches, "8:00 PM Title",
+ * which OK jumps the grid to. [firstFocus] lets the grid's Up and Down land on the first chip.
+ */
+@Composable
+internal fun LaterRow(
+    item: GuideListItem.Later,
+    env: GuideRowEnv,
+    firstFocus: FocusRequester,
+    onFocused: () -> Unit,
+) {
+    val profile = LocalLayoutProfile.current
+    Row(
+        Modifier.fillMaxWidth().height(LATER_ROW_HEIGHT).onFocusChanged { if (it.hasFocus) onFocused() },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(pinWidth(profile)).padding(end = 12.dp), contentAlignment = Alignment.CenterEnd) {
+            Text(
+                env.laterLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item.programmes.forEachIndexed { index, programme ->
+                AssistChip(
+                    onClick = { env.onJumpTo(item.channel, programme) },
+                    label = {
+                        Text(
+                            "${env.timeFormat.format(programme.start)}  ${programme.title}",
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    modifier = Modifier
+                        .then(if (index == 0) Modifier.focusRequester(firstFocus) else Modifier)
+                        .tvFocus(AssistChipDefaults.shape),
+                )
+            }
+        }
+    }
+}

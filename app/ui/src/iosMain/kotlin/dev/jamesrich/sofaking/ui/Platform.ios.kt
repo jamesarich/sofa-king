@@ -7,7 +7,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.KeyEvent
+import platform.Foundation.NSDateFormatter
+import platform.Foundation.NSLocale
 import platform.Foundation.NSNotificationCenter
+import platform.Foundation.currentLocale
 import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIAccessibilityIsVoiceOverRunning
 import platform.UIKit.UIAccessibilityVoiceOverStatusDidChangeNotification
@@ -16,6 +19,13 @@ import platform.UIKit.UIApplication
 /** iPhone and iPad; Apple TV is not a target. */
 @Composable
 internal actual fun rememberIsTelevision(): Boolean = false
+
+/** The current locale's hour template: a pattern without an AM/PM marker means a 24-hour clock, which iOS's own setting feeds. */
+@Composable
+internal actual fun rememberSystem24HourClock(): Boolean = remember {
+    val pattern = NSDateFormatter.dateFormatFromTemplate("j", 0u, NSLocale.currentLocale) ?: ""
+    !pattern.contains('a')
+}
 
 /**
  * VoiceOver reads the grid as focus moves; a channel opening full screen would cut it off, as TalkBack's would.

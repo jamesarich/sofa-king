@@ -7,7 +7,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -86,8 +91,10 @@ internal fun PreviewDetails(
 ) {
     val timeFormat = rememberTimeFormatter()
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
-    // Title, one line of details, then as much description as the band has room for in whole lines.
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    // Title, one line of details, then as much description as the band has room for in whole lines; the
+    // programme's image, when the guide has one, sits beside the text at the band's height.
+    Row(modifier) {
+    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (channel == null) return@Column
         if (programme == null) {
             Text(channel.noListingText(guideLoading), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -124,7 +131,20 @@ internal fun PreviewDetails(
             WholeLinesText(it, MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth().weight(1f))
         }
     }
+    programme?.icon?.let {
+        AsyncImage(
+            model = it,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.padding(start = 16.dp).size(width = DETAIL_IMAGE_WIDTH, height = DETAIL_IMAGE_HEIGHT).clip(RoundedCornerShape(8.dp)),
+        )
+    }
+    }
 }
+
+/** The programme image beside the details: 16:9, as tall as the text column under the chips. */
+private val DETAIL_IMAGE_WIDTH = 160.dp
+private val DETAIL_IMAGE_HEIGHT = 90.dp
 
 /**
  * Muted live preview of [channel] on the app's shared [player]. Opens a preview session through [sessions]

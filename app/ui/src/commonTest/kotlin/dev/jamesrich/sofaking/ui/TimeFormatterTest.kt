@@ -20,6 +20,22 @@ class TimeFormatterTest {
     }
 
     @Test
+    fun `the twenty four hour clock pads the hour and drops the marker`() {
+        val formatter = TimeFormatter(FixedOffsetTimeZone(UtcOffset(hours = -5)), twentyFourHour = true)
+        assertEquals("13:30", formatter.format(Instant.parse("2026-10-12T18:30:00Z")))
+        assertEquals("00:05", formatter.format(Instant.parse("2026-10-12T05:05:00Z")))
+        assertEquals("13:00 - 14:30", formatter.range(Instant.parse("2026-10-12T18:00:00Z"), Instant.parse("2026-10-12T19:30:00Z")))
+    }
+
+    @Test
+    fun `days between count the zone's calendar days`() {
+        val monday = Instant.parse("2026-10-12T15:00:00Z")
+        assertEquals(0, chicago.daysBetween(monday, Instant.parse("2026-10-13T03:00:00Z")))
+        assertEquals(1, chicago.daysBetween(monday, Instant.parse("2026-10-13T06:00:00Z")))
+        assertEquals(2, chicago.daysBetween(monday, Instant.parse("2026-10-14T15:00:00Z")))
+    }
+
+    @Test
     fun `a range joins two times with a dash`() {
         assertEquals("1:00 PM - 2:30 PM", chicago.range(Instant.parse("2026-10-12T18:00:00Z"), Instant.parse("2026-10-12T19:30:00Z")))
     }

@@ -10,7 +10,9 @@ import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
+import dev.jamesrich.sofaking.data.GuideWindow
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.SofaKingApi
@@ -34,11 +36,14 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.time.TimeSource
 
 sealed interface LineupState {
@@ -78,6 +83,18 @@ class LineupViewModel(
     /** The last lineup loaded, with the server key it came from; read and written only inside [state]'s transform. */
     private var lastGood: Pair<String, Lineup>? = null
 
+    /**
+     * Guide windows beyond the live one that the guide jumped to, by their start: loaded once each and merged
+     * into the lineup until the live window passes them. Never cached; a cold start shows today's guide.
+     */
+    private val extraDays = MutableStateFlow<Map<Instant, Map<String, List<Programme>>>>(emptyMap())
+
+    /** The windows being fetched, so a repeated jump does not query twice; read and written on the main thread. */
+    private val daysLoading = HashSet<Instant>()
+
+    /** The repository of the lineup on screen, for an extra day's query; set by [load]. */
+    private var liveRepository: SofaKingRepository? = null
+
     /** The server as Settings has it, with one API client for the sessions and the repository, or null while the address is not a usable URL. */
     private val server = settings.filterNotNull()
         .map { s -> ServerAddress.normalizeUrl(s.serverUrl)?.let { it to s.apiToken } }
@@ -96,11 +113,13 @@ class LineupViewModel(
     private val serverRepository = server.map { s -> s?.let { it to SofaKingRepository(it.api) } }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<LineupState> = combine(serverRepository, reloads.onStart { emit(null) }) { found, request -> found to request }
+    private val liveState: StateFlow<LineupState> = combine(serverRepository, reloads.onStart { emit(null) }) { found, request -> found to request }
         .transformLatest { (found, request) ->
             // The request, if any, is answered by the first load below; a server change or another reload that
             // cancels this transform answers it with nothing.
             var pending = request
+            // A new server starts without the old one's extra days.
+            extraDays.value = emptyMap()
             try {
                 load(found, onCatalog = { lineup -> pending?.complete(lineup); pending = null })
             } finally {
@@ -108,6 +127,37 @@ class LineupViewModel(
             }
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
+
+    val state: StateFlow<LineupState> = combine(liveState, extraDays) { live, extra ->
+        if (live !is LineupState.Ready || extra.isEmpty()) live else LineupState.Ready(live.lineup.copy(guide = mergeGuides(live.lineup.guide, extra.values)))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
+
+    /**
+     * Loads the programmes of the guide window starting at [windowStart] for the channels on screen, when it lies
+     * beyond the live window and is not loaded yet. The lineup then carries both days; a failure leaves the window
+     * empty, and the next jump to it asks again.
+     */
+    fun loadGuideWindow(windowStart: Instant) {
+        val live = GuideWindow.start(Clock.System.now())
+        if (windowStart <= live) return
+        val lineup = (liveState.value as? LineupState.Ready)?.lineup ?: return
+        val repository = liveRepository ?: return
+        if (windowStart in extraDays.value || !daysLoading.add(windowStart)) return
+        viewModelScope.launch {
+            try {
+                val started = TimeSource.Monotonic.markNow()
+                val guide = repository.loadGuide(lineup.channels, windowStart)
+                log.i { "guide: day ${windowStart} ${guide.programmes.values.sumOf { it.size }} programmes in ${started.elapsedNow()}" }
+                extraDays.update { it + (windowStart to guide.programmes) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.w(e) { "guide: day ${windowStart} failed" }
+            } finally {
+                daysLoading.remove(windowStart)
+            }
+        }
+    }
 
     /** Loads [found]'s lineup, cache first, then from the network every [REFRESH_INTERVAL]; [onCatalog] gets the first load's catalog, or null when it fails. */
     private suspend fun FlowCollector<LineupState>.load(found: Pair<Server, SofaKingRepository>?, onCatalog: (Lineup?) -> Unit) {
@@ -117,6 +167,7 @@ class LineupViewModel(
         }
         val (server, repository) = found
         val key = server.url
+        liveRepository = repository
         val cache = LineupCache(lineupCache, key)
         // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
         // so the last good lineup shows at once and the network load replaces it below.
@@ -165,6 +216,8 @@ class LineupViewModel(
                 last = it
                 lastGood = key to it
                 emit(LineupState.Ready(it))
+                val live = GuideWindow.start(Clock.System.now())
+                extraDays.update { days -> days.filterKeys { start -> start > live } }
                 // A cache write failure must not fail the load or delay the next refresh.
                 try {
                     cache.write(it)
@@ -213,6 +266,8 @@ class LineupViewModel(
 
     fun setLastChannel(guideId: String) = viewModelScope.launch { store.setLastChannel(guideId) }
 
+    fun setGuideFilter(key: String?) = viewModelScope.launch { store.setGuideFilter(key) }
+
     fun setCaptionsEnabled(enabled: Boolean) = viewModelScope.launch { store.setCaptionsEnabled(enabled) }
 
     fun setCaptionAdvanceMs(ms: Int) = viewModelScope.launch { store.setCaptionAdvanceMs(ms) }
@@ -230,6 +285,18 @@ class LineupViewModel(
 
     override fun onCleared() {
         sessions.close()
+    }
+
+    /** [live] plus every day in [extra], per channel in start order without repeats, so a day loaded twice reads once. */
+    private fun mergeGuides(live: Map<String, List<Programme>>, extra: Collection<Map<String, List<Programme>>>): Map<String, List<Programme>> {
+        val merged = HashMap<String, List<Programme>>(live)
+        for (day in extra) {
+            for ((channel, programmes) in day) {
+                val current = merged[channel]
+                merged[channel] = if (current == null) programmes else (current + programmes).distinctBy { it.start }.sortedBy { it.start }
+            }
+        }
+        return merged
     }
 
     /** The server's own error code when it answered, else the transport's message; never a URL or token. */

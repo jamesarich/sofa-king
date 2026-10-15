@@ -39,9 +39,11 @@ class SofaKingRepository(
         }
     }
 
-    /** Programmes for [channels] over the guide window. Chunks share one catalog revision; a revision that moves under them restarts without one. */
-    suspend fun loadGuide(channels: List<Channel>): GuideLoad {
-        val from = GuideWindow.start(now())
+    /**
+     * Programmes for [channels] over the guide window starting at [from] (the one that contains now unless the
+     * guide asked for a later day). Chunks share one catalog revision; a revision that moves under them restarts without one.
+     */
+    suspend fun loadGuide(channels: List<Channel>, from: Instant = GuideWindow.start(now())): GuideLoad {
         val to = GuideWindow.end(from)
         val chunks = channels.map { it.guideId }.distinct().chunked(GUIDE_CHUNK)
         return try {

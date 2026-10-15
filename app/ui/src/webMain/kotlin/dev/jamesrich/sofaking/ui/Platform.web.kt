@@ -1,11 +1,20 @@
 package dev.jamesrich.sofaking.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
 
 /** A browser tab, sized by its window. */
 @Composable
 internal actual fun rememberIsTelevision(): Boolean = false
+
+/** The browser locale's hour cycle, as Intl resolves it. */
+@Composable
+internal actual fun rememberSystem24HourClock(): Boolean = remember { !localeUsesTwelveHourClock() }
+
+@OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
+private fun localeUsesTwelveHourClock(): Boolean =
+    js("(function () { try { var o = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return o.hour12 === true || o.hourCycle === 'h12' || o.hourCycle === 'h11'; } catch (e) { return true; } })()")
 
 /** Browsers do not report a touch-exploring screen reader; the preview may open full screen. */
 @Composable

@@ -64,6 +64,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlin.time.Instant
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.runtime.CompositionLocalProvider
@@ -268,12 +269,16 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     s is LineupState.Ready -> GuideOrEmpty(
                         lineup = s.lineup,
                         favorites = settings?.favorites.orEmpty(),
+                        recentChannels = settings?.recentChannels.orEmpty(),
                         lastChannel = settings?.lastChannel,
+                        lastFilterKey = settings?.guideFilter,
                         startAtNow = current.atNow,
                         startSearch = current.search,
                         returnedFrom = current.returnedFrom,
                         onPlay = { guideId, scope -> screen = Screen.Player(guideId, scope) },
                         onToggleFavorite = vm::toggleFavorite,
+                        onFilterChanged = vm::setGuideFilter,
+                        onLoadGuideWindow = vm::loadGuideWindow,
                         previewPlayer = player,
                         sessions = sessions,
                         captionsEnabled = settings?.captionsEnabled ?: false,
@@ -306,12 +311,16 @@ private suspend fun resume(player: LivePlayer, sessions: PlaybackSessions) {
 private fun GuideOrEmpty(
     lineup: Lineup,
     favorites: Set<String>,
+    recentChannels: List<String>,
     lastChannel: String?,
+    lastFilterKey: String?,
     startAtNow: Boolean,
     startSearch: Boolean,
     returnedFrom: String?,
     onPlay: (String, ZapScope?) -> Unit,
     onToggleFavorite: (String) -> Unit,
+    onFilterChanged: (String?) -> Unit,
+    onLoadGuideWindow: (Instant) -> Unit,
     previewPlayer: LivePlayer,
     sessions: PlaybackSessions,
     captionsEnabled: Boolean,
@@ -325,12 +334,16 @@ private fun GuideOrEmpty(
         GuideScreen(
             lineup = lineup,
             favorites = favorites,
+            recentChannels = recentChannels,
             initialChannelId = lastChannel,
+            initialFilterKey = lastFilterKey,
             startAtNow = startAtNow,
             startSearch = startSearch,
             returnedFrom = returnedFrom,
             onPlay = { channel, scope -> onPlay(channel.guideId, scope) },
             onToggleFavorite = { onToggleFavorite(it.guideId) },
+            onFilterChanged = onFilterChanged,
+            onLoadGuideWindow = onLoadGuideWindow,
             previewPlayer = previewPlayer,
             sessions = sessions,
             captionsEnabled = captionsEnabled,

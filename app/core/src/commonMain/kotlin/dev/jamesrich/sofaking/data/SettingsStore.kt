@@ -13,6 +13,8 @@ data class AppSettings(
     val lastChannel: String? = null,
     /** The channels watched most recently, newest first, at most [RECENT_CHANNELS]; the guide's Recent chip lists them. */
     val recentChannels: List<String> = emptyList(),
+    /** The guide filter last chosen, as the guide keys it (see `GuideFilter.key`), or null for All; reopened on launch. */
+    val guideFilter: String? = null,
     val captionsEnabled: Boolean = false,
     /** How many milliseconds ahead captions render, to offset live captioning delay. */
     val captionAdvanceMs: Int = DEFAULT_CAPTION_ADVANCE_MS,
@@ -31,7 +33,8 @@ data class AppSettings(
     /** Keeps the token out of logs and crash reports; everything else prints as a data class would. */
     override fun toString(): String =
         "AppSettings(serverUrl=$serverUrl, apiToken=${if (apiToken.isEmpty()) "unset" else "set"}, favorites=$favorites, " +
-            "lastChannel=$lastChannel, recentChannels=$recentChannels, captionsEnabled=$captionsEnabled, captionAdvanceMs=$captionAdvanceMs, " +
+            "lastChannel=$lastChannel, recentChannels=$recentChannels, guideFilter=$guideFilter, captionsEnabled=$captionsEnabled, " +
+            "captionAdvanceMs=$captionAdvanceMs, " +
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound)"
 
@@ -68,6 +71,9 @@ interface SettingsStore {
 
     /** Records [guideId] as the channel being watched: the last channel, and the front of the recent list. */
     suspend fun setLastChannel(guideId: String)
+
+    /** Keeps the guide filter the viewer chose, by its key, or null for All. */
+    suspend fun setGuideFilter(key: String?)
 
     suspend fun setCaptionsEnabled(enabled: Boolean)
 

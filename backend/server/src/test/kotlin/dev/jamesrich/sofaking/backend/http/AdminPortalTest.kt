@@ -248,8 +248,9 @@ class AdminPortalTest {
             browser.signIn()
             val html = browser.get("/admin").bodyAsText()
             assertTrue(html.contains("Needs attention"))
-            assertTrue(html.contains("Guide broken failed its last import"), html)
+            assertTrue(html.contains("Guide broken has never imported"), html)
             assertTrue(html.contains("href=\"/admin/providers#guides\""), "the item links to where it is fixed")
+            assertTrue(html.contains("href=\"https://github.com/jamesarich/sofa-king/blob/main/backend/docs/troubleshooting.md#guide\""), "the item links to the doc that explains it")
             assertTrue(html.contains("Guide coverage"))
             assertTrue(html.contains("href=\"/admin/lineup?state=enabled\""), "the channel count links to the lineup")
             assertFalse(html.contains(admin) || html.contains(token) || html.contains(outputToken))
@@ -553,6 +554,130 @@ class AdminPortalTest {
             val moved = browser.post("/admin/providers/edit", "op" to "move", "index" to "1", "to" to "up", "csrf" to field(page, "csrf"), "revision" to runtime.policy!!.document().revision, "confirm" to "yes")
             assertEquals(HttpStatusCode.SeeOther, moved.status, moved.bodyAsText())
             assertEquals(listOf("alt", "fixture", "twin", "ts"), policyJson(policyFile)["providers"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content })
+        }
+    }
+
+    @Test fun `an attention item can be ignored until its text changes, and shown again`() = testApplication {
+        portal(basePolicy, guides = { listOf(it.brokenGuide) }) {
+            runtime.policy!!.apply("test")
+            browser.signIn()
+            val page = browser.get("/admin").bodyAsText()
+            val csrf = field(page, "csrf")
+            val fingerprint = Regex("""name="key" value="guides-failed"><input type="hidden" name="fingerprint" value="([0-9a-f]{16})"""").find(page)?.groupValues?.get(1)
+            assertNotNull(fingerprint, page)
+            assertTrue(page.contains("Ignore until it changes: Guide broken has never imported"))
+
+            val ignored = browser.post("/admin/attention/ignore", "key" to "guides-failed", "fingerprint" to fingerprint, "csrf" to csrf)
+            assertEquals(HttpStatusCode.SeeOther, ignored.status, ignored.bodyAsText())
+            val after = browser.get("/admin").bodyAsText()
+            assertTrue(after.contains("Ignored until it changes (1)"), after)
+            assertTrue(after.contains("Show again: Guide broken has never imported"), "the item sits under the ignored list")
+            assertFalse(after.contains("Ignore until it changes: Guide broken"), "and not in the main list")
+
+            val shown = browser.post("/admin/attention/show", "key" to "guides-failed", "csrf" to csrf)
+            assertEquals(HttpStatusCode.SeeOther, shown.status)
+            assertTrue(browser.get("/admin").bodyAsText().contains("Ignore until it changes: Guide broken has never imported"))
+        }
+    }
+
+    @Test fun `the channels table sorts by column, tints rows without a healthy source and filters overrides`() = testApplication {
+        portal(basePolicy) {
+            runtime.policy!!.apply("test")
+            browser.signIn()
+            val plain = browser.get("/admin/lineup").bodyAsText()
+            assertTrue(plain.contains("<caption class=\"sr\">Channels</caption>"), "every table has a caption")
+            assertTrue(plain.contains("<th class=\"num\" scope=\"col\">"), "headers carry their scope")
+            assertTrue(plain.contains("class=\"tint-bad\""), "an on-air station with no healthy source is tinted")
+            fun names(html: String) = Regex("""class="rowlink">([^<]+)</a>""").findAll(html).map { it.groupValues[1] }.toList()
+            val desc = browser.get("/admin/lineup?sort=name&dir=desc").bodyAsText()
+            assertTrue(desc.contains("aria-sort=\"descending\""), desc.take(2000))
+            assertEquals(names(desc).sortedWith(String.CASE_INSENSITIVE_ORDER).reversed(), names(desc))
+            val asc = browser.get("/admin/lineup?sort=name").bodyAsText()
+            assertEquals(names(asc).sortedWith(String.CASE_INSENSITIVE_ORDER), names(asc))
+            assertTrue(asc.contains("href=\"/admin/lineup?sort=name&amp;dir=desc\""), "the sorted header's link flips the direction")
+
+            assertEquals(0, Regex("""id="row-""").findAll(browser.get("/admin/lineup?override=true").bodyAsText()).count(), "no station has an override yet")
+            val id = stationId("twin sports")
+            val hidden = browser.post("/admin/lineup/$id/visibility", "enabled" to "false", "csrf" to field(plain, "csrf"), "revision" to field(plain, "revision"))
+            assertEquals(HttpStatusCode.SeeOther, hidden.status)
+            val overridden = browser.get("/admin/lineup?override=true").bodyAsText()
+            assertEquals(1, Regex("""id="row-""").findAll(overridden).count())
+            assertTrue(overridden.contains("Twin Sports") && overridden.contains(">Override<"), overridden)
+            val changed = browser.get("/admin/lineup?changed=true").bodyAsText()
+            assertTrue(changed.contains("Twin Sports"), "the hide was the last run's change")
+        }
+    }
+
+    @Test fun `the jobs page lists every import with its result, and Run now starts one`() = testApplication {
+        portal(basePolicy, guides = { listOf(it.brokenGuide) }) {
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/system/jobs").status)
+            browser.signIn()
+            val html = browser.get("/admin/system/jobs").bodyAsText()
+            for (label in listOf("Import fixture", "Import alt", "Guide broken", "Lineup policy run", "Logo sweep")) assertTrue(html.contains(label), label)
+            assertTrue(html.contains(">OK<") && html.contains(">Failed<"), "the fixture imports worked and the broken guide did not")
+            assertTrue(html.contains("IMPORT_FAILED"), html)
+            assertTrue(html.contains("aria-label=\"Run Import fixture now\""))
+            assertFalse(html.contains("/feed.m3u") || html.contains(token) || html.contains(admin))
+            val csrf = field(html, "csrf")
+            val started = browser.post("/admin/system/jobs/import:fixture/run", "csrf" to csrf)
+            assertEquals(HttpStatusCode.SeeOther, started.status, started.bodyAsText())
+            assertTrue(browser.get("/admin/system/jobs").bodyAsText().contains("Started Import fixture."))
+            browser.post("/admin/system/jobs/nothing/run", "csrf" to csrf)
+            assertTrue(browser.get("/admin/system/jobs").bodyAsText().contains("No such job to run."))
+        }
+    }
+
+    @Test fun `the events page lists what the server logged, filtered by level`() = testApplication {
+        portal {
+            val marker = "portal-events-" + System.nanoTime()
+            org.slf4j.LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.http.PortalEvents").warn("something to see {}", marker)
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/system/events").status)
+            browser.signIn()
+            val all = browser.get("/admin/system/events").bodyAsText()
+            assertTrue(all.contains("something to see $marker"), all.take(3000))
+            assertTrue(all.contains("<caption class=\"sr\">Log events, newest first</caption>"))
+            assertTrue(all.contains("hx-trigger=\"every 10s\""), "the list refreshes itself with JavaScript")
+            assertTrue(browser.get("/admin/system/events?level=warn&q=$marker").bodyAsText().contains("something to see $marker"))
+            assertFalse(browser.get("/admin/system/events?level=error&q=$marker").bodyAsText().contains("something to see $marker"))
+        }
+    }
+
+    @Test fun `the about page describes the server and the support snapshot holds no secret`() = testApplication {
+        portal(basePolicy) {
+            runtime.policy!!.apply("test")
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/system/snapshot.json").status, "the snapshot needs the session")
+            browser.signIn()
+            val html = browser.get("/admin/system/about").bodyAsText()
+            for (text in listOf("Revision", "FFmpeg", "Support snapshot", "&quot;takenAt&quot;", "Lineup policy run")) assertTrue(html.contains(text), text)
+            assertFalse(html.contains(admin) || html.contains(token) || html.contains(outputToken) || html.contains(plexToken) || html.contains("/feed.m3u"))
+            val snapshot = browser.get("/admin/system/snapshot.json")
+            assertEquals(HttpStatusCode.OK, snapshot.status)
+            assertEquals(ContentType.Application.Json, snapshot.contentType()?.withoutParameters())
+            val body = Json.parseToJsonElement(snapshot.bodyAsText()).jsonObject
+            assertEquals(4, body["status"]!!.jsonObject["providers"]!!.jsonObject["total"]!!.jsonPrimitive.int)
+            assertTrue(body["jobs"]!!.jsonArray.any { it.jsonObject["id"]!!.jsonPrimitive.content == "policy" })
+            assertFalse(snapshot.bodyAsText().contains(admin) || snapshot.bodyAsText().contains(token))
+        }
+    }
+
+    @Test fun `the theme cookie pins a colour scheme on every page, and the nav folds into a menu`() = testApplication {
+        portal {
+            browser.signIn()
+            val page = browser.get("/admin/lineup").bodyAsText()
+            assertFalse(page.contains("data-theme="), "with no cookie the device decides")
+            assertTrue(page.contains("<details class=\"menu\"><summary>Menu"), page.take(1500))
+            assertTrue(page.contains("<form action=\"/admin/theme\" method=\"post\" class=\"inline theme\""))
+            val pinned = browser.post("/admin/theme", "theme" to "light", "back" to "/admin/lineup?q=twin", "csrf" to field(page, "csrf"))
+            assertEquals(HttpStatusCode.SeeOther, pinned.status)
+            assertEquals("/admin/lineup?q=twin", pinned.headers[HttpHeaders.Location])
+            assertTrue(pinned.headers[HttpHeaders.SetCookie]!!.startsWith("sofa_theme=light;"))
+            val light = browser.get("/admin/plex").bodyAsText()
+            assertTrue(light.contains("<html lang=\"en\" data-theme=\"light\">"), light.take(200))
+            assertTrue(light.contains("<meta name=\"theme-color\" content=\"#F7F4FC\">"))
+            assertTrue(light.contains("value=\"light\" aria-pressed=\"true\""))
+            val elsewhere = browser.post("/admin/theme", "theme" to "auto", "back" to "https://evil.example/", "csrf" to field(page, "csrf"))
+            assertEquals("/admin", elsewhere.headers[HttpHeaders.Location], "only a portal path is returned to")
+            assertFalse(browser.get("/admin").bodyAsText().contains("data-theme="))
         }
     }
 }

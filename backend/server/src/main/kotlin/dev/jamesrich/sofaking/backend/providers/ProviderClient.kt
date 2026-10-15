@@ -33,6 +33,9 @@ class ProviderFailure(message: String, val transient: Boolean = true, cause: Thr
 interface ProviderClient {
     val service: String
 
+    /** The protocol every stream of this service carries, `hls` unless the service streams MPEG-TS. */
+    val protocol: String get() = "hls"
+
     suspend fun channels(): List<ProviderChannel>
 
     /** The service's guide: every channel in the index, programmes only for the ids in [wanted]. Null when the service has none. */
@@ -46,7 +49,7 @@ object NativeServices {
     private val guides = mapOf(
         "whale" to true, "vizio" to true, "lg" to true, "freelivesports" to true, "hallmark" to true,
         "ballysports" to true, "adultswim" to true, "pbs" to true, "samsung" to false, "plex" to true, "stirr" to true,
-        "tcl" to true, "roku" to false, "localnow" to true, "xumo" to true, "pluto" to true, "tubi" to true,
+        "tcl" to true, "roku" to false, "localnow" to true, "xumo" to true, "pluto" to true, "tubi" to true, "hdhomerun" to true,
     )
 
     val names: Set<String> get() = guides.keys

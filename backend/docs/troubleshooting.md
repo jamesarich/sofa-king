@@ -1,6 +1,6 @@
 # Troubleshooting and FAQ
 
-Start with the log. With Docker, `docker compose logs --tail 200 sofa-king-backend` in `deploy` shows it. Every response carries an `X-Request-Id` header, and the log lines for that request end with the same `requestId`, so a failing request is easy to find. Set `SOFA_LOG_LEVEL=debug` in `.env` and run `docker compose up -d` for more detail. [Logs](operations.md#logs) describes the format.
+Start with the log. The admin portal's Events page (under System) shows the newest lines at INFO and above, and its Jobs page says when each import, policy run and Plex sync last ran and how it ended. With Docker, `docker compose logs --tail 200 sofa-king-backend` in `deploy` shows the whole log. Every response carries an `X-Request-Id` header, and the log lines for that request end with the same `requestId`, so a failing request is easy to find. Set `SOFA_LOG_LEVEL=debug` in `.env` and run `docker compose up -d` for more detail. [Logs](operations.md#logs) describes the format.
 
 The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_API_TOKEN` and `$SOFA_ADMIN_TOKEN`. Outside Docker the port is 8080.
 

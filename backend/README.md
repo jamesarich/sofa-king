@@ -4,7 +4,7 @@ The Sofa King server is a self-hosted live TV server for a home network. It buil
 
 ## Why
 
-- **One container does the whole job.** Native clients for 17 free streaming (FAST) services sit beside an HDHomeRun emulation for Plex, so no separate playlist tool or tuner proxy is needed.
+- **One container does the whole job.** Native clients for 17 free streaming (FAST) services and HDHomeRun tuners sit beside an HDHomeRun emulation for Plex, so no separate playlist tool or tuner proxy is needed.
 - **The service clients run on your server.** Hosted FAST playlists have been taken down after DMCA notices. Here the server talks to the services itself; only Samsung TV Plus and The Roku Channel take their channel lists from a published mirror.
 - **One station per channel.** The same channel from several services becomes one station with the others as fallbacks. Channels whose names only roughly match are merged when their schedules agree, and kept apart otherwise.
 - **Numbers stay put.** Every number the server assigns is written back to the lineup policy file, so a channel keeps its number through rebuilds and on a new server.
@@ -14,7 +14,7 @@ The Sofa King server is a self-hosted live TV server for a home network. It buil
 
 ## Features
 
-- Native clients for 17 free streaming services, with their guides ([providers](docs/providers.md))
+- Native clients for 17 free streaming services and HDHomeRun tuners, with their guides ([providers](docs/providers.md))
 - M3U playlists and XMLTV guides, plain or gzip
 - A [lineup policy](docs/lineup-policy.md) file that rebuilds the same lineup on any server, with a preview before any change
 - Groups, stable numbers, logos, guide mapping and failover order, stored in SQLite

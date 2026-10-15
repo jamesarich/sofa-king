@@ -2,14 +2,16 @@ import SwiftUI
 import SofaKingCore
 
 /// Every channel with the program on now and next, favorites first; selecting one plays it full screen, and a long
-/// press (or the play/pause button's context menu) stars it. A cold start opens the last watched channel.
+/// press (or the play/pause button's context menu) opens the program's details or stars it. A cold start opens the
+/// last watched channel, and a `sofaking://channel/<guideId>` link from the Top Shelf opens that one.
 struct ChannelListView: View {
     @Environment(AppModel.self) private var model
     let lineup: Lineup
     @State private var playing: Channel?
+    @State private var detail: Channel?
     @State private var query = ""
 
-    private var favorites: Set<AnyHashable> { model.settings?.favorites ?? [] }
+    private var favorites: Set<String> { model.favorites }
 
     private var shown: [Channel] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
@@ -32,6 +34,9 @@ struct ChannelListView: View {
         .toolbar {
             NavigationLink { SettingsView() } label: { Label("Settings", systemImage: "gear").labelStyle(.iconOnly) }
         }
+        .navigationDestination(item: $detail) { channel in
+            ProgramDetailView(lineup: lineup, channel: channel) { playing = channel }
+        }
         .fullScreenCover(item: $playing) { channel in
             PlayerView(channel: channel)
         }
@@ -43,6 +48,12 @@ struct ChannelListView: View {
                 playing = channel
             }
         }
+        .onChange(of: model.requestedChannel, initial: true) { _, requested in
+            // The player, when one is up, takes the request instead and switches to the channel.
+            guard playing == nil, let requested else { return }
+            model.requestedChannel = nil
+            if let channel = lineup.channels.first(where: { $0.guideId == requested }) { playing = channel }
+        }
     }
 
     @ViewBuilder
@@ -50,10 +61,22 @@ struct ChannelListView: View {
         ForEach(channels, id: \.guideId) { channel in
             Button { playing = channel } label: { ChannelRow(lineup: lineup, channel: channel, favorite: favorites.contains(channel.guideId)) }
                 .contextMenu {
-                    Button(favorites.contains(channel.guideId) ? "Remove from favorites" : "Add to favorites") {
-                        model.core.toggleFavorite(guideId: channel.guideId)
-                    }
+                    Button("Program details", systemImage: "info.circle") { detail = channel }
+                    FavoriteButton(channel: channel)
                 }
+        }
+    }
+}
+
+/// Adds or removes the channel from the favorites, worded for its current state.
+struct FavoriteButton: View {
+    @Environment(AppModel.self) private var model
+    let channel: Channel
+
+    var body: some View {
+        let favorite = model.favorites.contains(channel.guideId)
+        Button(favorite ? "Remove from favorites" : "Add to favorites", systemImage: favorite ? "star.slash" : "star") {
+            model.core.toggleFavorite(guideId: channel.guideId)
         }
     }
 }
@@ -74,7 +97,7 @@ private struct ChannelRow: View {
                     Text(now.title).foregroundStyle(.secondary)
                 }
                 if let next = nowNext.next {
-                    Text("Next: \(next.title) at \(time(of: next))").font(.caption).foregroundStyle(.tertiary)
+                    Text("Next: \(next.title) at \(model.core.startTime(of: next))").font(.caption).foregroundStyle(.tertiary)
                 }
             }
             if favorite {
@@ -83,13 +106,18 @@ private struct ChannelRow: View {
             }
         }
     }
-
-    private func time(of programme: Programme) -> String {
-        Date(timeIntervalSince1970: Double(model.core.epochMs(programme: programme)) / 1000)
-            .formatted(date: .omitted, time: .shortened)
-    }
 }
 
 extension Channel: @retroactive Identifiable {
     public var id: String { guideId }
+}
+
+extension SofaKingTv {
+    func startTime(of programme: Programme) -> String {
+        start(of: programme).formatted(date: .omitted, time: .shortened)
+    }
+
+    func start(of programme: Programme) -> Date { Date(timeIntervalSince1970: Double(epochMs(programme: programme)) / 1000) }
+
+    func end(of programme: Programme) -> Date { Date(timeIntervalSince1970: Double(endEpochMs(programme: programme)) / 1000) }
 }

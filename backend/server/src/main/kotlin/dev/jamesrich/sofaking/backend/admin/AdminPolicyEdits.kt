@@ -268,7 +268,8 @@ internal fun groupsPage(chrome: Chrome, view: GroupsView?, errors: EditErrors? =
         if (view.blocks.isEmpty()) p("muted") { +"No group has a number block, so numbers come from the providers or from ${p.numbering.floor} up." }
         else div("scroll") {
             table {
-                thead { tr { th { +"Group" }; th(classes = "num") { +"Numbers" }; th(classes = "num") { +"Channels on" }; th { +"First number" }; th { } } }
+                caption("sr") { +"Number blocks" }
+                thead { tr { col("Group"); col("Numbers", "num"); col("Channels on", "num"); col("First number"); col("Action", "sr") } }
                 tbody {
                     for (block in view.blocks) tr {
                         th { attributes["scope"] = "row"; a("/admin/lineup?group=" + java.net.URLEncoder.encode(block.group, Charsets.UTF_8), classes = "rowlink") { +block.group } }
@@ -326,7 +327,8 @@ internal fun groupsPage(chrome: Chrome, view: GroupsView?, errors: EditErrors? =
         p("muted small") { +"Categories no map entry or pattern names, from the last run, most stations first. Map one to give its stations a vote, or mark it weak when it names no genre." }
         div("scroll") {
             table {
-                thead { tr { th { +"Category" }; th { +"Provider" }; th(classes = "num") { +"Stations" }; th { +"Example" }; th { +"Map to" }; th { } } }
+                caption("sr") { +"Unmapped categories" }
+                thead { tr { col("Category"); col("Provider"); col("Stations", "num"); col("Example"); col("Map to"); col("Action", "sr") } }
                 tbody {
                     for (row in view.unmapped) tr {
                         th { attributes["scope"] = "row"; +row.category }
@@ -432,7 +434,8 @@ internal fun MAIN.providerEntries(chrome: Chrome, view: ProvidersView, errors: E
         if (entries.isEmpty()) p("muted") { +"The policy has no provider entries, so no channel joins the lineup except through pins." }
         else div("scroll") {
             table {
-                thead { tr { th(classes = "num") { +"#" }; th { +"Provider" }; th { +"Takes" }; th { +"Its stations" }; th { +"Order" }; th { } } }
+                caption("sr") { +"Provider entries, in priority order" }
+                thead { tr { col("#", "num"); col("Provider"); col("Takes"); col("Its stations"); col("Order"); col("Action", "sr") } }
                 tbody {
                     entries.forEachIndexed { index, entry ->
                         tr {

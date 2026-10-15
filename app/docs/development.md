@@ -54,6 +54,12 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 - [ ] Background and foreground transitions resume the same channel.
 - [ ] Audio, captions and decoder recovery work on the full-screen player.
 
+On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):
+
+- [ ] Holding the touch surface on a channel opens its program details, and Watch plays it.
+- [ ] The player's transport bar menu toggles the favorite and switches channels from Recent, Favorites and All channels.
+- [ ] After watching a few channels, the Top Shelf shows them newest first, and selecting one opens the app on it; the app and the extension must be signed with the `group.dev.jamesrich.sofaking` app group for the list to reach the extension.
+
 ## Baseline Profile
 
 The release APK ships a Baseline Profile, so Android compiles the code a cold start, the guide and a channel change run ahead of time instead of interpreting it on the first launches. `:baselineprofile` records it with Macrobenchmark's `BaselineProfileRule` in two runs, the cold start alone for the startup profile that lays out the first dex file and the guide-and-zap journey for the rest, and the `androidx.baselineprofile` plugin writes both files under `androidApp/src/release/generated/baselineProfiles`. CI does not regenerate them.

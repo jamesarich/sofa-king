@@ -1,10 +1,10 @@
 # Native providers
 
-A native provider is a client for one free streaming service built into the server. It is configured in the source file as `{"type": "native", "service": "NAME"}`, next to the M3U providers. It lists the service's channels as candidates, carries the service's guide, and resolves a channel to a playable HLS URL when a session, a probe or the HDHomeRun remux needs one. Everything downstream (lineup, health, failover, logos, player outputs, Plex) works as it does for an M3U provider.
+A native provider is a client for one free streaming service built into the server. It is configured in the source file as `{"type": "native", "service": "NAME"}`, next to the M3U providers. It lists the service's channels as candidates, carries the service's guide, and resolves a channel to a playable stream URL when a session, a probe or the HDHomeRun remux needs one. Everything downstream (lineup, health, failover, logos, player outputs, Plex) works as it does for an M3U provider.
 
 The clients are unofficial. They call the same public endpoints each service's own web or TV client calls, with no account and no credentials, and they stop working whenever the service changes them. Using them may be against a service's terms of service. The clients send ad-insertion identifiers that are random per install, not a device's identifiers.
 
-The server supports 17 services. Each one is listed below with its endpoints and its known fragility.
+The server supports 17 streaming services and HDHomeRun tuners. Each one is listed below with its endpoints and its known fragility.
 
 ## Configuration
 
@@ -27,7 +27,8 @@ The server supports 17 services. Each one is listed below with its endpoints and
     { "id": "localnow", "type": "native", "service": "localnow" },
     { "id": "xumo", "type": "native", "service": "xumo" },
     { "id": "pluto", "type": "native", "service": "pluto" },
-    { "id": "tubi", "type": "native", "service": "tubi" }
+    { "id": "tubi", "type": "native", "service": "tubi" },
+    { "id": "antenna", "type": "native", "service": "hdhomerun", "options": { "url": "http://HDHOMERUN_IP" } }
   ]
 }
 ```
@@ -35,13 +36,13 @@ The server supports 17 services. Each one is listed below with its endpoints and
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi` |
-| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `dma` and `market` for `localnow`, `market` for `xumo` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi`, `hdhomerun` |
+| `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
 | `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source. A lineup policy ignores it ([probing](lineup-policy.md#probing)) |
 
-`headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only. Every native source is HLS.
+`headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only. Every native source is HLS, except `hdhomerun`, whose sources are MPEG-TS.
 
 A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider ID, refreshed hourly. Its channel IDs are the service's own, and a lineup entry created from a candidate maps onto that guide automatically. The guide holds every channel in its index, but programs only for channels the lineup maps. A service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS, Plex, STIRR, Pluto TV) is asked only about mapped channels.
 
@@ -61,7 +62,7 @@ From the other services' guides the server reads titles, descriptions and times 
 
 ## How a native source plays
 
-A native source's URL is `svc://SERVICE/CHANNEL_ID`: stable, never fetched, and what the lineup refers to. When a session opens the channel, the relay asks the provider to resolve it. The provider fills the service's ad macros (device ID, session ID, cache buster, privacy defaults) or follows the service's redirect, and the relay fetches the master playlist with the headers the service's own client sends. The resolution is cached per source until a minute before it expires, and for at most six hours: an hour for macro-filled URLs, the token lifetime for tokens, and six hours for static URLs. Every session, probe and remux on that source shares it. Nothing a player sees names the service. Media playlists and segments are the relay's opaque session paths, as for any HLS source.
+A native source's URL is `svc://SERVICE/CHANNEL_ID`: stable, never fetched, and what the lineup refers to. When a session opens the channel, the relay asks the provider to resolve it. The provider fills the service's ad macros (device ID, session ID, cache buster, privacy defaults) or follows the service's redirect, and the relay fetches the master playlist with the headers the service's own client sends. The resolution is cached per source until a minute before it expires, and for at most six hours: an hour for macro-filled URLs, the token lifetime for tokens, and six hours for static URLs. Every session, probe and remux on that source shares it. Nothing a player sees names the service. Media playlists and segments are the relay's opaque session paths, as for any HLS source. An MPEG-TS service (`hdhomerun`) resolves to the stream the relay fans out between players, as for any MPEG-TS source.
 
 A service that cannot answer (its API is down, or a token is refused twice) fails that one resolution. The session answers `502 UPSTREAM_UNAVAILABLE`, Plex sees a busy tuner, and a probe records provider evidence, which never strikes. A channel missing from the service's list is evidence against that source and strikes like a 404. One provider failing never affects another.
 
@@ -170,6 +171,12 @@ Fragility: the boot's `appVersion` is the web client's and may be refused when P
 tubitv.com/live as a signed-out visitor sees it. The page's `window.__data` state carries the `tubitv_us_linear` containers and their channel IDs. The public `oz/epg/programming` endpoint, 50 IDs a request, answers each channel's title, thumbnail, HLS manifest (with a token valid about three days) and about two days of programs, which are the guide. The snapshot is kept 30 minutes. The group is the first themed container that lists the channel. Featured, Recommended, Recently Added and Favorites group only what nothing else does. Tubi has no channel numbers. Channels with `needs_login`, or a resource with a `license_server`, are left out. A resolve asks `programming` for that one channel and hands its manifest to the relay for an hour.
 
 Fragility: the channel IDs come from the page's server-rendered state. A page served without them fails the import as provider evidence, and the last complete snapshot stays.
+
+### hdhomerun (HDHomeRun tuner)
+
+An HDHomeRun on the LAN, read the way Plex and the HDHomeRun app read it. `options.url` is the device's address, such as `http://192.168.1.50`. `lineup.json` lists the scanned channels: the channel ID and number are the `GuideNumber`, the name is the `GuideName`, the group is `Local` and each channel is tagged `ota`. Channels the device marks DRM (the `DRM` flag or a `drm` tag) are left out, as are channels without a stream URL. The list is kept 55 minutes. A resolve answers the channel's own MPEG-TS stream URL on the device (`/auto/vN.N`), which the relay's fan-out shares between players; `options.transcode` appends a `transcode=` profile (`heavy`, `mobile`, `internet720` and the rest), which only EXTEND models honor. The guide is SiliconDust's XMLTV for the device's lineup at `api.hdhomerun.com/api/xmltv`, fetched with the `DeviceAuth` from `discover.json`, three days deep without an account. It is refreshed about once a day, at an interval between 20 and 28 hours chosen per install, as the guide service asks, and its channel IDs are mapped onto the lineup numbers by suffix or display name. `options.guideApi` points the guide at another XMLTV endpoint that takes `DeviceAuth`.
+
+Fragility: the tuner has as many concurrent streams as it has tuners; past that, a play fails and Plex sees a busy tuner. An unscanned device has an empty lineup, which fails the import as provider evidence. The guide stops with `DeviceAuth`, which changes every few hours, so each fetch reads `discover.json` first.
 
 ## Checking a provider
 

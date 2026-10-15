@@ -87,7 +87,7 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
 
     fun client(providerId: String): ProviderClient? = clients[providerId]
 
-    /** The provider's channels as a parsed playlist: ids derived like an M3U channel's, every offering HLS behind `svc://`. */
+    /** The provider's channels as a parsed playlist: ids derived like an M3U channel's, every offering behind `svc://` with the client's protocol. */
     suspend fun channels(config: FeedConfig): ParsedPlaylist {
         val client = clients[config.id] ?: throw ProviderFailure("No client for provider ${config.id}", transient = false)
         val listed = client.channels()
@@ -103,7 +103,7 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
                 id, item.number?.takeIf { it.isNotBlank() } ?: id.take(8), item.name.trim(), httpOrNull(item.logo),
                 listOfNotNull(item.group?.takeIf { it.isNotBlank() }) + item.tags, item.id,
             )
-            offerings += Offering(stableId("offering:${config.id}:${item.id}:$url"), id, config.id, url, "hls")
+            offerings += Offering(stableId("offering:${config.id}:${item.id}:$url"), id, config.id, url, client.protocol)
         }
         require(channels.size <= 10_000) { "Provider exceeds import limits" }
         return ParsedPlaylist(channels.values.toList(), offerings, if (duplicates > 0) mapOf("duplicate-source" to duplicates) else emptyMap())
@@ -160,6 +160,7 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             "xumo" -> XumoClient(context)
             "pluto" -> PlutoClient(context)
             "tubi" -> TubiClient(context)
+            "hdhomerun" -> HdHomeRunClient(context)
             else -> throw IllegalArgumentException("Unknown native service $service")
         }
     }

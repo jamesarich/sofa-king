@@ -16,6 +16,8 @@ import io.ktor.http.URLBuilder
 import io.ktor.http.encodeURLPathPart
 import io.ktor.http.isSuccess
 import java.time.Clock
+import dev.jamesrich.sofaking.backend.jobs.JobOutcome
+import dev.jamesrich.sofaking.backend.jobs.Jobs
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
@@ -66,11 +68,17 @@ class PlexSync(
     initial: PlexStatus? = null,
     /** Stores each sync's status; a failure is logged and the sync still counts. */
     private val persist: suspend (PlexStatus) -> Unit = {},
+    /** Where each sync is recorded for the portal's Jobs page. */
+    private val jobs: Jobs = Jobs(clock),
 ) {
     private val log = LoggerFactory.getLogger(PlexSync::class.java)
     private val mutex = Mutex()
     private val trigger = Trigger<String>(Trigger.CONFLATED)
     private val status = AtomicReference(initial?.copy(syncMinutes = config.syncMinutes) ?: PlexStatus(config.syncMinutes))
+
+    init {
+        jobs.register("plex", "Plex sync", Duration.ofMillis(intervalMillis)) { requestSync("now") }
+    }
 
     fun status(): PlexStatus = status.get()
 
@@ -88,7 +96,8 @@ class PlexSync(
                 trigger.onReceive { it }
                 onTimeout(intervalMillis) { "interval" }
             }
-            if (cause != "interval") {
+            // A sync the operator asked for starts at once; a lineup change waits out the debounce so a burst is one sync.
+            if (cause != "interval" && cause != "now") {
                 delay(debounceMillis)
                 trigger.tryReceive()
             }
@@ -100,6 +109,17 @@ class PlexSync(
 
     /** One sync now; failures are recorded in the status, never thrown. */
     suspend fun sync(cause: String): PlexStatus = mutex.withLock {
+        var next: PlexStatus? = null
+        jobs.record("plex") {
+            next = syncNow(cause)
+            val status = next!!
+            if (status.lastError != null) JobOutcome(false, status.lastError.take(200))
+            else JobOutcome(true, "${status.devices.sumOf { it.mapped }} channels mapped on ${status.devices.size} devices" + if (status.missingDevices.isEmpty()) "" else ", ${status.missingDevices.size} not in Plex")
+        }
+        next!!
+    }
+
+    private suspend fun syncNow(cause: String): PlexStatus {
         val started = clock.instant()
         val ours = devices()
         val errors = ArrayList<String>()
@@ -152,7 +172,7 @@ class PlexSync(
             "plex sync cause={} dvrs={} devices={} mapped={} missing={} durationMs={}",
             cause, touched.size, mapped.size, mapped.sumOf { it.mapped }, missing.size, Duration.between(started, clock.instant()).toMillis(),
         )
-        next
+        return next
     }
 
     private suspend fun dvrs(): List<Dvr> = (send(HttpMethod.Get, "/livetv/dvrs").container("Dvr")).map { dvr ->

@@ -1,18 +1,19 @@
 package dev.jamesrich.sofaking.backend.store
 
 import java.io.PrintWriter
-import java.lang.reflect.InvocationTargetException
-import java.lang.reflect.Proxy
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.Connection
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
+import javax.sql.ConnectionEvent
+import javax.sql.ConnectionEventListener
 import javax.sql.DataSource
+import javax.sql.PooledConnection
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.sqlite.SQLiteConfig
-import org.sqlite.SQLiteDataSource
+import org.sqlite.javax.SQLiteConnectionPoolDataSource
 
 private val sources = ConcurrentHashMap<Database, PinnedConnectionSource>()
 
@@ -26,7 +27,7 @@ internal fun databaseAt(directory: Path): Database {
         setJournalSizeLimit(64 * 1024 * 1024)
     }
     val source = PinnedConnectionSource(
-        SQLiteDataSource(config).apply { url = "jdbc:sqlite:${directory.toAbsolutePath().resolve("backend.sqlite")}" },
+        SQLiteConnectionPoolDataSource(config).apply { url = "jdbc:sqlite:${directory.toAbsolutePath().resolve("backend.sqlite")}" },
     )
     return Database.connect(source).also { sources[it] = source }
 }
@@ -38,36 +39,37 @@ internal fun closeDatabase(database: Database) {
 }
 
 /**
- * Hands out one SQLite connection for the database's life; the close Exposed sends after each transaction is
- * ignored. Every transaction already runs on the store's one thread, so a pool would buy nothing, while opening a
- * connection per transaction re-applies the pragmas and checkpoints the WAL each time the last one closes.
+ * Keeps one physical SQLite connection for the database's life and hands out sqlite-jdbc's pooled handles to it:
+ * the close Exposed sends after each transaction returns the handle, and the physical connection, with its pragmas,
+ * stays open. Every transaction already runs on the store's one thread, so a larger pool would buy nothing, while
+ * opening a connection per transaction re-applies the pragmas and checkpoints the WAL each time the last one closes.
+ * A handle that reports a connection error drops the physical connection, so the next transaction reopens it.
  */
-internal class PinnedConnectionSource(private val delegate: SQLiteDataSource) : DataSource, AutoCloseable {
-    private var real: Connection? = null
-    private var pinned: Connection? = null
+internal class PinnedConnectionSource(private val delegate: SQLiteConnectionPoolDataSource) : DataSource, AutoCloseable {
+    private var pooled: PooledConnection? = null
 
     @Synchronized override fun getConnection(): Connection {
-        val current = real
-        if (current != null && !current.isClosed) return pinned!!
-        val opened = delegate.connection
-        real = opened
-        val proxy = Proxy.newProxyInstance(Connection::class.java.classLoader, arrayOf(Connection::class.java)) { _, method, args ->
-            if (method.name == "close" && method.parameterCount == 0) {
-                null
-            } else {
-                try { method.invoke(opened, *(args ?: emptyArray())) } catch (e: InvocationTargetException) { throw e.targetException }
-            }
-        } as Connection
-        pinned = proxy
-        return proxy
+        val current = pooled ?: delegate.pooledConnection.also { opened ->
+            opened.addConnectionEventListener(object : ConnectionEventListener {
+                override fun connectionClosed(event: ConnectionEvent) = Unit
+                override fun connectionErrorOccurred(event: ConnectionEvent) = drop(opened)
+            })
+            pooled = opened
+        }
+        return current.connection
     }
 
     override fun getConnection(username: String?, password: String?): Connection = getConnection()
 
+    @Synchronized private fun drop(broken: PooledConnection) {
+        if (pooled !== broken) return
+        pooled = null
+        runCatching { broken.close() }
+    }
+
     @Synchronized override fun close() {
-        real?.close()
-        real = null
-        pinned = null
+        pooled?.close()
+        pooled = null
     }
 
     override fun getLogWriter(): PrintWriter? = delegate.logWriter

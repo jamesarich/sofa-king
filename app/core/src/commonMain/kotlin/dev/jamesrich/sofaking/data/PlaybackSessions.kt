@@ -49,6 +49,8 @@ data class PlaybackStream(
     val mimeType: String,
     val epoch: Int,
     val intent: PlaybackIntent,
+    /** The server's source for the stream, as its lineup names it; empty from a server that does not say. */
+    val providerId: String = "",
 )
 
 /**
@@ -173,6 +175,7 @@ class PlaybackSessions(
             mimeType = mediaMimeType(session.descriptor),
             epoch = session.descriptor.epoch,
             intent = PlaybackIntent.fromWire(session.intent) ?: intent,
+            providerId = session.providerId,
         )
         _current.value = stream
         return stream

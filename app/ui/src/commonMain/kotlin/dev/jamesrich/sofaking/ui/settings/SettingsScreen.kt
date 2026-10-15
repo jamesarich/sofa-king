@@ -58,6 +58,7 @@ import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
+import dev.jamesrich.sofaking.ui.player.captionTimingText
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 
@@ -206,10 +207,7 @@ fun SettingsScreen(
                     enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE_MS.first,
                     modifier = Modifier.focusRequester(lessFocus).semantics { contentDescription = lessLabel },
                 ) { Text("−") }
-                Text(
-                    stringResource(Res.string.caption_timing_value, CaptionPolicy.advanceLabel(captionAdvance)),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                Text(captionTimingText(captionAdvance), style = MaterialTheme.typography.bodyLarge)
                 SofaButton(
                     onClick = {
                         captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = 1)

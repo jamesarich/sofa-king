@@ -128,7 +128,7 @@ internal fun FilterChipRow(
 
 /** A Material 3 filter chip in the guide's label type, with the D-pad focus cue. */
 @Composable
-private fun GuideChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
+internal fun GuideChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
     FilterChip(
         selected = selected,
         onClick = onClick,

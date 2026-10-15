@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.Test
@@ -25,5 +26,12 @@ class LiveResumeTest {
     @Test
     fun `a pause past the threshold resumes at live`() {
         assertTrue(shouldResumeAtLive(pausedAtMs = pausedAt, nowMs = pausedAt + LIVE_RESUME_AFTER_MS + 1))
+    }
+
+    @Test
+    fun `the pause pill counts the seconds behind live and says when resuming jumps to live`() {
+        assertEquals(PauseStatus(12, resumesLive = false), pauseStatus(pausedAtMs = 1_000L, nowMs = 13_400L))
+        assertEquals(PauseStatus(31, resumesLive = true), pauseStatus(pausedAtMs = 0L, nowMs = 31_000L))
+        assertEquals(PauseStatus(0, resumesLive = false), pauseStatus(pausedAtMs = 5_000L, nowMs = 4_000L))
     }
 }

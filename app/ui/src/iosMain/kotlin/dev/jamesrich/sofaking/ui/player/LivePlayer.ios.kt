@@ -30,7 +30,14 @@ import platform.AVFoundation.AVErrorFailedToParse
 import platform.AVFoundation.AVErrorFileFormatNotRecognized
 import platform.AVFoundation.AVFoundationErrorDomain
 import platform.AVFoundation.AVLayerVideoGravityResizeAspect
+import platform.AVFoundation.AVMediaCharacteristicAudible
 import platform.AVFoundation.AVMediaCharacteristicLegible
+import platform.AVFoundation.AVMediaSelectionGroup
+import platform.AVFoundation.AVPlayerItemAccessLogEvent
+import platform.AVFoundation.accessLog
+import platform.AVFoundation.presentationSize
+import platform.AVFoundation.selectedMediaOptionInMediaSelectionGroup
+import kotlinx.cinterop.useContents
 import platform.AVFoundation.AVMediaSelectionOption
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
@@ -112,6 +119,8 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
     override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
     override val cues: StateFlow<List<CaptionCue>> = MutableStateFlow(emptyList<CaptionCue>()).asStateFlow()
+    private val _audioTracks = MutableStateFlow<List<AudioTrack>>(emptyList())
+    override val audioTracks: StateFlow<List<AudioTrack>> = _audioTracks.asStateFlow()
 
     private val wake = Channel<Unit>(Channel.CONFLATED)
 
@@ -159,6 +168,33 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     override fun setCaptionsEnabled(enabled: Boolean) {
         captionsOn = enabled
         applyCaptions()
+    }
+
+    override fun selectAudioTrack(id: String) {
+        val item = av.currentItem ?: return
+        val group = audibleGroup(item) ?: return
+        val option = id.toIntOrNull()?.let { group.options.getOrNull(it) } as? AVMediaSelectionOption ?: return
+        item.selectMediaOption(option, group)
+        readAudioTracks(item)
+    }
+
+    /** AVFoundation reports the picture size and the stream's indicated bitrate; the codec and frame rate stay unknown. */
+    override fun streamInfo(): StreamInfo {
+        val item = av.currentItem ?: return StreamInfo()
+        val (width, height) = item.presentationSize.useContents { width.toInt() to height.toInt() }
+        val bitrate = (item.accessLog()?.events?.lastOrNull() as? AVPlayerItemAccessLogEvent)?.indicatedBitrate?.takeIf { it > 0 }?.toInt()
+        return StreamInfo(width = width.takeIf { it > 0 }, height = height.takeIf { it > 0 }, bitrateBps = bitrate)
+    }
+
+    private fun audibleGroup(item: AVPlayerItem): AVMediaSelectionGroup? =
+        item.asset.mediaSelectionGroupForMediaCharacteristic(AVMediaCharacteristicAudible)
+
+    /** The item's audible options, numbered by position; one option is no choice. */
+    private fun readAudioTracks(item: AVPlayerItem) {
+        val group = audibleGroup(item)
+        val options = group?.options.orEmpty().filterIsInstance<AVMediaSelectionOption>()
+        val selected = group?.let { item.selectedMediaOptionInMediaSelectionGroup(it) }
+        _audioTracks.value = if (options.size > 1) options.mapIndexed { index, option -> AudioTrack(index.toString(), option.displayName, option == selected) } else emptyList()
     }
 
     override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
@@ -310,7 +346,9 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         if (item != null && item.status == AVPlayerItemStatusReadyToPlay && captionsAppliedTo !== item) {
             captionsAppliedTo = item
             applyCaptions()
+            readAudioTracks(item)
         }
+        if (item == null) _audioTracks.value = emptyList()
         if (item != null && item.status == AVPlayerItemStatusFailed && reportedFailure != item) {
             reportedFailure = item
             val httpStatus = (item.errorLog()?.events?.lastOrNull() as? AVPlayerItemErrorLogEvent)?.errorStatusCode

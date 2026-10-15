@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
@@ -161,7 +162,16 @@ class RenderSmokeTest {
     fun `the player's info bar renders over the picture`() {
         val image = render("player-info") {
             Box(Modifier.fillMaxSize()) {
-                InfoOverlay(lineup = lineup, channel = channels[0], now = now, captionsOn = true, captionAdvanceMs = 1_500, scope = "News 1/4")
+                InfoOverlay(
+                    lineup = lineup,
+                    channel = channels[0],
+                    now = now,
+                    captionsOn = true,
+                    captionAdvanceMs = 1_500,
+                    scope = "News 1/4",
+                    showKeyLegend = true,
+                    modifier = Modifier.align(Alignment.BottomStart).screenPadding(),
+                )
             }
         }
         assertTrue(image.hasContent())
@@ -179,6 +189,7 @@ class RenderSmokeTest {
                     captionsOn = true,
                     captionAdvanceMs = 1_500,
                     scope = "Favorites 3/10",
+                    modifier = Modifier.align(Alignment.BottomStart).screenPadding(),
                 )
             }
         }

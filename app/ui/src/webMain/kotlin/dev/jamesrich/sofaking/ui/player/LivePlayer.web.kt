@@ -112,6 +112,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
     override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
     override val cues: StateFlow<List<CaptionCue>> = _cues.asStateFlow()
+    /** Browsers expose a stream's audio tracks only behind flags, so the card never offers a choice here. */
+    override val audioTracks: StateFlow<List<AudioTrack>> = MutableStateFlow(emptyList<AudioTrack>()).asStateFlow()
 
     init {
         video.addEventListener("playing") { _status.update { it.copy(state = PlaybackState.READY, isPlaying = true) } }
@@ -173,6 +175,11 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         captionsOn = enabled
         applyCaptions()
     }
+
+    override fun selectAudioTrack(id: String) = Unit
+
+    /** The element reports only the picture size. */
+    override fun streamInfo(): StreamInfo = StreamInfo(width = video.videoWidth.takeIf { it > 0 }, height = video.videoHeight.takeIf { it > 0 })
 
     override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
         this.stream = stream

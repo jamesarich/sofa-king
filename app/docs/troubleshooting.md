@@ -44,14 +44,17 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | Preview unavailable | The server refused the preview session or the stream failed. The channel does not open full screen by itself. Focus another channel and come back. |
 | A stream stops and comes back | Failed and ended streams reconnect after 2, 4, 8 and 15 seconds, then every 30 seconds, while the player is open. On Android, a stream the server replaced, which its relay answers with 410, reconnects at once. OK retries immediately. |
 | The picture freezes but no error shows | A stream that stalls without closing is not reconnected automatically. Press OK, or change channel and back. |
-| A channel starts slowly with captions on | Caption timing buffers the stream by that much. Lower the channel's timing or the default. |
+| A channel starts slowly with captions on | An earlier caption timing buffers the stream by that much. Lower the channel's timing or the default; a later timing needs no buffer. |
+| No working source for this channel right now | The server answered `SOURCE_UNAVAILABLE`: every source for the channel is down or quarantined. The server rechecks sources on its own; the card counts down to the next try, and OK tries at once. |
+| The wrong language plays | Hold Info for the stream card and pick another audio track; the choice lasts for the channel. One track means no choice. |
 
 ## Captions
 
 | Symptom | Check |
 | --- | --- |
 | No captions on this channel | The stream carries no CEA-608 or CEA-708 captions. |
-| Captions run behind the speech | Live captions are typed after the words are spoken. On Android, show the info bar with OK, then press Right to show them earlier on that channel. |
+| Captions run behind the speech | Live captions are typed after the words are spoken. On Android, press CC, then Right within a few seconds to show them earlier on that channel. |
+| Captions run ahead of the speech | Some relays carry captions early. On Android, press CC, then Left within a few seconds to show them later on that channel, up to 8 seconds. |
 | Captions appear letter by letter | On Android, turn on Smooth live captions in Settings. |
 | The caption style setting changes nothing | On a desktop and on iOS the player draws captions itself, and in a browser so does the browser's video element when the app falls back to it. [Captions](usage.md#captions) lists where the style applies. |
 

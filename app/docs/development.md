@@ -53,6 +53,8 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 - [ ] The preview is muted, unmutes at 5 seconds and opens full screen at 10 seconds, and captions show over it.
 - [ ] Background and foreground transitions resume the same channel.
 - [ ] Audio, captions and decoder recovery work on the full-screen player.
+- [ ] In the player, Left or Right on the info bar opens the channel list, Up from its top row reaches the chips and Left/Right move along them, and OK on a row under All tunes a channel outside the guide filter.
+- [ ] CC then Left/Right moves the channel's caption timing both ways and the toast follows; Info held opens the stream card, and Up/Down and OK pick an audio track on a channel with several.
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):
 

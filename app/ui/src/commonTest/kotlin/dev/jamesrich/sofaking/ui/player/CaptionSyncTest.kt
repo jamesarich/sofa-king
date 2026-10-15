@@ -32,4 +32,11 @@ class CaptionSyncTest {
         assertEquals(0L, CaptionSync.nextEffectiveUs(2_000_000L, 0L, 9_000_000L))
         assertEquals(0L, CaptionSync.nextEffectiveUs(2_000_000L, 6_000_000L, 0L))
     }
+
+    @Test
+    fun `a delay applies in full whatever is buffered since its cues are already past`() {
+        assertEquals(-2_000_000L, CaptionSync.nextEffectiveUs(0L, -2_000_000L, 0L))
+        assertEquals(-2_000_000L, CaptionSync.nextEffectiveUs(-2_000_000L, -2_000_000L, 9_000_000L))
+        assertEquals(0L, CaptionSync.bufferNeededToStartUs(-2_000_000L))
+    }
 }

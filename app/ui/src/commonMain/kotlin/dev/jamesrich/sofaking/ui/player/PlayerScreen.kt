@@ -76,6 +76,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.fillMaxWidth
+import dev.jamesrich.sofaking.ui.uptimeMs
 import androidx.compose.ui.input.pointer.pointerInput
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LocalLastInput
@@ -83,7 +86,13 @@ import dev.jamesrich.sofaking.ui.screenPadding
 
 private const val ZAP_OVERLAY_MS = 5_000L
 private const val CAPTION_TOAST_MS = 2_000L
+/** How long after the CC key Left and Right keep adjusting the channel's caption timing; each press restarts it. */
+internal const val CAPTION_TIMING_WINDOW_MS = 3_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
+private const val STREAM_CARD_IDLE_MS = 15_000L
+private const val LIVE_TOAST_MS = 1_500L
+/** A swipe up this far on a touch screen opens the channel list. */
+private const val SWIPE_UP_DP = 80
 private const val STREAM_ENDED = "STREAM_ENDED"
 /** The server's answer when a session is asked for a channel id its lineup no longer has. */
 internal const val CHANNEL_NOT_FOUND = Wire.ErrorCode.CHANNEL_NOT_FOUND
@@ -94,8 +103,11 @@ private val log = Logger.withTag("SofaKing")
 
 /** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
 
-/** Caption toggle feedback; compared by identity so a repeated press restarts its timer. */
-private class CaptionToast(val outcome: CaptionToggleOutcome)
+/**
+ * Caption toggle feedback; compared by identity so a repeated press restarts its timer. While [timingMs] is set,
+ * Left and Right adjust the channel's caption timing and the toast shows where it is.
+ */
+private class CaptionToast(val outcome: CaptionToggleOutcome, val timingMs: Int?)
 
 /**
  * A stream that failed or ended; [attempt] counts the automatic reconnects made for it so far. [immediate]
@@ -143,6 +155,13 @@ fun PlayerScreen(
     onCaptionAdvanceChanged: (Channel, Int) -> Unit = { _, _ -> },
     captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
     smoothCaptions: Boolean = true,
+    /** Starred channels, for the channel list's Favorites chip. */
+    favorites: Set<String> = emptySet(),
+    /** Channels watched lately, latest first, for the channel list's Recent chip; empty leaves the chip out. */
+    recentGuideIds: List<String> = emptyList(),
+    /** How many info bars have carried the key legend so far; it rides the first [AppSettings.KEY_LEGEND_BARS]. */
+    keyLegendShown: Int = AppSettings.KEY_LEGEND_BARS,
+    onKeyLegendShown: (Int) -> Unit = {},
 ) {
     val captionSync = player.captionSync
     val nowPlayingTemplate = stringResource(Res.string.now_playing)
@@ -160,6 +179,7 @@ fun PlayerScreen(
     val currentOnChannelChanged by rememberUpdatedState(onChannelChanged)
     val currentOnCaptionsChanged by rememberUpdatedState(onCaptionsChanged)
     val currentOnCaptionAdvanceChanged by rememberUpdatedState(onCaptionAdvanceChanged)
+    val currentOnKeyLegendShown by rememberUpdatedState(onKeyLegendShown)
     val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
     val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(windowHeightDp)
     var index by remember { mutableIntStateOf(channels.indexOfFirst { it.guideId == startChannel?.guideId }.coerceAtLeast(0)) }
@@ -183,7 +203,24 @@ fun PlayerScreen(
     var miniGuideOpen by remember { mutableStateOf(false) }
     // Bumped on every key while the mini-guide is open, so its idle timer restarts.
     var miniGuideActivity by remember { mutableIntStateOf(0) }
+    // True while a chip of the channel list has focus, so Left and Right move along the chips.
+    var miniGuideChipsFocused by remember { mutableStateOf(false) }
+    var streamCardOpen by remember { mutableStateOf(false) }
+    var streamCardActivity by remember { mutableIntStateOf(0) }
+    var streamInfo by remember { mutableStateOf(StreamInfo()) }
+    var streamBufferedMs by remember { mutableStateOf(0L) }
+    val audioTracks by player.audioTracks.collectAsStateWithLifecycle()
+    val heldStream by sessions.current.collectAsStateWithLifecycle()
+    // Seconds to the next automatic reconnect, 0 while it runs, null with none scheduled.
+    var retryIn by remember { mutableStateOf<Int?>(null) }
+    var pauseState by remember { mutableStateOf<PauseStatus?>(null) }
+    var liveToast by remember { mutableStateOf(false) }
+    // The key legend rides the first few info bars after install, counted once per bar.
+    var legendCount by remember { mutableIntStateOf(keyLegendShown) }
+    var legendOnThisBar by remember { mutableStateOf(false) }
     val centerGesture = remember { CenterKeyGesture() }
+    val infoGesture = remember { CenterKeyGesture() }
+    val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
     val now by rememberMinuteNow()
     val scope = rememberCoroutineScope()
     val tuneJob = remember { TuneJob() }
@@ -362,10 +399,41 @@ fun PlayerScreen(
         delay(MINI_GUIDE_IDLE_MS)
         miniGuideOpen = false
     }
+    LaunchedEffect(streamCardOpen, streamCardActivity) {
+        if (!streamCardOpen) return@LaunchedEffect
+        delay(STREAM_CARD_IDLE_MS)
+        streamCardOpen = false
+    }
+    // The card's figures move while it is open: the buffer every second, the formats when the engine changes them.
+    LaunchedEffect(streamCardOpen, player) {
+        while (streamCardOpen) {
+            streamInfo = player.streamInfo()
+            streamBufferedMs = player.bufferedMs
+            delay(1_000)
+        }
+    }
+    // The pause pill counts how far behind live the picture is; a resume past the live-resume rule says "Live" for a moment.
+    LaunchedEffect(paused) {
+        if (!paused) {
+            val wasPaused = pauseState
+            pauseState = null
+            if (wasPaused?.resumesLive == true) {
+                liveToast = true
+                delay(LIVE_TOAST_MS)
+                liveToast = false
+            }
+            return@LaunchedEffect
+        }
+        val pausedAt = uptimeMs()
+        while (true) {
+            pauseState = pauseStatus(pausedAt, uptimeMs())
+            delay(1_000)
+        }
+    }
 
     // Keeps the caption look-ahead inside what's downloaded; see CaptionSync.nextEffectiveUs. Nothing runs
     // while captions are off, the channel has no advance or the engine cannot apply one.
-    val captionLeadActive = captionLead > 0L
+    val captionLeadActive = captionLead != 0L
     LaunchedEffect(player, captionLeadActive) {
         if (!captionLeadActive) {
             captionSync.effectiveUs = 0L
@@ -424,46 +492,106 @@ fun PlayerScreen(
             }
             return@LaunchedEffect
         }
-        if (!(current.immediate && current.attempt == 0)) delay(reconnectDelayMs(current.attempt))
+        if (!(current.immediate && current.attempt == 0)) {
+            // The card counts the wait down a second at a time.
+            val until = uptimeMs() + reconnectDelayMs(current.attempt)
+            while (true) {
+                val remaining = until - uptimeMs()
+                if (remaining <= 0L) break
+                retryIn = ((remaining + 999L) / 1_000L).toInt()
+                delay(minOf(remaining, 1_000L))
+            }
+        }
+        retryIn = 0
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
         val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
         failure = current.copy(attempt = current.attempt + 1)
         load(channel)
     }
+    LaunchedEffect(failure == null) { if (failure == null) retryIn = null }
 
     LaunchedEffect(overlayVisible, overlayRequest) {
         if (!overlayVisible) return@LaunchedEffect
         delay(ZAP_OVERLAY_MS)
         overlayVisible = false
     }
+    LaunchedEffect(overlayVisible) {
+        if (!overlayVisible || pointerDriven) return@LaunchedEffect
+        legendOnThisBar = legendCount < AppSettings.KEY_LEGEND_BARS
+        if (legendOnThisBar) currentOnKeyLegendShown(++legendCount)
+    }
 
     LaunchedEffect(captionToast) {
-        if (captionToast == null) return@LaunchedEffect
-        delay(CAPTION_TOAST_MS)
+        val toast = captionToast ?: return@LaunchedEffect
+        delay(if (toast.timingMs != null) CAPTION_TIMING_WINDOW_MS else CAPTION_TOAST_MS)
         captionToast = null
     }
 
     val focus = remember { FocusRequester() }
-    // Focus returns to the player surface whenever the mini-guide closes, including after its list is removed.
-    LaunchedEffect(miniGuideOpen) { if (!miniGuideOpen) focus.requestFocus() }
+    // Focus returns to the player surface whenever a panel closes, including after its list is removed.
+    LaunchedEffect(miniGuideOpen, streamCardOpen) { if (!miniGuideOpen && !streamCardOpen) focus.requestFocus() }
     var swallowBackUp by remember { mutableStateOf(false) }
     BackHandler {
-        if (miniGuideOpen) miniGuideOpen = false else onExit()
+        when {
+            streamCardOpen -> streamCardOpen = false
+            miniGuideOpen -> miniGuideOpen = false
+            else -> onExit()
+        }
     }
+
+    /** The timing Left and Right adjust right after the CC key, where the engine applies one. */
+    fun timingToast(enabled: Boolean, outcome: CaptionToggleOutcome, timingMs: Int) =
+        CaptionToast(outcome, timingMs.takeIf { enabled && player.supportsCaptionLead })
 
     fun toggleCaptions() {
         val enabled = !captionsOn
         captionsOn = enabled
         player.setCaptionsEnabled(enabled)
         val channelHasText = player.hasTextTrack
-        captionToast = CaptionToast(CaptionPolicy.toggleOutcome(enabled, channelHasText))
+        captionToast = timingToast(enabled, CaptionPolicy.toggleOutcome(enabled, channelHasText), channelAdvance)
         currentOnCaptionsChanged(enabled)
+    }
+
+    /** One step earlier (Right) or later (Left) for this channel; the toast restarts its window at the new timing. */
+    fun adjustCaptionTiming(direction: Int) {
+        val channel = currentChannels.getOrNull(index) ?: return
+        val toast = captionToast ?: return
+        val next = CaptionPolicy.stepAdvance(channelAdvance, direction)
+        advanceOverrides = advanceOverrides + (channel.guideId to next)
+        currentOnCaptionAdvanceChanged(channel, next)
+        captionToast = CaptionToast(toast.outcome, next)
     }
 
     fun openMiniGuide() {
         overlayVisible = false
+        streamCardOpen = false
         miniGuideOpen = true
+        miniGuideChipsFocused = false
         miniGuideActivity++
+    }
+
+    fun openStreamCard() {
+        overlayVisible = false
+        miniGuideOpen = false
+        streamCardOpen = true
+        streamCardActivity++
+    }
+
+    fun showInfo() {
+        overlayVisible = true
+        overlayRequest++
+    }
+
+    /** A row of the channel list: a channel in the ring tunes at once, one outside it widens the ring first. */
+    fun tuneChannel(channel: Channel) {
+        val target = currentChannels.indexOfFirst { it.guideId == channel.guideId }
+        if (target >= 0) {
+            zapTo(target)
+        } else {
+            miniGuideOpen = false
+            pendingNumber = channel.guideId
+            widened = true
+        }
     }
 
     /** A failed channel tunes again now, however many automatic retries have run. */
@@ -529,18 +657,33 @@ fun PlayerScreen(
             PlayerAction.PAUSE -> player.pause()
             PlayerAction.TOGGLE_INFO -> if (!numbers.hasDigits) overlayVisible = !overlayVisible
             PlayerAction.LEFT, PlayerAction.RIGHT -> {
-                val channel = currentChannels.getOrNull(index)
-                if (captionsOn && player.supportsCaptionLead && overlayVisible && channel != null) {
-                    // Right shows captions earlier, Left later; the overlay stays up while adjusting.
-                    val direction = if (action == PlayerAction.RIGHT) 1 else -1
-                    val next = CaptionPolicy.stepAdvance(channelAdvance, direction)
-                    advanceOverrides = advanceOverrides + (channel.guideId to next)
-                    currentOnCaptionAdvanceChanged(channel, next)
-                    overlayRequest++
-                } else {
-                    overlayVisible = !overlayVisible
+                val adjustable = captionToast?.timingMs != null && captionsOn
+                when (playerSideKey(adjustable, overlayVisible)) {
+                    // Right shows captions earlier, Left later.
+                    PlayerSideKey.ADJUST_CAPTION_TIMING -> adjustCaptionTiming(if (action == PlayerAction.RIGHT) 1 else -1)
+                    PlayerSideKey.OPEN_CHANNEL_LIST -> openMiniGuide()
+                    PlayerSideKey.SHOW_INFO -> showInfo()
                 }
             }
+        }
+        return true
+    }
+
+    /** Info is judged on key-up: a short press toggles the info bar, a long press opens the stream card. */
+    fun handleInfo(event: KeyEvent): Boolean {
+        when (event.type) {
+            KeyEventType.KeyDown -> if (infoGesture.onKeyDown(event.isLongPress, event.repeatCountOrNull) == CenterPress.LONG) openStreamCard()
+            KeyEventType.KeyUp -> if (infoGesture.onKeyUp() == CenterPress.SHORT) {
+                when {
+                    streamCardOpen -> streamCardOpen = false
+                    miniGuideOpen -> {
+                        miniGuideOpen = false
+                        showInfo()
+                    }
+                    !numbers.hasDigits -> overlayVisible = !overlayVisible
+                }
+            }
+            else -> return false
         }
         return true
     }
@@ -548,17 +691,21 @@ fun PlayerScreen(
     // A tap or click on the video: the channel list closes, or the info bar and its touch controls toggle. Focus
     // stays on the player surface, so the remote and keyboard keep working after a pointer has been used.
     fun handleTap() {
+        if (streamCardOpen) {
+            streamCardOpen = false
+            focus.requestFocus()
+            return
+        }
         when (playerTap(miniGuideOpen, overlayVisible)) {
             PlayerTap.CLOSE_CHANNEL_LIST -> miniGuideOpen = false
             PlayerTap.HIDE_INFO -> overlayVisible = false
-            PlayerTap.SHOW_INFO -> {
-                overlayVisible = true
-                overlayRequest++
-            }
+            PlayerTap.SHOW_INFO -> showInfo()
         }
         focus.requestFocus()
     }
     val currentHandleTap by rememberUpdatedState(::handleTap)
+    val currentOpenMiniGuide by rememberUpdatedState(::openMiniGuide)
+    val swipeUpPx = with(LocalDensity.current) { SWIPE_UP_DP.dp.toPx() }
 
     /** A touch control's action, after which the info bar stays up for another while and the surface keeps focus. */
     fun control(action: () -> Unit): () -> Unit = {
@@ -566,15 +713,15 @@ fun PlayerScreen(
         overlayRequest++
         focus.requestFocus()
     }
-    val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
         val key = event.key
         // The mini-guide's focused list swallows Back before BackHandler sees it, so close it here and
         // eat the matching key-up so the same press can't also leave the player.
         if (key == Key.Back) {
-            if (event.type == KeyEventType.KeyDown && miniGuideOpen) {
+            if (event.type == KeyEventType.KeyDown && (miniGuideOpen || streamCardOpen)) {
                 miniGuideOpen = false
+                streamCardOpen = false
                 swallowBackUp = true
                 return true
             }
@@ -583,12 +730,28 @@ fun PlayerScreen(
                 return true
             }
         }
-        if (key == Key.DirectionCenter || key == Key.Enter) return handleCenter(event)
+        if (key == Key.Info) return handleInfo(event)
+        if (key == Key.DirectionCenter || key == Key.Enter) return if (streamCardOpen && audioTracks.isNotEmpty()) false else handleCenter(event)
         if (event.type != KeyEventType.KeyDown || currentChannels.isEmpty()) return false
+        if (streamCardOpen) {
+            streamCardActivity++
+            return when (key.inStreamCard()) {
+                // The focused track row handles OK.
+                StreamCardKey.CARD -> false
+                StreamCardKey.CLOSE -> {
+                    streamCardOpen = false
+                    true
+                }
+                StreamCardKey.PLAYER -> {
+                    streamCardOpen = false
+                    handleKey(key)
+                }
+            }
+        }
         if (!miniGuideOpen) return handleKey(key)
         miniGuideActivity++
-        return when (key.inMiniGuide()) {
-            // The focused row handles OK.
+        return when (key.inMiniGuide(miniGuideChipsFocused)) {
+            // The focused row or chip handles OK.
             MiniGuideKey.LIST -> false
             MiniGuideKey.SWALLOWED -> true
             MiniGuideKey.PLAYER -> handleKey(key)
@@ -612,7 +775,16 @@ fun PlayerScreen(
                 }
             }
             .onPreviewKeyEvent { event -> handleKeyEvent(event) }
-            .pointerInput(Unit) { detectTapGestures(onTap = { currentHandleTap() }) },
+            .pointerInput(Unit) { detectTapGestures(onTap = { currentHandleTap() }) }
+            // A swipe up on a touch screen opens the channel list, the way a second OK does on the remote.
+            .pointerInput(Unit) {
+                var dragged = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { dragged = 0f },
+                    onDragEnd = { if (dragged < -swipeUpPx) currentOpenMiniGuide() },
+                    onVerticalDrag = { _, dy -> dragged += dy },
+                )
+            },
     ) {
         player.Video(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         Captions(player, captionStyle, captionBottomFraction, Modifier.fillMaxSize())
@@ -633,34 +805,54 @@ fun PlayerScreen(
                     StatusPill(stringResource(Res.string.tuning), busy = true)
                 }
                 AnimatedVisibility(paused && failure == null, enter = popIn, exit = popOut) {
-                    StatusPill(stringResource(Res.string.player_paused))
+                    PausePill(pauseState)
+                }
+                AnimatedVisibility(liveToast && !paused, enter = popIn, exit = popOut) {
+                    StatusPill(stringResource(Res.string.player_live), MaterialTheme.typography.titleLarge)
                 }
                 AnimatedContent(
                     targetState = captionToast,
                     transitionSpec = { popIn togetherWith popOut },
                     label = "captionToast",
                 ) { toast ->
-                    if (toast != null) StatusPill(stringResource(toast.outcome.labelRes()), MaterialTheme.typography.titleLarge)
+                    if (toast != null) CaptionToastPill(toast.outcome, toast.timingMs)
                 }
             }
-            failure?.let { FailureCard(it.code) }
+            failure?.let { FailureCard(it.code, retryIn) }
             ChannelNumberBadge(numbers)
+            AnimatedVisibility(streamCardOpen, enter = PopIn, exit = ExitTransition.None) {
+                Box(Modifier.fillMaxSize()) {
+                    StreamCard(
+                        tracks = audioTracks,
+                        info = streamInfo,
+                        stream = heldStream,
+                        bufferedMs = streamBufferedMs,
+                        onSelectTrack = { id ->
+                            player.selectAudioTrack(id)
+                            streamCardActivity++
+                        },
+                    )
+                }
+            }
             // The channel list arrives on a spring but leaves at once: while it animated out it would still
             // hold focus, and a quick second Back or Down would land in the list instead of the player.
             AnimatedVisibility(miniGuideOpen, enter = RiseIn, exit = ExitTransition.None) {
                 Box(Modifier.fillMaxSize()) {
                     MiniGuide(
                         lineup = lineup,
-                        channels = currentChannels,
-                        currentIndex = index,
-                        previousIndex = previousIndex,
+                        scope = zapScope?.takeIf { scoped },
+                        favorites = favorites,
+                        recent = recentGuideIds,
+                        currentGuideId = channel.guideId,
+                        previousGuideId = previousChannel?.guideId,
                         now = now,
-                        onTune = { target -> zapTo(target) },
+                        onTune = ::tuneChannel,
+                        onChipsFocused = { miniGuideChipsFocused = it },
                     )
                 }
             }
-            AnimatedVisibility(overlayVisible && !miniGuideOpen, enter = RiseIn, exit = SinkOut) {
-                Box(Modifier.fillMaxSize()) {
+            AnimatedVisibility(overlayVisible && !miniGuideOpen && !streamCardOpen, enter = RiseIn, exit = SinkOut) {
+                Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     val scopeLabel = zapScope?.takeIf { scoped }?.let { stringResource(Res.string.zap_scope, it.label, index + 1, channels.size) }
                     InfoOverlay(
                         lineup = lineup,
@@ -669,19 +861,21 @@ fun PlayerScreen(
                         captionsOn = captionsOn,
                         captionAdvanceMs = channelAdvance.takeIf { player.supportsCaptionLead },
                         scope = scopeLabel,
-                        showKeyHint = !pointerDriven,
+                        showKeyLegend = legendOnThisBar && !pointerDriven,
                     )
                     if (pointerDriven) {
                         TouchControls(
                             captionsOn = captionsOn,
                             paused = paused,
                             failed = failure != null,
+                            hasAudioChoice = audioTracks.isNotEmpty(),
                             onGuide = onExit,
                             onChannelUp = control { zapStep(PlayerAction.CHANNEL_UP.zapStep()!!) },
                             onChannelDown = control { zapStep(PlayerAction.CHANNEL_DOWN.zapStep()!!) },
                             onChannelList = ::openMiniGuide,
                             onCaptions = control { toggleCaptions() },
                             onPlayPause = control { if (player.playWhenReady) player.pause() else player.play() },
+                            onStreamInfo = ::openStreamCard,
                             onRetry = control { retry() },
                         )
                     }

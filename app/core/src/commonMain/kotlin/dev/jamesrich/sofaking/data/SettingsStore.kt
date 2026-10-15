@@ -16,7 +16,7 @@ data class AppSettings(
     /** The guide filter last chosen, as the guide keys it (see `GuideFilter.key`), or null for All; reopened on launch. */
     val guideFilter: String? = null,
     val captionsEnabled: Boolean = false,
-    /** How many milliseconds ahead captions render, to offset live captioning delay. */
+    /** How many milliseconds ahead captions render, to offset live captioning delay; negative delays them instead. */
     val captionAdvanceMs: Int = DEFAULT_CAPTION_ADVANCE_MS,
     /** Per-channel overrides of [captionAdvanceMs], keyed by [Channel.guideId]. */
     val captionAdvanceByChannel: Map<String, Int> = emptyMap(),
@@ -27,6 +27,8 @@ data class AppSettings(
     val autoOpenDelay: AutoOpenDelay = AutoOpenDelay.AFTER_10_SECONDS,
     /** Whether a resting guide preview unmutes; off keeps it silent until full screen. */
     val previewSound: Boolean = true,
+    /** How many info bars have carried the key legend; it stops after [KEY_LEGEND_BARS]. */
+    val keyLegendShown: Int = 0,
 ) {
     fun captionAdvanceFor(guideId: String): Int = captionAdvanceByChannel[guideId] ?: captionAdvanceMs
 
@@ -36,12 +38,16 @@ data class AppSettings(
             "lastChannel=$lastChannel, recentChannels=$recentChannels, guideFilter=$guideFilter, captionsEnabled=$captionsEnabled, " +
             "captionAdvanceMs=$captionAdvanceMs, " +
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
-            "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound)"
+            "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, keyLegendShown=$keyLegendShown)"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
-        val CAPTION_ADVANCE_RANGE_MS = 0..8_000
+        /** Negative shows captions later, positive earlier; the per-channel values keep the same range. */
+        val CAPTION_ADVANCE_RANGE_MS = -8_000..8_000
         const val CAPTION_ADVANCE_STEP_MS = 500
+
+        /** The key legend rides the first info bars after install, then only the stream card. */
+        const val KEY_LEGEND_BARS = 3
 
         /** How many recently watched channels are kept. */
         const val RECENT_CHANNELS = 10
@@ -88,4 +94,6 @@ interface SettingsStore {
     suspend fun setAutoOpenDelay(delay: AutoOpenDelay)
 
     suspend fun setPreviewSound(enabled: Boolean)
+
+    suspend fun setKeyLegendShown(count: Int)
 }

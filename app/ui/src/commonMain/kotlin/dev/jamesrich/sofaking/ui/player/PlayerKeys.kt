@@ -38,8 +38,8 @@ internal fun Key.playerExit(): PlayerExit? = when (this) {
 }
 
 /**
- * What a key does in the player once exits and digits are taken. [LEFT] and [RIGHT] adjust the caption lead while
- * captions and the info bar are on, and toggle the info bar otherwise; the screen decides which.
+ * What a key does in the player once exits and digits are taken. [LEFT] and [RIGHT] go by [playerSideKey]; [TOGGLE_INFO]
+ * is a short Info press, since Info held opens the stream card.
  */
 internal enum class PlayerAction {
     TOGGLE_CAPTIONS, ZAP_UP, ZAP_DOWN, CHANNEL_UP, CHANNEL_DOWN, LAST_CHANNEL, PLAY_PAUSE, PLAY, PAUSE, TOGGLE_INFO, LEFT, RIGHT
@@ -76,14 +76,43 @@ internal fun PlayerAction.zapStep(): Int? = when (this) {
     else -> null
 }
 
+/** What Left or Right does in the player. */
+internal enum class PlayerSideKey { ADJUST_CAPTION_TIMING, OPEN_CHANNEL_LIST, SHOW_INFO }
+
+/**
+ * For a few seconds after the CC key, Left and Right move the channel's caption timing; on the info bar they open the
+ * channel list, as OK does; otherwise they show the bar.
+ */
+internal fun playerSideKey(timingAdjustable: Boolean, infoVisible: Boolean): PlayerSideKey = when {
+    timingAdjustable -> PlayerSideKey.ADJUST_CAPTION_TIMING
+    infoVisible -> PlayerSideKey.OPEN_CHANNEL_LIST
+    else -> PlayerSideKey.SHOW_INFO
+}
+
 /** Where a key goes while the channel list is open. */
 internal enum class MiniGuideKey { LIST, SWALLOWED, PLAYER }
 
-/** Up and Down move focus inside the list, Left and Right do nothing, and every other key acts as it does in the player. */
-internal fun Key.inMiniGuide(): MiniGuideKey = when (this) {
+/**
+ * Up and Down move focus inside the panel, Left and Right move along its filter chips and do nothing on a row, and
+ * every other key acts as it does in the player.
+ */
+internal fun Key.inMiniGuide(chipsFocused: Boolean = false): MiniGuideKey = when (this) {
     Key.DirectionUp, Key.DirectionDown -> MiniGuideKey.LIST
-    Key.DirectionLeft, Key.DirectionRight -> MiniGuideKey.SWALLOWED
+    Key.DirectionLeft, Key.DirectionRight -> if (chipsFocused) MiniGuideKey.LIST else MiniGuideKey.SWALLOWED
     else -> MiniGuideKey.PLAYER
+}
+
+/** Where a key goes while the stream card is open. */
+internal enum class StreamCardKey { CARD, CLOSE, PLAYER }
+
+/**
+ * Up and Down move between the card's audio tracks (OK picks one through the focused row), Left, Right, Back and Info
+ * close it, and every other key closes it and acts as it does in the player.
+ */
+internal fun Key.inStreamCard(): StreamCardKey = when (this) {
+    Key.DirectionUp, Key.DirectionDown -> StreamCardKey.CARD
+    Key.DirectionLeft, Key.DirectionRight, Key.Back, Key.Info, Key.Escape -> StreamCardKey.CLOSE
+    else -> StreamCardKey.PLAYER
 }
 
 /** What a tap or click on the video does. */

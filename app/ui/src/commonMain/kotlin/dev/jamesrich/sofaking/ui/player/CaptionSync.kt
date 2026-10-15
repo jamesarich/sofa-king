@@ -5,11 +5,12 @@ import kotlin.concurrent.Volatile
 /**
  * Live captions are typed after the words are spoken, so their timestamps trail the audio. Rendering
  * text [advanceUs] ahead of the playback position pulls them back in line; the cues must already be
- * downloaded, so playback waits for that much buffer before it starts. Players whose engine exposes no
- * text renderer hook (every one but Media3) show captions at their own timing.
+ * downloaded, so playback waits for that much buffer before it starts. A negative advance holds the text
+ * back instead, which needs no buffer. Players whose engine exposes no text renderer hook (every one but
+ * Media3) show captions at their own timing.
  */
 class CaptionSync {
-    /** The user's chosen advance; playback waits for this much buffer plus [MARGIN_US] before it starts. */
+    /** The user's chosen advance; playback waits for this much buffer plus [MARGIN_US] before it starts. Negative delays the text. */
     @Volatile
     var advanceUs: Long = 0L
 
@@ -38,9 +39,11 @@ class CaptionSync {
 
         /**
          * Shrinks at once when the buffer can't cover the advance (late cues are otherwise dropped or
-         * shown in lumps) and grows back in small steps so captions don't jump forward.
+         * shown in lumps) and grows back in small steps so captions don't jump forward. A delay (negative
+         * advance) reads cues that are already past, so it applies in full whatever is buffered.
          */
         fun nextEffectiveUs(currentUs: Long, advanceUs: Long, bufferedUs: Long): Long {
+            if (advanceUs < 0L) return advanceUs
             val ceiling = minOf(advanceUs, bufferedUs - HEADROOM_US).coerceAtLeast(0L)
             return if (ceiling <= currentUs) ceiling else minOf(ceiling, currentUs + RECOVER_STEP_US)
         }

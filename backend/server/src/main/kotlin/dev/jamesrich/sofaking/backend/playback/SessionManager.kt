@@ -43,7 +43,7 @@ internal class LiveSession(
         val hls = offering.protocol == "hls"
         val token = resource(offering.url, if (hls) "m3u8" else "ts")
         return PlaybackSession(id, request.channelId, intent, expires.toString(), PlaybackDescriptor(offering.protocol,
-            if (hls) "application/vnd.apple.mpegurl" else "video/mp2t", "/media/sessions/$id/$epoch/$token", epoch))
+            if (hls) "application/vnd.apple.mpegurl" else "video/mp2t", "/media/sessions/$id/$epoch/$token", epoch), offering.providerId)
     }
     fun cancel(except: Job? = null) { requests.filter { it != except }.forEach { it.cancel() }; requests.retainAll { it == except } }
 }

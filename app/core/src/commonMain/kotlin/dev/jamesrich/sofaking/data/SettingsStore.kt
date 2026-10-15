@@ -11,7 +11,7 @@ data class AppSettings(
     val favorites: Set<String> = emptySet(),
     /** [Channel.guideId] of the channel watched most recently, to reopen on launch. */
     val lastChannel: String? = null,
-    /** [Channel.guideId]s of the last [MAX_RECENT_CHANNELS] channels watched, most recent first; [lastChannel] is its head. */
+    /** The channels watched most recently, newest first, at most [RECENT_CHANNELS]; the guide's Recent chip lists them. */
     val recentChannels: List<String> = emptyList(),
     val captionsEnabled: Boolean = false,
     /** How many milliseconds ahead captions render, to offset live captioning delay. */
@@ -37,9 +37,15 @@ data class AppSettings(
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
-        const val MAX_RECENT_CHANNELS = 10
         val CAPTION_ADVANCE_RANGE_MS = 0..8_000
         const val CAPTION_ADVANCE_STEP_MS = 500
+
+        /** How many recently watched channels are kept. */
+        const val RECENT_CHANNELS = 10
+
+        /** [recent] with [guideId] moved to the front, trimmed to [RECENT_CHANNELS]. */
+        fun recentWith(recent: List<String>, guideId: String): List<String> =
+            (listOf(guideId) + recent.filterNot { it == guideId }).take(RECENT_CHANNELS)
     }
 }
 
@@ -60,7 +66,7 @@ interface SettingsStore {
 
     suspend fun toggleFavorite(guideId: String)
 
-    /** Remembers [guideId] as the last channel and moves it to the front of [AppSettings.recentChannels]. */
+    /** Records [guideId] as the channel being watched: the last channel, and the front of the recent list. */
     suspend fun setLastChannel(guideId: String)
 
     suspend fun setCaptionsEnabled(enabled: Boolean)

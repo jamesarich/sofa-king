@@ -91,7 +91,7 @@ class DataStoreSettingsStoreTest {
 
         for (id in 3..12) store.setLastChannel(id.toString())
         val recent = store.settings.first().recentChannels
-        assertEquals(AppSettings.MAX_RECENT_CHANNELS, recent.size)
+        assertEquals(AppSettings.RECENT_CHANNELS, recent.size)
         assertEquals("12", recent.first())
         assertEquals("12", store.settings.first().lastChannel)
         assertFalse(recent.contains("1") || recent.contains("2"), "the oldest channels drop off: $recent")

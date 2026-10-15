@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -33,6 +34,7 @@ kotlin {
     linuxArm64()
     // Tests run on Node; browsers get the same klibs through the ui module's web apps.
     js { nodejs() }
+    @OptIn(ExperimentalWasmDsl::class)
     wasmJs { nodejs() }
 
     // `fileMain` holds the stores that live in files, which need okio's system file system; the web targets keep theirs in

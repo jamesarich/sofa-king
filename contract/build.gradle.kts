@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -24,6 +25,7 @@ kotlin {
     linuxX64()
     linuxArm64()
     js { nodejs() }
+    @OptIn(ExperimentalWasmDsl::class)
     wasmJs { nodejs() }
 
     sourceSets {

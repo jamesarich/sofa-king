@@ -39,7 +39,7 @@ class GuideKeysTest {
     }
 
     @Test
-    fun `Left, Right and OK do not move rows`() {
+    fun `Left and Right and OK do not move rows`() {
         assertNull(Key.DirectionLeft.gridStep())
         assertNull(Key.DirectionRight.gridStep())
         assertNull(Key.DirectionCenter.gridStep())

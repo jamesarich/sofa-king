@@ -45,7 +45,7 @@ class PlayerKeysTest {
     }
 
     @Test
-    fun `Up and Channel Up zap up, Down and Channel Down zap down`() {
+    fun `Up and Channel Up zap up while Down and Channel Down zap down`() {
         assertEquals(PlayerAction.ZAP_UP, Key.DirectionUp.playerAction())
         assertEquals(PlayerAction.ZAP_UP, Key.ChannelUp.playerAction())
         assertEquals(PlayerAction.ZAP_DOWN, Key.DirectionDown.playerAction())
@@ -59,7 +59,7 @@ class PlayerKeysTest {
     }
 
     @Test
-    fun `the media keys play and pause, Captions and C toggle captions, Info toggles the info bar`() {
+    fun `the media keys play and pause while Captions and C toggle captions and Info toggles the info bar`() {
         assertEquals(PlayerAction.PLAY_PAUSE, Key.MediaPlayPause.playerAction())
         assertEquals(PlayerAction.PLAY, Key.MediaPlay.playerAction())
         assertEquals(PlayerAction.PAUSE, Key.MediaPause.playerAction())
@@ -79,7 +79,7 @@ class PlayerKeysTest {
     }
 
     @Test
-    fun `in the channel list Up and Down go to the list, Left and Right are swallowed, the rest reach the player`() {
+    fun `in the channel list Up and Down go to the list while Left and Right are swallowed and the rest reach the player`() {
         assertEquals(MiniGuideKey.LIST, Key.DirectionUp.inMiniGuide())
         assertEquals(MiniGuideKey.LIST, Key.DirectionDown.inMiniGuide())
         assertEquals(MiniGuideKey.SWALLOWED, Key.DirectionLeft.inMiniGuide())

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
+import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackStream
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -138,6 +139,9 @@ interface LivePlayer {
 
     /** Text tracks are disabled rather than unselected, so a zap keeps the choice; set it before the first prepare. */
     fun setCaptionsEnabled(enabled: Boolean)
+
+    /** The decoder and buffer choices, applied from the next [setStream]; engines without the knobs ignore them. */
+    fun setPlaybackPreferences(preferences: PlaybackPreferences) = Unit
 
     /** A new item for [stream], tagged with its channel; [nowPlaying] goes to the media session. Call [prepare] after. */
     fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying? = null)

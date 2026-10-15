@@ -62,6 +62,7 @@ import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.orderedFavorites
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
@@ -152,6 +153,8 @@ fun GuideScreen(
     favorites: Set<String>,
     recentChannels: List<String>,
     initialChannelId: String?,
+    /** The order Settings gave the favorites; the Favorites filter lists them so, the rest by number. */
+    favoritesOrder: List<String> = emptyList(),
     /** The filter saved from the last visit (see [guideFilterFromKey]); a fresh guide opens on it. */
     initialFilterKey: String?,
     startAtNow: Boolean,
@@ -205,10 +208,10 @@ fun GuideScreen(
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     val query = if (searchOpen) searchState.text.toString() else ""
     val searchNow = now.takeIf { query.isNotBlank() }
-    val byFilter = remember(lineup.channels, favorites, recentChannels, activeFilter) {
+    val byFilter = remember(lineup.channels, favorites, favoritesOrder, recentChannels, activeFilter) {
         when (val f = activeFilter) {
             GuideFilter.All -> lineup.channels
-            GuideFilter.Favorites -> lineup.channels.filter { it.guideId in favorites }
+            GuideFilter.Favorites -> orderedFavorites(lineup.channels, favorites, favoritesOrder)
             GuideFilter.Recent -> recentChannels(lineup.channels, recentChannels)
             is GuideFilter.Group -> lineup.channels.filter { f.name in it.groups }
         }

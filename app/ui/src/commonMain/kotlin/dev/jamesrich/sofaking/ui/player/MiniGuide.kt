@@ -66,6 +66,7 @@ internal fun BoxScope.MiniGuide(
     favorites: Set<String>,
     recent: List<String>,
     currentGuideId: String?,
+    favoritesOrder: List<String> = emptyList(),
     previousGuideId: String?,
     now: Instant,
     onTune: (Channel) -> Unit,
@@ -74,8 +75,8 @@ internal fun BoxScope.MiniGuide(
     val scoped = scope != null
     val filters = remember(recent.isNotEmpty(), scoped) { miniGuideFilters(hasRecent = recent.isNotEmpty(), scoped = scoped) }
     var filter by remember(scoped) { mutableStateOf(miniGuideDefaultFilter(scoped)) }
-    val rows = remember(filter, lineup.channels, scope, favorites, recent, previousGuideId) {
-        miniGuideRows(filter, lineup.channels, scope?.guideIds, favorites, recent, previousGuideId)
+    val rows = remember(filter, lineup.channels, scope, favorites, favoritesOrder, recent, previousGuideId) {
+        miniGuideRows(filter, lineup.channels, scope?.guideIds, favorites, recent, previousGuideId, favoritesOrder)
     }
     val focusRow = miniGuideFocusRow(rows, currentGuideId)
     // Two rows above the focused one, so it sits near the middle of the panel rather than the top edge.

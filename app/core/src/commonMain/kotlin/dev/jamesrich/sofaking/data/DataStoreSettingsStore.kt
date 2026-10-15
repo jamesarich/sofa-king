@@ -46,6 +46,19 @@ class DataStoreSettingsStore(
                 } ?: AutoOpenDelay.AFTER_10_SECONDS,
                 previewSound = prefs[PREVIEW_SOUND] ?: true,
                 keyLegendShown = prefs[KEY_LEGEND_SHOWN] ?: 0,
+                startup = prefs[STARTUP].toEnum(StartupTarget.LAST_CHANNEL),
+                startupChannel = prefs[STARTUP_CHANNEL],
+                clockFormat = prefs[CLOCK_FORMAT].toEnum(ClockFormat.AUTO),
+                guideDensity = prefs[GUIDE_DENSITY].toEnum(GuideDensity.COMFORTABLE),
+                hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
+                zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
+                favoritesOrder = prefs[FAVORITES_ORDER].orEmpty().split(SEPARATOR).filter { it.isNotEmpty() }.distinct(),
+                playback = PlaybackPreferences(
+                    matchFrameRate = prefs[MATCH_FRAME_RATE] ?: false,
+                    decoder = prefs[DECODER].toEnum(DecoderPreference.AUTO),
+                    decoderByChannel = channelDecoders(prefs),
+                    buffer = prefs[BUFFER].toEnum(BufferPreference.STANDARD),
+                ),
             )
         }
 
@@ -62,6 +75,8 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs ->
             val current = prefs[FAVORITES] ?: emptySet()
             prefs[FAVORITES] = if (guideId in current) current - guideId else current + guideId
+            // A channel unstarred loses its place; starred again, it joins the end.
+            if (guideId in current) prefs[FAVORITES_ORDER] = favoritesOrder(prefs).filterNot { it == guideId }.joinToString(SEPARATOR.toString())
         }
     }
 
@@ -111,6 +126,69 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[KEY_LEGEND_SHOWN] = count }
     }
 
+    override suspend fun setStartup(target: StartupTarget, guideId: String?) {
+        dataStore.edit { prefs ->
+            prefs[STARTUP] = target.name
+            val channel = guideId.takeIf { target == StartupTarget.CHANNEL }
+            if (channel == null) prefs.remove(STARTUP_CHANNEL) else prefs[STARTUP_CHANNEL] = channel
+        }
+    }
+
+    override suspend fun setClockFormat(format: ClockFormat) {
+        dataStore.edit { prefs -> prefs[CLOCK_FORMAT] = format.name }
+    }
+
+    override suspend fun setGuideDensity(density: GuideDensity) {
+        dataStore.edit { prefs -> prefs[GUIDE_DENSITY] = density.name }
+    }
+
+    override suspend fun setChannelHidden(guideId: String, hidden: Boolean) {
+        dataStore.edit { prefs ->
+            val current = prefs[HIDDEN_CHANNELS] ?: emptySet()
+            prefs[HIDDEN_CHANNELS] = if (hidden) current + guideId else current - guideId
+        }
+    }
+
+    override suspend fun setZapSkipsHidden(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[ZAP_SKIPS_HIDDEN] = enabled }
+    }
+
+    override suspend fun setFavoritesOrder(order: List<String>) {
+        dataStore.edit { prefs -> prefs[FAVORITES_ORDER] = order.distinct().joinToString(SEPARATOR.toString()) }
+    }
+
+    override suspend fun setMatchFrameRate(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[MATCH_FRAME_RATE] = enabled }
+    }
+
+    override suspend fun setDecoder(decoder: DecoderPreference) {
+        dataStore.edit { prefs -> prefs[DECODER] = decoder.name }
+    }
+
+    override suspend fun setChannelDecoder(guideId: String, decoder: DecoderPreference?) {
+        dataStore.edit { prefs ->
+            val updated = if (decoder == null) channelDecoders(prefs) - guideId else channelDecoders(prefs) + (guideId to decoder)
+            prefs[CHANNEL_DECODER] = updated.mapTo(HashSet()) { (id, value) -> "$id$SEPARATOR${value.name}" }
+        }
+    }
+
+    override suspend fun setBuffer(buffer: BufferPreference) {
+        dataStore.edit { prefs -> prefs[BUFFER] = buffer.name }
+    }
+
+    private fun favoritesOrder(prefs: Preferences): List<String> =
+        prefs[FAVORITES_ORDER].orEmpty().split(SEPARATOR).filter { it.isNotEmpty() }
+
+    /** Entries are `guideId<TAB>DECODER`; anything malformed or unknown is skipped. */
+    private fun channelDecoders(prefs: Preferences): Map<String, DecoderPreference> = prefs[CHANNEL_DECODER].orEmpty().mapNotNull { entry ->
+        val id = entry.substringBeforeLast(SEPARATOR, missingDelimiterValue = "")
+        val value = DecoderPreference.entries.firstOrNull { it.name == entry.substringAfterLast(SEPARATOR) }
+        if (id.isEmpty() || value == null) null else id to value
+    }.toMap()
+
+    /** A stored enum name, or [default] when the value is missing or from a build that no longer has it. */
+    private inline fun <reified T : Enum<T>> String?.toEnum(default: T): T = enumValues<T>().firstOrNull { it.name == this } ?: default
+
     private fun advanceMs(prefs: Preferences): Int =
         (prefs[CAPTION_ADVANCE_MS] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
 
@@ -140,6 +218,17 @@ class DataStoreSettingsStore(
         val AUTO_OPEN_DELAY = stringPreferencesKey("auto_open_delay")
         val PREVIEW_SOUND = booleanPreferencesKey("preview_sound")
         val KEY_LEGEND_SHOWN = intPreferencesKey("key_legend_shown")
+        val STARTUP = stringPreferencesKey("startup")
+        val STARTUP_CHANNEL = stringPreferencesKey("startup_channel")
+        val CLOCK_FORMAT = stringPreferencesKey("clock_format")
+        val GUIDE_DENSITY = stringPreferencesKey("guide_density")
+        val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")
+        val ZAP_SKIPS_HIDDEN = booleanPreferencesKey("zap_skips_hidden")
+        val FAVORITES_ORDER = stringPreferencesKey("favorites_order")
+        val MATCH_FRAME_RATE = booleanPreferencesKey("match_frame_rate")
+        val DECODER = stringPreferencesKey("decoder")
+        val CHANNEL_DECODER = stringSetPreferencesKey("channel_decoder")
+        val BUFFER = stringPreferencesKey("buffer")
         const val SEPARATOR = '\t'
     }
 }

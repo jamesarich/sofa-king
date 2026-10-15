@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,9 +67,9 @@ import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
 import dev.jamesrich.sofaking.ui.preview.PreviewDwell
-import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
 import dev.jamesrich.sofaking.ui.player.ZapScope
-import dev.jamesrich.sofaking.ui.player.DigitsBadge
+import dev.jamesrich.sofaking.ui.player.ChannelNumberBadge
+import dev.jamesrich.sofaking.ui.player.rememberChannelNumberInput
 import dev.jamesrich.sofaking.ui.player.digitValue
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
 import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
@@ -107,15 +108,6 @@ internal sealed interface GuideFilter {
 
 /** How often the initial focus is retried after the row refused it, before the header keeps focus. */
 private const val INITIAL_FOCUS_ATTEMPTS = 3
-
-/** Rows one Channel or Page key moves in the grid; about one screenful on a 1080p TV. */
-private const val GUIDE_PAGE_ROWS = 4
-
-/** The player's digit entry timeout, so typed channel numbers commit in the same time in both screens. */
-private const val GUIDE_DIGIT_COMMIT_MS = 1_500L
-
-/** How long "No channel N" shows, as in the player. */
-private const val GUIDE_NUMBER_MISS_MS = 2_000L
 
 /** Asks the row for [guideId] to focus the cell covering window [minute]. [nonce] keeps each request distinct. */
 internal data class GuideJump(val guideId: String, val minute: Long, val nonce: Int)
@@ -359,44 +351,26 @@ fun GuideScreen(
 
     // Typed channel digits, as the player takes them. OK or the entry timeout commits them to the row with
     // that number, switching to All when the filter hides it; no channel with that number shows a notice.
-    var numberEntry by remember { mutableStateOf(ChannelNumberEntry()) }
-    var numberMiss by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(numberMiss) {
-        if (numberMiss == null) return@LaunchedEffect
-        delay(GUIDE_NUMBER_MISS_MS)
-        numberMiss = null
-    }
-    val commitNumberEntry: () -> Unit = {
-        val pending = numberEntry
-        numberEntry = ChannelNumberEntry()
-        if (!searchOpen && pending.digits.isNotEmpty()) {
-            when (val target = guideNumberTarget(pending, visible, lineup.channels)) {
-                is GuideNumberTarget.Row -> focusRow(target.index)
-                is GuideNumberTarget.Hidden -> {
-                    filter = GuideFilter.All
-                    numberJump = target.guideId
+    val numbers = rememberChannelNumberInput()
+    SideEffect {
+        numbers.onCommit = { pending ->
+            if (!searchOpen) {
+                when (val target = guideNumberTarget(pending, visible, lineup.channels)) {
+                    is GuideNumberTarget.Row -> focusRow(target.index)
+                    is GuideNumberTarget.Hidden -> {
+                        filter = GuideFilter.All
+                        numberJump = target.guideId
+                    }
+                    GuideNumberTarget.Missing -> numbers.missed(pending.digits)
                 }
-                GuideNumberTarget.Missing -> numberMiss = pending.digits
             }
         }
-    }
-    val currentCommit by rememberUpdatedState(commitNumberEntry)
-    LaunchedEffect(numberEntry) {
-        if (numberEntry.digits.isEmpty()) return@LaunchedEffect
-        delay(GUIDE_DIGIT_COMMIT_MS)
-        currentCommit()
     }
 
     // Up and Down land on the cell under the time cursor. Default focus search treats any cell overlapping a
     // long focused cell (a full-row "No listing") as a candidate and can pick one hours ahead.
     val onGridKey: (KeyEvent) -> Boolean = handler@{ event ->
-        val (step, paged) = when (event.key) {
-            Key.DirectionDown -> 1 to false
-            Key.DirectionUp -> -1 to false
-            Key.ChannelDown, Key.PageDown -> GUIDE_PAGE_ROWS to true
-            Key.ChannelUp, Key.PageUp -> -GUIDE_PAGE_ROWS to true
-            else -> return@handler false
-        }
+        val (step, paged) = event.key.gridStep() ?: return@handler false
         if (event.type != KeyEventType.KeyDown) return@handler true
         // Rapid presses arrive before focus lands, so count from the row already requested.
         val current = pendingRow
@@ -573,8 +547,8 @@ fun GuideScreen(
     val onGuideKey: (KeyEvent) -> Boolean = handler@{ event ->
         // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
         val okKey = event.key == Key.DirectionCenter || event.key == Key.Enter
-        if (okKey && numberEntry.digits.isNotEmpty() && !searchOpen) {
-            if (event.type == KeyEventType.KeyUp) commitNumberEntry()
+        if (okKey && numbers.hasDigits && !searchOpen) {
+            if (event.type == KeyEventType.KeyUp) numbers.commit()
             return@handler true
         }
         if (event.type != KeyEventType.KeyDown) return@handler false
@@ -586,7 +560,7 @@ fun GuideScreen(
             null -> {
                 val digit = event.key.digitValue()
                 if (digit == null || searchOpen) return@handler false
-                numberEntry = numberEntry.append(digit)
+                numbers.append(digit)
             }
         }
         true
@@ -623,6 +597,7 @@ fun GuideScreen(
                     captionsEnabled = captionsEnabled,
                     captionStyle = captionStyle,
                     muted = previewMuted,
+                    failed = previewFailed,
                     onFailedChanged = { previewFailed = it },
                 )
             } else {
@@ -652,9 +627,14 @@ fun GuideScreen(
                     nowMinute = nowMinute,
                     modifier = Modifier.weight(1f).onSizeChanged { viewport.intValue = it.width },
                 ) {
+                    // Formatted once per window, not on every recomposition of the strip.
+                    val slotLabels = remember(windowStart, timeFormat) {
+                        List((GuideTimeline.WINDOW_MINUTES / GuideTimeline.SLOT_MINUTES).toInt()) { slot ->
+                            timeFormat.format(windowStart + (slot * GuideTimeline.SLOT_MINUTES).minutes)
+                        }
+                    }
                     Row(Modifier.fillMaxHeight()) {
-                        repeat((GuideTimeline.WINDOW_MINUTES / GuideTimeline.SLOT_MINUTES).toInt()) { slot ->
-                            val label = timeFormat.format(windowStart + (slot * GuideTimeline.SLOT_MINUTES).minutes)
+                        slotLabels.forEach { label ->
                             Box(
                                 Modifier.width(MINUTE_WIDTH * GuideTimeline.SLOT_MINUTES.toFloat()).fillMaxHeight().padding(start = 8.dp),
                                 contentAlignment = Alignment.CenterStart,
@@ -701,12 +681,7 @@ fun GuideScreen(
                 }
             }
         }
-        val miss = numberMiss
-        if (numberEntry.digits.isNotEmpty()) {
-            Box(Modifier.align(Alignment.TopEnd)) { DigitsBadge(numberEntry.digits) }
-        } else if (miss != null) {
-            Box(Modifier.align(Alignment.TopEnd)) { DigitsBadge(stringResource(Res.string.no_channel_number, miss)) }
-        }
+        ChannelNumberBadge(numbers)
     }
 }
 
@@ -724,6 +699,7 @@ private fun PreviewBand(
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
     muted: Boolean,
+    failed: Boolean,
     onFailedChanged: (Boolean) -> Unit,
 ) {
     val cell = focused.value
@@ -751,6 +727,7 @@ private fun PreviewBand(
             captionsEnabled = captionsEnabled,
             captionStyle = captionStyle,
             muted = muted,
+            failed = failed,
             onFailedChanged = onFailedChanged,
         )
     }

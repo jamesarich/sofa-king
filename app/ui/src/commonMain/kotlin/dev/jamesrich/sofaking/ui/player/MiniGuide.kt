@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -14,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +28,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,11 +42,7 @@ import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import dev.jamesrich.sofaking.ui.theme.SofaAmber
-import dev.jamesrich.sofaking.ui.theme.SofaDusk
-import dev.jamesrich.sofaking.ui.theme.SofaMauve
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrimDense
-import dev.jamesrich.sofaking.ui.theme.SofaPlum
 import kotlin.time.Instant
 import androidx.compose.foundation.layout.WindowInsetsSides
 import dev.jamesrich.sofaking.ui.panelEdgeMargin
@@ -82,7 +79,7 @@ internal fun BoxScope.MiniGuide(
             Text(
                 stringResource(Res.string.mini_guide_title),
                 style = MaterialTheme.typography.titleMedium,
-                color = SofaAmber,
+                color = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.height(8.dp))
             LazyColumn(
@@ -98,6 +95,7 @@ internal fun BoxScope.MiniGuide(
                         programme = lineup.nowAndNext(channel, now).first,
                         guideLoading = lineup.guideLoading,
                         now = now,
+                        current = row.channelIndex == currentIndex,
                         onClick = { onTune(row.channelIndex) },
                         modifier = if (position == focusRow) Modifier.focusRequester(focusRequester) else Modifier,
                     )
@@ -114,19 +112,22 @@ private fun MiniGuideRowItem(
     programme: Programme?,
     guideLoading: Boolean,
     now: Instant,
+    current: Boolean,
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
-    // The focused row is amber with plum text, the same focus the guide grid uses.
-    val primary = if (focused) SofaPlum else SofaDusk
-    val secondary = if (focused) SofaPlum else SofaMauve
+    // The focused row is primary with on-primary text, the same focus the guide grid uses.
+    val colors = MaterialTheme.colorScheme
+    val primary = if (focused) colors.onPrimary else colors.onSurface
+    val secondary = if (focused) colors.onPrimary else colors.onSurfaceVariant
     Row(
         modifier
             .fillMaxWidth()
-            .background(if (focused) SofaAmber else Color.Transparent, RoundedCornerShape(8.dp))
+            .background(if (focused) colors.primary else Color.Transparent, RoundedCornerShape(8.dp))
             .onFocusChanged { focused = it.isFocused }
-            .clickable(onClick = onClick)
+            // The row playing now reads as selected; OK on any row tunes it.
+            .selectable(selected = current, role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -142,7 +143,7 @@ private fun MiniGuideRowItem(
                 Text(
                     stringResource(Res.string.mini_guide_last_channel),
                     style = MaterialTheme.typography.labelLarge,
-                    color = if (focused) SofaPlum else SofaAmber,
+                    color = if (focused) colors.onPrimary else colors.primary,
                 )
             }
             Text(

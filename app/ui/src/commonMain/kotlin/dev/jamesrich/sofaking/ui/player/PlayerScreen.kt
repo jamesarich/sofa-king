@@ -82,8 +82,6 @@ import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.screenPadding
 
 private const val ZAP_OVERLAY_MS = 5_000L
-private const val DIGIT_COMMIT_MS = 1_500L
-private const val NOT_FOUND_MS = 2_000L
 private const val CAPTION_TOAST_MS = 2_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
 private const val STREAM_ENDED = "STREAM_ENDED"
@@ -95,7 +93,6 @@ private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 private val log = Logger.withTag("SofaKing")
 
 /** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
-private class Notice(val digits: String)
 
 /** Caption toggle feedback; compared by identity so a repeated press restarts its timer. */
 private class CaptionToast(val outcome: CaptionToggleOutcome)
@@ -170,8 +167,7 @@ fun PlayerScreen(
     var tuned by remember { mutableStateOf<Channel?>(null) }
     var previousChannel by remember { mutableStateOf(lineup.channels.firstOrNull { it.guideId == previousGuideId }) }
     var previousIndex by remember { mutableStateOf(channels.indexOfFirst { it.guideId == previousGuideId }.takeIf { it >= 0 }) }
-    var entry by remember { mutableStateOf(ChannelNumberEntry()) }
-    var notice by remember { mutableStateOf<Notice?>(null) }
+    val numbers = rememberChannelNumberInput()
     var overlayVisible by remember { mutableStateOf(true) }
     var overlayRequest by remember { mutableIntStateOf(0) }
     // The shared player may arrive already playing the channel from the guide preview.
@@ -275,7 +271,7 @@ fun PlayerScreen(
     }
 
     fun zapTo(target: Int) {
-        entry = ChannelNumberEntry()
+        numbers.clear()
         failure = null
         recovering = null
         if (target != index) {
@@ -306,22 +302,20 @@ fun PlayerScreen(
 
     SideEffect { zapRelay.onStep = { step -> zapStep(step) } }
 
-    fun commitEntry() {
-        val pending = entry
-        if (pending.digits.isEmpty()) return
+    /** Typed digits name a channel in the ring, one outside it (the ring widens first), or no channel at all. */
+    fun commitEntry(pending: ChannelNumberEntry) {
         val target = pending.indexIn(currentChannels)
         val outside = if (target == null) pending.indexIn(currentLineupChannels)?.let { currentLineupChannels[it] } else null
-        if (target != null) {
-            zapTo(target)
-        } else if (outside != null) {
-            entry = ChannelNumberEntry()
-            pendingNumber = outside.guideId
-            widened = true
-        } else {
-            entry = ChannelNumberEntry()
-            notice = Notice(pending.digits)
+        when {
+            target != null -> zapTo(target)
+            outside != null -> {
+                pendingNumber = outside.guideId
+                widened = true
+            }
+            else -> numbers.missed(pending.digits)
         }
     }
+    SideEffect { numbers.onCommit = ::commitEntry }
 
     // The lineup refreshes every few hours and may reorder or grow; the tuned channel keeps its stream and
     // its row follows it. A channel that vanished stays playing on the nearest row.
@@ -436,18 +430,6 @@ fun PlayerScreen(
         load(channel)
     }
 
-    LaunchedEffect(entry) {
-        if (entry.digits.isEmpty()) return@LaunchedEffect
-        delay(DIGIT_COMMIT_MS)
-        commitEntry()
-    }
-
-    LaunchedEffect(notice) {
-        if (notice == null) return@LaunchedEffect
-        delay(NOT_FOUND_MS)
-        notice = null
-    }
-
     LaunchedEffect(overlayVisible, overlayRequest) {
         if (!overlayVisible) return@LaunchedEffect
         delay(ZAP_OVERLAY_MS)
@@ -503,8 +485,8 @@ fun PlayerScreen(
             KeyEventType.KeyUp -> {
                 if (centerGesture.onKeyUp() == CenterPress.SHORT) {
                     val channel = currentChannels.getOrNull(index)
-                    when (playerOk(entry.digits.isNotEmpty(), failure != null && channel != null, overlayVisible)) {
-                        PlayerOk.COMMIT_NUMBER -> commitEntry()
+                    when (playerOk(numbers.hasDigits, failure != null && channel != null, overlayVisible)) {
+                        PlayerOk.COMMIT_NUMBER -> numbers.commit()
                         PlayerOk.RETRY -> retry()
                         PlayerOk.OPEN_CHANNEL_LIST -> openMiniGuide()
                         PlayerOk.SHOW_INFO -> {
@@ -533,23 +515,24 @@ fun PlayerScreen(
             null -> Unit
         }
         key.digitValue()?.let { digit ->
-            entry = entry.append(digit)
+            numbers.append(digit)
             return true
         }
-        return when (key) {
-            Key.Captions, Key.C -> { toggleCaptions(); true }
-            Key.DirectionUp, Key.ChannelUp -> { zapStep(1); true }
-            Key.DirectionDown, Key.ChannelDown -> { zapStep(-1); true }
-            Key.MediaPrevious, Key.LastChannel -> { recallLastChannel(); true }
-            Key.MediaPlayPause -> { if (player.playWhenReady) player.pause() else player.play(); true }
-            Key.MediaPlay -> { player.play(); true }
-            Key.MediaPause -> { player.pause(); true }
-            Key.Info -> { if (entry.digits.isEmpty()) overlayVisible = !overlayVisible; true }
-            Key.DirectionLeft, Key.DirectionRight -> {
+        val action = key.playerAction() ?: return false
+        when (action) {
+            PlayerAction.TOGGLE_CAPTIONS -> toggleCaptions()
+            PlayerAction.ZAP_UP -> zapStep(1)
+            PlayerAction.ZAP_DOWN -> zapStep(-1)
+            PlayerAction.LAST_CHANNEL -> recallLastChannel()
+            PlayerAction.PLAY_PAUSE -> if (player.playWhenReady) player.pause() else player.play()
+            PlayerAction.PLAY -> player.play()
+            PlayerAction.PAUSE -> player.pause()
+            PlayerAction.TOGGLE_INFO -> if (!numbers.hasDigits) overlayVisible = !overlayVisible
+            PlayerAction.LEFT, PlayerAction.RIGHT -> {
                 val channel = currentChannels.getOrNull(index)
                 if (captionsOn && player.supportsCaptionLead && overlayVisible && channel != null) {
                     // Right shows captions earlier, Left later; the overlay stays up while adjusting.
-                    val direction = if (key == Key.DirectionRight) 1 else -1
+                    val direction = if (action == PlayerAction.RIGHT) 1 else -1
                     val next = CaptionPolicy.stepAdvance(channelAdvance, direction)
                     advanceOverrides = advanceOverrides + (channel.guideId to next)
                     currentOnCaptionAdvanceChanged(channel, next)
@@ -557,10 +540,9 @@ fun PlayerScreen(
                 } else {
                     overlayVisible = !overlayVisible
                 }
-                true
             }
-            else -> false
         }
+        return true
     }
 
     // A tap or click on the video: the channel list closes, or the info bar and its touch controls toggle. Focus
@@ -605,11 +587,11 @@ fun PlayerScreen(
         if (event.type != KeyEventType.KeyDown || currentChannels.isEmpty()) return false
         if (!miniGuideOpen) return handleKey(key)
         miniGuideActivity++
-        return when (key) {
-            // Up and Down move focus inside the list; the focused row handles OK.
-            Key.DirectionUp, Key.DirectionDown -> false
-            Key.DirectionLeft, Key.DirectionRight -> true
-            else -> handleKey(key)
+        return when (key.inMiniGuide()) {
+            // The focused row handles OK.
+            MiniGuideKey.LIST -> false
+            MiniGuideKey.SWALLOWED -> true
+            MiniGuideKey.PLAYER -> handleKey(key)
         }
     }
 
@@ -662,18 +644,7 @@ fun PlayerScreen(
                 }
             }
             failure?.let { FailureCard(it.code) }
-            val pendingDigits = entry.digits
-            val noticeText = notice?.let { stringResource(Res.string.no_channel_number, it.digits) }
-            // Keyed on presence, so each typed digit updates the badge in place instead of popping it again.
-            AnimatedContent(
-                targetState = pendingDigits.ifEmpty { noticeText.orEmpty() },
-                modifier = Modifier.align(Alignment.TopEnd),
-                transitionSpec = { popIn togetherWith popOut },
-                contentKey = { it.isNotEmpty() },
-                label = "digits",
-            ) { text ->
-                if (text.isNotEmpty()) DigitsBadge(text)
-            }
+            ChannelNumberBadge(numbers)
             // The channel list arrives on a spring but leaves at once: while it animated out it would still
             // hold focus, and a quick second Back or Down would land in the list instead of the player.
             AnimatedVisibility(miniGuideOpen, enter = RiseIn, exit = ExitTransition.None) {

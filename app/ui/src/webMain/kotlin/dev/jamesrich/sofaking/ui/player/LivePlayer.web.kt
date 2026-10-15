@@ -143,7 +143,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
             }
             _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
             // MEDIA_ERR_SRC_NOT_SUPPORTED (4) is a format the browser cannot play; anything else is the network.
-            val code = if (video.error?.code?.toInt() == 4) "ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED" else "ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"
+            val code = if (video.error?.code?.toInt() == 4) PlayerErrorCodes.PARSING_CONTAINER_UNSUPPORTED else PlayerErrorCodes.NETWORK_CONNECTION_FAILED
             _errors.tryEmit(PlayerError(code))
         }
     }

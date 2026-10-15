@@ -3,10 +3,10 @@ package dev.jamesrich.sofaking.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
-import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.format
+import kotlinx.datetime.format.DayOfWeekNames
 import kotlinx.datetime.format.Padding
 import kotlinx.datetime.format.char
 import kotlinx.datetime.toLocalDateTime
@@ -31,15 +31,11 @@ private val clockFormat = LocalTime.Format {
 internal class TimeFormatter(val zone: TimeZone) {
     fun format(instant: Instant): String = instant.toLocalDateTime(zone).time.format(clockFormat)
 
-    fun day(instant: Instant): String = DAY_NAMES[instant.toLocalDateTime(zone).dayOfWeek.ordinal]
+    fun day(instant: Instant): String = DayOfWeekNames.ENGLISH_ABBREVIATED.names[instant.toLocalDateTime(zone).dayOfWeek.ordinal]
 
     fun sameDay(a: Instant, b: Instant): Boolean = a.toLocalDateTime(zone).date == b.toLocalDateTime(zone).date
 
     fun range(start: Instant, stop: Instant): String = "${format(start)} - ${format(stop)}"
-
-    private companion object {
-        val DAY_NAMES = DayOfWeek.entries.map { it.name.take(3).lowercase().replaceFirstChar(Char::uppercaseChar) }
-    }
 }
 
 /** The device zone's formatter; read once per composition, as the zone was before. */

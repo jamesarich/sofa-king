@@ -1,4 +1,3 @@
-
 package dev.jamesrich.sofaking.ui.guide
 
 import androidx.compose.foundation.ScrollState
@@ -224,6 +223,7 @@ private fun GuideCellItem(
             .combinedClickable(
                 interactionSource = interactions,
                 indication = null,
+                onLongClickLabel = env.toggleFavoriteLabel,
                 onLongClick = { env.onToggleFavorite(channel) },
                 onClick = { env.onPlay(channel) },
             ),

@@ -11,6 +11,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.UIKitView
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -78,7 +79,6 @@ import platform.UIKit.UIColor
 import platform.UIKit.UIImage
 import platform.UIKit.UIView
 import platform.darwin.NSObjectProtocol
-import kotlin.time.Clock
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
@@ -103,6 +103,8 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     private var captionsOn = false
     private var ended = false
     private var reportedFailure: AVPlayerItem? = null
+    // The item whose caption track was chosen; an item reports its legible group only once it is ready to play.
+    private var captionsAppliedTo: AVPlayerItem? = null
     private val hasFrame = MutableStateFlow(false)
 
     private val _status = MutableStateFlow(PlayerStatus())
@@ -137,6 +139,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     override val currentStreamUrl: String? get() = stream?.url
     override val hasItem: Boolean get() = stream != null
     override val bufferedMs: Long get() = 0L
+    override val supportsCaptionLead: Boolean get() = false
     override val hasTextTrack: Boolean
         get() = av.currentItem?.asset?.mediaSelectionGroupForMediaCharacteristic(AVMediaCharacteristicLegible)?.options?.isNotEmpty() == true
 
@@ -171,7 +174,6 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         val url = stream?.url?.let(NSURL::URLWithString) ?: return
         ended = false
         av.replaceCurrentItemWithPlayerItem(AVPlayerItem(uRL = url))
-        applyCaptions()
         if (playWhenReady) av.play()
         refresh()
     }
@@ -183,12 +185,12 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     }
 
     override fun play() {
-        if (pauseClock.onPlay(Clock.System.now().toEpochMilliseconds())) av.currentItem?.seekToDate(NSDate())
+        if (pauseClock.onPlay(uptimeMs())) av.currentItem?.seekToDate(NSDate())
         playWhenReady = true
     }
 
     override fun pause() {
-        pauseClock.onPause(Clock.System.now().toEpochMilliseconds())
+        pauseClock.onPause(uptimeMs())
         playWhenReady = false
     }
 
@@ -304,6 +306,10 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
             av.timeControlStatus == AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate -> PlaybackState.BUFFERING
             item.status == AVPlayerItemStatusReadyToPlay -> PlaybackState.READY
             else -> PlaybackState.BUFFERING
+        }
+        if (item != null && item.status == AVPlayerItemStatusReadyToPlay && captionsAppliedTo !== item) {
+            captionsAppliedTo = item
+            applyCaptions()
         }
         if (item != null && item.status == AVPlayerItemStatusFailed && reportedFailure != item) {
             reportedFailure = item

@@ -26,6 +26,7 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
 import org.jetbrains.compose.resources.stringResource
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -59,9 +60,9 @@ import org.w3c.dom.SHOWING
 import org.w3c.dom.TextTrack
 import org.w3c.dom.TextTrackCue
 import org.w3c.dom.TextTrackMode
+import org.w3c.dom.events.Event
 import org.w3c.dom.get
 import org.w3c.dom.url.URL
-import kotlin.time.Clock
 
 private val log = Logger.withTag("SofaKing")
 
@@ -94,6 +95,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     private var stream: PlaybackStream? = null
     private var captionsOn = false
     private var cueTrack: TextTrack? = null
+    private val onCueChange = { _: Event -> cueTrack?.let(::publishCues) ?: Unit }
+    private val onGesture = { _: Event -> restoreSound() }
     private var loaded = false
     private var awaitingGesture = false
 
@@ -126,8 +129,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         video.addEventListener("resize") { updateFrameSize() }
         video.textTracks.addEventListener("addtrack") { applyCaptions() }
         // Capture phase, so the press counts even when the app consumes it.
-        document.addEventListener("keydown", { restoreSound() }, true)
-        document.addEventListener("pointerdown", { restoreSound() }, true)
+        document.addEventListener("keydown", onGesture, true)
+        document.addEventListener("pointerdown", onGesture, true)
         video.addEventListener("error") {
             // A cross-origin HLS stream that fails before loading may come from a server that sends no CORS headers
             // on media: play it again as a plain element, which needs none. TS fails for its format and reports.
@@ -149,6 +152,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     override val currentStreamUrl: String? get() = stream?.url
     override val hasItem: Boolean get() = stream != null
     override val bufferedMs: Long get() = 0L
+    override val supportsCaptionLead: Boolean get() = false
     override val hasTextTrack: Boolean get() = video.textTracks.length > 0
 
     override var volume: Float
@@ -192,6 +196,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         video.pause()
         video.removeAttribute("src")
         video.load()
+        cueTrack?.removeEventListener("cuechange", onCueChange)
         cueTrack = null
         _cues.value = emptyList()
         hasFrame.value = false
@@ -199,7 +204,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     }
 
     override fun play() {
-        val toLive = pauseClock.onPlay(Clock.System.now().toEpochMilliseconds())
+        val toLive = pauseClock.onPlay(uptimeMs())
         playWhenReady = true
         if (toLive) {
             stop()
@@ -208,7 +213,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     }
 
     override fun pause() {
-        pauseClock.onPause(Clock.System.now().toEpochMilliseconds())
+        pauseClock.onPause(uptimeMs())
         playWhenReady = false
     }
 
@@ -289,6 +294,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
 
     override fun release() {
         stop()
+        document.removeEventListener("keydown", onGesture, true)
+        document.removeEventListener("pointerdown", onGesture, true)
     }
 
     /**
@@ -332,8 +339,9 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
                 else -> TextTrackMode.SHOWING
             }
             if (on && track !== cueTrack) {
+                cueTrack?.removeEventListener("cuechange", onCueChange)
                 cueTrack = track
-                track.addEventListener("cuechange") { if (track === cueTrack) publishCues(track) }
+                track.addEventListener("cuechange", onCueChange)
             }
         }
         if (!captionsOn || !drawsInCanvas.value) _cues.value = emptyList()
@@ -483,8 +491,9 @@ private fun isCrossOrigin(url: String): Boolean = URL(url, window.location.href)
 
 /** A VTT cue's text with its markup tags removed; the bindings have no VTTCue. */
 @OptIn(ExperimentalWasmJsInterop::class)
-private fun cueText(cue: TextTrackCue): String =
-    cue.unsafeCast<TextCue>().text.orEmpty().replace(Regex("<[^>]*>"), "")
+private fun cueText(cue: TextTrackCue): String = cue.unsafeCast<TextCue>().text.orEmpty().replace(cueMarkup, "")
+
+private val cueMarkup = Regex("<[^>]*>")
 
 @OptIn(ExperimentalWasmJsInterop::class)
 private external interface TextCue : JsAny {

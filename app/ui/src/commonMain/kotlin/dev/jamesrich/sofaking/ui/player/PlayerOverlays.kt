@@ -138,7 +138,8 @@ internal fun BoxScope.InfoOverlay(
     channel: Channel,
     now: Instant,
     captionsOn: Boolean,
-    captionAdvanceMs: Int,
+    /** The channel's caption lead, or null where the engine applies none and the timing badge is left out. */
+    captionAdvanceMs: Int?,
     scope: String? = null,
     showKeyHint: Boolean = true,
 ) {
@@ -171,7 +172,7 @@ internal fun BoxScope.InfoOverlay(
                 )
             }
             if (scope != null) Text(scope, style = MaterialTheme.typography.labelLarge, color = SofaMauve, maxLines = 1)
-            if (captionsOn) {
+            if (captionsOn && captionAdvanceMs != null) {
                 val advance = CaptionPolicy.advanceLabel(captionAdvanceMs)
                 val advanceDescription = stringResource(Res.string.captions_indicator_timing_description, advance)
                 Text(

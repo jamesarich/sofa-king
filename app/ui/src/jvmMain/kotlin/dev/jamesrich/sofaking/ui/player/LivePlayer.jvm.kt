@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -40,6 +41,7 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCall
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat
 import java.nio.ByteBuffer
+import java.util.concurrent.Executors
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -69,6 +71,13 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     private val factory = MediaPlayerFactory("--no-video-title-show", "--network-caching=1500", "--quiet")
     private val vlc: EmbeddedMediaPlayer = factory.mediaPlayers().newEmbeddedMediaPlayer()
     private val pauseClock = LivePauseClock()
+
+    /**
+     * libVLC's stop and release block until its input thread ends, hundreds of milliseconds on a stalled stream,
+     * and the app stops on every zap from the UI thread. Every libVLC command runs on this one thread, in order,
+     * while [_status] moves at once.
+     */
+    private val commands = Executors.newSingleThreadExecutor { task -> Thread(task, "libvlc-commands").apply { isDaemon = true } }
 
     private val _status = MutableStateFlow(PlayerStatus())
     private val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
@@ -100,6 +109,8 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     override val currentStreamUrl: String? get() = stream?.url
     override val hasItem: Boolean get() = stream != null
     override val bufferedMs: Long get() = 0L
+    /** libVLC renders captions itself and reports no buffer depth, so there is nothing to lead. */
+    override val supportsCaptionLead: Boolean = false
     override val hasTextTrack: Boolean get() = vlc.subpictures().trackCount() > 0
 
     override var volume: Float = 1f
@@ -112,7 +123,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
         get() = _status.value.playWhenReady
         set(value) {
             _status.update { it.copy(playWhenReady = value) }
-            if (vlc.status().isPlayable) vlc.controls().setPause(!value)
+            commands.execute { if (vlc.status().isPlayable) vlc.controls().setPause(!value) }
         }
 
     override fun setCaptionsEnabled(enabled: Boolean) {
@@ -132,17 +143,18 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     override fun prepare() {
         val url = stream?.url ?: return
         _status.update { it.copy(state = PlaybackState.BUFFERING) }
-        if (playWhenReady) vlc.media().play(url) else vlc.media().startPaused(url)
+        val start = playWhenReady
+        commands.execute { if (start) vlc.media().play(url) else vlc.media().startPaused(url) }
     }
 
     override fun stop() {
-        vlc.controls().stop()
+        commands.execute { vlc.controls().stop() }
         hasFrame = false
         _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
     }
 
     override fun play() {
-        val toLive = pauseClock.onPlay(System.currentTimeMillis())
+        val toLive = pauseClock.onPlay(uptimeMs())
         playWhenReady = true
         // A live relay has no seekable past: rejoining the edge is reopening the stream.
         if (toLive) {
@@ -152,7 +164,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     }
 
     override fun pause() {
-        pauseClock.onPause(System.currentTimeMillis())
+        pauseClock.onPause(uptimeMs())
         playWhenReady = false
     }
 
@@ -180,15 +192,19 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     }
 
     override fun release() {
-        vlc.release()
-        factory.release()
-        synchronized(frameLock) {
-            image = null
-            front?.close()
-            back?.close()
-            front = null
-            back = null
+        // After the player is released no frame can arrive, so the bitmaps go on the same thread, after it.
+        commands.execute {
+            vlc.release()
+            factory.release()
+            synchronized(frameLock) {
+                image = null
+                front?.close()
+                back?.close()
+                front = null
+                back = null
+            }
         }
+        commands.shutdown()
     }
 
     private fun applyCaptions() {

@@ -231,6 +231,9 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                 onCaptionAdvanceChanged = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
                 captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
                 smoothCaptions = settings?.smoothCaptions ?: true,
+                favorites = settings?.favorites.orEmpty(),
+                keyLegendShown = settings?.keyLegendShown ?: AppSettings.KEY_LEGEND_BARS,
+                onKeyLegendShown = { vm.setKeyLegendShown(it) },
             )
         } else {
             LaunchedEffect(Unit) { screen = Screen.Guide() }

@@ -64,6 +64,24 @@ data class CaptionCue(
     }
 }
 
+/** One audio track the stream offers, as the stream card lists it; [id] is the engine's own handle for [selectAudioTrack]. */
+@Immutable
+data class AudioTrack(val id: String, val label: String, val selected: Boolean)
+
+/**
+ * What the engine knows about the stream it holds, read for the stream card; a field the engine cannot report is
+ * null. [bitrateBps] is the video track's declared bitrate, or the whole stream's where that is all the engine has.
+ */
+@Immutable
+data class StreamInfo(
+    val videoCodec: String? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+    val frameRate: Float? = null,
+    val bitrateBps: Int? = null,
+    val audioCodec: String? = null,
+)
+
 /** The system media session the full screen holds; [publish] swaps its metadata without touching the stream. */
 interface MediaSessionHandle : AutoCloseable {
     fun publish(nowPlaying: NowPlaying)
@@ -105,6 +123,15 @@ interface LivePlayer {
 
     /** True when the current stream offers a caption track the player can show. */
     val hasTextTrack: Boolean
+
+    /** The audio tracks the stream offers, with the playing one marked; empty while there is no choice or the engine cannot list them. */
+    val audioTracks: StateFlow<List<AudioTrack>>
+
+    /** Plays the audio track [id] from [audioTracks]; the choice lasts for the current item. */
+    fun selectAudioTrack(id: String)
+
+    /** What the engine knows about the stream now; the stream card reads it while open. */
+    fun streamInfo(): StreamInfo
 
     var volume: Float
     var playWhenReady: Boolean

@@ -24,7 +24,7 @@ Channels come from the server's lineup. The app lists a channel when the server 
 | --- | --- | --- |
 | D-pad Up | Move focus | The channel above in the guide |
 | D-pad Down | Move focus | The channel below in the guide |
-| D-pad Left / Right | Move focus | Toggle the info bar; adjust caption timing when captions and the info bar are on |
+| D-pad Left / Right | Move focus | Show the info bar; on the info bar, open the channel list. For a few seconds after the CC key, adjust the channel's caption timing |
 | OK | Watch the channel | Show the info bar; on the info bar, open the channel list. Also tunes an entered number or retries a failed stream |
 | Long-press OK | Toggle favorite | Return to the previously watched channel |
 | Channel Up / Down | Move a page (4 rows) | The next higher / lower channel number |
@@ -32,18 +32,24 @@ Channels come from the server's lineup. The app lists a channel when the server 
 | Play/Pause | | Pause or resume; resume after 30 seconds returns to live |
 | Digits | Move to the row with that number, showing All when the filter hides it; OK or a 1.5-second pause commits | Enter a channel number; OK or a 1.5-second pause tunes it |
 | Previous / Last | | Return to the previously watched channel, also after picking a channel in the guide |
-| Info | | Toggle the info bar |
+| Info | | Toggle the info bar; held, open the stream card |
 | Guide / Menu | Jump to Now | Open the guide at Now |
 | Search | Search by voice | Open guide search by voice |
-| Back | Close search; move from the grid to the selected filter chip; exit from the chips or header | Close the channel list or return to the guide |
+| Back | Close search; move from the grid to the selected filter chip; exit from the chips or header | Close the channel list or the stream card, or return to the guide |
 
-On a desktop or in a browser, the arrow keys move like the D-pad, Enter is OK (hold it for a long press), Escape is Back, Page Up and Page Down move a page, the digit keys enter a channel number and C toggles captions. Touch and a mouse select directly. In the full-screen player, a tap or click shows the info bar with buttons for the guide, channel up and down, the channel list, captions and pause; another tap hides it, and a tap with the channel list open closes it.
+On a desktop or in a browser, the arrow keys move like the D-pad, Enter is OK (hold it for a long press), Escape is Back, Page Up and Page Down move a page, the digit keys enter a channel number and C toggles captions. Touch and a mouse select directly. In the full-screen player, a tap or click shows the info bar with a row of icon buttons under it for the guide, channel down, pause or play (retry while the stream has failed), channel up, the channel list, captions and the stream card; another tap hides it, a tap with the channel list or the stream card open closes it, and a swipe up on a touch screen opens the channel list.
 
 On a TV the screens keep 48 dp at the sides and 27 dp at the top and bottom clear for overscan. On phones, tablets, desktops and browsers they keep clear of the system bars, camera cutouts and the on-screen keyboard instead. A window narrower than 600 dp shows the guide's channel column as logo and number only, and a window narrower than 600 dp or shorter than 480 dp leaves out the preview so the grid keeps its rows.
 
-A channel opened from Favorites or a category chip keeps channel up and down and the channel list inside that filter, and the info bar names it with the channel's place, for example "Sports 3/214". Typing a number outside it widens them to the whole lineup. In the channel list, Up/Down select a channel, OK tunes it and Back closes the list. Leaving the app stops playback and releases its session on the server. Returning opens a new session for the same channel and prepares the stream at the live edge while preserving paused intent.
+A channel opened from Favorites or a category chip keeps channel up and down and the channel list inside that filter, and the info bar names it with the channel's place, for example "Sports 3/214". Typing a number outside it widens them to the whole lineup. Leaving the app stops playback and releases its session on the server. Returning opens a new session for the same channel and prepares the stream at the live edge while preserving paused intent.
 
-The info bar shows the channel's logo and the current program's title, badges, episode, time and description, with the program's image when the guide source has one.
+The channel list opens on OK, Left or Right while the info bar shows. Its chips are Favorites, the guide filter the channel was opened from, and All; Up/Down select a channel, Left/Right move along the chips from the top row, OK tunes the focused channel and Back closes the list. Each row shows the channel's number, logo, name, the program on now with its progress, and the next program with its start time. The last channel watched is pinned above the All and filter lists. Picking a channel under All from a filtered player widens channel up and down to the whole lineup.
+
+The info bar shows the channel's logo and the current program's title, badges, episode, time and description, with the program's image when the guide source has one. The first three bars after install end with a one-line key legend, which the stream card carries from then on.
+
+Info held opens the stream card: the stream's audio tracks when it offers more than one (Up/Down and OK pick one; the choice lasts for the channel), the video codec, picture size, frame rate and bitrate the player reports, the seconds buffered, the server's source for the stream and the session id. Back, Info, Left or Right closes it, and it closes on its own after 15 seconds. On a desktop the card lists libVLC's tracks and media information; on iOS it shows the picture size and bitrate only; in a browser it shows the picture size.
+
+Pause shows how many seconds the picture is behind live and that resuming after 30 seconds paused rejoins live; when it does, "Live" shows for a moment. A failed stream's card counts down to the next automatic reconnect, and a channel the server has no working source for says so.
 
 ## Captions
 
@@ -55,7 +61,7 @@ Where captions are drawn depends on the platform:
 - On a desktop, libVLC draws them into the picture, and on iOS, AVPlayer draws them in the iOS caption style. The app's caption style does not apply.
 - In a browser, the app draws them in the selected style while it draws the video into its own canvas. When it falls back to the browser's video element, without WebGL2 or when the server sends no CORS headers on media, the browser draws them. Chrome's built-in HLS player shows none.
 
-On Android, caption timing buffers video so delayed live captions align with speech. While captions are on, press OK to show the info bar, then use Left/Right to adjust timing in half-second steps, from 0 to 8 seconds. Timing is saved per channel; Settings sets the default timing, in the same steps and range. More timing also means a longer wait when a channel starts.
+On Android, caption timing shifts captions against the picture so live captions align with speech. Press CC, then within three seconds use Right to show them earlier or Left to show them later, in half-second steps, up to 8 seconds either way; each press keeps the window open and the toast shows the timing. The info bar shows the channel's timing as "CC 2.0 s early" or "CC 1.5 s late". Timing is saved per channel; Settings sets the default timing, in the same steps and range. Showing captions earlier buffers the video by that much, so it also means a longer wait when a channel starts; showing them later does not.
 
 ## Settings
 
@@ -68,7 +74,7 @@ Settings opens from the guide's header. Switches and choices apply at once. The 
 | Captions | Closed captions | Off | Shows captions in the player and the preview. The CC key toggles it too |
 | Captions | Smooth live captions | On | On Android, holds roll-up text until each line is complete, so captions appear a line at a time |
 | Captions | Caption style | System | Where the app draws captions, as [captions](#captions) lists. System follows Android's caption preferences, or white on black in a browser; Large, high contrast overrides them |
-| Captions | Default caption timing | 0 s | On Android, how far captions are shown earlier on channels without their own timing |
+| Captions | Default caption timing | As broadcast | On Android, how far captions are shown earlier or later on channels without their own timing |
 | Guide | Open focused channel automatically | After 10 seconds | How long focus rests on a channel before it opens full screen: Off, after 10 or after 30 seconds. TalkBack touch exploration on Android and VoiceOver on iOS turn it off |
 | Guide | Play preview sound | On | Whether the preview's sound comes on after 5 seconds |
 

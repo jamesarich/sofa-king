@@ -13,7 +13,6 @@
     <string name="guide_out_of_date">Guide out of date</string>
     <string name="programme_new">New</string>
     <string name="up_next">Next: %1$s</string>
-    <string name="channel_list_hint">OK for the channel list</string>
     <string name="zap_scope">%1$s %2$d/%3$d</string>
     <string name="no_channels">Sofa King empty in here. No channels to play</string>
     <string name="no_channels_hint">The server has no playable channels yet. Check its providers and source health.</string>

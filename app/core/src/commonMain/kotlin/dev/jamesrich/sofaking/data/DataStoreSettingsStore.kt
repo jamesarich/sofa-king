@@ -43,6 +43,7 @@ class DataStoreSettingsStore(
                     AutoOpenDelay.entries.firstOrNull { it.name == name }
                 } ?: AutoOpenDelay.AFTER_10_SECONDS,
                 previewSound = prefs[PREVIEW_SOUND] ?: true,
+                keyLegendShown = prefs[KEY_LEGEND_SHOWN] ?: 0,
             )
         }
 
@@ -97,6 +98,10 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[PREVIEW_SOUND] = enabled }
     }
 
+    override suspend fun setKeyLegendShown(count: Int) {
+        dataStore.edit { prefs -> prefs[KEY_LEGEND_SHOWN] = count }
+    }
+
     private fun advanceMs(prefs: Preferences): Int =
         (prefs[CAPTION_ADVANCE_MS] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
 
@@ -119,6 +124,7 @@ class DataStoreSettingsStore(
         val CAPTION_STYLE = stringPreferencesKey("caption_style")
         val AUTO_OPEN_DELAY = stringPreferencesKey("auto_open_delay")
         val PREVIEW_SOUND = booleanPreferencesKey("preview_sound")
+        val KEY_LEGEND_SHOWN = intPreferencesKey("key_legend_shown")
         const val SEPARATOR = '\t'
     }
 }

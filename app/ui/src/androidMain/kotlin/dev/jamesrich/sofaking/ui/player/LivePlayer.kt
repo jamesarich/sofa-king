@@ -71,10 +71,12 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     private val _status = MutableStateFlow(PlayerStatus())
     private val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
     private val _cues = MutableStateFlow<List<CaptionCue>>(emptyList())
+    private val _audioTracks = MutableStateFlow<List<AudioTrack>>(emptyList())
 
     override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
     override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
     override val cues: StateFlow<List<CaptionCue>> = _cues.asStateFlow()
+    override val audioTracks: StateFlow<List<AudioTrack>> = _audioTracks.asStateFlow()
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -83,6 +85,8 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
 
         override fun onTracksChanged(tracks: Tracks) {
             preferCaptionTrack(exo)
+            // One track is no choice; the card then leaves the picker out.
+            _audioTracks.value = audioTracksOf(tracks).takeIf { it.size > 1 }.orEmpty()
         }
 
         override fun onCues(cueGroup: CueGroup) {
@@ -135,6 +139,10 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     override fun setCaptionsEnabled(enabled: Boolean) {
         exo.trackSelectionParameters = captionParameters(exo.trackSelectionParameters, enabled)
     }
+
+    override fun selectAudioTrack(id: String) = selectAudioTrack(exo, id)
+
+    override fun streamInfo(): StreamInfo = streamInfoOf(exo.videoFormat, exo.audioFormat)
 
     override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
         exo.setMediaItem(mediaItemFor(stream, nowPlaying?.toMetadata() ?: MediaMetadata.EMPTY))

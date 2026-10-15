@@ -224,6 +224,8 @@ class LineupViewModel(
 
     fun setCaptionStyle(style: CaptionStyle) = viewModelScope.launch { store.setCaptionStyle(style) }
 
+    fun setKeyLegendShown(count: Int) = viewModelScope.launch { store.setKeyLegendShown(count) }
+
     fun setAutoOpenDelay(delay: AutoOpenDelay) = viewModelScope.launch { store.setAutoOpenDelay(delay) }
 
     fun setPreviewSound(enabled: Boolean) = viewModelScope.launch { store.setPreviewSound(enabled) }

@@ -28,10 +28,15 @@ internal class UnavailableLivePlayer(override val captionSync: CaptionSync, priv
     override val bufferedMs: Long = 0L
     override val supportsCaptionLead: Boolean = false
     override val hasTextTrack: Boolean = false
+    override val audioTracks: StateFlow<List<AudioTrack>> = MutableStateFlow(emptyList<AudioTrack>()).asStateFlow()
     override var volume: Float = 1f
     override var playWhenReady: Boolean = true
 
     override fun setCaptionsEnabled(enabled: Boolean) = Unit
+
+    override fun selectAudioTrack(id: String) = Unit
+
+    override fun streamInfo(): StreamInfo = StreamInfo()
 
     override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
         this.stream = stream

@@ -1,6 +1,10 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.data.AppSettings
+import kotlin.math.abs
+
+/** Where a caption timing puts the text against the stream's own timing. */
+internal enum class CaptionTiming { EARLIER, LATER, AS_BROADCAST }
 
 /** What the caption toggle announces after a press. */
 internal enum class CaptionToggleOutcome { ON, OFF, NO_CAPTIONS_ON_CHANNEL }
@@ -53,10 +57,17 @@ internal object CaptionPolicy {
         return OVERSCAN_BOTTOM_DP.toFloat() / screenHeightDp
     }
 
-    /** Caption timing in seconds with one decimal place, as shown in the overlay and the settings row. */
+    /** Caption timing in seconds with one decimal place and no sign, as shown in the overlay and the settings row. */
     fun advanceLabel(ms: Int): String {
-        require(ms >= 0) { "caption advance must not be negative: $ms" }
-        return "${ms / 1_000}.${(ms % 1_000) / 100}"
+        val magnitude = abs(ms)
+        return "${magnitude / 1_000}.${(magnitude % 1_000) / 100}"
+    }
+
+    /** Which way a timing moves captions: earlier than the stream puts them, later, or not at all. */
+    fun timingDirection(ms: Int): CaptionTiming = when {
+        ms > 0 -> CaptionTiming.EARLIER
+        ms < 0 -> CaptionTiming.LATER
+        else -> CaptionTiming.AS_BROADCAST
     }
 
     /** One step earlier (`direction` > 0) or later (< 0), clamped to [range]. */

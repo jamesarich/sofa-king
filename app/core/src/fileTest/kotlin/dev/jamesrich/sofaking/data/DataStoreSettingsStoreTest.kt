@@ -96,7 +96,7 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
-    fun `caption advance defaults to zero and is clamped to eight seconds`() = runTest {
+    fun `caption advance defaults to zero and is clamped to eight seconds either way`() = runTest {
         val store = newStore()
         assertEquals(0, store.settings.first().captionAdvanceMs)
 
@@ -107,7 +107,13 @@ class DataStoreSettingsStoreTest {
         assertEquals(8_000, store.settings.first().captionAdvanceMs)
 
         store.setCaptionAdvanceMs(-3_000)
-        assertEquals(0, store.settings.first().captionAdvanceMs)
+        assertEquals(-3_000, store.settings.first().captionAdvanceMs)
+
+        store.setCaptionAdvanceMs(-42_000)
+        assertEquals(-8_000, store.settings.first().captionAdvanceMs)
+
+        store.setChannelCaptionAdvance("5", -1_500)
+        assertEquals(-1_500, store.settings.first().captionAdvanceFor("5"))
     }
 
     @Test

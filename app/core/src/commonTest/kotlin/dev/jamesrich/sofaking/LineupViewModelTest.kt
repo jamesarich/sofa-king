@@ -55,6 +55,7 @@ class LineupViewModelTest {
         override suspend fun setCaptionStyle(style: CaptionStyle) = settings.update { it.copy(captionStyle = style) }
         override suspend fun setAutoOpenDelay(delay: AutoOpenDelay) = settings.update { it.copy(autoOpenDelay = delay) }
         override suspend fun setPreviewSound(enabled: Boolean) = settings.update { it.copy(previewSound = enabled) }
+        override suspend fun setKeyLegendShown(count: Int) = settings.update { it.copy(keyLegendShown = count) }
 
         private infix fun Set<String>.xor(id: String) = if (id in this) this - id else this + id
     }

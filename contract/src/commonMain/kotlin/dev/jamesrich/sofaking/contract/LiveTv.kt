@@ -32,4 +32,5 @@ import kotlinx.serialization.Serializable
 @Serializable data class OpenPlayback(val channelId: String, @EncodeDefault val intent: String = Wire.Intent.WATCH, val idempotencyKey: String)
 @Serializable data class UpdatePlayback(val intent: String? = null)
 @Serializable data class PlaybackDescriptor(val protocol: String, val mimeType: String, val url: String, val epoch: Int)
-@Serializable data class PlaybackSession(val id: String, val channelId: String, val intent: String, val expiresAt: String = "", val descriptor: PlaybackDescriptor)
+/** [providerId] names the source the server picked for the session, for the app's stream card; older servers leave it empty. */
+@Serializable data class PlaybackSession(val id: String, val channelId: String, val intent: String, val expiresAt: String = "", val descriptor: PlaybackDescriptor, val providerId: String = "")

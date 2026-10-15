@@ -98,6 +98,8 @@ class PlayerKeysTest {
         assertEquals(MiniGuideKey.LIST, Key.DirectionDown.inMiniGuide())
         assertEquals(MiniGuideKey.SWALLOWED, Key.DirectionLeft.inMiniGuide())
         assertEquals(MiniGuideKey.SWALLOWED, Key.DirectionRight.inMiniGuide())
+        assertEquals(MiniGuideKey.LIST, Key.DirectionLeft.inMiniGuide(chipsFocused = true))
+        assertEquals(MiniGuideKey.LIST, Key.DirectionRight.inMiniGuide(chipsFocused = true))
         assertEquals(MiniGuideKey.PLAYER, Key.ChannelUp.inMiniGuide())
         assertEquals(MiniGuideKey.PLAYER, Key.Seven.inMiniGuide())
         assertEquals(MiniGuideKey.PLAYER, Key.Guide.inMiniGuide())
@@ -109,5 +111,24 @@ class PlayerKeysTest {
         assertEquals(PlayerTap.CLOSE_CHANNEL_LIST, playerTap(channelListOpen = true, infoVisible = false))
         assertEquals(PlayerTap.HIDE_INFO, playerTap(channelListOpen = false, infoVisible = true))
         assertEquals(PlayerTap.SHOW_INFO, playerTap(channelListOpen = false, infoVisible = false))
+    }
+
+    @Test
+    fun `Left and Right adjust caption timing after CC or open the channel list on the info bar or show it`() {
+        assertEquals(PlayerSideKey.ADJUST_CAPTION_TIMING, playerSideKey(timingAdjustable = true, infoVisible = true))
+        assertEquals(PlayerSideKey.ADJUST_CAPTION_TIMING, playerSideKey(timingAdjustable = true, infoVisible = false))
+        assertEquals(PlayerSideKey.OPEN_CHANNEL_LIST, playerSideKey(timingAdjustable = false, infoVisible = true))
+        assertEquals(PlayerSideKey.SHOW_INFO, playerSideKey(timingAdjustable = false, infoVisible = false))
+    }
+
+    @Test
+    fun `in the stream card Up and Down move between tracks and the other keys close it`() {
+        assertEquals(StreamCardKey.CARD, Key.DirectionUp.inStreamCard())
+        assertEquals(StreamCardKey.CARD, Key.DirectionDown.inStreamCard())
+        assertEquals(StreamCardKey.CLOSE, Key.DirectionLeft.inStreamCard())
+        assertEquals(StreamCardKey.CLOSE, Key.Info.inStreamCard())
+        assertEquals(StreamCardKey.CLOSE, Key.Back.inStreamCard())
+        assertEquals(StreamCardKey.PLAYER, Key.ChannelUp.inStreamCard())
+        assertEquals(StreamCardKey.PLAYER, Key.Captions.inStreamCard())
     }
 }

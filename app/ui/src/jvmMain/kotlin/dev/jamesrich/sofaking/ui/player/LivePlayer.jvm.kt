@@ -35,6 +35,7 @@ import org.jetbrains.skia.impl.BufferUtil
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
+import uk.co.caprica.vlcj.media.TrackType
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback
@@ -84,6 +85,8 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
     override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
     override val cues: StateFlow<List<CaptionCue>> = MutableStateFlow(emptyList<CaptionCue>()).asStateFlow()
+    private val _audioTracks = MutableStateFlow<List<AudioTrack>>(emptyList())
+    override val audioTracks: StateFlow<List<AudioTrack>> = _audioTracks.asStateFlow()
 
     private var stream: PlaybackStream? = null
     private var captionsOn = false
@@ -131,6 +134,36 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
         applyCaptions()
     }
 
+    override fun selectAudioTrack(id: String) {
+        val track = id.toIntOrNull() ?: return
+        commands.execute {
+            vlc.audio().setTrack(track)
+            readAudioTracks()
+        }
+    }
+
+    /** libVLC describes the tracks of the media it has opened; nothing before the first frame. */
+    override fun streamInfo(): StreamInfo {
+        val info = vlc.media().info() ?: return StreamInfo()
+        val video = info.videoTracks().firstOrNull()
+        val audio = info.audioTracks().firstOrNull()
+        return StreamInfo(
+            videoCodec = video?.codecName()?.takeIf { it.isNotBlank() }?.uppercase(),
+            width = video?.width()?.takeIf { it > 0 },
+            height = video?.height()?.takeIf { it > 0 },
+            frameRate = video?.let { if (it.frameRateBase() > 0) it.frameRate().toFloat() / it.frameRateBase() else null },
+            bitrateBps = video?.bitRate()?.takeIf { it > 0 },
+            audioCodec = audio?.codecName()?.takeIf { it.isNotBlank() }?.uppercase(),
+        )
+    }
+
+    /** The audio tracks libVLC lists, without its "Disable" entry; on the command thread, since the list is read from libVLC. */
+    private fun readAudioTracks() {
+        val current = vlc.audio().track()
+        val tracks = vlc.audio().trackDescriptions().filter { it.id() >= 0 }
+        _audioTracks.value = if (tracks.size > 1) tracks.map { AudioTrack(it.id().toString(), it.description(), it.id() == current) } else emptyList()
+    }
+
     override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
         this.stream = stream
     }
@@ -150,6 +183,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     override fun stop() {
         commands.execute { vlc.controls().stop() }
         hasFrame = false
+        _audioTracks.value = emptyList()
         _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
     }
 
@@ -272,6 +306,15 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
         override fun playing(mediaPlayer: MediaPlayer) {
             _status.update { it.copy(state = PlaybackState.READY, isPlaying = true) }
             applyCaptions()
+            commands.execute { readAudioTracks() }
+        }
+
+        override fun elementaryStreamAdded(mediaPlayer: MediaPlayer, type: TrackType, id: Int) {
+            if (type == TrackType.AUDIO) commands.execute { readAudioTracks() }
+        }
+
+        override fun elementaryStreamSelected(mediaPlayer: MediaPlayer, type: TrackType, id: Int) {
+            if (type == TrackType.AUDIO) commands.execute { readAudioTracks() }
         }
 
         override fun paused(mediaPlayer: MediaPlayer) {

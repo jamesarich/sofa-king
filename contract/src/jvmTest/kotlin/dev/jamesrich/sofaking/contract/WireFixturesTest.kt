@@ -16,6 +16,7 @@ class WireFixturesTest {
 
     @Test
     fun `every v1 fixture decodes with a client's settings`() {
+        assertEquals(true, client.decodeFromString<Bootstrap>(fixture("v1/bootstrap.json")).capabilities.playback)
         assertEquals("available", client.decodeFromString<Catalog>(fixture("v1/catalog.json")).channels.single().guideStatus)
         assertEquals("Morning", client.decodeFromString<GuideWindow>(fixture("v1/guide-window.json")).channels.single().programmes.single().title)
         assertEquals("hls", client.decodeFromString<PlaybackSession>(fixture("v1/playback-session.json")).descriptor.protocol)
@@ -24,6 +25,9 @@ class WireFixturesTest {
 
     @Test
     fun `a response without the fields no client reads still decodes`() {
+        val bootstrap = client.decodeFromString<Bootstrap>("""{"serverId":"s","serverTime":"t"}""")
+        assertEquals(1, bootstrap.apiVersion)
+        assertEquals(Capabilities(), bootstrap.capabilities)
         val catalog = client.decodeFromString<Catalog>("""{"channels":[{"id":"c","displayNumber":"2","name":"PBS"}]}""")
         assertEquals(Wire.GuideStatus.AVAILABLE, catalog.channels.single().guideStatus)
         val window = client.decodeFromString<GuideWindow>(

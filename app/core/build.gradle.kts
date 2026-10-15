@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform.library)
@@ -32,6 +34,19 @@ kotlin {
     // Tests run on Node; browsers get the same klibs through the ui module's web apps.
     js { nodejs() }
     wasmJs { nodejs() }
+
+    // `fileMain` holds the stores that live in files, which need okio's system file system; the web targets keep theirs in
+    // the browser's storage instead (BrowserStorage), and have no file system to test against on Node. The default
+    // `native` group sits under it as well as under `common`, so `nativeMain` and the Apple source sets see the stores.
+    applyDefaultHierarchyTemplate {
+        common {
+            group("file") {
+                withJvm()
+                withCompilations { it.platformType == KotlinPlatformType.androidJvm }
+                group("native") { withNative() }
+            }
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {

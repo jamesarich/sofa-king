@@ -8,7 +8,7 @@ import dev.jamesrich.sofaking.data.SettingsStore
 internal class AppGraph(private val storage: AppStorage) {
     private val settings: SettingsStore = DataStoreSettingsStore(storage.settings)
 
-    fun lineupViewModel(): LineupViewModel = LineupViewModel(store = settings, cacheStore = storage.lineupCache)
+    fun lineupViewModel(): LineupViewModel = LineupViewModel(store = settings, lineupCache = storage.lineupCache)
 }
 
 private var graph: AppGraph? = null

@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking
 
 import androidx.compose.ui.window.ComposeUIViewController
 import dev.jamesrich.sofaking.data.AppStorage
+import dev.jamesrich.sofaking.data.inDirectory
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager

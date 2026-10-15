@@ -1,28 +1,18 @@
 package dev.jamesrich.sofaking.data
 
+import androidx.datastore.core.CorruptionException
 import kotlinx.coroutines.test.runTest
+import okio.Buffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.time.Instant
 
-/** A [ByteStore] in memory, so the codec is tested the same on every target. */
-private class MemoryByteStore(var bytes: ByteArray? = null) : ByteStore {
-    override fun read(): ByteArray? = bytes
-
-    override fun write(bytes: ByteArray) {
-        this.bytes = bytes
-    }
-
-    override fun delete() {
-        bytes = null
-    }
-}
-
 class LineupCacheTest {
     private val now = Instant.parse("2026-10-09T10:00:00Z")
-    private val store = MemoryByteStore()
+    private val store = MemoryDataStore<CachedLineup?>(null)
 
     private companion object {
         const val KEY = "http://server:9193"
@@ -36,6 +26,11 @@ class LineupCacheTest {
 
     private fun programme(channel: String, start: String, stop: String, title: String, description: String? = null) =
         Programme(channel, Instant.parse(start), Instant.parse(stop), title, description)
+
+    /** [bytes] as the serializer reads them from the store's file. */
+    private suspend fun decode(bytes: ByteArray) = CachedLineupSerializer.readFrom(Buffer().write(bytes))
+
+    private suspend fun encode(cached: CachedLineup?): ByteArray = Buffer().also { CachedLineupSerializer.writeTo(cached, it) }.readByteArray()
 
     @Test
     fun `round trip keeps channels and programmes`() = runTest {
@@ -56,7 +51,7 @@ class LineupCacheTest {
     }
 
     @Test
-    fun `round trip keeps guide status and programme metadata`() = runTest {
+    fun `round trip through the serializer keeps guide status and programme metadata`() = runTest {
         val episode = Programme(
             channelId = "3",
             start = Instant.parse("2026-10-09T10:00:00Z"),
@@ -75,8 +70,9 @@ class LineupCacheTest {
         )
 
         cache().write(lineup)
+        val bytes = encode(store.value)
 
-        assertEquals(lineup, cache().read())
+        assertEquals(lineup, assertNotNull(decode(bytes)).toLineup(now))
     }
 
     @Test
@@ -99,30 +95,41 @@ class LineupCacheTest {
     }
 
     @Test
-    fun `a corrupt cache reads as null and is deleted`() = runTest {
-        store.bytes = byteArrayOf(0, 0, 0, 1, 0x7f, 0x7f, 0x7f)
-
-        assertNull(cache().read())
-        assertNull(store.bytes)
+    fun `an empty store is no lineup and no lineup writes an empty store`() = runTest {
+        assertNull(decode(ByteArray(0)))
+        assertEquals(0, encode(null).size)
     }
 
     @Test
-    fun `a truncated cache reads as null and is deleted`() = runTest {
+    fun `corrupt bytes are corruption which DataStore replaces`() = runTest {
+        assertFailsWith<CorruptionException> { decode(byteArrayOf(0, 0, 0, 1, 0x7f, 0x7f, 0x7f)) }
+    }
+
+    @Test
+    fun `a truncated record is corruption`() = runTest {
         cache().write(Lineup(listOf(channelOne), mapOf("1" to listOf(programme("1", "2026-10-09T11:00:00Z", "2026-10-09T12:00:00Z", "T")))))
-        val bytes = assertNotNull(store.bytes)
-        store.bytes = bytes.copyOf(bytes.size / 2)
+        val bytes = encode(store.value)
 
-        assertNull(cache().read())
-        assertNull(store.bytes)
+        assertFailsWith<CorruptionException> { decode(bytes.copyOf(bytes.size / 2)) }
     }
 
     @Test
-    fun `an unknown version reads as null and is deleted`() = runTest {
-        cache().write(Lineup(listOf(channelOne), emptyMap()))
-        assertNotNull(store.bytes)[3] = 0
+    fun `the versioned layouts before the DataStore cache are corruption`() = runTest {
+        // Version 6: a big-endian version followed by the protobuf record.
+        val versioned = byteArrayOf(0, 0, 0, 6) + encode(CachedLineup.of(KEY, Lineup(listOf(channelOne), emptyMap())))
+        assertFailsWith<CorruptionException> { decode(versioned) }
+        // Version 5: the hand-written layout.
+        assertFailsWith<CorruptionException> {
+            decode(byteArrayOf(0, 0, 0, 5, 0, 0, 0, 1, 'k'.code.toByte(), 0, 0, 0, 0, 0, 0, 0, 0))
+        }
+    }
+
+    @Test
+    fun `a record that does not make a lineup reads as null and is cleared`() = runTest {
+        store.updateData { CachedLineup(KEY, channels = listOf(CachedChannel("1", 1.0, "One", null, emptyList(), "AVAILABLE"))) }
 
         assertNull(cache().read())
-        assertNull(store.bytes)
+        assertNull(store.value)
     }
 
     @Test
@@ -130,7 +137,7 @@ class LineupCacheTest {
         cache(key = "http://a:9193").write(Lineup(listOf(channelOne), emptyMap()))
 
         assertNull(cache(key = "http://b:9193").read())
-        assertNotNull(store.bytes)
+        assertNotNull(store.value)
     }
 
     @Test
@@ -147,24 +154,10 @@ class LineupCacheTest {
     }
 
     @Test
-    fun `a cache in the hand-written version 5 layout is deleted`() = runTest {
-        store.bytes = byteArrayOf(
-            0, 0, 0, 5, // version
-            0, 0, 0, 1, 'k'.code.toByte(), // key
-            0, 0, 0, 0, // no channels
-            0, 0, 0, 0, // no guide
-        )
-
-        assertNull(cache(key = "k").read())
-        assertNull(store.bytes)
-    }
-
-    @Test
     fun `a store that cannot be read reads as null`() = runTest {
-        val failing = object : ByteStore {
-            override fun read(): ByteArray = error("disk gone")
-            override fun write(bytes: ByteArray) = Unit
-            override fun delete() = Unit
+        val failing = object : androidx.datastore.core.DataStore<CachedLineup?> {
+            override val data = kotlinx.coroutines.flow.flow<CachedLineup?> { error("disk gone") }
+            override suspend fun updateData(transform: suspend (t: CachedLineup?) -> CachedLineup?): CachedLineup? = error("disk gone")
         }
 
         assertNull(LineupCache(failing, KEY) { now }.read())

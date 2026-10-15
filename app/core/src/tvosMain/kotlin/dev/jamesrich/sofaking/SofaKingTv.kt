@@ -51,7 +51,7 @@ class SofaKingTv {
     )
     private val scope: CoroutineScope = MainScope()
 
-    val viewModel = LineupViewModel(store = DataStoreSettingsStore(storage.settings), cacheStore = storage.lineupCache)
+    val viewModel = LineupViewModel(store = DataStoreSettingsStore(storage.settings), lineupCache = storage.lineupCache)
 
     fun watchState(onChange: (LineupState) -> Unit): Watch = watch(viewModel.state, onChange)
 

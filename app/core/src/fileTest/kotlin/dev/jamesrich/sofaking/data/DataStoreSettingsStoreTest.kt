@@ -2,46 +2,34 @@ package dev.jamesrich.sofaking.data
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
-import org.junit.rules.TemporaryFolder
-import java.io.File
+import kotlinx.io.buffered
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
+/** The settings store over the DataStore file every platform with a file system uses, on every such target. */
 class DataStoreSettingsStoreTest {
-    @get:Rule
-    val tempFolder = TemporaryFolder()
-
-    private lateinit var scope: CoroutineScope
+    private val dir = testDirectory()
+    private val file = Path(dir, "settings.preferences_pb")
 
     /** One DataStore per test: a second instance over the same file would not see the first one's writes. */
     private val dataStore: DataStore<Preferences> by lazy {
-        PreferenceDataStoreFactory.create(scope = scope) {
-            File(tempFolder.root, "test.preferences_pb")
-        }
+        SystemFileSystem.createDirectories(dir)
+        preferencesDataStore(file.toString())
     }
 
-    @Before
-    fun setUp() {
-        scope = CoroutineScope(Dispatchers.IO + Job())
-    }
-
-    @After
+    @AfterTest
     fun tearDown() {
-        scope.cancel()
+        if (SystemFileSystem.exists(dir)) SystemFileSystem.list(dir).forEach { SystemFileSystem.delete(it) }
+        SystemFileSystem.delete(dir, mustExist = false)
     }
 
     private fun newStore(): DataStoreSettingsStore = DataStoreSettingsStore(dataStore)
@@ -67,8 +55,8 @@ class DataStoreSettingsStoreTest {
     @Test
     fun `the token is kept out of the settings' string form`() {
         val printed = AppSettings(serverUrl = "http://sofa.lan:9193", apiToken = "s3cret-token").toString()
-        assertFalse(printed, printed.contains("s3cret"))
-        assertTrue(printed, printed.contains("http://sofa.lan:9193"))
+        assertFalse(printed.contains("s3cret"), printed)
+        assertTrue(printed.contains("http://sofa.lan:9193"), printed)
     }
 
     @Test
@@ -133,7 +121,7 @@ class DataStoreSettingsStoreTest {
         val settings = store.settings.first()
         assertEquals(2_500, settings.captionAdvanceFor("5"))
         assertEquals(6_500, settings.captionAdvanceFor("8"))
-        assertEquals("unadjusted channels use the default", 5_000, settings.captionAdvanceFor("108"))
+        assertEquals(5_000, settings.captionAdvanceFor("108"), "unadjusted channels use the default")
     }
 
     @Test
@@ -194,6 +182,17 @@ class DataStoreSettingsStoreTest {
 
         store.setPreviewSound(false)
         assertFalse(store.settings.first().previewSound)
+    }
+
+    @Test
+    fun `a file that is not a preferences store reads as defaults and is replaced`() = runTest {
+        SystemFileSystem.createDirectories(dir)
+        SystemFileSystem.sink(file).buffered().use { it.write(byteArrayOf(0x7f, 0x00, 0x7f, 0x7f, 0x7f)) }
+
+        assertEquals(AppSettings(), newStore().settings.first())
+        val store = newStore()
+        store.setLastChannel("3")
+        assertEquals("3", store.settings.first().lastChannel)
     }
 
     @Test

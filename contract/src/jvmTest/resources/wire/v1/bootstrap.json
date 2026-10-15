@@ -1,0 +1,11 @@
+{
+    "serverId": "0b7a0a9e-3a6d-4d5c-9c1e-2f6f1d0e8a41",
+    "serverTime": "2026-10-15T14:00:00Z",
+    "apiVersion": 1,
+    "capabilities": {
+        "catalog": true,
+        "guide": true,
+        "playback": true,
+        "events": false
+    }
+}

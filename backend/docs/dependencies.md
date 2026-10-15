@@ -1,21 +1,15 @@
 # Dependencies
 
+Every library version is an exact pin in [the version catalog](../../gradle/libs.versions.toml), which this table does not repeat. The versions the catalog does not hold:
+
 | Component | Version |
 | --- | --- |
-| Kotlin | 2.5.0-Beta1 |
-| Ktor | 3.6.0 |
-| kotlinx.serialization | 1.12.0-RC |
-| kotlinx.coroutines | 1.11.0 |
-| Exposed | 1.5.1 |
-| SQLite JDBC | 3.53.4.0 |
-| Logback | 1.6.5 |
-| kotlinx.html | 0.12.0 |
 | htmx | 2.0.11 |
 | Gradle | 9.9.0-milestone-2 |
 | Foojay toolchain resolver | 1.0.0 |
 | JDK toolchain | 21 |
 
-Versions are defined in [the version catalog](../../gradle/libs.versions.toml) and [Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Every version is exact and the wrapper has a pinned distribution checksum; resolved versions are not locked. Every library comes from Maven Central.
+The wrapper's version is in [the Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Every version is exact and the wrapper has a pinned distribution checksum; resolved versions are not locked. Every library comes from Maven Central.
 
 The server targets JVM 21. The [contract](../../contract/README.md) it shares with the app compiles to JVM 17 bytecode for the server and Android, and to every other target the app builds; it pins the same Kotlin and kotlinx.serialization versions as the server.
 

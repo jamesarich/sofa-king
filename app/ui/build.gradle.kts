@@ -11,10 +11,10 @@ plugins {
     id("sofaking.android")
 }
 
-val appVersion = providers.gradleProperty("sofaking.version").get()
+val appVersion = libs.versions.sofaking.get()
 val versionSuffix = providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
 
-// The one version string, from gradle.properties, for the About row on every platform.
+// The one version string, from the catalog, for the About row on every platform.
 val generateBuildInfo = tasks.register("generateBuildInfo") {
     val output = layout.buildDirectory.dir("generated/buildInfo")
     val version = appVersion + versionSuffix
@@ -27,7 +27,7 @@ val generateBuildInfo = tasks.register("generateBuildInfo") {
             """
             |package dev.jamesrich.sofaking
             |
-            |/** Generated from `sofaking.version` in gradle.properties. */
+            |/** Generated from `sofaking` in gradle/libs.versions.toml. */
             |internal object BuildInfo {
             |    const val VERSION: String = "$version"
             |}

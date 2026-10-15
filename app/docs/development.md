@@ -54,7 +54,7 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 
 ## Baseline Profile
 
-The release APK ships a Baseline Profile, so Android compiles the code a cold start, the guide and a channel change run ahead of time instead of interpreting it on the first launches. `:baselineprofile` records it with Macrobenchmark's `BaselineProfileRule`, and the `androidx.baselineprofile` plugin writes it under `androidApp/src/release/generated/baselineProfiles`. CI does not regenerate it.
+The release APK ships a Baseline Profile, so Android compiles the code a cold start, the guide and a channel change run ahead of time instead of interpreting it on the first launches. `:baselineprofile` records it with Macrobenchmark's `BaselineProfileRule` in two runs, the cold start alone for the startup profile that lays out the first dex file and the guide-and-zap journey for the rest, and the `androidx.baselineprofile` plugin writes both files under `androidApp/src/release/generated/baselineProfiles`. CI does not regenerate them.
 
 Regenerate it after a large change to startup, the guide or the player, with one device connected over `adb` that already has the app installed and its server set up, since the journey needs a lineup to draw:
 

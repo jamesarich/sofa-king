@@ -5,9 +5,9 @@ import dev.jamesrich.sofaking.backend.logos.LogoCache
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.http.content.LocalPathContent
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
-import io.ktor.server.response.respondBytes
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 
@@ -26,7 +26,8 @@ fun Route.logoRoutes(logos: LogoCache) {
         // An SVG is XML a browser could run scripts from if it opened the URL itself; the policy forbids that and keeps rendering.
         call.response.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
         if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) return@get call.respond(HttpStatusCode.NotModified)
-        val bytes = logos.read(record) ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown logo")
-        call.respondBytes(bytes, ContentType.parse(record.contentType!!))
+        // Streamed from the cache file, with its length and modification time; a HEAD or a range costs no read here.
+        val file = logos.file(record) ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown logo")
+        call.respond(LocalPathContent(file, ContentType.parse(record.contentType!!)))
     }
 }

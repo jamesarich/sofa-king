@@ -10,6 +10,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
@@ -43,11 +44,18 @@ class BackendStore internal constructor(
     /** Mirror of offering_health; only [writeHealth] replaces it, after the DB commit, so health reads never touch SQLite. */
     private val healthSnapshot = AtomicReference<Map<String, HealthState>>(emptyMap())
 
+    /** The table's state at open and the writes since, so [healthVersion] never queries SQLite on the catalog route. */
+    private val healthSeed = AtomicReference("")
+    private val healthWrites = AtomicLong()
+
     internal suspend fun initialize() = databaseWork {
         applyMigrations(database, foundationMigrations(), clock)
         transaction(database) {
             Metadata.insertIgnore { it[key] = "server_id"; it[value] = UUID.randomUUID().toString() }
             healthSnapshot.set(OfferingHealth.selectAll().associate { it[OfferingHealth.offeringId] to decodeHealth(it[OfferingHealth.stateJson]) })
+            val count = OfferingHealth.offeringId.count()
+            val latest = OfferingHealth.updatedAt.max()
+            healthSeed.set(OfferingHealth.select(count, latest).single().let { "${it[count]}:${it[latest] ?: ""}" })
         }
     }
 
@@ -123,6 +131,7 @@ class BackendStore internal constructor(
         if (removed.isNotEmpty()) {
             val gone = removed.toHashSet()
             healthSnapshot.updateAndGet { current -> current.filterKeys { it !in gone } }
+            healthWrites.incrementAndGet()
         }
         return removed.size
     }
@@ -206,12 +215,8 @@ class BackendStore internal constructor(
 
     suspend fun allHealth(): Map<String, HealthState> = healthSnapshot.get()
 
-    /** Changes whenever any health row is written or added; cheap enough to answer every conditional catalog request. */
-    suspend fun healthVersion(): String = query {
-        val count = OfferingHealth.offeringId.count()
-        val latest = OfferingHealth.updatedAt.max()
-        OfferingHealth.select(count, latest).single().let { "${it[count]}:${it[latest] ?: ""}" }
-    }
+    /** Changes whenever any health row is written, added or removed, and across a restart that wrote any; in memory. */
+    fun healthVersion(): String = "${healthSeed.get()}:${healthWrites.get()}"
 
     private fun saveHealth(offeringId: String, state: HealthState, at: Instant) {
         OfferingHealth.update({ OfferingHealth.offeringId eq offeringId }) {
@@ -234,7 +239,10 @@ class BackendStore internal constructor(
     private suspend fun <T> writeHealth(block: JdbcTransaction.(MutableMap<String, HealthState>) -> T): T = databaseWork {
         val changed = LinkedHashMap<String, HealthState>()
         val result = transaction(database) { maxAttempts = 1; block(changed) }
-        if (changed.isNotEmpty()) healthSnapshot.updateAndGet { it + changed }
+        if (changed.isNotEmpty()) {
+            healthSnapshot.updateAndGet { it + changed }
+            healthWrites.incrementAndGet()
+        }
         result
     }
 

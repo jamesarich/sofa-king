@@ -12,6 +12,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+private val RESOURCE_SUFFIXES = setOf("m3u8", "ts", "m4s", "mp4", "aac", "vtt", "webvtt", "key", "bin")
+private val INTENTS = setOf(Wire.Intent.PREVIEW, Wire.Intent.WATCH)
+
 /** [external] sessions belong to players that never renew: the lease runs from their last media request. */
 internal class LiveSession(val id: String, val request: OpenPlayback, var offering: Offering, var expires: Instant, val external: Boolean = false) {
     var epoch = 1
@@ -23,7 +26,7 @@ internal class LiveSession(val id: String, val request: OpenPlayback, var offeri
     fun resource(url: String, suffix: String? = null): String {
         resources.tokenFor(url)?.let { return it }
         val extension = java.net.URI(url).path.substringAfterLast('.', "").lowercase()
-        val chosen = suffix ?: if (extension in setOf("m3u8", "ts", "m4s", "mp4", "aac", "vtt", "webvtt", "key", "bin")) extension else "ts"
+        val chosen = suffix ?: if (extension in RESOURCE_SUFFIXES) extension else "ts"
         return "${UUID.randomUUID()}.$chosen".also { resources.put(it, url, pinned = chosen == "m3u8" || url == offering.url) }
     }
     /** The root token's suffix and MIME follow the offering's protocol, never the upstream path. */
@@ -65,7 +68,7 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     private val keys = linkedMapOf<String, Pair<OpenPlayback, String>>()
     suspend fun open(request: OpenPlayback): PlaybackSession = mutex.withLock {
         reap()
-        if (request.intent !in setOf(Wire.Intent.PREVIEW, Wire.Intent.WATCH) || request.idempotencyKey.length !in 1..128)
+        if (request.intent !in INTENTS || request.idempotencyKey.length !in 1..128)
             throw ApiFailure(400, "INVALID_REQUEST", "Invalid playback intent or idempotency key")
         keys[request.idempotencyKey]?.let { (original, id) ->
             if (original != request) throw ApiFailure(409, "IDEMPOTENCY_CONFLICT", "Key already used for another request")
@@ -135,7 +138,7 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     }
     suspend fun update(id: String, update: UpdatePlayback): PlaybackSession = mutex.withLock {
         val session = active(id)
-        if (update.intent != null && update.intent !in setOf(Wire.Intent.PREVIEW, Wire.Intent.WATCH)) throw ApiFailure(400, "INVALID_REQUEST", "Invalid playback intent")
+        if (update.intent != null && update.intent !in INTENTS) throw ApiFailure(400, "INVALID_REQUEST", "Invalid playback intent")
         update.intent?.let { session.intent = it }
         session.expires = clock.instant().plus(lease(session.intent))
         session.descriptor()

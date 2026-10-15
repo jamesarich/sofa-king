@@ -134,12 +134,18 @@ internal class TsFanout(
     }
 
     private suspend fun broadcast(packets: ByteArray) {
-        val dropped =
-            mutex.withLock {
-                readers.filter { it.channel.trySend(packets).isFailure }.also { readers.removeAll(it.toSet()) }
+        // The usual broadcast drops nobody and allocates nothing; the list exists only once a reader fell behind.
+        var dropped: MutableList<Reader>? = null
+        mutex.withLock {
+            readers.removeIf { reader ->
+                reader.channel.trySend(packets).isFailure.also { failed ->
+                    if (failed) (dropped ?: ArrayList<Reader>().also { dropped = it }) += reader
+                }
             }
-        dropped.forEach { it.channel.close(SlowReaderException()) }
-        if (dropped.isNotEmpty()) log.warn("relay dropped slow readers offering={} count={}", key, dropped.size)
+        }
+        val slow = dropped ?: return
+        slow.forEach { it.channel.close(SlowReaderException()) }
+        log.warn("relay dropped slow readers offering={} count={}", key, slow.size)
     }
 
     private suspend fun produce() {
@@ -203,7 +209,7 @@ internal class TsFanout(
                 val size = carried + read
                 var offset = 0
                 if (!synced) {
-                    if (!started.isCompleted) sniffProtocol(work.copyOf(size))?.let { if (it != "mpegts") throw UpstreamProtocolException(it) }
+                    if (!started.isCompleted) sniffProtocol(work, size)?.let { if (it != "mpegts") throw UpstreamProtocolException(it) }
                     val sync = tsSyncOffset(work, 3, to = size)
                     if (sync == null) {
                         junk += read

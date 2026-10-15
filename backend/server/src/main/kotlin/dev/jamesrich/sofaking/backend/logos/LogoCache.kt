@@ -100,6 +100,11 @@ class LogoCache(
         try { Files.readAllBytes(directory.resolve(record.key)) } catch (_: NoSuchFileException) { null }
     }
 
+    /** The cached record's file, for the route to stream, or null when it is gone. */
+    suspend fun file(record: LogoRecord): Path? = withContext(Dispatchers.IO) {
+        directory.resolve(record.key).takeIf { Files.isRegularFile(it) }
+    }
+
     /** Fetches every wanted logo that is missing or due, [parallelism] at a time, and deletes the ones no longer wanted. */
     suspend fun sweep() {
         val now = clock.instant()

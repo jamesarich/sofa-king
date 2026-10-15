@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.playback
 
-import dev.jamesrich.sofaking.backend.upstream.FFMPEG_PROTOCOL_WHITELIST
+import dev.jamesrich.sofaking.backend.catalog.redactedMessage
+import dev.jamesrich.sofaking.backend.upstream.ffmpegBase
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.server.application.ApplicationCall
@@ -8,6 +9,7 @@ import io.ktor.server.response.header
 import io.ktor.server.response.respondBytesWriter
 import io.ktor.utils.io.writeFully
 import java.nio.file.Files
+import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -35,8 +37,11 @@ class TsRemux(private val ffmpeg: String) {
     /** Streams [url] remuxed to `video/mp2t` into [call]; returns when the client hangs up or FFmpeg exits. */
     suspend fun stream(call: ApplicationCall, url: String, headers: Map<String, String>) {
         val command = remuxCommand(ffmpeg, url, headers)
-        val errors = Files.createTempFile("sofa-remux-", ".log")
-        val process = ProcessBuilder(command).redirectError(errors.toFile()).start()
+        // Creating the log file and forking FFmpeg block; the call's Netty thread must not do either.
+        val (errors, process) = withContext(Dispatchers.IO) {
+            val errors = Files.createTempFile("sofa-remux-", ".log")
+            errors to ProcessBuilder(command).redirectError(errors.toFile()).start()
+        }
         processes += process
         // FFmpeg closing its pipe is the source ending; anything else that stops the copy is the client leaving.
         var ended = false
@@ -62,7 +67,7 @@ class TsRemux(private val ffmpeg: String) {
                 }
             }
         } finally {
-            withContext(NonCancellable) {
+            withContext(NonCancellable + Dispatchers.IO) {
                 reap(process)
                 processes -= process
                 val exit = process.exitValue()
@@ -89,16 +94,13 @@ class TsRemux(private val ffmpeg: String) {
     }
 
     /** The last FFmpeg lines with URLs removed, since segment URLs can carry tokens. */
-    private fun tail(errors: java.nio.file.Path): String =
-        runCatching { Files.readAllLines(errors).takeLast(3).joinToString(" | ") }.getOrDefault("")
-            .replace(Regex("""https?://[^\s"'\]\[<>]+"""), "<url>").take(300)
+    private fun tail(errors: Path): String =
+        redactedMessage(runCatching { Files.readAllLines(errors) }.getOrDefault(emptyList()).takeLast(3).joinToString(" | "))
 }
 
 /** The FFmpeg command that stream-copies [url] to MPEG-TS on its stdout. */
 internal fun remuxCommand(ffmpeg: String, url: String, headers: Map<String, String>): List<String> {
-    val command = mutableListOf(ffmpeg, "-hide_banner", "-loglevel", "warning", "-nostdin", "-rw_timeout", "15000000")
-    command += FFMPEG_PROTOCOL_WHITELIST
-    if (headers.isNotEmpty()) command += listOf("-headers", headers.entries.joinToString("") { "${it.key}: ${it.value}\r\n" })
+    val command = ffmpegBase(ffmpeg, "warning", headers)
     // FFmpeg's own selection takes one video (highest resolution) and one audio (most channels) and skips the
     // other variants' downloads; subtitles and data have no reliable MPEG-TS mapping and are left out.
     command += listOf("-i", url, "-sn", "-dn", "-c", "copy", "-f", "mpegts", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "pipe:1")

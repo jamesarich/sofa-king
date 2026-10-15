@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.catalog
 
 import java.net.URI
 import java.net.URISyntaxException
+import java.util.HexFormat
 
 /**
  * The HTTP(S) URL a logo reference means, or null when it means none. Surrounding whitespace is dropped, a
@@ -43,7 +44,7 @@ internal fun percentEncode(value: String): String {
             c.code in 0x21..0x7E && (c.isLetterOrDigit() || c in UNENCODED) -> out.append(c)
             else -> {
                 val point = value.codePointAt(index)
-                for (byte in String(Character.toChars(point)).toByteArray(Charsets.UTF_8)) out.append('%').append("%02X".format(byte))
+                for (byte in String(Character.toChars(point)).toByteArray(Charsets.UTF_8)) HEX.toHexDigits(out.append('%'), byte)
                 index += Character.charCount(point); continue
             }
         }
@@ -51,5 +52,7 @@ internal fun percentEncode(value: String): String {
     }
     return out.toString()
 }
+
+private val HEX: HexFormat = HexFormat.of().withUpperCase()
 
 private fun isHex(c: Char) = c in '0'..'9' || c in 'a'..'f' || c in 'A'..'F'

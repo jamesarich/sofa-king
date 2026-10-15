@@ -284,6 +284,7 @@ fun PlayerScreen(
         miniGuideOpen = false
     }
 
+    /** Moves [step] channels through the lineup, wrapping at its ends; positive is down the guide, as [PlayerAction.zapStep] gives it. */
     fun zapStep(step: Int) {
         val size = currentChannels.size
         if (size > 0) zapTo((index + step).mod(size))
@@ -521,8 +522,7 @@ fun PlayerScreen(
         val action = key.playerAction() ?: return false
         when (action) {
             PlayerAction.TOGGLE_CAPTIONS -> toggleCaptions()
-            PlayerAction.ZAP_UP -> zapStep(1)
-            PlayerAction.ZAP_DOWN -> zapStep(-1)
+            PlayerAction.ZAP_UP, PlayerAction.ZAP_DOWN -> zapStep(action.zapStep()!!)
             PlayerAction.LAST_CHANNEL -> recallLastChannel()
             PlayerAction.PLAY_PAUSE -> if (player.playWhenReady) player.pause() else player.play()
             PlayerAction.PLAY -> player.play()
@@ -677,8 +677,8 @@ fun PlayerScreen(
                             paused = paused,
                             failed = failure != null,
                             onGuide = onExit,
-                            onChannelUp = control { zapStep(1) },
-                            onChannelDown = control { zapStep(-1) },
+                            onChannelUp = control { zapStep(PlayerAction.ZAP_UP.zapStep()!!) },
+                            onChannelDown = control { zapStep(PlayerAction.ZAP_DOWN.zapStep()!!) },
                             onChannelList = ::openMiniGuide,
                             onCaptions = control { toggleCaptions() },
                             onPlayPause = control { if (player.playWhenReady) player.pause() else player.play() },

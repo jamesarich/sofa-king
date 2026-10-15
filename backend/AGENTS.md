@@ -1,25 +1,38 @@
 # Sofa King server
 
-Kotlin/JVM live TV server for the Sofa King app in `../app`, in one Gradle module, `server`. Read README, docs/README.md and docs/architecture.md for current setup and behavior, and docs/api.md for the wire interface. Implement working slices, run the relevant checks and commit verified changes.
+Kotlin/JVM live TV server for the Sofa King app in `../app`, in one Gradle module, `server` (Ktor on Netty, SQLite through Exposed and sqlite-jdbc, FFmpeg for remuxing). Read README, docs/README.md and docs/architecture.md for current setup and behavior, docs/api.md for the wire interface and docs/admin.md for the portal. Implement working slices, run the relevant checks and commit verified changes.
 
 ## Build
 
-Use JDK 21 and FFmpeg on the path. The server's Gradle build is `backend/`; on the shared host, run from the repository root:
+Use JDK 21 and FFmpeg on the path (the tests generate HLS fixtures with it through `MediaFixture`; CI uses Ubuntu 24.04's FFmpeg 6.1, the version the image ships, and its output differs from newer majors). The server's Gradle build is `backend/`; on the shared host, run from the repository root:
 
 ```sh
 /home/james/.claude/bin/gradle-queue -C backend -- test :server:installDist
 ```
 
-Then, from `backend/`, run both `python3 scripts/smoke.py` and `python3 scripts/live-smoke.py` before reporting live TV ready. Test persistence against real temporary SQLite files and API behavior through Ktor's test host. Test source-health time rules with an injected clock; do not depend on wall-clock sleeps.
+Elsewhere run `./gradlew test :server:installDist` from `backend/`. One test class: `./gradlew :server:test --tests 'dev.jamesrich.sofaking.backend.catalog.LineupServiceTest'`. Then, from `backend/`, run both `python3 scripts/smoke.py` and `python3 scripts/live-smoke.py` before reporting live TV ready. CI also runs `shellcheck deploy/*.sh` and `python3 -I -m unittest discover -s scripts -p 'test_*.py'`. Test persistence against real temporary SQLite files and API behavior through Ktor's test host; a test that depends on a streamed body's lifetime or on an FFmpeg client runs on a real socket (`RealServer`). Test source-health time rules with an injected clock; do not depend on wall-clock sleeps. Native provider tests run against `ProviderFixture` and the sanitized documents under `server/src/test/resources/providers/`; docs/development.md has the steps for adding a provider.
 
-Commits use Conventional Commits, `type(scope): summary` in the imperative, scoped by package or area: `providers`, `policy`, `hdhr`, `logos`, `playback`, `backend`, `build`, `ci`, `docs`.
+Commits use Conventional Commits, `type(scope): summary` in the imperative, scoped by package or area: `providers`, `policy`, `hdhr`, `logos`, `playback`, `admin`, `server`, `backend`, `build`, `ci`, `docs`.
+
+## Code map
+
+All source is under `dev.jamesrich.sofaking.backend`; tests mirror it in `server/src/test`.
+
+- `Main.kt`, `LiveRuntime.kt`, `ServerConfig.kt`, `Secrets.kt`: process start, wiring, the environment settings (documented only in docs/live-tv.md's server settings table) and the generated tokens in `data/secrets.json`.
+- `http/`: the Ktor application and route files (`StatusRoutes`, `AdminRoutes`, `PolicyRoutes`, `PlexRoutes`, `HdhrRoutes`, `OutputRoutes`, `LogoRoutes`), `AddressAllowList` and `AuthFailures`. `api/`: the server-only response and request models (admin, policy, Plex, sources, status); the shared ones are in `../contract`.
+- `catalog/`: `FeedService` and `FeedParser` (M3U and native imports into candidates and sources), `GuideService` (XMLTV and service guides), `PolicyService`, `StationBuilder`, `StationKeys`, `LearnedAliases` and `SourceIdentity` (the lineup policy and station identity), `LineupService` and `CatalogService` (what every client reads).
+- `providers/`: `ProviderClient`, `NativeServices`, `ProviderRegistry` and one client per free service. `upstream/`: the HTTP and FFmpeg inputs. `health/`: `ProbeWorker`, `HealthPolicy` and `HttpQualifier` (source health and auto-cull).
+- `playback/`: `SessionManager` (every stream is a session), `MediaRelay` and `HlsRewriter` (HLS), `TsFanout` (shared MPEG-TS) and `TsRemux` (HLS to MPEG-TS for Plex). `plex/PlexSync` pushes channel maps.
+- `store/`: `BackendStore`, `DatabaseFactory`, `Tables` and one storage file per area. Migrations are `server/src/main/resources/db/Vnnn__name.sql`, listed in order in `Migrations.kt`; a schema change adds a new, higher-numbered file and its list entry and never edits an applied one. Versions may have gaps.
+- `admin/`: the server-rendered portal at `/admin` (`AdminPortal`, `AdminPages`, `AdminSystem`, `AdminSessions`, `AdminSettings`, `AdminTheme`, `AdminPolicyEdits`), which works without JavaScript and uses the vendored htmx in `resources/admin/`. It changes nothing the admin API cannot, so a new action gets its API route first. `settings/RuntimeSettings` holds the settings the portal edits at run time; `jobs/` lists the background jobs; `logging/EventRing` feeds the Events page; `logos/` is the logo cache.
+- The OpenAPI document is the hand-kept `server/src/main/resources/api/openapi.json`, served at `/admin/api/openapi.json`; a route or field change updates it and docs/api.md together.
 
 ## Scope
 
 - Live TV only. Prefer one deployed app, local SQLite, bounded work and explicit resource ownership.
 - Preserve UUIDs, numbering, household edits and favorites; source failures must not delete channel identities.
 - Auto-cull offerings reversibly with qualified independent evidence; distinguish provider outages, auth/rate limits, local faults and device-specific failures.
-- Never import secrets, signed media URLs, private provider dumps or live databases into Git. The repository is public.
+- Never import secrets, signed media URLs, private provider dumps or live databases into Git. The repository is public. Keep tokens and URLs out of exception messages, job notes and logs.
 - No production OMV or Sofa King client changes as a side effect of local backend work.
 - The server's request and response types come from `../contract`; change a wire field there, never in the server, and follow `../contract/README.md`. Keep every field of the fixtures in `contract/src/jvmTest/resources/wire`.
 

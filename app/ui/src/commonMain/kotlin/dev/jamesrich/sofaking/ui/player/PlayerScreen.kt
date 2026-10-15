@@ -52,7 +52,6 @@ import dev.jamesrich.sofaking.ui.KeepScreenOn
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.isLongPress
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
-import kotlin.time.Clock
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
@@ -87,7 +86,6 @@ private const val DIGIT_COMMIT_MS = 1_500L
 private const val NOT_FOUND_MS = 2_000L
 private const val CAPTION_TOAST_MS = 2_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
-private const val METADATA_REFRESH_MS = 60_000L
 private const val STREAM_ENDED = "STREAM_ENDED"
 /** The server's answer when a session is asked for a channel id its lineup no longer has. */
 internal const val CHANNEL_NOT_FOUND = Wire.ErrorCode.CHANNEL_NOT_FOUND
@@ -198,7 +196,7 @@ fun PlayerScreen(
     var advanceOverrides by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     val currentChannel = currentChannels.getOrNull(index)
     val channelAdvance = currentChannel?.let { advanceOverrides[it.guideId] ?: captionAdvanceFor(it) } ?: 0
-    val captionLead = if (captionsOn) channelAdvance * 1_000L else 0L
+    val captionLead = if (captionsOn && player.supportsCaptionLead) channelAdvance * 1_000L else 0L
     SideEffect {
         captionSync.advanceUs = captionLead
         captionSync.smoothingEnabled = smoothCaptions
@@ -231,7 +229,7 @@ fun PlayerScreen(
     }
 
     fun nowPlayingFor(channel: Channel) = NowPlaying(
-        title = lineup.nowAndNext(channel, Clock.System.now()).first?.title ?: channel.name,
+        title = lineup.nowAndNext(channel, now).first?.title ?: channel.name,
         subtitle = channel.label(),
         artworkUrl = channel.logo,
     )
@@ -358,13 +356,10 @@ fun PlayerScreen(
         }
     }
 
-    // Moves the session's programme title on when the show changes; the stream is not touched.
-    LaunchedEffect(index) {
-        while (true) {
-            delay(METADATA_REFRESH_MS)
-            val channel = currentChannels.getOrNull(index) ?: continue
-            mediaSession?.publish(nowPlayingFor(channel))
-        }
+    // Moves the session's programme title on with the minute clock when the show changes; the stream is not touched.
+    LaunchedEffect(index, now) {
+        val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
+        mediaSession?.publish(nowPlayingFor(channel))
     }
 
     LaunchedEffect(miniGuideOpen, miniGuideActivity) {
@@ -374,7 +369,7 @@ fun PlayerScreen(
     }
 
     // Keeps the caption look-ahead inside what's downloaded; see CaptionSync.nextEffectiveUs. Nothing runs
-    // while captions are off or the channel has no advance.
+    // while captions are off, the channel has no advance or the engine cannot apply one.
     val captionLeadActive = captionLead > 0L
     LaunchedEffect(player, captionLeadActive) {
         if (!captionLeadActive) {
@@ -552,7 +547,7 @@ fun PlayerScreen(
             Key.Info -> { if (entry.digits.isEmpty()) overlayVisible = !overlayVisible; true }
             Key.DirectionLeft, Key.DirectionRight -> {
                 val channel = currentChannels.getOrNull(index)
-                if (captionsOn && overlayVisible && channel != null) {
+                if (captionsOn && player.supportsCaptionLead && overlayVisible && channel != null) {
                     // Right shows captions earlier, Left later; the overlay stays up while adjusting.
                     val direction = if (key == Key.DirectionRight) 1 else -1
                     val next = CaptionPolicy.stepAdvance(channelAdvance, direction)
@@ -701,7 +696,7 @@ fun PlayerScreen(
                         channel = channel,
                         now = now,
                         captionsOn = captionsOn,
-                        captionAdvanceMs = channelAdvance,
+                        captionAdvanceMs = channelAdvance.takeIf { player.supportsCaptionLead },
                         scope = scopeLabel,
                         showKeyHint = !pointerDriven,
                     )

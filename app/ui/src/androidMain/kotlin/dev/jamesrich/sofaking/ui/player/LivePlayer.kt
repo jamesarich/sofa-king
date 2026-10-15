@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
 import android.content.Context
-import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -27,6 +26,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -115,6 +115,8 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
 
     override val bufferedMs: Long get() = exo.totalBufferedDuration
 
+    override val supportsCaptionLead: Boolean get() = true
+
     override val hasTextTrack: Boolean
         get() = exo.currentTracks.groups.any { it.type == C.TRACK_TYPE_TEXT }
 
@@ -149,12 +151,12 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     override fun stop() = exo.stop()
 
     override fun play() {
-        if (pauseClock.onPlay(SystemClock.elapsedRealtime())) exo.seekToDefaultPosition()
+        if (pauseClock.onPlay(uptimeMs())) exo.seekToDefaultPosition()
         exo.play()
     }
 
     override fun pause() {
-        pauseClock.onPause(SystemClock.elapsedRealtime())
+        pauseClock.onPause(uptimeMs())
         exo.pause()
     }
 

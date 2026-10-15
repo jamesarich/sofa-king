@@ -26,6 +26,7 @@ internal class UnavailableLivePlayer(override val captionSync: CaptionSync, priv
     override val currentStreamUrl: String? get() = stream?.url
     override val hasItem: Boolean get() = stream != null
     override val bufferedMs: Long = 0L
+    override val supportsCaptionLead: Boolean = false
     override val hasTextTrack: Boolean = false
     override var volume: Float = 1f
     override var playWhenReady: Boolean = true

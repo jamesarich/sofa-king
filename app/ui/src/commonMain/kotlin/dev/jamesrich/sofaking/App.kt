@@ -127,8 +127,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     // never opens a session that the full screen is about to replace.
     var launchDecided by rememberSaveable { mutableStateOf(false) }
     // The channel the player has tuned, so the guide knows which one it came back from, and the one before it
-    // for Last; both outlive the player's own composition.
-    var history by remember { mutableStateOf(WatchHistory()) }
+    // for Last; both outlive the player's own composition and a configuration change.
+    var history by rememberSerializable { mutableStateOf(WatchHistory()) }
     val launch = launchTarget(state, settings)
     LaunchedEffect(launch, launchDecided) {
         if (launchDecided || launch == LaunchTarget.Undecided) return@LaunchedEffect

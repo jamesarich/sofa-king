@@ -84,8 +84,14 @@ interface LivePlayer {
     /** True while the player holds an item, prepared or stopped. */
     val hasItem: Boolean
 
-    /** How much media is downloaded ahead of the playback position. */
+    /** How much media is downloaded ahead of the playback position; engines that cannot report it say 0. */
     val bufferedMs: Long
+
+    /**
+     * True when the engine renders text through [captionSync] and reports [bufferedMs], so a caption lead can be
+     * applied and adjusted; the others show captions where the stream puts them.
+     */
+    val supportsCaptionLead: Boolean
 
     /** True when the current stream offers a caption track the player can show. */
     val hasTextTrack: Boolean

@@ -8,6 +8,8 @@ import dev.jamesrich.sofaking.backend.providers.NativeServices
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
+import dev.jamesrich.sofaking.backend.jobs.JobOutcome
+import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
@@ -17,7 +19,9 @@ import io.ktor.utils.io.readBuffer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel as Trigger
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.launch
@@ -52,6 +56,8 @@ class FeedService(
     val upstream: UpstreamPolicy = UpstreamPolicy(),
     /** The native service clients behind `type: native` providers; required when any is configured. */
     private val providers: ProviderRegistry? = null,
+    /** Where each import is recorded for the portal's Jobs page. */
+    private val jobs: Jobs = Jobs(clock),
     /** Runs after each successful import, once the snapshot is published. */
     private val onImported: () -> Unit = {},
 ) {
@@ -76,6 +82,11 @@ class FeedService(
     private val published = AtomicReference(Published(emptyList()))
     private val statuses = AtomicReference<List<ProviderStatus>>(configs.map { ProviderStatus(it.id) })
     private val mutex = Mutex()
+    private val triggers = configs.associate { it.id to Trigger<Unit>(Trigger.CONFLATED) }
+
+    init {
+        for (config in configs) jobs.register("import:${config.id}", "Import ${config.id}", Duration.ofSeconds(config.refreshInterval)) { requestRefresh(config.id) }
+    }
 
     suspend fun initialize() {
         val stored = store.snapshots()
@@ -152,7 +163,7 @@ class FeedService(
     }
 
     suspend fun refresh(config: FeedConfig) =
-        mutex.withLock {
+        mutex.withLock { jobs.record("import:${config.id}") {
             val started = clock.instant()
             try {
                 val parsed = if (config.native) {
@@ -208,21 +219,32 @@ class FeedService(
                 parsed.noteSummary?.let { log.info("import provider={} derived identities: {}", config.id, it) }
                 // The first success since start still wakes a lineup run that waits for every provider's first import.
                 if (!unchanged || firstSinceStart) onImported()
+                JobOutcome(true, "${channels.size} channels, ${offerings.size} sources" + if (unchanged) ", unchanged" else "")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 // Exception messages can carry signed URLs and credentials; log the class only.
                 statuses.set(statuses.get().map { if (it.id == config.id) it.copy(errorCode = "IMPORT_FAILED") else it })
                 log.warn("import provider={} failed class={} durationMs={}", config.id, e.javaClass.simpleName, Duration.between(started, clock.instant()).toMillis())
+                JobOutcome(false, "IMPORT_FAILED (${e.javaClass.simpleName})")
             }
-        }
+        } }
+
+    /** Asks the provider's loop to import soon; repeated requests before it runs coalesce into one. */
+    fun requestRefresh(providerId: String) {
+        triggers[providerId]?.trySend(Unit)
+    }
 
     fun start(scope: CoroutineScope): List<Job> =
         configs.map { config ->
             scope.launch(CoroutineName("feed-refresh:${config.id}")) {
+                val trigger = triggers.getValue(config.id)
                 while (isActive) {
                     refresh(config)
-                    delay(config.refreshInterval * 1000)
+                    select<Unit> {
+                        trigger.onReceive {}
+                        onTimeout(config.refreshInterval * 1000) {}
+                    }
                 }
             }
         }

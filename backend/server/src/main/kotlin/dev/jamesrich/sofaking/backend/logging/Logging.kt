@@ -32,9 +32,9 @@ data class LogSettings(val level: String = "info", val format: String = "text") 
 
 /**
  * One appender on stderr at the root logger, as [settings] describe: text lines with the MDC (the request id) at the
- * end, or one JSON object per line from logback's own encoder.
+ * end, or one JSON object per line from logback's own encoder; and the in-memory [ring] the portal's Events page reads.
  */
-fun configureLogging(context: LoggerContext, settings: LogSettings, stream: OutputStream? = null) {
+fun configureLogging(context: LoggerContext, settings: LogSettings, stream: OutputStream? = null, ring: EventRing? = EventRing.shared) {
     context.reset()
     val encoder: Encoder<ILoggingEvent> =
         if (settings.format == "json") {
@@ -62,6 +62,8 @@ fun configureLogging(context: LoggerContext, settings: LogSettings, stream: Outp
     context.getLogger(Logger.ROOT_LOGGER_NAME).apply {
         level = Level.toLevel(settings.level, Level.INFO)
         addAppender(appender)
+        // The portal's Events page reads the same lines from memory, INFO and above whatever the level.
+        if (ring != null) addAppender(RingAppender(ring).apply { this.context = context; name = "ring"; start() })
     }
 }
 

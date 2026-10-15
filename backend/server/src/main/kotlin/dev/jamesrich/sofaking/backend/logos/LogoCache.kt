@@ -20,6 +20,8 @@ import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.time.Clock
+import dev.jamesrich.sofaking.backend.jobs.JobOutcome
+import dev.jamesrich.sofaking.backend.jobs.Jobs
 import java.time.Duration
 import java.time.Instant
 import java.util.HexFormat
@@ -62,6 +64,8 @@ class LogoCache(
     private val refreshAfter: Duration = Duration.ofDays(7),
     private val retryAfter: Duration = Duration.ofHours(1),
     parallelism: Int = 4,
+    /** Where each sweep is recorded for the portal's Jobs page. */
+    private val jobs: Jobs = Jobs(clock),
 ) {
     private val log = LoggerFactory.getLogger(LogoCache::class.java)
     private val records = ConcurrentHashMap<String, LogoRecord>()
@@ -106,21 +110,27 @@ class LogoCache(
     }
 
     /** Fetches every wanted logo that is missing or due, [parallelism] at a time, and deletes the ones no longer wanted. */
-    suspend fun sweep() {
+    suspend fun sweep() = jobs.record("logos") {
         val now = clock.instant()
         val wanted = wantedByKey()
         for (key in records.keys.toList()) if (key !in wanted) evict(key)
+        var fetched = 0
         coroutineScope {
             for ((key, source) in wanted) {
                 val record = records[key]
-                if (record == null || (due(record, now) && retryDue(record, now))) launch { fetch(key, source, now) }
+                if (record == null || (due(record, now) && retryDue(record, now))) { fetched++; launch { fetch(key, source, now) } }
             }
         }
+        JobOutcome(true, "${records.values.count { it.cached }} cached of ${wanted.size} wanted, $fetched fetched")
     }
 
     /** Asks the sweep loop to run soon; requests before it runs coalesce into one. */
     fun requestSweep() {
         trigger.trySend(Unit)
+    }
+
+    init {
+        jobs.register("logos", "Logo sweep", null) { requestSweep() }
     }
 
     fun start(scope: CoroutineScope): Job = scope.launch(CoroutineName("logo-sweep")) {

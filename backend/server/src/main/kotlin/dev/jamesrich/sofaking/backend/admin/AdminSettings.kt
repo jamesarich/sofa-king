@@ -184,7 +184,8 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
         if (view.providers.isEmpty() && view.guides.isEmpty()) { p("muted") { +"No providers or guides. Add sources.json to the data directory, or set SOFA_SOURCES to a source file, and restart." }; return@panel }
         div("scroll") {
             table {
-                thead { tr { th { +"ID" }; th { +"Kind" }; th { +"From" }; th { +"Refresh" }; th { +"Notes" } } }
+                caption("sr") { +"Configured sources" }
+                thead { tr { col("ID"); col("Kind"); col("From"); col("Refresh"); col("Notes") } }
                 tbody {
                     for (source in view.providers + view.guides) tr {
                         th { attributes["scope"] = "row"; +source.id }
@@ -203,7 +204,8 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
         if (view.changes.isEmpty()) { p("muted") { +"No policy run has changed the lineup yet." }; return@panel }
         div("scroll") {
             table {
-                thead { tr { th { +"When" }; th { +"Station" }; th { +"Field" }; th { +"Before" }; th { +"After" }; th { +"Cause" } } }
+                caption("sr") { +"Policy change log" }
+                thead { tr { col("When"); col("Station"); col("Field"); col("Before"); col("After"); col("Cause") } }
                 tbody {
                     for (entry in view.changes) tr {
                         val change = entry.change

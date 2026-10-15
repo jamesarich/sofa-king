@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.contract.*
+import dev.jamesrich.sofaking.backend.jobs.JobOutcome
+import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.policyChanges
 import dev.jamesrich.sofaking.backend.store.recordPolicyChanges
@@ -47,11 +49,17 @@ class PolicyService(
     private val onLineupChanged: () -> Unit = {},
     /** Findings from outside the policy, such as Plex sync, appended to [findings]. */
     private val extraFindings: () -> List<String> = { emptyList() },
+    /** Where each run is recorded for the portal's Jobs page. */
+    private val jobs: Jobs = Jobs(clock),
 ) {
     private val log = LoggerFactory.getLogger(PolicyService::class.java)
     private val runMutex = Mutex()
     private val trigger = Trigger<String>(Trigger.CONFLATED)
     private val probePlan = java.util.concurrent.atomic.AtomicReference<Map<String, Int>>(emptyMap())
+
+    init {
+        jobs.register("policy", "Lineup policy run", Duration.ofSeconds(intervalSeconds)) { requestRun("now") }
+    }
 
     /**
      * The offerings the last apply's stations reference, each with its probe tier: 0 for the first source of an
@@ -166,6 +174,17 @@ class PolicyService(
      * [cause], then writes the numbers pass two assigned into the policy so a rebuild needs nothing else.
      */
     suspend fun apply(cause: String): PolicyApplyResult = runMutex.withLock {
+        var result: PolicyApplyResult? = null
+        jobs.record("policy") {
+            result = applyNow(cause)
+            val run = result!!
+            val skipped = run.findings.firstOrNull { it.startsWith("feeds: ") }
+            JobOutcome(true, skipped?.removePrefix("feeds: ")?.let { "skipped: $it" } ?: ("${run.enabledStations} on of ${run.stations}, " + if (run.changed) "${run.changes} fields changed" else "no change"))
+        }
+        result!!
+    }
+
+    private suspend fun applyNow(cause: String): PolicyApplyResult {
         val started = clock.instant()
         val loaded = file.current()
         // Numbers assigned now are written into the policy for good, so a partial catalog must never be built from.
@@ -173,7 +192,7 @@ class PolicyService(
         if (waiting.isNotEmpty() || feeds.channels().none { feeds.offeringsOf(it.id).isNotEmpty() }) {
             val reason = if (waiting.isNotEmpty()) "waiting for the first import of ${waiting.joinToString()}" else "no feed has a live channel yet"
             log.info("lineup policy run skipped: {}", reason)
-            return@withLock PolicyApplyResult(
+            return PolicyApplyResult(
                 started.toString(), loaded.revision, false, lineup.entries().size, lineup.entries().count { it.enabled },
                 findings = listOf("feeds: $reason; the lineup is left as it is"),
             )
@@ -238,7 +257,7 @@ class PolicyService(
             "lineup policy run cause={} stations={} changed={} changes={} assigned={} learned={} findings={} durationMs={}",
             cause, next.size, changed, changes.size, numbers.size, result.learned.size, findings.size, Duration.between(started, clock.instant()).toMillis(),
         )
-        PolicyApplyResult(
+        return PolicyApplyResult(
             now.toString(), revision, changed, next.size, next.count { it.enabled }, changes.size, numbers.toSortedMap(), findings.sorted(), result.suggestedAliases,
             result.learned, hdhr?.needed(enabledChannels(result)), hdhr?.devices, result.unmappedCategories,
         ).also { lastApplied.set(AppliedRun(result.stations, it)) }
@@ -356,7 +375,8 @@ class PolicyService(
                 trigger.onReceive { it }
                 onTimeout(intervalSeconds * 1000) { "interval" }
             }
-            delay(debounceMillis)
+            // A run the operator asked for starts at once; the rest wait out the debounce so a burst is one run.
+            if (cause != "now") delay(debounceMillis)
             val coalesced = trigger.tryReceive().getOrNull()
             try { apply(coalesced ?: cause) } catch (e: CancellationException) { throw e } catch (e: Exception) {
                 log.warn("lineup policy run failed class={} message=\"{}\"", e.javaClass.simpleName, redactedMessage(e))

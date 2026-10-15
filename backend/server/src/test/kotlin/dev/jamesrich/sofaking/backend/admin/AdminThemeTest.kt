@@ -40,4 +40,31 @@ class AdminThemeTest {
         assertEquals("2,500 channels", plural(2_500, "channel"))
         assertEquals("3 entries", plural(3, "entry", "entries"))
     }
+
+    @Test fun `a failing import reads by how long it has failed, warn under a day and bad after`() {
+        assertNull(failingFor(now.minusSeconds(3600).toString(), now))
+        assertEquals("has failed for 1 day", failingFor(now.minusSeconds(86_400).toString(), now))
+        assertEquals("has failed for 7 days", failingFor(now.minusSeconds(7 * 86_400 + 60).toString(), now))
+        assertEquals("has never imported", failingFor(null, now))
+        assertEquals(Tone.WARN, failingTone(listOf(now.minusSeconds(3600).toString()), now))
+        assertEquals(Tone.BAD, failingTone(listOf(now.minusSeconds(3600).toString(), now.minusSeconds(2 * 86_400).toString()), now))
+        assertEquals(Tone.BAD, failingTone(listOf(null), now))
+    }
+
+    @Test fun `periods and durations read in whole units`() {
+        assertEquals("15 min", period(java.time.Duration.ofMinutes(15)))
+        assertEquals("6 h", period(java.time.Duration.ofHours(6)))
+        assertEquals("1 d", period(java.time.Duration.ofDays(1)))
+        assertEquals("90 min", period(java.time.Duration.ofMinutes(90)))
+        assertEquals("45 s", period(java.time.Duration.ofSeconds(45)))
+        assertEquals("250 ms", took(250))
+        assertEquals("1.5 s", took(1500))
+        assertEquals("2 min 5 s", took(125_000))
+    }
+
+    @Test fun `the lineup filter keeps every parameter in its query`() {
+        val filter = LineupFilter.from(io.ktor.http.parametersOf("q" to listOf("a"), "override" to listOf("true"), "changed" to listOf("true"), "sort" to listOf("name"), "dir" to listOf("desc"), "page" to listOf("2")))
+        assertEquals("q=a&override=true&changed=true&sort=name&dir=desc&page=2", filter.query())
+        assertEquals(LineupFilter(), LineupFilter.from(io.ktor.http.parametersOf("sort" to listOf("bogus"), "dir" to listOf("sideways"))), "unknown sorts and directions are dropped")
+    }
 }

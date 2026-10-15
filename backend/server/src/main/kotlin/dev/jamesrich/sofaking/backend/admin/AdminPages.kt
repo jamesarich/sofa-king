@@ -12,8 +12,19 @@ import dev.jamesrich.sofaking.backend.api.ProviderStatus
 import dev.jamesrich.sofaking.backend.api.SourcePin
 import kotlinx.html.*
 
-/** One thing on the overview that needs the operator, and where to fix it. */
-internal class Attention(val tone: Tone, val title: String, val detail: String?, val href: String, val action: String)
+/** Where the docs an attention item links live: this repository's backend docs, by file and heading. */
+internal const val DOCS_BASE = "https://github.com/jamesarich/sofa-king/blob/main/backend/docs/"
+
+/**
+ * One thing on the overview that needs the operator, where to fix it, and the doc that explains it. [key] names the
+ * kind of item, and [fingerprint] its text, so an ignored item comes back when what it says changes.
+ */
+internal class Attention(val tone: Tone, val title: String, val detail: String?, val href: String, val action: String, val key: String, val doc: String? = null) {
+    val fingerprint: String = sha256Hex("$title\n${detail.orEmpty()}").take(16)
+}
+
+internal fun sha256Hex(text: String): String =
+    java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(text.toByteArray()))
 
 /** Enabled stations by the state of their guide. */
 internal class GuideCoverage(val available: Int, val stale: Int, val empty: Int, val unassigned: Int) {
@@ -25,6 +36,8 @@ internal class PlexSummary(val lastSyncAt: String?, val lastError: String?, val 
 
 internal class OverviewView(
     val attention: List<Attention>,
+    /** Items the operator ignored until they change. */
+    val ignored: List<Attention> = emptyList(),
     val stations: Int, val enabled: Int, val guide: GuideCoverage,
     /** Null without a lineup policy. */
     val required: Int?, val requiredOff: Int?, val suggestions: Int?, val findings: Int?, val unverified: Int?,
@@ -77,7 +90,7 @@ internal class ProvidersView(
     val stationsLed: Map<String, Int> = emptyMap(),
 )
 
-internal fun signInPage(enabled: Boolean, error: String? = null): String = layout("Sign in", null, null) {
+internal fun signInPage(enabled: Boolean, error: String? = null, theme: String? = null): String = layout("Sign in", null, null, theme) {
     div("panel signin") {
         h1("mt-0") { +"Sign in" }
         if (!enabled) {
@@ -100,17 +113,33 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
     val now = chrome.now
     val needs = view.attention.count { it.tone != Tone.OFF }
     pageHead("Overview", if (needs == 0) "Everything is running. Nothing needs you right now." else "${plural(needs, "thing")} need${if (needs == 1) "s" else ""} you.")
-    panel("Needs attention", id = "attention") {
-        if (view.attention.isEmpty()) p("allgood") { +"All clear: every provider imported, Plex is in step and every required channel is on." }
-        else ul("attention") {
-            for (item in view.attention) li(item.tone.css) {
-                div("what") {
-                    chip(when (item.tone) { Tone.BAD -> "Broken"; Tone.WARN -> "Check"; Tone.OK -> "Info"; Tone.OFF -> "Info" }, item.tone)
-                    b { +item.title }
-                    if (item.detail != null) span("muted small") { +item.detail }
-                }
-                a(item.href, classes = "fix") { +item.action }
+    fun UL.items(items: List<Attention>, ignored: Boolean) {
+        for (item in items) li(item.tone.css) {
+            div("what") {
+                chip(when (item.tone) { Tone.BAD -> "Broken"; Tone.WARN -> "Check"; Tone.OK -> "Info"; Tone.OFF -> "Info" }, item.tone)
+                b { +item.title }
+                if (item.detail != null) span("muted small") { +item.detail }
             }
+            div("actions") {
+                a(item.href, classes = "fix") { +item.action }
+                if (item.doc != null) a(DOCS_BASE + item.doc, classes = "small") { attributes["rel"] = "noopener"; +"Docs" }
+                postForm(if (ignored) "/admin/attention/show" else "/admin/attention/ignore", chrome.session, keepScroll = true) {
+                    hiddenInput(name = "key") { value = item.key }
+                    hiddenInput(name = "fingerprint") { value = item.fingerprint }
+                    button(type = ButtonType.submit, classes = "small quiet") {
+                        attributes["aria-label"] = (if (ignored) "Show again: " else "Ignore until it changes: ") + item.title
+                        +(if (ignored) "Show again" else "Ignore")
+                    }
+                }
+            }
+        }
+    }
+    panel("Needs attention", id = "attention") {
+        if (view.attention.isEmpty()) p("allgood") { +(if (view.ignored.isEmpty()) "All clear: every provider imported, Plex is in step and every required channel is on." else "Nothing new. Ignored items come back when they change.") }
+        else ul("attention") { items(view.attention, ignored = false) }
+        if (view.ignored.isNotEmpty()) details {
+            summary { +"Ignored until it changes (${view.ignored.size})" }
+            ul("attention") { items(view.ignored, ignored = true) }
         }
     }
     div("tiles") {
@@ -158,7 +187,8 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
             if (view.sessions.isEmpty()) p("muted") { +"Nobody is watching." }
             else div("scroll") {
                 table {
-                    thead { tr { th { +"Channel" }; th { +"Source" }; th { +"Player" }; th { +"Lease ends" } } }
+                    caption("sr") { +"Watching now" }
+                    thead { tr { col("Channel"); col("Source"); col("Player"); col("Lease ends") } }
                     tbody {
                         for ((active, name) in view.sessions) tr {
                             td { +(name ?: active.channelId); if (active.busy) { +" "; chip("streaming", Tone.OK) } }
@@ -206,6 +236,10 @@ private fun FORM.filterFields(filter: LineupFilter) {
         if (value.isNotEmpty()) hiddenInput(name = name) { this.value = value }
     }
     if (filter.required) hiddenInput(name = "required") { value = "true" }
+    if (filter.override) hiddenInput(name = "override") { value = "true" }
+    if (filter.changed) hiddenInput(name = "changed") { value = "true" }
+    if (filter.sort.isNotEmpty()) hiddenInput(name = "sort") { value = filter.sort }
+    if (filter.dir.isNotEmpty()) hiddenInput(name = "dir") { value = filter.dir }
     if (filter.page > 1) hiddenInput(name = "page") { value = filter.page.toString() }
 }
 
@@ -249,10 +283,22 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
                 }
             }
         }
-        if (view.revision != null) label("check") {
-            checkBoxInput(name = "required") { value = "true"; checked = filter.required }
-            +"Required only"
+        if (view.revision != null) div("checks") {
+            label("check") {
+                checkBoxInput(name = "required") { value = "true"; checked = filter.required }
+                +"Required only"
+            }
+            label("check") {
+                checkBoxInput(name = "override") { value = "true"; checked = filter.override }
+                +"Has an override"
+            }
+            label("check") {
+                checkBoxInput(name = "changed") { value = "true"; checked = filter.changed }
+                +"Changed in the last run"
+            }
         }
+        if (filter.sort.isNotEmpty()) hiddenInput(name = "sort") { value = filter.sort }
+        if (filter.dir.isNotEmpty()) hiddenInput(name = "dir") { value = filter.dir }
         div("actions") {
             button(type = ButtonType.submit) { +"Filter" }
             if (filter != LineupFilter()) a("/admin/lineup", classes = "btn quiet") { +"Clear" }
@@ -261,6 +307,10 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
     div("summary") {
         attributes["role"] = "status"
         span { +("${thousands(view.matches)} of ${thousands(view.total)} channels" + if (view.pages > 1) " · page ${filter.page} of ${view.pages}" else "") }
+        span("muted small legend") {
+            span("swatch bad") { attributes["aria-hidden"] = "true" }; +" no healthy source "
+            span("swatch warn") { attributes["aria-hidden"] = "true" }; +" no programmes ahead"
+        }
     }
     if (view.rows.isEmpty()) div("panel") {
         p { +"No channel matches these filters." }
@@ -269,9 +319,28 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
     else div("panel tight") {
         div("scroll") {
             table("stack") {
-                thead { tr { th(classes = "num") { +"No." }; th { +"Channel" }; th(classes = "wide-only") { +"Group" }; th(classes = "wide-only num") { +"Sources" }; th(classes = "wide-only") { +"Guide" }; th { +"State" }; th { span("wide-only") { +"Actions" } } } }
+                caption("sr") { +"Channels" }
+                thead {
+                    tr {
+                        fun TR.sortable(key: String, label: String, classes: String? = null) = th(classes = classes) {
+                            attributes["scope"] = "col"
+                            val sorted = filter.sort == key
+                            if (sorted) attributes["aria-sort"] = if (filter.dir == "desc") "descending" else "ascending"
+                            val next = filter.copy(sort = key, dir = if (sorted && filter.dir != "desc") "desc" else "asc", page = 1)
+                            a("/admin/lineup?" + next.query(), classes = "sort") { +label }
+                        }
+                        sortable("number", "No.", "num")
+                        sortable("name", "Channel")
+                        sortable("group", "Group", "wide-only")
+                        sortable("sources", "Sources", "wide-only num")
+                        sortable("guide", "Guide", "wide-only")
+                        sortable("state", "State")
+                        col("Actions")
+                    }
+                }
                 tbody {
-                    for (row in view.rows) tr(chrome.flash?.takeIf { it.target == row.entry.id }?.let { if (it.tone == Tone.BAD) "err-row" else "flash" }) {
+                    // The notice about a row the operator just changed outranks its tint.
+                    for (row in view.rows) tr(chrome.flash?.takeIf { it.target == row.entry.id }?.let { if (it.tone == Tone.BAD) "err-row" else "flash" } ?: row.tint?.let { "tint-${it.css}" }) {
                         val entry = row.entry
                         id = "row-${entry.id}"
                         val edit = "/admin/lineup/${entry.id}" + filter.query().let { if (it.isEmpty()) "" else "?$it" }
@@ -280,9 +349,14 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
                             attributes["data-cell"] = "name"
                             a(edit, classes = "rowlink") { +entry.name }
                             if (row.required) { +" "; chip("Required", Tone.WARN) }
+                            if (row.overridden) { +" "; chip("Override", Tone.OFF) }
                         }
                         td("wide-only") { +(entry.group ?: "") }
-                        td("wide-only num") { +entry.offeringIds.size.toString() }
+                        td("wide-only num") {
+                            attributes["title"] = "${row.healthy} healthy of ${entry.offeringIds.size}"
+                            +entry.offeringIds.size.toString()
+                            if (entry.offeringIds.isNotEmpty() && row.healthy == 0 && entry.enabled) span("error-text") { +" (0 healthy)" }
+                        }
                         td("wide-only") { guideChip(row.guideStatus).let { (text, tone) -> chip(text, tone) } }
                         td("narrow-only") {
                             attributes["data-cell"] = "meta"
@@ -402,7 +476,8 @@ internal fun stationPage(chrome: Chrome, view: StationView): String = layout(vie
         if (view.sources.isEmpty()) p("muted") { +"No source carries this channel right now." }
         else div("scroll") {
             table {
-                thead { tr { th { +"#" }; th { +"Provider" }; th { +"Channel" }; th { +"Protocol" }; th { +"Health" } } }
+                caption("sr") { +"Sources, in failover order" }
+                thead { tr { col("#", "num"); col("Provider"); col("Channel"); col("Protocol"); col("Health") } }
                 tbody {
                     view.sources.forEachIndexed { index, source ->
                         tr {
@@ -446,7 +521,8 @@ internal fun mergesPage(chrome: Chrome, view: MergesView?, error: String? = null
         if (view.suggestions.isEmpty()) p("muted") { +"No suggestions. Runs suggest a pair when two live stations' names differ only by a trailing TV or Channel, or match loosely without a schedule to compare." }
         else div("scroll") {
             table {
-                thead { tr { th { +"Station key" }; th { +"Probably the same as" }; th { +"Decide" } } }
+                caption("sr") { +"Suggested aliases" }
+                thead { tr { col("Station key"); col("Probably the same as"); col("Decide") } }
                 tbody {
                     for ((from, to) in view.suggestions) tr {
                         td { code { +from } }
@@ -475,7 +551,8 @@ internal fun mergesPage(chrome: Chrome, view: MergesView?, error: String? = null
             if (view.learned.isEmpty()) p("muted") { +"No station has been merged by schedule." }
             else div("scroll") {
                 table {
-                    thead { tr { th { +"From" }; th { +"Into" }; th { } } }
+                    caption("sr") { +"Learned aliases" }
+                    thead { tr { col("From"); col("Into"); col("Action", "sr") } }
                     tbody {
                         for ((from, to) in view.learned) tr { td { code { +from } }; td { code { +to } }; td { pairForm("/admin/merges/never", from, to, "Never merge", "small") } }
                     }
@@ -508,7 +585,8 @@ internal fun requiredPage(chrome: Chrome, view: RequiredView?): String = layout(
     div("panel tight") {
         div("scroll") {
             table {
-                thead { tr { th(classes = "num") { +"No." }; th { +"Station" }; th { +"Pins" }; th(classes = "num") { +"Live sources" }; th { +"Health" }; th { +"State" } } }
+                caption("sr") { +"Required channels" }
+                thead { tr { col("No.", "num"); col("Station"); col("Pins"); col("Live sources", "num"); col("Health"); col("State") } }
                 tbody {
                     for (row in view.rows.sortedWith(compareBy({ it.station.enabled }, { it.station.number.toDoubleOrNull() ?: Double.MAX_VALUE }))) tr {
                         val station = row.station
@@ -532,7 +610,8 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
     panel("Channel providers", id = "imports", aside = { span("muted") { +"${view.rows.count { it.status.errorCode == null && it.status.lastSuccessAt != null }} of ${view.rows.size} importing" } }) {
         div("scroll") {
             table {
-                thead { tr { th { +"Provider" }; th { +"Kind" }; th(classes = "num") { +"Channels" }; th { +"Last import" }; th { +"Status" }; if (view.entries != null) th(classes = "num") { +"Leads" } } }
+                caption("sr") { +"Channel providers" }
+                thead { tr { col("Provider"); col("Kind"); col("Channels", "num"); col("Last import"); col("Status"); if (view.entries != null) col("Leads", "num") } }
                 tbody {
                     for (row in view.rows.sortedWith(compareBy({ it.status.errorCode == null }, { it.status.id }))) tr {
                         val status = row.status
@@ -558,7 +637,8 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
         if (view.guides.isEmpty()) p("muted") { +"No guide sources are configured." }
         else div("scroll") {
             table {
-                thead { tr { th { +"Guide" }; th(classes = "num") { +"Channels" }; th(classes = "num") { +"Programmes" }; th { +"Last import" }; th { +"Status" } } }
+                caption("sr") { +"Guides" }
+                thead { tr { col("Guide"); col("Channels", "num"); col("Programmes", "num"); col("Last import"); col("Status") } }
                 tbody {
                     for (guide in view.guides.sortedWith(compareBy({ it.errorCode == null }, { it.id }))) tr {
                         th { attributes["scope"] = "row"; +guide.id }
@@ -587,7 +667,8 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex & p
         }
         if (status.devices.isNotEmpty()) div("scroll mt-12") {
             table {
-                thead { tr { th { +"Tuner" }; th { +"Device ID" }; th { +"DVR" }; th(classes = "num") { +"Channels mapped" } } }
+                caption("sr") { +"Tuners in Plex" }
+                thead { tr { col("Tuner"); col("Device ID"); col("DVR"); col("Channels mapped", "num") } }
                 tbody {
                     for (device in status.devices) tr {
                         th { attributes["scope"] = "row"; +"${device.device + 1}" }
@@ -611,7 +692,8 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex & p
         }
         div("scroll") {
             table {
-                thead { tr { th { +"Device" }; th { +"Address" }; th(classes = "num") { +"Channels" } } }
+                caption("sr") { +"HDHomeRun devices" }
+                thead { tr { col("Device"); col("Address"); col("Channels", "num") } }
                 tbody { for (device in view.devices) tr { th { attributes["scope"] = "row"; +device.name }; td { code { +device.address } }; td("num") { +thousands(device.channels) } } }
             }
         }

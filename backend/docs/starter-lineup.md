@@ -68,13 +68,13 @@ The free services carry local news and some station streams, but not the broadca
 
 - **Local Now** carries local news for one market at a time. Set `dma` and `market` on the `localnow` provider (step 1); the policy takes that market switched on, and other cities switched off.
 - **PBS** finds the member station for `options.zip` and adds its Create and World channels.
-- **An antenna tuner** brings in your broadcast stations (ABC, CBS, NBC, FOX, PBS, CW and the rest over the air). A current HDHomeRun serves its lineup as an M3U playlist at `/lineup.m3u` (some older models answer 404), which the server imports like any other:
+- **An antenna tuner** brings in your broadcast stations (ABC, CBS, NBC, FOX, PBS, CW and the rest over the air). The [`hdhomerun`](providers.md#hdhomerun-hdhomerun-tuner) native provider reads an HDHomeRun's lineup and its three-day guide, leaving out DRM channels:
 
   ```json
-  { "id": "antenna", "playlistUrl": "http://HDHOMERUN_IP/lineup.m3u" }
+  { "id": "antenna", "type": "native", "service": "hdhomerun", "options": { "url": "http://HDHOMERUN_IP" } }
   ```
 
-  Add it to `providers` in the sources file, add `{"id": "antenna"}` first in the policy's `providers` so your over-the-air channels lead any streamed copy of the same station, and add an XMLTV guide that lists your market's stations to `guides`. The tuner has as many streams as it has tuners, so keep `SOFA_MAX_SESSIONS` in mind. The policy probes every source its stations use, whatever the provider's `probe` setting says, so the server streams each antenna channel for up to about a minute per probe and rechecks a healthy one every six hours, as [source health](source-health.md#automatic-checks) describes. With `health.requireVerified`, an antenna station stays off until a probe has played one of its sources. Over-the-air channels are usually named by call sign (`WOI-DT`), so they rarely share a key with a streamed copy; join the two with a `names.aliases` entry where you want the streamed one as a fallback.
+  Add it to `providers` in the sources file and add `{"id": "antenna"}` first in the policy's `providers` so your over-the-air channels lead any streamed copy of the same station. The guide comes with the provider; add an XMLTV to `guides` only for a deeper one. The tuner has as many streams as it has tuners, so keep `SOFA_MAX_SESSIONS` in mind. The policy probes every source its stations use, whatever the provider's `probe` setting says, so the server streams each antenna channel for up to about a minute per probe and rechecks a healthy one every six hours, as [source health](source-health.md#automatic-checks) describes. With `health.requireVerified`, an antenna station stays off until a probe has played one of its sources. Over-the-air channels are usually named by call sign (`WOI-DT`), so they rarely share a key with a streamed copy; join the two with a `names.aliases` entry where you want the streamed one as a fallback.
 
 Some services also list other cities' station streams under their own groups (Samsung, Plex). Switch off the ones you don't want with a `DELETE` (below), or add an `exclude` filter to that service's provider entry.
 

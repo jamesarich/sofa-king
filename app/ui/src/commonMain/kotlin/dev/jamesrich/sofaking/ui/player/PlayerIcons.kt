@@ -1,10 +1,9 @@
 package dev.jamesrich.sofaking.ui.player
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.materialIcon
 import androidx.compose.material.icons.materialPath
 import androidx.compose.ui.graphics.PathFillType.Companion.EvenOdd
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 
 /**
  * The player's icons that the core Material icon set lacks, copied from Material Icons 1.7.3 (Apache 2.0). The
@@ -13,7 +12,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
  */
 internal object PlayerIcons {
     val Audiotrack: ImageVector by lazy {
-        Icons.materialIcon(name = "Filled.Audiotrack") {
+        materialIcon(name = "Filled.Audiotrack") {
             materialPath {
                 moveTo(12.0f, 3.0f)
                 verticalLineToRelative(9.28f)
@@ -32,7 +31,7 @@ internal object PlayerIcons {
     }
 
     val ClosedCaption: ImageVector by lazy {
-        Icons.materialIcon(name = "Filled.ClosedCaption") {
+        materialIcon(name = "Filled.ClosedCaption") {
             materialPath {
                 moveTo(19.0f, 4.0f)
                 lineTo(5.0f, 4.0f)
@@ -85,7 +84,7 @@ internal object PlayerIcons {
     }
 
     val ClosedCaptionOff: ImageVector by lazy {
-        Icons.materialIcon(name = "Filled.ClosedCaptionOff") {
+        materialIcon(name = "Filled.ClosedCaptionOff") {
             materialPath {
                 moveTo(19.5f, 5.5f)
                 verticalLineToRelative(13.0f)
@@ -144,7 +143,7 @@ internal object PlayerIcons {
     }
 
     val GridView: ImageVector by lazy {
-        Icons.materialIcon(name = "Filled.GridView") {
+        materialIcon(name = "Filled.GridView") {
             materialPath(pathFillType = EvenOdd) {
                 moveTo(3.0f, 3.0f)
                 verticalLineToRelative(8.0f)
@@ -199,7 +198,7 @@ internal object PlayerIcons {
     }
 
     val Pause: ImageVector by lazy {
-        Icons.materialIcon(name = "Filled.Pause") {
+        materialIcon(name = "Filled.Pause") {
             materialPath {
                 moveTo(6.0f, 19.0f)
                 horizontalLineToRelative(4.0f)
@@ -216,4 +215,14 @@ internal object PlayerIcons {
             }
         }
     }
+
+    /** What the icon set's own internal builder does: a 24dp vector on a 24-unit viewport. */
+    private inline fun materialIcon(name: String, block: ImageVector.Builder.() -> ImageVector.Builder): ImageVector =
+        ImageVector.Builder(
+            name = name,
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).block().build()
 }

@@ -78,7 +78,6 @@ The [security page](docs/security.md) describes the intended deployment, which t
 - The HDHomeRun remux of an HLS source carries one video stream and one audio stream.
 - The native providers are unofficial clients of public service endpoints. They stop working when a service changes them.
 - DRM channels are skipped by the native providers. M3U playlists are not filtered for DRM.
-- The published image is private. Pulling it needs access to the package; anyone can build it from the repository instead.
 
 ## License
 

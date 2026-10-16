@@ -19,7 +19,7 @@ Then build and test:
 `:core:allTests` runs the data layer's tests on the JVM, Android, Linux, js and wasm (on Node); Apple targets run theirs only on a Mac. The UI's common tests run on the JVM, as Android host tests and on JS; Compose's wasm test binary needs a browser, so the UI has no wasm test run. Before a change to common code, also compile the Native tests, which reject what the JVM accepts (commas or parentheses in backtick test names, JVM-only APIs):
 
 ```sh
-./gradlew :core:compileTestKotlinLinuxX64 :ui:compileTestKotlinIosSimulatorArm64
+./gradlew :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
 ```
 
 Unit tests cover the API client, catalog and guide mapping, the playback session lifecycle, cache, settings, captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against Ktor's `MockEngine` in common code on every target, and against MockWebServer on the JVM where a real socket matters, so no server is needed. `RenderSmokeTest` draws the guide, settings and the player's info bar headless at TV size and writes them to `ui/build/screenshots`.
@@ -33,12 +33,14 @@ Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conven
 | Platform | Command | Needs |
 | --- | --- | --- |
 | Android TV, Google TV, phones | `./gradlew :androidApp:assembleRelease`, then sideload `androidApp/build/outputs/apk/release/androidApp-release.apk` | `adb` |
-| Desktop | `./gradlew :ui:run`; `:ui:packageDistributionForCurrentOS` builds a `.deb`, `.dmg` or `.msi` | VLC 3 installed for playback |
+| Desktop | `./gradlew :ui:run`; `:ui:packageDistributionForCurrentOS` builds a `.deb`, `.dmg` or `.msi` under `ui/build/compose/binaries/main/` | VLC 3 installed for playback |
 | Web | `./gradlew :ui:wasmJsBrowserDevelopmentRun`; `:ui:wasmJsBrowserDistribution` writes `ui/build/dist/wasmJs/productionExecutable` (`js` tasks build the JS fallback) | The page's origin allowed by the server, as [getting started](getting-started.md#web) describes; HLS streams |
 | iOS | On a Mac: `cd iosApp && xcodegen && open SofaKing.xcodeproj`, then run the SofaKing scheme | Xcode, XcodeGen; HLS streams |
 | Apple TV | On a Mac: `cd tvosApp && xcodegen && open SofaKingTV.xcodeproj`, then run the SofaKingTV scheme | Xcode, XcodeGen; HLS streams |
 
 The iOS framework links only on macOS. Every other target, including the iOS klibs, builds on Linux.
+
+Both Swift hosts take their version from the catalog's `sofaking` through `tools/version-xcconfig.sh`, declare the Entertainment App Store category and no non-exempt encryption in `project.yml`, and have no asset catalog yet, so they run with no app icon. A release build needs `Assets.xcassets` with the iOS `AppIcon` (1024x1024) and, on tvOS, the App Icon & Top Shelf Image stack (icon layers at 400x240 and 1280x768, Top Shelf images at 1920x720 and 2320x720, a 1920x1080 launch image), then `ASSETCATALOG_COMPILER_APPICON_NAME` in each `project.yml`.
 
 ## Test on a TV
 
@@ -55,6 +57,10 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 - [ ] Audio, captions and decoder recovery work on the full-screen player.
 - [ ] In the player, Left or Right on the info bar opens the channel list, Up from its top row reaches the chips and Left/Right move along them, and OK on a row under All tunes a channel outside the guide filter.
 - [ ] CC then Left/Right moves the channel's caption timing both ways and the toast follows; Info held opens the stream card, and Up/Down and OK pick an audio track on a channel with several.
+- [ ] Settings → Open on start set to Guide opens the guide on a cold start, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
+- [ ] Settings → Manage channels: a channel switched off leaves the guide and the channel list, and leaves Channel Up/Down only once Skip hidden channels is on; the move buttons reorder the Favorites filter.
+- [ ] Settings → Time format 24-hour and Guide rows Compact change the guide at once; Open system caption settings opens the TV's captioning page.
+- [ ] Settings → Match frame rate on: a 29.97 or 25 fps channel switches the TV's refresh rate (the panel may blank for a moment) and the launcher's rate returns on Back; Decoder Software and Buffer Smoother still play the channel.
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):
 
@@ -97,6 +103,16 @@ Regenerate the TV banner after changing the vector mark. Requires ImageMagick an
 ```sh
 tools/render-banner.sh
 ```
+
+## Icons
+
+Regenerate the desktop and web icons after changing the vector mark. Requires ImageMagick 7:
+
+```sh
+tools/render-icons.sh
+```
+
+It writes `ui/icons/sofa-king.png`, `.ico` and `.icns` for the Linux, Windows and macOS packages, and `favicon.svg`, `icon-192.png`, `icon-512.png` and `apple-touch-icon.png` under `ui/src/webMain/resources` for the web page and its manifest. The packaging tasks use jpackage's default icon while a file is missing.
 
 ## Dependencies
 

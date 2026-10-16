@@ -8,6 +8,7 @@ services:
       dockerfile: Dockerfile
       args:
         REVISION: ${REVISION:-unknown}
+        VERSION: ${VERSION:-unknown}
     container_name: sofa-king-backend
     restart: unless-stopped
     # Runs as the owner of ./config. 1000:1000 is the first user on most Linux hosts; otherwise set UID and GID

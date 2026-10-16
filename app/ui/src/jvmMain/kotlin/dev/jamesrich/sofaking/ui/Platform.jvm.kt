@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui
 
 import androidx.compose.runtime.Composable
+import dev.jamesrich.sofaking.ui.player.LivePlayer
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
 
@@ -30,3 +31,13 @@ internal actual fun rememberVoiceSearch(prompt: String, onResult: (String?) -> U
 internal actual val KeyEvent.repeatCountOrNull: Int? get() = null
 
 internal actual val KeyEvent.isLongPress: Boolean get() = false
+
+@Composable
+internal actual fun rememberSystemCaptionSettings(): (() -> Unit)? = null
+
+internal actual fun captionEngineName(): String = "libVLC"
+
+internal actual val supportsPlaybackPreferences: Boolean = false
+
+@Composable
+internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit

@@ -352,7 +352,10 @@
     "/discover.json": { "get": { "tags": ["HDHomeRun"], "summary": "The device Plex discovers", "security": [], "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Discover" } } } }, "403": { "description": "The client address is not allowed" } } } },
     "/lineup.json": { "get": { "tags": ["HDHomeRun"], "summary": "The device's channels", "security": [], "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LineupItem" } } } } }, "403": { "description": "The client address is not allowed" } } } },
     "/lineup_status.json": { "get": { "tags": ["HDHomeRun"], "summary": "Scan status: nothing to scan", "security": [], "responses": { "200": { "description": "" } } } },
-    "/lineup.post": { "post": { "tags": ["HDHomeRun"], "summary": "Accepts Plex's channel-scan request", "security": [], "responses": { "200": { "description": "No body" } } } },
+    "/lineup.post": {
+      "get": { "tags": ["HDHomeRun"], "summary": "Accepts Plex's channel-scan request", "security": [], "responses": { "200": { "description": "No body" } } },
+      "post": { "tags": ["HDHomeRun"], "summary": "Accepts Plex's channel-scan request", "security": [], "responses": { "200": { "description": "No body" } } }
+    },
     "/device.xml": { "get": { "tags": ["HDHomeRun"], "summary": "The UPnP root description", "security": [], "responses": { "200": { "description": "application/xml" } } } },
     "/auto/v{number}": {
       "get": { "tags": ["HDHomeRun"], "summary": "An MPEG-TS stream of the channel with that lineup number", "description": "While the device's streams are all open, or the source refuses, 503 with X-HDHomeRun-Error: 805 All Tuners In Use.", "security": [],

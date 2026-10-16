@@ -29,7 +29,7 @@ You need JDK 21 and FFmpeg. Run the commands from `backend/`:
    }
    ```
 
-   [`deploy/sources.example.json`](../deploy/sources.example.json) lists every native provider and an M3U provider example. The PBS and M3U entries need your values.
+   [`deploy/sources.example.json`](../deploy/sources.example.json) lists the native provider of every free streaming service and an M3U provider example. The PBS and M3U entries need your values.
 
 3. Start the server. It listens on `127.0.0.1:8080` by default:
 
@@ -91,7 +91,7 @@ Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conven
 | `scripts/live-smoke.py` | Fixture playlists through the relay, probes, lineup edits and restart |
 | `scripts/bridge-smoke.py` | Imports one playlist into a temporary server, adopts its channels and optionally decodes one |
 | `scripts/provider-smoke.py` | Checks one native provider against its live service |
-| `scripts/generate-policy.py` | Generates a [lineup policy](lineup-policy.md#generate-a-policy) from a running server; `python3 -m unittest discover -s scripts -p 'test_*.py'` tests it, including its normalization against the server's golden keys |
+| `scripts/generate-policy.py` | Generates a [lineup policy](lineup-policy.md#generate-a-policy) from a running server; `python3 -I -m unittest discover -s scripts -p 'test_*.py'` tests it, including its normalization against the server's golden keys |
 
 To test an M3U provider, replace the URLs and channel name:
 

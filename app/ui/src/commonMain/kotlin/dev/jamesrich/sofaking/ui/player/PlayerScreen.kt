@@ -155,8 +155,9 @@ fun PlayerScreen(
     onCaptionAdvanceChanged: (Channel, Int) -> Unit = { _, _ -> },
     captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
     smoothCaptions: Boolean = true,
-    /** Starred channels, for the channel list's Favorites chip. */
+    /** Starred channels, for the channel list's Favorites chip, in the order Settings gave them. */
     favorites: Set<String> = emptySet(),
+    favoritesOrder: List<String> = emptyList(),
     /** Channels watched lately, latest first, for the channel list's Recent chip; empty leaves the chip out. */
     recentGuideIds: List<String> = emptyList(),
     /** How many info bars have carried the key legend so far; it rides the first [AppSettings.KEY_LEGEND_BARS]. */
@@ -842,6 +843,7 @@ fun PlayerScreen(
                         lineup = lineup,
                         scope = zapScope?.takeIf { scoped },
                         favorites = favorites,
+                        favoritesOrder = favoritesOrder,
                         recent = recentGuideIds,
                         currentGuideId = channel.guideId,
                         previousGuideId = previousChannel?.guideId,

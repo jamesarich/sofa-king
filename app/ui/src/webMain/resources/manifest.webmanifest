@@ -1,0 +1,15 @@
+{
+  "name": "Sofa King",
+  "short_name": "Sofa King",
+  "description": "Live TV for your own Sofa King server",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#14111F",
+  "theme_color": "#14111F",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ],
+  "categories": ["entertainment", "video"]
+}

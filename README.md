@@ -29,10 +29,10 @@ A self-hosted live TV server for a home network, and an app that watches it on A
 
 ## Get it
 
-- **Server:** the image `ghcr.io/jamesarich/sofa-king-backend:main`, published from `main`. [Getting started](backend/docs/getting-started.md) takes a Docker host to a playing channel.
+- **Server:** the image `ghcr.io/jamesarich/sofa-king:main`, published from `main`. [Getting started](backend/docs/getting-started.md) takes a Docker host to a playing channel.
 - **App:** the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), built from the latest `main` for Android, Linux, macOS, Windows and the web. [Getting started](app/docs/getting-started.md) installs it and connects it to the server.
 
-The server image is private, so pulling it needs access to the package; anyone can build it from this repository. Neither part has a versioned release yet. Each README lists what is missing: [server](backend/README.md#limitations), [app](app/README.md#limitations).
+The server image is public on GitHub Container Registry; anyone can pull it or build it from this repository. Neither part has a versioned release yet. Each README lists what is missing: [server](backend/README.md#limitations), [app](app/README.md#limitations).
 
 | Part | What it is |
 | --- | --- |

@@ -242,8 +242,8 @@ data class ServerConfig(
                     uri != null && (scheme == "http" || scheme == "https") && !uri.host.isNullOrEmpty() && uri.rawUserInfo == null &&
                         uri.rawPath.isNullOrEmpty() && uri.rawQuery == null && uri.rawFragment == null,
                 ) { "SOFA_CORS_ORIGINS takes origins like https://tv.example.com or http://host:8080, separated by commas: $origin" }
-                val host = uri!!.host.lowercase()
-                CorsOrigin(scheme!!, if (uri.port == -1) host else "$host:${uri.port}")
+                val host = uri.host.lowercase()
+                CorsOrigin(scheme, if (uri.port == -1) host else "$host:${uri.port}")
             }.distinct()
 
         private fun plexConfig(environment: Map<String, String>, hdhrEnabled: Boolean): PlexConfig? {
@@ -265,7 +265,7 @@ data class ServerConfig(
             val valid = uri != null && uri.scheme?.lowercase() in setOf("http", "https") && !uri.host.isNullOrEmpty() && uri.rawUserInfo == null &&
                 uri.rawPath.isNullOrEmpty() && uri.rawQuery == null && uri.rawFragment == null && (withPort || uri.port == -1)
             require(valid) { if (withPort) "$name must be http(s)://host[:port]" else "$name must be http(s)://host without a port" }
-            return "${uri!!.scheme.lowercase()}://${uri.rawAuthority}"
+            return "${uri.scheme.lowercase()}://${uri.rawAuthority}"
         }
 
         private fun flag(environment: Map<String, String>, name: String, default: Boolean): Boolean {

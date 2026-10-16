@@ -14,6 +14,7 @@ import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel as Trigger
 import kotlinx.coroutines.delay
@@ -176,8 +177,8 @@ class PolicyService(
     suspend fun apply(cause: String): PolicyApplyResult = runMutex.withLock {
         var result: PolicyApplyResult? = null
         jobs.record("policy") {
-            result = applyNow(cause)
-            val run = result!!
+            val run = applyNow(cause)
+            result = run
             val skipped = run.findings.firstOrNull { it.startsWith("feeds: ") }
             JobOutcome(true, skipped?.removePrefix("feeds: ")?.let { "skipped: $it" } ?: ("${run.enabledStations} on of ${run.stations}, " + if (run.changed) "${run.changes} fields changed" else "no change"))
         }
@@ -369,6 +370,7 @@ class PolicyService(
         trigger.trySend(cause)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class) // select { onTimeout }
     fun start(scope: CoroutineScope): Job = scope.launch(CoroutineName("policy-run")) {
         while (isActive) {
             val cause = select<String> {

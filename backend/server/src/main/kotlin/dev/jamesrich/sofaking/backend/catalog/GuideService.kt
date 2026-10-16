@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
@@ -155,6 +156,7 @@ class GuideService(
         triggers[guideId]?.trySend(Unit)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class) // select { onTimeout }
     fun start(scope: CoroutineScope): List<Job> = configs.map { config ->
         scope.launch(CoroutineName("guide-refresh:${config.id}")) {
             val trigger = triggers.getValue(config.id)

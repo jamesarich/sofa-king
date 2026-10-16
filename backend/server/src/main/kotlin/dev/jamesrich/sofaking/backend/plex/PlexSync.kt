@@ -22,6 +22,7 @@ import java.time.Duration
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel as Trigger
 import kotlinx.coroutines.delay
@@ -104,6 +105,7 @@ class PlexSync(
         trigger.trySend(cause)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class) // select { onTimeout }
     fun start(scope: CoroutineScope): Job = scope.launch(CoroutineName("plex-sync")) {
         while (isActive) {
             val cause = select<String> {
@@ -125,8 +127,8 @@ class PlexSync(
     suspend fun sync(cause: String): PlexStatus = mutex.withLock {
         var next: PlexStatus? = null
         jobs.record("plex") {
-            next = syncNow(cause)
-            val status = next!!
+            val status = syncNow(cause)
+            next = status
             if (status.lastError != null) JobOutcome(false, status.lastError.take(200))
             else JobOutcome(true, "${status.devices.sumOf { it.mapped }} channels mapped on ${status.devices.size} devices" + if (status.missingDevices.isEmpty()) "" else ", ${status.missingDevices.size} not in Plex")
         }

@@ -93,8 +93,8 @@ internal fun playerSideKey(timingAdjustable: Boolean, infoVisible: Boolean): Pla
 internal enum class MiniGuideKey { LIST, SWALLOWED, PLAYER }
 
 /**
- * Up and Down move focus inside the panel, Left and Right move along its filter chips and do nothing on a row, and
- * every other key acts as it does in the player.
+ * Up and Down move focus inside the panel, Left and Right move along its top row of filter chips and action buttons
+ * and do nothing on a channel row, and every other key acts as it does in the player.
  */
 internal fun Key.inMiniGuide(chipsFocused: Boolean = false): MiniGuideKey = when (this) {
     Key.DirectionUp, Key.DirectionDown -> MiniGuideKey.LIST
@@ -114,6 +114,9 @@ internal fun Key.inStreamCard(): StreamCardKey = when (this) {
     Key.DirectionLeft, Key.DirectionRight, Key.Back, Key.Info, Key.Escape -> StreamCardKey.CLOSE
     else -> StreamCardKey.PLAYER
 }
+
+/** OK on the stream card: a focused audio track row takes it; with no tracks to pick, it closes the card as Back does. */
+internal fun streamCardOk(hasTracks: Boolean): StreamCardKey = if (hasTracks) StreamCardKey.CARD else StreamCardKey.CLOSE
 
 /** What a tap or click on the video does. */
 internal enum class PlayerTap { CLOSE_CHANNEL_LIST, HIDE_INFO, SHOW_INFO }

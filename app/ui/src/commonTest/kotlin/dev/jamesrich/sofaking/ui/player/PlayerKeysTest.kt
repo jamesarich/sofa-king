@@ -131,4 +131,10 @@ class PlayerKeysTest {
         assertEquals(StreamCardKey.PLAYER, Key.ChannelUp.inStreamCard())
         assertEquals(StreamCardKey.PLAYER, Key.Captions.inStreamCard())
     }
+
+    @Test
+    fun `OK on the stream card goes to the focused track and closes a card with none`() {
+        assertEquals(StreamCardKey.CARD, streamCardOk(hasTracks = true))
+        assertEquals(StreamCardKey.CLOSE, streamCardOk(hasTracks = false))
+    }
 }

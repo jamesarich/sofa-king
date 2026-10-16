@@ -329,6 +329,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     smoothCaptions = settings?.smoothCaptions ?: true,
                     favorites = settings?.favorites.orEmpty(),
                     favoritesOrder = settings?.favoritesOrder.orEmpty(),
+                    recentGuideIds = settings?.recentChannels.orEmpty(),
+                    onToggleFavorite = { vm.toggleFavorite(it.guideId) },
                     keyLegendShown = settings?.keyLegendShown ?: AppSettings.KEY_LEGEND_BARS,
                     onKeyLegendShown = { vm.setKeyLegendShown(it) },
                 )

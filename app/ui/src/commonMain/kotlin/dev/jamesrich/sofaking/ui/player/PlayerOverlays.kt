@@ -59,14 +59,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.ClosedCaption
-import androidx.compose.material.icons.filled.ClosedCaptionOff
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.FilledIconButton
@@ -396,13 +391,13 @@ internal fun TouchControls(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
-        ControlIcon(Icons.Filled.GridView, stringResource(Res.string.player_control_guide), onGuide)
+        ControlIcon(PlayerIcons.GridView, stringResource(Res.string.player_control_guide), onGuide)
         ControlIcon(Icons.Filled.KeyboardArrowDown, stringResource(Res.string.player_control_channel_down), onChannelDown)
         if (failed) {
             ControlIcon(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), onRetry, primary = true)
         } else {
             ControlIcon(
-                if (paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+                if (paused) Icons.Filled.PlayArrow else PlayerIcons.Pause,
                 stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
                 onPlayPause,
                 primary = true,
@@ -411,12 +406,12 @@ internal fun TouchControls(
         ControlIcon(Icons.Filled.KeyboardArrowUp, stringResource(Res.string.player_control_channel_up), onChannelUp)
         ControlIcon(Icons.AutoMirrored.Filled.List, stringResource(Res.string.player_control_channels), onChannelList)
         ControlIcon(
-            if (captionsOn) Icons.Filled.ClosedCaption else Icons.Filled.ClosedCaptionOff,
+            if (captionsOn) PlayerIcons.ClosedCaption else PlayerIcons.ClosedCaptionOff,
             stringResource(Res.string.player_control_captions),
             onCaptions,
             modifier = Modifier.semantics { stateDescription = captionsState },
         )
-        ControlIcon(if (hasAudioChoice) Icons.Filled.Audiotrack else Icons.Filled.Info, stringResource(Res.string.player_control_stream), onStreamInfo)
+        ControlIcon(if (hasAudioChoice) PlayerIcons.Audiotrack else Icons.Filled.Info, stringResource(Res.string.player_control_stream), onStreamInfo)
     }
 }
 

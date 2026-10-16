@@ -83,7 +83,7 @@ jobs:
           :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest
           :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
           :androidApp:lintDebug :androidApp:assembleRelease
-          :ui:wasmJsBrowserDistribution
+          :ui:wasmJsBrowserDistribution :ui:jsBrowserDistribution
       # A restored older distribution would otherwise be saved again under the new key, and the entry would grow.
       - name: Keep only the current Kotlin/Native distribution
         if: github.ref == 'refs/heads/main'

@@ -40,7 +40,8 @@ jobs:
     name: Android, web and Linux desktop
     needs: version
     runs-on: ubuntu-24.04
-    # The build took 28 minutes on the last run that finished; 30 cut off the three after it.
+    # The build takes about eight minutes; the limit bounds a hang. A dependency the JS minifier choked on once took it
+    # to 28 minutes, and 30 cut off the three runs after that.
     timeout-minutes: 45
     defaults:
       run:

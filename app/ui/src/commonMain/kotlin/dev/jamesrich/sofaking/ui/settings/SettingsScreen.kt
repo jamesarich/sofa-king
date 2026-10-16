@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import org.jetbrains.compose.resources.ExperimentalResourceApi
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -465,7 +467,7 @@ fun SettingsScreen(
             Text(
                 listOf(
                     stringResource(Res.string.app_name),
-                    stringResource(Res.string.settings_version, BuildInfo.VERSION),
+                    stringResource(Res.string.settings_version, BuildInfo.VERSION + versionSuffix()),
                     pluralStringResource(Res.plurals.settings_channels_loaded, channelCount, channelCount),
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
@@ -518,4 +520,12 @@ private fun SettingField(
             Text(problem, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
         }
     }
+}
+
+/** The snapshot suffix the build wrote beside the resources, empty for a release; shown once it has been read. */
+@OptIn(ExperimentalResourceApi::class)
+@Composable
+private fun versionSuffix(): String {
+    val suffix by produceState("") { value = Res.readBytes(BuildInfo.VERSION_SUFFIX_FILE).decodeToString() }
+    return suffix
 }

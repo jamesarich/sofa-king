@@ -3,6 +3,11 @@ package dev.jamesrich.sofaking
 import androidx.lifecycle.viewModelScope
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
+import dev.jamesrich.sofaking.data.BufferPreference
+import dev.jamesrich.sofaking.data.ClockFormat
+import dev.jamesrich.sofaking.data.DecoderPreference
+import dev.jamesrich.sofaking.data.GuideDensity
+import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
@@ -60,6 +65,21 @@ class LineupViewModelTest {
         override suspend fun setAutoOpenDelay(delay: AutoOpenDelay) = settings.update { it.copy(autoOpenDelay = delay) }
         override suspend fun setPreviewSound(enabled: Boolean) = settings.update { it.copy(previewSound = enabled) }
         override suspend fun setKeyLegendShown(count: Int) = settings.update { it.copy(keyLegendShown = count) }
+        override suspend fun setStartup(target: StartupTarget, guideId: String?) =
+            settings.update { it.copy(startup = target, startupChannel = guideId.takeIf { target == StartupTarget.CHANNEL }) }
+        override suspend fun setClockFormat(format: ClockFormat) = settings.update { it.copy(clockFormat = format) }
+        override suspend fun setGuideDensity(density: GuideDensity) = settings.update { it.copy(guideDensity = density) }
+        override suspend fun setChannelHidden(guideId: String, hidden: Boolean) =
+            settings.update { it.copy(hiddenChannels = if (hidden) it.hiddenChannels + guideId else it.hiddenChannels - guideId) }
+        override suspend fun setZapSkipsHidden(enabled: Boolean) = settings.update { it.copy(zapSkipsHidden = enabled) }
+        override suspend fun setFavoritesOrder(order: List<String>) = settings.update { it.copy(favoritesOrder = order) }
+        override suspend fun setMatchFrameRate(enabled: Boolean) = settings.update { it.copy(playback = it.playback.copy(matchFrameRate = enabled)) }
+        override suspend fun setDecoder(decoder: DecoderPreference) = settings.update { it.copy(playback = it.playback.copy(decoder = decoder)) }
+        override suspend fun setChannelDecoder(guideId: String, decoder: DecoderPreference?) = settings.update {
+            val by = if (decoder == null) it.playback.decoderByChannel - guideId else it.playback.decoderByChannel + (guideId to decoder)
+            it.copy(playback = it.playback.copy(decoderByChannel = by))
+        }
+        override suspend fun setBuffer(buffer: BufferPreference) = settings.update { it.copy(playback = it.playback.copy(buffer = buffer)) }
 
         private infix fun Set<String>.xor(id: String) = if (id in this) this - id else this + id
     }

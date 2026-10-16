@@ -55,6 +55,10 @@ class MiniGuideRowsTest {
     @Test
     fun `favorites and recent list without the pinned row and recent keeps the watched order`() {
         assertEquals(listOf("1", "4"), rows(MiniGuideFilter.FAVORITES, favorites = setOf("4", "1"), previous = "1").map { it.channel.guideId })
+        assertEquals(
+            listOf("4", "1"),
+            miniGuideRows(MiniGuideFilter.FAVORITES, lineup, null, setOf("4", "1"), emptyList(), null, favoritesOrder = listOf("4")).map { it.channel.guideId },
+        )
         val recent = rows(MiniGuideFilter.RECENT, recent = listOf("4", "9", "1"), previous = "4")
         assertEquals(listOf("4", "1"), recent.map { it.channel.guideId })
         assertTrue(recent.none { it.pinnedLast })

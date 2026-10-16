@@ -15,6 +15,9 @@ import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIAccessibilityIsVoiceOverRunning
 import platform.UIKit.UIAccessibilityVoiceOverStatusDidChangeNotification
 import platform.UIKit.UIApplication
+import platform.UIKit.UIApplicationOpenSettingsURLString
+import platform.Foundation.NSURL
+import dev.jamesrich.sofaking.ui.player.LivePlayer
 
 /** iPhone and iPad; Apple TV is not a target. */
 @Composable
@@ -60,3 +63,17 @@ internal actual fun rememberVoiceSearch(prompt: String, onResult: (String?) -> U
 internal actual val KeyEvent.repeatCountOrNull: Int? get() = null
 
 internal actual val KeyEvent.isLongPress: Boolean get() = false
+
+/** The app's page in the Settings app, where iOS keeps its caption style under Accessibility. */
+@Composable
+internal actual fun rememberSystemCaptionSettings(): (() -> Unit)? = remember {
+    val url = NSURL.URLWithString(UIApplicationOpenSettingsURLString)
+    if (url == null) null else { { UIApplication.sharedApplication.openURL(url, options = emptyMap<Any?, Any>(), completionHandler = null) } }
+}
+
+internal actual fun captionEngineName(): String = "AVPlayer"
+
+internal actual val supportsPlaybackPreferences: Boolean = false
+
+@Composable
+internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit

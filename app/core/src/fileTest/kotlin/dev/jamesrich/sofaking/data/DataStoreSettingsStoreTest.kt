@@ -98,6 +98,72 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `startup keeps a chosen channel only for the channel target`() = runTest {
+        val store = newStore()
+        assertEquals(StartupTarget.LAST_CHANNEL, store.settings.first().startup)
+        store.setStartup(StartupTarget.CHANNEL, "7")
+        assertEquals(StartupTarget.CHANNEL to "7", store.settings.first().let { it.startup to it.startupChannel })
+        store.setStartup(StartupTarget.GUIDE, "7")
+        assertEquals(StartupTarget.GUIDE to null, store.settings.first().let { it.startup to it.startupChannel })
+    }
+
+    @Test
+    fun `clock format and guide density round trip and fall back to their defaults`() = runTest {
+        val store = newStore()
+        assertEquals(ClockFormat.AUTO, store.settings.first().clockFormat)
+        assertEquals(GuideDensity.COMFORTABLE, store.settings.first().guideDensity)
+        store.setClockFormat(ClockFormat.TWENTY_FOUR_HOUR)
+        store.setGuideDensity(GuideDensity.COMPACT)
+        assertEquals(ClockFormat.TWENTY_FOUR_HOUR, store.settings.first().clockFormat)
+        assertEquals(GuideDensity.COMPACT, store.settings.first().guideDensity)
+        dataStore.edit { it[stringPreferencesKey("clock_format")] = "FORTNIGHT" }
+        assertEquals(ClockFormat.AUTO, store.settings.first().clockFormat)
+    }
+
+    @Test
+    fun `hidden channels are added and removed and the zap switch persists`() = runTest {
+        val store = newStore()
+        store.setChannelHidden("a", true)
+        store.setChannelHidden("b", true)
+        store.setChannelHidden("a", false)
+        assertEquals(setOf("b"), store.settings.first().hiddenChannels)
+        assertFalse(store.settings.first().zapSkipsHidden)
+        store.setZapSkipsHidden(true)
+        assertTrue(store.settings.first().zapSkipsHidden)
+    }
+
+    @Test
+    fun `the favorites order is kept and an unstarred channel leaves it`() = runTest {
+        val store = newStore()
+        store.toggleFavorite("a")
+        store.toggleFavorite("b")
+        store.setFavoritesOrder(listOf("b", "a", "b"))
+        assertEquals(listOf("b", "a"), store.settings.first().favoritesOrder)
+        store.toggleFavorite("b")
+        assertEquals(listOf("a"), store.settings.first().favoritesOrder)
+        assertEquals(setOf("a"), store.settings.first().favorites)
+    }
+
+    @Test
+    fun `playback preferences default to the engine's own and round trip`() = runTest {
+        val store = newStore()
+        assertEquals(PlaybackPreferences(), store.settings.first().playback)
+        store.setMatchFrameRate(true)
+        store.setDecoder(DecoderPreference.SOFTWARE)
+        store.setBuffer(BufferPreference.SMOOTH)
+        store.setChannelDecoder("x", DecoderPreference.AUTO)
+        val playback = store.settings.first().playback
+        assertEquals(
+            PlaybackPreferences(matchFrameRate = true, decoder = DecoderPreference.SOFTWARE, decoderByChannel = mapOf("x" to DecoderPreference.AUTO), buffer = BufferPreference.SMOOTH),
+            playback,
+        )
+        assertEquals(DecoderPreference.AUTO, playback.decoderFor("x"))
+        assertEquals(DecoderPreference.SOFTWARE, playback.decoderFor("y"))
+        store.setChannelDecoder("x", null)
+        assertEquals(emptyMap(), store.settings.first().playback.decoderByChannel)
+    }
+
+    @Test
     fun `the guide filter is kept and cleared`() = runTest {
         val store = newStore()
         assertEquals(null, store.settings.first().guideFilter)

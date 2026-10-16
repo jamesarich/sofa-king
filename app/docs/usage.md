@@ -4,7 +4,7 @@ This page covers the guide, the channels it lists, the remote and keyboard contr
 
 ## Guide
 
-The app opens full screen on the channel you last watched; Back shows the guide focused on that channel. When you have not watched a channel yet, or that channel is no longer in the lineup, it opens the guide. With no server set, the guide shows Connect to your Sofa King server with the header's Settings button focused; press OK and [connect to the server](getting-started.md#3-connect-to-the-server).
+The app opens full screen on the channel you last watched; Back shows the guide focused on that channel. When you have not watched a channel yet, or that channel is no longer in the lineup, it opens the guide. Settings → Open on start can open the guide instead, or one chosen channel. With no server set, the guide shows Connect to your Sofa King server with the header's Settings button focused; press OK and [connect to the server](getting-started.md#3-connect-to-the-server).
 
 The Now chip, the Guide key and the Menu key return to the current time on the focused channel. Fast Forward and Rewind move the grid a whole day ahead and back, up to six days, keeping the time of day and the focused channel; the range above the channel names reads Tomorrow or the weekday, and a day's programs load the first time you move to it. Search filters by channel name, number or current program, and lists a channel's later programs that match on a Later today line under its row, each with its start time; OK on one moves the grid to that program. The Search key starts voice search through the TV's speech recognizer and focuses the first match; the Search chip, a TV without a recognizer, or a dismissed recognizer open the text field instead. All, Favorites, Recent (the last ten channels watched, newest first) and category chips select channel groups, and the app reopens on the chip you chose last.
 
@@ -76,13 +76,25 @@ Settings opens from the guide's header. Switches and choices apply at once. The 
 | --- | --- | --- | --- |
 | Server | Server URL | Empty | The server's absolute HTTP(S) address with a host and optional port, for example `http://server.example:9193`. Embedded credentials, queries and fragments are refused |
 | Server | API token | Empty | The server's API token, found as [getting started](getting-started.md#what-you-need) describes: letters, digits and punctuation with no spaces. Leave it empty when the server runs without one. The field shows only the last four characters until it is focused |
+| Startup | Open on start | Last channel | What a cold start opens: the channel watched last, the guide, or a channel chosen from the lineup with Choose. A chosen or last channel the lineup no longer has opens the guide |
+| Guide | Open focused channel automatically | After 10 seconds | How long focus rests on a channel before it opens full screen: Off, after 10 or after 30 seconds. TalkBack touch exploration on Android and VoiceOver on iOS turn it off |
+| Guide | Play preview sound | On | Whether the preview's sound comes on after 5 seconds |
+| Guide | Time format | Auto | How the guide writes times: Auto follows the device's 12- or 24-hour setting (the locale's pattern on a desktop or the web) |
+| Guide | Guide rows | Comfortable | The height of the guide's rows; Compact fits more channels on screen |
+| Guide | Manage channels | | Opens the channel manager, below |
 | Captions | Closed captions | Off | Shows captions in the player and the preview. The CC key toggles it too |
 | Captions | Smooth live captions | On | On Android, holds roll-up text until each line is complete, so captions appear a line at a time |
 | Captions | Caption style | System | Where the app draws captions, as [captions](#captions) lists. System follows Android's caption preferences, or white on black in a browser; Large, high contrast overrides them |
 | Captions | Default caption timing | As broadcast | On Android, how far captions are shown earlier or later on channels without their own timing |
-| Guide | Open focused channel automatically | After 10 seconds | How long focus rests on a channel before it opens full screen: Off, after 10 or after 30 seconds. TalkBack touch exploration on Android and VoiceOver on iOS turn it off |
-| Guide | Play preview sound | On | Whether the preview's sound comes on after 5 seconds |
+| Captions | Open system caption settings | | On Android, opens the system's captioning preferences; on iOS, the app's page in Settings. The line under it names the engine that draws captions on this device |
+| Playback | Match frame rate | Off | Android only. Switches the display to the stream's frame rate while it plays, through the window's preferred display mode, so 29.97 fps video plays at 59.94 Hz and 25 fps at 50 Hz. Some TVs show a black screen for a moment at each switch; the launcher's rate returns when the app leaves the player |
+| Playback | Decoder | Auto | Android only. Software puts the software decoders first, for the odd channel a hardware decoder cannot play; it uses more power and may drop frames at high resolutions |
+| Playback | Buffer | Standard | Android only. How much of a stream downloads before it plays: Start faster waits for 0.5 s (1 s after a stall), Standard 1 s (2 s), Smoother 4 s (6 s) |
 
-About shows the version and how many channels are loaded. On a snapshot, every build shows a version ending in `-dev.RUN+COMMIT`, the workflow run number and the short commit; only the desktop packages' own version, which the installer shows, is the plain one.
+The footer shows the version and how many channels are loaded. On a snapshot, every build shows a version ending in `-dev.RUN+COMMIT`, the workflow run number and the short commit; only the desktop packages' own version, which the installer shows, is the plain one.
+
+### Channel manager
+
+Manage channels, under Guide, lists the favorites in the order the guide's Favorites filter and the player's channel list show them; the arrows beside a favorite move it. Channels not yet placed follow by number. Below, every channel of the lineup has a switch: switched off, the channel leaves the guide and the channel list on this device only, so the server and other devices keep it. Skip hidden channels with Channel Up and Down takes them out of zapping too; a hidden channel entered by number still plays, with the full lineup around it.
 
 [Troubleshooting](troubleshooting.md) covers connection errors, empty guides and streams that do not play.

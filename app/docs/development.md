@@ -57,6 +57,10 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 - [ ] Audio, captions and decoder recovery work on the full-screen player.
 - [ ] In the player, Left or Right on the info bar opens the channel list, Up from its top row reaches the chips and Left/Right move along them, and OK on a row under All tunes a channel outside the guide filter.
 - [ ] CC then Left/Right moves the channel's caption timing both ways and the toast follows; Info held opens the stream card, and Up/Down and OK pick an audio track on a channel with several.
+- [ ] Settings → Open on start set to Guide opens the guide on a cold start, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
+- [ ] Settings → Manage channels: a channel switched off leaves the guide and the channel list, and leaves Channel Up/Down only once Skip hidden channels is on; the move buttons reorder the Favorites filter.
+- [ ] Settings → Time format 24-hour and Guide rows Compact change the guide at once; Open system caption settings opens the TV's captioning page.
+- [ ] Settings → Match frame rate on: a 29.97 or 25 fps channel switches the TV's refresh rate (the panel may blank for a moment) and the launcher's rate returns on Back; Decoder Software and Buffer Smoother still play the channel.
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):
 

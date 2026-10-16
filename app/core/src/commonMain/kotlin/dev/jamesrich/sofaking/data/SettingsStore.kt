@@ -29,8 +29,22 @@ data class AppSettings(
     val previewSound: Boolean = true,
     /** How many info bars have carried the key legend; it stops after [KEY_LEGEND_BARS]. */
     val keyLegendShown: Int = 0,
+    /** Where a cold start lands; [startupChannel] is the channel for [StartupTarget.CHANNEL]. */
+    val startup: StartupTarget = StartupTarget.LAST_CHANNEL,
+    val startupChannel: String? = null,
+    val clockFormat: ClockFormat = ClockFormat.AUTO,
+    val guideDensity: GuideDensity = GuideDensity.COMFORTABLE,
+    /** [Channel.guideId]s the guide and channel list leave out on this device; the server's lineup is untouched. */
+    val hiddenChannels: Set<String> = emptySet(),
+    /** Whether Channel Up and Down and the D-pad skip [hiddenChannels] too, or only the lists leave them out. */
+    val zapSkipsHidden: Boolean = false,
+    /** The favorites in the order the user put them (see [orderedFavorites]); starred channels not listed follow by number. */
+    val favoritesOrder: List<String> = emptyList(),
+    val playback: PlaybackPreferences = PlaybackPreferences(),
 ) {
     fun captionAdvanceFor(guideId: String): Int = captionAdvanceByChannel[guideId] ?: captionAdvanceMs
+
+    fun isHidden(guideId: String): Boolean = guideId in hiddenChannels
 
     /** Keeps the token out of logs and crash reports; everything else prints as a data class would. */
     override fun toString(): String =
@@ -38,7 +52,9 @@ data class AppSettings(
             "lastChannel=$lastChannel, recentChannels=$recentChannels, guideFilter=$guideFilter, captionsEnabled=$captionsEnabled, " +
             "captionAdvanceMs=$captionAdvanceMs, " +
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
-            "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, keyLegendShown=$keyLegendShown)"
+            "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, keyLegendShown=$keyLegendShown, startup=$startup, " +
+            "startupChannel=$startupChannel, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
+            "zapSkipsHidden=$zapSkipsHidden, favoritesOrder=$favoritesOrder, playback=$playback)"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
@@ -57,6 +73,9 @@ data class AppSettings(
             (listOf(guideId) + recent.filterNot { it == guideId }).take(RECENT_CHANNELS)
     }
 }
+
+/** What a cold start opens: the channel watched last, the guide, or one chosen channel. */
+enum class StartupTarget { LAST_CHANNEL, GUIDE, CHANNEL }
 
 /** How captions are drawn; SYSTEM defers to the platform's CaptioningManager settings. */
 enum class CaptionStyle { SYSTEM, LARGE_HIGH_CONTRAST }
@@ -96,4 +115,26 @@ interface SettingsStore {
     suspend fun setPreviewSound(enabled: Boolean)
 
     suspend fun setKeyLegendShown(count: Int)
+
+    /** [guideId] is kept only for [StartupTarget.CHANNEL]; the other targets clear it. */
+    suspend fun setStartup(target: StartupTarget, guideId: String? = null)
+
+    suspend fun setClockFormat(format: ClockFormat)
+
+    suspend fun setGuideDensity(density: GuideDensity)
+
+    suspend fun setChannelHidden(guideId: String, hidden: Boolean)
+
+    suspend fun setZapSkipsHidden(enabled: Boolean)
+
+    suspend fun setFavoritesOrder(order: List<String>)
+
+    suspend fun setMatchFrameRate(enabled: Boolean)
+
+    suspend fun setDecoder(decoder: DecoderPreference)
+
+    /** A per-channel decoder, or null to follow the default again. */
+    suspend fun setChannelDecoder(guideId: String, decoder: DecoderPreference?)
+
+    suspend fun setBuffer(buffer: BufferPreference)
 }

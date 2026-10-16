@@ -21,6 +21,9 @@ import dev.jamesrich.sofaking.ui.guide.voiceQuery
 import android.app.UiModeManager
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.provider.Settings
+import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.MatchExoDisplayFrameRate
 
 @Composable
 internal actual fun rememberIsTelevision(): Boolean {
@@ -88,3 +91,29 @@ internal actual fun rememberVoiceSearch(prompt: String, onResult: (String?) -> U
 internal actual val KeyEvent.repeatCountOrNull: Int? get() = nativeKeyEvent.repeatCount
 
 internal actual val KeyEvent.isLongPress: Boolean get() = nativeKeyEvent.isLongPress
+
+/** The system's captioning preferences; a build without that activity (some set-top boxes) gets no row. */
+@Composable
+internal actual fun rememberSystemCaptionSettings(): (() -> Unit)? {
+    val context = LocalContext.current
+    return remember(context) {
+        val intent = Intent(Settings.ACTION_CAPTIONING_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (intent.resolveActivity(context.packageManager) == null) {
+            null
+        } else {
+            {
+                try {
+                    context.startActivity(intent)
+                } catch (_: ActivityNotFoundException) {
+                }
+            }
+        }
+    }
+}
+
+internal actual fun captionEngineName(): String = "Media3"
+
+internal actual val supportsPlaybackPreferences: Boolean = true
+
+@Composable
+internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = MatchExoDisplayFrameRate(player, enabled)

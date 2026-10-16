@@ -5,6 +5,11 @@ import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
+import dev.jamesrich.sofaking.data.BufferPreference
+import dev.jamesrich.sofaking.data.ClockFormat
+import dev.jamesrich.sofaking.data.DecoderPreference
+import dev.jamesrich.sofaking.data.GuideDensity
+import dev.jamesrich.sofaking.data.StartupTarget
 import androidx.datastore.core.DataStore
 import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
@@ -284,6 +289,26 @@ class LineupViewModel(
     fun setAutoOpenDelay(delay: AutoOpenDelay) = viewModelScope.launch { store.setAutoOpenDelay(delay) }
 
     fun setPreviewSound(enabled: Boolean) = viewModelScope.launch { store.setPreviewSound(enabled) }
+
+    fun setStartup(target: StartupTarget, guideId: String? = null) = viewModelScope.launch { store.setStartup(target, guideId) }
+
+    fun setClockFormat(format: ClockFormat) = viewModelScope.launch { store.setClockFormat(format) }
+
+    fun setGuideDensity(density: GuideDensity) = viewModelScope.launch { store.setGuideDensity(density) }
+
+    fun setChannelHidden(guideId: String, hidden: Boolean) = viewModelScope.launch { store.setChannelHidden(guideId, hidden) }
+
+    fun setZapSkipsHidden(enabled: Boolean) = viewModelScope.launch { store.setZapSkipsHidden(enabled) }
+
+    fun setFavoritesOrder(order: List<String>) = viewModelScope.launch { store.setFavoritesOrder(order) }
+
+    fun setMatchFrameRate(enabled: Boolean) = viewModelScope.launch { store.setMatchFrameRate(enabled) }
+
+    fun setDecoder(decoder: DecoderPreference) = viewModelScope.launch { store.setDecoder(decoder) }
+
+    fun setChannelDecoder(guideId: String, decoder: DecoderPreference?) = viewModelScope.launch { store.setChannelDecoder(guideId, decoder) }
+
+    fun setBuffer(buffer: BufferPreference) = viewModelScope.launch { store.setBuffer(buffer) }
 
     override fun onCleared() {
         sessions.close()

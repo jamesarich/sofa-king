@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.orderedFavorites
 
 /** The channel list's filter chips: the channels watched lately, the starred ones, the guide filter the player was opened from, or every channel. */
 internal enum class MiniGuideFilter { RECENT, FAVORITES, SCOPE, ALL }
@@ -34,10 +35,11 @@ internal fun miniGuideRows(
     favorites: Set<String>,
     recent: List<String>,
     previousGuideId: String?,
+    favoritesOrder: List<String> = emptyList(),
 ): List<MiniGuideRow> {
     val channels = when (filter) {
         MiniGuideFilter.RECENT -> recent.mapNotNull { id -> lineup.firstOrNull { it.guideId == id } }
-        MiniGuideFilter.FAVORITES -> lineup.filter { it.guideId in favorites }
+        MiniGuideFilter.FAVORITES -> orderedFavorites(lineup, favorites, favoritesOrder)
         MiniGuideFilter.SCOPE -> if (scopeIds == null) lineup else lineup.filter { it.guideId in scopeIds }
         MiniGuideFilter.ALL -> lineup
     }

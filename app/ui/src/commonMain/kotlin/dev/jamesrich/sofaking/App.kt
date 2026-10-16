@@ -37,6 +37,8 @@ import androidx.lifecycle.withStateAtLeast
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.data.ClockFormat
+import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.resources.*
@@ -56,7 +58,15 @@ import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.sofaKingImageLoader
+import dev.jamesrich.sofaking.ui.settings.ChannelManagerScreen
+import dev.jamesrich.sofaking.ui.settings.ChannelPickerScreen
+import dev.jamesrich.sofaking.ui.settings.SettingsActions
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
+import dev.jamesrich.sofaking.ui.LocalClockFormat
+import dev.jamesrich.sofaking.ui.MatchDisplayFrameRate
+import dev.jamesrich.sofaking.ui.guide.LocalGuideDensity
+import dev.jamesrich.sofaking.data.StartupTarget
+import dev.jamesrich.sofaking.data.visibleChannels
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.CancellationException
@@ -106,6 +116,15 @@ private sealed interface Screen {
     data class Player(val guideId: String, @Transient val scope: ZapScope? = null) : Screen
     @Serializable
     data object Settings : Screen
+    /** The channel manager behind Settings. */
+    @Serializable
+    data object Channels : Screen
+    /** The startup channel picker behind Settings. */
+    @Serializable
+    data object StartupChannel : Screen
+
+    /** Settings and the pages behind it, where no stream plays. */
+    val isSettings: Boolean get() = this is Settings || this is Channels || this is StartupChannel
 }
 
 @Composable
@@ -123,6 +142,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     }
     val guideState = rememberSaveableStateHolder()
     val lineup = (state as? LineupState.Ready)?.lineup
+    // The lineup as this device shows it: hidden channels leave the guide and the channel list, and the player's
+    // zapping when that switch is on; the full lineup stays for the manager, the picker and a channel opened by number.
+    val hidden = settings?.hiddenChannels.orEmpty()
+    val visibleLineup = remember(lineup, hidden) { lineup?.let { l -> l.copy(channels = visibleChannels(l.channels, hidden)) } }
     // A cold start opens the channel last watched, full screen, once the lineup and settings are in. Decided
     // once per process (restored across configuration changes), and before the guide composes, so the preview
     // never opens a session that the full screen is about to replace.
@@ -162,16 +185,24 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     LaunchedEffect(captionsEnabled) {
         if (captionsEnabled != null) player.setCaptionsEnabled(captionsEnabled)
     }
+    val playback = settings?.playback
+    LaunchedEffect(playback) {
+        if (playback != null) player.setPlaybackPreferences(playback)
+    }
+    // Only the full screen asks for a display mode: the guide's preview zaps too often for a set that blanks on each switch.
+    MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && screen is Screen.Player)
     // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
     // the server, so it releases the session outright rather than keeping it to reopen.
     LaunchedEffect(screen) {
-        when (screen) {
+        when (val s = screen) {
             is Screen.Guide -> captionSync.advanceUs = 0L
             Screen.Settings -> {
                 player.stop()
                 sessions.release(forget = true)
             }
             is Screen.Player -> Unit
+            // Reached from Settings, which already stopped the stream.
+            Screen.Channels, Screen.StartupChannel -> Unit
         }
     }
     // Stopped, not paused: the TV's one hardware decoder and the server's session go free while another app is
@@ -183,113 +214,156 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         sessions.releaseAsync()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (currentScreen != Screen.Settings && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
+        if (!currentScreen.isSettings && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
             captionSync.effectiveUs = captionSync.advanceUs
             scope.launch { resume(player, sessions) }
         }
     }
 
-    when (val current = screen) {
-        Screen.Settings -> settings?.let { s ->
-            SettingsScreen(
-                settings = s,
-                onSave = { url, token -> vm.saveServer(url, token); screen = Screen.Guide() },
-                onBack = { screen = Screen.Guide() },
-                channelCount = lineup?.channels?.size ?: 0,
-                onCaptionsChanged = { vm.setCaptionsEnabled(it) },
-                onCaptionAdvanceChanged = { vm.setCaptionAdvanceMs(it) },
-                onSmoothCaptionsChanged = { vm.setSmoothCaptions(it) },
-                onCaptionStyleChanged = { vm.setCaptionStyle(it) },
-                onAutoOpenDelayChanged = { vm.setAutoOpenDelay(it) },
-                onPreviewSoundChanged = { vm.setPreviewSound(it) },
-            )
-        }
-        is Screen.Player -> if (lineup != null) {
-            val start = lineup.channels.indexOfFirst { it.guideId == current.guideId }.coerceAtLeast(0)
-            val previousGuideId = remember(current) { history.previousFor(current.guideId) }
-            PlayerScreen(
-                lineup = lineup,
-                startIndex = start,
-                previousGuideId = previousGuideId,
-                zapScope = current.scope,
-                player = player,
-                sessions = sessions,
-                onExit = { screen = Screen.Guide(returnedFrom = history.watching) },
-                onGuide = { screen = Screen.Guide(atNow = true, returnedFrom = history.watching) },
-                onSearch = { screen = Screen.Guide(search = true, returnedFrom = history.watching) },
-                onChannelChanged = {
-                    history = history.tuned(it.guideId)
-                    vm.setLastChannel(it.guideId)
-                },
-                reloadLineup = vm::reloadLineup,
-                onChannelGone = { channel ->
-                    notice = formatTemplate(channelGone, channel.label())
-                    screen = Screen.Guide(returnedFrom = history.watching)
-                },
-                captionsEnabled = settings?.captionsEnabled ?: false,
-                onCaptionsChanged = { vm.setCaptionsEnabled(it) },
-                captionAdvanceFor = { settings?.captionAdvanceFor(it.guideId) ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
-                onCaptionAdvanceChanged = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
-                captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
-                smoothCaptions = settings?.smoothCaptions ?: true,
-                favorites = settings?.favorites.orEmpty(),
-                recentGuideIds = settings?.recentChannels.orEmpty(),
-                keyLegendShown = settings?.keyLegendShown ?: AppSettings.KEY_LEGEND_BARS,
-                onKeyLegendShown = { vm.setKeyLegendShown(it) },
-            )
-        } else {
-            LaunchedEffect(Unit) { screen = Screen.Guide() }
-        }
-        // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
-        is Screen.Guide -> guideState.SaveableStateProvider("guide") {
-            Column {
-                val settingsFocus = remember { FocusRequester() }
-                Header(
-                    refreshing = loading && state is LineupState.Ready,
-                    notice = notice,
-                    onSettings = { screen = Screen.Settings },
-                    onRefresh = vm::refresh,
-                    settingsFocus = settingsFocus,
+    CompositionLocalProvider(
+        LocalClockFormat provides (settings?.clockFormat ?: ClockFormat.AUTO),
+        LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
+    ) {
+        when (val current = screen) {
+            Screen.Settings -> settings?.let { s ->
+                SettingsScreen(
+                    settings = s,
+                    onSave = { url, token -> vm.saveServer(url, token); screen = Screen.Guide() },
+                    onBack = { screen = Screen.Guide() },
+                    channelCount = lineup?.channels?.size ?: 0,
+                    channels = lineup?.channels.orEmpty(),
+                    actions = SettingsActions(
+                        onCaptionsChanged = { vm.setCaptionsEnabled(it) },
+                        onCaptionAdvanceChanged = { vm.setCaptionAdvanceMs(it) },
+                        onSmoothCaptionsChanged = { vm.setSmoothCaptions(it) },
+                        onCaptionStyleChanged = { vm.setCaptionStyle(it) },
+                        onAutoOpenDelayChanged = { vm.setAutoOpenDelay(it) },
+                        onPreviewSoundChanged = { vm.setPreviewSound(it) },
+                        onStartupChanged = { target, guideId -> vm.setStartup(target, guideId) },
+                        onChooseStartupChannel = { screen = Screen.StartupChannel },
+                        onClockFormatChanged = { vm.setClockFormat(it) },
+                        onGuideDensityChanged = { vm.setGuideDensity(it) },
+                        onManageChannels = { screen = Screen.Channels },
+                        onMatchFrameRateChanged = { vm.setMatchFrameRate(it) },
+                        onDecoderChanged = { vm.setDecoder(it) },
+                        onBufferChanged = { vm.setBuffer(it) },
+                    ),
                 )
-                // With no server to talk to, Settings is the only thing to do, so it takes focus over Refresh.
-                val homeFocus = homeFocusFor(state)
-                LaunchedEffect(homeFocus) {
-                    if (homeFocus == HomeFocus.SETTINGS) requestFocusWhenAttached(settingsFocus)
-                }
-                // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
-                val s = state
-                when {
-                    s is LineupState.Loading || settings == null || !launchDecided -> MessageScreen(stringResource(Res.string.loading), loading = true)
-                    s is LineupState.Unconfigured -> MessageScreen(
-                        message = stringResource(Res.string.unconfigured),
-                        hint = stringResource(Res.string.unconfigured_hint),
+            }
+            Screen.Channels -> settings?.let { s ->
+                ChannelManagerScreen(
+                    channels = lineup?.channels.orEmpty(),
+                    favorites = s.favorites,
+                    favoritesOrder = s.favoritesOrder,
+                    hidden = s.hiddenChannels,
+                    zapSkipsHidden = s.zapSkipsHidden,
+                    onFavoritesOrderChanged = { vm.setFavoritesOrder(it) },
+                    onChannelHiddenChanged = { guideId, hide -> vm.setChannelHidden(guideId, hide) },
+                    onZapSkipsHiddenChanged = { vm.setZapSkipsHidden(it) },
+                    onBack = { screen = Screen.Settings },
+                )
+            }
+            Screen.StartupChannel -> settings?.let { s ->
+                ChannelPickerScreen(
+                    channels = lineup?.channels.orEmpty(),
+                    selected = s.startupChannel,
+                    onPick = { channel ->
+                        vm.setStartup(StartupTarget.CHANNEL, channel.guideId)
+                        screen = Screen.Settings
+                    },
+                    onBack = { screen = Screen.Settings },
+                )
+            }
+            is Screen.Player -> if (lineup != null && visibleLineup != null) {
+                // Hidden channels drop out of zapping only when asked, and never under the channel being watched.
+                val playerLineup = if (settings?.zapSkipsHidden == true && current.guideId !in hidden) visibleLineup else lineup
+                val start = playerLineup.channels.indexOfFirst { it.guideId == current.guideId }.coerceAtLeast(0)
+                val previousGuideId = remember(current) { history.previousFor(current.guideId) }
+                PlayerScreen(
+                    lineup = playerLineup,
+                    startIndex = start,
+                    previousGuideId = previousGuideId,
+                    zapScope = current.scope,
+                    player = player,
+                    sessions = sessions,
+                    onExit = { screen = Screen.Guide(returnedFrom = history.watching) },
+                    onGuide = { screen = Screen.Guide(atNow = true, returnedFrom = history.watching) },
+                    onSearch = { screen = Screen.Guide(search = true, returnedFrom = history.watching) },
+                    onChannelChanged = {
+                        history = history.tuned(it.guideId)
+                        vm.setLastChannel(it.guideId)
+                    },
+                    reloadLineup = vm::reloadLineup,
+                    onChannelGone = { channel ->
+                        notice = formatTemplate(channelGone, channel.label())
+                        screen = Screen.Guide(returnedFrom = history.watching)
+                    },
+                    captionsEnabled = settings?.captionsEnabled ?: false,
+                    onCaptionsChanged = { vm.setCaptionsEnabled(it) },
+                    captionAdvanceFor = { settings?.captionAdvanceFor(it.guideId) ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS },
+                    onCaptionAdvanceChanged = { channel, ms -> vm.setChannelCaptionAdvance(channel.guideId, ms) },
+                    captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
+                    smoothCaptions = settings?.smoothCaptions ?: true,
+                    favorites = settings?.favorites.orEmpty(),
+                    favoritesOrder = settings?.favoritesOrder.orEmpty(),
+                    keyLegendShown = settings?.keyLegendShown ?: AppSettings.KEY_LEGEND_BARS,
+                    onKeyLegendShown = { vm.setKeyLegendShown(it) },
+                )
+            } else {
+                LaunchedEffect(Unit) { screen = Screen.Guide() }
+            }
+            // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
+            is Screen.Guide -> guideState.SaveableStateProvider("guide") {
+                Column {
+                    val settingsFocus = remember { FocusRequester() }
+                    Header(
+                        refreshing = loading && state is LineupState.Ready,
+                        notice = notice,
+                        onSettings = { screen = Screen.Settings },
+                        onRefresh = vm::refresh,
+                        settingsFocus = settingsFocus,
                     )
-                    s is LineupState.Failed -> MessageScreen(
-                        message = stringResource(Res.string.load_failed),
-                        detail = s.message,
-                        hint = stringResource(Res.string.load_failed_hint),
-                        onRetry = vm::refresh,
-                    )
-                    s is LineupState.Ready -> GuideOrEmpty(
-                        lineup = s.lineup,
-                        favorites = settings?.favorites.orEmpty(),
-                        recentChannels = settings?.recentChannels.orEmpty(),
-                        lastChannel = settings?.lastChannel,
-                        lastFilterKey = settings?.guideFilter,
-                        startAtNow = current.atNow,
-                        startSearch = current.search,
-                        returnedFrom = current.returnedFrom,
-                        onPlay = { guideId, scope -> screen = Screen.Player(guideId, scope) },
-                        onToggleFavorite = vm::toggleFavorite,
-                        onFilterChanged = vm::setGuideFilter,
-                        onLoadGuideWindow = vm::loadGuideWindow,
-                        previewPlayer = player,
-                        sessions = sessions,
-                        captionsEnabled = settings?.captionsEnabled ?: false,
-                        captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
-                        autoOpenDelay = settings?.autoOpenDelay ?: AutoOpenDelay.AFTER_10_SECONDS,
-                        previewSound = settings?.previewSound ?: true,
-                    )
+                    // With no server to talk to, Settings is the only thing to do, so it takes focus over Refresh.
+                    val homeFocus = homeFocusFor(state)
+                    LaunchedEffect(homeFocus) {
+                        if (homeFocus == HomeFocus.SETTINGS) requestFocusWhenAttached(settingsFocus)
+                    }
+                    // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
+                    val s = state
+                    when {
+                        s is LineupState.Loading || settings == null || !launchDecided -> MessageScreen(stringResource(Res.string.loading), loading = true)
+                        s is LineupState.Unconfigured -> MessageScreen(
+                            message = stringResource(Res.string.unconfigured),
+                            hint = stringResource(Res.string.unconfigured_hint),
+                        )
+                        s is LineupState.Failed -> MessageScreen(
+                            message = stringResource(Res.string.load_failed),
+                            detail = s.message,
+                            hint = stringResource(Res.string.load_failed_hint),
+                            onRetry = vm::refresh,
+                        )
+                        s is LineupState.Ready -> GuideOrEmpty(
+                            lineup = visibleLineup ?: s.lineup,
+                            favorites = settings?.favorites.orEmpty(),
+                            favoritesOrder = settings?.favoritesOrder.orEmpty(),
+                            recentChannels = settings?.recentChannels.orEmpty(),
+                            lastChannel = settings?.lastChannel,
+                            lastFilterKey = settings?.guideFilter,
+                            startAtNow = current.atNow,
+                            startSearch = current.search,
+                            returnedFrom = current.returnedFrom,
+                            onPlay = { guideId, scope -> screen = Screen.Player(guideId, scope) },
+                            onToggleFavorite = vm::toggleFavorite,
+                            onFilterChanged = vm::setGuideFilter,
+                            onLoadGuideWindow = vm::loadGuideWindow,
+                            previewPlayer = player,
+                            sessions = sessions,
+                            captionsEnabled = settings?.captionsEnabled ?: false,
+                            captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
+                            autoOpenDelay = settings?.autoOpenDelay ?: AutoOpenDelay.AFTER_10_SECONDS,
+                            previewSound = settings?.previewSound ?: true,
+                        )
+                    }
                 }
             }
         }
@@ -315,6 +389,7 @@ private suspend fun resume(player: LivePlayer, sessions: PlaybackSessions) {
 private fun GuideOrEmpty(
     lineup: Lineup,
     favorites: Set<String>,
+    favoritesOrder: List<String>,
     recentChannels: List<String>,
     lastChannel: String?,
     lastFilterKey: String?,
@@ -338,6 +413,7 @@ private fun GuideOrEmpty(
         GuideScreen(
             lineup = lineup,
             favorites = favorites,
+            favoritesOrder = favoritesOrder,
             recentChannels = recentChannels,
             initialChannelId = lastChannel,
             initialFilterKey = lastFilterKey,

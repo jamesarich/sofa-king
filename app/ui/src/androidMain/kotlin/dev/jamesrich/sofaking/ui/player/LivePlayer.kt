@@ -25,6 +25,8 @@ import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
+import dev.jamesrich.sofaking.data.DecoderPreference
+import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -49,14 +51,19 @@ actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
  */
 @OptIn(UnstableApi::class)
 internal class ExoLivePlayer(private val context: Context, override val captionSync: CaptionSync) : LivePlayer {
+    private val tuning = PlaybackTuning()
+
+    @Volatile
+    private var preferences = PlaybackPreferences()
+
     val exo: ExoPlayer = run {
         val extractors = DefaultExtractorsFactory()
             .setTsExtractorFlags(
                 DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS,
             )
             .setTsSubtitleFormats(captionFormats())
-        ExoPlayer.Builder(context, CaptionSyncRenderersFactory(context, captionSync))
-            .setLoadControl(CaptionSyncLoadControl(captionSync))
+        ExoPlayer.Builder(context, CaptionSyncRenderersFactory(context, captionSync).setMediaCodecSelector(tuning.codecSelector))
+            .setLoadControl(CaptionSyncLoadControl(captionSync, tuning))
             // The audible player yields to Assistant and other apps the way the MediaSession promises.
             .setAudioAttributes(AudioAttributes.DEFAULT, true)
             .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))
@@ -144,7 +151,14 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
 
     override fun streamInfo(): StreamInfo = streamInfoOf(exo.videoFormat, exo.audioFormat)
 
+    override fun setPlaybackPreferences(preferences: PlaybackPreferences) {
+        this.preferences = preferences
+        tuning.setBuffer(preferences.buffer)
+    }
+
     override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
+        // Before the item, so the codec chosen for it is the channel's own.
+        tuning.preferSoftware = preferences.decoderFor(stream.channelId) == DecoderPreference.SOFTWARE
         exo.setMediaItem(mediaItemFor(stream, nowPlaying?.toMetadata() ?: MediaMetadata.EMPTY))
     }
 

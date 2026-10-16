@@ -50,7 +50,7 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 - [ ] The Guide, Menu and Search keys work (the launcher may claim Guide on some devices), and voice search finds a channel.
 - [ ] D-pad focus moves through the guide without losing its place, including rapid focus changes over the preview, and the stream carries over between preview, player and guide.
 - [ ] Focus is visible on every button, chip, switch and field, including the Recent chip and a Later today line under a search result.
-- [ ] Info or a held OK on a guide cell opens the program details beside the grid with Watch focused; Favorite toggles the star, Back and Close return focus to the cell.
+- [ ] Info or a held OK on a guide cell opens the program details beside the grid with Watch focused, and releasing the held OK does not play the channel; Favorite toggles the star, Back and Close return focus to the cell.
 - [ ] Fast Forward moves the guide a day ahead with the same channel focused, Rewind and Now return, and the day's programs fill in.
 - [ ] The preview is muted, unmutes at 5 seconds and opens full screen at 10 seconds, and captions show over it.
 - [ ] Background and foreground transitions resume the same channel.

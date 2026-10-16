@@ -42,3 +42,31 @@ internal fun dayOffsetAfter(current: Int, shortcut: GuideShortcut): Int = when (
     GuideShortcut.DAY_BACK -> (current - 1).coerceAtLeast(0)
     else -> current
 }
+
+/**
+ * Keeps a held OK from reaching what opens under it. A held OK opens the program details, which focus Watch while the
+ * key is still down; its repeats and key-up would then press Watch and play the channel. [arm] when something opens on
+ * a held OK, and the rest of that press, repeats and key-up, is swallowed.
+ */
+internal class HeldOkGuard {
+    private var held = false
+    private var swallowing = false
+
+    /** OK went down; true when this key-down is a repeat of a press already swallowed. */
+    fun onKeyDown(): Boolean {
+        held = true
+        return swallowing
+    }
+
+    /** OK came up; true when it ends a swallowed press. */
+    fun onKeyUp(): Boolean {
+        val swallowed = swallowing
+        held = false
+        swallowing = false
+        return swallowed
+    }
+
+    fun arm() {
+        if (held) swallowing = true
+    }
+}

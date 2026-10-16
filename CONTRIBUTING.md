@@ -59,7 +59,7 @@ Versions are pinned exactly in the shared catalog, with no lockfiles or verifica
 
 `ci.yml` runs up to three jobs:
 
-- `check` runs the app's tests, lint, the Native test compile, the release APK and the wasm web build on Ubuntu. It uploads the test reports when it fails and the `RenderSmokeTest` screenshots every time.
+- `check` runs the app's tests, lint, the Native test compile, the release APK and both production web builds on Ubuntu. It uploads the test reports when it fails and the `RenderSmokeTest` screenshots every time.
 - `apple` runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators and the UI's iOS tests, links the iOS and tvOS frameworks, and builds the two SwiftUI hosts in `app/iosApp` and `app/tvosApp` with XcodeGen and `xcodebuild`, on macOS.
 - `snapshot` runs for a push to `main` once both pass. It calls `snapshot.yml`, which builds every platform but iOS and Apple TV and replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab.
 

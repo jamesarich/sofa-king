@@ -9,6 +9,7 @@ Sofa King is a Kotlin Multiplatform project. One Compose Multiplatform UI on Mat
 | `core` | Models, the server API, repository, playback sessions, lineup cache, settings store and `LineupViewModel`. No Compose. | Android, JVM, iOS, macOS, tvOS, watchOS, Linux, js, wasmJs |
 | `ui` | Every screen, the app shell, the guide and player logic, the app graph, and the desktop, web and iOS entry points | Android, JVM, iOS, js, wasmJs |
 | `androidApp` | The Android application: manifest, launcher and TV banner, `SofaKingApplication` and `MainActivity` | Android |
+| `baselineprofile` | The Baseline Profile generator for `androidApp`, which [development](development.md#baseline-profile) runs on a device | Android |
 | `iosApp` | The SwiftUI host for the `SofaKingUi` framework, as an XcodeGen spec | iOS |
 | `tvosApp` | The SwiftUI Apple TV app on the `SofaKingCore` framework (`SofaKingTv` in `core/tvosMain`), as an XcodeGen spec | tvOS |
 
@@ -26,7 +27,7 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 | `SofaKingRepository`, `SofaKingMapper` | Catalog and guide queries mapped to `Channel` (with its logo and guide status) and `Programme` (with its episode, rating, new flag and image) |
 | `PlaybackSessions` | The one playback session: open, promote, renew, release, reopen, replaced streams |
 | `LineupCache` | Last complete lineup, keyed by server address, in a DataStore file or the browser's localStorage |
-| `DataStoreSettingsStore`, `AppStorage` | Server address, API token, favorites, last and recent channels, the last guide filter, caption and preview settings |
+| `DataStoreSettingsStore`, `AppStorage` | Server address, API token, client id, favorites, last and recent channels, hidden channels, the last guide filter, caption, preview and playback settings, and the Settings PIN's hash |
 | `GuideScreen` | Grid, time window, filtering and D-pad navigation |
 | `PreviewVideo` | Muted preview on the shared player through a preview session |
 | `PlayerScreen` | Full-screen playback, remote commands and the system media session |
@@ -108,4 +109,4 @@ On Android the TS extractor declares CEA-608/708 tracks for MPEG-TS sources; HLS
 
 ## Server interface
 
-The app uses the [Sofa King server](../../backend/README.md) API through the request and response types in [`contract/`](../../contract/README.md), which the server compiles against too: `GET /api/v1/channels` with `If-None-Match`, `POST /api/v1/guide/query`, and `POST`, `GET`, `PATCH` and `DELETE` on `/api/v1/playback-sessions`. API requests carry `Authorization: Bearer TOKEN` when a token is set; media requests under `/media/sessions` carry none. Descriptor URLs are relative and resolved against the server address. The token is stored with the other settings and is never logged or printed.
+The app uses the [Sofa King server](../../backend/README.md) API through the request and response types in [`contract/`](../../contract/README.md), which the server compiles against too: `GET /api/v1/channels` with `If-None-Match`, `POST /api/v1/guide/query`, `POST`, `GET`, `PATCH` and `DELETE` on `/api/v1/playback-sessions`, `POST /api/v1/pair` to claim a pairing code, and `GET` and `PUT` on `/api/v1/preferences/{clientId}`, through which `ViewerSync` keeps the hidden channels, favorites and recent channels in step with the server's copy. API requests carry `Authorization: Bearer TOKEN` when a token is set, which a pairing claim has not; media requests under `/media/sessions` carry none. Descriptor URLs are relative and resolved against the server address. The token is stored with the other settings and is never logged or printed.

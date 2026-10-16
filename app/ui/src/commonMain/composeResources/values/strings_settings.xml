@@ -14,10 +14,10 @@
     <string name="settings_api_token_invalid">Enter the token as letters, digits and punctuation with no spaces.</string>
     <string name="settings_api_token_help">Instead of a code: the value of SOFA_API_TOKEN on the server, or empty if it runs without one.</string>
     <string name="settings_pairing_code">Pairing code</string>
-    <string name="settings_pairing_code_invalid">Enter the six digits shown on the admin portal’s Viewers page.</string>
+    <string name="settings_pairing_code_invalid">Enter the six digits shown on the admin portal’s Devices page, under Players.</string>
     <string name="settings_pair">Pair</string>
     <string name="settings_pairing">Pairing…</string>
-    <string name="settings_pairing_help">From the admin portal’s Viewers page: Show a pairing code, then enter it here. A phone with Sofa King installed can scan the QR code shown there instead.</string>
+    <string name="settings_pairing_help">From the admin portal’s Devices page, under Players: Show a pairing code, then enter it here. A phone with Sofa King installed can scan the QR code shown there instead.</string>
     <string name="settings_pairing_failed_code">That code was not accepted. Codes last ten minutes and work once; show a new one in the admin portal.</string>
     <string name="settings_pairing_failed_server">This server does not pair yet; enter the API token instead.</string>
     <string name="settings_pairing_failed_unreachable">No Sofa King server answered at that address.</string>

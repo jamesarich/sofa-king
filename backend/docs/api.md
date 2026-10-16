@@ -114,7 +114,7 @@ curl -X POST http://SERVER_HOST:9193/api/v1/pair -H 'Content-Type: application/j
   -d '{"code":"123456","clientId":"3f0b5f2e-6c1d-4f8a-9e2b-7a1c5d4e3b2a","name":"Living room TV","platform":"android-tv"}'
 ```
 
-The answer is `{"apiToken": "...", "serverId": "..."}`; a server running without an API token answers an empty one. A wrong, spent or expired code answers `403 PAIRING_INVALID`. `clientId`, `name` and `platform` are optional; with a `clientId` the server lists the device on the Devices page from then on. The portal's QR code carries the same code as `sofaking://pair?server=URL&code=DIGITS`, which the Android app opens.
+The answer is `{"apiToken": "...", "serverId": "..."}`; a server running without an API token answers an empty one. A wrong, spent or expired code answers `403 PAIRING_INVALID`. `clientId`, `name` and `platform` are optional; with a `clientId` the server lists the device on the Devices page from then on. The portal's QR code carries the same code as `sofaking://pair?server=URL&code=DIGITS`, which the Android and iOS apps open.
 
 ## Viewer preferences
 
@@ -302,7 +302,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET | `/admin/viewers` | The devices that paired or saved preferences, and the live pairing code with its QR code |
 | POST | `/admin/viewers/pair`, `/admin/viewers/cancel` | Issue a pairing code (replacing the live one); cancel it |
 | POST | `/admin/viewers/{clientId}/forget` | Forget a device and its preferences |
-| GET | `/admin/settings?changes=` | Settings and the newest policy changes, 50 by default |
+| GET | `/admin/settings?advanced=&changes=` | Settings; `advanced=1` opens Advanced, and `changes` sets how many of the newest policy changes it lists, 50 by default |
 | POST | `/admin/settings/reveal-api-token` | Reveal the API token |
 | POST | `/admin/settings/runtime`, `/admin/settings/runtime/check` | Save the runtime settings (`op` of `save` or `reset`); say whether the form holds a change |
 | POST | `/admin/policy/apply` | Apply the lineup policy now |
@@ -314,7 +314,8 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET | `/admin/system/jobs` | Background jobs with their last run and next due time |
 | POST | `/admin/system/jobs/{id}/run` | Run a job now |
 | GET | `/admin/system/events?level=&q=` | The newest 500 log lines at INFO and above; `level` of `warn` or `error` narrows them, `q` matches the logger or message |
-| GET | `/admin/system/about` | The server, the status and the support snapshot |
+| GET | `/admin/system/about` | Whether an update is available, the server, the status and the support snapshot |
+| POST | `/admin/system/update/check`, `/admin/system/update/request` | Check the registry for a newer image now; ask the host's updater to update, after `confirm=yes`, by writing `update-requested` in the data directory |
 | GET | `/admin/system/snapshot.json` | The support snapshot as a JSON download |
 | GET | `/admin/api`, `/admin/api/openapi.json` | The API reference, and the OpenAPI 3.1 document it is rendered from |
 
@@ -338,10 +339,11 @@ Errors contain `code`, `message` and `retryable`:
 
 | Status | Codes |
 | --- | --- |
-| 400 | `INVALID_REQUEST` (a malformed body or path), `INVALID_QUERY` (a guide query or `days` out of range), `INVALID_POLICY` (a policy write that fails validation, with every error in `message`) |
+| 400 | `INVALID_REQUEST` (a malformed body or path), `INVALID_QUERY` (a guide query or `days` out of range), `INVALID_POLICY` (a policy write that fails validation, with every error in `message`), `INVALID_SOURCES` (a source file write that fails validation) |
 | 401 | `AUTH_REQUIRED` |
-| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED` |
-| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `POLICY_CHANGED` (a stale `If-Match` or a policy file changed on disk), `STATION_CONFLICT` (a merge of two stations that both have overrides) |
+| 403 | `PAIRING_INVALID` (a wrong, spent or expired pairing code) |
+| 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED`, `VIEWER_NOT_FOUND` |
+| 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `POLICY_CHANGED` (a stale `If-Match` or a policy file changed on disk), `STATION_CONFLICT` (a merge of two stations that both have overrides), `POLICY_EXISTS`, `NO_SOURCES` (a starter policy over an existing policy or no providers) |
 | 410 | `SESSION_EXPIRED`, `STREAM_CHANGED`, `POLICY_MANAGED` |
 | 413 | `REQUEST_TOO_LARGE`, answered before the token is checked |
 | 422 | `FORMAT_UNSUPPORTED` (an HLS playlist with variables, content steering or a non-HTTP resource) |
@@ -349,6 +351,6 @@ Errors contain `code`, `message` and `retryable`:
 | 429 | `CAPACITY_EXHAUSTED` (no session slot is free or can be freed, or a session already has 12 media requests in flight) |
 | 500 | `INTERNAL_ERROR` |
 | 502 | `UPSTREAM_UNAVAILABLE`, `UPSTREAM_REJECTED`, `INVALID_MANIFEST` |
-| 503 | `NOT_READY`, `SOURCE_UNAVAILABLE` |
+| 503 | `NOT_READY`, `SOURCE_UNAVAILABLE`, `SETUP_UNAVAILABLE` |
 
 The admin portal shows its errors on its pages. A sign-in over its limit answers `429 Too Many Requests` with no error body.

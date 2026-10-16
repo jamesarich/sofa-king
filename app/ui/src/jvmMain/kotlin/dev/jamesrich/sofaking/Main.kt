@@ -30,7 +30,7 @@ fun main() {
     }
 }
 
-/** This computer's name, for the server's Viewers page; the user name when the OS has none. */
+/** This computer's name, for the server's Devices page; the user name when the OS has none. */
 private fun hostName(): String =
     runCatching { java.net.InetAddress.getLocalHost().hostName }.getOrNull()?.takeIf { it.isNotBlank() } ?: System.getProperty("user.name").orEmpty()
 

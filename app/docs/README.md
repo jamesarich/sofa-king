@@ -34,8 +34,8 @@ The [repository glossary](../../docs/README.md#glossary) defines the terms the a
 | Guide source | The server's XMLTV source of programs for a channel, which the server's docs call a guide |
 | Preview | The muted picture of the focused channel in the guide |
 | Info bar | The overlay in the player with the channel and its current program |
-| Channel list | The list of channels the player opens over the picture, from the info bar, with Favorites, filter and All chips |
-| Stream card | The card the player opens on Info held, with the audio tracks, stream details and the server's source |
+| Channel list | The list of channels the player opens over the picture, from the info bar, with Recent, Favorites, filter and All chips and the current channel's buttons |
+| Stream card | The card the player opens on Info held or Stream info in the channel list, with the audio tracks, stream details and the server's source |
 | Live edge | The newest part of a live stream. Resuming after a long pause, or falling behind, returns to it |
 | Caption timing | How far captions are shifted against the picture, saved per channel |
 | Snapshot | A test build from `main`, published as the `snapshot` prerelease |

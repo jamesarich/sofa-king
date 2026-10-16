@@ -8,13 +8,13 @@ The config folder holds everything the server keeps across restarts:
 
 | Path | Contents |
 | --- | --- |
-| `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, the last Plex sync, and the server identity |
+| `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, the last Plex sync, the paired viewers and their preferences, the portal's runtime settings and ignored home page items, and the server identity |
 | `logos/` | Cached lineup logos, one file per source URL |
 | `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand. The updater's fallback backups and its `failed-image` record are in `backups/` in the Compose directory instead |
 | `secrets.json` | The generated API and admin tokens |
 | `sources.json`, `policy.json` | The source file and the lineup policy, when they are kept here |
 
-Playback sessions and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions.
+Playback sessions, admin portal sessions, the live pairing code and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions.
 
 ## Backups
 
@@ -102,7 +102,7 @@ Use `Authorization: Bearer $SOFA_API_TOKEN` for the `/api/v1` checks, and `Autho
 
 ## Logs
 
-The server logs to stderr, which `docker compose logs` shows. The admin portal's [Events page](admin.md#pages) shows the newest 500 lines at INFO and above since the server started, whatever the level, and its Jobs page the last run of each import, policy run, Plex sync and logo sweep. `SOFA_LOG_LEVEL` sets the level (`info` by default); the portal's [runtime settings](admin.md#settings) change it without a restart and take precedence, as they do for the XMLTV days, the Plex sync interval, the streams per HDHomeRun device and the sessions at once. `SOFA_LOG_FORMAT` sets the format:
+The server logs to stderr, which `docker compose logs` shows. The admin portal's [Events page](admin.md#pages) shows the newest 500 lines at INFO and above since the server started, whatever the level, and its Jobs page the last run of each import, policy run, Plex sync, logo sweep and update check. `SOFA_LOG_LEVEL` sets the level (`info` by default); the portal's [runtime settings](admin.md#settings) change it without a restart and take precedence, as they do for the XMLTV days, the Plex sync interval, the streams per HDHomeRun device and the sessions at once. `SOFA_LOG_FORMAT` sets the format:
 
 - `text`, the default: one line per event with the time in UTC, the level, the thread and the logger, then the message. A line written while handling a request ends with `requestId=...`.
 - `json`: one JSON object per line from logback's JSON encoder, with the level, the logger, the formatted message and the request id. Use it when a log collector parses the output.

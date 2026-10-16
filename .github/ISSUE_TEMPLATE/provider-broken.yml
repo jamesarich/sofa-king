@@ -12,6 +12,7 @@ body:
     attributes:
       label: Service
       options:
+        - direct
         - whale
         - vizio
         - lg

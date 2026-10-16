@@ -25,7 +25,7 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 
 | Symptom | Check |
 | --- | --- |
-| The admin token is not in the log | No token is logged. Read it with `docker compose exec sofa-king-backend cat /config/secrets.json`, or sign in and reveal the API token in Settings. |
+| The admin token is not in the log | No token is logged. Read it with `docker compose exec sofa-king-backend cat /config/secrets.json`, or sign in and reveal the API token under Advanced on the Settings page. |
 | `401 AUTH_REQUIRED` | Send the token in the `Authorization: Bearer` header. `/api/v1/admin/*` takes only the admin token whenever one is set, which a LAN bind always has. |
 | The sign-in page answers `429 Too Many Requests` | More than 10 sign-ins came from one address within a minute. Wait a minute. Behind a reverse proxy every sign-in shares the proxy's address and its budget. |
 | `413 REQUEST_TOO_LARGE` | The body is over 64 KiB, or over 4 MiB for a policy write. The server answers this before it checks the token. For a policy over 4 MiB, edit `config/policy.json` and restart instead. |

@@ -161,6 +161,7 @@ class ProviderRegistry(private val clients: Map<String, ProviderClient>, private
             "pluto" -> PlutoClient(context)
             "tubi" -> TubiClient(context)
             "hdhomerun" -> HdHomeRunClient(context)
+            "direct" -> DirectClient(context)
             else -> throw IllegalArgumentException("Unknown native service $service")
         }
     }

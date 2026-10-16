@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.admin
 import dev.jamesrich.sofaking.backend.api.ServerStatus
 import dev.jamesrich.sofaking.backend.jobs.JobStatus
 import dev.jamesrich.sofaking.backend.logging.LogEvent
+import dev.jamesrich.sofaking.backend.update.UpdateState
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -15,7 +16,7 @@ import kotlinx.serialization.json.Json
 
 /** The server as the About page and the support snapshot describe it; nothing here is a secret. */
 @Serializable class AboutServer(
-    val revision: String, val startedAt: String, val uptimeSeconds: Long, val schemaVersion: Int,
+    val revision: String, val version: String, val startedAt: String, val uptimeSeconds: Long, val schemaVersion: Int,
     val jvm: String, val os: String, val ffmpeg: String, val dataDirectory: String?, val logLevel: String, val logFormat: String,
     val memoryUsedMb: Long, val memoryMaxMb: Long,
 )
@@ -41,7 +42,16 @@ internal class JobsView(val jobs: List<JobStatus>)
 
 internal class EventsView(val events: List<LogEvent>, val kept: Int, val capacity: Int, val level: String, val q: String)
 
-internal class AboutView(val server: AboutServer, val status: ServerStatus, val snapshot: String)
+/**
+ * The About page: the server facts, the status, the snapshot, and the update picture, with [confirm] set while Update
+ * now waits for the operator's yes.
+ */
+internal class AboutView(val server: AboutServer, val status: ServerStatus, val snapshot: String, val update: UpdateState? = null, val confirm: Boolean = false) {
+    constructor(view: AboutView, confirm: Boolean) : this(view.server, view.status, view.snapshot, view.update, confirm)
+}
+
+/** The updater has checked in when its last report is under this old; the timer runs every 15 minutes. */
+private val UPDATER_FRESH: Duration = Duration.ofHours(1)
 
 /** The first line of `ffmpeg -version`, or why it could not be read; [ffmpeg] is the configured path. */
 internal suspend fun ffmpegVersion(ffmpeg: String): String = withContext(Dispatchers.IO) {
@@ -73,7 +83,7 @@ internal fun took(ms: Long): String = when {
 
 internal fun jobsPage(chrome: Chrome, view: JobsView): String = layout("Jobs", chrome, "/admin/system/jobs") {
     val now = chrome.now
-    pageHead("Jobs", "The server's background work: provider and guide imports, lineup policy runs, Plex sync and the logo sweep. Run now starts one without waiting for its turn.")
+    pageHead("Jobs", "The server's background work: provider and guide imports, lineup policy runs, Plex sync, the logo sweep and the update check. Run now starts one without waiting for its turn.")
     if (view.jobs.isEmpty()) { div("panel") { p("muted") { +"No job has been registered." } }; return@layout }
     div("panel tight") {
         div("scroll") {
@@ -178,11 +188,12 @@ internal fun aboutPage(chrome: Chrome, view: AboutView): String = layout("About"
     val now = chrome.now
     val server = view.server
     val status = view.status
-    pageHead("About", "This server, and a snapshot to paste into a bug report.")
+    pageHead("About", "This server, whether it is up to date, and a snapshot to paste into a bug report.")
+    view.update?.let { updatePanel(chrome, it) }
     div("cols") {
         panel("Server") {
             dl("kv") {
-                dt { +"Revision" }; dd { code { +server.revision } }
+                dt { +"Version" }; dd { +server.version; +" "; code { +server.revision } }
                 dt { +"Started" }; dd { ago(server.startedAt, now); +" (up ${uptime(Instant.parse(server.startedAt), now)})" }
                 dt { +"Schema" }; dd { +"version ${server.schemaVersion}" }
                 dt { +"JVM" }; dd { +server.jvm }
@@ -213,5 +224,98 @@ internal fun aboutPage(chrome: Chrome, view: AboutView): String = layout("About"
             rows = "14"
             +view.snapshot
         }
+    }
+    if (view.confirm && view.update != null) updateConfirm(chrome, view.update)
+}
+
+/** "Version 1.4.0, revision abc1234", or whichever of the two is known. */
+private fun FlowContent.build(version: String?, revision: String?) {
+    val knownVersion = version?.takeIf { it != "unknown" }
+    val knownRevision = revision?.takeIf { it != "unknown" }
+    when {
+        knownVersion != null && knownRevision != null -> { +knownVersion; +" "; code { +knownRevision } }
+        knownVersion != null -> +knownVersion
+        knownRevision != null -> code { +knownRevision }
+        else -> span("muted") { +"unknown build" }
+    }
+}
+
+/**
+ * The update picture: what runs against what is published, the host updater's last word, and the two actions. Check
+ * now asks the registry; Update now writes the request the updater watches, after a confirmation.
+ */
+private fun FlowContent.updatePanel(chrome: Chrome, update: UpdateState) = panel("Update", id = "update") {
+    val now = chrome.now
+    val report = update.updater
+    val reportedAt = report?.let { runCatching { Instant.parse(it.checkedAt) }.getOrNull() }
+    val updaterFresh = reportedAt != null && Duration.between(reportedAt, now) < UPDATER_FRESH
+    val requested = update.requestedAt
+    when {
+        update.image == null -> p("muted") { +"The update check is off (SOFA_UPDATE_IMAGE is empty)." }
+        update.current == true -> p("allgood") { +"Up to date. "; span("muted") { +"The published image is the one running." } }
+        update.current == false -> div("notice warn") {
+            attributes["role"] = "status"
+            +"An update is available: "; build(update.published?.version, update.published?.revision); +" is published."
+        }
+        update.error != null -> div("notice warn") { attributes["role"] = "status"; +"The last check failed: ${update.error}" }
+        update.checkedAt == null -> p("muted") { +"Not checked yet. The first check runs two minutes after start, then every six hours." }
+        else -> p("muted") { +"The registry names no commit for the published image, so it cannot be compared." }
+    }
+    dl("kv") {
+        dt { +"Running" }; dd { build(update.running.version, update.running.revision) }
+        if (update.image != null) {
+            dt { +"Published" }
+            dd {
+                val published = update.published
+                if (published == null) span("muted") { +"not checked yet" }
+                else { build(published.version, published.revision); if (update.checkedAt != null) { +" · checked "; ago(update.checkedAt.toString(), now) } }
+                br(); span("muted small mono") { +update.image }
+            }
+        }
+        dt { +"Updater" }
+        dd {
+            when {
+                report == null -> { +"Has not reported. "; span("muted") { +"Install the host's updater to apply updates; its timer checks every 15 minutes and writes its result here." } }
+                else -> {
+                    +when (report.outcome) {
+                        "up-to-date" -> "Checked and found nothing new"
+                        "updated" -> "Installed ${report.candidate ?: "a new image"}"
+                        "rolled-back" -> "Tried ${report.candidate ?: "a new image"} and went back to ${report.running ?: "the previous one"}"
+                        "skipped" -> "Skipped ${report.candidate ?: "the published image"}; it failed before"
+                        "failed" -> "Failed"
+                        else -> report.outcome
+                    }
+                    +" "; ago(report.checkedAt, now)
+                    if (!updaterFresh) { +" "; chip("Not checking in", Tone.WARN) }
+                    if (report.message != null) { br(); span("muted small") { +report.message } }
+                }
+            }
+        }
+        if (requested != null) { dt { +"Requested" }; dd { +"An update was asked for "; ago(requested.toString(), now); +"; the updater takes it when it next runs." } }
+    }
+    div("actions mt-14") {
+        if (update.image != null) postForm("/admin/system/update/check", chrome.session, keepScroll = true) { button(type = ButtonType.submit) { +"Check now" } }
+        val canRequest = report != null && requested == null
+        if (canRequest) postForm("/admin/system/update/request", chrome.session, keepScroll = true) {
+            button(type = ButtonType.submit, classes = if (update.current == false) "primary" else "") { +"Update now" }
+        }
+        span("muted small") {
+            +when {
+                report == null -> "Update now needs the host's updater; see the deploy guide."
+                requested != null -> "Update now is waiting for the updater."
+                update.current == false -> "Update now backs up the database, swaps to the published image and comes back to this one if the new one is not healthy."
+                else -> "Update now makes the updater pull and compare at once; it changes nothing while the published image is the one running."
+            }
+        }
+    }
+}
+
+internal fun MAIN.updateConfirm(chrome: Chrome, update: UpdateState) {
+    askDialog(chrome, "Update the server now?", "/admin/system/update/request", "/admin/system/about#update", "Update", danger = false) {
+        p {
+            +"The host's updater backs up the database, pulls "; code { +(update.image ?: "the published image") }; +" and recreates the container. "
+            +"Streams stop for about half a minute while it restarts, and this portal signs you out. If the new image is not healthy within three minutes, the previous image and its database come back."
+        }
+        if (update.current != false) p("muted") { +"The published image looks like the one running, so this most likely changes nothing." }
     }
 }

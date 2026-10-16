@@ -25,7 +25,7 @@ class AdminPortalTest {
     private val plexToken = "plexsecret".repeat(3)
     private val basePolicy = """{"names":{"version":1},"health":{"requireVerified":false},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
 
-    private class Setup(val policyFile: Path?, val runtime: LiveRuntime, val browser: HttpClient)
+    private class Setup(val policyFile: Path?, val runtime: LiveRuntime, val browser: HttpClient, val dataDirectory: Path)
 
     /** A runtime over the fixture's feeds, with [policy] when given, and a browser that keeps cookies and never follows redirects. */
     private suspend fun ApplicationTestBuilder.portal(
@@ -41,7 +41,8 @@ class AdminPortalTest {
             Files.writeString(sources, """{"providers":${json.encodeToString(feeds(fixture))},"guides":${json.encodeToString(guides(fixture))}}""")
             val policyFile = policy?.let { text -> Files.createDirectories(dir.resolve("policy")).resolve("policy.json").also { Files.writeString(it, text) } }
             val store = openStore(dir)
-            val config = ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin, policyFile = policyFile)
+            // No update image: the registry is never asked from a test; the update check itself is tested over a mock registry.
+            val config = ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin, policyFile = policyFile, updateImage = null)
             val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000, probes = false)
             try {
                 // The portal is told of a Plex token and the output token the runtime never uses, so redaction is checked against them.
@@ -51,7 +52,7 @@ class AdminPortalTest {
                 val extraGuides = guides(fixture).map { it.id }.toSet()
                 for (guide in runtime.guides.configs.filter { it.id in extraGuides }) runtime.guides.refresh(guide)
                 val browser = createClient { install(HttpCookies); followRedirects = false }
-                Setup(policyFile, runtime, browser).block()
+                Setup(policyFile, runtime, browser, dir).block()
             } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
         }
     }
@@ -661,6 +662,38 @@ class AdminPortalTest {
             assertEquals(4, body["status"]!!.jsonObject["providers"]!!.jsonObject["total"]!!.jsonPrimitive.int)
             assertTrue(body["jobs"]!!.jsonArray.any { it.jsonObject["id"]!!.jsonPrimitive.content == "policy" })
             assertFalse(snapshot.bodyAsText().contains(admin) || snapshot.bodyAsText().contains(token))
+        }
+    }
+
+    @Test fun `the about page shows the update picture and Update now hands the host's updater a request after a confirmation`() = testApplication {
+        portal {
+            browser.signIn()
+            val before = browser.get("/admin/system/about").bodyAsText()
+            assertTrue(before.contains("<h2>Update</h2>"), before.take(3000))
+            assertTrue(before.contains("The update check is off"), "no image, no registry check")
+            assertTrue(before.contains("Has not reported"), "no status file yet")
+            assertFalse(before.contains("/admin/system/update/request"), "no updater, no Update now")
+            Files.writeString(
+                dataDirectory.resolve("update-status.json"),
+                """{"checkedAt":"2026-01-01T00:00:00Z","image":"ghcr.io/jamesarich/sofa-king:main","running":"abc1234","candidate":"def5678","outcome":"rolled-back","message":"def5678 was not healthy after 180s; running abc1234 again"}""",
+            )
+            val reported = browser.get("/admin/system/about").bodyAsText()
+            assertTrue(reported.contains("Tried def5678 and went back to abc1234"), reported.take(4000))
+            assertTrue(reported.contains("Not checking in"), "a report that old is flagged")
+            assertTrue(reported.contains("def5678 was not healthy after 180s"))
+            val ask = browser.post("/admin/system/update/request", "csrf" to field(reported, "csrf"))
+            assertEquals(HttpStatusCode.OK, ask.status)
+            val dialog = ask.bodyAsText()
+            assertTrue(dialog.contains("Update the server now?") && dialog.contains("backs up the database"), dialog.take(4000))
+            assertFalse(Files.exists(dataDirectory.resolve("update-requested")), "nothing is written before the yes")
+            val yes = browser.post("/admin/system/update/request", "csrf" to field(reported, "csrf"), "confirm" to "yes")
+            assertEquals(HttpStatusCode.SeeOther, yes.status)
+            assertEquals("/admin/system/about#update", yes.headers[HttpHeaders.Location])
+            assertTrue(Files.isRegularFile(dataDirectory.resolve("update-requested")))
+            val pending = browser.get("/admin/system/about").bodyAsText()
+            assertTrue(pending.contains("Asked the updater to run") && pending.contains("An update was asked for"), pending.take(4000))
+            assertFalse(pending.contains("""action="/admin/system/update/request""""), "one request at a time")
+            assertEquals(HttpStatusCode.Forbidden, browser.post("/admin/system/update/request", "confirm" to "yes").status, "the request needs the CSRF token")
         }
     }
 

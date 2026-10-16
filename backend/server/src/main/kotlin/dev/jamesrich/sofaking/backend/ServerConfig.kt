@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.http.AddressAllowList
 import dev.jamesrich.sofaking.backend.logging.LogSettings
+import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -82,10 +83,20 @@ data class ServerConfig(
     val logging: LogSettings = LogSettings(),
     /** `SOFA_REVISION`, the commit the image was built from; `unknown` outside the image. */
     val revision: String = "unknown",
+    /** `SOFA_VERSION`, the product version the image was built from; `unknown` outside the image. */
+    val version: String = "unknown",
+    /**
+     * `SOFA_UPDATE_IMAGE`, the published image whose tag the update check compares with [revision]; null when it is
+     * set empty, which turns the check off.
+     */
+    val updateImage: String? = DEFAULT_UPDATE_IMAGE,
     /** `SOFA_CORS_ORIGINS`: the browser origins that may call the API from another origin; empty sends no CORS headers. */
     val corsOrigins: List<CorsOrigin> = emptyList(),
 ) {
     companion object {
+        /** The image the host's updater installs, and the one the update check asks the registry about. */
+        const val DEFAULT_UPDATE_IMAGE = "ghcr.io/jamesarich/sofa-king:main"
+
         /** Where earlier images kept the database; a database there and none in the data directory stops the start. */
         private val LEGACY_DATA_DIRECTORY: Path = Path.of("/data")
 
@@ -230,6 +241,8 @@ data class ServerConfig(
                 plex,
                 logging = LogSettings.from(environment),
                 revision = environment["SOFA_REVISION"]?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown",
+                version = environment["SOFA_VERSION"]?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown",
+                updateImage = environment["SOFA_UPDATE_IMAGE"]?.trim()?.takeIf { it.isNotEmpty() }?.also { UpdateChecker.ImageRef.parse(it) } ?: if (environment["SOFA_UPDATE_IMAGE"] == null) DEFAULT_UPDATE_IMAGE else null,
                 corsOrigins = corsOrigins(environment["SOFA_CORS_ORIGINS"]),
             )
         }

@@ -130,12 +130,15 @@ kotlin {
 // replaces the source set's default one, so the common resources are synced beside the generated file.
 val versionSuffixResources = layout.buildDirectory.dir("generated/versionSuffix")
 val generateVersionSuffix = tasks.register("generateVersionSuffix") {
-    inputs.property("suffix", versionSuffix)
+    // Locals, so the action captures values rather than this script, which the configuration cache cannot store.
+    val suffix = versionSuffix
+    val output = versionSuffixResources.map { it.file("files/version-suffix.txt").asFile }
+    inputs.property("suffix", suffix)
     outputs.dir(versionSuffixResources)
     doLast {
-        val file = versionSuffixResources.get().file("files/version-suffix.txt").asFile
+        val file = output.get()
         file.parentFile.mkdirs()
-        file.writeText(versionSuffix)
+        file.writeText(suffix)
     }
 }
 val commonComposeResources = layout.buildDirectory.dir("generated/composeResources/commonMain")

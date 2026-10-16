@@ -170,7 +170,11 @@ private fun ChannelRow(channel: Channel, selected: Boolean, onClick: () -> Unit,
     val focused by interactions.collectIsFocusedAsState()
     val shape = MaterialTheme.shapes.medium
     ListItem(
-        headlineContent = { Text(channel.label(), style = MaterialTheme.typography.titleSmall) },
+        modifier = modifier
+            .width(FIELD_WIDTH)
+            .tvFocus(shape, focusedScale = 1f)
+            .clip(shape)
+            .clickable(interactionSource = interactions, indication = ripple(), role = Role.Button, onClick = onClick),
         leadingContent = { ChannelLogo(channel, 64.dp, 40.dp) },
         colors = ListItemDefaults.colors(
             containerColor = when {
@@ -179,10 +183,5 @@ private fun ChannelRow(channel: Channel, selected: Boolean, onClick: () -> Unit,
                 else -> MaterialTheme.colorScheme.surface
             },
         ),
-        modifier = modifier
-            .width(FIELD_WIDTH)
-            .tvFocus(shape, focusedScale = 1f)
-            .clip(shape)
-            .clickable(interactionSource = interactions, indication = ripple(), role = Role.Button, onClick = onClick),
-    )
+    ) { Text(channel.label(), style = MaterialTheme.typography.titleSmall) }
 }

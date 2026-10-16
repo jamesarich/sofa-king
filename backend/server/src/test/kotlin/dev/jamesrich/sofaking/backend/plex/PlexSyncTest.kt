@@ -197,7 +197,7 @@ class PlexSyncTest {
         plex.dvrs = """{"MediaContainer": $token oops"""
         val broken = plex.sync().sync("test")
         assertNotNull(broken.lastError)
-        assertFalse(token in broken.lastError!!, broken.lastError)
+        assertFalse(token in broken.lastError, broken.lastError)
 
         val redirected = FakePlex()
         redirected.handler = { request ->

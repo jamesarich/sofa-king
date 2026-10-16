@@ -284,8 +284,8 @@ class PlaybackSessionsTest {
 
         val failure = runCatching { slow.tune("c1", PlaybackIntent.PREVIEW) }.exceptionOrNull()
 
+        assertFalse(failure is CancellationException, "was $failure")
         assertTrue(failure is SessionTimeoutException, "was $failure")
-        assertFalse(failure is CancellationException)
         assertNull(slow.current.value)
     }
 

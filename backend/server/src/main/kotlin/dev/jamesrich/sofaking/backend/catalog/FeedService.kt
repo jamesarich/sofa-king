@@ -18,6 +18,7 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.readBuffer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel as Trigger
 import kotlinx.coroutines.selects.onTimeout
@@ -180,7 +181,7 @@ class FeedService(
                 val unchanged = previous != null && previous.channels.toSet() == retainedChannels.toSet() && previous.offerings.toSet() == offerings.toSet()
                 val succeededAt = clock.instant().toString()
                 val firstSinceStart = statuses.get().firstOrNull { it.id == config.id }?.lastSuccessAt == null
-                val snapshot = if (unchanged) previous!! else FeedSnapshot(config.id, retainedChannels, offerings, importedAt = succeededAt)
+                val snapshot = if (unchanged) previous else FeedSnapshot(config.id, retainedChannels, offerings, importedAt = succeededAt)
                 if (!unchanged) {
                     store.saveSnapshot(snapshot)
                     val current = published.get()
@@ -235,6 +236,7 @@ class FeedService(
         triggers[providerId]?.trySend(Unit)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class) // select { onTimeout }
     fun start(scope: CoroutineScope): List<Job> =
         configs.map { config ->
             scope.launch(CoroutineName("feed-refresh:${config.id}")) {

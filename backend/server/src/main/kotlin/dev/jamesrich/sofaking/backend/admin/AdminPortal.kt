@@ -560,7 +560,7 @@ class AdminPortal(
             ))
             if (plex?.lastError != null) add(Attention(Tone.BAD, "Plex sync failed", plex.lastError, "/admin/plex#sync", "Plex", "plex-failed", "troubleshooting.md#plex"))
             if (!plex?.missingDevices.isNullOrEmpty()) add(Attention(
-                Tone.WARN, "${plural(plex!!.missingDevices.size, "tuner")} not in Plex", plex.missingDevices.joinToString(), "/admin/plex#tuners", "Plex", "plex-missing", "live-tv.md#keep-plex-in-step",
+                Tone.WARN, "${plural(plex.missingDevices.size, "tuner")} not in Plex", plex.missingDevices.joinToString(), "/admin/plex#tuners", "Plex", "plex-missing", "live-tv.md#keep-plex-in-step",
             ))
             val needed = applied?.result?.devicesNeeded
             val configured = applied?.result?.devicesConfigured

@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -40,6 +41,7 @@ kotlin {
     // `fileMain` holds the stores that live in files, which need okio's system file system; the web targets keep theirs in
     // the browser's storage instead (BrowserStorage), and have no file system to test against on Node. The default
     // `native` group sits under it as well as under `common`, so `nativeMain` and the Apple source sets see the stores.
+    @OptIn(ExperimentalKotlinGradlePluginApi::class)
     applyDefaultHierarchyTemplate {
         common {
             group("file") {

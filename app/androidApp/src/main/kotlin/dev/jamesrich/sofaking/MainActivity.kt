@@ -1,29 +1,28 @@
 package dev.jamesrich.sofaking
 
 import android.app.Application
+import android.app.UiModeManager
+import android.content.Intent
+import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.mutableStateOf
+import androidx.core.view.WindowCompat
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.data.parsePairingLink
-import android.app.UiModeManager
-import android.content.Intent
-import android.content.res.Configuration
-import android.graphics.Color
-import android.os.Build
-import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.mutableStateOf
 
 /** Starts the shared graph once per process, over the files directory the app has always used. */
 class SofaKingApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        val tv = getSystemService(UiModeManager::class.java)?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
-        initSofaKing(AppStorage.inDirectory(filesDir.absolutePath, ClientInfo(if (tv) "android-tv" else "android", Build.MODEL)))
+        val television = (getSystemService(UI_MODE_SERVICE) as UiModeManager).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+        val client = ClientInfo(platform = if (television) "android-tv" else "android", deviceName = Build.MODEL)
+        initSofaKing(AppStorage.inDirectory(filesDir.absolutePath, client))
     }
 }
 
@@ -33,9 +32,13 @@ class MainActivity : ComponentActivity() {
     private val pairing = mutableStateOf<PairingRequest?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // The app is always dark, so the bars keep light icons whatever the system theme.
-        enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
+        WindowCompat.enableEdgeToEdge(window)
+        // The app is always dark, so the bars keep light icons whatever the system theme.
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
         // A restored activity keeps its intent, but the claim it carried was made the first time.
         if (savedInstanceState == null) takePairing(intent)
         setContent { App(pairing = pairing.value, onPairingHandled = { pairing.value = null }) }

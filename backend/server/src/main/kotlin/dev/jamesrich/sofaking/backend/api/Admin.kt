@@ -51,3 +51,15 @@ import kotlinx.serialization.Serializable
 @Serializable data class ReorderLineup(val ids: List<String>)
 @Serializable data class AdoptProvider(val providerId: String, val enabled: Boolean = true)
 @Serializable data class AdoptResult(val added: Int, val skipped: Int)
+
+/**
+ * A client the server knows: it paired with a code or saved preferences. [preferences] is null until the client saves
+ * some; [name] and [platform] are what the client called itself.
+ */
+@Serializable data class Viewer(
+    val clientId: String, val name: String = "", val platform: String = "", val firstSeenAt: String, val lastSeenAt: String,
+    val preferences: dev.jamesrich.sofaking.contract.ViewerPreferences? = null,
+)
+
+/** A pairing code the admin API issued: [code] is what the viewer types, valid until [expiresAt]. */
+@Serializable data class PairingCode(val code: String, val expiresAt: String)

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.data
 
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.http.URLProtocol
 import io.ktor.http.parseUrl
 
@@ -34,4 +35,8 @@ object ServerAddress {
      * without spaces. Empty is valid; a server without `SOFA_API_TOKEN` takes requests without one.
      */
     fun normalizeToken(raw: String): String? = raw.trim().takeIf { token -> token.all { it in '!'..'~' } }
+
+    /** [raw] as the six digits of a pairing code, spaces and dashes dropped, or null when it is not one. */
+    fun normalizeCode(raw: String): String? =
+        raw.filterNot { it == ' ' || it == '-' }.takeIf { code -> code.length == Wire.PAIRING_CODE_LENGTH && code.all { it in '0'..'9' } }
 }

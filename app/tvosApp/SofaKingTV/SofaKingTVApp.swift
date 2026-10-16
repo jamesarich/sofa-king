@@ -24,6 +24,8 @@ final class AppModel {
     var launchDecided = false
     /// A channel a `sofaking://channel/<guideId>` link (the Top Shelf) asked for; the list or the player takes it and clears it.
     var requestedChannel: String?
+    /// Why the last `sofaking://pair` link failed to pair; an alert shows it once.
+    var pairingFailure: String?
     private var watches: [Watch] = []
     private var published: [TopShelfChannel] = []
 
@@ -47,6 +49,14 @@ final class AppModel {
     }
 
     var lineup: Lineup? { (state as? LineupStateReady)?.lineup }
+
+    /// Pairs with the server a `sofaking://pair` link names; success shows as the lineup loading, failure as an alert.
+    func pair(_ request: PairingRequest) {
+        Task {
+            let failure = try? await core.pair(url: request.serverUrl, code: request.code)
+            pairingFailure = failure.map(\.message)
+        }
+    }
 
     var favorites: Set<String> { Set(settings?.favorites.compactMap { $0 as? String } ?? []) }
 
@@ -91,7 +101,27 @@ struct ContentView: View {
             }
         }
         .onOpenURL { url in
-            if let guideId = TopShelfChannels.guideId(from: url) { model.requestedChannel = guideId }
+            if let guideId = TopShelfChannels.guideId(from: url) {
+                model.requestedChannel = guideId
+            } else if let request = PairingLinkKt.parsePairingLink(link: url.absoluteString) {
+                model.pair(request)
+            }
+        }
+        .alert("Pairing failed", isPresented: Binding(get: { model.pairingFailure != nil }, set: { if !$0 { model.pairingFailure = nil } })) {
+            Button("OK") {}
+        } message: {
+            Text(model.pairingFailure ?? "")
+        }
+    }
+}
+
+extension PairingFailure {
+    /// What to tell the viewer when pairing fails this way.
+    var message: String {
+        switch self {
+        case .invalidCode: "That code was not accepted. Codes last ten minutes and work once; show a new one in the admin portal."
+        case .olderServer: "This server does not pair yet; enter the API token instead."
+        default: "No Sofa King server answered at that address."
         }
     }
 }

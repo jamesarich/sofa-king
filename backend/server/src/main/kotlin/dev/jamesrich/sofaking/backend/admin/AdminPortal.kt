@@ -23,6 +23,8 @@ import dev.jamesrich.sofaking.backend.logging.EventRing
 import dev.jamesrich.sofaking.backend.store.ignoreAttention
 import dev.jamesrich.sofaking.backend.store.ignoredAttention
 import dev.jamesrich.sofaking.backend.store.showAttention
+import dev.jamesrich.sofaking.backend.store.forgetViewer
+import dev.jamesrich.sofaking.backend.store.viewers
 import java.util.concurrent.atomic.AtomicReference
 import java.nio.file.Files
 import kotlinx.coroutines.Dispatchers
@@ -253,6 +255,23 @@ class AdminPortal(
                 policyEdit(call, session, form, "/admin/groups", { groupsEdit(form) }) { chrome, errors, confirm -> groupsPage(chrome, groupsView(), errors, confirm) }
             }
             get("/plex") { call.html(plexPage(chrome(), plexView(call, reveal = false))) }
+            get("/viewers") { call.html(viewersPage(chrome(), viewersView(call))) }
+            action("/viewers/pair") { session, _ ->
+                runtime.pairing.issue()
+                call.html(viewersPage(chrome(call, session), viewersView(call)))
+            }
+            action("/viewers/cancel") { session, _ ->
+                runtime.pairing.cancel()
+                session.flash.set(Flash("Cancelled the pairing code."))
+                seeOther(call, "/admin/viewers")
+            }
+            action("/viewers/{clientId}/forget") { session, _ ->
+                val clientId = call.parameters["clientId"]!!
+                val viewer = runtime.store.viewers().firstOrNull { it.clientId == clientId }
+                if (viewer == null || !runtime.store.forgetViewer(clientId)) session.flash.set(Flash("That device is already gone.", Tone.WARN))
+                else session.flash.set(Flash("Forgot ${viewer.name.ifEmpty { "the device" }}."))
+                seeOther(call, "/admin/viewers#devices")
+            }
             action("/plex/reveal") { session, _ -> call.html(plexPage(chrome(call, session), plexView(call, reveal = true))) }
             get("/settings") {
                 val limit = call.request.queryParameters["changes"]?.toIntOrNull()?.coerceIn(1, 1000) ?: 50
@@ -336,6 +355,12 @@ class AdminPortal(
 
     /** The furniture for the page answering this request. */
     private suspend fun RoutingContext.chrome(flash: Flash? = null): Chrome = chrome(call, call.session(), flash)
+
+    /** The viewers the server knows and the live pairing code, with the address this request reached the server at. */
+    private suspend fun viewersView(call: ApplicationCall): ViewersView {
+        val base = publicBase(call)
+        return ViewersView(runtime.store.viewers(), runtime.pairing.current()?.let { PairingView(it, base) }, base)
+    }
 
     /** The pinned colour scheme from the cookie, or null to follow the device. */
     private fun theme(call: ApplicationCall): String? = call.request.cookies[THEME_COOKIE]?.takeIf { it in THEMES }

@@ -7,7 +7,7 @@ Replace `SERVER_HOST` with the server's LAN address. The server answers on port 
 ## What you need
 
 - A [Sofa King server](../../backend/README.md) on your network with a lineup. Its [getting started](../../backend/docs/getting-started.md) goes from an empty folder to a lineup.
-- The server's API token. A token the server generated is `apiToken` in its `secrets.json`; a token set with `SOFA_API_TOKEN` is not stored there. The admin portal's [Settings page](../../backend/docs/admin.md#settings) reveals the API token either way. A server bound to loopback may run without one.
+- The server's API token, or a pairing code from the admin portal's [Viewers page](../../backend/docs/admin.md#viewers), which stands in for the token for ten minutes. A token the server generated is `apiToken` in its `secrets.json`; a token set with `SOFA_API_TOKEN` is not stored there. The admin portal's [Settings page](../../backend/docs/admin.md#settings) reveals the API token either way. A server bound to loopback may run without one.
 - One of the devices in the [platforms table](../README.md#platforms).
 
 ## 1. Check the server
@@ -73,6 +73,8 @@ The first start opens on Connect to your Sofa King server with the header's Sett
 1. Enter the Server URL with its port, for example `http://SERVER_HOST:9193`. For the web app behind a proxy, enter the proxy's origin, as [web](#web) describes.
 2. Enter the API token, or leave it empty when the server runs without one. The field shows only the last four characters once you leave it.
 3. Select Save & reload.
+
+Or pair instead of typing the token: in the admin portal, open Viewers and choose Show a pairing code, then on the TV enter the Server URL and the six digits under Pairing code and select Pair. The app stores the token the server hands out. On an Android phone, an iPhone or an iPad with the app installed, scanning the QR code on that page with the camera pairs at once.
 
 The guide opens and fills in: channels first, then their programs.
 

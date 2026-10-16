@@ -60,7 +60,7 @@ internal val NAV: List<Pair<String?, List<NavItem>>> = listOf(
     "Lineup" to listOf(NavItem("/admin/lineup", "Channels"), NavItem("/admin/merges", "Merges", "merges"), NavItem("/admin/required", "Required", "required")),
     "Setup" to listOf(
         NavItem("/admin/groups", "Groups", "groups"), NavItem("/admin/providers", "Providers", "providers"), NavItem("/admin/plex", "Plex", "plex"),
-        NavItem("/admin/settings", "Settings"),
+        NavItem("/admin/viewers", "Viewers"), NavItem("/admin/settings", "Settings"),
     ),
     "System" to listOf(NavItem("/admin/system/jobs", "Jobs", "jobs"), NavItem("/admin/system/events", "Events"), NavItem("/admin/system/about", "About"), NavItem("/admin/api", "API")),
 )

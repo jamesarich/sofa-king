@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import dev.jamesrich.sofaking.backend.plex.HdhrDevice
 import dev.jamesrich.sofaking.backend.plex.PlexSync
+import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.*
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -65,6 +66,8 @@ class LiveRuntime(
     val settings: RuntimeSettings = RuntimeSettings(store, RuntimeValues.DEFAULT, Clock.systemUTC()),
     /** The probe worker, when probes run; the portal's "Probe now" goes through it. */
     val probes: ProbeWorker? = null,
+    /** The pairing codes the portal issues and `POST /api/v1/pair` claims. */
+    val pairing: PairingService = PairingService(Clock.systemUTC()),
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -154,7 +157,7 @@ class LiveRuntime(
                 } else null
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
-                    policyService, plex, started, jobs, settings, worker,
+                    policyService, plex, started, jobs, settings, worker, PairingService(clock),
                 )
                 scope.launchEvery("session-expire", 1000) { sessions.expire() }
                 if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }

@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.BuildInfo
+import dev.jamesrich.sofaking.PairingFailure
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.BufferPreference
@@ -81,6 +82,14 @@ class SettingsActions(
     val onBufferChanged: (BufferPreference) -> Unit = {},
 )
 
+/** The pairing flow as Settings shows it: whether a claim is running, and why the last one failed. */
+class PairingUi(
+    val busy: Boolean = false,
+    val failure: PairingFailure? = null,
+    /** Claims the code at the server URL; the caller saves the server on success. */
+    val onPair: (serverUrl: String, code: String) -> Unit = { _, _ -> },
+)
+
 @Composable
 fun SettingsScreen(
     settings: AppSettings,
@@ -91,6 +100,7 @@ fun SettingsScreen(
     /** The lineup's channels, for the name of the chosen startup channel. */
     channels: List<Channel> = emptyList(),
     actions: SettingsActions = SettingsActions(),
+    pairing: PairingUi = PairingUi(),
 ) {
     var captionAdvance by remember(settings.captionAdvanceMs) { mutableIntStateOf(settings.captionAdvanceMs) }
     var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
@@ -106,14 +116,19 @@ fun SettingsScreen(
     var matchFrameRate by remember(settings.playback.matchFrameRate) { mutableStateOf(settings.playback.matchFrameRate) }
     var decoder by remember(settings.playback.decoder) { mutableStateOf(settings.playback.decoder) }
     var buffer by remember(settings.playback.buffer) { mutableStateOf(settings.playback.buffer) }
+    var pairingCode by remember { mutableStateOf("") }
     val serverFocus = remember { FocusRequester() }
     val tokenFocus = remember { FocusRequester() }
+    val codeFocus = remember { FocusRequester() }
     // Save only takes an address the server's API paths can be appended to and a token a header can carry;
     // the fields say what is missing. It stays off until either differs from what is stored.
     val validUrl = ServerAddress.normalizeUrl(serverUrl)
     val validToken = ServerAddress.normalizeToken(apiToken)
     val canSave = canSaveServer(settings, validUrl, validToken)
     val save = { if (canSave && validUrl != null && validToken != null) onSave(validUrl, validToken) }
+    val validCode = ServerAddress.normalizeCode(pairingCode)
+    val canPair = canPairServer(validUrl, validCode, pairing.busy)
+    val pair = { if (canPair && validUrl != null && validCode != null) pairing.onPair(validUrl, validCode) }
 
     BackHandler { onBack() }
     LaunchedEffect(Unit) { requestFocusWhenAttached(serverFocus) }
@@ -170,6 +185,36 @@ fun SettingsScreen(
             )
         }
         item { HelpText(stringResource(Res.string.settings_api_token_help)) }
+        item {
+            Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingField(
+                    label = stringResource(Res.string.settings_pairing_code),
+                    stored = "",
+                    onValueChange = { pairingCode = it },
+                    problem = stringResource(Res.string.settings_pairing_code_invalid).takeIf { pairingCode.isNotEmpty() && validCode == null },
+                    focusRequester = codeFocus,
+                    imeAction = ImeAction.Done,
+                    onAction = pair,
+                )
+                SofaButton(onClick = pair, enabled = canPair) {
+                    Text(stringResource(if (pairing.busy) Res.string.settings_pairing else Res.string.settings_pair))
+                }
+                pairing.failure?.let { failure ->
+                    Text(
+                        stringResource(
+                            when (failure) {
+                                PairingFailure.INVALID_CODE -> Res.string.settings_pairing_failed_code
+                                PairingFailure.OLDER_SERVER -> Res.string.settings_pairing_failed_server
+                                PairingFailure.UNREACHABLE -> Res.string.settings_pairing_failed_unreachable
+                            },
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                HelpText(stringResource(Res.string.settings_pairing_help))
+            }
+        }
         item { SectionHeader(stringResource(Res.string.settings_section_startup)) }
         item {
             ChoiceRow(
@@ -436,6 +481,9 @@ fun SettingsScreen(
 /** Save & reload is on only for a valid address and token that differ from what is stored, since saving the same server reloads for nothing. */
 internal fun canSaveServer(stored: AppSettings, url: String?, token: String?): Boolean =
     url != null && token != null && (url != stored.serverUrl || token != stored.apiToken)
+
+/** Pair is on for a valid address and a six-digit code while no claim is running. */
+internal fun canPairServer(url: String?, code: String?, busy: Boolean): Boolean = url != null && code != null && !busy
 
 @Composable
 private fun SettingField(

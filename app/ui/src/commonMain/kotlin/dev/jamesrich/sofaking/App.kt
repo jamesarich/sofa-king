@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.withStateAtLeast
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.ClockFormat
@@ -60,6 +61,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.sofaKingImageLoader
 import dev.jamesrich.sofaking.ui.settings.ChannelManagerScreen
 import dev.jamesrich.sofaking.ui.settings.ChannelPickerScreen
+import dev.jamesrich.sofaking.ui.settings.PairingUi
 import dev.jamesrich.sofaking.ui.settings.SettingsActions
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.LocalClockFormat
@@ -86,13 +88,17 @@ import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.trackLastInput
 
 /** The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the user is on. */
+/**
+ * The whole app. [pairing] is a server to pair with from a `sofaking://pair` link the platform received; the app
+ * claims it once and calls [onPairingHandled], so a restored activity does not claim it again.
+ */
 @Composable
-fun App() {
+fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
     SofaKingTheme {
         val lastInput = rememberLastInput()
         CompositionLocalProvider(LocalLayoutProfile provides rememberLayoutProfile(), LocalLastInput provides lastInput) {
-            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp() }
+            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
         }
     }
 }
@@ -128,11 +134,27 @@ private sealed interface Screen {
 }
 
 @Composable
-private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewModel() }) {
+private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewModel() }, pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val pairingBusy by vm.pairing.collectAsStateWithLifecycle()
     var screen by rememberSerializable { mutableStateOf<Screen>(Screen.Guide()) }
+    val pairingScope = rememberCoroutineScope()
+    // Why the last pairing attempt failed; Settings shows it until the next attempt.
+    var pairingFailure by remember { mutableStateOf<PairingFailure?>(null) }
+    val pair: (String, String) -> Unit = { url, code ->
+        pairingScope.launch {
+            pairingFailure = vm.pair(url, code)
+            screen = if (pairingFailure == null) Screen.Guide() else Screen.Settings
+        }
+    }
+    // A scanned QR code pairs at once; a refused one lands in Settings with the reason.
+    LaunchedEffect(pairing) {
+        if (pairing == null) return@LaunchedEffect
+        onPairingHandled()
+        pair(pairing.serverUrl, pairing.code)
+    }
     // A short word from the player on its way back to the guide: the channel it was asked for is gone.
     var notice by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(notice) {
@@ -248,6 +270,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         onDecoderChanged = { vm.setDecoder(it) },
                         onBufferChanged = { vm.setBuffer(it) },
                     ),
+                    pairing = PairingUi(busy = pairingBusy, failure = pairingFailure, onPair = pair),
                 )
             }
             Screen.Channels -> settings?.let { s ->

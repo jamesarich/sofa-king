@@ -25,7 +25,13 @@ object Wire {
         const val STREAM_CHANGED = "STREAM_CHANGED"
         const val RESYNC_REQUIRED = "RESYNC_REQUIRED"
         const val CAPACITY_EXHAUSTED = "CAPACITY_EXHAUSTED"
+
+        /** `POST /api/v1/pair` with a code that is wrong, used up or expired. */
+        const val PAIRING_INVALID = "PAIRING_INVALID"
     }
+
+    /** A pairing code is this many decimal digits. */
+    const val PAIRING_CODE_LENGTH = 6
 
     /** One guide query names at most this many channels, over at most this many hours. */
     const val GUIDE_MAX_CHANNELS = 200

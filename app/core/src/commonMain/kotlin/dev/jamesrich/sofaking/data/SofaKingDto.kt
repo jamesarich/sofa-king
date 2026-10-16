@@ -7,10 +7,13 @@ import dev.jamesrich.sofaking.contract.ChannelGuide
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
 import dev.jamesrich.sofaking.contract.OpenPlayback
+import dev.jamesrich.sofaking.contract.PairingClaim
+import dev.jamesrich.sofaking.contract.PairingResult
 import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.PlaybackSession
 import dev.jamesrich.sofaking.contract.Programme
 import dev.jamesrich.sofaking.contract.UpdatePlayback
+import dev.jamesrich.sofaking.contract.ViewerPreferences
 import kotlinx.serialization.json.Json
 
 /** Reads the server's `/api/v1` resources; fields the app does not know are ignored. */
@@ -32,3 +35,6 @@ internal typealias UpdatePlaybackDto = UpdatePlayback
 internal typealias PlaybackDescriptorDto = PlaybackDescriptor
 internal typealias PlaybackSessionDto = PlaybackSession
 internal typealias ApiErrorDto = ApiError
+internal typealias PairingClaimDto = PairingClaim
+internal typealias PairingResultDto = PairingResult
+internal typealias ViewerPreferencesDto = ViewerPreferences

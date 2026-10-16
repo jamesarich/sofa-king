@@ -35,6 +35,10 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         NSLocalNetworkUsageDescription: Sofa King connects to your Sofa King server on this network.
+        # The admin portal's QR code pairs the app with `sofaking://pair?server=…&code=…`.
+        CFBundleURLTypes:
+          - CFBundleURLName: dev.jamesrich.sofaking
+            CFBundleURLSchemes: [sofaking]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking

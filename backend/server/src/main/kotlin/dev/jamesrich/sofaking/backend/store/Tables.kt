@@ -124,3 +124,15 @@ internal object RuntimeSettings : Table("runtime_setting") {
     val updatedAt = text("updated_at")
     override val primaryKey = PrimaryKey(key)
 }
+
+/** One row per client that paired or saved preferences: its label, when it was seen, and its preferences document as JSON once it saved one. */
+internal object Viewers : Table("viewer") {
+    val clientId = text("client_id")
+    val name = text("name")
+    val platform = text("platform")
+    val firstSeenAt = text("first_seen_at")
+    val lastSeenAt = text("last_seen_at")
+    val preferencesJson = text("preferences_json").nullable()
+    val updatedAt = text("updated_at").nullable()
+    override val primaryKey = PrimaryKey(clientId)
+}

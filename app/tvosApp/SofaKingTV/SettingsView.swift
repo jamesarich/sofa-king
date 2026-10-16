@@ -7,6 +7,9 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var url = ""
     @State private var token = ""
+    @State private var code = ""
+    @State private var pairing = false
+    @State private var pairingError: String?
     // tvOS calls onAppear again when the full-screen keyboard closes, which would put back the saved values.
     @State private var filled = false
 
@@ -24,6 +27,23 @@ struct SettingsView: View {
             Button("Save") {
                 model.core.saveServer(url: url, apiToken: token)
                 dismiss()
+            }
+            Section("Pair with a code") {
+                TextField("Pairing code", text: $code)
+                    .keyboardType(.numberPad)
+                Button(pairing ? "Pairing…" : "Pair") {
+                    pairing = true
+                    pairingError = nil
+                    Task {
+                        let failure = try? await model.core.pair(url: url, code: code)
+                        pairing = false
+                        if let failure { pairingError = failure.message } else { dismiss() }
+                    }
+                }
+                .disabled(pairing || url.isEmpty || code.count < 6)
+                if let pairingError { Text(pairingError).foregroundStyle(.red).font(.caption) }
+                Text("In the admin portal, open Viewers and choose Show a pairing code; enter the server address above and the code here instead of the token.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .navigationTitle("Settings")

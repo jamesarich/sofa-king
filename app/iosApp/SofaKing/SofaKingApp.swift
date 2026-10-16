@@ -9,7 +9,10 @@ struct SofaKingApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ComposeView().ignoresSafeArea()
+            ComposeView()
+                .ignoresSafeArea()
+                // A `sofaking://pair` link, from the admin portal's QR code, pairs the app with that server.
+                .onOpenURL { MainViewControllerKt.openSofaKingLink(link: $0.absoluteString) }
         }
     }
 }

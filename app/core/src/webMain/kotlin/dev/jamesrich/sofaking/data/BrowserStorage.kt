@@ -47,6 +47,7 @@ fun AppStorage.Companion.inBrowser(prefix: String = "sofaking"): AppStorage = Ap
         corruptionHandler = ReplaceFileCorruptionHandler { null },
         scope = CoroutineScope(ioDispatcher + SupervisorJob()),
     ),
+    client = ClientInfo("web", "Browser"),
 )
 
 /**

@@ -70,4 +70,14 @@ class ServerAddressTest {
         assertNull(ServerAddress.normalizeUrl("https://tv.example#fragment"))
         assertNull(ServerAddress.normalizeUrl("http://tv.example:65536"))
     }
+
+    @Test
+    fun `a pairing code is six digits with spaces and dashes dropped`() {
+        assertEquals("123456", ServerAddress.normalizeCode("123 456"))
+        assertEquals("000000", ServerAddress.normalizeCode("000-000"))
+        assertNull(ServerAddress.normalizeCode("12345"))
+        assertNull(ServerAddress.normalizeCode("1234567"))
+        assertNull(ServerAddress.normalizeCode("12345a"))
+        assertNull(ServerAddress.normalizeCode(""))
+    }
 }

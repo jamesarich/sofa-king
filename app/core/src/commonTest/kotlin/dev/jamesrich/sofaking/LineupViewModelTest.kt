@@ -80,6 +80,13 @@ class LineupViewModelTest {
             it.copy(playback = it.playback.copy(decoderByChannel = by))
         }
         override suspend fun setBuffer(buffer: BufferPreference) = settings.update { it.copy(playback = it.playback.copy(buffer = buffer)) }
+        override suspend fun ensureClientId(): String {
+            if (settings.value.clientId.isEmpty()) settings.update { it.copy(clientId = "test-client") }
+            return settings.value.clientId
+        }
+        override suspend fun applyServerPreferences(hidden: Set<String>, favorites: List<String>, recent: List<String>, syncedAt: String) =
+            settings.update { it.copy(hiddenChannels = hidden, favorites = favorites.toSet(), favoritesOrder = favorites, recentChannels = recent, preferencesSyncedAt = syncedAt) }
+        override suspend fun setPreferencesSyncedAt(syncedAt: String) = settings.update { it.copy(preferencesSyncedAt = syncedAt) }
 
         private infix fun Set<String>.xor(id: String) = if (id in this) this - id else this + id
     }
@@ -113,6 +120,11 @@ class LineupViewModelTest {
                     }
                     json("""{"revision":"r","from":"x","to":"y","channels":[$rows]}""")
                 }
+                "/api/v1/pair" -> {
+                    if (request.headers["Authorization"] != null) return@FakeHttp apiError(500, "TOKEN_SENT")
+                    if (request.body.contains(""""code":"654321"""")) json("""{"apiToken":"issued-token","serverId":"srv"}""")
+                    else apiError(403, "PAIRING_INVALID")
+                }
                 else -> apiError(404, "RESOURCE_NOT_FOUND")
             }
         }
@@ -129,6 +141,7 @@ class LineupViewModelTest {
             lineupCache = cacheStore,
             sessions = PlaybackSessions(scope = backgroundScope),
             newApi = { url, token -> server.http.api(token, "$url/") },
+            viewerSync = null,
         ).also { viewModel = it }
     }
 
@@ -273,5 +286,25 @@ class LineupViewModelTest {
 
         viewModel.saveServer("http://sofa.test", "t")
         assertEquals(2, viewModel.state.first { it is LineupState.Ready && !it.lineup.guideLoading }.lineup.channels.size)
+    }
+
+    @Test
+    fun `pairing saves the server and the token it hands out while a refused code saves nothing`() = viewModelTest {
+        val server = FakeServer(this)
+        settings.settings.value = AppSettings()
+        val viewModel = start(server)
+        assertEquals(LineupState.Unconfigured, viewModel.state.first { it != LineupState.Loading })
+
+        assertEquals(PairingFailure.INVALID_CODE, viewModel.pair("http://sofa.test", "111 111"))
+        assertEquals("", settings.settings.value.serverUrl)
+        assertEquals(PairingFailure.INVALID_CODE, viewModel.pair("http://sofa.test", "12"), "a malformed code is not even sent")
+        assertEquals(1, server.http.requests.count { it.path == "/api/v1/pair" })
+
+        assertNull(viewModel.pair("http://sofa.test/", "654 321"))
+        assertEquals("http://sofa.test", settings.settings.value.serverUrl)
+        assertEquals("issued-token", settings.settings.value.apiToken)
+        assertTrue(server.http.requests.last { it.path == "/api/v1/pair" }.body.contains(""""clientId":"test-client""""))
+        assertIs<LineupState.Ready>(viewModel.state.first { it is LineupState.Ready })
+        assertEquals("Bearer issued-token", server.http.requests.last { it.path == "/api/v1/channels" }.headers["Authorization"])
     }
 }

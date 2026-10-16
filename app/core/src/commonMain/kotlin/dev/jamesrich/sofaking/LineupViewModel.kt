@@ -13,6 +13,10 @@ import dev.jamesrich.sofaking.data.StartupTarget
 import androidx.datastore.core.DataStore
 import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
+import dev.jamesrich.sofaking.data.ClientInfo
+import dev.jamesrich.sofaking.data.PairingClaimDto
+import dev.jamesrich.sofaking.data.ViewerSync
+import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
 import dev.jamesrich.sofaking.data.GuideWindow
@@ -60,6 +64,9 @@ sealed interface LineupState {
     data class Failed(val message: String) : LineupState
 }
 
+/** Why a pairing code was not accepted: the code itself, a server too old to pair, or no server at that address. */
+enum class PairingFailure { INVALID_CODE, OLDER_SERVER, UNREACHABLE }
+
 /** A server address and token the API can be built from, and the one API client built from them. */
 private data class Server(val url: String, val token: String, val api: SofaKingApi)
 
@@ -73,6 +80,10 @@ class LineupViewModel(
     /** The one playback session the app holds; screens tune through it and the host releases it when stopped. */
     val sessions: PlaybackSessions = PlaybackSessions(),
     private val newApi: (url: String, token: String) -> SofaKingApi = ::SofaKingApi,
+    /** How this device names itself when it pairs and when it saves its preferences on the server. */
+    private val client: ClientInfo = ClientInfo(),
+    /** Keeps the synced preferences in step with the server; null leaves them on this device only. */
+    private val viewerSync: ViewerSync? = ViewerSync(store, client),
 ) : ViewModel() {
     val settings: StateFlow<AppSettings?> = store.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -111,6 +122,42 @@ class LineupViewModel(
         // A new address or token releases the session held on the old server before anything tunes on the new one.
         viewModelScope.launch {
             server.collect { sessions.configure(it?.api) }
+        }
+        if (viewerSync != null) viewModelScope.launch { viewerSync.run(server.map { it?.api }) }
+    }
+
+    private val _pairing = MutableStateFlow(false)
+
+    /** True while a pairing code is being claimed. */
+    val pairing: StateFlow<Boolean> = _pairing.asStateFlow()
+
+    /**
+     * Claims the pairing [code] at [url] and, when the server accepts it, saves the address and the token it hands
+     * out. Returns null on success, else why it failed; nothing is saved then.
+     */
+    suspend fun pair(url: String, code: String): PairingFailure? {
+        val server = ServerAddress.normalizeUrl(url) ?: return PairingFailure.INVALID_CODE
+        val digits = ServerAddress.normalizeCode(code) ?: return PairingFailure.INVALID_CODE
+        _pairing.value = true
+        try {
+            val clientId = store.ensureClientId()
+            val result = newApi(server, "").pair(PairingClaimDto(digits, clientId, client.deviceName, client.platform))
+            store.setServer(server, result.apiToken)
+            return null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: SofaKingException) {
+            log.w { "pairing refused: ${e.code}" }
+            return when {
+                e.code == Wire.ErrorCode.PAIRING_INVALID -> PairingFailure.INVALID_CODE
+                e.status == 404 || e.status == 401 -> PairingFailure.OLDER_SERVER
+                else -> PairingFailure.UNREACHABLE
+            }
+        } catch (e: Exception) {
+            log.w { "pairing failed: ${e.message}" }
+            return PairingFailure.UNREACHABLE
+        } finally {
+            _pairing.value = false
         }
     }
 

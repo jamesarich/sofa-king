@@ -40,7 +40,8 @@ jobs:
     name: Android, web and Linux desktop
     needs: version
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # The build took 28 minutes on the last run that finished; 30 cut off the three after it.
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: app

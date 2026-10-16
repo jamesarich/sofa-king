@@ -1,0 +1,10 @@
+[Unit]
+Description=Update the Sofa King server when its admin portal asks
+
+[Path]
+# The config folder compose.yaml mounts at /config; the portal's Update now writes this file, and the updater removes it.
+PathExists=/srv/sofa-king-backend/config/update-requested
+Unit=sofa-king-update.service
+
+[Install]
+WantedBy=paths.target

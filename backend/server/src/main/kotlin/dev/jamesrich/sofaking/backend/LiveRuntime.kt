@@ -15,6 +15,8 @@ import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.*
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.update.RunningBuild
+import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -68,6 +70,8 @@ class LiveRuntime(
     val probes: ProbeWorker? = null,
     /** The pairing codes the portal issues and `POST /api/v1/pair` claims. */
     val pairing: PairingService = PairingService(Clock.systemUTC()),
+    /** The published-image check and the hand-off to the host's updater; null when the runtime was built without a config. */
+    val updates: UpdateChecker? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -155,9 +159,11 @@ class LiveRuntime(
                         onHealthChanged = { service?.requestRun("health") }, targets = targets,
                     )
                 } else null
+                val updates = UpdateChecker(http, clock, config.dataDirectory, config.updateImage, RunningBuild(config.revision, config.version), jobs)
+                updates.start(scope)
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
-                    policyService, plex, started, jobs, settings, worker, PairingService(clock),
+                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates,
                 )
                 scope.launchEvery("session-expire", 1000) { sessions.expire() }
                 if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }

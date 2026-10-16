@@ -230,16 +230,20 @@ Compare the commit in the provenance with the `org.opencontainers.image.revision
 3. Recreates the container and waits up to three minutes for it to report healthy.
 4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` in the Compose directory so later runs skip it until a newer one is published.
 
-It needs Python 3 on the host only for the fallback backup. To install it, add the script and the timer:
+Every run, including one that finds nothing new, writes `update-status.json` to the config folder: when it checked, the image, the running and candidate revisions, the outcome (`up-to-date`, `updated`, `rolled-back`, `skipped` or `failed`) and one line saying why. The admin portal's [About page](admin.md#update) shows it, so the portal says when the host last checked and what it did. The file is owned by the config folder's owner and holds no secret.
+
+It needs Python 3 on the host only for the fallback backup. To install it, add the script, the timer and the path unit:
 
 ```sh
 sudo install -m 755 deploy/sofa-king-update.sh /srv/sofa-king-backend/
-sudo install -m 644 deploy/systemd/sofa-king-update.service deploy/systemd/sofa-king-update.timer /etc/systemd/system/
+sudo install -m 644 deploy/systemd/sofa-king-update.service deploy/systemd/sofa-king-update.timer deploy/systemd/sofa-king-update.path /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now sofa-king-update.timer
+sudo systemctl enable --now sofa-king-update.timer sofa-king-update.path
 ```
 
-Set `SOFA_UPDATE_DIR` in the service to the Compose directory if it is not `/srv/sofa-king-backend`. The timer checks every 15 minutes; `sudo systemctl start sofa-king-update` checks now, and `journalctl -u sofa-king-update` shows what each run did. Other settings come from the environment: `SOFA_UPDATE_IMAGE`, `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer to keep it. The updater installs new images, not new copies of itself, so run the `install` lines again when `deploy/sofa-king-update.sh` or the units change.
+Set `SOFA_UPDATE_DIR` in the service to the Compose directory if it is not `/srv/sofa-king-backend`, and the `PathExists` line of the path unit to `update-requested` in that directory's `config` folder. The timer checks every 15 minutes; `sudo systemctl start sofa-king-update` checks now, and `journalctl -u sofa-king-update` shows what each run did. The path unit starts the same service when the portal's Update now writes `config/update-requested`, so an update asked for in the portal starts within seconds; the script removes the file as it starts. Other settings come from the environment: `SOFA_UPDATE_IMAGE`, `SOFA_UPDATE_CONFIG_DIR` (the folder with the status and request files, `config` under the Compose directory), `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer and the path unit to keep it. The updater installs new images, not new copies of itself, so run the `install` lines again when `deploy/sofa-king-update.sh` or the units change.
+
+The server checks the registry itself too, as [update](admin.md#update) describes: it reads the revision the `main` tag's index carries and compares it with its own, so the portal says whether an update is available before the updater runs. `SOFA_UPDATE_IMAGE` in `.env` names another image for that check, or set it empty to turn it off.
 
 ## Deploy to a host without a JDK
 

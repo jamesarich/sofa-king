@@ -40,6 +40,8 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_LOG_FORMAT` | `text` | `text` for one line per event, or `json` for one JSON object per line with the level, logger, message and request id. Logs go to stderr. See [logs](operations.md#logs) |
 | `SOFA_CORS_ORIGINS` | Unset | Comma-separated browser origins, such as `https://tv.example.com,http://192.168.1.20:8080`, that may call the API from a page on another origin, for example the Sofa King web app served elsewhere. Each is `scheme://host[:port]` with no path; `*` is not accepted. Unset sends no CORS headers, so only pages on the server's own origin can use the API from a browser. Tokens still authorize every call; cookies never cross origins |
 | `SOFA_REVISION` | `unknown`; the image sets it | The commit the server was built from, reported by `GET /api/v1/admin/status` and the admin portal footer. The image sets it from its `REVISION` build argument |
+| `SOFA_VERSION` | `unknown`; the image sets it | The product version the server was built from, shown on the admin portal's About page. The image sets it from its `VERSION` build argument |
+| `SOFA_UPDATE_IMAGE` | `ghcr.io/jamesarich/sofa-king:main` | The published image, as `host/name:tag`, whose index the [update check](admin.md#update) reads to say whether an update is available. Set it empty to turn the check off |
 | `TZ` | UTC | Time zone of the process, for example `America/Chicago`. The server stores and serves its times in UTC either way |
 
 ## Source settings

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Pulls the published image and swaps it in when it differs from the running one. The database is backed up first;
 # when the new container is not healthy in time, the backup and the previous image are put back and that image is
-# not tried again. Run it from a timer, see docs/deploy.md#update-automatically.
+# not tried again. Run it from a timer, see docs/deploy.md#update-automatically. Every run writes what it did to
+# update-status.json in the config folder, which the admin portal's About page shows, and starts by removing the
+# update-requested file the portal writes, which the path unit watches.
 set -euo pipefail
 # Backups hold provider session tokens, so each is readable by its owner alone: the container's user or root.
 umask 077
@@ -13,9 +15,23 @@ local_tag=${SOFA_UPDATE_LOCAL_TAG:-sofa-king-backend:local}
 previous_tag=${SOFA_UPDATE_PREVIOUS_TAG:-sofa-king-backend:previous}
 keep=${SOFA_UPDATE_KEEP_BACKUPS:-5}
 wait_seconds=${SOFA_UPDATE_HEALTH_SECONDS:-180}
+# The config folder compose.yaml mounts at /config: the portal reads the status file and writes the request file there.
+config=${SOFA_UPDATE_CONFIG_DIR:-$dir/config}
+status_file="$config/update-status.json"
+request_file="$config/update-requested"
 state="$dir/backups"
 
 log() { echo "sofa-king-update: $*"; }
+# Writes the run's outcome for the portal, readable by the config folder's owner, which is the container's user.
+report() {
+  local outcome=$1 message=$2
+  [ -d "$config" ] || return 0
+  printf '{"checkedAt":"%s","image":"%s","running":"%s","candidate":"%s","outcome":"%s","message":"%s"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$image" "${from:-}" "${to:-}" "$outcome" "${message//\"/\\\"}" > "$status_file.tmp"
+  chmod 644 "$status_file.tmp"
+  chown --reference="$config" "$status_file.tmp" 2>/dev/null || true
+  mv -f "$status_file.tmp" "$status_file"
+}
 revision() { docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$1" 2>/dev/null || echo unknown; }
 compose() { (cd "$dir" && docker compose "$@"); }
 healthy() {
@@ -53,22 +69,31 @@ EOF
 exec 9>/run/lock/sofa-king-update.lock
 flock -n 9 || { log "another update is running"; exit 0; }
 mkdir -p "$state"
+# The portal's request is taken whatever this run finds, so the path unit does not start it again for the same request.
+rm -f "$request_file"
 
-docker pull --quiet "$image" >/dev/null
+if ! docker pull --quiet "$image" >/dev/null; then
+  report failed "could not pull $image"
+  exit 1
+fi
 candidate=$(docker image inspect --format '{{.Id}}' "$image")
 running=$(docker inspect --format '{{.Image}}' "$container" 2>/dev/null || echo none)
-[ "$candidate" = "$running" ] && exit 0
+from=$(revision "$running")
+to=$(revision "$candidate")
+if [ "$candidate" = "$running" ]; then
+  report up-to-date "running $to"
+  exit 0
+fi
 if [ -f "$state/failed-image" ] && [ "$(cat "$state/failed-image")" = "$candidate" ]; then
+  report skipped "$to was not healthy before; waiting for a newer image"
   exit 0
 fi
 
-from=$(revision "$running")
-to=$(revision "$candidate")
 log "updating $from to $to"
 
 # The database is in the container's SOFA_DATA_DIR; its host path is the source of the deepest mount holding that directory.
 data_dir=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container" | sed -n 's/^SOFA_DATA_DIR=//p' | tail -n 1)
-[ -n "$data_dir" ] || { log "$container sets no SOFA_DATA_DIR"; exit 1; }
+[ -n "$data_dir" ] || { log "$container sets no SOFA_DATA_DIR"; report failed "$container sets no SOFA_DATA_DIR"; exit 1; }
 data=""
 deepest=""
 while IFS=$'\t' read -r destination source; do
@@ -82,7 +107,7 @@ while IFS=$'\t' read -r destination source; do
       ;;
   esac
 done < <(docker inspect --format '{{range .Mounts}}{{.Destination}}{{"\t"}}{{.Source}}{{"\n"}}{{end}}' "$container")
-[ -n "$data" ] || { log "no mount of $container holds $data_dir"; exit 1; }
+[ -n "$data" ] || { log "no mount of $container holds $data_dir"; report failed "no mount of $container holds $data_dir"; exit 1; }
 backup_database "backend-$(date -u +%Y%m%dT%H%M%SZ)-${from//[^A-Za-z0-9._-]/_}.sqlite"
 # Backup names start with a UTC timestamp, so name order is age order.
 for folder in "$state" "$data/backups"; do
@@ -97,6 +122,7 @@ if healthy; then
   rm -f "$state/failed-image"
   docker image prune --force >/dev/null
   log "running $to"
+  report updated "updated $from to $to"
   exit 0
 fi
 
@@ -112,7 +138,9 @@ docker tag "$previous_tag" "$local_tag"
 compose up -d --no-build --force-recreate
 if healthy; then
   log "running $from again"
+  report rolled-back "$to was not healthy after ${wait_seconds}s; running $from again"
 else
   log "$from is not healthy either; check docker compose logs"
+  report failed "$to was not healthy after ${wait_seconds}s, and $from is not healthy either"
 fi
 exit 1

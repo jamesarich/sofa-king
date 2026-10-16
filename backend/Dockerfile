@@ -63,5 +63,6 @@ LABEL org.opencontainers.image.title="Sofa King backend" \
       org.opencontainers.image.base.name="docker.io/library/eclipse-temurin:21.0.12.1_1-jre-noble" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.version="${VERSION}"
-# Labels are not visible inside the container, so the server reads its revision from the environment.
-ENV SOFA_REVISION=${REVISION}
+# Labels are not visible inside the container, so the server reads its revision and version from the environment.
+ENV SOFA_REVISION=${REVISION} \
+    SOFA_VERSION=${VERSION}

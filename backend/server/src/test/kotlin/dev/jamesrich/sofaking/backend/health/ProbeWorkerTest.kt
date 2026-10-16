@@ -250,7 +250,7 @@ class ProbeWorkerTest {
             // a is suspect, so health alone would take it first; the tiers come before health.
             val plan = mapOf("a" to 2, "b" to 1, "c" to 0, "e" to 0)
             val worker = ProbeWorker(feeds, store, clock, "unused", targets = { plan }) { offering, _ -> probed += offering.id; null }
-            while (worker.step()) Unit
+            while (worker.step()) { /* drain the plan */ }
             assertEquals(listOf("c", "e", "b", "a"), probed, "first sources of unverified stations, their other sources, then the rest; d is no station's")
         } } } finally { dir.toFile().deleteRecursively() }
     }

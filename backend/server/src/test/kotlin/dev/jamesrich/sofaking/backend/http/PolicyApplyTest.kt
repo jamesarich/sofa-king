@@ -83,14 +83,14 @@ class PolicyApplyTest {
             val written = stationsIn(policyFile)
             assertEquals(mapOf("station" to "5", "ts station" to "6", "twin sports" to "12"), written.mapValues { it.value.jsonObject["number"]!!.jsonPrimitive.content })
             assertEquals(hash(Files.readString(policyFile)), runtime.policy!!.document().revision)
-            assertEquals(first.revision, runtime.policy!!.document().revision)
+            assertEquals(first.revision, runtime.policy.document().revision)
 
             val second = Json.decodeFromString<PolicyApplyResult>(client.post("/api/v1/admin/policy/apply") { asAdmin() }.bodyAsText())
             assertFalse(second.changed); assertEquals(0, second.changes); assertTrue(second.assigned.isEmpty())
             assertEquals(first.revision, second.revision, "nothing new to write back")
 
             // Without the written numbers this policy would number from the floor; the file's numbers hold.
-            val revision = runtime.policy!!.document().revision
+            val revision = runtime.policy.document().revision
             val renumbering = Json.parseToJsonElement(Files.readString(policyFile)).jsonObject.toMutableMap()
             renumbering["numbering"] = Json.parseToJsonElement("""{"floor":500,"keepProviderNumbers":false}""")
             val put = client.put("/api/v1/admin/policy") { asAdmin(); header(HttpHeaders.IfMatch, "\"$revision\""); setBody(JsonObject(renumbering).toString()) }
@@ -195,14 +195,14 @@ class PolicyApplyTest {
             val entry = runtime.lineup.entries().single()
             assertFalse(entry.enabled)
             val (lead, other) = entry.offeringIds
-            assertEquals(mapOf(lead to 0, other to 1), runtime.policy!!.probeTargets())
+            assertEquals(mapOf(lead to 0, other to 1), runtime.policy.probeTargets())
 
             val at = MutableClock().now
             runtime.store.recordObservation(other, Observation("qualified", at, true), at)
-            assertEquals(1, runtime.policy!!.apply("health").enabledStations)
+            assertEquals(1, runtime.policy.apply("health").enabledStations)
             assertTrue(runtime.lineup.entries().single().enabled)
             assertEquals(at, runtime.store.stationAvailability().getValue("station").verifiedAt)
-            assertEquals(mapOf(lead to 2, other to 2), runtime.policy!!.probeTargets())
+            assertEquals(mapOf(lead to 2, other to 2), runtime.policy.probeTargets())
         }
     }
 
@@ -217,7 +217,7 @@ class PolicyApplyTest {
             for (guide in runtime.guides.configs) runtime.guides.refresh(guide)
             val preview = Json.decodeFromString<PolicyPreview>(client.get("/api/v1/admin/policy/preview") { asAdmin() }.bodyAsText())
             assertEquals(mapOf("learnshowtv" to "learnshow"), preview.learned)
-            val second = runtime.policy!!.apply("test")
+            val second = runtime.policy.apply("test")
             assertEquals(mapOf("learnshowtv" to "learnshow"), second.learned)
             assertTrue(second.suggestedAliases.isEmpty(), "${second.suggestedAliases}")
             val written = Json.parseToJsonElement(Files.readString(policyFile)).jsonObject
@@ -227,7 +227,7 @@ class PolicyApplyTest {
             assertEquals(listOf("30", "31", "41"), entries.keys.toList())
             assertEquals(listOf("learn", "learn2"), entries.getValue("30").offeringIds.map { runtime.feeds.offering(it)!!.providerId })
 
-            val third = runtime.policy!!.apply("test")
+            val third = runtime.policy.apply("test")
             assertTrue(third.learned.isEmpty()); assertFalse(third.changed)
             assertEquals(second.revision, third.revision, "nothing new to write back")
         }
@@ -244,13 +244,13 @@ class PolicyApplyTest {
 
             val at = MutableClock().now
             runtime.store.recordObservation(runtime.lineup.entries().single().offeringIds.last(), Observation("qualified", at, true), at)
-            val second = runtime.policy!!.apply("health")
+            val second = runtime.policy.apply("health")
             assertEquals(1, second.enabledStations)
             assertEquals(mapOf("station" to "5"), second.assigned)
             assertEquals(mapOf("station" to "5"), stationsIn(policyFile).mapValues { it.value.jsonObject["number"]!!.jsonPrimitive.content })
             assertEquals(setOf("station"), assignedIn(policyFile))
 
-            val third = runtime.policy!!.apply("health")
+            val third = runtime.policy.apply("health")
             assertTrue(third.assigned.isEmpty())
             assertEquals(second.revision, third.revision, "nothing new to write back")
         }
@@ -286,7 +286,7 @@ class PolicyApplyTest {
             assertEquals(setOf("ts station", "twin sports"), assignedIn(policyFile))
             assertEquals("13", stationsIn(policyFile).getValue("station").jsonObject["number"]!!.jsonPrimitive.content)
 
-            runtime.policy!!.apply("test")
+            runtime.policy.apply("test")
             assertEquals("13", runtime.lineup.entry(stationId("station"))!!.number)
             assertEquals(setOf("ts station", "twin sports"), assignedIn(policyFile))
         }
@@ -296,7 +296,7 @@ class PolicyApplyTest {
         withPolicy {
             runtime.policy!!.apply("test")
             val before = Json.parseToJsonElement(Files.readString(policyFile)).jsonObject
-            val revision = runtime.policy!!.document().revision
+            val revision = runtime.policy.document().revision
             val stations = before.getValue("stations").jsonObject.toMutableMap()
             stations["ts station"] = JsonObject(stations.getValue("ts station").jsonObject + ("number" to JsonPrimitive("77")))
             val edited = JsonObject(before + ("stations" to JsonObject(stations))).toString()
@@ -318,7 +318,7 @@ class PolicyApplyTest {
             assertEquals("502", runtime.lineup.entry(stationId("ts station"))!!.number, "a number set by hand never moves")
             assertTrue("station" in assignedIn(policyFile))
 
-            val again = runtime.policy!!.apply("test")
+            val again = runtime.policy.apply("test")
             assertFalse("station" in again.assigned, "once in its block, the station stays put")
             assertEquals("10", runtime.lineup.entry(stationId("station"))!!.number)
         }
@@ -326,11 +326,12 @@ class PolicyApplyTest {
 }
 
 class PolicyLoopTest {
+    private val json = Json { encodeDefaults = true }
     @Test fun `with a policy, a feed import triggers a policy run`() = kotlinx.coroutines.runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-policy-loop-")
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json")
-            Files.writeString(sources, """{"providers":${Json { encodeDefaults = true }.encodeToString(listOf(fixture.feed))},"guides":[]}""")
+            Files.writeString(sources, """{"providers":${json.encodeToString(listOf(fixture.feed))},"guides":[]}""")
             val policyFile = dir.resolve("policy.json")
             Files.writeString(policyFile, """{"providers":[{"id":"fixture"}]}""")
             val store = openStore(dir)

@@ -55,6 +55,7 @@ Versions are pinned exactly in the shared catalog, with no lockfiles or verifica
 | --- | --- | --- |
 | [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown or `app/docs/`), the shared `gradle/` directory or `build-logic/`, `ci.yml` or `snapshot.yml`; also a manual run | Tests and builds the app, and publishes the snapshot from `main` |
 | [`backend.yml`](.github/workflows/backend.yml) | Pull requests and pushes to `main` that change `backend/` or `contract/` (not their Markdown or `backend/docs/`), the shared `gradle/` directory or `build-logic/`, or `backend.yml`; also a manual run | Tests and builds the server, and publishes its image from `main` |
+| [`dependency-submission.yml`](.github/workflows/dependency-submission.yml) | Pushes to `main` that change any build; also a manual run | Sends each build's resolved dependencies to GitHub, so Dependabot alerts cover them |
 
 `ci.yml` runs up to three jobs:
 

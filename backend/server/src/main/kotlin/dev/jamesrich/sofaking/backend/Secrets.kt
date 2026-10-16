@@ -49,6 +49,7 @@ internal fun readSecretFiles(environment: Map<String, String>, read: (Path) -> S
  * The file is replaced by an atomic rename, so a crash leaves the old file or the new one.
  */
 internal class SecretsFile(val path: Path, private val random: SecureRandom = SecureRandom()) {
+    private val prettyJson = Json { prettyPrint = true }
     /** The stored value of each of [names] (`apiToken`, `adminToken`), generating and storing those missing; the second set names the generated ones. */
     fun resolve(names: List<String>): Pair<Map<String, String>, Set<String>> {
         val stored = read().toMutableMap()
@@ -72,7 +73,7 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
     }
 
     private fun write(values: Map<String, String>) {
-        val bytes = (Json { prettyPrint = true }.encodeToString(JsonObject.serializer(), JsonObject(values.mapValues { JsonPrimitive(it.value) })) + "\n").toByteArray()
+        val bytes = (prettyJson.encodeToString(JsonObject.serializer(), JsonObject(values.mapValues { JsonPrimitive(it.value) })) + "\n").toByteArray()
         val directory = path.toAbsolutePath().parent
         try {
             Files.createDirectories(directory)

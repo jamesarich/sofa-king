@@ -22,6 +22,7 @@ import java.net.URI
 import java.util.zip.GZIPInputStream
 import kotlinx.coroutines.CancellationException
 import kotlinx.io.readByteArray
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -44,6 +45,7 @@ class Fetched(
 
     fun text(): String = body.toString(Charsets.UTF_8)
 
+    @OptIn(ExperimentalSerializationApi::class) // decodeFromStream
     fun json(): JsonElement = try {
         ByteArrayInputStream(body).use { lenientJson.decodeFromStream(JsonElement.serializer(), it) }
     } catch (e: Exception) {

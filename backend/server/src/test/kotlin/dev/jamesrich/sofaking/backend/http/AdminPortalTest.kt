@@ -216,7 +216,7 @@ class AdminPortalTest {
             for (guide in runtime.guides.configs) runtime.guides.refresh(guide)
             runtime.policy!!.apply("test")
             for (guide in runtime.guides.configs) runtime.guides.refresh(guide)
-            assertEquals(mapOf("learnshowtv" to "learnshow"), runtime.policy!!.apply("test").learned)
+            assertEquals(mapOf("learnshowtv" to "learnshow"), runtime.policy.apply("test").learned)
 
             browser.signIn()
             val page = browser.get("/admin/merges").bodyAsText()
@@ -400,7 +400,7 @@ class AdminPortalTest {
             val applied = browser.post("/admin/policy/apply", "csrf" to field(html, "csrf"))
             assertEquals(HttpStatusCode.SeeOther, applied.status)
             assertEquals("/admin/settings", applied.headers[HttpHeaders.Location])
-            assertNotNull(runtime.policy!!.lastApplied())
+            assertNotNull(runtime.policy.lastApplied())
             assertTrue(browser.get("/admin/settings").bodyAsText().contains("Applied the policy:"))
         }
     }
@@ -489,7 +489,7 @@ class AdminPortalTest {
             assertEquals(HttpStatusCode.SeeOther, saved.status, saved.bodyAsText())
             assertEquals("/admin/groups#blocks", saved.headers[HttpHeaders.Location])
             assertEquals(500, policyJson(policyFile!!)["numbering"]!!.jsonObject["groups"]!!.jsonObject["Sports"]!!.jsonPrimitive.int)
-            assertEquals(Files.readString(policyFile).let { java.security.MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).joinToString("") { b -> "%02x".format(b) } }, runtime.policy!!.document().revision)
+            assertEquals(Files.readString(policyFile).let { java.security.MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).joinToString("") { b -> "%02x".format(b) } }, runtime.policy.document().revision)
             val after = browser.get("/admin/groups").bodyAsText()
             assertTrue(after.contains("Saved: number Sports from 500."), "the save is confirmed")
             assertTrue(after.contains(">Sports<"), "the block is listed")
@@ -527,7 +527,7 @@ class AdminPortalTest {
             val body = held.bodyAsText()
             assertTrue(body.contains("The policy changed since this page loaded"), body)
             assertEquals(before, Files.readString(policyFile), "nothing is saved on a stale revision")
-            val current = runtime.policy!!.document().revision
+            val current = runtime.policy.document().revision
             assertTrue(body.contains("name=\"revision\" value=\"$current\""), "the confirm step carries the current revision")
             val saved = browser.post("/admin/groups/edit", "op" to "weak", "category" to "Featured", "csrf" to field(page, "csrf"), "revision" to current, "confirm" to "yes")
             assertEquals(HttpStatusCode.SeeOther, saved.status, saved.bodyAsText())
@@ -554,7 +554,7 @@ class AdminPortalTest {
             assertEquals(false, policyJson(policyFile)["providers"]!!.jsonArray[3].jsonObject["enabled"]!!.jsonPrimitive.boolean)
             assertFalse(runtime.lineup.entry(ts.id)!!.enabled, "the apply turned the station off")
 
-            val moved = browser.post("/admin/providers/edit", "op" to "move", "index" to "1", "to" to "up", "csrf" to field(page, "csrf"), "revision" to runtime.policy!!.document().revision, "confirm" to "yes")
+            val moved = browser.post("/admin/providers/edit", "op" to "move", "index" to "1", "to" to "up", "csrf" to field(page, "csrf"), "revision" to runtime.policy.document().revision, "confirm" to "yes")
             assertEquals(HttpStatusCode.SeeOther, moved.status, moved.bodyAsText())
             assertEquals(listOf("alt", "fixture", "twin", "ts"), policyJson(policyFile)["providers"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content })
         }
@@ -778,7 +778,7 @@ class AdminPortalTest {
             assertFalse(runtime.lineup.entry(ids[0])!!.enabled); assertFalse(runtime.lineup.entry(ids[1])!!.enabled)
             assertTrue(browser.get("/admin/lineup").bodyAsText().contains("Saved: hide 2 channels."))
 
-            val grouped = browser.post("/admin/lineup/bulk", "op" to "group", "target" to "Sports", "id" to ids[0], "q" to "twin", "csrf" to csrf, "revision" to runtime.policy!!.document().revision, "confirm" to "yes")
+            val grouped = browser.post("/admin/lineup/bulk", "op" to "group", "target" to "Sports", "id" to ids[0], "q" to "twin", "csrf" to csrf, "revision" to runtime.policy.document().revision, "confirm" to "yes")
             assertEquals(HttpStatusCode.SeeOther, grouped.status, grouped.bodyAsText())
             assertEquals("/admin/lineup?q=twin", grouped.headers[HttpHeaders.Location], "the filters survive the edit")
             assertEquals("Sports", stationsIn(policyFile).getValue("twin sports").jsonObject["group"]!!.jsonPrimitive.content)

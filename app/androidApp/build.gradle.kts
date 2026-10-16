@@ -48,6 +48,7 @@ androidComponents {
 dependencies {
     implementation(project(":ui"))
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core)
     implementation(libs.androidx.profileinstaller)
     baselineProfile(project(":baselineprofile"))
 }

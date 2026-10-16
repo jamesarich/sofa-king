@@ -759,7 +759,7 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
                         td("nowrap") { ago(status.lastSuccessAt, now) }
                         td {
                             when {
-                                status.errorCode != null -> chip(status.errorCode!!, Tone.BAD)
+                                status.errorCode != null -> chip(status.errorCode, Tone.BAD)
                                 status.lastSuccessAt == null -> chip("Waiting", Tone.WARN)
                                 else -> chip("OK", Tone.OK)
                             }
@@ -783,7 +783,7 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
                         td("num") { +thousands(guide.channels) }
                         td("num") { +thousands(guide.programmes) }
                         td("nowrap") { ago(guide.lastSuccessAt, now) }
-                        td { if (guide.errorCode != null) chip(guide.errorCode!!, Tone.BAD) else if (guide.lastSuccessAt == null) chip("Waiting", Tone.WARN) else chip("OK", Tone.OK) }
+                        td { if (guide.errorCode != null) chip(guide.errorCode, Tone.BAD) else if (guide.lastSuccessAt == null) chip("Waiting", Tone.WARN) else chip("OK", Tone.OK) }
                     }
                 }
             }

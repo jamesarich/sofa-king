@@ -4,12 +4,14 @@ import dev.jamesrich.sofaking.backend.catalog.Fixture
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.close
 import io.ktor.utils.io.writeFully
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import kotlin.test.*
 
+@OptIn(ExperimentalCoroutinesApi::class) // testScheduler.currentTime
 class TsFanoutTest {
     private val p = (1..6).map { Fixture.tsPacket(it) }
 

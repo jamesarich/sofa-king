@@ -68,12 +68,6 @@ internal fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolea
     val focused by interactions.collectIsFocusedAsState()
     val shape = MaterialTheme.shapes.medium
     ListItem(
-        headlineContent = { Text(label, style = MaterialTheme.typography.titleSmall) },
-        supportingContent = help?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
-        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
-        colors = ListItemDefaults.colors(
-            containerColor = if (focused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
-        ),
         modifier = Modifier
             .width(FIELD_WIDTH)
             .tvFocus(shape, focusedScale = 1f)
@@ -85,7 +79,12 @@ internal fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolea
                 role = Role.Switch,
                 onValueChange = onCheckedChange,
             ),
-    )
+        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
+        supportingContent = help?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
+        colors = ListItemDefaults.colors(
+            containerColor = if (focused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
+        ),
+    ) { Text(label, style = MaterialTheme.typography.titleSmall) }
 }
 
 /**

@@ -74,7 +74,7 @@ class HdhrDevicesTest {
                 feeds.forEach { runtime.feeds.refresh(it) }
                 val applied = runtime.policy!!.apply("test")
                 assertEquals(3, applied.enabledStations); assertEquals(3, applied.devicesNeeded); assertEquals(2, applied.devicesConfigured)
-                val preview = runtime.policy!!.preview()
+                val preview = runtime.policy.preview()
                 assertEquals(3, preview.devicesNeeded); assertEquals(2, preview.devicesConfigured)
                 assertEquals(listOf("5", "6", "12"), runtime.lineup.entries().map { it.number })
                 server.start(wait = false)
@@ -84,7 +84,7 @@ class HdhrDevicesTest {
                         .jsonArray.map { it.jsonObject["GuideNumber"]!!.jsonPrimitive.content }
                 assertEquals(listOf(listOf("5"), listOf("6", "12")), ports.map(::numbers))
                 assertTrue(
-                    "hdhr: 3 enabled stations need 3 devices of 1 channels, 2 configured; add ports to SOFA_HDHR_EXTRA_PORTS" in runtime.policy!!.findings().findings,
+                    "hdhr: 3 enabled stations need 3 devices of 1 channels, 2 configured; add ports to SOFA_HDHR_EXTRA_PORTS" in runtime.policy.findings().findings,
                 )
             } finally {
                 server.stop(100, 2000)

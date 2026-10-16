@@ -1,8 +1,19 @@
 name: Snapshot
 
-# Publishes the rolling `snapshot` prerelease. CI calls it after a main push passes; it also runs on demand.
+# Builds the packages of the rolling `snapshot` prerelease. CI calls it for a main push, alongside the checks, and
+# publishes once everything is green; a manual run builds and publishes by itself.
 on:
   workflow_call:
+    inputs:
+      publish:
+        description: Replace the release here; CI passes false and publishes once its checks pass too.
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      suffix:
+        description: The version suffix every package was built with.
+        value: ${{ jobs.version.outputs.suffix }}
     secrets:
       ANDROID_DEBUG_KEYSTORE:
         required: false
@@ -19,7 +30,7 @@ concurrency:
 permissions:
   contents: read
 
-# Reads the remote build cache; CI's main run already pushed these outputs.
+# Reads the remote build cache; a main push's checks run at the same time, so a package compiles what it needs itself.
 env:
   SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
   SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
@@ -177,25 +188,10 @@ jobs:
           if-no-files-found: error
 
   publish:
+    if: ${{ inputs.publish != false }}
     needs: [version, linux, web, desktop]
-    runs-on: ubuntu-24.04
     permissions:
       contents: write
-    steps:
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: dist-*
-          path: dist
-          merge-multiple: true
-      - name: Replace the snapshot release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          VERSION_SUFFIX: ${{ needs.version.outputs.suffix }}
-        run: |
-          gh release delete snapshot --cleanup-tag --yes || true
-          gh release create snapshot dist/* \
-            --prerelease \
-            --target "$GITHUB_SHA" \
-            --title "Snapshot${VERSION_SUFFIX}" \
-            --notes "Built from ${GITHUB_SHA} by ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Unsigned desktop packages; the APK uses a debug key."
+    uses: ./.github/workflows/publish-snapshot.yml
+    with:
+      suffix: ${{ needs.version.outputs.suffix }}

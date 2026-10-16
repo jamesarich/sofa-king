@@ -157,6 +157,12 @@ composeCompiler {
     stabilityConfigurationFiles.add(layout.projectDirectory.file("compose-stability.conf"))
 }
 
+compose.dependencyCompatibility {
+    // Coil asks for an older Skiko than this Compose; Gradle resolves the newer one, and Coil moves with the next
+    // Compose it builds against. Without this every target's compile prints the mismatch.
+    exclude("io.coil-kt.coil3")
+}
+
 compose.desktop {
     application {
         mainClass = "dev.jamesrich.sofaking.MainKt"

@@ -14,6 +14,7 @@ on:
       - "!build-logic/**/*.md"
       - ".github/workflows/ci.yml"
       - ".github/workflows/snapshot.yml"
+      - ".github/workflows/publish-snapshot.yml"
   push:
     branches: [main]
     paths:
@@ -27,6 +28,7 @@ on:
       - "!build-logic/**/*.md"
       - ".github/workflows/ci.yml"
       - ".github/workflows/snapshot.yml"
+      - ".github/workflows/publish-snapshot.yml"
   workflow_dispatch:
 
 concurrency:
@@ -63,8 +65,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
-          # The configuration cache is stored only with a key (set the GRADLE_ENCRYPTION_KEY secret to
-          # `openssl rand -base64 16`); without one every run reconfigures from scratch.
+          # The key encrypts configuration-cache data, which setup-gradle 6 stores only for a Develocity trial; until
+          # then every run configures from scratch.
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       # The Kotlin/Native distribution and its toolchains, kept per Kotlin version. Keyed on the whole catalog, any
       # dependency bump restarted it cold, which cost the Apple job ten extra minutes per pull request until main saved.
@@ -122,8 +124,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
-          # The configuration cache is stored only with a key (set the GRADLE_ENCRYPTION_KEY secret to
-          # `openssl rand -base64 16`); without one every run reconfigures from scratch.
+          # The key encrypts configuration-cache data, which setup-gradle 6 stores only for a Develocity trial; until
+          # then every run configures from scratch.
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
       # The Kotlin/Native distribution and its toolchains, kept per Kotlin version. Keyed on the whole catalog, any
       # dependency bump restarted it cold, which cost the Apple job ten extra minutes per pull request until main saved.
@@ -173,13 +175,25 @@ jobs:
             app/*/build/reports/
             app/*/build/test-results/
 
+  # The packages build while the checks run, so a main push is done when its slowest job is; nothing publishes
+  # until every check and every package is green.
   snapshot:
-    needs: [check, apple]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
     uses: ./.github/workflows/snapshot.yml
+    with:
+      publish: false
     secrets:
       ANDROID_DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
       SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
       SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [check, apple, snapshot]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-snapshot.yml
+    with:
+      suffix: ${{ needs.snapshot.outputs.suffix }}

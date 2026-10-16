@@ -311,6 +311,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         zapSkipsHidden = s.zapSkipsHidden,
                         onFavoritesOrderChanged = { vm.setFavoritesOrder(it) },
                         onChannelHiddenChanged = { guideId, hide -> vm.setChannelHidden(guideId, hide) },
+                        onChannelsHiddenChanged = { guideIds, hide -> vm.setChannelsHidden(guideIds, hide) },
                         onZapSkipsHiddenChanged = { vm.setZapSkipsHidden(it) },
                         onBack = { screen = Screen.Settings },
                     )

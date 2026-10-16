@@ -355,6 +355,8 @@ class LineupViewModel(
 
     fun setChannelHidden(guideId: String, hidden: Boolean) = viewModelScope.launch { store.setChannelHidden(guideId, hidden) }
 
+    fun setChannelsHidden(guideIds: Collection<String>, hidden: Boolean) = viewModelScope.launch { store.setChannelsHidden(guideIds, hidden) }
+
     fun setZapSkipsHidden(enabled: Boolean) = viewModelScope.launch { store.setZapSkipsHidden(enabled) }
 
     fun setFavoritesOrder(order: List<String>) = viewModelScope.launch { store.setFavoritesOrder(order) }

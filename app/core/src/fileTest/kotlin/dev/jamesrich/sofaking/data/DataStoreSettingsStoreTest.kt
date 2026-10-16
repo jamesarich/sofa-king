@@ -332,6 +332,16 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `a group of channels hides and shows in one write`() = runTest {
+        val store = newStore()
+        store.setChannelHidden("solo", true)
+        store.setChannelsHidden(listOf("a", "b"), true)
+        assertEquals(setOf("solo", "a", "b"), store.settings.first().hiddenChannels)
+        store.setChannelsHidden(listOf("b", "solo", "missing"), false)
+        assertEquals(setOf("a"), store.settings.first().hiddenChannels)
+    }
+
+    @Test
     fun `the settings PIN is stored hashed and removed with null`() = runTest {
         val store = newStore()
         assertFalse(store.settings.first().settingsLocked)

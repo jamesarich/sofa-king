@@ -54,7 +54,10 @@
     <string name="channels_move_up">Move %1$s up</string>
     <string name="channels_move_down">Move %1$s down</string>
     <string name="channels_section_hidden">Hidden channels</string>
-    <string name="channels_hidden_help">A channel switched off leaves the guide and the channel list on this device only; the server and other devices keep it.</string>
+    <string name="channels_hidden_help">A group switched off hides all of its channels from the guide and the channel list on this device only; open a group to switch single channels. The server and other devices keep them.</string>
+    <string name="channels_group_shown">%1$d of %2$d shown</string>
+    <string name="channels_group_expand">Open the channels of %1$s</string>
+    <string name="channels_group_collapse">Close the channels of %1$s</string>
     <string name="channels_zap_skips">Skip hidden channels with Channel Up and Down</string>
     <string name="settings_caption_system">Open system caption settings</string>
     <string name="settings_caption_engine">Captions on this device are drawn by %1$s.</string>

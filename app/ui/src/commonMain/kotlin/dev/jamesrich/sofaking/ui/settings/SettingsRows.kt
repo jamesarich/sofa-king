@@ -63,12 +63,12 @@ internal fun SettingRow(label: String, controls: @Composable () -> Unit) {
  * stops on a bare switch. [help] reads beneath the label and with it.
  */
 @Composable
-internal fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, help: String? = null) {
+internal fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, help: String? = null, modifier: Modifier = Modifier) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
     val shape = MaterialTheme.shapes.medium
     ListItem(
-        modifier = Modifier
+        modifier = modifier
             .width(FIELD_WIDTH)
             .tvFocus(shape, focusedScale = 1f)
             .clip(shape)

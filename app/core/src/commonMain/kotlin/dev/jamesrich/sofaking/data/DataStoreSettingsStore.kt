@@ -155,6 +155,13 @@ class DataStoreSettingsStore(
         }
     }
 
+    override suspend fun setChannelsHidden(guideIds: Collection<String>, hidden: Boolean) {
+        dataStore.edit { prefs ->
+            val current = prefs[HIDDEN_CHANNELS] ?: emptySet()
+            prefs[HIDDEN_CHANNELS] = if (hidden) current + guideIds else current - guideIds.toSet()
+        }
+    }
+
     override suspend fun setZapSkipsHidden(enabled: Boolean) {
         dataStore.edit { prefs -> prefs[ZAP_SKIPS_HIDDEN] = enabled }
     }

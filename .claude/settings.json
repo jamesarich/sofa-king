@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch *)",
+      "Bash(git grep *)",
+      "Bash(git merge-base *)",
+      "Bash(git rev-list *)",
+      "Bash(git ls-tree *)",
+      "Bash(git worktree list *)",
+      "Bash(gh run watch *)",
+      "Bash(ping *)",
+      "Bash(adb devices *)",
+      "Bash(xcrun simctl list *)",
+      "Bash(unzip -l *)",
+      "Bash(gradle-queue --status *)",
+      "mcp__claude-in-chrome__read_console_messages",
+      "mcp__claude-in-chrome__get_page_text",
+      "mcp__claude-in-chrome__tabs_context_mcp"
+    ]
+  }
+}

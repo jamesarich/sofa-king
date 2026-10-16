@@ -2,12 +2,16 @@ package dev.jamesrich.sofaking.gradle
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.KotlinBaseExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin
 import org.jetbrains.kotlin.gradle.targets.js.EnvSpec
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin
+import org.jetbrains.kotlin.gradle.targets.js.npm.tasks.KotlinNpmInstallTask
+import org.jetbrains.kotlin.gradle.targets.js.npm.tasks.KotlinToolingSetupTask
 import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin
 import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootEnvSpec
 import org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenEnvSpec
@@ -30,6 +34,14 @@ class KotlinConventionPlugin : Plugin<Project> {
             extensions.getByType(KotlinBaseExtension::class.java).jvmToolchain(JDK)
         }
 
+        // The JS and Wasm npm installs each run Yarn and store a lock file; run together under the configuration cache
+        // they raced, and `kotlinStoreYarnLock` then found no `build/js/yarn.lock`. One at a time, across the build.
+        val npmInstall = gradle.sharedServices.registerIfAbsent("sofakingNpmInstall", NpmInstallLock::class.java) {
+            it.maxParallelUsages.set(1)
+        }
+        tasks.withType(KotlinNpmInstallTask::class.java).configureEach { it.usesService(npmInstall) }
+        tasks.withType(KotlinToolingSetupTask::class.java).configureEach { it.usesService(npmInstall) }
+
         // The settings refuse project repositories, which is where these plugins would otherwise add their own.
         noDownloadRepository<NodeJsPlugin, NodeJsEnvSpec>()
         noDownloadRepository<WasmNodeJsPlugin, WasmNodeJsEnvSpec>()
@@ -46,3 +58,6 @@ class KotlinConventionPlugin : Plugin<Project> {
         const val JDK = 21
     }
 }
+
+/** Holds no state; its `maxParallelUsages` of one serialises the tasks that use it. */
+abstract class NpmInstallLock : BuildService<BuildServiceParameters.None>

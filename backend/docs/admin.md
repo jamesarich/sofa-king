@@ -74,7 +74,7 @@ Device addresses on the Plex page use the host the page was reached by; extra de
 
 - The portal is meant for the LAN, like the rest of the server. Reach it through a TLS-terminating proxy if the token crosses a network you do not control. Behind a proxy that sends `X-Forwarded-Proto: https`, the session cookie is marked `Secure`.
 - The token is compared in constant time and never stored in the browser. Sign-in sets a `sofa_admin` cookie holding a random session ID, `HttpOnly`, `SameSite=Strict` and scoped to `Path=/admin`.
-- Every page and action needs the session, whatever spelling of the path reaches it. The exceptions are the sign-in form and the brand icon its tab shows. Every action is a `POST` that carries the session's CSRF token.
+- Every page and action needs the session, whatever spelling of the path reaches it. The exceptions are the sign-in form, the brand icon its tab shows and the stylesheet. Every action is a `POST` that carries the session's CSRF token.
 - The portal opens nothing under `/api/`. API clients still need their bearer token.
 - Pages are sent with `Cache-Control: no-store` and a content security policy that allows scripts from the server only. htmx and the icon are served from the server; the portal loads nothing from other hosts.
 - The output token appears only on the page answering "Reveal the output token", and the API token only on the page answering "Reveal the API token". Neither is in the page source by default. Each reveal is a `POST` that needs the session and its CSRF token. No other token reaches any page.

@@ -23,7 +23,7 @@ The first answers `ready`. The second lists the lineup as JSON. A `401` means th
 
 ## 2. Install the app
 
-The [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) has a build of every platform but iOS from the latest `main`. To build from source instead, see [run each platform](development.md#run-each-platform).
+The [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) has a build of every platform but iOS and Apple TV from the latest `main`. To build from source instead, see [run each platform](development.md#run-each-platform).
 
 ### Android TV and Google TV
 
@@ -62,9 +62,9 @@ A sub-path does not work. The server's stream and logo URLs start at `/media/` a
 
 A page served over HTTPS cannot call a plain-HTTP server, so serve both through the same HTTPS proxy. The web app plays HLS channels only.
 
-### iOS
+### iOS and Apple TV
 
-There is no published iOS build. On a Mac, build it from source as [run each platform](development.md#run-each-platform) describes. The iOS app plays HLS channels only.
+There is no published iOS or Apple TV build. On a Mac, build them from source as [run each platform](development.md#run-each-platform) describes. Both play HLS channels only.
 
 ## 3. Connect to the server
 

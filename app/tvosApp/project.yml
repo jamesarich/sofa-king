@@ -22,6 +22,11 @@ targets:
       path: SofaKingTV/Info.plist
       properties:
         CFBundleDisplayName: Sofa King
+        # XcodeGen fills in the bundle name, identifier, version (from Version.xcconfig), executable and package type.
+        LSApplicationCategoryType: public.app-category.entertainment
+        NSHumanReadableCopyright: "© 2026 James Rich. GPL-3.0-only; source at https://github.com/jamesarich/sofa-king."
+        # Only HTTPS and the system's TLS, so export compliance needs no declaration on each upload.
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         # The Sofa King server serves plain HTTP on the LAN, as Android's network_security_config allows.
         NSAppTransportSecurity:
@@ -65,9 +70,10 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.tv-top-shelf
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ContentProvider
-        # Channel logos come from the server over plain HTTP, as in the app.
+        # Channel logos come from the server over plain HTTP on the LAN, as in the app.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        NSLocalNetworkUsageDescription: Sofa King shows your recent channels' logos from your Sofa King server on this network.
     entitlements:
       path: TopShelf/TopShelf.entitlements
       properties:

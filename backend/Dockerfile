@@ -48,12 +48,20 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/opt/sofa/bin/server"]
 
-# Last, so a new revision invalidates no layer above it.
+# Last, so a new revision invalidates no layer above it. GitHub Container Registry shows the description and links the
+# package to the repository through the source label; the workflow passes VERSION from the catalog's `sofaking` version.
 ARG REVISION=unknown
+ARG VERSION=unknown
 LABEL org.opencontainers.image.title="Sofa King backend" \
+      org.opencontainers.image.description="Live TV server: imports free streaming services and playlists into one lineup, relays the streams and emulates an HDHomeRun for Plex" \
+      org.opencontainers.image.url="https://github.com/jamesarich/sofa-king" \
+      org.opencontainers.image.documentation="https://github.com/jamesarich/sofa-king/blob/main/backend/docs/deploy.md" \
       org.opencontainers.image.source="https://github.com/jamesarich/sofa-king" \
+      org.opencontainers.image.vendor="James Rich" \
+      org.opencontainers.image.authors="James Rich" \
       org.opencontainers.image.licenses="GPL-3.0-only" \
+      org.opencontainers.image.base.name="docker.io/library/eclipse-temurin:21.0.12.1_1-jre-noble" \
       org.opencontainers.image.revision="${REVISION}" \
-      org.opencontainers.image.version="${REVISION}"
+      org.opencontainers.image.version="${VERSION}"
 # Labels are not visible inside the container, so the server reads its revision from the environment.
 ENV SOFA_REVISION=${REVISION}

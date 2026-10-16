@@ -246,14 +246,14 @@ Validation: `number` 1-32 characters without spaces, `name` 1-256, `group` 1-128
 
 ## Admin portal routes
 
-The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in page, the sign-in form and the icon needs the `sofa_admin` session cookie. A page request without one is redirected to `/admin`, and an action answers `401`. Every `POST` but the sign-in also needs the session's CSRF token, as the form field the pages include or the `X-CSRF-Token` header, and answers `403` without it.
+The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in page, the sign-in form, the icon and the stylesheet needs the `sofa_admin` session cookie. A page request without one is redirected to `/admin`, and an action answers `401`. Every `POST` but the sign-in also needs the session's CSRF token, as the form field the pages include or the `X-CSRF-Token` header, and answers `403` without it.
 
 | Method | Path | Page or action |
 | --- | --- | --- |
 | GET | `/admin` | The sign-in page, or the overview once signed in |
 | POST | `/admin/login` | Sign in with the form field `token`. 10 attempts a minute per client address, then `429` |
 | POST | `/admin/logout` | Sign out |
-| GET | `/admin/static/icon.svg`, `/admin/static/htmx.min.js` | The portal's icon (public) and htmx (signed in) |
+| GET | `/admin/static/icon.svg`, `/admin/static/admin.css`, `/admin/static/htmx.min.js` | The portal's icon and stylesheet (public) and htmx (signed in) |
 | GET | `/admin/lineup` | Channels, filtered and sorted by the query (`q`, `group`, `state`, `guide`, `required`, `override`, `changed`, `sort`, `dir`, `page`) |
 | GET | `/admin/lineup/{id}` | One channel |
 | POST | `/admin/lineup/{id}/visibility`, `/admin/lineup/{id}/edit` | Hide or show a channel; rename, renumber or regroup it |

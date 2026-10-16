@@ -22,6 +22,7 @@ import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.InfoOverlay
 import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
+import dev.jamesrich.sofaking.ui.settings.SettingsLockScreen
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.Job
@@ -154,6 +155,14 @@ class RenderSmokeTest {
                 onBack = {},
                 channelCount = channels.size,
             )
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
+    fun `the settings lock page renders its field and buttons`() {
+        val image = render("settings-lock") {
+            SettingsLockScreen(pinHash = "salt:hash", apiToken = "s3cret-token", onUnlocked = {}, onPinRemoved = {}, onBack = {})
         }
         assertTrue(image.hasContent())
     }

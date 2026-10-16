@@ -5,6 +5,7 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
+import dev.jamesrich.sofaking.data.PublishedBuild
 
 /**
  * Back on every platform: the remote's or system Back on Android, the swipe on iOS, Escape on desktops and the
@@ -39,6 +40,12 @@ internal expect fun captionEngineName(): String
 
 /** True where the engine honors [dev.jamesrich.sofaking.data.PlaybackPreferences] (Android's Media3); Settings hides the Playback section elsewhere. */
 internal expect val supportsPlaybackPreferences: Boolean
+
+/**
+ * What Get the update opens for a published [latest] build: the Android package on Android, the release page on a
+ * desktop or in a browser, or null where no package is published (iOS), so Settings says so instead.
+ */
+internal expect fun updateDownloadUrl(latest: PublishedBuild): String?
 
 /**
  * While [enabled], switches the display to a mode that matches the frame rate of the video [player] plays, and

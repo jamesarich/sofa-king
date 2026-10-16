@@ -47,11 +47,12 @@ import kotlinx.serialization.Serializable
 /**
  * [map] is keyed by lowercase raw group, or `provider:raw group` for one provider's category. A station's sources
  * vote with their mapped categories; a category in [weak] votes only when no other category does. A station with no
- * vote takes [default], else its leading channel's raw group.
+ * vote takes [default], else its leading channel's raw group. With [builtIn], a category that neither [map] nor a
+ * `rawGroup` pattern names is looked up in the group map the server ships, and the shipped weak list applies too.
  */
 @Serializable data class PolicyGroups(
     val map: Map<String, String> = emptyMap(), val patterns: List<GroupPattern> = emptyList(), val default: String? = null,
-    val weak: List<String> = emptyList(),
+    val weak: List<String> = emptyList(), val builtIn: Boolean = true,
 )
 
 /**

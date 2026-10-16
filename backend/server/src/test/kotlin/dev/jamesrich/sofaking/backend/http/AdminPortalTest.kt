@@ -33,6 +33,7 @@ class AdminPortalTest {
         feeds: (Fixture) -> List<FeedConfig> = { listOf(it.feed, it.altFeed, it.twinFeed, it.tsFeed) },
         guides: (Fixture) -> List<GuideConfig> = { emptyList() },
         show: (ServerConfig) -> ServerConfig = { it },
+        restart: () -> Unit = {},
         block: suspend Setup.() -> Unit,
     ) {
         val dir = Files.createTempDirectory("sofa-admin-portal-")
@@ -43,7 +44,7 @@ class AdminPortalTest {
             val store = openStore(dir)
             // No update image: the registry is never asked from a test; the update check itself is tested over a mock registry.
             val config = ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin, policyFile = policyFile, updateImage = null)
-            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000, probes = false)
+            val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000, probes = false, restart = restart)
             try {
                 // The portal is told of a Plex token and the output token the runtime never uses, so redaction is checked against them.
                 val shown = show(config.copy(outputs = OutputConfig(outputToken), plex = PlexConfig("http://127.0.0.1:32400", plexToken)))
@@ -269,6 +270,71 @@ class AdminPortalTest {
             val html = browser.get("/admin/providers").bodyAsText()
             for (id in listOf("fixture", "alt", "twin", "ts", "broken")) assertTrue(html.contains(">$id<"), id)
             assertFalse(html.contains("/feed.m3u"), "no source URL reaches the page")
+        }
+    }
+
+    @Test fun `the services form asks before it writes the source file, then restarts and answers the restarting page`() = testApplication {
+        var restarts = 0
+        portal(restart = { restarts++ }) {
+            browser.signIn()
+            val page = browser.get("/admin/providers").bodyAsText()
+            assertTrue(page.contains("<section id=\"services\">") && page.contains("Pluto TV") && page.contains("Add an M3U playlist"), "the Sources page offers the services and the playlist form")
+            assertTrue(Regex("""name="svc"[^>]*value="whale"(?![^>]*checked)""").containsMatchIn(page), "a service the file lacks starts unticked when a file exists")
+            for (playlist in listOf("fixture", "alt", "twin", "ts")) assertTrue(page.contains("<th scope=\"row\">$playlist</th>"), "the M3U providers list as playlists")
+            val csrf = field(page, "csrf")
+
+            val refused = browser.post("/admin/sources/services", "csrf" to csrf, "svc" to "pbs", "opt.pbs.zip" to "12")
+            assertEquals(HttpStatusCode.BadRequest, refused.status)
+            assertTrue(refused.bodyAsText().contains("ZIP code does not look right"))
+            assertEquals(0, restarts)
+
+            val asked = browser.post("/admin/sources/services", "csrf" to csrf, "svc" to "pluto", "svc" to "whale")
+            assertEquals(HttpStatusCode.OK, asked.status)
+            val dialog = asked.bodyAsText()
+            assertTrue(dialog.contains("Save the services and restart?") && dialog.contains("Turns on Pluto TV, Whale TV+"), dialog.substringAfter("<div class=\"modal\">").take(800))
+            assertTrue(dialog.contains("name=\"svc\" value=\"pluto\""), "the confirmation carries the form")
+            assertEquals(0, restarts)
+            assertEquals(4, runtime.setup!!.document().providers.size, "nothing is written before the confirmation")
+
+            val saved = browser.post("/admin/sources/services", "csrf" to csrf, "svc" to "pluto", "svc" to "whale", "confirm" to "yes")
+            assertEquals(HttpStatusCode.OK, saved.status)
+            val restarting = saved.bodyAsText()
+            assertTrue(restarting.contains("<title>Restarting") && restarting.contains("http-equiv=\"refresh\""), restarting.take(600))
+            assertEquals(1, restarts)
+            val written = runtime.setup!!.document()
+            assertEquals(listOf("fixture", "alt", "twin", "ts", "whale", "pluto"), written.providers.map { it.id }, "new services follow the catalog's order")
+            assertTrue(written.providers.takeLast(2).all { it.native })
+
+            val removed = browser.post("/admin/sources/remove", "csrf" to csrf, "id" to "alt", "confirm" to "yes")
+            assertEquals(HttpStatusCode.OK, removed.status)
+            assertEquals(listOf("fixture", "twin", "ts", "whale", "pluto"), runtime.setup!!.document().providers.map { it.id })
+            assertEquals(1, restarts, "one restart is pending for every write")
+        }
+    }
+
+    @Test fun `the home page offers to build the lineup while there is no policy, and asks before it does`() = testApplication {
+        var restarts = 0
+        portal(restart = { restarts++ }) {
+            browser.signIn()
+            val home = browser.get("/admin").bodyAsText()
+            assertTrue(home.contains("<section id=\"setup\">") && home.contains("<li class=\"done\"><b>Add your sources</b>") && home.contains(">Build the lineup</button>"), home.substringAfter("id=\"setup\"").take(900))
+            val csrf = field(home, "csrf")
+            val asked = browser.post("/admin/policy/starter", "csrf" to csrf)
+            assertTrue(asked.bodyAsText().contains("Build the lineup from every configured service?"))
+            assertEquals(0, restarts)
+            val built = browser.post("/admin/policy/starter", "csrf" to csrf, "confirm" to "yes")
+            assertEquals(HttpStatusCode.OK, built.status)
+            assertTrue(built.bodyAsText().contains("Wrote the lineup policy"))
+            assertEquals(1, restarts)
+            assertTrue(Files.exists(runtime.setup!!.policyPath))
+            assertEquals(HttpStatusCode.Conflict, browser.post("/admin/policy/starter", "csrf" to csrf, "confirm" to "yes").status)
+        }
+    }
+
+    @Test fun `the setup steps leave the home page once the server has sources and a policy`() = testApplication {
+        portal(basePolicy) {
+            browser.signIn()
+            assertFalse(browser.get("/admin").bodyAsText().contains("<section id=\"setup\">"))
         }
     }
 

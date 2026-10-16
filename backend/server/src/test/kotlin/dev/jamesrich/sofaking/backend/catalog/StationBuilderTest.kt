@@ -55,7 +55,7 @@ class StationBuilderTest {
         names = PolicyNames(version = 1),
         health = PolicyHealth(requireVerified = false),
         providers = listOf(PolicyProvider("whale"), PolicyProvider("samsung"), PolicyProvider("vizio", enabled = false)),
-        groups = PolicyGroups(map = mapOf("news" to "Headlines"), patterns = listOf(GroupPattern(name = "tennis", group = "Sports")), default = "Entertainment"),
+        groups = PolicyGroups(map = mapOf("news" to "Headlines"), patterns = listOf(GroupPattern(name = "tennis", group = "Sports")), default = "Entertainment", builtIn = false),
         numbering = PolicyNumbering(floor = 1000),
         stations = mapOf(
             "nfl network" to StationOverride(number = "245", group = "Sports", required = true, sources = listOf(SourcePin("masq", "NFLNetwork.us", "NFL Network"))),
@@ -74,6 +74,16 @@ class StationBuilderTest {
             assertEquals(first.availability, again.availability)
             assertEquals(first.assigned, again.assigned)
         }
+    }
+
+    @Test fun `a category the policy leaves unmapped takes the shipped map, unless groups builtIn is off`() {
+        val catalog = listOf(candidate("whale", "w9", "Crime Scene", "9", group = "Crime TV"), candidate("whale", "w8", "Odd One", "8", group = "Some Odd Bucket"))
+        val on = build(policy.copy(groups = policy.groups.copy(builtIn = true)), catalog)
+        assertEquals("Crime", on.station("crime scene").group, "the shipped map names Crime TV")
+        assertEquals(listOf("whale" to "some odd bucket"), on.unmappedCategories.map { it.provider to it.category }, "only a category neither map knows is reported")
+        val off = build(policy, catalog)
+        assertEquals("Entertainment", off.station("crime scene").group, "without the shipped map the default applies")
+        assertEquals(setOf("crime tv", "some odd bucket"), off.unmappedCategories.mapTo(HashSet()) { it.category })
     }
 
     @Test fun `the earliest provider entry leads and its sources come first`() {
@@ -386,7 +396,7 @@ class StationBuilderTest {
         names = PolicyNames(version = 1),
         health = PolicyHealth(requireVerified = false),
         providers = listOf(PolicyProvider("whale"), PolicyProvider("samsung")),
-        groups = PolicyGroups(map = mapOf("news" to "Headlines"), patterns = listOf(GroupPattern(name = "tennis", group = "Sports")), default = "Entertainment"),
+        groups = PolicyGroups(map = mapOf("news" to "Headlines"), patterns = listOf(GroupPattern(name = "tennis", group = "Sports")), default = "Entertainment", builtIn = false),
     )
 
     @Test fun `a raw category nothing maps is counted per provider, and mapped or pattern-matched ones are not`() {

@@ -1,0 +1,173 @@
+package dev.jamesrich.sofaking.backend.setup
+
+import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.api.CandidateFilter
+import dev.jamesrich.sofaking.backend.api.LineupPolicy
+import dev.jamesrich.sofaking.backend.api.PolicyGroups
+import dev.jamesrich.sofaking.backend.api.PolicyHealth
+import dev.jamesrich.sofaking.backend.api.PolicyNames
+import dev.jamesrich.sofaking.backend.api.PolicyNumbering
+import dev.jamesrich.sofaking.backend.api.PolicyProvider
+import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.catalog.FeedConfig
+import dev.jamesrich.sofaking.backend.catalog.SourceDocument
+import dev.jamesrich.sofaking.backend.catalog.readSourceDocument
+import dev.jamesrich.sofaking.backend.catalog.sourceBytes
+import dev.jamesrich.sofaking.backend.catalog.validatePolicy
+import dev.jamesrich.sofaking.backend.catalog.validateSources
+import dev.jamesrich.sofaking.backend.io.atomicWrite
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
+import kotlin.system.exitProcess
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
+
+/** What a setup write answers: the file it wrote and that the server is restarting to read it. */
+@Serializable data class SetupResult(val path: String, val restarting: Boolean)
+
+/**
+ * Setup from the portal and the admin API: writes the source file and a starter lineup policy, then restarts the
+ * server, because providers, guides and the policy are built from those files at start. The files go where the server
+ * reads them: the paths `SOFA_SOURCES` and `SOFA_POLICY` name, else `sources.json` and `policy.json` in the data
+ * directory. Every write is validated the way the start validates it, so a restart never fails on what was written.
+ * [restart] ends the process after the response is sent; the container's restart policy brings it back.
+ */
+class SetupService(config: ServerConfig, private val restart: () -> Unit = ::exitForRestart, private val environment: Map<String, String> = System.getenv()) {
+    private val log = LoggerFactory.getLogger(SetupService::class.java)
+    private val mutex = Mutex()
+    private val restarting = AtomicBoolean(false)
+
+    val sourcesPath: Path = config.sourcesFile ?: config.dataDirectory.resolve("sources.json")
+    val policyPath: Path = config.policyFile ?: config.dataDirectory.resolve("policy.json")
+
+    /** Whether the server started with a source file; false means it runs with no providers. */
+    val hasSources: Boolean = config.sourcesFile != null
+
+    /** Whether the server started with a lineup policy. */
+    val hasPolicy: Boolean = config.policyFile != null
+
+    /** Whether a restart has been requested and the process is about to end. */
+    val isRestarting: Boolean get() = restarting.get()
+
+    /** The source file as written, or an empty document when there is none. */
+    suspend fun document(): SourceDocument = withContext(Dispatchers.IO) {
+        if (Files.isRegularFile(sourcesPath)) readSourceDocument(sourcesPath) else SourceDocument()
+    }
+
+    /**
+     * Replaces the source file with [document] and restarts. Fails with 400 INVALID_SOURCES and the reason when the
+     * document would not load at start; nothing is written then.
+     */
+    suspend fun replaceSources(document: SourceDocument): SetupResult = mutex.withLock {
+        try { validateSources(document, environment) } catch (e: IllegalArgumentException) {
+            throw ApiFailure(400, "INVALID_SOURCES", e.message ?: "The source configuration is not valid")
+        } catch (e: kotlinx.serialization.SerializationException) {
+            throw ApiFailure(400, "INVALID_SOURCES", e.message?.lineSequence()?.firstOrNull() ?: "The source configuration is not valid")
+        }
+        withContext(Dispatchers.IO) {
+            Files.createDirectories(sourcesPath.toAbsolutePath().parent)
+            atomicWrite(sourcesPath, sourceBytes(document))
+        }
+        log.info("setup: wrote the source file providers={} guides={}", document.providers.size, document.guides.size)
+        requestRestart()
+        SetupResult(sourcesPath.toString(), true)
+    }
+
+    /**
+     * Writes the starter policy for the configured providers and restarts. Fails with 409 POLICY_EXISTS when the server
+     * already runs a policy or the file is there, and 409 NO_SOURCES with no providers to build from.
+     */
+    suspend fun writeStarterPolicy(): SetupResult = mutex.withLock {
+        if (hasPolicy || Files.exists(policyPath)) throw ApiFailure(409, "POLICY_EXISTS", "A lineup policy is already configured at $policyPath")
+        val providers = document().providers
+        if (providers.isEmpty()) throw ApiFailure(409, "NO_SOURCES", "Add providers to the source file first")
+        val policy = StarterPolicy.generate(providers)
+        val errors = validatePolicy(policy, providers.mapTo(HashSet()) { it.id })
+        check(errors.isEmpty()) { "The starter policy is not valid: $errors" }
+        withContext(Dispatchers.IO) {
+            Files.createDirectories(policyPath.toAbsolutePath().parent)
+            atomicWrite(policyPath, StarterPolicy.bytes(policy))
+        }
+        log.info("setup: wrote the starter policy entries={}", policy.providers.size)
+        requestRestart()
+        SetupResult(policyPath.toString(), true)
+    }
+
+    private fun requestRestart() {
+        if (restarting.compareAndSet(false, true)) {
+            log.info("setup: restarting to read the new configuration")
+            restart()
+        }
+    }
+
+    companion object {
+        /** How long the response has to reach the browser before the process ends. */
+        const val EXIT_DELAY_MILLIS = 1500L
+
+        /** Ends the process shortly, with status 0; the shutdown hooks stop the server and close the store first. */
+        fun exitForRestart() {
+            thread(name = "restart", isDaemon = true) {
+                Thread.sleep(EXIT_DELAY_MILLIS)
+                exitProcess(0)
+            }
+        }
+    }
+}
+
+/**
+ * The starter lineup policy: the configured native services in the catalog's priority order (an antenna tuner first,
+ * then everything else), the shipped group map and number blocks, and `requireVerified`, so stations come on as their
+ * sources are verified. The same policy `scripts/generate-policy.py` writes, without the aliases it mines from a
+ * running lineup; the server learns those as it runs.
+ */
+object StarterPolicy {
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    private val json = Json { prettyPrint = true; prettyPrintIndent = "  "; encodeDefaults = false }
+
+    /** Each block runs to the next block's start, sized for the free services' catalogs with room to grow. */
+    val GROUP_BLOCKS: Map<String, Int> = linkedMapOf(
+        "Local" to 1, "Local News (US)" to 10, "News" to 100, "Sports" to 300, "En Español" to 600, "Entertainment" to 700,
+        "Drama" to 900, "Classic TV" to 1050, "Movies" to 1200, "Sci-Fi & Horror" to 1400, "Comedy" to 1500, "Crime" to 1600,
+        "Documentary" to 1700, "Lifestyle" to 1850, "Food & Travel" to 2100, "Kids & Family" to 2200, "Anime" to 2300,
+        "Music" to 2350, "Game Shows" to 2500, "Faith" to 2550, "Shopping" to 2580, "Ambiance" to 2600,
+    )
+    const val GROUP_SIZE = 400
+    /** Stations the policy keeps off, and new stations past a full block, number from here, clear of every block. */
+    const val NUMBER_FLOOR = 3000
+    const val DEFAULT_GROUP = "Entertainment"
+
+    fun generate(providers: List<FeedConfig>): LineupPolicy {
+        val byService = providers.filter { it.native }.groupBy { it.service!! }
+        val tuners = byService["hdhomerun"].orEmpty()
+        val ordered = tuners + ServiceCatalog.order.filter { it != "hdhomerun" }.flatMap { byService[it].orEmpty() }
+        val entries = ordered.flatMap { provider ->
+            when (provider.service) {
+                "localnow" -> listOf(
+                    PolicyProvider(provider.id, include = CandidateFilter(groups = listOf("My City"))),
+                    PolicyProvider(provider.id, include = CandidateFilter(groups = listOf("More Cities")), enabled = false),
+                    PolicyProvider(provider.id),
+                )
+                "vizio" -> listOf(PolicyProvider(provider.id, exclude = CandidateFilter(groups = listOf("Local channels"))))
+                else -> listOf(PolicyProvider(provider.id))
+            }
+        } + providers.filter { !it.native }.map { PolicyProvider(it.id) }
+        val groups = DefaultGroups.load()
+        return LineupPolicy(
+            names = PolicyNames(version = 2),
+            providers = entries,
+            groups = PolicyGroups(map = groups.map, patterns = groups.patterns, default = DEFAULT_GROUP, weak = groups.weak.sorted(), builtIn = false),
+            numbering = PolicyNumbering(floor = NUMBER_FLOOR, groups = GROUP_BLOCKS, groupSize = GROUP_SIZE, followGroup = true),
+            health = PolicyHealth(requireVerified = true),
+        )
+    }
+
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    fun bytes(policy: LineupPolicy): ByteArray = (json.encodeToString(LineupPolicy.serializer(), policy) + "\n").toByteArray()
+}

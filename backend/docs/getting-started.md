@@ -50,11 +50,13 @@ SOFA_API_TOKEN=$(jq -r .apiToken config/secrets.json)
 SOFA_ADMIN_TOKEN=$(jq -r .adminToken config/secrets.json)
 ```
 
-Open `http://SERVER_HOST:9193/admin` and sign in with the `adminToken`. The overview lists what needs attention. For now it says there are no providers.
+Open `http://SERVER_HOST:9193/admin` and sign in with the `adminToken`. The home page starts with two setup steps, choose services and build the lineup, and lists what needs attention.
 
 ## 3. Add three services
 
-Write the source file. It lists Whale TV+, Tubi and Pluto TV, three [native providers](providers.md) that need no account:
+On the home page, choose Choose services. The Sources page lists every [native service](providers.md) as a switch, with the ones that need no option already ticked. For this tutorial, untick everything but Whale TV+, Tubi and Pluto TV, three services that need no account, and choose Save and restart. The confirmation names the three; the server writes `config/sources.json` and restarts, which signs you out, and the page returns to the portal in twenty seconds.
+
+The same by hand, if you prefer:
 
 ```sh
 cat > config/sources.json <<'EOF'
@@ -80,7 +82,9 @@ Each native service brings its own guide, so `guides` stays empty.
 
 ## 4. Build the lineup
 
-The services list channels, but the server serves none until a [lineup policy](lineup-policy.md) builds the lineup. This policy takes every channel of the three services, Whale first, and puts whatever nothing else groups in Entertainment:
+The services list channels, but the server serves none until a [lineup policy](lineup-policy.md) builds the lineup. On the home page, choose Build the lineup and confirm: the server writes the [starter policy](starter-lineup.md), which takes every channel of the three services in its priority order, groups them with the shipped category map and numbers each group in its own block, then restarts.
+
+A smaller policy by hand instead, which takes every channel of the three services, Whale first, and puts whatever nothing else groups in Entertainment:
 
 ```sh
 cat > config/policy.json <<'EOF'
@@ -94,7 +98,7 @@ docker compose restart
 
 The server builds one station per channel. When two services carry the same channel, the first one listed leads and the other becomes its fallback. A station comes on once one of its sources has played in a probe, so the Channels page fills over the next hour or more.
 
-To start from a full lineup of every native provider instead, grouped and numbered in blocks, follow [build a starter lineup](starter-lineup.md).
+[Build a starter lineup](starter-lineup.md) describes what the starter policy holds and how to tune it.
 
 ## 5. Watch
 

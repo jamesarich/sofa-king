@@ -160,4 +160,4 @@ The output token goes in URLs, so changing it means editing every player and Ple
 
 ## Restarts and shutdown
 
-On `SIGTERM` the server stops accepting connections, closes the imports, probes and relays, and then closes the database. The Compose file allows 20 seconds for this. In-memory playback sessions end with the process, so schedule restarts outside viewing hours when possible.
+On `SIGTERM` the server stops accepting connections, closes the imports, probes and relays, and then closes the database. The Compose file allows 20 seconds for this. In-memory playback sessions end with the process, so schedule restarts outside viewing hours when possible. A [setup write](admin.md#setup) from the portal or the admin API ends the process the same way once it has answered, and the Compose file's `restart: unless-stopped` starts it again; a server run some other way needs starting again by hand.

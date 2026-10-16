@@ -6,7 +6,7 @@ Save it as `policy.json` in the data directory, or set `SOFA_POLICY` to its path
 
 ## Setup
 
-Keep the policy in a directory the server can write, not a single-file bind mount: the server writes numbers and API edits back with a rename in that directory. With the [Compose file](deploy.md), that is the config folder: save the policy as `deploy/config/policy.json` and restart.
+Keep the policy in a directory the server can write, not a single-file bind mount: the server writes numbers and API edits back with a rename in that directory. With the [Compose file](deploy.md), that is the config folder: save the policy as `deploy/config/policy.json` and restart. The portal's home page writes a [starter policy](starter-lineup.md) there and restarts for you while there is none.
 
 The server reads and validates the file at start, and any error stops it. The file is never `${VAR}`-expanded.
 
@@ -68,6 +68,7 @@ A learned alias for a pair in `names.never` is ignored and removed at the next w
 | `groups.weak` | `[]` | Lowercase raw groups, or `provider:raw group` keys, that vote only when no other category does |
 | `groups.patterns` | `[]` | `{"name": regex, "rawGroup": regex, "group": "..."}`, first match wins; give `name`, `rawGroup` or both |
 | `groups.default` | unset | Group for a station nothing else groups; unset keeps the raw group |
+| `groups.builtIn` | `true` | Consult the group map the server ships ([starter groups](starter-lineup.md#2-generate-the-policy)) for a category that `groups.map` and the `rawGroup` patterns leave out, and treat its weak list as weak too; `false` uses the policy's own alone |
 | `numbering.floor` | `1000` | First number handed out when a station's own number is taken or not numeric |
 | `numbering.keepProviderNumbers` | `true` | Use the leading channel's own number when it is free; ignored while `numbering.groups` is set |
 | `numbering.groups` | `{}` | Group to the first number of its block, such as `{"News": 100, "Sports": 200}` |
@@ -121,7 +122,7 @@ A station's group is the first of:
 
 1. Its override's `group`.
 2. The `group` of the first pattern whose `name` matches the station's name.
-3. The vote of its sources. Each source's raw category maps through `groups.map`, trying `provider:raw group` before `raw group`, and then through the first pattern whose `rawGroup` matches it. Each provider counts once per group, and the group with the most providers wins; a tie goes to the group voted for first, in leading order. Categories in `groups.weak` vote only when no other category does, so a broad bucket such as `TV`, `Featured` or `Movies and Series` decides a station only when nothing more specific names it. A category nothing maps casts no vote.
+3. The vote of its sources. Each source's raw category maps through `groups.map`, trying `provider:raw group` before `raw group`, and then through the first pattern whose `rawGroup` matches it. Each provider counts once per group, and the group with the most providers wins; a tie goes to the group voted for first, in leading order. Categories in `groups.weak` vote only when no other category does, so a broad bucket such as `TV`, `Featured` or `Movies and Series` decides a station only when nothing more specific names it. With `groups.builtIn`, a category the policy leaves out is looked up in the shipped group map, and its weak list applies too; the policy's own entries always win. A category nothing maps casts no vote.
 4. `groups.default`.
 5. The leading channel's raw category.
 
@@ -172,7 +173,7 @@ Each run reports findings, each starting with the station key; the `groups:` sum
 
 ### Unmapped categories
 
-Each run lists the raw categories that no `groups.map` entry or `rawGroup` pattern names and that `groups.weak` does not list, in `unmappedCategories`, in preview, apply and findings. Every source of a station counts, not only the leading one. There is one entry per provider and category, `{"provider", "category", "stations", "example"}`, with the most stations first, then provider and category. `category` is the lowercase key `groups.map` takes, and `example` is the first station name in sorted order. Stations with a group override or a matching name pattern are not listed, and neither are sources with no raw category. When the list is not empty, the findings carry one `groups:` line with the category and station counts.
+Each run lists the raw categories that no `groups.map` entry, `rawGroup` pattern or, with `groups.builtIn`, shipped mapping names and that neither `groups.weak` nor the shipped weak list holds, in `unmappedCategories`, in preview, apply and findings. Every source of a station counts, not only the leading one. There is one entry per provider and category, `{"provider", "category", "stations", "example"}`, with the most stations first, then provider and category. `category` is the lowercase key `groups.map` takes, and `example` is the first station name in sorted order. Stations with a group override or a matching name pattern are not listed, and neither are sources with no raw category. When the list is not empty, the findings carry one `groups:` line with the category and station counts.
 
 To map a category, add its `category` to `groups.map` with the group it belongs in, then apply. A category that says nothing about the genre goes in `groups.weak`.
 
@@ -207,7 +208,7 @@ With a policy, the HDHomeRun devices split the lineup by range instead of by has
    ```sh
    scripts/generate-policy.py --server http://SERVER_HOST:9193 \
      --admin-token "$SOFA_ADMIN_TOKEN" --api-token "$SOFA_API_TOKEN" \
-     --starter-groups deploy/starter-groups.json --local-pattern '\b(des moines|kcci)\b' \
+     --starter-groups server/src/main/resources/policy/starter-groups.json --local-pattern '\b(des moines|kcci)\b' \
      --out policy.json
    ```
 

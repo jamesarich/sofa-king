@@ -3,7 +3,7 @@
     <string name="mini_guide_title">Channels</string>
     <string name="mini_guide_last_channel">Last channel</string>
     <string name="mini_guide_recent">Recent</string>
-    <string name="mini_guide_empty_favorites">No favorites yet. Hold OK on a program in the guide to star its channel.</string>
+    <string name="mini_guide_empty_favorites">No favorites yet. The star above adds the channel you are watching.</string>
     <string name="mini_guide_next">Next: %1$s at %2$s</string>
     <string name="player_paused">Paused</string>
     <string name="player_paused_behind">Paused · %1$d s behind live</string>

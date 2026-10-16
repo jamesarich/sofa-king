@@ -55,7 +55,8 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 - [ ] The preview is muted, unmutes at 5 seconds and opens full screen at 10 seconds, and captions show over it.
 - [ ] Background and foreground transitions resume the same channel.
 - [ ] Audio, captions and decoder recovery work on the full-screen player.
-- [ ] In the player, Left or Right on the info bar opens the channel list, Up from its top row reaches the chips and Left/Right move along them, and OK on a row under All tunes a channel outside the guide filter.
+- [ ] In the player, Left or Right on the info bar opens the channel list, Up from its top row reaches the chips and Left/Right move along them to the star, Captions, Pause and Stream info buttons, and OK on a row under All tunes a channel outside the guide filter.
+- [ ] With the remote's CC, Play/Pause and Info keys unused: the list's Captions button toggles captions and closes the list with the timing toast up, Pause pauses, the star changes the Favorites chip's rows, and Stream info opens the stream card with the playing audio track focused; OK on a card without tracks closes it.
 - [ ] CC then Left/Right moves the channel's caption timing both ways and the toast follows; Info held opens the stream card, and Up/Down and OK pick an audio track on a channel with several.
 - [ ] Settings → Open on start set to Guide opens the guide on a cold start, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
 - [ ] Settings → Manage channels: a channel switched off leaves the guide and the channel list, and leaves Channel Up/Down only once Skip hidden channels is on; the move buttons reorder the Favorites filter.

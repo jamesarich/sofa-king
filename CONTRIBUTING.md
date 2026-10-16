@@ -53,17 +53,18 @@ Versions are pinned exactly in the shared catalog, with no lockfiles or verifica
 
 | Workflow | Runs for | What it does |
 | --- | --- | --- |
-| [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown or `app/docs/`), the shared `gradle/` directory or `build-logic/`, `ci.yml` or `snapshot.yml`; also a manual run | Tests and builds the app, and publishes the snapshot from `main` |
+| [`ci.yml`](.github/workflows/ci.yml) | Pull requests and pushes to `main` that change `app/` or `contract/` (not their Markdown or `app/docs/`), the shared `gradle/` directory or `build-logic/`, `ci.yml`, `snapshot.yml` or `publish-snapshot.yml`; also a manual run | Tests and builds the app, and publishes the snapshot from `main` |
 | [`backend.yml`](.github/workflows/backend.yml) | Pull requests and pushes to `main` that change `backend/` or `contract/` (not their Markdown or `backend/docs/`), the shared `gradle/` directory or `build-logic/`, or `backend.yml`; also a manual run | Tests and builds the server, and publishes its image from `main` |
 | [`dependency-submission.yml`](.github/workflows/dependency-submission.yml) | Pushes to `main` that change any build; also a manual run | Sends each build's resolved dependencies to GitHub, so Dependabot alerts cover them |
 
-`ci.yml` runs up to three jobs:
+`ci.yml` runs up to four jobs:
 
 - `check` runs the app's tests, lint, the Native test compile, the release APK and both production web builds on Ubuntu. It uploads the test reports when it fails and the `RenderSmokeTest` screenshots every time.
 - `apple` runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators and the UI's iOS tests, links the iOS and tvOS frameworks, and builds the two SwiftUI hosts in `app/iosApp` and `app/tvosApp` with XcodeGen and `xcodebuild`, on macOS.
-- `snapshot` runs for a push to `main` once both pass. It calls `snapshot.yml`, which builds every platform but iOS and Apple TV and replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot), as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab.
+- `snapshot` runs for a push to `main`, alongside the two checks. It calls `snapshot.yml`, which builds every platform but iOS and Apple TV as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab, where it publishes by itself.
+- `publish` runs once the checks and the packages are all green. It calls `publish-snapshot.yml`, which replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) with the packages the run uploaded.
 
-Every Gradle job restores the Gradle user home that the same job last saved from `main` (pull requests only read it), and the app jobs keep `~/.konan`, the Kotlin/Native distribution, per Kotlin version. Pushes to `main` also write the remote build cache in `gradle/build-cache.settings.gradle.kts`, which every other build reads. The configuration cache travels with the Gradle user home only when the `GRADLE_ENCRYPTION_KEY` repository secret holds a key from `openssl rand -base64 16`; without it every run configures the build from scratch, about half a minute per job.
+Every Gradle job restores the Gradle user home that the same job last saved from `main` (pull requests only read it), and the app jobs keep `~/.konan`, the Kotlin/Native distribution, per Kotlin version. Pushes to `main` also write the remote build cache in `gradle/build-cache.settings.gradle.kts`, which every other build reads. The configuration cache is not kept between runs: `setup-gradle` stores it only for a Develocity trial, so every run configures the build from scratch, 15 to 45 seconds per job and about 70 on Windows.
 
 `backend.yml` runs three jobs:
 

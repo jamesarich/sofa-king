@@ -24,6 +24,7 @@ import android.content.res.Configuration
 import android.provider.Settings
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MatchExoDisplayFrameRate
+import dev.jamesrich.sofaking.data.PublishedBuild
 
 @Composable
 internal actual fun rememberIsTelevision(): Boolean {
@@ -117,3 +118,5 @@ internal actual val supportsPlaybackPreferences: Boolean = true
 
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = MatchExoDisplayFrameRate(player, enabled)
+
+internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = latest.apkUrl ?: latest.pageUrl

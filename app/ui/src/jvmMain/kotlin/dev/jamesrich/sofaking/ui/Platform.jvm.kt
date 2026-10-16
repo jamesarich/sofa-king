@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
+import dev.jamesrich.sofaking.data.PublishedBuild
 
 /** A desktop window, sized and placed by its user. */
 @Composable
@@ -41,3 +42,5 @@ internal actual val supportsPlaybackPreferences: Boolean = false
 
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
+
+internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = latest.pageUrl

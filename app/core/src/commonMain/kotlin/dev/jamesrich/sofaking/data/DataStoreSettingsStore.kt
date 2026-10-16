@@ -64,6 +64,7 @@ class DataStoreSettingsStore(
                 ),
                 clientId = prefs[CLIENT_ID].orEmpty(),
                 preferencesSyncedAt = prefs[PREFERENCES_SYNCED_AT].orEmpty(),
+                settingsPin = prefs[SETTINGS_PIN].orEmpty(),
             )
         }
 
@@ -211,6 +212,10 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[PREFERENCES_SYNCED_AT] = syncedAt }
     }
 
+    override suspend fun setSettingsPin(hash: String?) {
+        dataStore.edit { prefs -> if (hash.isNullOrEmpty()) prefs.remove(SETTINGS_PIN) else prefs[SETTINGS_PIN] = hash }
+    }
+
     private fun favoritesOrder(prefs: Preferences): List<String> =
         prefs[FAVORITES_ORDER].orEmpty().split(SEPARATOR).filter { it.isNotEmpty() }
 
@@ -266,6 +271,7 @@ class DataStoreSettingsStore(
         val BUFFER = stringPreferencesKey("buffer")
         val CLIENT_ID = stringPreferencesKey("client_id")
         val PREFERENCES_SYNCED_AT = stringPreferencesKey("preferences_synced_at")
+        val SETTINGS_PIN = stringPreferencesKey("settings_pin")
         const val SEPARATOR = '\t'
     }
 }

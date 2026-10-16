@@ -21,7 +21,10 @@ import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.InfoOverlay
+import dev.jamesrich.sofaking.ui.player.MiniGuide
+import dev.jamesrich.sofaking.ui.player.MiniGuideActions
 import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
+import dev.jamesrich.sofaking.ui.settings.SettingsLockScreen
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.Job
@@ -159,6 +162,14 @@ class RenderSmokeTest {
     }
 
     @Test
+    fun `the settings lock page renders its field and buttons`() {
+        val image = render("settings-lock") {
+            SettingsLockScreen(pinHash = "salt:hash", apiToken = "s3cret-token", onUnlocked = {}, onPinRemoved = {}, onBack = {})
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
     fun `the player's info bar renders over the picture`() {
         val image = render("player-info") {
             Box(Modifier.fillMaxSize()) {
@@ -171,6 +182,37 @@ class RenderSmokeTest {
                     scope = "News 1/4",
                     showKeyLegend = true,
                     modifier = Modifier.align(Alignment.BottomStart).screenPadding(),
+                )
+            }
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
+    fun `the channel list renders its chips, action buttons and rows`() {
+        val image = render("player-channels") {
+            Box(Modifier.fillMaxSize()) {
+                MiniGuide(
+                    lineup = lineup,
+                    scope = null,
+                    favorites = setOf("c1", "c3"),
+                    recent = listOf("c4", "c1"),
+                    currentGuideId = "c1",
+                    previousGuideId = "c4",
+                    now = now,
+                    onTune = {},
+                    actions = MiniGuideActions(
+                        captionsOn = true,
+                        paused = false,
+                        failed = false,
+                        hasAudioChoice = true,
+                        favorite = true,
+                        onToggleFavorite = {},
+                        onCaptions = {},
+                        onPlayPause = {},
+                        onRetry = {},
+                        onStreamInfo = {},
+                    ),
                 )
             }
         }

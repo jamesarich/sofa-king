@@ -201,12 +201,13 @@ fun ChannelPickerScreen(
     }
 }
 
+/** The logo, the page's title and its Back button; [backFocus] is the requester a page that opens on Back attaches to it. */
 @Composable
-private fun ScreenTitle(title: String, onBack: () -> Unit, backFocus: FocusRequester) {
+internal fun ScreenTitle(title: String, onBack: () -> Unit, backFocus: FocusRequester? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         LogoMark(40.dp)
         Text(title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-        SofaButton(onClick = onBack, modifier = Modifier.focusRequester(backFocus)) { Text(stringResource(Res.string.settings_back)) }
+        SofaButton(onClick = onBack, modifier = if (backFocus == null) Modifier else Modifier.focusRequester(backFocus)) { Text(stringResource(Res.string.settings_back)) }
     }
 }
 

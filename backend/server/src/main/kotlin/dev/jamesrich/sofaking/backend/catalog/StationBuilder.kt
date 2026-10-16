@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.*
+import dev.jamesrich.sofaking.backend.setup.DefaultGroups
 import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.HealthStatus
@@ -288,12 +289,15 @@ object StationBuilder {
         // A station's group: its override, else a name pattern, else its sources' vote, else the default, else the
         // leading channel's raw group.
         val weak = policy.groups.weak.mapTo(HashSet()) { it.trim().lowercase() }
+        val builtIn = if (policy.groups.builtIn) DefaultGroups.load() else null
         val namePatterns = policy.groups.patterns.mapNotNull { p -> p.name?.let { Regex(it, RegexOption.IGNORE_CASE) to p.group } }
         val rawPatterns = policy.groups.patterns.mapNotNull { p -> p.rawGroup?.let { Regex(it, RegexOption.IGNORE_CASE) to p.group } }
         fun rawOf(member: Member): String? = member.candidate.channel.tags.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
-        fun isWeak(member: Member, raw: String): Boolean = raw.lowercase() in weak || "${member.candidate.providerId}:${raw.lowercase()}" in weak
+        fun isWeak(member: Member, raw: String): Boolean =
+            raw.lowercase() in weak || "${member.candidate.providerId}:${raw.lowercase()}" in weak || builtIn?.isWeak(raw) == true
+        // The policy's own map and patterns first; the shipped map only names what they leave out.
         fun mapped(member: Member, raw: String): String? = policy.groups.map["${member.candidate.providerId}:${raw.lowercase()}"]
-            ?: policy.groups.map[raw.lowercase()] ?: rawPatterns.firstOrNull { it.first.containsMatchIn(raw) }?.second
+            ?: policy.groups.map[raw.lowercase()] ?: rawPatterns.firstOrNull { it.first.containsMatchIn(raw) }?.second ?: builtIn?.groupOf(raw)
         fun nameGroup(draft: Draft): String? = (draft.override?.name ?: draft.leading?.candidate?.channel?.name)
             ?.let { name -> namePatterns.firstOrNull { it.first.containsMatchIn(name) }?.second }
         // Each provider counts once per group; a tie goes to the group whose first vote comes earliest in leading order.

@@ -203,6 +203,9 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/policy` | The [lineup policy](lineup-policy.md) the server runs with (`SOFA_POLICY`, or `policy.json` in the data directory), as `policy` with `revision` (the file's SHA-256, also the `ETag`) and `path`; 404 `POLICY_NOT_CONFIGURED` without one |
 | PUT | `/api/v1/admin/policy` | Replace the policy with the body, up to 4 MiB; `If-Match: <revision>` required (428 `PRECONDITION_REQUIRED` without it, 409 `POLICY_CHANGED` when stale or the file changed on disk, 400 `INVALID_POLICY` with every error). Writes atomically, applies, and returns `document` and `apply` |
 | GET | `/api/v1/admin/policy/preview` | What a run would change against the served lineup; writes nothing. Fields are [below](#policy-results) |
+| GET | `/api/v1/admin/source-file` | The source file as written: `providers` and `guides` as [the source file](live-tv.md#providers) holds them, `${NAME}` references unexpanded; an empty document without a file |
+| PUT | `/api/v1/admin/source-file` | Replace the source file with the body and restart. Validated the way the start validates it (400 `INVALID_SOURCES` with the reason, nothing written), written atomically to `SOFA_SOURCES` or `sources.json` in the data directory; answers `{"path", "restarting": true}` and ends the process once the response is sent, so the container's restart policy starts it again. Portal sessions end with it |
+| POST | `/api/v1/admin/policy/starter` | Write the [starter policy](starter-lineup.md) for the configured providers and restart; 201 with `{"path", "restarting"}`. 409 `POLICY_EXISTS` when a policy is configured or the file exists, 409 `NO_SOURCES` with no providers |
 | POST | `/api/v1/admin/policy/apply` | Run the policy now: writes the lineup when it differs, logs each change, and writes assigned numbers and learned aliases back to the file. Fields are [below](#policy-results) |
 | GET | `/api/v1/admin/policy/findings` | Open findings of a run over the current candidates. Fields are [below](#policy-results) |
 | GET | `/api/v1/admin/policy/changes?limit=` | What policy runs changed, newest first, as `{"id", "appliedAt", "change"}`: `change` has the station `key`, `entryId`, `entryName`, `field`, `before`, `after` and the run's cause in `reason`. `limit` 1-1000 (default 100); the server keeps the newest 10,000 |
@@ -303,6 +306,9 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/settings/reveal-api-token` | Reveal the API token |
 | POST | `/admin/settings/runtime`, `/admin/settings/runtime/check` | Save the runtime settings (`op` of `save` or `reset`); say whether the form holds a change |
 | POST | `/admin/policy/apply` | Apply the lineup policy now |
+| POST | `/admin/sources/services` | Save the services form (`svc` for each service on, `opt.SERVICE.KEY` for its options), after `confirm=yes`; writes the source file and restarts |
+| POST | `/admin/sources/playlist`, `/admin/sources/remove` | Add an M3U playlist (`id`, `url`, `guide`) or remove a provider (`id`), after `confirm=yes`; each writes the source file and restarts |
+| POST | `/admin/policy/starter` | Write the starter policy, after `confirm=yes`, and restart |
 | POST | `/admin/attention/ignore`, `/admin/attention/show` | Ignore an overview item (`key`, `fingerprint`) until its text changes; show it again (`key`) |
 | POST | `/admin/theme` | Pin the colour scheme: `theme` of `light`, `dark` or `auto`, then back to the portal path in `back` |
 | GET | `/admin/system/jobs` | Background jobs with their last run and next due time |

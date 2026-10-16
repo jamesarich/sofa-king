@@ -1,6 +1,8 @@
 # Build a starter lineup
 
-A fresh server knows its sources but serves no channels until a [lineup policy](lineup-policy.md) builds them. This guide writes a policy for the free native services: one station per channel, with every other service that carries the same channel attached as a fallback. The stations are sorted into a small set of groups with a block of numbers each. It takes about ten minutes, most of it waiting for imports.
+A fresh server knows its sources but serves no channels until a [lineup policy](lineup-policy.md) builds them. The starter policy is one station per channel, with every other service that carries the same channel attached as a fallback, the stations sorted into a small set of groups with a block of numbers each.
+
+The portal writes it for you: with sources and no policy, the home page's Build the lineup writes the policy below for the configured services and restarts, and the Sources page's switches write the source file ([setup](admin.md#setup)). This guide is for doing the same by hand, with the aliases the script mines from a running lineup, and for understanding what the policy holds. It takes about ten minutes, most of it waiting for imports.
 
 You need a running server ([getting started](getting-started.md)) and its tokens. Generated tokens are in `secrets.json` in the data directory (`deploy/config` with Docker), as `apiToken` and `adminToken`. The examples run from `backend/` against the Docker port, and use these shell variables:
 
@@ -34,12 +36,12 @@ A provider with an `errorCode` is skipped and the rest carry on; see [when a nat
 
 ## 2. Generate the policy
 
-`deploy/starter-groups.json` maps the raw category names the native services use (`Crime TV`, `More Cities`, `News And Opinion`, …) to 22 groups: Local, Local News (US), News, Sports, En Español, Entertainment, Drama, Classic TV, Movies, Sci-Fi & Horror, Comedy, Crime, Documentary, Lifestyle, Food & Travel, Kids & Family, Anime, Music, Game Shows, Faith, Shopping and Ambiance. Its `weak` list holds broad categories that decide a station's group only when nothing more specific does, and its `patterns` group stations by name.
+`server/src/main/resources/policy/starter-groups.json`, which the server ships, maps the raw category names the native services use (`Crime TV`, `More Cities`, `News And Opinion`, …) to 22 groups: Local, Local News (US), News, Sports, En Español, Entertainment, Drama, Classic TV, Movies, Sci-Fi & Horror, Comedy, Crime, Documentary, Lifestyle, Food & Travel, Kids & Family, Anime, Music, Game Shows, Faith, Shopping and Ambiance. Its `weak` list holds broad categories that decide a station's group only when nothing more specific does, and its `patterns` group stations by name.
 
 ```sh
 python3 scripts/generate-policy.py --server "$SERVER" \
   --admin-token "$SOFA_ADMIN_TOKEN" --api-token "$SOFA_API_TOKEN" \
-  --starter-groups deploy/starter-groups.json --local-pattern '\b(des moines|kcci)\b' \
+  --starter-groups server/src/main/resources/policy/starter-groups.json --local-pattern '\b(des moines|kcci)\b' \
   --out policy.json
 ```
 
@@ -50,7 +52,7 @@ Replace the `--local-pattern` regex with your own market's city and station call
 - Numbers each group in its own block: Local from 1, Local News (US) from 10, News from 100, Sports from 300 and so on ([every block](lineup-policy.md#generate-a-policy)). Stations the policy keeps off number from 3000.
 - Keeps each station off until one of its sources has played once (`health.requireVerified`).
 
-Edit `deploy/starter-groups.json` first if you want different groups. A category the file does not name casts no vote, and a station that nothing groups goes in `Entertainment`.
+Edit the policy's `groups.map` afterwards if you want different groups. A category the file does not name casts no vote, and a station that nothing groups goes in `Entertainment`. The portal's Build the lineup writes the same policy, with the services in the server's own order (`direct` first, an HDHomeRun tuner ahead of everything) and without the aliases, which the server learns as it runs.
 
 ## 3. Turn it on
 

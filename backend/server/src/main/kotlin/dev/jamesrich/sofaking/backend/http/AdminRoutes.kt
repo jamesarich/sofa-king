@@ -89,6 +89,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         }
         policyRoutes(runtime.policy)
         plexRoutes(runtime.plex)
+        setupRoutes(runtime.setup)
         viewerAdminRoutes(runtime)
     }
 }

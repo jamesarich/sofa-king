@@ -90,7 +90,7 @@ internal fun FlowContent.tabs(chrome: Chrome, current: String, items: List<Tab>)
  * The shared page: the brand bar, the grouped nav and sign-out for a signed-in [chrome], htmx boosting its links and
  * forms. [theme] pins the colour scheme; null follows the device.
  */
-internal fun layout(title: String, chrome: Chrome?, current: String?, theme: String? = chrome?.theme, content: MAIN.() -> Unit): String = "<!DOCTYPE html>\n" + createHTML(prettyPrint = false).html {
+internal fun layout(title: String, chrome: Chrome?, current: String?, theme: String? = chrome?.theme, refreshSeconds: Int? = null, content: MAIN.() -> Unit): String = "<!DOCTYPE html>\n" + createHTML(prettyPrint = false).html {
     lang = "en"
     if (theme in THEMES) attributes["data-theme"] = theme!!
     head {
@@ -105,6 +105,7 @@ internal fun layout(title: String, chrome: Chrome?, current: String?, theme: Str
             }
         }
         meta(name = "htmx-config", content = HTMX_CONFIG)
+        if (refreshSeconds != null) meta { attributes["http-equiv"] = "refresh"; attributes["content"] = "$refreshSeconds; url=/admin" }
         title { +"$title · Sofa King admin" }
         link(rel = "icon", href = "/admin/static/icon.svg", type = "image/svg+xml")
         link(rel = "stylesheet", href = STYLESHEET_HREF)

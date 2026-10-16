@@ -8,6 +8,8 @@ The server supports 17 streaming services, the free news feeds of a dozen broadc
 
 ## Configuration
 
+The portal's Sources page writes this file: every service is a switch, with its options as fields ([setup](admin.md#setup)). By hand, it is:
+
 ```json
 {
   "providers": [

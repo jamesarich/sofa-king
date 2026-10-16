@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.backend.plex.PlexSync
 import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.*
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
+import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.update.RunningBuild
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
@@ -72,6 +73,8 @@ class LiveRuntime(
     val pairing: PairingService = PairingService(Clock.systemUTC()),
     /** The published-image check and the hand-off to the host's updater; null when the runtime was built without a config. */
     val updates: UpdateChecker? = null,
+    /** Setup from the portal and the API: the source file, the starter policy and the restart that reads them. */
+    val setup: SetupService? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -80,9 +83,10 @@ class LiveRuntime(
         http.close()
     }
     companion object {
-        /** [probes] false keeps the probe worker from starting, for tests over fixtures. */
+        /** [probes] false keeps the probe worker from starting, for tests over fixtures; [restart] is what a setup write ends the process with. */
         suspend fun create(
             store: BackendStore, config: ServerConfig, clock: Clock, policyDebounceMillis: Long = 10_000, probes: Boolean = true, plexDebounceMillis: Long = 120_000,
+            restart: () -> Unit = SetupService::exitForRestart,
         ): LiveRuntime {
             val started = clock.instant()
             val sources = loadSources(config.sourcesFile)
@@ -163,7 +167,7 @@ class LiveRuntime(
                 updates.start(scope)
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
-                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates,
+                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart),
                 )
                 scope.launchEvery("session-expire", 1000) { sessions.expire() }
                 if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }

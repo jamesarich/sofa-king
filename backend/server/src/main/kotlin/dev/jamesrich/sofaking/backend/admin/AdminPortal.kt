@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.api.UpdateSource
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.catalog.SourceDocument
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LoadedPolicy
 import dev.jamesrich.sofaking.backend.catalog.parsePolicy
@@ -243,6 +244,35 @@ class AdminPortal(
                 val chrome = chrome()
                 val view = providersView()
                 call.html(providersPage(chrome, view) { providerEntries(chrome, view, null, null) })
+            }
+            action("/sources/services") { session, form ->
+                setupWrite(call, session, form, "the services") { document ->
+                    applyServicesForm(document, form).map { next -> next to SetupConfirm("Save the services and restart?", "/admin/sources/services", servicesChanges(document, next), form.setupFields()) }
+                }
+            }
+            action("/sources/playlist") { session, form ->
+                setupWrite(call, session, form, "the playlist") { document ->
+                    applyPlaylistForm(document, form).map { next ->
+                        next to SetupConfirm("Add the playlist ${form["id"]?.trim()} and restart?", "/admin/sources/playlist", listOf("Adds an M3U playlist from ${hostOnly(form["url"])}"), form.setupFields())
+                    }
+                }
+            }
+            action("/sources/remove") { session, form ->
+                val id = form["id"]?.trim().orEmpty()
+                setupWrite(call, session, form, "the source file") { document ->
+                    if (document.providers.none { it.id == id }) Result.failure(IllegalArgumentException("No provider named $id"))
+                    else Result.success(document.copy(providers = document.providers.filter { it.id != id }) to SetupConfirm("Remove $id and restart?", "/admin/sources/remove", listOf("Its channels leave the lineup's stations as sources"), form.setupFields()))
+                }
+            }
+            action("/policy/starter") { session, form ->
+                val setup = runtime.setup ?: run { seeOther(call, "/admin"); return@action }
+                if (form["confirm"] != "yes") { call.html(overviewPage(chrome(call, session), OverviewView(overview(), confirmStarter = true))); return@action }
+                try {
+                    val result = setup.writeStarterPolicy()
+                    call.html(restartingPage(theme(call), "Wrote the lineup policy to ${result.path}."))
+                } catch (e: ApiFailure) {
+                    call.html(overviewPage(chrome(call, session, Flash("Not built: ${e.message}", Tone.BAD)), overview()), HttpStatusCode.Conflict)
+                }
             }
             action("/providers/edit") { session, form ->
                 policyEdit(call, session, form, "/admin/providers", { providersEdit(form, it) }) { chrome, errors, confirm ->
@@ -617,7 +647,7 @@ class AdminPortal(
             providersOk = providers.count { it.errorCode == null && it.lastSuccessAt != null }, providersTotal = providers.size,
             plex = plex?.let { PlexSummary(it.lastSyncAt, it.lastError, it.devices.size, it.devices.sumOf { d -> d.mapped }, it.missingDevices.size, it.syncMinutes) },
             sessions = sessionRows(now),
-            lastRun = applied?.result, policy = policy != null,
+            lastRun = applied?.result, policy = policy != null, setup = runtime.setup,
         )
     }
 
@@ -766,7 +796,36 @@ class AdminPortal(
         return RequiredView(rows, ran = true)
     }
 
-    private fun providersView(): ProvidersView {
+    /**
+     * A write to the source file from the Sources page: [edit] turns the file as written into the next document and
+     * the confirmation to show; a refused edit re-renders the page with its reasons and the form, a first submission
+     * asks, and a confirmed one writes, restarts and answers the restarting page.
+     */
+    private suspend fun setupWrite(
+        call: ApplicationCall, session: AdminSession, form: Parameters, what: String,
+        edit: (SourceDocument) -> Result<Pair<SourceDocument, SetupConfirm>>,
+    ) {
+        val setup = runtime.setup ?: run { seeOther(call, "/admin/providers"); return }
+        val document = setup.document()
+        suspend fun refuse(message: String, status: HttpStatusCode) {
+            val view = providersView()
+            val chrome = chrome(call, session, Flash("Not saved: ${message.lineSequence().first()}", Tone.BAD))
+            call.html(providersPage(chrome, ProvidersView(view, SetupView(view.setup!!, errors = message.lines(), proposed = form))) { providerEntries(chrome, view, null, null) }, status)
+        }
+        val (next, confirm) = edit(document).getOrElse { refuse(it.message ?: "The change is not valid", HttpStatusCode.BadRequest); return }
+        if (form["confirm"] != "yes") {
+            val view = providersView()
+            val chrome = chrome(call, session)
+            call.html(providersPage(chrome, ProvidersView(view, SetupView(view.setup!!, proposed = form, confirm = confirm))) { providerEntries(chrome, view, null, null) })
+            return
+        }
+        try {
+            val result = setup.replaceSources(next)
+            call.html(restartingPage(theme(call), "Saved $what to ${result.path}."))
+        } catch (e: ApiFailure) { refuse(e.message, HttpStatusCode.fromValue(e.status)) }
+    }
+
+    private suspend fun providersView(): ProvidersView {
         val configs = runtime.feeds.configs.associateBy { it.id }
         val document = runtime.policy?.document()
         val entries = document?.policy?.providers
@@ -786,6 +845,7 @@ class AdminPortal(
         return ProvidersView(
             rows, runtime.guides.statuses(), entries, document?.revision, led,
             providerSummaries = runtime.feeds.configs.map(::providerSummary), guideSummaries = runtime.guides.configs.map(::guideSummary),
+            setup = runtime.setup?.let { SetupView.of(it.document(), it) },
         )
     }
 

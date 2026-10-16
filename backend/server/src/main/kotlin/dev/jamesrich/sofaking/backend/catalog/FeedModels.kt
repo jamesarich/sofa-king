@@ -89,9 +89,13 @@ data class SourceConfig(val providers: List<FeedConfig> = emptyList(), val guide
 /** Native guides cover hours to days ahead and some are fetched per channel; an hour keeps every horizon filled. */
 const val NATIVE_GUIDE_REFRESH: Long = 3600
 
-@Serializable private data class SourceFile(val providers: List<FeedConfig> = emptyList(), val guides: List<GuideConfig> = emptyList())
+/** The source file as written: providers and guides, with `${NAME}` references left as they are. */
+@Serializable data class SourceDocument(val providers: List<FeedConfig> = emptyList(), val guides: List<GuideConfig> = emptyList())
 
 private val configJson = Json { ignoreUnknownKeys = false }
+
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+private val writtenSourceJson = Json { prettyPrint = true; prettyPrintIndent = "  " }
 
 /**
  * Reads the source file: a JSON array of providers, or an object with `providers` and `guides`.
@@ -99,20 +103,32 @@ private val configJson = Json { ignoreUnknownKeys = false }
  */
 fun loadSources(path: Path?, environment: Map<String, String> = System.getenv()): SourceConfig {
     if (path == null) return SourceConfig()
+    return validateSources(readSourceDocument(path), environment)
+}
+
+/** The source file as written, without variable expansion, so a write keeps `${NAME}` references. */
+fun readSourceDocument(path: Path): SourceDocument {
     require(Files.size(path) <= 1_048_576) { "Source configuration is too large" }
-    val element = expandVariables(configJson.parseToJsonElement(Files.readString(path)), environment)
-    val file = when (element) {
-        is JsonArray -> SourceFile(providers = configJson.decodeFromJsonElement(element))
-        is JsonObject -> configJson.decodeFromJsonElement<SourceFile>(element)
+    return when (val element = configJson.parseToJsonElement(Files.readString(path))) {
+        is JsonArray -> SourceDocument(providers = configJson.decodeFromJsonElement(element))
+        is JsonObject -> configJson.decodeFromJsonElement<SourceDocument>(element)
         else -> throw IllegalArgumentException("Source configuration must be a JSON array or object")
     }
-    val config = SourceConfig(file.providers, file.guides)
+}
+
+/** [document] with `${NAME}` references replaced from [environment], checked the way the server checks the file at start. */
+fun validateSources(document: SourceDocument, environment: Map<String, String> = System.getenv()): SourceConfig {
+    val expanded = configJson.decodeFromJsonElement<SourceDocument>(expandVariables(configJson.encodeToJsonElement(document), environment))
+    val config = SourceConfig(expanded.providers, expanded.guides)
     require(config.providers.map { it.id }.distinct().size == config.providers.size) { "Duplicate provider IDs" }
     config.providers.forEach { it.validate() }
     config.guides.forEach { it.validate() }
     require(config.allGuides.map { it.id }.distinct().size == config.allGuides.size) { "Duplicate guide IDs (a provider guideUrl uses the provider ID)" }
     return config
 }
+
+/** [document] as the server writes a source file: an object with `providers` and `guides`, two-space indent, defaults left out. */
+fun sourceBytes(document: SourceDocument): ByteArray = (writtenSourceJson.encodeToString(SourceDocument.serializer(), document) + "\n").toByteArray()
 
 private val variable = Regex("\\$\\{([A-Za-z_][A-Za-z0-9_]*)}")
 

@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.ActiveSession
+import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.api.GuideStatus
 import dev.jamesrich.sofaking.backend.api.PlexStatus
@@ -55,11 +56,15 @@ internal class OverviewView(
     val sessions: List<SessionRow>,
     val lastRun: PolicyApplyResult?, val policy: Boolean,
     val stop: StopConfirm? = null,
+    /** Setup, for the steps the page shows while the server has no source file or no policy; null when unavailable. */
+    val setup: SetupService? = null,
+    /** Whether the page asks to confirm building the starter lineup. */
+    val confirmStarter: Boolean = false,
 ) {
-    /** [view] with a stop confirmation. */
-    constructor(view: OverviewView, stop: StopConfirm?) : this(
+    /** [view] with a stop confirmation, or asking to confirm the starter lineup. */
+    constructor(view: OverviewView, stop: StopConfirm? = null, confirmStarter: Boolean = false) : this(
         view.attention, view.ignored, view.stations, view.enabled, view.guide, view.required, view.requiredOff, view.suggestions, view.findings, view.unverified,
-        view.providersOk, view.providersTotal, view.plex, view.sessions, view.lastRun, view.policy, stop,
+        view.providersOk, view.providersTotal, view.plex, view.sessions, view.lastRun, view.policy, stop, view.setup, confirmStarter,
     )
 }
 
@@ -122,7 +127,11 @@ internal class ProvidersView(
     val stationsLed: Map<String, Int> = emptyMap(),
     /** The source file's providers and guides, described without their secrets, for the Source file section. */
     val providerSummaries: List<SourceSummary> = emptyList(), val guideSummaries: List<SourceSummary> = emptyList(),
-)
+    /** The services and playlists as the portal edits them; null when setup is unavailable. */
+    val setup: SetupView? = null,
+) {
+    constructor(view: ProvidersView, setup: SetupView?) : this(view.rows, view.guides, view.entries, view.revision, view.stationsLed, view.providerSummaries, view.guideSummaries, setup)
+}
 
 internal fun signInPage(enabled: Boolean, error: String? = null, theme: String? = null): String = layout("Sign in", null, null, theme) {
     div("panel signin") {
@@ -168,6 +177,8 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
             }
         }
     }
+    // A server with a lineup made by hand is set up in its own way; the steps stay only while there is nothing to watch.
+    view.setup?.takeIf { !it.hasSources || (!it.hasPolicy && view.stations == 0) }?.let { setupCards(chrome, it, view.providersTotal) }
     panel("Needs attention", id = "attention") {
         if (view.attention.isEmpty()) p("allgood") { +(if (view.ignored.isEmpty()) "All clear: every provider imported, Plex is in step and every required channel is on." else "Nothing new. Ignored items come back when they change.") }
         else ul("attention") { items(view.attention, ignored = false) }
@@ -268,6 +279,10 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
         askDialog(chrome, "Stop the session on $name?", "/admin/sessions/${stop.row.active.id}/stop", "/admin#watching", "Stop", danger = true) {
             p { +"The ${if (stop.row.active.external) "M3U or Plex player" else "Sofa King app"}${stop.row.active.client?.let { " at $it" } ?: ""} loses its stream. It can open the channel again." }
         }
+    }
+    if (view.confirmStarter) askDialog(chrome, "Build the lineup from every configured service?", "/admin/policy/starter", "/admin#setup", "Build and restart") {
+        p { +"Writes a lineup policy: one station per channel, the first service that carries a channel leading it and the others as fallbacks, the channels grouped and numbered in blocks, each coming on once a source of it has played. Then the server restarts; you sign in again in a few seconds." }
+        p("muted small") { +"The policy is a file you can edit later, and the Channels pages change it for you." }
     }
 }
 
@@ -750,6 +765,11 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
     val now = chrome.now
     pageHead("Sources", "Where channels and guides come from, and whether their last import worked." + if (view.entries != null) " The policy takes channels from its provider entries in priority order." else "")
     extra?.invoke(this)
+    view.setup?.let { setup ->
+        servicesPanel(chrome, setup)
+        playlistsPanel(chrome, setup)
+        setup.confirm?.let { setupConfirm(chrome, it, "/admin/providers#services") }
+    }
     panel("Channel providers", id = "imports", aside = { span("muted") { +"${view.rows.count { it.status.errorCode == null && it.status.lastSuccessAt != null }} of ${view.rows.size} importing" } }) {
         div("scroll") {
             table {

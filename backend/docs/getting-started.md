@@ -70,7 +70,7 @@ EOF
 docker compose restart
 ```
 
-After a minute, the portal's Providers page lists each service with its channel count. The same counts come from the API:
+After a minute, the portal's Sources page lists each service with its channel count. The same counts come from the API:
 
 ```sh
 curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/api/v1/providers

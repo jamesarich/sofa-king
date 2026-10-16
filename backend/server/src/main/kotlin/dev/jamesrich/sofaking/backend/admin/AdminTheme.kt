@@ -52,18 +52,39 @@ private const val HTMX_CONFIG =
     """{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"historyCacheSize":0,"refreshOnHistoryMiss":true,""" +
         """"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"4..","swap":true,"error":false},{"code":"...","swap":false,"error":true}]}"""
 
-internal class NavItem(val href: String, val label: String, val badge: String? = null)
+/** One of the portal's six destinations: where it starts, its label, the badge key its count comes from, and the page paths it holds. */
+internal class Section(val href: String, val label: String, val badge: String? = null, val pages: List<String> = listOf(href)) {
+    fun holds(path: String?): Boolean = path != null && path in pages
+}
 
-/** The portal's sections: the overview, what the household watches, how the server is set up, and the server itself. */
-internal val NAV: List<Pair<String?, List<NavItem>>> = listOf(
-    null to listOf(NavItem("/admin", "Overview")),
-    "Lineup" to listOf(NavItem("/admin/lineup", "Channels"), NavItem("/admin/merges", "Merges", "merges"), NavItem("/admin/required", "Required", "required")),
-    "Setup" to listOf(
-        NavItem("/admin/groups", "Groups", "groups"), NavItem("/admin/providers", "Providers", "providers"), NavItem("/admin/plex", "Plex", "plex"),
-        NavItem("/admin/viewers", "Viewers"), NavItem("/admin/settings", "Settings"),
-    ),
-    "System" to listOf(NavItem("/admin/system/jobs", "Jobs", "jobs"), NavItem("/admin/system/events", "Events"), NavItem("/admin/system/about", "About"), NavItem("/admin/api", "API")),
+/** One page inside a section, shown as a tab on every page of that section. */
+internal class Tab(val href: String, val label: String, val badge: String? = null)
+
+/** The portal's destinations: the home page, the lineup, where channels come from, what plays them, the settings and the server itself. */
+internal val NAV: List<Section> = listOf(
+    Section("/admin", "Home"),
+    Section("/admin/lineup", "Channels", "channels", listOf("/admin/lineup", "/admin/required", "/admin/merges", "/admin/groups")),
+    Section("/admin/providers", "Sources", "sources"),
+    Section("/admin/viewers", "Players", "players", listOf("/admin/viewers", "/admin/plex")),
+    Section("/admin/settings", "Settings"),
+    Section("/admin/system/about", "System", "system", listOf("/admin/system/about", "/admin/system/jobs", "/admin/system/events", "/admin/api")),
 )
+
+/** The Channels section's tabs; Required, Merges and Groups exist only under a lineup policy. */
+internal val CHANNEL_TABS = listOf(Tab("/admin/lineup", "Channels"), Tab("/admin/required", "Required", "required"), Tab("/admin/merges", "Merges", "merges"), Tab("/admin/groups", "Groups"))
+internal val PLAYER_TABS = listOf(Tab("/admin/viewers", "Devices"), Tab("/admin/plex", "Plex", "plex"))
+internal val SYSTEM_TABS = listOf(Tab("/admin/system/about", "About"), Tab("/admin/system/jobs", "Jobs", "jobs"), Tab("/admin/system/events", "Events"), Tab("/admin/api", "API"))
+
+/** The section's pages as a row of tabs under the heading, the current one marked. */
+internal fun FlowContent.tabs(chrome: Chrome, current: String, items: List<Tab>) = nav("tabs") {
+    attributes["aria-label"] = "Section"
+    for (tab in items) a(tab.href) {
+        if (tab.href == current) attributes["aria-current"] = "page"
+        +tab.label
+        val count = tab.badge?.let { chrome.badges[it] } ?: 0
+        if (count > 0) span("count") { attributes["aria-label"] = "$count need attention"; +count.toString() }
+    }
+}
 
 /**
  * The shared page: the brand bar, the grouped nav and sign-out for a signed-in [chrome], htmx boosting its links and
@@ -104,23 +125,20 @@ internal fun layout(title: String, chrome: Chrome?, current: String?, theme: Str
                 if (chrome != null) {
                     // On a phone the nav folds into this disclosure; on a wide screen the stylesheet shows it open with no summary.
                     details("menu") {
+                        val here = NAV.firstOrNull { it.holds(current) }
                         summary {
                             +"Menu"
-                            val here = NAV.flatMap { it.second }.firstOrNull { it.href == current }
                             if (here != null) span("muted") { +" · ${here.label}" }
-                            val total = chrome.badges.values.sum()
+                            val total = NAV.sumOf { section -> section.badge?.let { chrome.badges[it] } ?: 0 }
                             if (total > 0) span("count") { attributes["aria-label"] = "$total need attention"; +total.toString() }
                         }
                         nav("main") {
                             attributes["aria-label"] = "Portal"
-                            for ((label, items) in NAV) div("navgroup") {
-                                if (label != null) span("navlabel") { +label }
-                                for (item in items) a(item.href) {
-                                    if (item.href == current) attributes["aria-current"] = "page"
-                                    +item.label
-                                    val count = item.badge?.let { chrome.badges[it] } ?: 0
-                                    if (count > 0) span("count") { attributes["aria-label"] = "$count need attention"; +count.toString() }
-                                }
+                            for (section in NAV) a(section.href) {
+                                if (section === here) attributes["aria-current"] = if (section.href == current) "page" else "true"
+                                +section.label
+                                val count = section.badge?.let { chrome.badges[it] } ?: 0
+                                if (count > 0) span("count") { attributes["aria-label"] = "$count need attention"; +count.toString() }
                             }
                         }
                     }

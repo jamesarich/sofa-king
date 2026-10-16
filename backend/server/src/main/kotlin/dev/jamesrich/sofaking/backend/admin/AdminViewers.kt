@@ -21,9 +21,10 @@ internal fun pairingLink(serverUrl: String, code: String): String =
 /** The code as the viewer reads it from the screen: `123 456`. */
 internal fun spacedCode(code: String): String = code.chunked(3).joinToString(" ")
 
-internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("Viewers", chrome, "/admin/viewers") {
+internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("Devices", chrome, "/admin/viewers") {
     val now = chrome.now
-    pageHead("Viewers", "The devices running the Sofa King app against this server: pair a new one with a code instead of typing the API token, and see what each keeps on this server.")
+    pageHead("Devices", "The devices running the Sofa King app against this server: pair a new one with a code instead of typing the API token, and see what each keeps on this server.")
+    tabs(chrome, "/admin/viewers", PLAYER_TABS)
     panel("Pair a device", id = "pair") {
         val pairing = view.pairing
         if (pairing == null) {

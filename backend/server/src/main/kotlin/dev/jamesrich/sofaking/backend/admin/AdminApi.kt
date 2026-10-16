@@ -83,6 +83,7 @@ internal fun parseApiReference(json: String): ApiReference {
 
 internal fun apiPage(chrome: Chrome, reference: ApiReference): String = layout("API", chrome, "/admin/api") {
     pageHead("API", reference.description)
+    tabs(chrome, "/admin/api", SYSTEM_TABS)
     div("summary") {
         span { +"${reference.title}, version ${reference.version}, ${reference.sections.sumOf { it.operations.size }} operations" }
         span("muted small") {

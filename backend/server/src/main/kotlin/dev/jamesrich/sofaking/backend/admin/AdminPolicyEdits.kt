@@ -311,6 +311,7 @@ private fun FlowContent.groupSelect(choices: List<String>, selected: String? = n
 internal fun groupsPage(chrome: Chrome, view: GroupsView?, errors: EditErrors? = null, confirm: Confirm? = null): String = layout("Groups", chrome, "/admin/groups") {
     pageHead("Groups", "How stations are grouped and numbered. Each change is written into the lineup policy and applied; a change that moves channels asks first.")
     if (view == null) { div("notice warn") { +"Groups need a lineup policy. Add policy.json to the data directory, or set SOFA_POLICY, and restart." }; return@layout }
+    tabs(chrome, "/admin/groups", CHANNEL_TABS)
     val action = "/admin/groups/edit"
     val p = view.policy
     panel("Groups and number blocks", id = "blocks", aside = {

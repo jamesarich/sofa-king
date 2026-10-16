@@ -107,14 +107,14 @@ Release is idempotent and cancels active upstream requests. Repeating an open re
 
 ## Pair a client
 
-A viewer need not type the API token into a TV: the admin portal's [Viewers page](admin.md#viewers) (or `POST /api/v1/admin/pairing-codes`) issues a six-digit code, live for ten minutes and good for one claim; a new code replaces the live one, and five wrong claims void it. The client posts the code with its own id and label, and receives the token:
+A viewer need not type the API token into a TV: the admin portal's [Devices page](admin.md#devices) (or `POST /api/v1/admin/pairing-codes`) issues a six-digit code, live for ten minutes and good for one claim; a new code replaces the live one, and five wrong claims void it. The client posts the code with its own id and label, and receives the token:
 
 ```sh
 curl -X POST http://SERVER_HOST:9193/api/v1/pair -H 'Content-Type: application/json' \
   -d '{"code":"123456","clientId":"3f0b5f2e-6c1d-4f8a-9e2b-7a1c5d4e3b2a","name":"Living room TV","platform":"android-tv"}'
 ```
 
-The answer is `{"apiToken": "...", "serverId": "..."}`; a server running without an API token answers an empty one. A wrong, spent or expired code answers `403 PAIRING_INVALID`. `clientId`, `name` and `platform` are optional; with a `clientId` the server lists the device on the Viewers page from then on. The portal's QR code carries the same code as `sofaking://pair?server=URL&code=DIGITS`, which the Android app opens.
+The answer is `{"apiToken": "...", "serverId": "..."}`; a server running without an API token answers an empty one. A wrong, spent or expired code answers `403 PAIRING_INVALID`. `clientId`, `name` and `platform` are optional; with a `clientId` the server lists the device on the Devices page from then on. The portal's QR code carries the same code as `sofaking://pair?server=URL&code=DIGITS`, which the Android app opens.
 
 ## Viewer preferences
 
@@ -280,7 +280,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 
 | Method | Path | Page or action |
 | --- | --- | --- |
-| GET | `/admin` | The sign-in page, or the overview once signed in |
+| GET | `/admin` | The sign-in page, or the home page once signed in |
 | POST | `/admin/login` | Sign in with the form field `token`. 10 attempts a minute per client address, then `429` |
 | POST | `/admin/logout` | Sign out |
 | GET | `/admin/static/icon.svg`, `/admin/static/admin.css`, `/admin/static/htmx.min.js` | The portal's icon and stylesheet (public) and htmx (signed in) |

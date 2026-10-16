@@ -30,7 +30,7 @@ import unicodedata
 import urllib.request
 
 NATIVE_ORDER = (
-    'whale,samsung,vizio,lg,pluto,plex,roku,xumo,tubi,tcl,stirr,freelivesports,localnow,pbs,hallmark,ballysports,adultswim'
+    'direct,whale,samsung,vizio,lg,pluto,plex,roku,xumo,tubi,tcl,stirr,freelivesports,localnow,pbs,hallmark,ballysports,adultswim'
 )
 
 NAMES_VERSION = 2

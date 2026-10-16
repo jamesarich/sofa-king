@@ -17,6 +17,7 @@
     { "id": "xumo", "type": "native", "service": "xumo" },
     { "id": "pluto", "type": "native", "service": "pluto" },
     { "id": "tubi", "type": "native", "service": "tubi" },
+    { "id": "direct", "type": "native", "service": "direct" },
     { "id": "example-m3u", "playlistUrl": "https://PLAYLIST_HOST/path/playlist.m3u", "guideUrl": "https://GUIDE_HOST/path/guide.xml.gz" }
   ],
   "guides": []

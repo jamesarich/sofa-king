@@ -94,7 +94,7 @@ docker compose restart
 
 The server builds one station per channel. When two services carry the same channel, the first one listed leads and the other becomes its fallback. A station comes on once one of its sources has played in a probe, so the Channels page fills over the next hour or more.
 
-To start from a full lineup of all 17 services instead, grouped and numbered in blocks, follow [build a starter lineup](starter-lineup.md).
+To start from a full lineup of every native provider instead, grouped and numbered in blocks, follow [build a starter lineup](starter-lineup.md).
 
 ## 5. Watch
 

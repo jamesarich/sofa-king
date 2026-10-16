@@ -4,7 +4,7 @@ A native provider is a client for one free streaming service built into the serv
 
 The clients are unofficial. They call the same public endpoints each service's own web or TV client calls, with no account and no credentials, and they stop working whenever the service changes them. Using them may be against a service's terms of service. The clients send ad-insertion identifiers that are random per install, not a device's identifiers.
 
-The server supports 17 streaming services and HDHomeRun tuners. Each one is listed below with its endpoints and its known fragility.
+The server supports 17 streaming services, the free news feeds of a dozen broadcasters (`direct`) and HDHomeRun tuners. Each one is listed below with its endpoints and its known fragility.
 
 ## Configuration
 
@@ -28,6 +28,7 @@ The server supports 17 streaming services and HDHomeRun tuners. Each one is list
     { "id": "xumo", "type": "native", "service": "xumo" },
     { "id": "pluto", "type": "native", "service": "pluto" },
     { "id": "tubi", "type": "native", "service": "tubi" },
+    { "id": "direct", "type": "native", "service": "direct" },
     { "id": "antenna", "type": "native", "service": "hdhomerun", "options": { "url": "http://HDHOMERUN_IP" } }
   ]
 }
@@ -36,13 +37,13 @@ The server supports 17 streaming services and HDHomeRun tuners. Each one is list
 | Field | Default | Description |
 | --- | --- | --- |
 | `type` | `m3u` | `native` selects a service client; `playlistUrl` must then be absent |
-| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi`, `hdhomerun` |
+| `service` | Required | One of `whale`, `vizio`, `lg`, `freelivesports`, `hallmark`, `ballysports`, `adultswim`, `pbs`, `samsung`, `plex`, `stirr`, `tcl`, `roku`, `localnow`, `xumo`, `pluto`, `tubi`, `direct`, `hdhomerun` |
 | `options` | `{}` | Service options, string values: `zip` or `stations` for `pbs`, `region` for `samsung`, `dma` and `market` for `localnow`, `market` for `xumo`, `url` (required) and `transcode` for `hdhomerun` |
 | `refreshSeconds` | `3600` | Channel list refresh for a native provider (900 for a playlist); minimum 60 |
 | `guideUrl` | Service default | An XMLTV to use instead of the service's own guide; `samsung` defaults to the i.mjh.nz XMLTV for its region, `roku` to the i.mjh.nz Roku XMLTV |
 | `probe` | `true` | Probes resolve the channel and qualify the resolved URL like any source. A lineup policy ignores it ([probing](lineup-policy.md#probing)) |
 
-`headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only. Every native source is HLS, except `hdhomerun`, whose sources are MPEG-TS.
+`headers`, `defaultProtocol`, `allowEmpty` and `renewableQuery` apply to playlists only. Every native source is HLS, except `hdhomerun`, whose sources are MPEG-TS. `direct` has no guide of its own; map its channels onto a configured XMLTV guide, as the [direct](#direct-broadcasters-own-news-feeds) section shows.
 
 A native provider with a guide of its own appears in `/api/v1/admin/guides` under the provider ID, refreshed hourly. Its channel IDs are the service's own, and a lineup entry created from a candidate maps onto that guide automatically. The guide holds every channel in its index, but programs only for channels the lineup maps. A service whose guide is fetched per channel (Whale, Hallmark, Adult Swim, PBS, Plex, STIRR, Pluto TV) is asked only about mapped channels.
 
@@ -177,6 +178,28 @@ Fragility: the channel IDs come from the page's server-rendered state. A page se
 An HDHomeRun on the LAN, read the way Plex and the HDHomeRun app read it. `options.url` is the device's address, such as `http://192.168.1.50`. `lineup.json` lists the scanned channels: the channel ID and number are the `GuideNumber`, the name is the `GuideName`, the group is `Local` and each channel is tagged `ota`. Channels the device marks DRM (the `DRM` flag or a `drm` tag) are left out, as are channels without a stream URL. The list is kept 55 minutes. A resolve answers the channel's own MPEG-TS stream URL on the device (`/auto/vN.N`), which the relay's fan-out shares between players; `options.transcode` appends a `transcode=` profile (`heavy`, `mobile`, `internet720` and the rest), which only EXTEND models honor. The guide is SiliconDust's XMLTV for the device's lineup at `api.hdhomerun.com/api/xmltv`, fetched with the `DeviceAuth` from `discover.json`, three days deep without an account. It is refreshed about once a day, at an interval between 20 and 28 hours chosen per install, as the guide service asks, and its channel IDs are mapped onto the lineup numbers by suffix or display name. `options.guideApi` points the guide at another XMLTV endpoint that takes `DeviceAuth`.
 
 Fragility: the tuner has as many concurrent streams as it has tuners; past that, a play fails and Plex sees a busy tuner. An unscanned device has an empty lineup, which fails the import as provider evidence. The guide stops with `DeviceAuth`, which changes every few hours, so each fetch reads `discover.json` first.
+
+### direct (broadcasters' own news feeds)
+
+A fixed table of free live feeds that broadcasters publish on their own sites and apps without an account: the HLS URL each site's player loads, on the broadcaster's own CDN. Nothing is fetched to list them. Each channel is numbered from 9101 in table order, grouped `News` or `Weather`, and tagged with its country. A resolve is the table entry, sent with a browser `User-Agent`, and never expires. The feeds carry no logos: a channel's logo comes from the guide it is mapped onto.
+
+| Channel | Country | Feed |
+| --- | --- | --- |
+| CBS News 24/7, and the CBS News local streams for Baltimore, the Bay Area, Boston, Chicago, Colorado, Detroit, Los Angeles, Miami, Minnesota, New York, Philadelphia, Pittsburgh, Sacramento and Texas | US | The ad-stitched `dai.google.com` event each station's live page on cbsnews.com plays. A resolve reads that page, once per feed per six hours, and takes the event URL it names; a page that names none, or does not answer, falls back to the table's URL (CBS's own CDN for the national stream, the last known event for a local one) |
+| Bloomberg TV, Bloomberg Originals | US | bloomberg.com/media-manifest |
+| Cheddar | US | hls.livecdn.io |
+| Newsmax | US | nmx1ota.akamaized.net |
+| Fox Weather | US | 247wlive.foxweather.com |
+| Al Jazeera English | Qatar | getaj.net |
+| DW English | Germany | dwamdstream103.akamaized.net |
+| France 24 English | France | live.france24.com (a media playlist, which the relay serves as any playlist) |
+| NHK World-Japan | Japan | masterpl.hls.nhkworld.jp |
+| ABC News (Australia) | Australia | abc-news-dmd-streams-1.akamaized.net |
+| i24NEWS English | Israel | encoders.immergo.tv |
+
+There is no service guide. The `epg_ripper_US2` guide on epgshare01.online lists most of the US channels, under `CBS.News.National.Stream.us2`, `Bloomberg.HD.us2`, `Cheddar.us2`, `Newsmax.TV.HD.us2`, `NHK.World.TV.us2` and `i24.News.English.us2`; a lineup policy maps a station onto whichever configured guide carries it, and `PATCH /api/v1/admin/lineup/{id}` with `{"guide": {"guideId", "channelId"}}` maps one by hand.
+
+Fragility: every URL is hard-coded, so a broadcaster that moves or retires a feed, or starts requiring a token, fails that one channel until the table is updated. A stale CDN can keep answering a master playlist whose variants are gone, which a resolve cannot see; the probe and the relay do, so a dead feed strikes like any 404 ([source health](source-health.md)). Feeds published for one country can be geo-blocked elsewhere. The CBS pages are HTML, so a redesign that drops the event URL leaves the fallbacks in place until the table is updated.
 
 ## Checking a provider
 

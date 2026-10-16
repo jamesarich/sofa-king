@@ -49,7 +49,6 @@ import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
-import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.captionEngineName
 import dev.jamesrich.sofaking.ui.label
@@ -58,6 +57,7 @@ import dev.jamesrich.sofaking.ui.player.captionTimingText
 import dev.jamesrich.sofaking.ui.rememberSystemCaptionSettings
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.supportsCaptionSync
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.updateDownloadUrl
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -139,8 +139,15 @@ fun SettingsScreen(
     val canPair = canPairServer(validUrl, validCode, pairing.busy)
     val pair = { if (canPair && validUrl != null && validCode != null) pairing.onPair(validUrl, validCode) }
 
+    // The server block opens on its fields only on a device with no server, or while a pairing attempt is being
+    // shown; otherwise it reads as one line with Change, and focus lands on Back rather than inside a field.
+    var changingServer by remember { mutableStateOf(settings.serverUrl.isEmpty()) }
+    val serverOpen = changingServer || pairing.failure != null
+    val backFocus = remember { FocusRequester() }
+
     BackHandler { onBack() }
-    LaunchedEffect(Unit) { requestFocusWhenAttached(serverFocus) }
+    LaunchedEffect(Unit) { requestFocusWhenAttached(if (settings.serverUrl.isEmpty()) serverFocus else backFocus) }
+    LaunchedEffect(changingServer) { if (changingServer && settings.serverUrl.isNotEmpty()) requestFocusWhenAttached(serverFocus) }
 
     LazyColumn(
         modifier = modifier
@@ -149,79 +156,79 @@ fun SettingsScreen(
             .focusRestorer(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                LogoMark(40.dp)
-                Text(stringResource(Res.string.settings_title), style = MaterialTheme.typography.headlineMedium)
-            }
-        }
-        // Above the fields: always on screen, and one Up from the URL field, with the keyboard closed.
-        item {
-            Row(
-                modifier = Modifier.focusGroup(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                SofaButton(onClick = save, enabled = canSave) {
-                    Text(stringResource(Res.string.settings_save))
-                }
-                SofaButton(onClick = onBack) {
-                    Text(stringResource(Res.string.settings_back))
-                }
-            }
-        }
+        item { ScreenTitle(stringResource(Res.string.settings_title), onBack, backFocus) }
         item { SectionHeader(stringResource(Res.string.settings_section_server)) }
-        item {
-            SettingField(
-                label = stringResource(Res.string.settings_server_url),
-                stored = settings.serverUrl,
-                onValueChange = { serverUrl = it },
-                problem = stringResource(Res.string.settings_server_url_invalid).takeIf { validUrl == null },
-                focusRequester = serverFocus,
-                imeAction = ImeAction.Next,
-                onAction = { tokenFocus.requestFocus(FocusDirection.Enter) },
-            )
-        }
-        item {
-            SettingField(
-                label = stringResource(Res.string.settings_api_token),
-                stored = settings.apiToken,
-                onValueChange = { apiToken = it },
-                problem = stringResource(Res.string.settings_api_token_invalid).takeIf { validToken == null },
-                focusRequester = tokenFocus,
-                imeAction = ImeAction.Done,
-                onAction = save,
-                maskUnfocused = ::maskToken,
-            )
-        }
-        item { HelpText(stringResource(Res.string.settings_api_token_help)) }
-        item {
-            Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!serverOpen) {
+            item {
+                SettingRow(label = stringResource(Res.string.settings_server_connected, settings.serverUrl)) {
+                    SofaButton(onClick = { changingServer = true }) { Text(stringResource(Res.string.settings_server_change)) }
+                }
+            }
+        } else {
+            item {
                 SettingField(
-                    label = stringResource(Res.string.settings_pairing_code),
-                    stored = "",
-                    onValueChange = { pairingCode = it },
-                    problem = stringResource(Res.string.settings_pairing_code_invalid).takeIf { pairingCode.isNotEmpty() && validCode == null },
-                    focusRequester = codeFocus,
-                    imeAction = ImeAction.Done,
-                    onAction = pair,
+                    label = stringResource(Res.string.settings_server_url),
+                    stored = settings.serverUrl,
+                    onValueChange = { serverUrl = it },
+                    problem = stringResource(Res.string.settings_server_url_invalid).takeIf { validUrl == null },
+                    focusRequester = serverFocus,
+                    imeAction = ImeAction.Next,
+                    onAction = { codeFocus.requestFocus(FocusDirection.Enter) },
                 )
-                SofaButton(onClick = pair, enabled = canPair) {
-                    Text(stringResource(if (pairing.busy) Res.string.settings_pairing else Res.string.settings_pair))
-                }
-                pairing.failure?.let { failure ->
-                    Text(
-                        stringResource(
-                            when (failure) {
-                                PairingFailure.INVALID_CODE -> Res.string.settings_pairing_failed_code
-                                PairingFailure.OLDER_SERVER -> Res.string.settings_pairing_failed_server
-                                PairingFailure.UNREACHABLE -> Res.string.settings_pairing_failed_unreachable
-                            },
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+            }
+            // The pairing code is the designed path; the token below it is the fallback.
+            item {
+                Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingField(
+                        label = stringResource(Res.string.settings_pairing_code),
+                        stored = "",
+                        onValueChange = { pairingCode = it },
+                        problem = stringResource(Res.string.settings_pairing_code_invalid).takeIf { pairingCode.isNotEmpty() && validCode == null },
+                        focusRequester = codeFocus,
+                        imeAction = ImeAction.Done,
+                        onAction = pair,
                     )
+                    SofaButton(onClick = pair, enabled = canPair) {
+                        Text(stringResource(if (pairing.busy) Res.string.settings_pairing else Res.string.settings_pair))
+                    }
+                    pairing.failure?.let { failure ->
+                        Text(
+                            stringResource(
+                                when (failure) {
+                                    PairingFailure.INVALID_CODE -> Res.string.settings_pairing_failed_code
+                                    PairingFailure.OLDER_SERVER -> Res.string.settings_pairing_failed_server
+                                    PairingFailure.UNREACHABLE -> Res.string.settings_pairing_failed_unreachable
+                                },
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    HelpText(stringResource(Res.string.settings_pairing_help))
                 }
-                HelpText(stringResource(Res.string.settings_pairing_help))
+            }
+            item {
+                Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingField(
+                        label = stringResource(Res.string.settings_api_token),
+                        stored = settings.apiToken,
+                        onValueChange = { apiToken = it },
+                        problem = stringResource(Res.string.settings_api_token_invalid).takeIf { validToken == null },
+                        focusRequester = tokenFocus,
+                        imeAction = ImeAction.Done,
+                        onAction = save,
+                        maskUnfocused = ::maskToken,
+                    )
+                    HelpText(stringResource(Res.string.settings_api_token_help))
+                    Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        SofaButton(onClick = save, enabled = canSave) { Text(stringResource(Res.string.settings_save)) }
+                        if (settings.serverUrl.isNotEmpty()) {
+                            SofaButton(onClick = { changingServer = false; serverUrl = settings.serverUrl; apiToken = settings.apiToken }) {
+                                Text(stringResource(Res.string.settings_server_cancel))
+                            }
+                        }
+                    }
+                }
             }
         }
         item { SectionHeader(stringResource(Res.string.settings_section_startup)) }
@@ -290,7 +297,6 @@ fun SettingsScreen(
         item {
             ChoiceRow(
                 label = stringResource(Res.string.settings_time_format),
-                help = stringResource(Res.string.settings_time_format_help),
                 choices = ClockFormat.entries,
                 selected = clockFormat,
                 choiceLabel = {
@@ -333,7 +339,6 @@ fun SettingsScreen(
                 SofaButton(onClick = actions.onManageChannels, enabled = channels.isNotEmpty()) {
                     Text(stringResource(Res.string.settings_channels_open))
                 }
-                HelpText(stringResource(Res.string.settings_channels_help))
             }
         }
         item { SectionHeader(stringResource(Res.string.settings_section_captions)) }
@@ -347,16 +352,18 @@ fun SettingsScreen(
                 },
             )
         }
-        item {
-            ToggleRow(
-                label = stringResource(Res.string.caption_smooth),
-                help = stringResource(Res.string.caption_smooth_help),
-                checked = smoothCaptions,
-                onCheckedChange = {
-                    smoothCaptions = it
-                    actions.onSmoothCaptionsChanged(it)
-                },
-            )
+        if (supportsCaptionSync) {
+            item {
+                ToggleRow(
+                    label = stringResource(Res.string.caption_smooth),
+                    help = stringResource(Res.string.caption_smooth_help),
+                    checked = smoothCaptions,
+                    onCheckedChange = {
+                        smoothCaptions = it
+                        actions.onSmoothCaptionsChanged(it)
+                    },
+                )
+            }
         }
         item {
             ChoiceRow(
@@ -377,35 +384,37 @@ fun SettingsScreen(
                 },
             )
         }
-        item {
-            val lessLabel = stringResource(Res.string.settings_caption_timing_less)
-            val moreLabel = stringResource(Res.string.settings_caption_timing_more)
-            // A button that disables at its end of the range hands focus to the other, not to another row.
-            val lessFocus = remember { FocusRequester() }
-            val moreFocus = remember { FocusRequester() }
-            SettingRow(label = stringResource(Res.string.caption_timing)) {
-                SofaButton(
-                    onClick = {
-                        captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = -1)
-                        actions.onCaptionAdvanceChanged(captionAdvance)
-                        if (captionAdvance <= AppSettings.CAPTION_ADVANCE_RANGE_MS.first) moreFocus.requestFocus()
-                    },
-                    enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE_MS.first,
-                    modifier = Modifier.focusRequester(lessFocus).semantics { contentDescription = lessLabel },
-                ) { Text("−") }
-                Text(captionTimingText(captionAdvance), style = MaterialTheme.typography.bodyLarge)
-                SofaButton(
-                    onClick = {
-                        captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = 1)
-                        actions.onCaptionAdvanceChanged(captionAdvance)
-                        if (captionAdvance >= AppSettings.CAPTION_ADVANCE_RANGE_MS.last) lessFocus.requestFocus()
-                    },
-                    enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE_MS.last,
-                    modifier = Modifier.focusRequester(moreFocus).semantics { contentDescription = moreLabel },
-                ) { Text("+") }
+        if (supportsCaptionSync) {
+            item {
+                val lessLabel = stringResource(Res.string.settings_caption_timing_less)
+                val moreLabel = stringResource(Res.string.settings_caption_timing_more)
+                // A button that disables at its end of the range hands focus to the other, not to another row.
+                val lessFocus = remember { FocusRequester() }
+                val moreFocus = remember { FocusRequester() }
+                SettingRow(label = stringResource(Res.string.caption_timing)) {
+                    SofaButton(
+                        onClick = {
+                            captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = -1)
+                            actions.onCaptionAdvanceChanged(captionAdvance)
+                            if (captionAdvance <= AppSettings.CAPTION_ADVANCE_RANGE_MS.first) moreFocus.requestFocus()
+                        },
+                        enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE_MS.first,
+                        modifier = Modifier.focusRequester(lessFocus).semantics { contentDescription = lessLabel },
+                    ) { Text("−") }
+                    Text(captionTimingText(captionAdvance), style = MaterialTheme.typography.bodyLarge)
+                    SofaButton(
+                        onClick = {
+                            captionAdvance = CaptionPolicy.stepAdvance(captionAdvance, direction = 1)
+                            actions.onCaptionAdvanceChanged(captionAdvance)
+                            if (captionAdvance >= AppSettings.CAPTION_ADVANCE_RANGE_MS.last) lessFocus.requestFocus()
+                        },
+                        enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE_MS.last,
+                        modifier = Modifier.focusRequester(moreFocus).semantics { contentDescription = moreLabel },
+                    ) { Text("+") }
+                }
             }
+            item { HelpText(stringResource(Res.string.caption_timing_help)) }
         }
-        item { HelpText(stringResource(Res.string.caption_timing_help)) }
         item {
             // The platform draws the captions and keeps its own style page; the row opens it where there is one.
             val openSystemCaptions = rememberSystemCaptionSettings()

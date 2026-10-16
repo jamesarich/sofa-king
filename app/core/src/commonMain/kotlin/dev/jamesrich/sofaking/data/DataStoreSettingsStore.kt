@@ -15,7 +15,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 import okio.Path.Companion.toPath
 
 /** [SettingsStore] on a preferences [DataStore]; there must be only one per file, which the DI graph's single instance guarantees. */
@@ -59,6 +62,8 @@ class DataStoreSettingsStore(
                     decoderByChannel = channelDecoders(prefs),
                     buffer = prefs[BUFFER].toEnum(BufferPreference.STANDARD),
                 ),
+                clientId = prefs[CLIENT_ID].orEmpty(),
+                preferencesSyncedAt = prefs[PREFERENCES_SYNCED_AT].orEmpty(),
             )
         }
 
@@ -176,6 +181,29 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[BUFFER] = buffer.name }
     }
 
+    @OptIn(ExperimentalUuidApi::class)
+    override suspend fun ensureClientId(): String {
+        val stored = dataStore.data.first()[CLIENT_ID]
+        if (!stored.isNullOrEmpty()) return stored
+        return dataStore.edit { prefs -> if (prefs[CLIENT_ID].isNullOrEmpty()) prefs[CLIENT_ID] = Uuid.random().toString() }[CLIENT_ID]!!
+    }
+
+    override suspend fun applyServerPreferences(hidden: Set<String>, favorites: List<String>, recent: List<String>, syncedAt: String) {
+        dataStore.edit { prefs ->
+            prefs[HIDDEN_CHANNELS] = hidden
+            prefs[FAVORITES] = favorites.toSet()
+            prefs[FAVORITES_ORDER] = favorites.distinct().joinToString(SEPARATOR.toString())
+            val merged = recent.distinct().take(AppSettings.RECENT_CHANNELS)
+            prefs[RECENT_CHANNELS] = merged.joinToString(SEPARATOR.toString())
+            if (prefs[LAST_CHANNEL] == null) merged.firstOrNull()?.let { prefs[LAST_CHANNEL] = it }
+            prefs[PREFERENCES_SYNCED_AT] = syncedAt
+        }
+    }
+
+    override suspend fun setPreferencesSyncedAt(syncedAt: String) {
+        dataStore.edit { prefs -> prefs[PREFERENCES_SYNCED_AT] = syncedAt }
+    }
+
     private fun favoritesOrder(prefs: Preferences): List<String> =
         prefs[FAVORITES_ORDER].orEmpty().split(SEPARATOR).filter { it.isNotEmpty() }
 
@@ -229,6 +257,8 @@ class DataStoreSettingsStore(
         val DECODER = stringPreferencesKey("decoder")
         val CHANNEL_DECODER = stringSetPreferencesKey("channel_decoder")
         val BUFFER = stringPreferencesKey("buffer")
+        val CLIENT_ID = stringPreferencesKey("client_id")
+        val PREFERENCES_SYNCED_AT = stringPreferencesKey("preferences_synced_at")
         const val SEPARATOR = '\t'
     }
 }

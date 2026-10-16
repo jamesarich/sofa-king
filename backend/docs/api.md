@@ -6,7 +6,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. The examples
 
 Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin` take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. On a loopback server with no token, leave the header out. A missing or wrong token answers `401 AUTH_REQUIRED`.
 
-These routes take no token: `/healthz`, `/readyz`, `/logos/{key}` and the session media URLs under `/media/sessions/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
+These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `POST /api/v1/pair` (a [pairing code](#pair-a-client) stands in for the token) and the session media URLs under `/media/sessions/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
 
 ## Endpoints
 
@@ -14,7 +14,10 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}` and the sessio
 | --- | --- | --- |
 | GET | `/healthz` | Public liveness check |
 | GET | `/readyz` | Public database readiness check |
-| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities |
+| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`) |
+| POST | `/api/v1/pair` | Exchange a pairing code for the API token, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
+| GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
+| PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt` |
 | GET | `/api/v1/channels` | Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match |
 | GET | `/api/v1/providers` | Provider import status and channel counts |
 | GET | `/api/v1/sources` | Health and manual-disable flag of every source |
@@ -102,6 +105,30 @@ curl --fail -X DELETE \
 
 Release is idempotent and cancels active upstream requests. Repeating an open request with the same key returns the same session while it remains active, and `410 SESSION_EXPIRED` once it has ended; open a new session with a new key. A reused key with different parameters returns `409 IDEMPOTENCY_CONFLICT`.
 
+## Pair a client
+
+A viewer need not type the API token into a TV: the admin portal's [Viewers page](admin.md#viewers) (or `POST /api/v1/admin/pairing-codes`) issues a six-digit code, live for ten minutes and good for one claim; a new code replaces the live one, and five wrong claims void it. The client posts the code with its own id and label, and receives the token:
+
+```sh
+curl -X POST http://SERVER_HOST:9193/api/v1/pair -H 'Content-Type: application/json' \
+  -d '{"code":"123456","clientId":"3f0b5f2e-6c1d-4f8a-9e2b-7a1c5d4e3b2a","name":"Living room TV","platform":"android-tv"}'
+```
+
+The answer is `{"apiToken": "...", "serverId": "..."}`; a server running without an API token answers an empty one. A wrong, spent or expired code answers `403 PAIRING_INVALID`. `clientId`, `name` and `platform` are optional; with a `clientId` the server lists the device on the Viewers page from then on. The portal's QR code carries the same code as `sofaking://pair?server=URL&code=DIGITS`, which the Android app opens.
+
+## Viewer preferences
+
+Each client keeps one document under its own id, so a reinstall or a second device of the same viewer can take it over, and the portal can show what a device keeps. `clientId` is 1 to 64 letters, digits, dots, dashes or underscores. The body of a `PUT` is:
+
+| Field | Contents |
+| --- | --- |
+| `hidden` | Channel ids the client leaves out of its guide and channel list |
+| `favorites` | Starred channel ids, in the viewer's order |
+| `recent` | Channels watched last, newest first |
+| `name`, `platform` | How the device calls itself; an empty value keeps the stored one |
+
+Each list holds at most 1,000 distinct ids. The server sets `updatedAt` and answers the stored document; a client compares that stamp to the one it last synced to decide whether the server's copy is newer than its own. The app pushes a change a few seconds after it settles and takes the server's copy over at start when another device wrote it since.
+
 ## Player outputs
 
 `/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer. The API token is accepted as a bearer only, never in a query. Without `SOFA_OUTPUT_TOKEN` the routes answer `401 AUTH_REQUIRED` to anything but the API bearer, and with neither token configured (a loopback development server) they are open. [Security](security.md#credentials-and-the-routes-they-open) explains why the output token is separate, and [operations](operations.md#rotating-tokens) how to rotate it.
@@ -182,6 +209,9 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
 | GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
 | POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |
+| GET | `/api/v1/admin/viewers` | Every client that paired or saved preferences, most recently seen first: `clientId`, `name`, `platform`, `firstSeenAt`, `lastSeenAt` and `preferences` (null until the client saves some) |
+| DELETE | `/api/v1/admin/viewers/{clientId}` | Forget a client and its preferences; returns 204. The client keeps working and reappears on its next save |
+| POST | `/api/v1/admin/pairing-codes` | Issue a [pairing code](#pair-a-client): `{"code", "expiresAt"}`, 201. It replaces the live code |
 
 While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /lineup/adopt` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api). Without it, the `/policy/*` routes answer `404 POLICY_NOT_CONFIGURED`.
 
@@ -266,6 +296,9 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET, POST | `/admin/providers`, `/admin/providers/edit` | Provider entries and their edits |
 | GET, POST | `/admin/groups`, `/admin/groups/edit` | Groups and their edits |
 | GET, POST | `/admin/plex`, `/admin/plex/reveal` | Plex and the device addresses; reveal the output token |
+| GET | `/admin/viewers` | The devices that paired or saved preferences, and the live pairing code with its QR code |
+| POST | `/admin/viewers/pair`, `/admin/viewers/cancel` | Issue a pairing code (replacing the live one); cancel it |
+| POST | `/admin/viewers/{clientId}/forget` | Forget a device and its preferences |
 | GET | `/admin/settings?changes=` | Settings and the newest policy changes, 50 by default |
 | POST | `/admin/settings/reveal-api-token` | Reveal the API token |
 | POST | `/admin/settings/runtime`, `/admin/settings/runtime/check` | Save the runtime settings (`op` of `save` or `reset`); say whether the form holds a change |

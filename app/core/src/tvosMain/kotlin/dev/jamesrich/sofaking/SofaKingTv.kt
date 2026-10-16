@@ -51,7 +51,7 @@ class SofaKingTv {
     )
     private val scope: CoroutineScope = MainScope()
 
-    val viewModel = LineupViewModel(store = DataStoreSettingsStore(storage.settings), lineupCache = storage.lineupCache)
+    val viewModel = LineupViewModel(store = DataStoreSettingsStore(storage.settings), lineupCache = storage.lineupCache, client = storage.client)
 
     fun watchState(onChange: (LineupState) -> Unit): Watch = watch(viewModel.state, onChange)
 
@@ -79,6 +79,9 @@ class SofaKingTv {
     fun stopWatching() {
         scope.launch { viewModel.sessions.release(forget = true) }
     }
+
+    /** Claims a pairing [code] at [url] and saves the server it opens; null on success, else why it failed. */
+    suspend fun pair(url: String, code: String): PairingFailure? = viewModel.pair(url, code)
 
     fun saveServer(url: String, apiToken: String) {
         viewModel.saveServer(url, apiToken)

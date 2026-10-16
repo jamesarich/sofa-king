@@ -15,9 +15,10 @@ import okio.SYSTEM
  * Both stores under [directory], at the paths the Android app has always used (`datastore/settings.preferences_pb`
  * and `lineup-cache.bin` under its files directory), so an upgrade keeps them.
  */
-fun AppStorage.Companion.inDirectory(directory: String): AppStorage = AppStorage(
+fun AppStorage.Companion.inDirectory(directory: String, client: ClientInfo = ClientInfo()): AppStorage = AppStorage(
     settings = preferencesDataStore(Path(directory, "datastore", "settings.preferences_pb").toString()),
     lineupCache = lineupCacheDataStore(Path(directory, "lineup-cache.bin").toString()),
+    client = client,
 )
 
 /**

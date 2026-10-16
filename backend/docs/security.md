@@ -13,6 +13,7 @@ The server is designed for a private network. It has no accounts, no per-user ac
 | API token (`SOFA_API_TOKEN`) | `Authorization: Bearer` | `/api/v1/*`, except `/api/v1/admin/*` when an admin token is set. Also accepted as a bearer on `/output/*` |
 | Admin token (`SOFA_ADMIN_TOKEN`) | `Authorization: Bearer` | `/api/v1/admin/*`. The API token is refused there once this is set |
 | Admin portal session | `sofa_admin` cookie, set by signing in at `/admin` with the admin token (or the API token when no admin token is set) | `/admin/*`, the [admin portal](admin.md). Actions also need the session's CSRF token |
+| Pairing code | `POST /api/v1/pair` body, no bearer | Issued from the portal's Viewers page, six digits, valid 10 minutes, one at a time, spent on the first match and voided after five wrong guesses. A match answers with the API token |
 | Output token (`SOFA_OUTPUT_TOKEN`) | `?token=` query or bearer | `/output/*`: the playlist, the guide and the stream URLs |
 | None | | `/healthz`, `/readyz`, `/logos/{key}`, the admin sign-in page (`GET /admin` and `POST /admin/login`), the portal icon `/admin/static/icon.svg` and its stylesheet `/admin/static/admin.css` |
 | None; client address allow-list | | The HDHomeRun routes (`/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/auto/v{number}`). `SOFA_HDHR_ALLOW` admits the listed addresses and answers everyone else `403` |
@@ -32,6 +33,7 @@ Notes on the table:
 ## Request limits
 
 - Request bodies are capped at 64 KiB, and at 4 MiB for a whole policy written through `PUT /api/v1/admin/policy` or the portal's group and provider edits. A larger body answers `413 REQUEST_TOO_LARGE` before any token is checked.
+- `POST /api/v1/pair` is the one `/api/v1/*` route that takes no token. It accepts 10 attempts a minute from each client address, like the login, and a six-digit code with a 10-minute life leaves at most 50 guesses against one million codes.
 - `POST /admin/login` accepts 10 attempts a minute from each client address and answers `429 Too Many Requests` beyond that, even for the right token. Behind a reverse proxy every sign-in comes from the proxy's address and shares that budget.
 - A rejected token is logged as `auth failed route=ROUTE remote=ADDRESS`, at most 30 lines a minute. The route is the path without its query, and the token is never logged.
 

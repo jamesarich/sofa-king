@@ -21,6 +21,8 @@ class WireFixturesTest {
         assertEquals("Morning", client.decodeFromString<GuideWindow>(fixture("v1/guide-window.json")).channels.single().programmes.single().title)
         assertEquals("hls", client.decodeFromString<PlaybackSession>(fixture("v1/playback-session.json")).descriptor.protocol)
         assertEquals(Wire.ErrorCode.AUTH_REQUIRED, client.decodeFromString<ApiError>(fixture("v1/api-error.json")).code)
+        assertEquals(64, client.decodeFromString<PairingResult>(fixture("v1/pairing-result.json")).apiToken.length)
+        assertEquals("Living room TV", client.decodeFromString<ViewerPreferences>(fixture("v1/viewer-preferences.json")).name)
     }
 
     @Test
@@ -39,6 +41,15 @@ class WireFixturesTest {
         )
         assertEquals("", session.expiresAt)
         assertEquals(false, client.decodeFromString<ApiError>("""{"code":"X","message":"m"}""").retryable)
+        assertEquals(false, client.decodeFromString<Bootstrap>("""{"serverId":"s","serverTime":"t","capabilities":{"catalog":true}}""").capabilities.viewers)
+        assertEquals("", client.decodeFromString<PairingResult>("""{"apiToken":"t"}""").serverId)
+        assertEquals(ViewerPreferences(), client.decodeFromString<ViewerPreferences>("{}"))
+    }
+
+    @Test
+    fun `a pairing claim carries the code and who claims it`() {
+        val body = Json.encodeToString(PairingClaim.serializer(), PairingClaim("123456", "client-1", "Den", "android-tv"))
+        assertEquals("""{"code":"123456","clientId":"client-1","name":"Den","platform":"android-tv"}""", body)
     }
 
     @Test

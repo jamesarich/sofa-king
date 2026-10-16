@@ -287,3 +287,8 @@ details>summary{cursor:pointer;color:var(--accent);font-weight:600;min-height:32
 .meter [data-fill="90"]{width:90%}
 .meter [data-fill="95"]{width:95%}
 .meter [data-fill="100"]{width:100%}
+.pairing{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.pairing-qr{flex:0 0 auto;width:min(220px,60vw);background:#fff;border-radius:var(--radius);padding:8px}
+.pairing-qr svg{display:block;width:100%;height:auto}
+.pairing-text{flex:1 1 260px;min-width:0}
+.pairing-code{font-size:2rem;font-weight:600;letter-spacing:.12em;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}

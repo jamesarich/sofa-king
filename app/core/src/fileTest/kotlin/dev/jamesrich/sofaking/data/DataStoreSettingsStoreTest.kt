@@ -306,4 +306,28 @@ class DataStoreSettingsStoreTest {
         val updated = store.settings.first { it.apiToken == "two" }
         assertEquals("http://b:9193", updated.serverUrl)
     }
+
+    @Test
+    fun `the client id is made once and the server's preferences replace the synced fields`() = runTest {
+        val store = newStore()
+        val id = store.ensureClientId()
+        assertTrue(id.length >= 32, id)
+        assertEquals(id, store.ensureClientId())
+        assertEquals(id, store.settings.first().clientId)
+
+        store.toggleFavorite("mine")
+        store.setChannelHidden("h0", true)
+        store.setLastChannel("watched")
+        store.applyServerPreferences(setOf("h1"), listOf("b", "a"), listOf("r1", "r2"), "2026-10-16T00:00:00Z")
+        val settings = store.settings.first()
+        assertEquals(setOf("h1"), settings.hiddenChannels)
+        assertEquals(setOf("a", "b"), settings.favorites)
+        assertEquals(listOf("b", "a"), settings.favoritesOrder)
+        assertEquals(listOf("r1", "r2"), settings.recentChannels)
+        assertEquals("watched", settings.lastChannel, "a last channel this device has is kept")
+        assertEquals("2026-10-16T00:00:00Z", settings.preferencesSyncedAt)
+
+        store.setPreferencesSyncedAt("2026-10-16T00:01:00Z")
+        assertEquals("2026-10-16T00:01:00Z", store.settings.first().preferencesSyncedAt)
+    }
 }

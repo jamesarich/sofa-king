@@ -36,6 +36,7 @@ coil = "3.6.3"
 exposed = "1.5.1"
 sqlite = "3.53.4.0"
 logback = "1.6.5"
+zxing = "3.5.3"
 
 [libraries]
 # Shared
@@ -109,6 +110,7 @@ exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "e
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 kotlinx-html = { module = "org.jetbrains.kotlinx:kotlinx-html-jvm", version.ref = "kotlinx-html" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 
 # build-logic compiles against these; each build applies them through its plugins block.
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }

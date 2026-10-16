@@ -114,9 +114,13 @@ fun Application.backendModule(
         }
     }
     install(RequestBodyLimit) { bodyLimit { call -> requestBodyLimit(call.request.httpMethod, call.routedPath) } }
-    if (portal != null) install(RateLimit) {
+    install(RateLimit) {
         register(ADMIN_LOGIN_LIMIT) {
             rateLimiter(limit = ADMIN_LOGINS_PER_MINUTE, refillPeriod = 1.minutes)
+            requestKey { call -> call.request.origin.remoteAddress }
+        }
+        register(PAIR_LIMIT) {
+            rateLimiter(limit = PAIR_CLAIMS_PER_MINUTE, refillPeriod = 1.minutes)
             requestKey { call -> call.request.origin.remoteAddress }
         }
     }
@@ -165,7 +169,8 @@ fun Application.backendModule(
             // Admin routes take the admin token when one is configured; otherwise the API token covers them too.
             val isAdmin = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/")
             val expected = if (isAdmin && adminToken != null) adminToken else apiToken
-            if ((path == "/api" || path.startsWith("/api/")) && expected != null) {
+            // A pairing claim carries no token yet; the code it presents is checked by its route.
+            if ((path == "/api" || path.startsWith("/api/")) && expected != null && path != PAIR_PATH) {
                 val presented = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()
                 if (!sameSecret(presented, expected)) {
                     call.authFailed()
@@ -183,7 +188,7 @@ fun Application.backendModule(
         }
         get("/api/v1/bootstrap") {
             if (!store.ready()) call.respond(HttpStatusCode.ServiceUnavailable, ApiError("NOT_READY", "Storage unavailable", true))
-            else call.respond(Bootstrap(serverId = store.serverId(), serverTime = clock.instant().toString(), capabilities = Capabilities(catalog = runtime != null, guide = runtime != null, playback = runtime != null)))
+            else call.respond(Bootstrap(serverId = store.serverId(), serverTime = clock.instant().toString(), capabilities = Capabilities(catalog = runtime != null, guide = runtime != null, playback = runtime != null, viewers = runtime != null)))
         }
         if (runtime != null) {
             get("/api/v1/channels") {
@@ -207,6 +212,7 @@ fun Application.backendModule(
             }
             post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.appBody<GuideQuery>())) }
             adminRoutes(runtime, clock, config?.revision ?: "unknown")
+            viewerRoutes(runtime, clock, apiToken)
             post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.appBody<OpenPlayback>(), call.request.origin.remoteAddress)) }
             get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }
             patch("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.update(call.parameters["id"]!!, call.appBody<UpdatePlayback>())) }

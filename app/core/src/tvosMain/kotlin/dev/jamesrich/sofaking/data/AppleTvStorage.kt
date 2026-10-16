@@ -28,6 +28,7 @@ import platform.Foundation.NSData
 import platform.Foundation.NSUserDefaults
 import platform.Foundation.create
 import platform.posix.memcpy
+import platform.UIKit.UIDevice
 
 /**
  * Storage for the Apple TV app. tvOS may purge any file while the app is closed and lets an app write only to Caches,
@@ -42,6 +43,7 @@ fun AppStorage.Companion.onAppleTv(cachesDirectory: String, defaults: NSUserDefa
         scope = CoroutineScope(ioDispatcher + SupervisorJob()),
     ),
     lineupCache = lineupCacheDataStore(Path(cachesDirectory, "lineup-cache.bin").toString()),
+    client = ClientInfo("tvos", UIDevice.currentDevice.name),
 )
 
 /** A DataStore [Storage] holding the serialized preferences as one `NSData` entry of [defaults] under [key]. */

@@ -141,4 +141,31 @@ class SofaKingApiTest {
         assertEquals("application/x-mpegURL", mediaMimeType(PlaybackDescriptorDto("hls", "Application/X-MpegURL", "/x", 1)))
         assertEquals("video/mp2t", mediaMimeType(PlaybackDescriptorDto("mpegts", "video/mp2t", "/x.ts", 1)))
     }
+
+    @Test
+    fun `a pairing claim is posted without a token and answers the server's`() = runTest {
+        val http = FakeHttp(this) { json("""{"apiToken":"issued","serverId":"srv"}""") }
+
+        val result = http.api(token = "").pair(PairingClaimDto("123456", "c1", "Den", "android-tv"))
+
+        val request = http.requests.single()
+        assertEquals("POST /api/v1/pair {\"code\":\"123456\",\"clientId\":\"c1\",\"name\":\"Den\",\"platform\":\"android-tv\"}", request.toString())
+        assertNull(request.headers["Authorization"])
+        assertEquals("issued", result.apiToken)
+        assertEquals("srv", result.serverId)
+    }
+
+    @Test
+    fun `missing preferences read as null and saved ones come back stamped`() = runTest {
+        val http = FakeHttp(this) { request ->
+            if (request.method == "GET") apiError(404, "VIEWER_NOT_FOUND")
+            else json("""{"hidden":["h"],"favorites":[],"recent":[],"name":"Den","platform":"desktop","updatedAt":"2026-10-16T00:00:00Z"}""")
+        }
+
+        assertNull(http.api().preferences("c 1"))
+        assertEquals("/api/v1/preferences/c%201", http.requests.single().path)
+        val saved = http.api().savePreferences("c1", ViewerPreferencesDto(hidden = listOf("h"), name = "Den", platform = "desktop"))
+        assertEquals("PUT /api/v1/preferences/c1 {\"hidden\":[\"h\"],\"name\":\"Den\",\"platform\":\"desktop\"}", http.requests.last().toString())
+        assertEquals("2026-10-16T00:00:00Z", saved.updatedAt)
+    }
 }

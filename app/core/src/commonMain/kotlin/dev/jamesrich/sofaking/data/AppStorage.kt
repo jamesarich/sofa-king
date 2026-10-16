@@ -10,6 +10,8 @@ import androidx.datastore.preferences.core.Preferences
 class AppStorage(
     val settings: DataStore<Preferences>,
     val lineupCache: DataStore<CachedLineup?>,
+    /** How the device introduces itself to the server; the entry point knows the platform. */
+    val client: ClientInfo = ClientInfo(),
 ) {
     companion object
 }

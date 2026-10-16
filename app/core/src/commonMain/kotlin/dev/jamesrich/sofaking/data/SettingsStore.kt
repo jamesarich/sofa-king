@@ -41,6 +41,10 @@ data class AppSettings(
     /** The favorites in the order the user put them (see [orderedFavorites]); starred channels not listed follow by number. */
     val favoritesOrder: List<String> = emptyList(),
     val playback: PlaybackPreferences = PlaybackPreferences(),
+    /** This installation's id on the server, under which it keeps the viewer's preferences; made once by [SettingsStore.ensureClientId]. */
+    val clientId: String = "",
+    /** The `updatedAt` of the server's preferences document this device last pushed or took over; empty before any sync. */
+    val preferencesSyncedAt: String = "",
 ) {
     fun captionAdvanceFor(guideId: String): Int = captionAdvanceByChannel[guideId] ?: captionAdvanceMs
 
@@ -54,7 +58,8 @@ data class AppSettings(
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
-            "zapSkipsHidden=$zapSkipsHidden, favoritesOrder=$favoritesOrder, playback=$playback)"
+            "zapSkipsHidden=$zapSkipsHidden, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
+            "preferencesSyncedAt=$preferencesSyncedAt)"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
@@ -137,4 +142,17 @@ interface SettingsStore {
     suspend fun setChannelDecoder(guideId: String, decoder: DecoderPreference?)
 
     suspend fun setBuffer(buffer: BufferPreference)
+
+    /** The stored client id, generating and storing one on the first call. */
+    suspend fun ensureClientId(): String
+
+    /**
+     * Takes over the server's copy of the synced preferences: [hidden] replaces the hidden set, [favorites] the
+     * starred set and their order, [recent] the recent list (its first entry becomes the last channel when the
+     * device has none), and [syncedAt] is remembered as the document taken.
+     */
+    suspend fun applyServerPreferences(hidden: Set<String>, favorites: List<String>, recent: List<String>, syncedAt: String)
+
+    /** Remembers the server document's stamp after this device pushed its preferences. */
+    suspend fun setPreferencesSyncedAt(syncedAt: String)
 }

@@ -12,7 +12,7 @@ A session lasts 12 hours from sign-in, or until you sign out. Sessions are held 
 
 ## Pages
 
-The navigation groups the pages into the overview, Lineup (Channels, Merges, Required), Setup (Groups, Providers, Plex, Settings) and System (Jobs, Events, About, API). A count beside Merges, Required, Providers, Plex or Jobs says how many things there need a look. On a phone the navigation folds into a Menu button that carries the total. The footer of every signed-in page shows the server's revision and how long it has been up, and the theme switch: Auto follows the device's light or dark setting, Light and Dark pin one in a cookie.
+The navigation groups the pages into the overview, Lineup (Channels, Merges, Required), Setup (Groups, Providers, Plex, Viewers, Settings) and System (Jobs, Events, About, API). A count beside Merges, Required, Providers, Plex or Jobs says how many things there need a look. On a phone the navigation folds into a Menu button that carries the total. The footer of every signed-in page shows the server's revision and how long it has been up, and the theme switch: Auto follows the device's light or dark setting, Light and Dark pin one in a cookie.
 
 | Page | What it shows | What it changes |
 | --- | --- | --- |
@@ -24,6 +24,7 @@ The navigation groups the pages into the overview, Lineup (Channels, Merges, Req
 | Groups | With a policy: the number blocks and the groups without one, the default group, the unmapped categories, the category map, the weak categories and the name patterns | Each of those |
 | Providers | Each provider's channels, last import and status, and each guide's. With a policy, the provider entries in priority order, with what each takes and the stations each leads | With a policy: reorder, hide, show, add or remove provider entries |
 | Plex | The last Plex sync with each tuner's DVR and mapped channels, each HDHomeRun device with its address and channel count, the devices the lineup needs, the M3U and XMLTV URLs, and the Plex setup steps | Nothing; the output token stays hidden until you choose to reveal it |
+| Viewers | The devices running the app against this server: each one's name and platform, how many channels it hides, its favorites and recent channels, when it last saved them and when it was first and last seen. Above them, pairing: a six-digit code and its QR code while one is live | Show a pairing code, replace or cancel it; forget a device |
 | Settings | The lineup policy's file, revision, contents and last run, the runtime settings, every startup `SOFA_` variable as the server runs with it, each token's origin, the source file's providers and guides, and the newest policy changes | Apply the policy now; save the runtime settings; reveal the API token |
 | Jobs | Every background job: each provider and guide import, the lineup policy run, Plex sync and the logo sweep, with its interval, last run, duration, result and next due time | Run a job now |
 | Events | The newest 500 log lines at INFO and above since the server started, newest first, filtered by level and by text. With JavaScript the list refreshes every 10 seconds | Nothing |
@@ -53,6 +54,12 @@ On the Providers page, with a policy, you can move an entry up or down and hide 
 Without a policy, the Merges, Required and Groups pages explain that they need one. Channel edits then go to the lineup itself, sending the changed fields the way `PATCH /api/v1/admin/lineup/{id}` does.
 
 After a save the page says what was saved, once, and marks the channel it concerns. A channel edit applies to the policy file as it is when you save, since runs write numbers back to it often. When the policy refuses one, the error shows on the channel's page with the form to correct.
+
+## Viewers
+
+Show a pairing code issues a six-digit code that stands in for the API token for ten minutes and one device: on the TV, open the app's Settings, enter the server address the page shows and the code, and choose Pair. The page also draws the code and the address as a QR code; a phone with the app installed scans it with its camera and pairs at once. One code is live at a time; New code replaces it, Cancel the code drops it, and five wrong attempts void it. The address shown is the one your browser reached the server at, so open the portal the way the TV will reach it.
+
+A device appears once it pairs or saves its preferences (its hidden channels, favorites order and recent channels, kept per device so a reinstall or a second device can take them over). Forget drops what the server keeps for a device; the device itself keeps its settings and saves them again on its next change. The API token never appears on this page; the Settings page reveals it.
 
 ## Group and provider edits
 

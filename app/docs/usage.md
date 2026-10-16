@@ -76,6 +76,7 @@ Settings opens from the guide's header. Switches and choices apply at once. The 
 | --- | --- | --- | --- |
 | Server | Server URL | Empty | The server's absolute HTTP(S) address with a host and optional port, for example `http://server.example:9193`. Embedded credentials, queries and fragments are refused |
 | Server | API token | Empty | The server's API token, found as [getting started](getting-started.md#what-you-need) describes: letters, digits and punctuation with no spaces. Leave it empty when the server runs without one. The field shows only the last four characters until it is focused |
+| Server | Pairing code | Empty | Six digits from the admin portal's Viewers page, entered with the Server URL instead of the token. Pair claims the code and stores the token the server hands out; a code lasts ten minutes and works once. On Android, a `sofaking://pair` link (the portal's QR code) pairs without typing |
 | Startup | Open on start | Last channel | What a cold start opens: the channel watched last, the guide, or a channel chosen from the lineup with Choose. A chosen or last channel the lineup no longer has opens the guide |
 | Guide | Open focused channel automatically | After 10 seconds | How long focus rests on a channel before it opens full screen: Off, after 10 or after 30 seconds. TalkBack touch exploration on Android and VoiceOver on iOS turn it off |
 | Guide | Play preview sound | On | Whether the preview's sound comes on after 5 seconds |

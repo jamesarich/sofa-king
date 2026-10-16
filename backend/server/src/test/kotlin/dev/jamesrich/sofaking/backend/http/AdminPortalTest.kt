@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.*
+import dev.jamesrich.sofaking.backend.admin.spacedCode
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.store.openStore
 import io.ktor.client.HttpClient
@@ -863,6 +864,45 @@ class AdminPortalTest {
             assertEquals("3.1.0", spec["openapi"]!!.jsonPrimitive.content)
             val paths = spec["paths"]!!.jsonObject.keys
             for (path in listOf("/healthz", "/api/v1/bootstrap", "/api/v1/playback-sessions/{id}", "/api/v1/admin/policy/apply", "/auto/v{number}")) assertTrue(path in paths, path)
+        }
+    }
+
+    @Test fun `the viewers page issues a pairing code with its QR code, lists devices and forgets one`() = testApplication {
+        portal {
+            assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/viewers").status)
+            browser.signIn()
+            val empty = browser.get("/admin/viewers")
+            assertEquals(HttpStatusCode.OK, empty.status)
+            val emptyHtml = empty.bodyAsText()
+            assertTrue(emptyHtml.contains("Show a pairing code"))
+            assertTrue(emptyHtml.contains("No device has paired"))
+            assertFalse(emptyHtml.contains("pairing-code"))
+            assertTrue(emptyHtml.contains("aria-current=\"page\">Viewers<"), "the nav marks the page")
+
+            val issued = browser.post("/admin/viewers/pair", "csrf" to field(emptyHtml, "csrf"))
+            assertEquals(HttpStatusCode.OK, issued.status)
+            val issuedHtml = issued.bodyAsText()
+            val code = runtime.pairing.current()!!.code
+            assertTrue(issuedHtml.contains(spacedCode(code)), "the code is on the page")
+            assertTrue(issuedHtml.contains("<svg") && issuedHtml.contains("Pairing code $code"), "the QR code is drawn inline")
+            assertTrue(issuedHtml.contains("Pairing code $code for http://"), "the QR is labelled with the code and the address")
+            assertTrue(issuedHtml.contains("Cancel the code"))
+            assertTrue(browser.get("/admin/viewers").bodyAsText().contains(spacedCode(code)), "a reload shows the live code")
+
+            // A device claims the code and saves its preferences; it then appears with them.
+            val api = createClient { }
+            val paired = api.post("/api/v1/pair") { contentType(ContentType.Application.Json); setBody("""{"code":"$code","clientId":"den-tv","name":"Den TV","platform":"android-tv"}""") }
+            assertEquals(HttpStatusCode.OK, paired.status)
+            api.put("/api/v1/preferences/den-tv") { bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"hidden":["a","b"],"favorites":["c"],"recent":["c","d","e"]}""") }
+            val listed = browser.get("/admin/viewers").bodyAsText()
+            assertFalse(listed.contains("pairing-code"), "the claimed code is gone")
+            for (shown in listOf("Den TV", "den-tv", "android-tv", "id=\"viewer-den-tv\"")) assertTrue(listed.contains(shown), shown)
+            assertFalse(listed.contains(token), "the API token never reaches the page")
+
+            val forgot = browser.post("/admin/viewers/den-tv/forget", "csrf" to field(listed, "csrf"))
+            assertEquals(HttpStatusCode.SeeOther, forgot.status)
+            assertTrue(browser.get("/admin/viewers").bodyAsText().contains("No device has paired"))
+            assertEquals(HttpStatusCode.NotFound, api.get("/api/v1/preferences/den-tv") { bearerAuth(token) }.status)
         }
     }
 }

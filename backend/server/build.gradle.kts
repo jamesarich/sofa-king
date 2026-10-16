@@ -21,6 +21,7 @@ dependencies {
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)
     implementation(libs.kotlinx.html)
+    implementation(libs.zxing.core)
     implementation(libs.logback.classic)
     testImplementation(kotlin("test-junit"))
     testImplementation(libs.ktor.server.test.host)

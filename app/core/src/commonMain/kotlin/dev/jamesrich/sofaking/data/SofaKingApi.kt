@@ -9,6 +9,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -20,6 +21,7 @@ import io.ktor.http.content.TextContent
 import io.ktor.http.encodeURLPathPart
 import io.ktor.http.isSuccess
 import io.ktor.http.takeFrom
+import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.CancellationException
 import kotlinx.io.IOException
 import kotlinx.serialization.SerializationException
@@ -87,6 +89,23 @@ class SofaKingApi(
 
     internal suspend fun releaseSession(id: String) = call {
         http.delete(sessionPath(id)).checkSuccess()
+    }
+
+    /** Claims a pairing code; the client built for this has no token yet. A wrong or spent code is a [SofaKingException] with [Wire.ErrorCode.PAIRING_INVALID]. */
+    internal suspend fun pair(claim: PairingClaimDto): PairingResultDto = call {
+        http.post("pair") { json(claim) }.decode()
+    }
+
+    /** The preferences the server keeps for [clientId], or null when it has none (or is too old to keep any). */
+    internal suspend fun preferences(clientId: String): ViewerPreferencesDto? = call {
+        val response = http.get("preferences/" + clientId.encodeURLPathPart())
+        if (response.status.value == 404) return@call null
+        response.decode()
+    }
+
+    /** Replaces the server's copy of [clientId]'s preferences; the answer carries the server's stamp. */
+    internal suspend fun savePreferences(clientId: String, preferences: ViewerPreferencesDto): ViewerPreferencesDto = call {
+        http.put("preferences/" + clientId.encodeURLPathPart()) { json(preferences) }.decode()
     }
 
     /** The absolute media URL for a descriptor, whose [PlaybackDescriptorDto.url] is relative to the server. */

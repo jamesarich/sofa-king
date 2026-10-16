@@ -348,8 +348,13 @@ class AdminPortalTest {
             browser.signIn()
             val html = browser.get("/admin/settings").bodyAsText()
             for (secret in listOf(admin, token, outputToken, plexToken, query)) assertFalse(html.contains(secret), "a secret reached the page")
-            for (shown in listOf("SOFA_ADMIN_TOKEN", "SOFA_PLEX_URL", "http://127.0.0.1:32400", "policy.json", "headers: X-Key", "Change log")) assertTrue(html.contains(shown), shown)
+            for (shown in listOf("SOFA_ADMIN_TOKEN", "SOFA_PLEX_URL", "http://127.0.0.1:32400", "policy.json", "Change log")) assertTrue(html.contains(shown), shown)
             assertTrue(html.contains("Twin Sports"), "the change log lists the stations the run added")
+            assertTrue(html.contains("<details class=\"advanced\" id=\"advanced\">"), "the startup settings fold behind Advanced")
+            assertTrue(browser.get("/admin/settings?advanced=1").bodyAsText().contains(Regex("""<details class="advanced" id="advanced" open(="[^"]*")?>""")), "advanced=1 opens the section")
+            val sources = browser.get("/admin/providers").bodyAsText()
+            for (secret in listOf(admin, token, outputToken, plexToken, query)) assertFalse(sources.contains(secret), "a secret reached the Sources page")
+            assertTrue(sources.contains("headers: X-Key") && sources.contains("Source file"), "the Sources page describes the source file without its values")
         }
     }
 
@@ -401,7 +406,7 @@ class AdminPortalTest {
             assertNull(runtime.policy!!.lastApplied(), "a refused apply runs nothing")
             val applied = browser.post("/admin/policy/apply", "csrf" to field(html, "csrf"))
             assertEquals(HttpStatusCode.SeeOther, applied.status)
-            assertEquals("/admin/settings", applied.headers[HttpHeaders.Location])
+            assertEquals("/admin/settings?advanced=1#policy", applied.headers[HttpHeaders.Location])
             assertNotNull(runtime.policy.lastApplied())
             assertTrue(browser.get("/admin/settings").bodyAsText().contains("Applied the policy:"))
         }
@@ -910,7 +915,7 @@ class AdminPortalTest {
             assertTrue(emptyHtml.contains("Show a pairing code"))
             assertTrue(emptyHtml.contains("No device has paired"))
             assertFalse(emptyHtml.contains("pairing-code"))
-            assertTrue(emptyHtml.contains("aria-current=\"page\">Viewers<"), "the nav marks the page")
+            assertTrue(emptyHtml.contains("aria-current=\"page\">Devices<"), "the nav marks the page")
 
             val issued = browser.post("/admin/viewers/pair", "csrf" to field(emptyHtml, "csrf"))
             assertEquals(HttpStatusCode.OK, issued.status)

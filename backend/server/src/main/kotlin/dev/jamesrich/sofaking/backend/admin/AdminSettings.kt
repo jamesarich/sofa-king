@@ -33,14 +33,16 @@ internal class RuntimeSettingsView(
 )
 
 internal class SettingsView(
-    val groups: List<SettingGroup>, val providers: List<SourceSummary>, val guides: List<SourceSummary>, val policy: PolicySummary?,
+    val groups: List<SettingGroup>, val policy: PolicySummary?,
     val changes: List<PolicyChangeEntry>, val changeLimit: Int,
     val apiTokenSet: Boolean = false,
     /** The API token, only on the page answering the reveal action. */
     val revealedApiToken: String? = null,
     val runtime: RuntimeSettingsView? = null,
+    /** Whether the Advanced section starts open: after an action inside it, or when the page is asked for `advanced=1`. */
+    val openAdvanced: Boolean = false,
 ) {
-    constructor(view: SettingsView, runtime: RuntimeSettingsView?) : this(view.groups, view.providers, view.guides, view.policy, view.changes, view.changeLimit, view.apiTokenSet, view.revealedApiToken, runtime)
+    constructor(view: SettingsView, runtime: RuntimeSettingsView?) : this(view.groups, view.policy, view.changes, view.changeLimit, view.apiTokenSet, view.revealedApiToken, runtime, view.openAdvanced)
 }
 
 private const val SET = "set"
@@ -198,79 +200,20 @@ private fun FlowContent.runtimePanel(chrome: Chrome, view: RuntimeSettingsView) 
     }
 }
 
-internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("Settings", chrome, "/admin/settings") {
-    val now = chrome.now
-    pageHead("Settings", "How this server is configured: the lineup policy, the settings that change at once, the ones that take a restart, the source file and the change log. Edit groups and providers on their pages.")
-    panel("Lineup policy", id = "policy") {
-        val policy = view.policy
-        if (policy == null) { p("muted") { +"No lineup policy. Add policy.json to the data directory, or set SOFA_POLICY to a policy file in a writable directory, and restart; the server then builds the lineup from it." }; return@panel }
-        dl("kv") {
-            dt { +"File" }; dd { code { +policy.path } }
-            dt { +"Revision" }; dd { span("mono") { attributes["title"] = policy.revision; +policy.revision.take(12) } }
-            val p = policy.policy
-            dt { +"Holds" }
-            dd {
-                +listOf(
-                    plural(p.providers.size, "provider entry", "provider entries"), plural(p.numbering.groups.size, "number block"),
-                    plural(p.groups.map.size, "category mapping"), plural(p.groups.weak.size, "weak category", "weak categories"),
-                    plural(p.groups.patterns.size, "pattern"), plural(p.stations.size, "station override"),
-                    plural(p.names.aliases.size, "alias", "aliases"), plural(p.names.learned.size, "learned alias", "learned aliases"),
-                ).joinToString(", ")
-            }
-            dt { +"Last run" }
-            dd {
-                val run = policy.lastRun
-                if (run == null) +"None since the server started"
-                else {
-                    ago(run.appliedAt, now)
-                    +(": ${thousands(run.enabledStations)} on of ${thousands(run.stations)}, " + if (run.changed) plural(run.changes, "field") + " changed" else "no change")
-                }
-            }
-        }
-        div("actions mt-14") {
-            postForm("/admin/policy/apply", chrome.session) { button(type = ButtonType.submit, classes = "primary") { +"Apply now" } }
-            span("muted small") { +"Runs the policy over the current feeds and writes the lineup. Runs also follow every import and every 15 minutes." }
-        }
-    }
-    view.runtime?.let { runtimePanel(chrome, it) }
-    h2("mt-16") { +"Startup settings" }
-    p("muted small") { +"Read from the server's environment (.env) when it starts. Change one there and restart the server." }
-    div("cols") {
-        for (group in view.groups) panel(group.title) {
-            div("settings") {
-                for (setting in group.settings) div("setting") {
-                    div("name mono") { +setting.name }
-                    div("val") {
-                        when (setting.value) {
-                            SET -> chip(SET, Tone.OK)
-                            GENERATED -> chip(GENERATED, Tone.OK)
-                            UNSET -> span("muted") { +UNSET }
-                            else -> +setting.value
-                        }
-                        if (setting.isDefault && setting.value !in setOf(UNSET, SET, GENERATED)) span("muted small") { +" · default" }
-                        if (setting.note != null) div("muted small") { +setting.note }
-                    }
-                }
-                if (group.title == "Tokens" && view.apiTokenSet) div("mt-12") {
-                    attributes["id"] = "api-token"
-                    val token = view.revealedApiToken
-                    if (token == null) postForm("/admin/settings/reveal-api-token", chrome.session) { button(type = ButtonType.submit) { +"Reveal the API token" } }
-                    else {
-                        div("muted small") { +"API token, for the Sofa King app and API clients:" }
-                        code { +token }
-                    }
-                }
-            }
-        }
-    }
-    panel("Source file", id = "sources", aside = { span("muted") { +"URL paths, queries and header values are not shown" } }) {
-        if (view.providers.isEmpty() && view.guides.isEmpty()) { p("muted") { +"No providers or guides. Add sources.json to the data directory, or set SOFA_SOURCES to a source file, and restart." }; return@panel }
+/**
+ * The source file's providers and guides, as a folded section: what each is and where it comes from, never a URL
+ * path, query, header value or option value.
+ */
+internal fun FlowContent.sourceFilePanel(providers: List<SourceSummary>, guides: List<SourceSummary>) = panel("Source file", id = "sources", aside = { span("muted") { +"URL paths, queries and header values are not shown" } }) {
+    if (providers.isEmpty() && guides.isEmpty()) { p("muted") { +"No providers or guides. Add sources.json to the data directory, or set SOFA_SOURCES to a source file, and restart." }; return@panel }
+    details {
+        summary { +(plural(providers.size, "provider") + ", " + plural(guides.size, "guide") + " configured") }
         div("scroll") {
             table {
                 caption("sr") { +"Configured sources" }
                 thead { tr { col("ID"); col("Kind"); col("From"); col("Refresh"); col("Notes") } }
                 tbody {
-                    for (source in view.providers + view.guides) tr {
+                    for (source in providers + guides) tr {
                         th { attributes["scope"] = "row"; +source.id }
                         td { +source.kind }
                         td { +source.where }
@@ -281,27 +224,102 @@ internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("
             }
         }
     }
-    if (view.policy != null) panel("Change log", id = "changes", aside = {
-        if (view.changeLimit < 1000) a("/admin/settings?changes=${minOf(1000, view.changeLimit * 4)}#changes") { +"Show more" }
-    }) {
-        if (view.changes.isEmpty()) { p("muted") { +"No policy run has changed the lineup yet." }; return@panel }
-        div("scroll") {
-            table {
-                caption("sr") { +"Policy change log" }
-                thead { tr { col("When"); col("Station"); col("Field"); col("Before"); col("After"); col("Cause") } }
-                tbody {
-                    for (entry in view.changes) tr {
-                        val change = entry.change
-                        td("nowrap") { ago(entry.appliedAt, now) }
-                        td {
-                            if (change.entryId != null) a("/admin/lineup/${change.entryId}", classes = "rowlink") { +change.entryName } else +change.entryName
-                            change.key?.let { br(); span("muted small mono") { +it } }
+}
+
+internal fun settingsPage(chrome: Chrome, view: SettingsView): String = layout("Settings", chrome, "/admin/settings") {
+    val now = chrome.now
+    pageHead("Settings", "The settings that change at once. Everything else the server runs with, and the lineup policy's file, is under Advanced.")
+    view.runtime?.let { runtimePanel(chrome, it) }
+    details("advanced") {
+        id = "advanced"
+        if (view.openAdvanced) open = true
+        summary { +"Advanced" ; span("muted small") { +" · the lineup policy, the startup settings and the change log" } }
+        policyPanel(chrome, view.policy, now)
+        h2("mt-16") { +"Startup settings" }
+        p("muted small") { +"Read from the server's environment (.env) when it starts. Change one there and restart the server." }
+        div("cols") {
+            for (group in view.groups) panel(group.title) {
+                div("settings") {
+                    for (setting in group.settings) div("setting") {
+                        div("name mono") { +setting.name }
+                        div("val") {
+                            when (setting.value) {
+                                SET -> chip(SET, Tone.OK)
+                                GENERATED -> chip(GENERATED, Tone.OK)
+                                UNSET -> span("muted") { +UNSET }
+                                else -> +setting.value
+                            }
+                            if (setting.isDefault && setting.value !in setOf(UNSET, SET, GENERATED)) span("muted small") { +" · default" }
+                            if (setting.note != null) div("muted small") { +setting.note }
                         }
-                        td { +(change.field ?: "station") }
-                        td("muted") { +(change.before ?: "–") }
-                        td { +(change.after ?: "–") }
-                        td("muted small") { +change.reason }
                     }
+                    if (group.title == "Tokens" && view.apiTokenSet) div("mt-12") {
+                        attributes["id"] = "api-token"
+                        val token = view.revealedApiToken
+                        if (token == null) postForm("/admin/settings/reveal-api-token", chrome.session) { button(type = ButtonType.submit) { +"Reveal the API token" } }
+                        else {
+                            div("muted small") { +"API token, for the Sofa King app and API clients:" }
+                            code { +token }
+                        }
+                    }
+                }
+            }
+        }
+        if (view.policy != null) changeLogPanel(view, now)
+    }
+}
+
+private fun FlowContent.policyPanel(chrome: Chrome, policy: PolicySummary?, now: java.time.Instant) = panel("Lineup policy", id = "policy") {
+    if (policy == null) { p("muted") { +"No lineup policy. Add policy.json to the data directory, or set SOFA_POLICY to a policy file in a writable directory, and restart; the server then builds the lineup from it." }; return@panel }
+    dl("kv") {
+        dt { +"File" }; dd { code { +policy.path } }
+        dt { +"Revision" }; dd { span("mono") { attributes["title"] = policy.revision; +policy.revision.take(12) } }
+        val p = policy.policy
+        dt { +"Holds" }
+        dd {
+            +listOf(
+                plural(p.providers.size, "provider entry", "provider entries"), plural(p.numbering.groups.size, "number block"),
+                plural(p.groups.map.size, "category mapping"), plural(p.groups.weak.size, "weak category", "weak categories"),
+                plural(p.groups.patterns.size, "pattern"), plural(p.stations.size, "station override"),
+                plural(p.names.aliases.size, "alias", "aliases"), plural(p.names.learned.size, "learned alias", "learned aliases"),
+            ).joinToString(", ")
+        }
+        dt { +"Last run" }
+        dd {
+            val run = policy.lastRun
+            if (run == null) +"None since the server started"
+            else {
+                ago(run.appliedAt, now)
+                +(": ${thousands(run.enabledStations)} on of ${thousands(run.stations)}, " + if (run.changed) plural(run.changes, "field") + " changed" else "no change")
+            }
+        }
+    }
+    div("actions mt-14") {
+        postForm("/admin/policy/apply", chrome.session) { button(type = ButtonType.submit, classes = "primary") { +"Apply now" } }
+        span("muted small") { +"Runs the policy over the current feeds and writes the lineup. Runs also follow every import and every 15 minutes." }
+    }
+}
+
+private fun FlowContent.changeLogPanel(view: SettingsView, now: java.time.Instant) = panel("Change log", id = "changes", aside = {
+    if (view.changeLimit < 1000) a("/admin/settings?changes=${minOf(1000, view.changeLimit * 4)}&advanced=1#changes") { +"Show more" }
+}) {
+    if (view.changes.isEmpty()) { p("muted") { +"No policy run has changed the lineup yet." }; return@panel }
+    div("scroll") {
+        table {
+            caption("sr") { +"Policy change log" }
+            thead { tr { col("When"); col("Station"); col("Field"); col("Before"); col("After"); col("Cause") } }
+            tbody {
+                for (entry in view.changes) tr {
+                    val change = entry.change
+                    td("nowrap") { ago(entry.appliedAt, now) }
+                    td {
+                        if (change.entryId != null) a("/admin/lineup/${change.entryId}", classes = "rowlink") { +change.entryName } else +change.entryName
+                        change.key?.let { br(); span("muted small mono") { +it } }
+                    }
+                    td { +(change.field ?: "station") }
+                    td("muted") { +(change.before ?: "–") }
+                    td { +(change.after ?: "–") }
+                    td("muted small") { +change.reason }
                 }
             }
         }

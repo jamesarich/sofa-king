@@ -51,11 +51,17 @@ details.menu>summary{display:flex;align-items:center;gap:8px;min-height:36px;pad
 details.menu>summary::-webkit-details-marker{display:none}
 details.menu>summary::before{content:"";width:14px;height:10px;border-top:2px solid currentColor;border-bottom:2px solid currentColor;background:linear-gradient(currentColor,currentColor) center/100% 2px no-repeat}
 nav.main{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;flex:1 1 auto}
-.navgroup{display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px}
-.navlabel{color:var(--mauve);font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-right:4px}
 nav.main a{color:var(--dusk);text-decoration:none;padding:6px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;min-height:36px}
 nav.main a:hover{background:var(--plum-raised)}
 nav.main a[aria-current]{background:var(--amber-deep);color:var(--amber-soft);box-shadow:inset 0 0 0 1px var(--warn-line)}
+/* A section's pages, as a row of tabs under the page heading. */
+nav.tabs{display:flex;flex-wrap:wrap;gap:4px;margin:-6px 0 16px;border-bottom:1px solid var(--line)}
+nav.tabs a{color:var(--mauve);text-decoration:none;padding:8px 12px;min-height:40px;display:inline-flex;align-items:center;gap:6px;border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:600}
+nav.tabs a:hover{color:var(--dusk);background:var(--plum-raised)}
+nav.tabs a[aria-current]{color:var(--dusk);border-bottom-color:var(--amber)}
+/* The Settings page's seldom-used half, folded behind one disclosure. */
+details.advanced{margin-top:24px;border-top:1px solid var(--line);padding-top:8px}
+details.advanced>summary{color:var(--dusk);font-size:1.05rem}
 .count{background:var(--amber);color:var(--plum);border-radius:999px;font-size:.72rem;font-weight:700;padding:0 6px;line-height:18px;min-width:18px;text-align:center}
 main{padding-top:8px;padding-bottom:32px}
 footer{color:var(--mauve);padding-top:8px;padding-bottom:28px;font-size:.85rem;display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
@@ -225,8 +231,6 @@ details>summary{cursor:pointer;color:var(--accent);font-weight:600;min-height:32
   details.menu{order:3;flex-basis:100%}
   details.menu>summary{width:100%}
   nav.main{flex-direction:column;align-items:stretch;gap:6px;padding:8px 0 4px}
-  .navgroup{gap:2px 4px}
-  .navlabel{min-width:58px;margin:0}
   nav.main a{padding:6px 8px}
   footer{justify-content:flex-start}
   .attention li{grid-template-columns:1fr}

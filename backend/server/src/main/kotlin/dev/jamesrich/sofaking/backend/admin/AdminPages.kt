@@ -120,6 +120,8 @@ internal class ProvidersView(
     /** The policy's provider entries in priority order; null without a policy. */
     val entries: List<PolicyProvider>?, val revision: String?,
     val stationsLed: Map<String, Int> = emptyMap(),
+    /** The source file's providers and guides, described without their secrets, for the Source file section. */
+    val providerSummaries: List<SourceSummary> = emptyList(), val guideSummaries: List<SourceSummary> = emptyList(),
 )
 
 internal fun signInPage(enabled: Boolean, error: String? = null, theme: String? = null): String = layout("Sign in", null, null, theme) {
@@ -134,17 +136,17 @@ internal fun signInPage(enabled: Boolean, error: String? = null, theme: String? 
             div("field") {
                 label { htmlFor = "token"; +"Admin token" }
                 passwordInput(name = "token") { id = "token"; required = true; autoFocus = true; attributes["autocomplete"] = "current-password" }
-                span("hint") { +"SOFA_ADMIN_TOKEN, or SOFA_API_TOKEN when no admin token is set." }
+                span("hint") { +"SOFA_ADMIN_TOKEN, or SOFA_API_TOKEN when no admin token is set. A token the server generated is in secrets.json in the data directory: "; code { +"docker compose exec sofa-king-backend cat /config/secrets.json" } }
             }
             button(type = ButtonType.submit, classes = "primary") { +"Sign in" }
         }
     }
 }
 
-internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("Overview", chrome, "/admin") {
+internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("Home", chrome, "/admin") {
     val now = chrome.now
     val needs = view.attention.count { it.tone != Tone.OFF }
-    pageHead("Overview", if (needs == 0) "Everything is running. Nothing needs you right now." else "${plural(needs, "thing")} need${if (needs == 1) "s" else ""} you.")
+    pageHead("Home", if (needs == 0) "Everything is running. Nothing needs you right now." else "${plural(needs, "thing")} need${if (needs == 1) "s" else ""} you.")
     fun UL.items(items: List<Attention>, ignored: Boolean) {
         for (item in items) li(item.tone.css) {
             div("what") {
@@ -189,7 +191,7 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
         a("/admin/plex", classes = "tile" + if (plex?.lastError != null || (plex?.missing ?: 0) > 0) " bad" else "") {
             span("label") { +"Plex sync" }
             when {
-                plex == null -> { span("value") { small { +"Not set up" } }; span("sub") { +"Set SOFA_PLEX_URL and SOFA_PLEX_TOKEN to keep Plex in step." } }
+                plex == null -> { span("value") { small { +"Not set up" } }; span("sub") { +"Plex sync keeps Plex's channel maps in step; the Players page says how to turn it on." } }
                 plex.lastError != null -> { span("value") { +"Failing" }; span("sub") { +plex.lastError } }
                 plex.lastSyncAt == null -> { span("value") { small { +"Waiting" } }; span("sub") { +"No sync has run yet; every ${plex.syncMinutes} min." } }
                 else -> {
@@ -326,6 +328,7 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
         "${thousands(view.enabled)} on of ${thousands(view.total)}. " +
             if (view.revision != null) "Edits are written into the lineup policy and applied at once." else "Edits change the lineup directly.",
     )
+    if (view.revision != null) tabs(chrome, "/admin/lineup", CHANNEL_TABS)
     form(action = "/admin/lineup", method = FormMethod.get, classes = "filters") {
         attributes["hx-trigger"] = "submit, change, input changed delay:400ms from:find input[type=search]"
         attributes["hx-sync"] = "this:replace"
@@ -647,6 +650,7 @@ private fun MAIN.noPolicy(what: String) {
 internal fun mergesPage(chrome: Chrome, view: MergesView?, error: String? = null): String = layout("Merges", chrome, "/admin/merges") {
     pageHead("Merges", "Stations that are probably one channel under two names. Accepting writes an alias into the policy; dismissing or never merging keeps the pair apart for good. Each choice applies the policy.")
     if (view == null) { noPolicy("Merging stations"); return@layout }
+    tabs(chrome, "/admin/merges", CHANNEL_TABS)
     notice(error?.let { "Not saved: $it" })
     val session = chrome.session
     fun FlowContent.pairForm(action: String, from: String, to: String, label: String, classes: String) = postForm(action, session, keepScroll = true) {
@@ -707,6 +711,7 @@ internal fun mergesPage(chrome: Chrome, view: MergesView?, error: String? = null
 internal fun requiredPage(chrome: Chrome, view: RequiredView?): String = layout("Required", chrome, "/admin/required") {
     pageHead("Required channels", "Channels the policy keeps whatever happens to their sources. Off ones are listed first.")
     if (view == null) { noPolicy("Required channels"); return@layout }
+    tabs(chrome, "/admin/required", CHANNEL_TABS)
     if (!view.ran) { div("panel") { p("muted") { +"No policy run has built the lineup yet." } }; return@layout }
     if (view.rows.isEmpty()) { div("panel") { p("muted") { +"No station is marked required in the policy. Set \"required\": true in a station override to keep it whatever its sources do." } }; return@layout }
     val off = view.rows.count { !it.station.enabled }
@@ -741,9 +746,9 @@ internal fun requiredPage(chrome: Chrome, view: RequiredView?): String = layout(
     }
 }
 
-internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() -> Unit)? = null): String = layout("Providers", chrome, "/admin/providers") {
+internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() -> Unit)? = null): String = layout("Sources", chrome, "/admin/providers") {
     val now = chrome.now
-    pageHead("Providers", "Where channels and guides come from, and whether their last import worked." + if (view.entries != null) " The policy takes channels from its provider entries in priority order." else "")
+    pageHead("Sources", "Where channels and guides come from, and whether their last import worked." + if (view.entries != null) " The policy takes channels from its provider entries in priority order." else "")
     extra?.invoke(this)
     panel("Channel providers", id = "imports", aside = { span("muted") { +"${view.rows.count { it.status.errorCode == null && it.status.lastSuccessAt != null }} of ${view.rows.size} importing" } }) {
         div("scroll") {
@@ -771,6 +776,7 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
             }
         }
     }
+    sourceFilePanel(view.providerSummaries, view.guideSummaries)
     panel("Guides", id = "guides") {
         if (view.guides.isEmpty()) p("muted") { +"No guide sources are configured." }
         else div("scroll") {
@@ -791,11 +797,12 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
     }
 }
 
-internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex & players", chrome, "/admin/plex") {
-    pageHead("Plex & players", "Plex reaches the lineup through emulated HDHomeRun tuners; other players take the M3U playlist and XMLTV guide.")
+internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", chrome, "/admin/plex") {
+    pageHead("Plex and other players", "Plex reaches the lineup through emulated HDHomeRun tuners; other players take the M3U playlist and XMLTV guide.")
+    tabs(chrome, "/admin/plex", PLAYER_TABS)
     panel("Plex sync", id = "sync") {
         val status = view.status
-        if (status == null) { p("muted") { +"Off. Set SOFA_PLEX_URL and SOFA_PLEX_TOKEN to keep Plex's channel maps in step with the lineup." }; return@panel }
+        if (status == null) { p("muted") { +"Off. Plex sync keeps Plex's channel maps in step with the lineup: set SOFA_PLEX_URL and SOFA_PLEX_TOKEN in .env and restart." }; return@panel }
         if (status.lastError != null) notice("The last sync failed: ${status.lastError}")
         dl("kv") {
             dt { +"Last sync" }

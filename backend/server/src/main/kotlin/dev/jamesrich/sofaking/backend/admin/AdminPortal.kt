@@ -275,7 +275,8 @@ class AdminPortal(
             action("/plex/reveal") { session, _ -> call.html(plexPage(chrome(call, session), plexView(call, reveal = true))) }
             get("/settings") {
                 val limit = call.request.queryParameters["changes"]?.toIntOrNull()?.coerceIn(1, 1000) ?: 50
-                call.html(settingsPage(chrome(), settingsView(limit)))
+                val advanced = call.request.queryParameters["advanced"] == "1" || call.request.queryParameters.contains("changes")
+                call.html(settingsPage(chrome(), settingsView(limit, openAdvanced = advanced)))
             }
             get("/system/jobs") { call.html(jobsPage(chrome(), JobsView(runtime.jobs.snapshot()))) }
             action("/system/jobs/{id}/run") { session, _ ->
@@ -314,7 +315,7 @@ class AdminPortal(
                 call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"sofa-king-snapshot.json\"")
                 call.respondText(snapshot().toJson(), ContentType.Application.Json)
             }
-            action("/settings/reveal-api-token") { session, _ -> call.html(settingsPage(chrome(call, session), settingsView(50, revealApiToken = true))) }
+            action("/settings/reveal-api-token") { session, _ -> call.html(settingsPage(chrome(call, session), settingsView(50, revealApiToken = true, openAdvanced = true))) }
             action("/settings/runtime/check") { _, form ->
                 // The form asks, on every change, whether its values differ from what the server uses; the answer is the Save control alone.
                 val proposed = form.names().associateWith { form[it].orEmpty() }
@@ -340,13 +341,13 @@ class AdminPortal(
             action("/policy/apply") { session, _ ->
                 val policy = runtime.policy
                 if (policy == null) {
-                    call.html(settingsPage(chrome(call, session, Flash("No lineup policy is configured.", Tone.BAD)), settingsView(50)), HttpStatusCode.Conflict)
+                    call.html(settingsPage(chrome(call, session, Flash("No lineup policy is configured.", Tone.BAD)), settingsView(50, openAdvanced = true)), HttpStatusCode.Conflict)
                     return@action
                 }
                 val result = policy.apply("api")
                 val summary = "${thousands(result.enabledStations)} on of ${thousands(result.stations)}, " + if (result.changed) plural(result.changes, "field") + " changed." else "no change."
                 session.flash.set(Flash("Applied the policy: $summary", if (result.findings.any { it.startsWith("feeds:") }) Tone.WARN else Tone.OK))
-                seeOther(call, "/admin/settings")
+                seeOther(call, "/admin/settings?advanced=1#policy")
             }
         }
     }
@@ -420,16 +421,18 @@ class AdminPortal(
         return AboutView(snapshot.server, snapshot.status, snapshot.toJson(), runtime.updates?.state())
     }
 
-    /** Nav counts from in-memory state only, so every page stays cheap. */
+    /** Nav and tab counts from in-memory state only, so every page stays cheap; a section's count is the sum of its tabs'. */
     private suspend fun badges(): Map<String, Int> {
         val applied = runtime.policy?.lastApplied()
         val plex = plexStatus?.status()
+        val jobs = runtime.jobs.snapshot().count { it.lastOk == false }
+        val merges = applied?.result?.suggestedAliases?.size ?: 0
+        val required = applied?.stations?.count { it.required && !it.enabled } ?: 0
+        val sources = runtime.feeds.providers().count { it.errorCode != null } + runtime.guides.statuses().count { it.errorCode != null }
+        val plexCount = (if (plex?.lastError != null) 1 else 0) + (plex?.missingDevices?.size ?: 0)
         return mapOf(
-            "jobs" to runtime.jobs.snapshot().count { it.lastOk == false },
-            "merges" to (applied?.result?.suggestedAliases?.size ?: 0),
-            "required" to (applied?.stations?.count { it.required && !it.enabled } ?: 0),
-            "providers" to runtime.feeds.providers().count { it.errorCode != null } + runtime.guides.statuses().count { it.errorCode != null },
-            "plex" to (if (plex?.lastError != null) 1 else 0) + (plex?.missingDevices?.size ?: 0),
+            "jobs" to jobs, "merges" to merges, "required" to required, "plex" to plexCount,
+            "channels" to merges + required, "sources" to sources, "players" to plexCount, "system" to jobs,
         )
     }
 
@@ -569,16 +572,19 @@ class AdminPortal(
                 failingTone(failed.map { it.lastSuccessAt }, now),
                 if (failed.size == 1) "${failed[0].id} ${failingFor(failed[0].lastSuccessAt, now) ?: "failed its last import"}" else "${failed.size} providers failed their last import",
                 failed.joinToString { "${it.id} (${it.errorCode}${failingFor(it.lastSuccessAt, now)?.let { f -> ", $f" } ?: ""})" },
-                "/admin/providers#imports", "Providers", "providers-failed", "troubleshooting.md#channels-and-sources",
+                "/admin/providers#imports", "Sources", "providers-failed", "troubleshooting.md#channels-and-sources",
             ))
+            // Imports start at once, so a wait is worth a word only once the server has been up a while.
             val waiting = providers.filter { it.errorCode == null && it.lastSuccessAt == null }
-            if (waiting.isNotEmpty()) add(Attention(Tone.WARN, "Waiting for the first import of ${waiting.joinToString { it.id }}", null, "/admin/providers#imports", "Providers", "providers-waiting", "live-tv.md#providers"))
+            if (waiting.isNotEmpty() && Duration.between(runtime.startedAt, now) > Duration.ofMinutes(10)) {
+                add(Attention(Tone.WARN, "Waiting for the first import of ${waiting.joinToString { it.id }}", null, "/admin/providers#imports", "Sources", "providers-waiting", "live-tv.md#providers"))
+            }
             val badGuides = guides.filter { it.errorCode != null }
             if (badGuides.isNotEmpty()) add(Attention(
                 failingTone(badGuides.map { it.lastSuccessAt }, now),
                 if (badGuides.size == 1) "Guide ${badGuides[0].id} ${failingFor(badGuides[0].lastSuccessAt, now) ?: "failed its last import"}" else "${badGuides.size} guides failed their last import",
                 badGuides.joinToString { "${it.id} (${it.errorCode}${failingFor(it.lastSuccessAt, now)?.let { f -> ", $f" } ?: ""})" },
-                "/admin/providers#guides", "Guides", "guides-failed", "troubleshooting.md#guide",
+                "/admin/providers#guides", "Sources", "guides-failed", "troubleshooting.md#guide",
             ))
             if (plex?.lastError != null) add(Attention(Tone.BAD, "Plex sync failed", plex.lastError, "/admin/plex#sync", "Plex", "plex-failed", "troubleshooting.md#plex"))
             if (!plex?.missingDevices.isNullOrEmpty()) add(Attention(
@@ -593,14 +599,12 @@ class AdminPortal(
             if ((requiredOff ?: 0) > 0) add(Attention(Tone.BAD, "${plural(requiredOff!!, "required channel")} off", null, "/admin/required", "Required", "required-off", "lineup-policy.md#required-stations"))
             val suggestions = applied?.result?.suggestedAliases?.size ?: 0
             if (suggestions > 0) add(Attention(Tone.WARN, "${plural(suggestions, "merge suggestion")} to settle", "Pairs of stations that are probably one channel.", "/admin/merges#suggested", "Merges", "merges", "lineup-policy.md#learned-aliases"))
-            val findings = applied?.result?.findings?.size ?: 0
-            if (findings > 0) add(Attention(Tone.WARN, "${plural(findings, "open finding")} from the last run", null, "/admin/merges#findings", "Findings", "findings", "lineup-policy.md#findings"))
+            // Run findings, unmapped categories (their stations fall to the default group) and stations waiting for a probe are
+            // normal operation: the Merges and Groups tabs and the Sources tile carry them, so the home page does not nag.
             val unmapped = applied?.result?.unmappedCategories?.size ?: 0
-            if (unmapped > 0) add(Attention(Tone.WARN, "${plural(unmapped, "category", "categories")} map to no group", "Their stations fall to the default group.", "/admin/groups#unmapped", "Groups", "unmapped", "lineup-policy.md#unmapped-categories"))
+            if (unmapped > 0) add(Attention(Tone.OFF, "${plural(unmapped, "category", "categories")} map to no group", "Their stations fall to the default group; map one to choose.", "/admin/groups#unmapped", "Groups", "unmapped", "lineup-policy.md#unmapped-categories"))
             val ended = guide.stale + guide.empty
             if (ended > 0) add(Attention(Tone.WARN, "${plural(ended, "on-air channel")} show no programmes", "Their guide ended or holds nothing ahead.", "/admin/lineup?state=enabled&guide=missing", "Channels", "guide-ended", "troubleshooting.md#guide"))
-            if (policy != null && applied == null) add(Attention(Tone.OFF, "No lineup run since the server started", "Runs follow imports and every 15 minutes.", "/admin/settings#policy", "Settings", "no-run", "lineup-policy.md#how-a-run-works"))
-            if ((unverified ?: 0) > 0) add(Attention(Tone.OFF, "${plural(unverified!!, "channel")} waiting for a verified source", "They come on as probes verify a source.", "/admin/lineup?state=unverified", "Channels", "unverified", "source-health.md#states"))
         }.sortedBy { listOf(Tone.BAD, Tone.WARN, Tone.OK, Tone.OFF).indexOf(it.tone) }
         // An ignored item stays out while its text is what it was when ignored; a change brings it back.
         val ignored = runtime.store.ignoredAttention()
@@ -779,22 +783,24 @@ class AdminPortal(
             }
             ProviderRow(status, kind, entries.orEmpty().withIndex().filter { it.value.id == status.id })
         }
-        return ProvidersView(rows, runtime.guides.statuses(), entries, document?.revision, led)
+        return ProvidersView(
+            rows, runtime.guides.statuses(), entries, document?.revision, led,
+            providerSummaries = runtime.feeds.configs.map(::providerSummary), guideSummaries = runtime.guides.configs.map(::guideSummary),
+        )
     }
 
-    private suspend fun settingsView(changeLimit: Int, revealApiToken: Boolean = false): SettingsView {
+    private suspend fun settingsView(changeLimit: Int, revealApiToken: Boolean = false, openAdvanced: Boolean = false): SettingsView {
         val policy = runtime.policy
         val document = policy?.document()
         return SettingsView(
             config?.let(::effectiveSettings).orEmpty(),
-            runtime.feeds.configs.map(::providerSummary),
-            runtime.guides.configs.map(::guideSummary),
             document?.let { PolicySummary(it.path, it.revision, it.policy, policy.lastApplied()?.result) },
             policy?.changes(changeLimit).orEmpty(),
             changeLimit,
             apiTokenSet = config?.apiToken != null,
             revealedApiToken = config?.apiToken?.takeIf { revealApiToken },
             runtime = RuntimeSettingsView(runtime.settings.current, runtime.settings.environment, runtime.settings.saved, runtime.plex != null),
+            openAdvanced = openAdvanced,
         )
     }
 

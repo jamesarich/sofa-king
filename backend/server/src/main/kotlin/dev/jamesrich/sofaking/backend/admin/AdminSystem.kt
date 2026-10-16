@@ -84,6 +84,7 @@ internal fun took(ms: Long): String = when {
 internal fun jobsPage(chrome: Chrome, view: JobsView): String = layout("Jobs", chrome, "/admin/system/jobs") {
     val now = chrome.now
     pageHead("Jobs", "The server's background work: provider and guide imports, lineup policy runs, Plex sync, the logo sweep and the update check. Run now starts one without waiting for its turn.")
+    tabs(chrome, "/admin/system/jobs", SYSTEM_TABS)
     if (view.jobs.isEmpty()) { div("panel") { p("muted") { +"No job has been registered." } }; return@layout }
     div("panel tight") {
         div("scroll") {
@@ -130,6 +131,7 @@ internal fun jobsPage(chrome: Chrome, view: JobsView): String = layout("Jobs", c
 internal fun eventsPage(chrome: Chrome, view: EventsView): String = layout("Events", chrome, "/admin/system/events") {
     val now = chrome.now
     pageHead("Events", "The newest ${thousands(view.capacity)} log lines at INFO and above since the server started, newest first. The same lines go to the container's log.")
+    tabs(chrome, "/admin/system/events", SYSTEM_TABS)
     form(action = "/admin/system/events", method = FormMethod.get, classes = "filters events-filters") {
         attributes["hx-trigger"] = "submit, change, input changed delay:400ms from:find input[type=search]"
         attributes["hx-sync"] = "this:replace"
@@ -189,6 +191,7 @@ internal fun aboutPage(chrome: Chrome, view: AboutView): String = layout("About"
     val server = view.server
     val status = view.status
     pageHead("About", "This server, whether it is up to date, and a snapshot to paste into a bug report.")
+    tabs(chrome, "/admin/system/about", SYSTEM_TABS)
     view.update?.let { updatePanel(chrome, it) }
     div("cols") {
         panel("Server") {

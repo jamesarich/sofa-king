@@ -32,7 +32,7 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         NSLocalNetworkUsageDescription: Sofa King connects to your Sofa King server on this network.
-        # The Top Shelf opens a channel with `sofaking://channel/<guideId>`.
+        # The Top Shelf opens a channel with `sofaking://channel/<guideId>`; `sofaking://pair?server=…&code=…` pairs with a server.
         CFBundleURLTypes:
           - CFBundleURLName: dev.jamesrich.sofaking.tv
             CFBundleURLSchemes: [sofaking]

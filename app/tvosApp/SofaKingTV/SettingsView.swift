@@ -37,12 +37,7 @@ struct SettingsView: View {
                     Task {
                         let failure = try? await model.core.pair(url: url, code: code)
                         pairing = false
-                        switch failure {
-                        case .none: dismiss()
-                        case .invalidCode: pairingError = "That code was not accepted. Codes last ten minutes and work once; show a new one in the admin portal."
-                        case .olderServer: pairingError = "This server does not pair yet; enter the API token instead."
-                        case .unreachable, .some: pairingError = "No Sofa King server answered at that address."
-                        }
+                        if let failure { pairingError = failure.message } else { dismiss() }
                     }
                 }
                 .disabled(pairing || url.isEmpty || code.count < 6)

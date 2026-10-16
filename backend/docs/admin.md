@@ -57,7 +57,7 @@ After a save the page says what was saved, once, and marks the channel it concer
 
 ## Viewers
 
-Show a pairing code issues a six-digit code that stands in for the API token for ten minutes and one device: on the TV, open the app's Settings, enter the server address the page shows and the code, and choose Pair. The page also draws the code and the address as a QR code; a phone with the app installed scans it with its camera and pairs at once. One code is live at a time; New code replaces it, Cancel the code drops it, and five wrong attempts void it. The address shown is the one your browser reached the server at, so open the portal the way the TV will reach it.
+Show a pairing code issues a six-digit code that stands in for the API token for ten minutes and one device: on the TV, open the app's Settings, enter the server address the page shows and the code, and choose Pair. The page also draws the code and the address as a QR code; an Android phone, an iPhone or an iPad with the app installed scans it with its camera and pairs at once. One code is live at a time; New code replaces it, Cancel the code drops it, and five wrong attempts void it. The address shown is the one your browser reached the server at, so open the portal the way the TV will reach it.
 
 A device appears once it pairs or saves its preferences (its hidden channels, favorites order and recent channels, kept per device so a reinstall or a second device can take them over). Forget drops what the server keeps for a device; the device itself keeps its settings and saves them again on its next change. The API token never appears on this page; the Settings page reveals it.
 

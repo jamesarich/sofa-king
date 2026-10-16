@@ -1,9 +1,14 @@
 package dev.jamesrich.sofaking
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.window.ComposeUIViewController
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
+import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.inDirectory
+import dev.jamesrich.sofaking.data.parsePairingLink
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager
@@ -27,5 +32,16 @@ fun startSofaKingIos() {
     initSofaKing(AppStorage.inDirectory(requireNotNull(support?.path) { "no Application Support directory" }, ClientInfo("ios", UIDevice.currentDevice.name)))
 }
 
+/** A `sofaking://pair` link the host received, until the app has claimed it. */
+private val pendingPairing = MutableStateFlow<PairingRequest?>(null)
+
+/** Hands a link from SwiftUI's `onOpenURL` to the app; a `sofaking://pair` link pairs, any other link is ignored. */
+fun openSofaKingLink(link: String) {
+    parsePairingLink(link)?.let { pendingPairing.value = it }
+}
+
 /** The whole app as one view controller for the SwiftUI host. */
-fun MainViewController(): UIViewController = ComposeUIViewController { App() }
+fun MainViewController(): UIViewController = ComposeUIViewController {
+    val pairing by pendingPairing.collectAsState()
+    App(pairing = pairing, onPairingHandled = { pendingPairing.value = null })
+}

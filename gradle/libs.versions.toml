@@ -27,7 +27,7 @@ lifecycle-multiplatform = "2.11.0"
 navigationevent = "1.1.0"
 kermit = "2.2.0"
 activity-compose = "1.14.0-alpha03"
-androidx-core = "1.18.0"
+androidx-core = "1.19.1"
 media3 = "1.11.1"
 profileinstaller = "1.4.1"
 # Macrobenchmark and the Baseline Profile plugin release together.

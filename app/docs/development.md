@@ -82,7 +82,7 @@ Release APKs are minified with R8 and signed with the local debug key, so they a
 
 [CONTRIBUTING](../../CONTRIBUTING.md#ci) describes the CI jobs. A push to `main` that passes them runs `snapshot.yml`, which builds the APK, both web bundles and the desktop package on Linux, macOS and Windows, and replaces the `snapshot` prerelease. Run `snapshot.yml` from the Actions tab to publish without a push.
 
-The app version is `sofaking` in [the version catalog](../../gradle/libs.versions.toml). Snapshots build every package with `-Psofaking.versionCode` (the workflow run number) and `-Psofaking.versionSuffix` (`-dev.RUN+COMMIT`, the run number and the short commit). Android's `versionName` and the About row of every snapshot build append the suffix. Every desktop package's own version is the plain version with a leading `0.` mapped to `1.`, so 0.1.0 packages as 1.1.0.
+The app version is `sofaking` in [the version catalog](../../gradle/libs.versions.toml). Snapshots build every package with `-Psofaking.versionCode` (the workflow run number) and `-Psofaking.versionSuffix` (`-dev.RUN+COMMIT`, the run number and the short commit). Android's `versionName` and the About row of every snapshot build append the suffix. Only the catalog version is compiled in; the suffix is written to `files/version-suffix.txt` among the UI module's Compose resources and read at runtime, so a snapshot reuses the compile outputs the CI run just cached. Every desktop package's own version is the plain version with a leading `0.` mapped to `1.`, so 0.1.0 packages as 1.1.0.
 
 Set the `ANDROID_DEBUG_KEYSTORE` repository secret to a base64 debug keystore so every snapshot APK installs over the last:
 

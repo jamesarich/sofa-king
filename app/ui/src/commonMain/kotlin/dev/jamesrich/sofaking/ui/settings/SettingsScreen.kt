@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -260,7 +262,7 @@ fun SettingsScreen(
                     Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.titleMedium)
                     Text(stringResource(Res.string.tagline), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        stringResource(Res.string.settings_version, BuildInfo.VERSION),
+                        stringResource(Res.string.settings_version, BuildInfo.VERSION + versionSuffix()),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -403,4 +405,12 @@ private fun SettingField(
             Text(problem, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 4.dp))
         }
     }
+}
+
+/** The snapshot suffix the build wrote beside the resources, empty for a release; shown once it has been read. */
+@OptIn(ExperimentalResourceApi::class)
+@Composable
+private fun versionSuffix(): String {
+    val suffix by produceState("") { value = Res.readBytes(BuildInfo.VERSION_SUFFIX_FILE).decodeToString() }
+    return suffix
 }

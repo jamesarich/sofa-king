@@ -15,10 +15,11 @@ plugins {
 val appVersion = libs.versions.sofaking.get()
 val versionSuffix = providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
 
-// The one version string, from the catalog, for the About row on every platform.
+// The one version string, from the catalog, for the About row on every platform. Only the catalog version is compiled
+// in; the snapshot suffix changes every run, so it travels as a resource file and leaves every compile output cached.
 val generateBuildInfo = tasks.register("generateBuildInfo") {
     val output = layout.buildDirectory.dir("generated/buildInfo")
-    val version = appVersion + versionSuffix
+    val version = appVersion
     inputs.property("version", version)
     outputs.dir(output)
     doLast {
@@ -30,7 +31,9 @@ val generateBuildInfo = tasks.register("generateBuildInfo") {
             |
             |/** Generated from `sofaking` in gradle/libs.versions.toml. */
             |internal object BuildInfo {
+            |    /** The catalog version; [VERSION_SUFFIX_FILE] carries a snapshot's suffix. */
             |    const val VERSION: String = "$version"
+            |    const val VERSION_SUFFIX_FILE: String = "files/version-suffix.txt"
             |}
             |""".trimMargin(),
         )
@@ -123,8 +126,28 @@ kotlin {
     }
 }
 
+// The snapshot suffix, `-dev.RUN+COMMIT` or empty, read by the About row at runtime. A custom resource directory
+// replaces the source set's default one, so the common resources are synced beside the generated file.
+val versionSuffixResources = layout.buildDirectory.dir("generated/versionSuffix")
+val generateVersionSuffix = tasks.register("generateVersionSuffix") {
+    inputs.property("suffix", versionSuffix)
+    outputs.dir(versionSuffixResources)
+    doLast {
+        val file = versionSuffixResources.get().file("files/version-suffix.txt").asFile
+        file.parentFile.mkdirs()
+        file.writeText(versionSuffix)
+    }
+}
+val commonComposeResources = layout.buildDirectory.dir("generated/composeResources/commonMain")
+val syncCommonComposeResources = tasks.register<Sync>("syncCommonComposeResources") {
+    from(layout.projectDirectory.dir("src/commonMain/composeResources"))
+    from(generateVersionSuffix)
+    into(commonComposeResources)
+}
+
 compose.resources {
     packageOfResClass = "dev.jamesrich.sofaking.resources"
+    customDirectory(sourceSetName = "commonMain", directoryProvider = syncCommonComposeResources.map { commonComposeResources.get() })
 }
 
 composeCompiler {

@@ -72,13 +72,13 @@ The Apple TV app lists the channels, favorites first, with the program on now an
 
 ## Settings
 
-Settings opens from the guide's header. Switches and choices apply at once. The server fields apply when you select Save & reload, at the top of the page.
+Settings opens from the guide's header, with focus on Back. Switches and choices apply at once. The Server section reads Connected to with the server's address and a Change button; Change opens the server fields, which apply when you select Save & reload under them, and Cancel closes them. On a device with no server yet, the fields are open with focus on Server URL.
 
 | Section | Setting | Default | What it does |
 | --- | --- | --- | --- |
 | Server | Server URL | Empty | The server's absolute HTTP(S) address with a host and optional port, for example `http://server.example:9193`. Embedded credentials, queries and fragments are refused |
 | Server | API token | Empty | The server's API token, found as [getting started](getting-started.md#what-you-need) describes: letters, digits and punctuation with no spaces. Leave it empty when the server runs without one. The field shows only the last four characters until it is focused |
-| Server | Pairing code | Empty | Six digits from the admin portal's Viewers page, entered with the Server URL instead of the token. Pair claims the code and stores the token the server hands out; a code lasts ten minutes and works once. On Android, a `sofaking://pair` link (the portal's QR code) pairs without typing |
+| Server | Pairing code | Empty | Six digits from the admin portal's Viewers page, entered with the Server URL instead of the token; the code comes before the token field, as the easier path. Pair claims the code and stores the token the server hands out; a code lasts ten minutes and works once. On Android, a `sofaking://pair` link (the portal's QR code) pairs without typing |
 | Startup | Open on start | Last channel | What a cold start opens: the channel watched last, the guide, or a channel chosen from the lineup with Choose. A chosen or last channel the lineup no longer has opens the guide |
 | Guide | Open focused channel automatically | After 10 seconds | How long focus rests on a channel before it opens full screen: Off, after 10 or after 30 seconds. TalkBack touch exploration on Android and VoiceOver on iOS turn it off |
 | Guide | Play preview sound | On | Whether the preview's sound comes on after 5 seconds |
@@ -86,9 +86,9 @@ Settings opens from the guide's header. Switches and choices apply at once. The 
 | Guide | Guide rows | Comfortable | The height of the guide's rows; Compact fits more channels on screen |
 | Guide | Manage channels | | Opens the channel manager, below |
 | Captions | Closed captions | Off | Shows captions in the player and the preview. The CC key toggles it too |
-| Captions | Smooth live captions | On | On Android, holds roll-up text until each line is complete, so captions appear a line at a time |
+| Captions | Smooth live captions | On | Android only. Holds roll-up text until each line is complete, so captions appear a line at a time |
 | Captions | Caption style | System | Where the app draws captions, as [captions](#captions) lists. System follows Android's caption preferences, or white on black in a browser; Large, high contrast overrides them |
-| Captions | Default caption timing | As broadcast | On Android, how far captions are shown earlier or later on channels without their own timing |
+| Captions | Default caption timing | As broadcast | Android only. How far captions are shown earlier or later on channels without their own timing |
 | Captions | Open system caption settings | | On Android, opens the system's captioning preferences; on iOS, the app's page in Settings. The line under it names the engine that draws captions on this device |
 | Playback | Match frame rate | Off | Android only. Switches the display to the stream's frame rate while it plays, through the window's preferred display mode, so 29.97 fps video plays at 59.94 Hz and 25 fps at 50 Hz. Some TVs show a black screen for a moment at each switch; the launcher's rate returns when the app leaves the player |
 | Playback | Decoder | Auto | Android only. Software puts the software decoders first, for the odd channel a hardware decoder cannot play; it uses more power and may drop frames at high resolutions |

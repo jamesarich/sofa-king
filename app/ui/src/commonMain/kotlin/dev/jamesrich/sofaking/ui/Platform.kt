@@ -41,6 +41,9 @@ internal expect fun captionEngineName(): String
 /** True where the engine honors [dev.jamesrich.sofaking.data.PlaybackPreferences] (Android's Media3); Settings hides the Playback section elsewhere. */
 internal expect val supportsPlaybackPreferences: Boolean
 
+/** True where captions are drawn through `CaptionSync` (Android's Media3), so smoothing and timing apply; Settings hides those rows elsewhere. */
+internal expect val supportsCaptionSync: Boolean
+
 /**
  * What Get the update opens for a published [latest] build: the Android package on Android, the release page on a
  * desktop or in a browser, or null where no package is published (iOS), so Settings says so instead.

@@ -41,6 +41,8 @@ internal actual fun captionEngineName(): String = "the browser's video element"
 
 internal actual val supportsPlaybackPreferences: Boolean = false
 
+internal actual val supportsCaptionSync: Boolean = false
+
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
 

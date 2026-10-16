@@ -116,6 +116,8 @@ internal actual fun captionEngineName(): String = "Media3"
 
 internal actual val supportsPlaybackPreferences: Boolean = true
 
+internal actual val supportsCaptionSync: Boolean = true
+
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = MatchExoDisplayFrameRate(player, enabled)
 

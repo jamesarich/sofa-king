@@ -162,6 +162,14 @@ class RenderSmokeTest {
     }
 
     @Test
+    fun `settings with no server renders the open server fields`() {
+        val image = render("settings-unconfigured") {
+            SettingsScreen(settings = AppSettings(), onSave = { _, _ -> }, onBack = {}, channelCount = 0)
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
     fun `the settings lock page renders its field and buttons`() {
         val image = render("settings-lock") {
             SettingsLockScreen(pinHash = "salt:hash", apiToken = "s3cret-token", onUnlocked = {}, onPinRemoved = {}, onBack = {})

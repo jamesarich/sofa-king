@@ -45,7 +45,12 @@ data class AppSettings(
     val clientId: String = "",
     /** The `updatedAt` of the server's preferences document this device last pushed or took over; empty before any sync. */
     val preferencesSyncedAt: String = "",
+    /** The hash of the PIN that locks Settings (see [SettingsPin]), empty while there is no lock; never synced. */
+    val settingsPin: String = "",
 ) {
+    /** True while Settings asks for a PIN before it opens. */
+    val settingsLocked: Boolean get() = settingsPin.isNotEmpty()
+
     fun captionAdvanceFor(guideId: String): Int = captionAdvanceByChannel[guideId] ?: captionAdvanceMs
 
     fun isHidden(guideId: String): Boolean = guideId in hiddenChannels
@@ -59,7 +64,7 @@ data class AppSettings(
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
             "zapSkipsHidden=$zapSkipsHidden, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
-            "preferencesSyncedAt=$preferencesSyncedAt)"
+            "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"})"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
@@ -155,4 +160,7 @@ interface SettingsStore {
 
     /** Remembers the server document's stamp after this device pushed its preferences. */
     suspend fun setPreferencesSyncedAt(syncedAt: String)
+
+    /** Locks Settings behind [hash], a [SettingsPin.hash], or removes the lock for null. */
+    suspend fun setSettingsPin(hash: String?)
 }

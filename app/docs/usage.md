@@ -91,8 +91,19 @@ Settings opens from the guide's header. Switches and choices apply at once. The 
 | Playback | Match frame rate | Off | Android only. Switches the display to the stream's frame rate while it plays, through the window's preferred display mode, so 29.97 fps video plays at 59.94 Hz and 25 fps at 50 Hz. Some TVs show a black screen for a moment at each switch; the launcher's rate returns when the app leaves the player |
 | Playback | Decoder | Auto | Android only. Software puts the software decoders first, for the odd channel a hardware decoder cannot play; it uses more power and may drop frames at high resolutions |
 | Playback | Buffer | Standard | Android only. How much of a stream downloads before it plays: Start faster waits for 0.5 s (1 s after a stall), Standard 1 s (2 s), Smoother 4 s (6 s) |
+| Lock | Set a PIN | Off | Four digits, entered twice, that Settings asks for before it opens; see [settings lock](#settings-lock). Remove the PIN takes it off |
 
-The footer shows the version and how many channels are loaded. On a snapshot, every build shows a version ending in `-dev.RUN+COMMIT`, the workflow run number and the short commit; only the desktop packages' own version, which the installer shows, is the plain one.
+About shows the version and how many channels are loaded, then whether a newer build is published. On a snapshot, every build shows a version ending in `-dev.RUN+COMMIT`, the workflow run number and the short commit; only the desktop packages' own version, which the installer shows, is the plain one.
+
+### Update check
+
+Opening Settings asks GitHub once per app start for the rolling `snapshot` prerelease and compares its run number with the running build's: the line reads Up to date, Update available with the published version, or Could not reach GitHub; Check again asks once more. A build without a snapshot suffix cannot be compared, and the line shows the published version instead. With an update available, Get the update opens the Android package's download address on Android (a phone or tablet installs it through the browser; an Android TV usually has nothing to open it with, so the address is shown and the package is installed with `adb install -r`), or the release page on a desktop or in a browser. No package is published for iOS or tvOS, and the line says so. The app never downloads or installs anything by itself.
+
+### Settings lock
+
+With a PIN set, opening Settings shows a lock page instead: enter the PIN and select Unlock. The PIN keeps a child or a guest out of Settings, the channel manager and the startup picker; watching, zapping, the CC key, favorites in the player and pairing from a `sofaking://pair` link are not affected. The unlock lasts until you leave Settings. After five wrong PINs in a row, Unlock waits 30 seconds. The PIN is stored on this device as a salted hash, never on the server, and does not sync to other devices.
+
+Forgot the PIN, on the lock page, takes the server's API token instead: the admin portal shows it under Settings, Reveal the API token, and a match removes the PIN. On a server that runs without a token, the PIN can only be removed by clearing the app's data on the device.
 
 ### Channel manager
 

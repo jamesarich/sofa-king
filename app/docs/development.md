@@ -60,6 +60,7 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 - [ ] Settings → Open on start set to Guide opens the guide on a cold start, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
 - [ ] Settings → Manage channels: a channel switched off leaves the guide and the channel list, and leaves Channel Up/Down only once Skip hidden channels is on; the move buttons reorder the Favorites filter.
 - [ ] Settings → Time format 24-hour and Guide rows Compact change the guide at once; Open system caption settings opens the TV's captioning page.
+- [ ] Settings → Lock → Set a PIN, Back, open Settings: the lock page focuses the PIN field; a wrong PIN says so and the fifth starts a 30 s wait; the right PIN opens Settings; Forgot the PIN with the server's API token removes it.
 - [ ] Settings → Match frame rate on: a 29.97 or 25 fps channel switches the TV's refresh rate (the panel may blank for a moment) and the launcher's rate returns on Back; Decoder Software and Buffer Smoother still play the channel.
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):

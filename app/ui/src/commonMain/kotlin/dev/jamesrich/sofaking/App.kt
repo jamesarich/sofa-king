@@ -63,6 +63,8 @@ import dev.jamesrich.sofaking.ui.settings.ChannelManagerScreen
 import dev.jamesrich.sofaking.ui.settings.ChannelPickerScreen
 import dev.jamesrich.sofaking.ui.settings.PairingUi
 import dev.jamesrich.sofaking.ui.settings.SettingsActions
+import dev.jamesrich.sofaking.ui.settings.SettingsLock
+import dev.jamesrich.sofaking.ui.settings.SettingsLockScreen
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.LocalClockFormat
 import dev.jamesrich.sofaking.ui.MatchDisplayFrameRate
@@ -139,6 +141,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val settings by vm.settings.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     val pairingBusy by vm.pairing.collectAsStateWithLifecycle()
+    val update by vm.update.collectAsStateWithLifecycle()
     var screen by rememberSerializable { mutableStateOf<Screen>(Screen.Guide()) }
     val pairingScope = rememberCoroutineScope()
     // Why the last pairing attempt failed; Settings shows it until the next attempt.
@@ -162,6 +165,11 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         delay(NOTICE_MS)
         notice = null
     }
+    // The PIN, once entered, opens Settings and the pages behind it until the viewer leaves for the guide or the
+    // player; the lock's count of wrong tries outlives that trip.
+    var settingsUnlocked by rememberSaveable { mutableStateOf(false) }
+    val settingsLock = remember { SettingsLock() }
+    val settingsLocked = settings?.settingsLocked == true && !settingsUnlocked
     val guideState = rememberSaveableStateHolder()
     val lineup = (state as? LineupState.Ready)?.lineup
     // The lineup as this device shows it: hidden channels leave the guide and the channel list, and the player's
@@ -216,6 +224,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
     // the server, so it releases the session outright rather than keeping it to reopen.
     LaunchedEffect(screen) {
+        if (!screen.isSettings) settingsUnlocked = false
         when (val s = screen) {
             is Screen.Guide -> captionSync.advanceUs = 0L
             Screen.Settings -> {
@@ -247,55 +256,77 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
     ) {
         when (val current = screen) {
-            Screen.Settings -> settings?.let { s ->
-                SettingsScreen(
-                    settings = s,
-                    onSave = { url, token -> vm.saveServer(url, token); screen = Screen.Guide() },
-                    onBack = { screen = Screen.Guide() },
-                    channelCount = lineup?.channels?.size ?: 0,
-                    channels = lineup?.channels.orEmpty(),
-                    actions = SettingsActions(
-                        onCaptionsChanged = { vm.setCaptionsEnabled(it) },
-                        onCaptionAdvanceChanged = { vm.setCaptionAdvanceMs(it) },
-                        onSmoothCaptionsChanged = { vm.setSmoothCaptions(it) },
-                        onCaptionStyleChanged = { vm.setCaptionStyle(it) },
-                        onAutoOpenDelayChanged = { vm.setAutoOpenDelay(it) },
-                        onPreviewSoundChanged = { vm.setPreviewSound(it) },
-                        onStartupChanged = { target, guideId -> vm.setStartup(target, guideId) },
-                        onChooseStartupChannel = { screen = Screen.StartupChannel },
-                        onClockFormatChanged = { vm.setClockFormat(it) },
-                        onGuideDensityChanged = { vm.setGuideDensity(it) },
-                        onManageChannels = { screen = Screen.Channels },
-                        onMatchFrameRateChanged = { vm.setMatchFrameRate(it) },
-                        onDecoderChanged = { vm.setDecoder(it) },
-                        onBufferChanged = { vm.setBuffer(it) },
-                    ),
-                    pairing = PairingUi(busy = pairingBusy, failure = pairingFailure, onPair = pair),
-                )
-            }
-            Screen.Channels -> settings?.let { s ->
-                ChannelManagerScreen(
-                    channels = lineup?.channels.orEmpty(),
-                    favorites = s.favorites,
-                    favoritesOrder = s.favoritesOrder,
-                    hidden = s.hiddenChannels,
-                    zapSkipsHidden = s.zapSkipsHidden,
-                    onFavoritesOrderChanged = { vm.setFavoritesOrder(it) },
-                    onChannelHiddenChanged = { guideId, hide -> vm.setChannelHidden(guideId, hide) },
-                    onZapSkipsHiddenChanged = { vm.setZapSkipsHidden(it) },
-                    onBack = { screen = Screen.Settings },
-                )
-            }
-            Screen.StartupChannel -> settings?.let { s ->
-                ChannelPickerScreen(
-                    channels = lineup?.channels.orEmpty(),
-                    selected = s.startupChannel,
-                    onPick = { channel ->
-                        vm.setStartup(StartupTarget.CHANNEL, channel.guideId)
-                        screen = Screen.Settings
+            Screen.Settings, Screen.Channels, Screen.StartupChannel -> if (settingsLocked) settings?.let { s ->
+                SettingsLockScreen(
+                    pinHash = s.settingsPin,
+                    apiToken = s.apiToken,
+                    onUnlocked = { settingsUnlocked = true },
+                    onPinRemoved = {
+                        vm.setSettingsPin(null)
+                        settingsUnlocked = true
                     },
-                    onBack = { screen = Screen.Settings },
+                    onBack = { screen = Screen.Guide() },
+                    lock = settingsLock,
                 )
+            } else when (current) {
+                Screen.Settings -> settings?.let { s ->
+                    SettingsScreen(
+                        settings = s,
+                        onSave = { url, token -> vm.saveServer(url, token); screen = Screen.Guide() },
+                        onBack = { screen = Screen.Guide() },
+                        channelCount = lineup?.channels?.size ?: 0,
+                        channels = lineup?.channels.orEmpty(),
+                        actions = SettingsActions(
+                            onCaptionsChanged = { vm.setCaptionsEnabled(it) },
+                            onCaptionAdvanceChanged = { vm.setCaptionAdvanceMs(it) },
+                            onSmoothCaptionsChanged = { vm.setSmoothCaptions(it) },
+                            onCaptionStyleChanged = { vm.setCaptionStyle(it) },
+                            onAutoOpenDelayChanged = { vm.setAutoOpenDelay(it) },
+                            onPreviewSoundChanged = { vm.setPreviewSound(it) },
+                            onStartupChanged = { target, guideId -> vm.setStartup(target, guideId) },
+                            onChooseStartupChannel = { screen = Screen.StartupChannel },
+                            onClockFormatChanged = { vm.setClockFormat(it) },
+                            onGuideDensityChanged = { vm.setGuideDensity(it) },
+                            onManageChannels = { screen = Screen.Channels },
+                            onMatchFrameRateChanged = { vm.setMatchFrameRate(it) },
+                            onDecoderChanged = { vm.setDecoder(it) },
+                            onBufferChanged = { vm.setBuffer(it) },
+                            onCheckForUpdate = { version, again -> vm.checkForUpdate(version, again) },
+                            onSettingsPinChanged = { pin ->
+                                vm.setSettingsPin(pin)
+                                // The page that set the PIN stays open; the lock takes effect on the next visit.
+                                settingsUnlocked = true
+                            },
+                        ),
+                        pairing = PairingUi(busy = pairingBusy, failure = pairingFailure, onPair = pair),
+                        update = update,
+                    )
+                }
+                Screen.Channels -> settings?.let { s ->
+                    ChannelManagerScreen(
+                        channels = lineup?.channels.orEmpty(),
+                        favorites = s.favorites,
+                        favoritesOrder = s.favoritesOrder,
+                        hidden = s.hiddenChannels,
+                        zapSkipsHidden = s.zapSkipsHidden,
+                        onFavoritesOrderChanged = { vm.setFavoritesOrder(it) },
+                        onChannelHiddenChanged = { guideId, hide -> vm.setChannelHidden(guideId, hide) },
+                        onZapSkipsHiddenChanged = { vm.setZapSkipsHidden(it) },
+                        onBack = { screen = Screen.Settings },
+                    )
+                }
+                Screen.StartupChannel -> settings?.let { s ->
+                    ChannelPickerScreen(
+                        channels = lineup?.channels.orEmpty(),
+                        selected = s.startupChannel,
+                        onPick = { channel ->
+                            vm.setStartup(StartupTarget.CHANNEL, channel.guideId)
+                            screen = Screen.Settings
+                        },
+                        onBack = { screen = Screen.Settings },
+                    )
+                }
+                else -> Unit
             }
             is Screen.Player -> if (lineup != null && visibleLineup != null) {
                 // Hidden channels drop out of zapping only when asked, and never under the channel being watched.

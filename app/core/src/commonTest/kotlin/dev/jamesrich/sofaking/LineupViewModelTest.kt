@@ -87,6 +87,7 @@ class LineupViewModelTest {
         override suspend fun applyServerPreferences(hidden: Set<String>, favorites: List<String>, recent: List<String>, syncedAt: String) =
             settings.update { it.copy(hiddenChannels = hidden, favorites = favorites.toSet(), favoritesOrder = favorites, recentChannels = recent, preferencesSyncedAt = syncedAt) }
         override suspend fun setPreferencesSyncedAt(syncedAt: String) = settings.update { it.copy(preferencesSyncedAt = syncedAt) }
+        override suspend fun setSettingsPin(hash: String?) = settings.update { it.copy(settingsPin = hash.orEmpty()) }
 
         private infix fun Set<String>.xor(id: String) = if (id in this) this - id else this + id
     }

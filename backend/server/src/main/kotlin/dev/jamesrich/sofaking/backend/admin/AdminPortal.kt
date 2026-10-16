@@ -288,6 +288,28 @@ class AdminPortal(
             }
             get("/system/events") { call.html(eventsPage(chrome(), eventsView(call.request.queryParameters))) }
             get("/system/about") { call.html(aboutPage(chrome(), aboutView())) }
+            action("/system/update/check") { session, _ ->
+                val updates = runtime.updates ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
+                val state = updates.check()
+                session.flash.set(when {
+                    state.error != null -> Flash("The check failed: ${state.error}", Tone.BAD)
+                    state.current == true -> Flash("Checked: the server is up to date.")
+                    state.current == false -> Flash("Checked: an update is available.", Tone.WARN)
+                    else -> Flash("Checked: the registry names no commit to compare.", Tone.WARN)
+                })
+                seeOther(call, "/admin/system/about#update")
+            }
+            action("/system/update/request") { session, form ->
+                val updates = runtime.updates ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
+                val state = updates.state()
+                when {
+                    state.updater == null -> session.flash.set(Flash("The host's updater has not reported, so there is nothing to ask.", Tone.WARN))
+                    form["confirm"] != "yes" -> { call.html(aboutPage(chrome(call, session), AboutView(aboutView(), confirm = true))); return@action }
+                    updates.requestUpdate() -> session.flash.set(Flash("Asked the updater to run. The server restarts if a newer image is published."))
+                    else -> session.flash.set(Flash("Could not write the request; the data directory is not writable.", Tone.BAD))
+                }
+                seeOther(call, "/admin/system/about#update")
+            }
             get("/system/snapshot.json") {
                 call.session()
                 call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"sofa-king-snapshot.json\"")
@@ -381,7 +403,7 @@ class AdminPortal(
         val now = clock.instant()
         val runtimeInfo = Runtime.getRuntime()
         return AboutServer(
-            config?.revision ?: "unknown", runtime.startedAt.toString(), java.time.Duration.between(runtime.startedAt, now).seconds.coerceAtLeast(0), runtime.store.schemaVersion(),
+            config?.revision ?: "unknown", config?.version ?: "unknown", runtime.startedAt.toString(), java.time.Duration.between(runtime.startedAt, now).seconds.coerceAtLeast(0), runtime.store.schemaVersion(),
             "${Runtime.version()} (${System.getProperty("java.vendor")})", "${System.getProperty("os.name")} ${System.getProperty("os.version")} ${System.getProperty("os.arch")}",
             ffmpeg.get() ?: ffmpegVersion(config?.ffmpeg ?: "ffmpeg").also(ffmpeg::set),
             config?.dataDirectory?.toAbsolutePath()?.toString(), runtime.settings.current.logLevel, config?.logging?.format ?: "text",
@@ -396,7 +418,7 @@ class AdminPortal(
 
     private suspend fun aboutView(): AboutView {
         val snapshot = snapshot()
-        return AboutView(snapshot.server, snapshot.status, snapshot.toJson())
+        return AboutView(snapshot.server, snapshot.status, snapshot.toJson(), runtime.updates?.state())
     }
 
     /** Nav and tab counts from in-memory state only, so every page stays cheap; a section's count is the sum of its tabs'. */

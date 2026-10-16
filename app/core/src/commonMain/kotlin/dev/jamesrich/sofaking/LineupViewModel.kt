@@ -23,7 +23,10 @@ import dev.jamesrich.sofaking.data.GuideWindow
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.ServerAddress
+import dev.jamesrich.sofaking.data.SettingsPin
 import dev.jamesrich.sofaking.data.SettingsStore
+import dev.jamesrich.sofaking.data.UpdateChecker
+import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.SofaKingRepository
@@ -84,7 +87,14 @@ class LineupViewModel(
     private val client: ClientInfo = ClientInfo(),
     /** Keeps the synced preferences in step with the server; null leaves them on this device only. */
     private val viewerSync: ViewerSync? = ViewerSync(store, client),
+    /** Reads the published snapshot for the update check in Settings. */
+    private val updateChecker: UpdateChecker = UpdateChecker(),
 ) : ViewModel() {
+    private val _update = MutableStateFlow<UpdateState?>(null)
+
+    /** Where the running build stands against the published snapshot; null until [checkForUpdate] has run. */
+    val update: StateFlow<UpdateState?> = _update.asStateFlow()
+
     val settings: StateFlow<AppSettings?> = store.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -356,6 +366,29 @@ class LineupViewModel(
     fun setChannelDecoder(guideId: String, decoder: DecoderPreference?) = viewModelScope.launch { store.setChannelDecoder(guideId, decoder) }
 
     fun setBuffer(buffer: BufferPreference) = viewModelScope.launch { store.setBuffer(buffer) }
+
+    /**
+     * Compares [runningVersion] with the published snapshot, once per process unless [again] is set, since GitHub
+     * limits anonymous calls; the answer lands in [update].
+     */
+    fun checkForUpdate(runningVersion: String, again: Boolean = false) {
+        if (!again && _update.value != null) return
+        _update.value = UpdateState.Checking
+        viewModelScope.launch {
+            val latest = try {
+                updateChecker.latest()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.w { "update check failed: ${e.message}" }
+                null
+            }
+            _update.value = latest?.let { UpdateChecker.compare(runningVersion, it) } ?: UpdateState.Failed
+        }
+    }
+
+    /** Locks Settings behind [pin], stored as its hash, or removes the lock for null. */
+    fun setSettingsPin(pin: String?) = viewModelScope.launch { store.setSettingsPin(pin?.let(SettingsPin::hash)) }
 
     override fun onCleared() {
         sessions.close()

@@ -75,7 +75,7 @@ REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml bui
 cd deploy && docker compose up -d
 ```
 
-On a host without a JDK, build over SSH as [deploy](deploy.md#deploy-to-a-host-without-a-jdk) shows and run the `docker tag` there first. `docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' sofa-king-backend` prints the commit a running container was built from; `GET /api/v1/admin/status` and the admin portal footer report the same commit as `revision`.
+On a host without a JDK, build over SSH as [deploy](deploy.md#deploy-to-a-host-without-a-jdk) shows and run the `docker tag` there first. `docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' sofa-king-backend` prints the commit a running container was built from; `GET /api/v1/admin/status` and the admin portal footer report the same commit as `revision`. The portal's [About page](admin.md#update) says whether the published image is newer and lets you start the updater from the browser.
 
 Schema migrations run at startup and only move forward. The server records each applied version in `schema_version`, and a server that does not know a version in the database refuses to start (`Unsupported database schema`). A rollback therefore needs both the previous image and the backup taken before the upgrade. [Restore](#restore) that backup, then start the previous image, from `backend/`:
 

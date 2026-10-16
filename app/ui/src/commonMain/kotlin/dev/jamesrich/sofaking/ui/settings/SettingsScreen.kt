@@ -28,6 +28,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.platform.LocalUriHandler
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -45,6 +46,7 @@ import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.StartupTarget
+import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.LogoMark
@@ -57,6 +59,7 @@ import dev.jamesrich.sofaking.ui.rememberSystemCaptionSettings
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
+import dev.jamesrich.sofaking.ui.updateDownloadUrl
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -80,6 +83,10 @@ class SettingsActions(
     val onMatchFrameRateChanged: (Boolean) -> Unit = {},
     val onDecoderChanged: (DecoderPreference) -> Unit = {},
     val onBufferChanged: (BufferPreference) -> Unit = {},
+    /** A new PIN for the lock, or null to remove it. */
+    val onSettingsPinChanged: (String?) -> Unit = {},
+    /** Compares the running [version] with the published snapshot; [again] repeats a check already made. */
+    val onCheckForUpdate: (version: String, again: Boolean) -> Unit = { _, _ -> },
 )
 
 /** The pairing flow as Settings shows it: whether a claim is running, and why the last one failed. */
@@ -101,6 +108,8 @@ fun SettingsScreen(
     channels: List<Channel> = emptyList(),
     actions: SettingsActions = SettingsActions(),
     pairing: PairingUi = PairingUi(),
+    /** The update check's answer, or null while none has run. */
+    update: UpdateState? = null,
 ) {
     var captionAdvance by remember(settings.captionAdvanceMs) { mutableIntStateOf(settings.captionAdvanceMs) }
     var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
@@ -462,18 +471,27 @@ fun SettingsScreen(
                 )
             }
         }
-        // About, as one footer line: the app, its version and what is loaded.
+        item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
+        item { LockSection(locked = settings.settingsLocked, onPinChanged = actions.onSettingsPinChanged) }
+        // About: the app, its version and what is loaded, then where the build stands against the published snapshot.
+        item { SectionHeader(stringResource(Res.string.settings_section_about)) }
         item {
-            Text(
-                listOf(
-                    stringResource(Res.string.app_name),
-                    stringResource(Res.string.settings_version, BuildInfo.VERSION + versionSuffix()),
-                    pluralStringResource(Res.plurals.settings_channels_loaded, channelCount, channelCount),
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+            val suffix = versionSuffix()
+            val version = BuildInfo.VERSION + suffix.orEmpty()
+            // The suffix file is read before the check, so a snapshot compares as one.
+            LaunchedEffect(suffix) { if (suffix != null) actions.onCheckForUpdate(version, false) }
+            Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    listOf(
+                        stringResource(Res.string.app_name),
+                        stringResource(Res.string.settings_version, version),
+                        pluralStringResource(Res.plurals.settings_channels_loaded, channelCount, channelCount),
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                UpdateRow(update = update, onCheckAgain = { actions.onCheckForUpdate(version, true) })
+            }
         }
     }
 }
@@ -522,10 +540,51 @@ private fun SettingField(
     }
 }
 
-/** The snapshot suffix the build wrote beside the resources, empty for a release; shown once it has been read. */
+/** The snapshot suffix the build wrote beside the resources, empty for a release; null until it has been read. */
 @OptIn(ExperimentalResourceApi::class)
 @Composable
-private fun versionSuffix(): String {
-    val suffix by produceState("") { value = Res.readBytes(BuildInfo.VERSION_SUFFIX_FILE).decodeToString() }
+private fun versionSuffix(): String? {
+    val suffix by produceState<String?>(null) { value = Res.readBytes(BuildInfo.VERSION_SUFFIX_FILE).decodeToString().trim() }
     return suffix
+}
+
+/**
+ * The update check's state as one line, with Check again, and Get the update when a newer snapshot is published:
+ * it opens the platform's package or the release page; where neither can open, the address is shown to type.
+ */
+@Composable
+private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
+    val uriHandler = LocalUriHandler.current
+    var address by remember { mutableStateOf<String?>(null) }
+    val latest = when (update) {
+        is UpdateState.Available -> update.latest
+        is UpdateState.UpToDate -> update.latest
+        is UpdateState.Unknown -> update.latest
+        else -> null
+    }
+    val downloadUrl = latest?.let(::updateDownloadUrl)
+    Text(
+        when (update) {
+            null, UpdateState.Checking -> stringResource(Res.string.settings_update_checking)
+            is UpdateState.Available -> stringResource(Res.string.settings_update_available, update.latest.version)
+            is UpdateState.UpToDate -> stringResource(Res.string.settings_update_current)
+            is UpdateState.Unknown -> stringResource(Res.string.settings_update_unknown, update.latest.version)
+            UpdateState.Failed -> stringResource(Res.string.settings_update_failed)
+        },
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (update is UpdateState.Available) {
+            if (downloadUrl != null) {
+                SofaButton(onClick = { runCatching { uriHandler.openUri(downloadUrl) }.onFailure { address = downloadUrl } }) {
+                    Text(stringResource(Res.string.settings_update_get))
+                }
+            }
+        }
+        SofaButton(onClick = onCheckAgain, enabled = update != UpdateState.Checking) { Text(stringResource(Res.string.settings_update_check)) }
+    }
+    when {
+        address != null -> HelpText(stringResource(Res.string.settings_update_address, address!!))
+        update is UpdateState.Available && downloadUrl == null -> HelpText(stringResource(Res.string.settings_update_no_package))
+    }
 }

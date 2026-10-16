@@ -160,6 +160,8 @@ fun PlayerScreen(
     favoritesOrder: List<String> = emptyList(),
     /** Channels watched lately, latest first, for the channel list's Recent chip; empty leaves the chip out. */
     recentGuideIds: List<String> = emptyList(),
+    /** Stars or unstars a channel from the channel list; null leaves the star out. */
+    onToggleFavorite: ((Channel) -> Unit)? = null,
     /** How many info bars have carried the key legend so far; it rides the first [AppSettings.KEY_LEGEND_BARS]. */
     keyLegendShown: Int = AppSettings.KEY_LEGEND_BARS,
     onKeyLegendShown: (Int) -> Unit = {},
@@ -181,6 +183,7 @@ fun PlayerScreen(
     val currentOnCaptionsChanged by rememberUpdatedState(onCaptionsChanged)
     val currentOnCaptionAdvanceChanged by rememberUpdatedState(onCaptionAdvanceChanged)
     val currentOnKeyLegendShown by rememberUpdatedState(onKeyLegendShown)
+    val currentOnToggleFavorite by rememberUpdatedState(onToggleFavorite)
     val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
     val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(windowHeightDp)
     var index by remember { mutableIntStateOf(channels.indexOfFirst { it.guideId == startChannel?.guideId }.coerceAtLeast(0)) }
@@ -605,8 +608,12 @@ fun PlayerScreen(
 
     /** OK is judged on key-up: a short press acts as [playerOk] decides, a long press recalls the last channel. */
     fun handleCenter(event: KeyEvent): Boolean {
-        // With the mini-guide open, its focused row takes OK.
-        if (miniGuideOpen || currentChannels.isEmpty()) return false
+        // With the mini-guide open, its focused row, chip or button takes OK; the press still counts against its idle timer.
+        if (miniGuideOpen) {
+            miniGuideActivity++
+            return false
+        }
+        if (currentChannels.isEmpty()) return false
         return when (event.type) {
             KeyEventType.KeyDown -> {
                 if (centerGesture.onKeyDown(event.isLongPress, event.repeatCountOrNull) == CenterPress.LONG) recallLastChannel()
@@ -732,7 +739,15 @@ fun PlayerScreen(
             }
         }
         if (key == Key.Info) return handleInfo(event)
-        if (key == Key.DirectionCenter || key == Key.Enter) return if (streamCardOpen && audioTracks.isNotEmpty()) false else handleCenter(event)
+        if (key == Key.DirectionCenter || key == Key.Enter) {
+            if (streamCardOpen) {
+                // The focused track row takes OK; with nothing to pick, OK closes the card on its key-up.
+                if (streamCardOk(audioTracks.isNotEmpty()) == StreamCardKey.CARD) return false
+                if (event.type == KeyEventType.KeyUp) streamCardOpen = false
+                return true
+            }
+            return handleCenter(event)
+        }
         if (event.type != KeyEventType.KeyDown || currentChannels.isEmpty()) return false
         if (streamCardOpen) {
             streamCardActivity++
@@ -850,6 +865,25 @@ fun PlayerScreen(
                         now = now,
                         onTune = ::tuneChannel,
                         onChipsFocused = { miniGuideChipsFocused = it },
+                        actions = MiniGuideActions(
+                            captionsOn = captionsOn,
+                            paused = paused,
+                            failed = failure != null,
+                            hasAudioChoice = audioTracks.isNotEmpty(),
+                            favorite = if (onToggleFavorite != null) channel.guideId in favorites else null,
+                            onToggleFavorite = { currentOnToggleFavorite?.invoke(channel) },
+                            // Captions close the list so Left and Right can move the timing while the toast shows.
+                            onCaptions = {
+                                toggleCaptions()
+                                miniGuideOpen = false
+                            },
+                            onPlayPause = { if (player.playWhenReady) player.pause() else player.play() },
+                            onRetry = {
+                                retry()
+                                miniGuideOpen = false
+                            },
+                            onStreamInfo = ::openStreamCard,
+                        ),
                     )
                 }
             }

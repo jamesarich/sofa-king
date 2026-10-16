@@ -18,6 +18,7 @@ import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationOpenSettingsURLString
 import platform.Foundation.NSURL
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.data.PublishedBuild
 
 /** iPhone and iPad; Apple TV is not a target. */
 @Composable
@@ -77,3 +78,5 @@ internal actual val supportsPlaybackPreferences: Boolean = false
 
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
+
+internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = null

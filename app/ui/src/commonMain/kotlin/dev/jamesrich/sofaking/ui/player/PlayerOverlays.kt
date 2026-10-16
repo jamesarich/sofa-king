@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -415,12 +416,21 @@ internal fun TouchControls(
     }
 }
 
-/** One touch control: the icon carries the label as its description. The centre control is [primary] and larger. */
+/**
+ * One player control, for a finger, a mouse or the D-pad: the icon carries the label as its description. The centre
+ * touch control is [primary] and larger; [size] is the tonal button's, 48 dp unless the row it sits in is tighter.
+ */
 @Composable
-private fun ControlIcon(icon: ImageVector, label: String, onClick: () -> Unit, primary: Boolean = false, modifier: Modifier = Modifier) {
-    val size = if (primary) 64.dp else 48.dp
+internal fun ControlIcon(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    primary: Boolean = false,
+    size: Dp = 48.dp,
+    modifier: Modifier = Modifier,
+) {
     if (primary) {
-        FilledIconButton(onClick = onClick, modifier = modifier.size(size).tvFocus(IconButtonDefaults.filledShape)) {
+        FilledIconButton(onClick = onClick, modifier = modifier.size(64.dp).tvFocus(IconButtonDefaults.filledShape)) {
             Icon(icon, contentDescription = label, modifier = Modifier.size(32.dp))
         }
     } else {
@@ -443,7 +453,9 @@ internal fun BoxScope.StreamCard(
     onSelectTrack: (String) -> Unit,
 ) {
     val unknown = stringResource(Res.string.stream_card_unknown)
+    // Focus starts on the playing track's row, so OK and Up/Down act on the tracks at once; with none, the card itself holds it.
     val focusRequester = remember { FocusRequester() }
+    val focusTrack = tracks.indexOfFirst { it.selected }.coerceAtLeast(0)
     LaunchedEffect(Unit) { requestFocusWhenAttached(focusRequester) }
     Column(
         Modifier
@@ -452,14 +464,20 @@ internal fun BoxScope.StreamCard(
             .width(400.dp)
             .background(SofaOverlayScrim, OverlayShape)
             .padding(24.dp)
-            .focusRequester(focusRequester)
+            .then(if (tracks.isEmpty()) Modifier.focusRequester(focusRequester) else Modifier)
             .focusable(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(stringResource(Res.string.stream_card_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         if (tracks.isNotEmpty()) {
             Text(stringResource(Res.string.stream_card_audio), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            for (track in tracks) AudioTrackRow(track, onClick = { onSelectTrack(track.id) })
+            tracks.forEachIndexed { position, track ->
+                AudioTrackRow(
+                    track,
+                    onClick = { onSelectTrack(track.id) },
+                    modifier = if (position == focusTrack) Modifier.focusRequester(focusRequester) else Modifier,
+                )
+            }
         }
         val video = listOfNotNull(
             info.videoCodec,
@@ -487,11 +505,11 @@ private fun StatLine(label: String, value: String) {
 
 /** An audio track to pick; the playing one reads as selected, and OK on any row plays it. */
 @Composable
-private fun AudioTrackRow(track: AudioTrack, onClick: () -> Unit) {
+private fun AudioTrackRow(track: AudioTrack, onClick: () -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .background(if (focused) colors.primary else Color.Transparent, OverlayShape)
             .onFocusChanged { focused = it.isFocused }

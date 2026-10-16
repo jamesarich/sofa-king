@@ -105,7 +105,7 @@ Fragility: the content IDs in the catalog change, so only the identifiers are tr
 
 ### ballysports (Bally Sports free channels)
 
-The Next.js channel page (`/channels/milb`, after its redirect) embeds React Server Components chunks with `channelData` (UUID, name, order, logo and public CDN URL) and `epgData`. Only channels on `*.channels.ballys.tv` are listed. Streams are static HLS.
+The Next.js channel page (`/channels/milb`, after its redirect) embeds React Server Components chunks with `channelData` (UUID, name, order, logo and public CDN URL) and the programmes as `epgItems` (`epgData` before October 2026). Only channels on `*.channels.ballys.tv` are listed. Streams are static HLS.
 
 Fragility: this parses a framework payload out of HTML, so a site redesign ends it.
 

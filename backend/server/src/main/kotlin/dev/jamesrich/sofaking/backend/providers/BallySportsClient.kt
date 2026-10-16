@@ -9,8 +9,8 @@ import kotlinx.serialization.json.JsonArray
 
 /**
  * Bally Sports' free channels, read from the Next.js payload of any channel page: the React Server Components
- * chunks carry `channelData` (name, uuid, logo, order, public CDN URL) and `epgData`. Streams are static HLS on
- * `*.channels.ballys.tv`.
+ * chunks carry `channelData` (name, uuid, logo, order, public CDN URL) and the programmes as `epgData` (`epgItems`
+ * since October 2026). Streams are static HLS on `*.channels.ballys.tv`.
  */
 class BallySportsClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "ballysports"
@@ -66,7 +66,7 @@ class BallySportsClient(private val context: ProviderContext) : ProviderClient {
         private val PUSH = Regex("""self\.__next_f\.push\((\[.*?])\)""", RegexOption.DOT_MATCHES_ALL)
         private val DATE = Regex("\"\\\$D([^\"]+)\"")
 
-        /** The `channelData` and `epgData` arrays from the page's RSC chunks; each may sit in a different chunk. */
+        /** The `channelData` and `epgData` (or `epgItems`) arrays from the page's RSC chunks; each may sit in a different chunk. */
         internal fun parse(html: String): Pair<List<kotlinx.serialization.json.JsonElement>, List<kotlinx.serialization.json.JsonElement>> {
             var channels: List<kotlinx.serialization.json.JsonElement> = emptyList()
             var epg: List<kotlinx.serialization.json.JsonElement> = emptyList()
@@ -74,11 +74,12 @@ class BallySportsClient(private val context: ProviderContext) : ProviderClient {
                 val pushed = runCatching { lenientJson.parseToJsonElement(match.groupValues[1]) }.getOrNull() as? JsonArray ?: continue
                 if (pushed.size < 2 || pushed[0].long != 1L) continue
                 val chunk = pushed[1].string ?: continue
-                if (!chunk.contains("channelData") && !chunk.contains("epgData")) continue
+                if (!chunk.contains("channelData") && !chunk.contains("epgData") && !chunk.contains("epgItems")) continue
                 // RSC encodes dates as "$D2026-..." and undefined as "$undefined"; plain JSON wants neither.
                 val cleaned = DATE.replace(chunk) { "\"${it.groupValues[1]}\"" }.replace("\"\$undefined\"", "null")
                 if (channels.isEmpty()) channels = extractArray(cleaned, "channelData").orEmpty()
-                if (epg.isEmpty()) epg = extractArray(cleaned, "epgData").orEmpty()
+                // The page named the array `epgData` until October 2026 and `epgItems` since.
+                if (epg.isEmpty()) epg = extractArray(cleaned, "epgData") ?: extractArray(cleaned, "epgItems").orEmpty()
                 if (channels.isNotEmpty() && epg.isNotEmpty()) break
             }
             return channels to epg

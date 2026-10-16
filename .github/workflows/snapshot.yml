@@ -37,12 +37,11 @@ jobs:
           echo "suffix=-dev.${{ github.run_number }}+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
   linux:
-    name: Android, web and Linux desktop
+    name: Android and Linux desktop
     needs: version
     runs-on: ubuntu-24.04
-    # The build takes about eight minutes; the limit bounds a hang. A dependency the JS minifier choked on once took it
-    # to 28 minutes, and 30 cut off the three runs after that.
-    timeout-minutes: 45
+    # The build takes a few minutes; the limit bounds a hang.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: app
@@ -73,18 +72,59 @@ jobs:
           "-Psofaking.versionCode=$VERSION_CODE"
           "-Psofaking.versionSuffix=$VERSION_SUFFIX"
           :androidApp:assembleRelease
-          :ui:wasmJsBrowserDistribution :ui:jsBrowserDistribution
           :ui:packageDistributionForCurrentOS
       - name: Collect
         run: |
           mkdir "$GITHUB_WORKSPACE/dist"
           cp androidApp/build/outputs/apk/release/androidApp-release.apk "$GITHUB_WORKSPACE/dist/sofa-king-snapshot.apk"
           cp ui/build/compose/binaries/main/deb/*.deb "$GITHUB_WORKSPACE/dist/sofa-king-snapshot-linux-amd64.deb"
-          (cd ui/build/dist/wasmJs/productionExecutable && zip -qr "$GITHUB_WORKSPACE/dist/sofa-king-snapshot-web-wasm.zip" .)
-          (cd ui/build/dist/js/productionExecutable && zip -qr "$GITHUB_WORKSPACE/dist/sofa-king-snapshot-web-js.zip" .)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dist-linux
+          path: dist/
+          if-no-files-found: error
+
+  # The two web bundles, one job each: the production webpack of either is the longest single task in the snapshot,
+  # so they run beside the packages instead of after them, and each npm install has the yarn.lock to itself.
+  web:
+    name: Web (${{ matrix.target }})
+    needs: version
+    strategy:
+      matrix:
+        include:
+          - target: wasmJs
+            asset: sofa-king-snapshot-web-wasm.zip
+          - target: js
+            asset: sofa-king-snapshot-web-js.zip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - name: Build
+        env:
+          VERSION_CODE: ${{ needs.version.outputs.code }}
+          VERSION_SUFFIX: ${{ needs.version.outputs.suffix }}
+        run: ./gradlew "-Psofaking.versionCode=$VERSION_CODE" "-Psofaking.versionSuffix=$VERSION_SUFFIX" :ui:${{ matrix.target }}BrowserDistribution
+      - name: Collect
+        run: |
+          mkdir "$GITHUB_WORKSPACE/dist"
+          (cd ui/build/dist/${{ matrix.target }}/productionExecutable && zip -qr "$GITHUB_WORKSPACE/dist/${{ matrix.asset }}" .)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist-web-${{ matrix.target }}
           path: dist/
           if-no-files-found: error
 
@@ -137,7 +177,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [version, linux, desktop]
+    needs: [version, linux, web, desktop]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

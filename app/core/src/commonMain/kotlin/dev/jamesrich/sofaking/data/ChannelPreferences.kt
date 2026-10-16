@@ -28,3 +28,21 @@ fun movedFavorite(current: List<String>, guideId: String, step: Int): List<Strin
     if (to == from) return current
     return current.toMutableList().apply { removeAt(from); add(to, guideId) }
 }
+
+/** One guide group as the channel manager lists it: its channels in lineup order and how many of them are shown. */
+data class ChannelGroup(val name: String, val channels: List<Channel>, val shown: Int) {
+    val total: Int get() = channels.size
+
+    /** True while at least one channel of the group is shown; the group's switch reads this. */
+    val anyShown: Boolean get() = shown > 0
+}
+
+/**
+ * The lineup's groups in the order the guide's chips list them (first appearance), each with its channels and how
+ * many of them [hidden] leaves shown. A channel filed under several groups is in each.
+ */
+fun channelGroups(channels: List<Channel>, hidden: Set<String>): List<ChannelGroup> {
+    val byGroup = LinkedHashMap<String, MutableList<Channel>>()
+    for (channel in channels) for (group in channel.groups) byGroup.getOrPut(group) { mutableListOf() }.add(channel)
+    return byGroup.map { (name, members) -> ChannelGroup(name, members, members.count { it.guideId !in hidden }) }
+}

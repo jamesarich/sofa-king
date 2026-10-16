@@ -29,4 +29,19 @@ class ChannelPreferencesTest {
         assertEquals(order, movedFavorite(order, "a", -1))
         assertEquals(order, movedFavorite(order, "zz", 1))
     }
+
+    @Test
+    fun `groups follow first appearance and count what is shown`() {
+        val lineup = listOf(
+            Channel("1", 1.0, "One", null, listOf("Local", "News")),
+            Channel("2", 2.0, "Two", null, listOf("News")),
+            Channel("3", 3.0, "Three", null, listOf("Sports")),
+        )
+        val groups = channelGroups(lineup, hidden = setOf("2", "3"))
+        assertEquals(listOf("Local", "News", "Sports"), groups.map { it.name })
+        assertEquals(listOf(listOf("1"), listOf("1", "2"), listOf("3")), groups.map { g -> g.channels.map { it.guideId } })
+        assertEquals(listOf(1, 1, 0), groups.map { it.shown })
+        assertEquals(listOf(true, true, false), groups.map { it.anyShown })
+        assertEquals(2, groups[1].total)
+    }
 }

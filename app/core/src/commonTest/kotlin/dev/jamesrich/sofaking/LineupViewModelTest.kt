@@ -71,6 +71,8 @@ class LineupViewModelTest {
         override suspend fun setGuideDensity(density: GuideDensity) = settings.update { it.copy(guideDensity = density) }
         override suspend fun setChannelHidden(guideId: String, hidden: Boolean) =
             settings.update { it.copy(hiddenChannels = if (hidden) it.hiddenChannels + guideId else it.hiddenChannels - guideId) }
+        override suspend fun setChannelsHidden(guideIds: Collection<String>, hidden: Boolean) =
+            settings.update { it.copy(hiddenChannels = if (hidden) it.hiddenChannels + guideIds else it.hiddenChannels - guideIds.toSet()) }
         override suspend fun setZapSkipsHidden(enabled: Boolean) = settings.update { it.copy(zapSkipsHidden = enabled) }
         override suspend fun setFavoritesOrder(order: List<String>) = settings.update { it.copy(favoritesOrder = order) }
         override suspend fun setMatchFrameRate(enabled: Boolean) = settings.update { it.copy(playback = it.playback.copy(matchFrameRate = enabled)) }

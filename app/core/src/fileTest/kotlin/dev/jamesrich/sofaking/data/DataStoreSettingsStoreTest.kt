@@ -330,4 +330,14 @@ class DataStoreSettingsStoreTest {
         store.setPreferencesSyncedAt("2026-10-16T00:01:00Z")
         assertEquals("2026-10-16T00:01:00Z", store.settings.first().preferencesSyncedAt)
     }
+
+    @Test
+    fun `a group of channels hides and shows in one write`() = runTest {
+        val store = newStore()
+        store.setChannelHidden("solo", true)
+        store.setChannelsHidden(listOf("a", "b"), true)
+        assertEquals(setOf("solo", "a", "b"), store.settings.first().hiddenChannels)
+        store.setChannelsHidden(listOf("b", "solo", "missing"), false)
+        assertEquals(setOf("a"), store.settings.first().hiddenChannels)
+    }
 }

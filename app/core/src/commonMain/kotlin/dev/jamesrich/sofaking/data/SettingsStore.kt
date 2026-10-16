@@ -130,6 +130,9 @@ interface SettingsStore {
 
     suspend fun setChannelHidden(guideId: String, hidden: Boolean)
 
+    /** Hides or shows every channel in [guideIds] in one write, for a group's switch. */
+    suspend fun setChannelsHidden(guideIds: Collection<String>, hidden: Boolean)
+
     suspend fun setZapSkipsHidden(enabled: Boolean)
 
     suspend fun setFavoritesOrder(order: List<String>)

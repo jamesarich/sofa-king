@@ -19,6 +19,7 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +32,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.ChannelGroup
+import dev.jamesrich.sofaking.data.channelGroups
 import dev.jamesrich.sofaking.data.movedFavorite
 import dev.jamesrich.sofaking.data.orderedFavorites
 import dev.jamesrich.sofaking.resources.*
@@ -46,7 +49,8 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * The channel manager behind Settings: the favorites in the order the Favorites filter shows them, with a row
- * per favorite that moves it, then every channel of the lineup with a switch that hides it on this device.
+ * per favorite that moves it, then the lineup's groups, each with a switch that hides or shows all of its
+ * channels on this device and a button that opens them as switches of their own.
  */
 @Composable
 fun ChannelManagerScreen(
@@ -57,12 +61,17 @@ fun ChannelManagerScreen(
     zapSkipsHidden: Boolean,
     onFavoritesOrderChanged: (List<String>) -> Unit,
     onChannelHiddenChanged: (guideId: String, hidden: Boolean) -> Unit,
+    /** A group's switch: every channel of it hidden or shown in one write. */
+    onChannelsHiddenChanged: (guideIds: Collection<String>, hidden: Boolean) -> Unit,
     onZapSkipsHiddenChanged: (Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ordered = remember(channels, favorites, favoritesOrder) { orderedFavorites(channels, favorites, favoritesOrder) }
     val orderIds = remember(ordered) { ordered.map { it.guideId } }
+    val groups = remember(channels, hidden) { channelGroups(channels, hidden) }
+    // The groups opened to their channels; a visit starts with all of them closed, so the list is short.
+    val expanded = remember { mutableStateListOf<String>() }
     val backFocus = remember { FocusRequester() }
     BackHandler { onBack() }
     LaunchedEffect(Unit) { requestFocusWhenAttached(backFocus) }
@@ -92,12 +101,50 @@ fun ChannelManagerScreen(
                 onCheckedChange = onZapSkipsHiddenChanged,
             )
         }
-        items(channels, key = { "ch:${it.guideId}" }) { channel ->
-            ToggleRow(
-                label = channel.label(),
-                checked = channel.guideId !in hidden,
-                onCheckedChange = { shown -> onChannelHiddenChanged(channel.guideId, !shown) },
-            )
+        for (group in groups) {
+            val open = group.name in expanded
+            item(key = "group:${group.name}") {
+                GroupRow(
+                    group = group,
+                    expanded = open,
+                    onShownChange = { shown -> onChannelsHiddenChanged(group.channels.map { it.guideId }, !shown) },
+                    onExpandedChange = { if (it) expanded.add(group.name) else expanded.remove(group.name) },
+                )
+            }
+            if (open) {
+                items(group.channels, key = { "ch:${group.name}:${it.guideId}" }) { channel ->
+                    ToggleRow(
+                        label = channel.label(),
+                        checked = channel.guideId !in hidden,
+                        onCheckedChange = { shown -> onChannelHiddenChanged(channel.guideId, !shown) },
+                        modifier = Modifier.padding(start = 32.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A group as one row: its switch row (OK shows or hides every channel of it; the line beneath counts what is
+ * shown) and, beside it in the same focus group, the button that opens or closes its channels.
+ */
+@Composable
+private fun GroupRow(group: ChannelGroup, expanded: Boolean, onShownChange: (Boolean) -> Unit, onExpandedChange: (Boolean) -> Unit) {
+    val toggleLabel = stringResource(if (expanded) Res.string.channels_group_collapse else Res.string.channels_group_expand, group.name)
+    Row(
+        modifier = Modifier.focusGroup(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        ToggleRow(
+            label = group.name,
+            help = stringResource(Res.string.channels_group_shown, group.shown, group.total),
+            checked = group.anyShown,
+            onCheckedChange = onShownChange,
+        )
+        SofaButton(onClick = { onExpandedChange(!expanded) }, modifier = Modifier.semantics { contentDescription = toggleLabel }) {
+            Text(if (expanded) "▲" else "▼")
         }
     }
 }

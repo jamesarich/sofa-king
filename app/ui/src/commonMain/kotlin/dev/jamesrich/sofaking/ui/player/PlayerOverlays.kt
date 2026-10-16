@@ -1,11 +1,13 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,6 +43,8 @@ import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
+import dev.jamesrich.sofaking.ui.RiseIn
+import dev.jamesrich.sofaking.ui.SinkOut
 import dev.jamesrich.sofaking.ui.ProgrammeBadges
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.episodeLine
@@ -437,6 +441,17 @@ internal fun ControlIcon(
         FilledTonalIconButton(onClick = onClick, modifier = modifier.size(size).tvFocus(IconButtonDefaults.filledShape)) {
             Icon(icon, contentDescription = label)
         }
+    }
+}
+
+/**
+ * The info bar's slot along the bottom of the player, sliding up when [visible]. The alignment sits on
+ * AnimatedVisibility itself: an align() inside its content would only place the bar within the animation's own wrapper.
+ */
+@Composable
+internal fun BoxScope.InfoBar(visible: Boolean, content: @Composable ColumnScope.() -> Unit) {
+    AnimatedVisibility(visible, modifier = Modifier.align(Alignment.BottomStart), enter = RiseIn, exit = SinkOut) {
+        Column(Modifier.fillMaxWidth().screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 

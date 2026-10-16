@@ -63,7 +63,6 @@ import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.RiseIn
-import dev.jamesrich.sofaking.ui.SinkOut
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
@@ -887,34 +886,32 @@ fun PlayerScreen(
                     )
                 }
             }
-            AnimatedVisibility(overlayVisible && !miniGuideOpen && !streamCardOpen, enter = RiseIn, exit = SinkOut) {
-                Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().screenPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    val scopeLabel = zapScope?.takeIf { scoped }?.let { stringResource(Res.string.zap_scope, it.label, index + 1, channels.size) }
-                    InfoOverlay(
-                        lineup = lineup,
-                        channel = channel,
-                        now = now,
+            InfoBar(overlayVisible && !miniGuideOpen && !streamCardOpen) {
+                val scopeLabel = zapScope?.takeIf { scoped }?.let { stringResource(Res.string.zap_scope, it.label, index + 1, channels.size) }
+                InfoOverlay(
+                    lineup = lineup,
+                    channel = channel,
+                    now = now,
+                    captionsOn = captionsOn,
+                    captionAdvanceMs = channelAdvance.takeIf { player.supportsCaptionLead },
+                    scope = scopeLabel,
+                    showKeyLegend = legendOnThisBar && !pointerDriven,
+                )
+                if (pointerDriven) {
+                    TouchControls(
                         captionsOn = captionsOn,
-                        captionAdvanceMs = channelAdvance.takeIf { player.supportsCaptionLead },
-                        scope = scopeLabel,
-                        showKeyLegend = legendOnThisBar && !pointerDriven,
+                        paused = paused,
+                        failed = failure != null,
+                        hasAudioChoice = audioTracks.isNotEmpty(),
+                        onGuide = onExit,
+                        onChannelUp = control { zapStep(PlayerAction.CHANNEL_UP.zapStep()!!) },
+                        onChannelDown = control { zapStep(PlayerAction.CHANNEL_DOWN.zapStep()!!) },
+                        onChannelList = ::openMiniGuide,
+                        onCaptions = control { toggleCaptions() },
+                        onPlayPause = control { if (player.playWhenReady) player.pause() else player.play() },
+                        onStreamInfo = ::openStreamCard,
+                        onRetry = control { retry() },
                     )
-                    if (pointerDriven) {
-                        TouchControls(
-                            captionsOn = captionsOn,
-                            paused = paused,
-                            failed = failure != null,
-                            hasAudioChoice = audioTracks.isNotEmpty(),
-                            onGuide = onExit,
-                            onChannelUp = control { zapStep(PlayerAction.CHANNEL_UP.zapStep()!!) },
-                            onChannelDown = control { zapStep(PlayerAction.CHANNEL_DOWN.zapStep()!!) },
-                            onChannelList = ::openMiniGuide,
-                            onCaptions = control { toggleCaptions() },
-                            onPlayPause = control { if (player.playWhenReady) player.pause() else player.play() },
-                            onStreamInfo = ::openStreamCard,
-                            onRetry = control { retry() },
-                        )
-                    }
                 }
             }
         }

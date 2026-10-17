@@ -21,6 +21,7 @@ The Sofa King server is a self-hosted live TV server for a home network. It buil
 - [Source health](docs/source-health.md) probes, quarantine and automatic failover between sources
 - HLS and MPEG-TS relayed through the server, and an MPEG-TS remux for Plex
 - M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
+- Media libraries: movies, shows and other videos from a read-only folder, scanned with their `.nfo` files and artwork ([media libraries](docs/libraries.md)); the app cannot browse or play them yet
 - A logo cache, so every client loads logos from this server
 - A JSON API whose live TV types the app shares ([API](docs/api.md))
 - An [admin portal](docs/admin.md) at `/admin` that shows what needs attention, sets up the sources and a starter lineup, edits channels, merges, groups and provider priority, pairs devices with a code, and asks the host's updater for a new image

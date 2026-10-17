@@ -17,7 +17,8 @@
     { "name": "Admin", "description": "The server, its sessions, candidates, guides and the lineup. Bearer: the admin token, or the API token when none is set." },
     { "name": "Policy", "description": "The lineup policy and its runs. Bearer: the admin token." },
     { "name": "Plex", "description": "Plex Live TV sync. Bearer: the admin token." },
-    { "name": "Viewers", "description": "Pairing a client to the server and the preferences each client keeps on it. Bearer: the API token, except the pairing claim, which takes none." }
+    { "name": "Viewers", "description": "Pairing a client to the server and the preferences each client keeps on it. Bearer: the API token, except the pairing claim, which takes none." },
+    { "name": "Library", "description": "Media libraries: folders of movies, shows and other videos under SOFA_MEDIA_DIR, which the server reads and never writes." }
   ],
   "components": {
     "securitySchemes": {
@@ -306,7 +307,34 @@
           "BaseURL": { "type": "string" }, "LineupURL": { "type": "string" }, "TunerCount": { "type": "integer" }
         }
       },
-      "LineupItem": { "type": "object", "properties": { "GuideNumber": { "type": "string" }, "GuideName": { "type": "string" }, "URL": { "type": "string" } } }
+      "LineupItem": { "type": "object", "properties": { "GuideNumber": { "type": "string" }, "GuideName": { "type": "string" }, "URL": { "type": "string" } } },
+      "LibraryInfo": {
+        "type": "object",
+        "required": ["id", "name", "kind", "path", "createdAt"],
+        "properties": {
+          "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string", "enum": ["movies", "shows", "videos"] }, "path": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "items": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "Present items by kind: movie, show, season, episode or video." },
+          "scannedAt": { "type": ["string", "null"], "format": "date-time" },
+          "scanOk": { "type": ["boolean", "null"], "description": "False when the last scan found the folder missing, or empty while the library held files." },
+          "scanNote": { "type": ["string", "null"] }
+        }
+      },
+      "CreateLibrary": {
+        "type": "object",
+        "required": ["name", "kind", "path"],
+        "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 100 }, "kind": { "type": "string", "enum": ["movies", "shows", "videos"] }, "path": { "type": "string" } }
+      },
+      "UpdateLibrary": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 100 } } },
+      "LibraryScanInfo": {
+        "type": "object",
+        "required": ["files", "added", "updated", "missing", "removed"],
+        "properties": {
+          "files": { "type": "integer" }, "added": { "type": "integer" }, "updated": { "type": "integer" }, "missing": { "type": "integer" }, "removed": { "type": "integer" },
+          "unavailable": { "type": "boolean", "description": "The folder was missing or empty, so nothing changed." }
+        }
+      },
+      "LibraryFolders": { "type": "object", "required": ["roots", "folders"], "properties": { "roots": { "type": "array", "items": { "type": "string" } }, "folders": { "type": "array", "items": { "type": "string" } } } }
     }
   },
   "paths": {
@@ -521,6 +549,30 @@
     "/api/v1/admin/pairing-codes": {
       "post": { "tags": ["Admin"], "summary": "Issue a pairing code", "description": "Replaces the live code. The code is six digits, live for ten minutes, and spent by the claim that matches it.", "security": [{ "adminToken": [] }],
         "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PairingCode" } } } } } }
+    },
+    "/api/v1/admin/libraries": {
+      "get": { "tags": ["Library"], "summary": "Every media library", "description": "With each library's present items by kind and its last scan.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryInfo" } } } } } } },
+      "post": { "tags": ["Library"], "summary": "Add a library", "description": "The folder must be inside SOFA_MEDIA_DIR, lead nowhere outside it and be used by no other library (409 LIBRARY_EXISTS); its first scan starts at once.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateLibrary" } } } },
+        "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryInfo" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/libraries/folders": {
+      "get": { "tags": ["Library"], "summary": "The folders a new library can use", "description": "SOFA_MEDIA_DIR and its subfolders two levels down, without hidden folders and those a library already uses.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryFolders" } } } } } }
+    },
+    "/api/v1/admin/libraries/{id}": {
+      "get": { "tags": ["Library"], "summary": "One library", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryInfo" } } } }, "404": { "$ref": "#/components/responses/Error" } } },
+      "patch": { "tags": ["Library"], "summary": "Rename a library", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateLibrary" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryInfo" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "$ref": "#/components/responses/Error" } } },
+      "delete": { "tags": ["Library"], "summary": "Remove a library", "description": "Forgets its items and their watch progress; the files are never touched.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "204": { "description": "Removed" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/libraries/{id}/scan": {
+      "post": { "tags": ["Library"], "summary": "Scan a library now", "description": "Answers when the scan ends. A folder that is missing, or empty while the library held files, reads as unmounted: unavailable is true and nothing changes.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryScanInfo" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
     }
   }
 }

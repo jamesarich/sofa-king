@@ -215,6 +215,11 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/viewers` | Every client that paired or saved preferences, most recently seen first: `clientId`, `name`, `platform`, `firstSeenAt`, `lastSeenAt` and `preferences` (null until the client saves some) |
 | DELETE | `/api/v1/admin/viewers/{clientId}` | Forget a client and its preferences; returns 204. The client keeps working and reappears on its next save |
 | POST | `/api/v1/admin/pairing-codes` | Issue a [pairing code](#pair-a-client): `{"code", "expiresAt"}`, 201. It replaces the live code |
+| GET | `/api/v1/admin/libraries` | Every [media library](libraries.md): `id`, `name`, `kind` (`movies`, `shows` or `videos`), `path`, `createdAt`, `items` (present items by kind: `movie`, `show`, `season`, `episode`, `video`) and the last scan's `scannedAt`, `scanOk` and `scanNote` |
+| GET | `/api/v1/admin/libraries/folders` | `{"roots", "folders"}`: `SOFA_MEDIA_DIR` and the folders under it, two levels down, that no library uses |
+| POST | `/api/v1/admin/libraries` | Add a library from `{"name", "kind", "path"}`; 201 with the library, and its first scan starts. 400 when the folder is outside `SOFA_MEDIA_DIR`, links outside it or does not exist; 409 `LIBRARY_EXISTS` when another library uses it |
+| GET, PATCH, DELETE | `/api/v1/admin/libraries/{id}` | One library; rename it with `{"name"}`; remove it (204), forgetting its items and their watch progress but never touching its files |
+| POST | `/api/v1/admin/libraries/{id}/scan` | Scan now and answer when done: `files`, `added`, `updated`, `missing`, `removed`, and `unavailable` when the folder was missing or empty, in which case nothing changed |
 
 While a lineup policy is in use, `POST /lineup`, `PUT /lineup/order` and `POST /lineup/adopt` answer `410 Gone` with code `POLICY_MANAGED`; see [lineup policy](lineup-policy.md#api). Without it, the `/policy/*` routes answer `404 POLICY_NOT_CONFIGURED`.
 
@@ -302,6 +307,9 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET | `/admin/viewers` | The devices that paired or saved preferences, and the live pairing code with its QR code |
 | POST | `/admin/viewers/pair`, `/admin/viewers/cancel` | Issue a pairing code (replacing the live one); cancel it |
 | POST | `/admin/viewers/{clientId}/forget` | Forget a device and its preferences |
+| GET | `/admin/library` | The media libraries and the form that adds one |
+| POST | `/admin/library` | Add a library (`name`, `kind`, `path`) |
+| POST | `/admin/library/{id}/scan`, `/admin/library/{id}/rename`, `/admin/library/{id}/remove` | Queue a scan; rename (`name`); remove, after `confirm=yes` |
 | GET | `/admin/settings?advanced=&changes=` | Settings; `advanced=1` opens Advanced, and `changes` sets how many of the newest policy changes it lists, 50 by default |
 | POST | `/admin/settings/reveal-api-token` | Reveal the API token |
 | POST | `/admin/settings/runtime`, `/admin/settings/runtime/check` | Save the runtime settings (`op` of `save` or `reset`); say whether the form holds a change |

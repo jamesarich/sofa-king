@@ -52,7 +52,7 @@ private const val HTMX_CONFIG =
     """{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"historyCacheSize":0,"refreshOnHistoryMiss":true,""" +
         """"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"4..","swap":true,"error":false},{"code":"...","swap":false,"error":true}]}"""
 
-/** One of the portal's six destinations: where it starts, its label, the badge key its count comes from, and the page paths it holds. */
+/** One of the portal's destinations: where it starts, its label, the badge key its count comes from, and the page paths it holds. */
 internal class Section(val href: String, val label: String, val badge: String? = null, val pages: List<String> = listOf(href)) {
     fun holds(path: String?): Boolean = path != null && path in pages
 }
@@ -66,6 +66,7 @@ internal val NAV: List<Section> = listOf(
     Section("/admin/lineup", "Channels", "channels", listOf("/admin/lineup", "/admin/required", "/admin/merges", "/admin/groups")),
     Section("/admin/providers", "Sources", "sources"),
     Section("/admin/viewers", "Players", "players", listOf("/admin/viewers", "/admin/plex")),
+    Section("/admin/library", "Library"),
     Section("/admin/settings", "Settings"),
     Section("/admin/system/about", "System", "system", listOf("/admin/system/about", "/admin/system/jobs", "/admin/system/events", "/admin/api")),
 )

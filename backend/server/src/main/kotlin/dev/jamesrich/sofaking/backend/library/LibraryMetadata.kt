@@ -1,0 +1,159 @@
+package dev.jamesrich.sofaking.backend.library
+
+import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.libraryMetadata
+import dev.jamesrich.sofaking.backend.store.saveLibraryMetadata
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+
+/** How long a match stays before it is fetched again; TMDB's terms allow caching for up to six months. */
+private val MATCHED_FOR: Duration = Duration.ofDays(30)
+
+/** How long a title TMDB did not know waits before it is searched again. */
+private val UNMATCHED_FOR: Duration = Duration.ofDays(7)
+
+/** What one metadata refresh did, for the scan's job note. [stopped] names the failure that ended it early. */
+data class MetadataResult(val fetched: Int, val matched: Int, val unmatched: Int, val failed: Int, val stopped: String? = null) {
+    val note: String get() = buildString {
+        append("TMDB: $fetched fetched, $matched matched, $unmatched not found")
+        if (failed > 0) append(", $failed failed")
+        if (stopped != null) append(", stopped: $stopped")
+    }
+}
+
+/**
+ * Fills in what TMDB knows about a library's movies and shows, and a show's seasons and episodes. An id from a
+ * `.nfo` or a `{tmdb-N}` tag pins the match; otherwise the title and year are searched. Lookups are kept in the
+ * database and fetched again after [MATCHED_FOR]; a refused token or a rate limit ends the run, to resume on the next.
+ */
+class LibraryMetadata internal constructor(
+    private val store: BackendStore,
+    private val tmdb: TmdbClient?,
+    private val clock: Clock,
+    private val region: String = "US",
+    /** The wait between TMDB calls, well inside its rate limit. */
+    private val pause: Duration = Duration.ofMillis(60),
+) {
+    val enabled: Boolean get() = tmdb != null
+
+    suspend fun refresh(library: LibraryRecord, items: List<LibraryItemRecord>): MetadataResult? {
+        val client = tmdb ?: return null
+        if (library.kind == LibraryKind.VIDEOS) return null
+        val present = items.filter { it.missingSince == null }
+        val children = present.groupBy { it.parentId }
+        val known = store.libraryMetadata(present.map { it.id })
+        val now = clock.instant()
+        var fetched = 0; var matched = 0; var unmatched = 0; var failed = 0
+        val tops = present.filter { it.kind == ItemKind.MOVIE || it.kind == ItemKind.SHOW }
+        for (item in tops) {
+            val hint = item.details?.tmdbId
+            val row = known[item.id]
+            val episodes = if (item.kind == ItemKind.SHOW) descendants(item.id, children).filter { it.kind == ItemKind.EPISODE } else emptyList()
+            val fresh = row != null && (hint == null || row.tmdbId == hint) && Instant.parse(row.checkedAt).plus(if (row.tmdbId == null) UNMATCHED_FOR else MATCHED_FOR) > now
+            // A show that is fresh still fetches the seasons of episodes it has not looked up yet.
+            val newEpisodes = row?.tmdbId != null && episodes.any { it.episode != null && it.id !in known }
+            if (fresh && !newEpisodes) continue
+            try {
+                val records = ArrayList<MetadataRecord>()
+                if (item.kind == ItemKind.MOVIE) {
+                    val id = hint ?: pickMovie(client.searchMovies(item.title, item.year).also { pause() }, item)
+                    val movie = id?.let { client.movie(it).also { pause() } }
+                    records += MetadataRecord(item.id, movie?.id, now.toString(), movie?.facts(region))
+                    if (movie != null) matched++ else unmatched++
+                } else {
+                    val id = if (fresh) row!!.tmdbId else hint ?: pickShow(client.searchShows(item.title, item.year).also { pause() }, item)
+                    val show = if (fresh) null else id?.let { client.show(it).also { pause() } }
+                    if (!fresh) records += MetadataRecord(item.id, show?.id, now.toString(), show?.facts(region))
+                    if (id != null) {
+                        matched++
+                        records += seasons(client, id, item, children, known, refetchAll = !fresh, now)
+                    } else unmatched++
+                }
+                fetched++
+                store.saveLibraryMetadata(records)
+            } catch (e: TmdbFailure) {
+                if (e.code == "TMDB_AUTH" || e.code == "TMDB_RATE_LIMITED") return MetadataResult(fetched, matched, unmatched, failed, e.code)
+                failed++
+            }
+        }
+        return MetadataResult(fetched, matched, unmatched, failed)
+    }
+
+    /** One lookup per season that holds numbered episodes: the season's own facts and each episode's. */
+    private suspend fun seasons(
+        client: TmdbClient, showId: Int, show: LibraryItemRecord, children: Map<String?, List<LibraryItemRecord>>, known: Map<String, MetadataRecord>,
+        refetchAll: Boolean, now: Instant,
+    ): List<MetadataRecord> {
+        val records = ArrayList<MetadataRecord>()
+        val episodes = descendants(show.id, children).filter { it.kind == ItemKind.EPISODE && it.season != null && it.episode != null }
+        val seasonItems = children[show.id].orEmpty().filter { it.kind == ItemKind.SEASON }.associateBy { it.season }
+        for ((number, inSeason) in episodes.groupBy { it.season!! }) {
+            if (!refetchAll && inSeason.all { it.id in known }) continue
+            val season = client.season(showId, number).also { pause() } ?: continue
+            val byNumber = season.episodes.associateBy { it.episodeNumber }
+            seasonItems[number]?.let { item ->
+                records += MetadataRecord(item.id, showId, now.toString(), MetadataFacts(title = season.name.ifEmpty { null }, overview = season.overview?.ifEmpty { null }, aired = season.airDate, poster = season.posterPath))
+            }
+            for (episode in inSeason) {
+                val found = byNumber[episode.episode]
+                records += MetadataRecord(episode.id, found?.let { showId }, now.toString(), found?.let {
+                    MetadataFacts(
+                        title = it.name.ifEmpty { null }, aired = it.airDate, year = it.airDate?.take(4)?.toIntOrNull(), overview = it.overview?.ifEmpty { null },
+                        runtimeMinutes = it.runtime, poster = it.stillPath, rating = it.voteAverage.rating(),
+                    )
+                })
+            }
+        }
+        return records
+    }
+
+    private fun descendants(id: String, children: Map<String?, List<LibraryItemRecord>>): List<LibraryItemRecord> =
+        children[id].orEmpty().flatMap { listOf(it) + descendants(it.id, children) }
+
+    private suspend fun pause() = delay(pause.toMillis())
+}
+
+/** Letters and digits only, lower case, so `Alien³` and `Alien 3` or `Mr. Robot` and `Mr Robot` compare equal. */
+private fun normalized(title: String): String = title.lowercase().filter { it.isLetterOrDigit() }
+
+/** The result whose title and year agree with [item]'s, else the one whose title does, else a lone result whose year does. */
+internal fun pickMovie(results: List<TmdbMovieResult>, item: LibraryItemRecord): Int? = pick(
+    results.map { Triple(it.id, listOf(it.title, it.originalTitle), it.releaseDate?.take(4)?.toIntOrNull()) }, item,
+)
+
+internal fun pickShow(results: List<TmdbShowResult>, item: LibraryItemRecord): Int? = pick(
+    results.map { Triple(it.id, listOf(it.name, it.originalName), it.firstAirDate?.take(4)?.toIntOrNull()) }, item,
+)
+
+private fun pick(results: List<Triple<Int, List<String>, Int?>>, item: LibraryItemRecord): Int? {
+    val title = normalized(item.title)
+    val sameTitle = results.filter { (_, titles) -> titles.any { normalized(it) == title } }
+    val yearFits = { year: Int? -> item.year == null || year == null || kotlin.math.abs(year - item.year) <= 1 }
+    return sameTitle.firstOrNull { (_, _, year) -> year == item.year }?.first
+        ?: sameTitle.firstOrNull { (_, _, year) -> yearFits(year) }?.first
+        ?: results.singleOrNull()?.takeIf { (_, _, year) -> item.year != null && yearFits(year) }?.first
+}
+
+private fun Double?.rating(): Double? = this?.takeIf { it > 0 }?.let { (it * 10).roundToInt() / 10.0 }
+
+internal fun TmdbMovie.facts(region: String) = MetadataFacts(
+    title = title.ifEmpty { null }, year = releaseDate?.take(4)?.toIntOrNull(), aired = releaseDate?.ifEmpty { null },
+    overview = overview?.ifEmpty { null }, tagline = tagline?.ifEmpty { null }, genres = genres.map { it.name }.filter { it.isNotEmpty() },
+    studio = companies.firstOrNull()?.name?.ifEmpty { null },
+    contentRating = releaseDates?.results?.firstOrNull { it.country == region }?.dates?.firstOrNull { it.certification.isNotBlank() }?.certification,
+    rating = voteAverage.rating(), cast = credits?.cast.orEmpty().map { it.name }.take(20),
+    directors = credits?.crew.orEmpty().filter { it.job == "Director" }.map { it.name },
+    runtimeMinutes = runtime?.takeIf { it > 0 }, poster = posterPath, backdrop = backdropPath,
+)
+
+internal fun TmdbShow.facts(region: String) = MetadataFacts(
+    title = name.ifEmpty { null }, year = firstAirDate?.take(4)?.toIntOrNull(), aired = firstAirDate?.ifEmpty { null },
+    overview = overview?.ifEmpty { null }, tagline = tagline?.ifEmpty { null }, genres = genres.map { it.name }.filter { it.isNotEmpty() },
+    studio = networks.firstOrNull()?.name?.ifEmpty { null },
+    contentRating = contentRatings?.results?.firstOrNull { it.country == region }?.rating?.ifEmpty { null },
+    rating = voteAverage.rating(), cast = credits?.cast.orEmpty().map { it.name }.take(20),
+    runtimeMinutes = episodeRunTime.firstOrNull(), poster = posterPath, backdrop = backdropPath,
+)

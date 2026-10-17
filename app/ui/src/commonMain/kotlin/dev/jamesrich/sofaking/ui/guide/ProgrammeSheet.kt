@@ -6,15 +6,16 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -47,8 +48,10 @@ import dev.jamesrich.sofaking.ui.ProgrammeBadges
 import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.noListingText
+import dev.jamesrich.sofaking.ui.panelEdgeMargin
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
+import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
@@ -57,8 +60,11 @@ import kotlin.time.Instant
 @Immutable
 internal data class ProgrammeDetails(val channel: Channel, val programme: Programme?)
 
-/** The side panel's width on a TV; the text column keeps readable lines at 10 feet. */
-private val PANEL_WIDTH = 440.dp
+/** The side panel's width on a TV: room for the image beside the title and the three buttons on one line. */
+private val PANEL_WIDTH = 560.dp
+
+/** The image's width beside the title in the TV panel, at 16:9. */
+private val PANEL_IMAGE_WIDTH = 160.dp
 
 /** The bottom sheet's text scrolls past this, so the buttons stay in reach on a phone. */
 private val SHEET_TEXT_MAX_HEIGHT = 360.dp
@@ -79,11 +85,8 @@ internal fun ProgrammeSheet(
     onDismiss: () -> Unit,
 ) {
     val watchFocus = remember { FocusRequester() }
-    val tv = LocalLayoutProfile.current.tv
-    val content: @Composable () -> Unit = {
-        SheetContent(details, now, isFavorite, guideLoading, watchFocus, onWatch, onToggleFavorite, onDismiss, bounded = tv)
-    }
-    if (tv) {
+    val buttons: @Composable () -> Unit = { SheetButtons(details.channel, isFavorite, watchFocus, onWatch, onToggleFavorite, onDismiss) }
+    if (LocalLayoutProfile.current.tv) {
         BackHandler(onBack = onDismiss)
         LaunchedEffect(details) { requestFocusWhenAttached(watchFocus) }
         Box(
@@ -94,86 +97,123 @@ internal fun ProgrammeSheet(
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
         ) {
             Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                // Darker than the buttons' raised plum, so an unfocused button still reads as a button.
+                color = MaterialTheme.colorScheme.surface,
                 shape = MaterialTheme.shapes.large,
-                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(PANEL_WIDTH).padding(vertical = 27.dp, horizontal = 24.dp)
+                modifier = Modifier.align(Alignment.CenterEnd)
+                    .screenPadding(WindowInsetsSides.End + WindowInsetsSides.Bottom)
+                    .padding(top = panelEdgeMargin())
+                    .fillMaxHeight()
+                    .width(PANEL_WIDTH)
                     // Focus stays in the panel: a D-pad move past its buttons must not land on the grid under it.
                     .focusProperties { onExit = { cancelFocusChange() } }
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
             ) {
-                Box(Modifier.padding(24.dp)) { content() }
+                PanelContent(details, now, guideLoading, buttons)
             }
         }
     } else {
         ModalBottomSheet(onDismissRequest = onDismiss) {
-            Box(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) { content() }
+            SheetContent(details, now, guideLoading, buttons)
         }
     }
 }
 
+/**
+ * The TV panel: the image beside the heading, the description in the height left, ellipsized because the D-pad
+ * cannot scroll text, and the buttons at the bottom.
+ */
 @Composable
-private fun SheetContent(
-    details: ProgrammeDetails,
-    now: Instant,
+private fun PanelContent(details: ProgrammeDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            details.programme?.icon?.let { ProgrammeImage(it, Modifier.width(PANEL_IMAGE_WIDTH).aspectRatio(16f / 9f)) }
+            Heading(details, now, guideLoading, Modifier.weight(1f))
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            details.programme?.description?.let {
+                Text(it, style = MaterialTheme.typography.bodyLarge, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        buttons()
+    }
+}
+
+/** The bottom sheet: the full-width image, heading and description scroll above the buttons. */
+@Composable
+private fun SheetContent(details: ProgrammeDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            Modifier.heightIn(max = SHEET_TEXT_MAX_HEIGHT).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            details.programme?.icon?.let { ProgrammeImage(it, Modifier.fillMaxWidth().height(180.dp)) }
+            Heading(details, now, guideLoading)
+            details.programme?.description?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        }
+        buttons()
+    }
+}
+
+@Composable
+private fun ProgrammeImage(url: String, modifier: Modifier) {
+    AsyncImage(
+        model = url,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier.clip(MaterialTheme.shapes.medium),
+    )
+}
+
+/** Title, episode, time with badges and the channel; a gap shows why it has no listing. */
+@Composable
+private fun Heading(details: ProgrammeDetails, now: Instant, guideLoading: Boolean, modifier: Modifier = Modifier) {
+    val timeFormat = rememberTimeFormatter()
+    val secondary = MaterialTheme.colorScheme.onSurfaceVariant
+    val programme = details.programme
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (programme == null) {
+            Text(details.channel.noListingText(guideLoading), style = MaterialTheme.typography.titleLarge)
+        } else {
+            Text(programme.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            programme.episodeLine()?.let {
+                Text(it, style = MaterialTheme.typography.bodyLarge, color = secondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text(
+                listOfNotNull(timeFormat.range(programme.start, programme.stop), programmeTimingText(programme, now)).joinToString(DETAIL_SEPARATOR),
+                style = MaterialTheme.typography.bodyMedium,
+                color = secondary,
+            )
+            ProgrammeBadges(
+                programme = programme,
+                live = isAiring(programme, now),
+                fill = MaterialTheme.colorScheme.primary,
+                onFill = MaterialTheme.colorScheme.onPrimary,
+                outline = secondary,
+            )
+        }
+        Text(details.channel.label(), style = MaterialTheme.typography.bodyMedium, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Watch, the favorite toggle and Close; a line too narrow for all three wraps rather than squeezing one. */
+@Composable
+private fun SheetButtons(
+    channel: Channel,
     isFavorite: Boolean,
-    guideLoading: Boolean,
     watchFocus: FocusRequester,
     onWatch: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     onDismiss: () -> Unit,
-    /** True in the TV panel, whose height is fixed; the bottom sheet grows with its text instead. */
-    bounded: Boolean,
 ) {
-    val timeFormat = rememberTimeFormatter()
-    val secondary = MaterialTheme.colorScheme.onSurfaceVariant
-    val channel = details.channel
-    val programme = details.programme
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        val textModifier = if (bounded) Modifier.weight(1f, fill = false) else Modifier.heightIn(max = SHEET_TEXT_MAX_HEIGHT)
-        Column(textModifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            programme?.icon?.let {
-                AsyncImage(
-                    model = it,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(180.dp).clip(MaterialTheme.shapes.medium),
-                )
-            }
-            if (programme == null) {
-                Text(channel.noListingText(guideLoading), style = MaterialTheme.typography.titleLarge)
-            } else {
-                Text(programme.title, style = MaterialTheme.typography.titleLarge, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                programme.episodeLine()?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = secondary) }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        listOfNotNull(timeFormat.range(programme.start, programme.stop), programmeTimingText(programme, now))
-                            .joinToString(DETAIL_SEPARATOR),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = secondary,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    ProgrammeBadges(
-                        programme = programme,
-                        live = isAiring(programme, now),
-                        fill = MaterialTheme.colorScheme.primary,
-                        onFill = MaterialTheme.colorScheme.onPrimary,
-                        outline = secondary,
-                    )
-                }
-                programme.description?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-            }
-            Text(channel.label(), style = MaterialTheme.typography.bodyMedium, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SofaButton(onClick = { onWatch(channel) }, modifier = Modifier.focusRequester(watchFocus)) {
+            Text(stringResource(Res.string.guide_details_watch), maxLines = 1)
         }
-        Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SofaButton(onClick = { onWatch(channel) }, modifier = Modifier.focusRequester(watchFocus)) {
-                Text(stringResource(Res.string.guide_details_watch))
-            }
-            SofaButton(onClick = { onToggleFavorite(channel) }) {
-                Text(stringResource(if (isFavorite) Res.string.guide_details_remove_favorite else Res.string.guide_details_add_favorite))
-            }
-            SofaButton(onClick = onDismiss) { Text(stringResource(Res.string.guide_details_close)) }
+        SofaButton(onClick = { onToggleFavorite(channel) }) {
+            Text(stringResource(if (isFavorite) Res.string.guide_details_remove_favorite else Res.string.guide_details_add_favorite), maxLines = 1)
         }
+        SofaButton(onClick = onDismiss) { Text(stringResource(Res.string.guide_details_close), maxLines = 1) }
     }
 }
 

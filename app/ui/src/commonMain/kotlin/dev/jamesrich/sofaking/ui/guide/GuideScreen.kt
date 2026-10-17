@@ -460,7 +460,11 @@ fun GuideScreen(
         }
     }
     // The details of the focused programme, on the Info key or a held OK; Watch plays it and Back or Close returns focus to its cell.
-    val openDetails: (Channel, GuideCell) -> Unit = { channel, cell -> details = ProgrammeDetails(channel, cell.programme) }
+    val heldOk = remember { HeldOkGuard() }
+    val openDetails: (Channel, GuideCell) -> Unit = { channel, cell ->
+        heldOk.arm()
+        details = ProgrammeDetails(channel, cell.programme)
+    }
     val closeDetails: () -> Unit = {
         details = null
         focused?.channel?.guideId?.let { requestJump(it, cursor) }
@@ -632,6 +636,9 @@ fun GuideScreen(
     val onGuideKey: (KeyEvent) -> Boolean = handler@{ event ->
         // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
         val okKey = event.key == Key.DirectionCenter || event.key == Key.Enter
+        // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
+        if (okKey && event.type == KeyEventType.KeyDown && heldOk.onKeyDown()) return@handler true
+        if (okKey && event.type == KeyEventType.KeyUp && heldOk.onKeyUp()) return@handler true
         if (okKey && numbers.hasDigits && !searchOpen) {
             if (event.type == KeyEventType.KeyUp) numbers.commit()
             return@handler true

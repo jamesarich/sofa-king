@@ -14,7 +14,7 @@ services:
     # Runs as the owner of ./config. 1000:1000 is the first user on most Linux hosts; otherwise set UID and GID
     # in .env to the output of `id -u` and `id -g`.
     user: "${UID:-1000}:${GID:-1000}"
-    # The server writes only /config and temporary files.
+    # The server writes only /config, /recordings and temporary files.
     read_only: true
     # exec: sqlite-jdbc loads its native library from the temporary directory.
     tmpfs:
@@ -43,9 +43,13 @@ services:
     environment:
       # The HDHomeRun emulation for Plex stays off until .env sets SOFA_HDHR_ENABLED=true with SOFA_HDHR_ALLOW.
       SOFA_HDHR_ENABLED: ${SOFA_HDHR_ENABLED:-false}
+      # Recordings go in their own folder, so they can live on a bigger disk than ./config; see docs/deploy.md#the-recordings-folder.
+      SOFA_RECORDINGS_DIR: /recordings
     volumes:
       # The database, the logo cache, the generated tokens, and sources.json and policy.json when you add them.
       - ./config:/config
+      # Create it before the first start (mkdir recordings), or point it at a bigger disk: /mnt/disk/recordings:/recordings.
+      - ./recordings:/recordings
     extra_hosts:
       # Lets sources.json reach a playlist or guide served by this Docker host as http://host.docker.internal:PORT/...
       - "host.docker.internal:host-gateway"

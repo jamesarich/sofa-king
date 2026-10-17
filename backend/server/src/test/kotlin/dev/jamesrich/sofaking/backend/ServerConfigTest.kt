@@ -16,6 +16,11 @@ class ServerConfigTest {
         assertEquals(9193, config.port)
         assertEquals(Path.of("/tmp/sofa-config"), config.dataDirectory)
     }
+    @Test fun `recordings go in the data directory unless SOFA_RECORDINGS_DIR names a folder`() {
+        assertEquals(Path.of("/tmp/sofa-config/recordings"), ServerConfig.fromEnvironment(mapOf("SOFA_DATA_DIR" to "/tmp/sofa-config")).recordingsDirectory)
+        assertEquals(Path.of("/recordings"), ServerConfig.fromEnvironment(mapOf("SOFA_RECORDINGS_DIR" to "/recordings")).recordingsDirectory)
+        assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_RECORDINGS_DIR" to " ")) }
+    }
     @Test fun `the revision comes from SOFA_REVISION and is unknown without it`() {
         assertEquals("unknown", ServerConfig.fromEnvironment(emptyMap()).revision)
         assertEquals("unknown", ServerConfig.fromEnvironment(mapOf("SOFA_REVISION" to " ")).revision)

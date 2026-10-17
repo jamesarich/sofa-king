@@ -8,6 +8,7 @@
 /data/
 /deploy/data/
 /deploy/config/
+/deploy/recordings/
 /deploy/sources.json
 secrets.json
 .env

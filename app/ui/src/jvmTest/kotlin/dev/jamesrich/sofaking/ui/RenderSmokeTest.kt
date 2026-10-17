@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -9,6 +10,7 @@ import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.use
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
@@ -19,6 +21,8 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
+import dev.jamesrich.sofaking.ui.guide.ProgrammeDetails
+import dev.jamesrich.sofaking.ui.guide.ProgrammeSheet
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.InfoBar
 import dev.jamesrich.sofaking.ui.player.InfoOverlay
@@ -145,6 +149,29 @@ class RenderSmokeTest {
                 autoOpenDelay = AutoOpenDelay.OFF,
                 previewSound = false,
             )
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
+    fun `the program details panel fits its buttons and description`() {
+        val programme = lineup.guide.getValue("c0").first().copy(
+            title = "Sailor Moon",
+            description = List(12) { "Usagi and the girls are excited to attend the school festival." }.joinToString(" "),
+        )
+        val image = render("guide-details") {
+            // The guide sits under the app's header, so the panel gets the height below it.
+            Box(Modifier.fillMaxSize().padding(top = 75.dp)) {
+                ProgrammeSheet(
+                    details = ProgrammeDetails(channels[0], programme),
+                    now = now,
+                    isFavorite = true,
+                    guideLoading = false,
+                    onWatch = {},
+                    onToggleFavorite = {},
+                    onDismiss = {},
+                )
+            }
         }
         assertTrue(image.hasContent())
     }

@@ -75,6 +75,9 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     }
 
     private val pauseClock = LivePauseClock()
+
+    /** The held item's [PlaybackStream.seekable]; Media3 calls a sliding live window seekable too. */
+    private var seekableItem = false
     private val _status = MutableStateFlow(PlayerStatus())
     private val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
     private val _cues = MutableStateFlow<List<CaptionCue>>(emptyList())
@@ -159,12 +162,14 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
         // Before the item, so the codec chosen for it is the channel's own.
         tuning.preferSoftware = preferences.decoderFor(stream.channelId) == DecoderPreference.SOFTWARE
+        seekableItem = stream.seekable
         exo.setMediaItem(mediaItemFor(stream, nowPlaying?.toMetadata() ?: MediaMetadata.EMPTY))
     }
 
     override fun replaceStream(stream: PlaybackStream) {
         val item = exo.currentMediaItem ?: return setStream(stream)
         exo.stop()
+        seekableItem = stream.seekable
         exo.setMediaItem(item.buildUpon().setUri(stream.url).setMimeType(stream.mimeType).build())
     }
 
@@ -173,13 +178,24 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     override fun stop() = exo.stop()
 
     override fun play() {
-        if (pauseClock.onPlay(uptimeMs())) exo.seekToDefaultPosition()
+        if (pauseClock.onPlay(uptimeMs()) && !seekableItem) exo.seekToDefaultPosition()
         exo.play()
     }
 
     override fun pause() {
         pauseClock.onPause(uptimeMs())
         exo.pause()
+    }
+
+    override val isSeekable: Boolean get() = seekableItem && exo.isCurrentMediaItemSeekable
+
+    override val positionMs: Long get() = if (isSeekable) exo.currentPosition.coerceAtLeast(0L) else 0L
+
+    override val durationMs: Long? get() = exo.duration.takeIf { isSeekable && it != C.TIME_UNSET }
+
+    override fun seekTo(positionMs: Long) {
+        if (!isSeekable) return
+        exo.seekTo(durationMs?.let { positionMs.coerceIn(0L, it) } ?: positionMs.coerceAtLeast(0L))
     }
 
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle {

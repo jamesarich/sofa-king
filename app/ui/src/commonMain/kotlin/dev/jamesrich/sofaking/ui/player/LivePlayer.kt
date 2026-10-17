@@ -154,10 +154,25 @@ interface LivePlayer {
     /** Stops and resets the renderers; the item and [playWhenReady] are kept for the next [prepare]. */
     fun stop()
 
-    /** Resumes, at the live edge when the pause outlasted [LIVE_RESUME_AFTER_MS]. */
+    /** Resumes, at the live edge when a live stream's pause outlasted [LIVE_RESUME_AFTER_MS]; a seekable item resumes where it paused. */
     fun play()
 
     fun pause()
+
+    /**
+     * True while the item is a [PlaybackStream.seekable] one the engine can move through: a recording, finished or
+     * still growing, or a library file. A live channel is never seekable, whatever its playlist allows.
+     */
+    val isSeekable: Boolean get() = false
+
+    /** The position from the start of a seekable item; 0 otherwise. */
+    val positionMs: Long get() = 0L
+
+    /** The length of a seekable item so far, which grows while a recording is being made; null when unknown or not seekable. */
+    val durationMs: Long? get() = null
+
+    /** Moves a seekable item to [positionMs], clamped to its length; does nothing otherwise. */
+    fun seekTo(positionMs: Long) = Unit
 
     /** Opens the system media session; next and previous from it zap through [onZapStep] (+1 next, -1 previous). */
     fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle

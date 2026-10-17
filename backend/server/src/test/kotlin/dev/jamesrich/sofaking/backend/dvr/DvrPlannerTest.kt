@@ -80,4 +80,26 @@ class DvrPlannerTest {
         val oneOff = recording("one-off", now.plusSeconds(60))
         assertEquals(setOf("one-off"), DvrPlanner.conflicts(listOf(oneOff, running), mapOf("low" to 0), capacity = 1))
     }
+
+    @Test fun `a rule keeps its newest recordings, protected ones count but stay, and age culls the rest`() {
+        val keepTwo = rule().copy(id = "r", keep = 2)
+        val done = Wire.RecordingState.COMPLETED
+        val recordings = listOf(
+            recording("new", at(-24), ruleId = "r", state = done), recording("mid", at(-48), ruleId = "r", state = done).copy(protected = true),
+            recording("old", at(-72), ruleId = "r", state = done), recording("ancient", at(-24 * 40), state = done),
+            recording("ancient-kept", at(-24 * 40), state = done).copy(protected = true), recording("soon", at(1)),
+        )
+        val cull = DvrPlanner.cull(recordings, mapOf("r" to keepTwo), Retention(keepDays = 30), now)
+        assertEquals(listOf("old" to "KEEP", "ancient" to "AGE"), cull.map { it.first.id to it.second })
+        assertEquals(listOf("old" to "KEEP"), DvrPlanner.cull(recordings, mapOf("r" to keepTwo), Retention(), now).map { it.first.id to it.second })
+    }
+
+    @Test fun `space runs out on watched recordings first, then the oldest`() {
+        val done = Wire.RecordingState.COMPLETED
+        val order = DvrPlanner.byCullOrder(listOf(
+            recording("old", at(-72), state = done), recording("watched", at(-24), state = done).copy(watched = true),
+            recording("older", at(-96), state = done), recording("kept", at(-200), state = done).copy(protected = true), recording("soon", at(1)),
+        ))
+        assertEquals(listOf("watched", "older", "old"), order.map { it.id })
+    }
 }

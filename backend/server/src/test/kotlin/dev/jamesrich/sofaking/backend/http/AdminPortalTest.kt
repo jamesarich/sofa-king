@@ -3,7 +3,9 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.*
 import dev.jamesrich.sofaking.backend.admin.spacedCode
 import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.store.addRecording
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.request.*
@@ -919,7 +921,7 @@ class AdminPortalTest {
             assertTrue(page.contains("No changes") && page.contains("hx-post=\"/admin/settings/runtime/check\""), "the Save control starts disabled and the form asks on change")
             assertFalse(Regex("""<div class="name mono">SOFA_MAX_SESSIONS</div>""").containsMatchIn(page), "a runtime setting is not listed among the startup ones")
             val csrf = field(page, "csrf")
-            val values = mapOf("SOFA_LOG_LEVEL" to "info", "SOFA_XMLTV_DAYS" to "3", "SOFA_PLEX_SYNC_MINUTES" to "60", "SOFA_HDHR_TUNERS" to "2", "SOFA_MAX_SESSIONS" to "4")
+            val values = mapOf("SOFA_LOG_LEVEL" to "info", "SOFA_XMLTV_DAYS" to "3", "SOFA_PLEX_SYNC_MINUTES" to "60", "SOFA_HDHR_TUNERS" to "2", "SOFA_MAX_SESSIONS" to "4", "SOFA_RECORDINGS_FREE_GIB" to "10", "SOFA_RECORDINGS_KEEP_DAYS" to "0")
             fun fields(vararg changes: Pair<String, String>) = (values + changes).map { it.key to it.value }.toTypedArray()
             val unchanged = browser.post("/admin/settings/runtime/check", *fields(), "csrf" to csrf).bodyAsText()
             assertTrue(unchanged.contains("No changes") && unchanged.contains("disabled"), unchanged)
@@ -1040,6 +1042,48 @@ class AdminPortalTest {
             browser.post("/admin/library/${library.id}/remove", "csrf" to csrf, "confirm" to "yes")
             assertTrue(runtime.libraries!!.libraries().isEmpty())
             assertTrue(Files.exists(movies.resolve("Alien (1979)/Alien (1979).mkv")), "the files stay")
+        }
+    }
+
+    @Test fun `the recordings page adds and deletes rules, protects and deletes recordings, and matches the API`() = testApplication {
+        portal {
+            browser.signIn()
+            val empty = browser.get("/admin/recordings").bodyAsText()
+            assertTrue(empty.contains("Nothing is scheduled") && empty.contains("No recordings yet") && empty.contains("Keeps 10 GiB free"), empty)
+            assertTrue(empty.contains("aria-current=\"page\">Recordings<"), "the nav marks the destination")
+
+            val added = browser.post("/admin/recordings/rules", "title" to "Evening News", "channelId" to "", "keep" to "3", "newOnly" to "true", "csrf" to field(empty, "csrf"))
+            assertEquals(HttpStatusCode.SeeOther, added.status)
+            val withRule = browser.get("/admin/recordings").bodyAsText()
+            assertTrue(withRule.contains("Added the rule for Evening News") && withRule.contains("Any channel"), withRule)
+            val refused = browser.post("/admin/recordings/rules", "title" to " ", "keep" to "3", "csrf" to field(withRule, "csrf"))
+            assertEquals(HttpStatusCode.SeeOther, refused.status)
+            assertTrue(browser.get("/admin/recordings").bodyAsText().contains("Not added: A rule needs a title"))
+
+            val api = createClient { }
+            val rules = Json.parseToJsonElement(api.get("/api/v1/recording-rules") { bearerAuth(token) }.bodyAsText()).jsonObject["rules"]!!.jsonArray
+            assertEquals(1, rules.size)
+            val ruleId = rules.single().jsonObject["id"]!!.jsonPrimitive.content
+            assertEquals(3, rules.single().jsonObject["keep"]!!.jsonPrimitive.int)
+
+            val now = java.time.Instant.parse("2026-10-17T12:00:00Z")
+            runtime.store.addRecording(dev.jamesrich.sofaking.backend.dvr.StoredRecording(
+                "rec-1", null, "c", "Channel C", now, now.plusSeconds(1800), java.time.Duration.ZERO, java.time.Duration.ZERO, "Old Movie",
+                state = Wire.RecordingState.COMPLETED, path = "Movies/Old Movie (1950)/Old Movie (1950).ts", bytes = 2_000_000, createdAt = now, updatedAt = now,
+            ))
+            val listed = browser.get("/admin/recordings").bodyAsText()
+            assertTrue(listed.contains("id=\"recording-rec-1\"") && listed.contains("Old Movie (1950).ts") && listed.contains("Recorded"), listed)
+            browser.post("/admin/recordings/rec-1/protect", "protected" to "true", "csrf" to field(listed, "csrf"))
+            val protectedPage = browser.get("/admin/recordings").bodyAsText()
+            assertTrue(protectedPage.contains("cleanup keeps it") && protectedPage.contains("Unprotect"), protectedPage)
+            val wire = Json.parseToJsonElement(api.get("/api/v1/recordings/rec-1") { bearerAuth(token) }.bodyAsText()).jsonObject
+            assertTrue(wire["protected"]!!.jsonPrimitive.boolean)
+
+            browser.post("/admin/recordings/rec-1/delete", "csrf" to field(protectedPage, "csrf"))
+            browser.post("/admin/recordings/rules/$ruleId/delete", "csrf" to field(protectedPage, "csrf"))
+            val cleared = browser.get("/admin/recordings").bodyAsText()
+            assertTrue(cleared.contains("No recordings yet") && !cleared.contains("Evening News"), cleared)
+            assertEquals(HttpStatusCode.NotFound, api.get("/api/v1/recordings/rec-1") { bearerAuth(token) }.status)
         }
     }
 }

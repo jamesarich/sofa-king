@@ -42,6 +42,10 @@ class Dvr(
     private val capacity: () -> Int,
     /** How far ahead the scheduler reads the guide. */
     private val horizon: () -> Duration = { Duration.ofDays(3) },
+    /** What the culler keeps: free space and age, `SOFA_RECORDINGS_FREE_GIB` and `SOFA_RECORDINGS_KEEP_DAYS`. */
+    private val retention: () -> Retention = { Retention() },
+    /** The free space on the recordings folder's disk; a seam for tests. */
+    private val freeSpace: (Path) -> Long? = { runCatching { Files.getFileStore(it).usableSpace }.getOrNull() },
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val jobs: Jobs = Jobs(clock),
 ) {
@@ -53,6 +57,7 @@ class Dvr(
 
     init {
         jobs.register(SCHEDULE_JOB, "Recording schedule", SCHEDULE_EVERY) { requestSchedule("now") }
+        jobs.register(CULL_JOB, "Recording cleanup", SCHEDULE_EVERY) { if (::scope.isInitialized) scope.launch { cull("now") } }
     }
 
     /** Runs the scheduler on guide imports, rule changes and every [SCHEDULE_EVERY], and starts and ends recordings every [TICK]. */
@@ -64,6 +69,9 @@ class Dvr(
                     val cause = select<String> { trigger.onReceive { it }; onTimeout(SCHEDULE_EVERY.toMillis()) { "interval" } }
                     try { refreshSchedule(cause) } catch (e: CancellationException) { throw e } catch (e: Exception) {
                         log.warn("recording schedule failed class={}", e.javaClass.simpleName)
+                    }
+                    try { cull(cause) } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                        log.warn("recording cleanup failed class={}", e.javaClass.simpleName)
                     }
                 }
             },
@@ -275,6 +283,42 @@ class Dvr(
         val short = now < latest.recordUntil.minusSeconds(5)
         store.saveRecording(latest.copy(state = Wire.RecordingState.COMPLETED, reason = if (short) take?.lastFailure ?: "STOPPED" else null, path = final.toString(), bytes = bytes, updatedAt = now))
         log.info("recording finished id={} title=\"{}\" bytes={} path=\"{}\"", latest.id, latest.title, bytes, final)
+    }.also { if (::scope.isInitialized) scope.launch { cull("finished") } }
+
+    // Cleanup
+
+    /**
+     * Deletes the finished recordings the retention no longer keeps: a rule's oldest beyond its keep count, any older
+     * than the keep days, then, while the disk has less free space than the floor, the oldest of the rest, watched
+     * ones first. Protected recordings and running ones are never deleted. Logs every deletion with its reason.
+     */
+    suspend fun cull(cause: String) = jobs.record(CULL_JOB) {
+        val now = clock.instant()
+        val keep = retention()
+        val deleted = mutex.withLock {
+            val rules = store.recordingRules().associateBy { it.id }
+            val all = store.recordings()
+            val plan = DvrPlanner.cull(all, rules, keep, now)
+            plan.forEach { (recording, reason) -> remove(recording, reason) }
+            val gone = plan.mapTo(HashSet()) { it.first.id }
+            val floor = keep.freeGib.toLong() * GIB
+            val oldest = DvrPlanner.byCullOrder(all.filter { it.id !in gone }).iterator()
+            while (oldest.hasNext()) {
+                val free = withContext(Dispatchers.IO) { Files.createDirectories(root); freeSpace(root) } ?: break
+                if (free >= floor) break
+                val recording = oldest.next()
+                remove(recording, "SPACE")
+                gone += recording.id
+            }
+            gone.size
+        }
+        JobOutcome(true, "$deleted deleted").also { if (deleted > 0) log.info("recording cleanup cause={} deleted={}", cause, deleted) }
+    }
+
+    private suspend fun remove(recording: StoredRecording, reason: String) {
+        withContext(Dispatchers.IO) { recording.path?.let { removeFiles(it) } }
+        store.deleteRecording(recording.id)
+        log.info("recording culled id={} title=\"{}\" reason={}", recording.id, recording.title, reason)
     }
 
     /** True when a file on disk takes [relative], in place or in progress; [except] is the caller's own in-progress path. */
@@ -327,6 +371,8 @@ class Dvr(
 
     companion object {
         const val SCHEDULE_JOB = "dvr-schedule"
+        const val CULL_JOB = "dvr-cull"
+        private const val GIB = 1024L * 1024 * 1024
         val DEFAULT_START_PADDING: Duration = Duration.ofMinutes(1)
         val DEFAULT_END_PADDING: Duration = Duration.ofMinutes(2)
         const val MAX_PADDING_SECONDS = 3600

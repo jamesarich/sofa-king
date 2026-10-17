@@ -11,6 +11,11 @@ import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
 import dev.jamesrich.sofaking.backend.api.UpdateSource
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.contract.Wire
+import dev.jamesrich.sofaking.contract.UpdateRecording
+import dev.jamesrich.sofaking.contract.CreateRecordingRule
+import dev.jamesrich.sofaking.backend.dvr.Retention
+import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.catalog.SourceDocument
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.LoadedPolicy
@@ -291,6 +296,50 @@ class AdminPortal(
             }
             get("/plex") { call.html(plexPage(chrome(), plexView(call, reveal = false))) }
             get("/viewers") { call.html(viewersPage(chrome(), viewersView(call))) }
+            get("/recordings") {
+                val dvr = runtime.dvr ?: run { seeOther(call, "/admin"); return@get }
+                call.html(recordingsPage(chrome(), recordingsView(dvr)))
+            }
+            action("/recordings/rules") { session, form ->
+                val dvr = runtime.dvr ?: run { seeOther(call, "/admin"); return@action }
+                try {
+                    val keep = form["keep"]?.trim()?.toIntOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "Keep must be a number")
+                    val rule = dvr.createRule(CreateRecordingRule(form["title"].orEmpty(), form["channelId"]?.takeIf { it.isNotBlank() }, form["newOnly"] == "true", keep))
+                    session.flash.set(Flash("Added the rule for ${rule.title}; the schedule updates in a moment.", target = rule.id))
+                } catch (e: ApiFailure) {
+                    session.flash.set(Flash("Not added: ${e.message}", Tone.BAD))
+                }
+                seeOther(call, "/admin/recordings#rules")
+            }
+            action("/recordings/rules/{id}/delete") { session, _ ->
+                val dvr = runtime.dvr ?: run { seeOther(call, "/admin"); return@action }
+                try { dvr.deleteRule(call.parameters["id"]!!); session.flash.set(Flash("Deleted the rule and its scheduled recordings; what it recorded stays.")) }
+                catch (e: ApiFailure) { session.flash.set(Flash("That rule is already gone.", Tone.WARN)) }
+                seeOther(call, "/admin/recordings#rules")
+            }
+            action("/recordings/{id}/protect") { session, form ->
+                val dvr = runtime.dvr ?: run { seeOther(call, "/admin"); return@action }
+                val id = call.parameters["id"]!!
+                try {
+                    val recording = dvr.update(id, UpdateRecording(protected = form["protected"] == "true"))
+                    session.flash.set(Flash(if (recording.protected) "Protected ${recording.title}; cleanup keeps it." else "Cleanup may delete ${recording.title} again.", target = id))
+                } catch (e: ApiFailure) { session.flash.set(Flash("That recording is gone.", Tone.WARN)) }
+                seeOther(call, "/admin/recordings#recorded")
+            }
+            action("/recordings/{id}/delete") { session, _ ->
+                val dvr = runtime.dvr ?: run { seeOther(call, "/admin"); return@action }
+                val id = call.parameters["id"]!!
+                try {
+                    val recording = dvr.recording(id)
+                    dvr.delete(id)
+                    session.flash.set(Flash(when (recording.state) {
+                        Wire.RecordingState.SCHEDULED -> "Cancelled ${recording.title}."
+                        Wire.RecordingState.RECORDING -> "Stopped ${recording.title}; what it recorded is kept."
+                        else -> "Deleted ${recording.title}."
+                    }))
+                } catch (e: ApiFailure) { session.flash.set(Flash("That recording is already gone.", Tone.WARN)) }
+                seeOther(call, "/admin/recordings")
+            }
             action("/viewers/pair") { session, _ ->
                 runtime.pairing.issue()
                 call.html(viewersPage(chrome(call, session), viewersView(call)))
@@ -466,6 +515,14 @@ class AdminPortal(
         )
     }
 
+    /** The recordings and rules, with the channels a rule may name and what cleanup keeps. */
+    private suspend fun recordingsView(dvr: Dvr): RecordingsView {
+        val channels = runtime.lineup.entries().filter { it.enabled && it.guide != null }.sortedBy { it.number.toDoubleOrNull() ?: Double.MAX_VALUE }
+            .associate { it.id to "${it.number} ${it.name}" }
+        val values = runtime.settings.current
+        return RecordingsView(dvr.recordings(), dvr.rules(), channels, dvr.root.toString(), Retention(values.recordingsFreeGib, values.recordingsKeepDays))
+    }
+
     /** The viewers the server knows and the live pairing code, with the address this request reached the server at. */
     private suspend fun viewersView(call: ApplicationCall): ViewersView {
         val base = publicBase(call)
@@ -520,6 +577,7 @@ class AdminPortal(
         return mapOf(
             "jobs" to jobs, "merges" to merges, "required" to required, "plex" to plexCount,
             "channels" to merges + required, "sources" to sources, "players" to plexCount, "system" to jobs,
+            "recordings" to (runtime.dvr?.recordings()?.recordings?.count { it.conflict } ?: 0),
         )
     }
 

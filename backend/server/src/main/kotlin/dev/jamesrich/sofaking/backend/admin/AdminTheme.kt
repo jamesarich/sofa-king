@@ -65,6 +65,7 @@ internal val NAV: List<Section> = listOf(
     Section("/admin", "Home"),
     Section("/admin/lineup", "Channels", "channels", listOf("/admin/lineup", "/admin/required", "/admin/merges", "/admin/groups")),
     Section("/admin/providers", "Sources", "sources"),
+    Section("/admin/recordings", "Recordings", "recordings"),
     Section("/admin/viewers", "Players", "players", listOf("/admin/viewers", "/admin/plex")),
     Section("/admin/library", "Library"),
     Section("/admin/settings", "Settings"),

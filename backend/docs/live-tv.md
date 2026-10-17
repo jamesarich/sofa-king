@@ -11,6 +11,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_HOST` | `127.0.0.1` | Listen address |
 | `SOFA_PORT` | `8080` | Listen port, 1-65535 |
 | `SOFA_DATA_DIR` | `data` | Directory for the database, the logo cache and `secrets.json`, and where `sources.json` and `policy.json` are looked for |
+| `SOFA_RECORDINGS_DIR` | `SOFA_DATA_DIR/recordings`; `/recordings` in `deploy/compose.yaml` | Folder the DVR keeps recordings in, laid out as [the recordings folder](deploy.md#the-recordings-folder) describes. The server does not record yet |
 | `SOFA_SOURCES` | `SOFA_DATA_DIR/sources.json` when it exists | Path to the source configuration JSON file; with neither, the server starts with no providers or guides |
 | `SOFA_POLICY` | `SOFA_DATA_DIR/policy.json` when it exists | Path to a [lineup policy](lineup-policy.md) JSON file in a writable directory, loaded and validated at start (any error stops the server). With a policy, the lineup is built from it |
 | `SOFA_API_TOKEN` | Generated on a non-loopback bind | API bearer token, at least 32 characters. On a non-loopback bind, an unset token is generated at the first start, stored in `SOFA_DATA_DIR/secrets.json` and reused; the admin portal's Settings page reveals it. On loopback, unset leaves the API open |

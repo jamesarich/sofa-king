@@ -117,23 +117,30 @@ class CatalogService(
 
 private val onscreenSeasonEpisode = Regex("[Ss](\\d{1,4})\\s*[Ee](\\d{1,5})")
 
+/** One-based season and episode numbers; either may be unknown. */
+data class SeasonEpisode(val season: Int?, val episode: Int?)
+
+/**
+ * The season and episode a programme's numbering names: from a zero-based `xmltv_ns` value first, then an
+ * `S02E05`-style `onscreen` one; null when neither names a number.
+ */
+fun seasonEpisode(numbers: List<EpisodeNumber>): SeasonEpisode? {
+    numbers.firstOrNull { it.system == "xmltv_ns" }?.value?.split('.')?.let { parts ->
+        fun part(index: Int) = parts.getOrNull(index)?.substringBefore('/')?.trim()?.toIntOrNull()?.takeIf { it in 0..99_999 }?.plus(1)
+        val numbered = SeasonEpisode(part(0), part(1))
+        if (numbered.season != null || numbered.episode != null) return numbered
+    }
+    val onscreen = numbers.firstOrNull { it.system == "onscreen" }?.value ?: return null
+    return onscreenSeasonEpisode.matchEntire(onscreen.trim())?.let { match -> SeasonEpisode(match.groupValues[1].toInt(), match.groupValues[2].toInt()) }
+}
+
 /**
  * A display label for a programme's numbering: `S2 E5` from a zero-based `xmltv_ns` value or an `S02E05`-style
  * `onscreen` one, `E5` or `S2` when the source numbers only one, else the `onscreen` text itself.
  */
 fun episodeLabel(numbers: List<EpisodeNumber>): String? {
-    numbers.firstOrNull { it.system == "xmltv_ns" }?.value?.split('.')?.let { parts ->
-        fun part(index: Int) = parts.getOrNull(index)?.substringBefore('/')?.trim()?.toIntOrNull()?.takeIf { it in 0..99_999 }?.plus(1)
-        val season = part(0)
-        val episode = part(1)
-        val label = listOfNotNull(season?.let { "S$it" }, episode?.let { "E$it" }).joinToString(" ")
-        if (label.isNotEmpty()) return label
-    }
-    val onscreen = numbers.firstOrNull { it.system == "onscreen" }?.value ?: return null
-    onscreenSeasonEpisode.matchEntire(onscreen.trim())?.let { match ->
-        return "S${match.groupValues[1].toInt()} E${match.groupValues[2].toInt()}"
-    }
-    return onscreen.take(32)
+    seasonEpisode(numbers)?.let { (season, episode) -> return listOfNotNull(season?.let { "S$it" }, episode?.let { "E$it" }).joinToString(" ") }
+    return numbers.firstOrNull { it.system == "onscreen" }?.value?.take(32)
 }
 
 fun eligible(state: HealthState): Boolean = !state.manuallyDisabled && state.status in setOf(HealthStatus.UNVERIFIED, HealthStatus.HEALTHY, HealthStatus.SUSPECT)

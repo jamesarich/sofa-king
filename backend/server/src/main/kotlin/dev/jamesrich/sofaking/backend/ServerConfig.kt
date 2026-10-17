@@ -92,6 +92,8 @@ data class ServerConfig(
     val updateImage: String? = DEFAULT_UPDATE_IMAGE,
     /** `SOFA_CORS_ORIGINS`: the browser origins that may call the API from another origin; empty sends no CORS headers. */
     val corsOrigins: List<CorsOrigin> = emptyList(),
+    /** `SOFA_RECORDINGS_DIR`, where the DVR writes recordings; unset, `recordings` in the data directory. */
+    val recordingsDirectory: Path = dataDirectory.resolve("recordings"),
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -222,6 +224,7 @@ data class ServerConfig(
                 "SOFA_HDHR_PUBLIC_PORTS must list one distinct port per device: SOFA_PORT's, then each of SOFA_HDHR_EXTRA_PORTS"
             }
             val plex = plexConfig(environment, hdhrEnabled)
+            val recordings = environment["SOFA_RECORDINGS_DIR"]?.let { require(it.isNotBlank()) { "SOFA_RECORDINGS_DIR must not be blank" }; Path.of(it) }
             return ServerConfig(
                 host,
                 port,
@@ -244,6 +247,7 @@ data class ServerConfig(
                 version = environment["SOFA_VERSION"]?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown",
                 updateImage = environment["SOFA_UPDATE_IMAGE"]?.trim()?.takeIf { it.isNotEmpty() }?.also { UpdateChecker.ImageRef.parse(it) } ?: if (environment["SOFA_UPDATE_IMAGE"] == null) DEFAULT_UPDATE_IMAGE else null,
                 corsOrigins = corsOrigins(environment["SOFA_CORS_ORIGINS"]),
+                recordingsDirectory = recordings ?: Path.of(directory).resolve("recordings"),
             )
         }
 

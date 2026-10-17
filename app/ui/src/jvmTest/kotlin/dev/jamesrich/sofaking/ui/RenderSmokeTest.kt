@@ -20,6 +20,7 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.player.CaptionSync
+import dev.jamesrich.sofaking.ui.player.InfoBar
 import dev.jamesrich.sofaking.ui.player.InfoOverlay
 import dev.jamesrich.sofaking.ui.player.MiniGuide
 import dev.jamesrich.sofaking.ui.player.MiniGuideActions
@@ -244,6 +245,19 @@ class RenderSmokeTest {
             }
         }
         // A long name once squeezed the captions badge until it wrapped a letter a line and stretched the bar up the screen.
+        assertTrue(image.firstContentRow() > image.height / 3)
+    }
+
+    @Test
+    fun `the player's info bar sits at the bottom of the screen`() {
+        val image = render("player-info-bar") {
+            Box(Modifier.fillMaxSize()) {
+                InfoBar(visible = true) {
+                    InfoOverlay(lineup = lineup, channel = channels[0], now = now, captionsOn = false, captionAdvanceMs = null, scope = null)
+                }
+            }
+        }
+        // An align() inside AnimatedVisibility's content once left the bar at the top of the screen.
         assertTrue(image.firstContentRow() > image.height / 3)
     }
 

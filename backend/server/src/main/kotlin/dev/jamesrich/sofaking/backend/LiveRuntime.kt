@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.library.*
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
 import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
@@ -75,6 +76,8 @@ class LiveRuntime(
     val updates: UpdateChecker? = null,
     /** Setup from the portal and the API: the source file, the starter policy and the restart that reads them. */
     val setup: SetupService? = null,
+    /** The media libraries; null for a runtime built without a config. */
+    val libraries: LibraryService? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -165,9 +168,13 @@ class LiveRuntime(
                 } else null
                 val updates = UpdateChecker(http, clock, config.dataDirectory, config.updateImage, RunningBuild(config.revision, config.version), jobs)
                 updates.start(scope)
+                val libraries = LibraryService(
+                    store, clock, listOf(MediaRoot("Media", config.mediaDirectory)), LibraryScanner(MediaProbe(ffprobeBeside(config.ffmpeg))::probe), jobs,
+                )
+                libraries.start(scope)
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
-                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart),
+                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart), libraries,
                 )
                 scope.launchEvery("session-expire", 1000) { sessions.expire() }
                 if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }

@@ -26,6 +26,11 @@ import dev.jamesrich.sofaking.backend.store.ignoredAttention
 import dev.jamesrich.sofaking.backend.store.showAttention
 import dev.jamesrich.sofaking.backend.store.forgetViewer
 import dev.jamesrich.sofaking.backend.store.viewers
+import dev.jamesrich.sofaking.backend.store.library
+import dev.jamesrich.sofaking.backend.library.LIBRARY_SCAN_JOB
+import dev.jamesrich.sofaking.backend.library.LibraryKind
+import dev.jamesrich.sofaking.backend.library.LibraryRecord
+import dev.jamesrich.sofaking.backend.library.LibraryService
 import java.util.concurrent.atomic.AtomicReference
 import java.nio.file.Files
 import kotlinx.coroutines.Dispatchers
@@ -302,6 +307,48 @@ class AdminPortal(
                 else session.flash.set(Flash("Forgot ${viewer.name.ifEmpty { "the device" }}."))
                 seeOther(call, "/admin/viewers#devices")
             }
+            get("/library") { call.html(libraryPage(chrome(), libraryView())) }
+            action("/library") { session, form ->
+                val service = libraries()
+                val proposed = listOf("name", "kind", "path").associateWith { form[it].orEmpty() }
+                val kind = LibraryKind.of(proposed.getValue("kind"))
+                try {
+                    if (kind == null) throw ApiFailure(400, "INVALID_REQUEST", "Choose what the library holds")
+                    val library = service.create(proposed.getValue("name"), kind, proposed.getValue("path"))
+                    session.flash.set(Flash("Added ${library.name}; its first scan is running.", Tone.OK, library.id))
+                    seeOther(call, "/admin/library#library-${library.id}")
+                } catch (e: ApiFailure) {
+                    call.html(libraryPage(chrome(call, session), libraryView(listOf(e.message), proposed)), HttpStatusCode.BadRequest)
+                }
+            }
+            action("/library/{id}/scan") { session, _ ->
+                val id = call.parameters["id"]!!
+                val library = runtime.store.library(id)
+                if (library == null) session.flash.set(Flash("That library is gone.", Tone.WARN))
+                else { libraries().requestScan(id); session.flash.set(Flash("Scanning ${library.name}.", Tone.OK, id)) }
+                seeOther(call, "/admin/library#libraries")
+            }
+            action("/library/{id}/rename") { session, form ->
+                val id = call.parameters["id"]!!
+                try {
+                    val library = libraries().rename(id, form["name"].orEmpty())
+                    session.flash.set(Flash("Renamed to ${library.name}.", Tone.OK, id))
+                } catch (e: ApiFailure) { session.flash.set(Flash(e.message, Tone.BAD, id)) }
+                seeOther(call, "/admin/library#libraries")
+            }
+            action("/library/{id}/remove") { session, form ->
+                val id = call.parameters["id"]!!
+                val library = runtime.store.library(id)
+                when {
+                    library == null -> { session.flash.set(Flash("That library is already gone.", Tone.WARN)); seeOther(call, "/admin/library") }
+                    form["confirm"] != "yes" -> call.html(libraryPage(chrome(call, session), libraryView(removing = library)))
+                    else -> {
+                        libraries().delete(id)
+                        session.flash.set(Flash("Removed ${library.name}. Its files are untouched."))
+                        seeOther(call, "/admin/library")
+                    }
+                }
+            }
             action("/plex/reveal") { session, _ -> call.html(plexPage(chrome(call, session), plexView(call, reveal = true))) }
             get("/settings") {
                 val limit = call.request.queryParameters["changes"]?.toIntOrNull()?.coerceIn(1, 1000) ?: 50
@@ -408,6 +455,16 @@ class AdminPortal(
 
     /** The furniture for the page answering this request. */
     private suspend fun RoutingContext.chrome(flash: Flash? = null): Chrome = chrome(call, call.session(), flash)
+
+    private fun libraries(): LibraryService = runtime.libraries ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
+
+    private suspend fun libraryView(errors: List<String> = emptyList(), proposed: Map<String, String>? = null, removing: LibraryRecord? = null): LibraryView {
+        val service = libraries()
+        return LibraryView(
+            service.libraries(), service.counts(), service.roots.map { it.root.toString() }, service.folderChoices().map { it.toString() },
+            runtime.jobs.snapshot().any { it.id == LIBRARY_SCAN_JOB && it.running }, errors, proposed, removing,
+        )
+    }
 
     /** The viewers the server knows and the live pairing code, with the address this request reached the server at. */
     private suspend fun viewersView(call: ApplicationCall): ViewersView {

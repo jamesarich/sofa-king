@@ -92,6 +92,8 @@ data class ServerConfig(
     val updateImage: String? = DEFAULT_UPDATE_IMAGE,
     /** `SOFA_CORS_ORIGINS`: the browser origins that may call the API from another origin; empty sends no CORS headers. */
     val corsOrigins: List<CorsOrigin> = emptyList(),
+    /** `SOFA_MEDIA_DIR`: the folder media libraries live under, read only; `media` in the data directory when unset. */
+    val mediaDirectory: Path = dataDirectory.resolve("media"),
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -244,6 +246,8 @@ data class ServerConfig(
                 version = environment["SOFA_VERSION"]?.trim()?.takeIf { it.isNotEmpty() } ?: "unknown",
                 updateImage = environment["SOFA_UPDATE_IMAGE"]?.trim()?.takeIf { it.isNotEmpty() }?.also { UpdateChecker.ImageRef.parse(it) } ?: if (environment["SOFA_UPDATE_IMAGE"] == null) DEFAULT_UPDATE_IMAGE else null,
                 corsOrigins = corsOrigins(environment["SOFA_CORS_ORIGINS"]),
+                mediaDirectory = environment["SOFA_MEDIA_DIR"]?.let { require(it.isNotBlank()) { "SOFA_MEDIA_DIR must not be blank" }; Path.of(it) }
+                    ?: Path.of(directory).resolve("media"),
             )
         }
 

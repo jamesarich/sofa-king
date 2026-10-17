@@ -62,7 +62,7 @@ class StatusApiTest {
                 assertEquals("abc1234", status.revision)
                 assertEquals(started.toString(), status.startedAt)
                 assertEquals(3725, status.uptimeSeconds)
-                assertEquals(110, status.schemaVersion)
+                assertEquals(200, status.schemaVersion)
                 val lineup = runtime.lineup.entries()
                 assertEquals(StatusChannels(lineup.size, lineup.count { it.enabled }, runtime.catalog.catalog().channels.count { it.playbackEligible }), status.channels)
                 assertTrue(status.channels.total > 0)

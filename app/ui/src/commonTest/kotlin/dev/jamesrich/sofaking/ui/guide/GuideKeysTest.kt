@@ -2,7 +2,9 @@ package dev.jamesrich.sofaking.ui.guide
 
 import androidx.compose.ui.input.key.Key
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.test.Test
 
 class GuideKeysTest {
@@ -17,6 +19,14 @@ class GuideKeysTest {
         assertNull(Key.DirectionDown.guideShortcut())
         assertNull(Key.Back.guideShortcut())
         assertNull(Key.DirectionCenter.guideShortcut())
+    }
+
+    @Test
+    fun `Back and Escape close the program details`() {
+        assertTrue(Key.Back.closesDetails())
+        assertTrue(Key.Escape.closesDetails())
+        assertFalse(Key.DirectionCenter.closesDetails())
+        assertFalse(Key.Info.closesDetails())
     }
 
     @Test

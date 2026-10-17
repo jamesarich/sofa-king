@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.dvr
 
 import dev.jamesrich.sofaking.backend.catalog.SeasonEpisode
 import dev.jamesrich.sofaking.contract.Recording
+import dev.jamesrich.sofaking.contract.RecordingBreak
 import dev.jamesrich.sofaking.contract.RecordingRule
 import java.time.Duration
 import java.time.Instant
@@ -37,6 +38,8 @@ data class StoredRecording(
     val watched: Boolean = false,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val commercials: String? = null,
+    val breaks: List<RecordingBreak> = emptyList(),
 ) {
     val recordFrom: Instant get() = startsAt.minus(startPadding)
     val recordUntil: Instant get() = endsAt.plus(endPadding)
@@ -46,7 +49,7 @@ data class StoredRecording(
     fun toWire(conflict: Boolean = false) = Recording(
         id, channelId, channelName, title, episodeTitle, description, season, episode, movie, year, image,
         startsAt.toString(), endsAt.toString(), startPadding.seconds.toInt(), endPadding.seconds.toInt(), state, reason, ruleId,
-        path, bytes, protected, conflict, positionMs, watched,
+        path, bytes, protected, conflict, positionMs, watched, commercials, breaks,
     )
 }
 

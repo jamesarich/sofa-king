@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.dvr.StoredRecording
 import dev.jamesrich.sofaking.backend.dvr.StoredRule
+import dev.jamesrich.sofaking.contract.RecordingBreak
 import java.time.Duration
 import java.time.Instant
 import org.jetbrains.exposed.v1.core.*
@@ -80,6 +81,8 @@ private fun UpdateBuilder<*>.write(r: StoredRecording) {
     this[Recordings.watched] = r.watched
     this[Recordings.createdAt] = r.createdAt.toString()
     this[Recordings.updatedAt] = r.updatedAt.toString()
+    this[Recordings.commercials] = r.commercials
+    this[Recordings.breaks] = r.breaks.takeIf { it.isNotEmpty() }?.joinToString(",") { "${it.startMs}-${it.endMs}" }
 }
 
 private fun ResultRow.rule() = StoredRule(
@@ -114,4 +117,9 @@ private fun ResultRow.recording() = StoredRecording(
     watched = this[Recordings.watched],
     createdAt = Instant.parse(this[Recordings.createdAt]),
     updatedAt = Instant.parse(this[Recordings.updatedAt]),
+    commercials = this[Recordings.commercials],
+    breaks = this[Recordings.breaks].orEmpty().split(',').mapNotNull { pair ->
+        val (start, end) = pair.split('-').takeIf { it.size == 2 } ?: return@mapNotNull null
+        RecordingBreak(start.toLongOrNull() ?: return@mapNotNull null, end.toLongOrNull() ?: return@mapNotNull null)
+    },
 )

@@ -1,0 +1,79 @@
+package dev.jamesrich.sofaking.backend.dvr
+
+import dev.jamesrich.sofaking.contract.RecordingBreak
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
+import java.util.UUID
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+
+/**
+ * Finds a recording's commercial breaks with Comskip, a separate GPL program the server runs and never links. Comskip
+ * writes a Kodi EDL of the breaks, which is kept beside the recording as `<name>.edl` (action 3, a commercial break)
+ * so Kodi and other players that read one skip them too.
+ */
+class Commercials(
+    /** The Comskip executable, `SOFA_COMSKIP`. */
+    private val executable: String,
+    /** A folder for Comskip's settings file and its working output. */
+    private val work: Path,
+    private val timeout: Duration = 4.hours,
+) {
+    /** The breaks in [file], empty when Comskip found none; throws when Comskip cannot run or fails. */
+    suspend fun detect(file: Path): List<RecordingBreak> = withContext(Dispatchers.IO) {
+        val output = work.resolve("comskip-${UUID.randomUUID()}")
+        Files.createDirectories(output)
+        val ini = work.resolve("comskip.ini")
+        if (!Files.exists(ini)) Files.writeString(ini, INI)
+        var process: Process? = null
+        try {
+            process = ProcessBuilder(executable, "--ini=$ini", "--output=$output", "--quiet", file.toString())
+                .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+            val exit = withTimeout(timeout) { process.onExit().await().exitValue() }
+            // Comskip exits 0 when it found breaks and 1 when it found none; anything else is a failure.
+            if (exit != 0 && exit != 1) throw IllegalStateException("comskip exited $exit")
+            val edl = output.resolve(file.fileName.toString().substringBeforeLast('.') + ".edl")
+            if (!Files.exists(edl)) return@withContext emptyList()
+            val breaks = parseEdl(Files.readString(edl))
+            if (breaks.isNotEmpty()) Files.move(edl, sidecar(file), StandardCopyOption.REPLACE_EXISTING)
+            breaks
+        } finally {
+            withContext(NonCancellable) {
+                process?.destroy()
+                if (process != null && withTimeoutOrNull(2.seconds) { process.onExit().await() } == null) process.destroyForcibly()
+                output.toFile().deleteRecursively()
+            }
+        }
+    }
+
+    companion object {
+        /** Black frames, logo, scene changes, aspect ratio and silence; an EDL with action 3 and no other output. */
+        private val INI = """
+            detect_method=111
+            output_default=0
+            output_edl=1
+            edl_skip_field=3
+        """.trimIndent() + "\n"
+
+        /** The EDL beside [recording]: the same name with `.edl`. */
+        fun sidecar(recording: Path): Path = recording.resolveSibling(recording.fileName.toString().substringBeforeLast('.') + ".edl")
+
+        /** The commercial breaks in a Kodi EDL: `start end action` in seconds, action 3 for a commercial break. */
+        fun parseEdl(text: String): List<RecordingBreak> = text.lineSequence().mapNotNull { line ->
+            val fields = line.trim().split(Regex("\\s+"))
+            if (fields.size < 2) return@mapNotNull null
+            val start = fields[0].toDoubleOrNull() ?: return@mapNotNull null
+            val end = fields[1].toDoubleOrNull() ?: return@mapNotNull null
+            if (fields.getOrNull(2)?.let { it != "3" } == true || end <= start) return@mapNotNull null
+            RecordingBreak((start * 1000).toLong(), (end * 1000).toLong())
+        }.sortedBy { it.startMs }.toList()
+    }
+}

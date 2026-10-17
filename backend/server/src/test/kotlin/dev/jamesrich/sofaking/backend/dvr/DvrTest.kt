@@ -44,7 +44,10 @@ class DvrTest {
     private suspend fun runtime(dir: Path, media: MediaFixture, guide: HttpServer): LiveRuntime {
         val feed = media.feed.copy(guideUrl = "http://127.0.0.1:${guide.address.port}/guide.xml")
         val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(listOf(feed)))
-        val config = ServerConfig("127.0.0.1", 8080, dir, sources, allowLoopbackUpstreams = true, recordingsDirectory = dir.resolve("recordings"))
+        val config = ServerConfig(
+            "127.0.0.1", 8080, dir, sources, allowLoopbackUpstreams = true, recordingsDirectory = dir.resolve("recordings"),
+            comskip = CommercialsTest.fakeComskip(dir, "1.0\t2.5\t3").toString(),
+        )
         return LiveRuntime.create(openStore(dir), config, Clock.systemUTC(), probes = false).also { it.feeds.refresh(feed); it.adoptAll() }
     }
 
@@ -81,6 +84,15 @@ class DvrTest {
                 assertEquals(0x47.toByte(), bytes[0])
                 assertFalse(Files.exists(dir.resolve("recordings/.inprogress")), "the in-progress folder is pruned")
                 assertEquals(0, runtime.sessions.count())
+
+                // The commercial scan keeps the breaks and the EDL beside the file.
+                val scanned = withTimeout(30_000) {
+                    while (dvr.recording(done.id).commercials == Wire.CommercialScan.SCANNING) delay(100)
+                    dvr.recording(done.id)
+                }
+                assertEquals(Wire.CommercialScan.DONE, scanned.commercials)
+                assertEquals(listOf(RecordingBreak(1000, 2500)), scanned.breaks)
+                assertTrue(Files.exists(Commercials.sidecar(file)))
 
                 // A second pass keeps the one it made and schedules nothing more for the ended airing.
                 dvr.refreshSchedule("again")

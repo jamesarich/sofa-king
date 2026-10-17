@@ -14,9 +14,9 @@ RUN mkdir -p /app/lib \
 FROM eclipse-temurin:21.0.12.1_1-jre-noble@sha256:000fd431958bc81a24abe1e8e5f0f0fd3ae365a594bd50aadb20696805f9408c
 
 # tini reaps the FFmpeg processes the server starts for probes and remuxing, under any container runtime.
-# sqlite3 takes online database backups from inside the container.
+# sqlite3 takes online database backups from inside the container. comskip (GPL, run as its own program) finds commercial breaks in recordings.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg curl ca-certificates tini sqlite3 \
+    && apt-get install -y --no-install-recommends ffmpeg comskip curl ca-certificates tini sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 sofa \
     && useradd --system --uid 10001 --gid sofa --home-dir /config --shell /usr/sbin/nologin sofa \

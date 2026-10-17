@@ -458,7 +458,21 @@
             "description": "A scheduled recording that overlaps more recordings than the server has playback slots."
           },
           "positionMs": { "type": "integer", "format": "int64" },
-          "watched": { "type": "boolean" }
+          "watched": { "type": "boolean" },
+          "commercials": {
+            "type": ["string", "null"],
+            "enum": ["scanning", "done", "failed", null],
+            "description": "How far the commercial scan of a kept recording got; null when the server does not look."
+          },
+          "breaks": { "type": "array", "items": { "$ref": "#/components/schemas/RecordingBreak" }, "description": "The commercial breaks found, in order." }
+        }
+      },
+      "RecordingBreak": {
+        "type": "object",
+        "required": ["startMs", "endMs"],
+        "properties": {
+          "startMs": { "type": "integer", "format": "int64", "description": "From the start of the file." },
+          "endMs": { "type": "integer", "format": "int64" }
         }
       },
       "RecordingStorage": {

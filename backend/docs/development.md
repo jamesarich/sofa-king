@@ -29,7 +29,7 @@ You need JDK 21 and FFmpeg. Run the commands from `backend/`:
    }
    ```
 
-   [`deploy/sources.example.json`](../deploy/sources.example.json) lists the native provider of every free streaming service and an M3U provider example. The PBS and M3U entries need your values.
+   [`deploy/sources.example.json`](../deploy/sources.example.json) lists the native provider of every free streaming service, the broadcasters' news feeds (`direct`) and an M3U provider example. The PBS and M3U entries need your values.
 
 3. Start the server. It listens on `127.0.0.1:8080` by default:
 
@@ -120,7 +120,7 @@ Native provider unit tests run against `ProviderFixture`, a loopback stand-in fo
 A native provider is a client for one free streaming service, built into the server. The [providers](providers.md) page describes the existing clients and how they are configured.
 
 1. Implement `ProviderClient` in `server/src/main/kotlin/dev/jamesrich/sofaking/backend/providers/`. The interface has `service`, `channels()`, `resolve(channelId)`, an optional `guide(wanted)` and `protocol`, `hls` unless the service streams MPEG-TS. Use the `ProviderContext` the registry passes in for HTTP, options, the shared cache and durable state (`provider_state`). Throw `ProviderFailure` with `transient = true` when the service is at fault and `transient = false` when the channel is gone from it. Keep tokens and URLs out of exception messages.
-2. Register the service. Add its name and whether it has a guide of its own to the `NativeServices` map in `ProviderClient.kt`, and add a branch to `ProviderRegistry.client`. If the service publishes an XMLTV guide that the server should use by default, add it to `NativeServices.defaultGuideUrl`.
+2. Register the service. Add its name and whether it has a guide of its own to the `NativeServices` map in `ProviderClient.kt`, and add a branch to `ProviderRegistry.client`. If the service publishes an XMLTV guide that the server should use by default, add it to `NativeServices.defaultGuideUrl`. Add a `ServiceInfo` for it, with its label, what it carries and its options, to `ServiceCatalog.all` in `setup/ServiceCatalog.kt`, at its place in the starter policy's priority order; it becomes the service's switch on the portal's Sources page, and `SetupServiceTest` fails until every service is there.
 3. Add fixtures. Save the sanitized service responses under `server/src/test/resources/providers/`, named for the service, for example `example-channels.json`. Remove tokens, cookies, device identifiers and anything personal before committing a fixture.
 4. Add a test. Write a `ProviderFixture`-based test beside the others in `server/src/test/kotlin/dev/jamesrich/sofaking/backend/providers/`, for example `ExampleClientTest.kt`. Point the client's base URLs at the fixture through its options, load the fixtures with `ProviderFixture.resource(...)`, and assert the channel list, a resolve, and the guide if the service has one. Include a case for a failing service and one for a channel that is gone.
 5. Run `./gradlew test`, then check the service against its live endpoints:

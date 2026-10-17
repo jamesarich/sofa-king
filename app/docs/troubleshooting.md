@@ -9,7 +9,7 @@ Start with the message on screen, then the log. The app logs under the tag `Sofa
 | Connect to your Sofa King server | No server is set. Focus starts on the header's Settings button; press OK and enter the Server URL and API token, then select Save & reload. |
 | The Server URL field says to enter the full address | Enter the scheme, host and port, for example `http://192.168.1.10:9193`. Credentials, queries and fragments are refused. |
 | Couldn't reach the Sofa King server | Check the address, the network and that the server is running: `curl --fail http://SERVER_HOST:9193/readyz` answers `ready`. Select Retry, which has focus, or Refresh in the header to try again; the app also retries every minute. |
-| `AUTH_REQUIRED` | The API token does not match the server's. A token the server generated is `apiToken` in its `secrets.json`; a token set with `SOFA_API_TOKEN` is not stored there. The admin portal's [Settings page](../../backend/docs/admin.md#settings) reveals the API token either way. |
+| `AUTH_REQUIRED` | The API token does not match the server's. A token the server generated is `apiToken` in its `secrets.json`; a token set with `SOFA_API_TOKEN` is not stored there. The admin portal's [Settings page](../../backend/docs/admin.md#settings) reveals the API token under Advanced either way. |
 | Couldn't reach the Sofa King server, in a browser only | The server does not allow the page's origin. Serve the web app one of the ways [getting started](getting-started.md#web) describes. |
 | A web app on `https://` cannot reach the server | Browsers block requests from an HTTPS page to a plain-HTTP server. Put the server behind the same HTTPS proxy as the page, as [getting started](getting-started.md#web) describes. |
 

@@ -124,7 +124,7 @@ Then add the tuner at `SERVER_HOST:9193` and the guide at `http://SERVER_HOST:91
 
 ### The Sofa King app
 
-Install the [Sofa King app](../../app/README.md) and give it the server address, `http://SERVER_HOST:9193`, and the API token. The portal's Settings page reveals the API token too. The app reads the lineup and its programs, and plays through the server. To use the web app, serve it as [serve the web app](deploy.md#serve-the-web-app) describes.
+Install the [Sofa King app](../../app/README.md) and give it the server address, `http://SERVER_HOST:9193`, and the API token. The portal's Settings page reveals the API token too, or pair the app with a code from the portal's [Devices page](admin.md#devices) instead of typing the token. The app reads the lineup and its programs, and plays through the server. To use the web app, serve it as [serve the web app](deploy.md#serve-the-web-app) describes.
 
 ### An M3U player
 

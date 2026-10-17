@@ -21,7 +21,7 @@ object ServiceCatalog {
     private val url = ServiceOption("url", "Tuner address", "The HDHomeRun's address on the LAN, such as http://192.168.1.50", required = true, pattern = Regex("https?://[^\\s/]+"))
 
     val all: List<ServiceInfo> = listOf(
-        ServiceInfo("direct", "Broadcasters' news feeds", "Live news from ABC, CBS, NBC and other broadcasters' own sites"),
+        ServiceInfo("direct", "Broadcasters' news feeds", "Live news from CBS News, ABC News Australia and other broadcasters' own sites"),
         ServiceInfo("whale", "Whale TV+", "About 200 channels across every genre"),
         ServiceInfo("samsung", "Samsung TV Plus", "Samsung's free channels, by country", listOf(region)),
         ServiceInfo("vizio", "WatchFree+", "Vizio's free channels"),

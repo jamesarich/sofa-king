@@ -68,7 +68,7 @@ On Android, caption timing shifts captions against the picture so live captions 
 
 ## Apple TV
 
-The Apple TV app lists the channels, favorites first, with the program on now and next; select one to watch it. Hold the touch surface on a channel for Program details, which shows the program's image, episode, rating, time left, description and what follows, with Watch and the favorite toggle, or add the channel to the favorites from the same menu. In the player, swipe down for the transport bar: its menu stars the channel and lists the recent channels, the favorites and every channel, so switching never leaves the player. The Home screen's Top Shelf shows the last ten channels watched, newest first, while the app is in the top row; selecting one opens the app on that channel.
+The Apple TV app lists the channels, favorites first, with the program on now and next; select one to watch it. Hold the touch surface on a channel for Program details, which shows the program's image, episode, rating, time left, description and what follows, with Watch and the favorite toggle, or add the channel to the favorites from the same menu. In the player, swipe down for the transport bar: its menu stars the channel and lists the recent channels, the favorites and every channel, so switching never leaves the player. Its Settings take the server address and the API token, or a pairing code with Pair. The Home screen's Top Shelf shows the last ten channels watched, newest first, while the app is in the top row; selecting one opens the app on that channel.
 
 ## Settings
 
@@ -78,7 +78,7 @@ Settings opens from the guide's header, with focus on Back. Switches and choices
 | --- | --- | --- | --- |
 | Server | Server URL | Empty | The server's absolute HTTP(S) address with a host and optional port, for example `http://server.example:9193`. Embedded credentials, queries and fragments are refused |
 | Server | API token | Empty | The server's API token, found as [getting started](getting-started.md#what-you-need) describes: letters, digits and punctuation with no spaces. Leave it empty when the server runs without one. The field shows only the last four characters until it is focused |
-| Server | Pairing code | Empty | Six digits from the admin portal's Viewers page, entered with the Server URL instead of the token; the code comes before the token field, as the easier path. Pair claims the code and stores the token the server hands out; a code lasts ten minutes and works once. On Android, a `sofaking://pair` link (the portal's QR code) pairs without typing |
+| Server | Pairing code | Empty | Six digits from the admin portal's Devices page, entered with the Server URL instead of the token; the code comes before the token field, as the easier path. Pair claims the code and stores the token the server hands out; a code lasts ten minutes and works once. On Android and iOS, a `sofaking://pair` link (the portal's QR code) pairs without typing |
 | Startup | Open on start | Last channel | What a cold start opens: the channel watched last, the guide, or a channel chosen from the lineup with Choose. A chosen or last channel the lineup no longer has opens the guide |
 | Guide | Open focused channel automatically | After 10 seconds | How long focus rests on a channel before it opens full screen: Off, after 10 or after 30 seconds. TalkBack touch exploration on Android and VoiceOver on iOS turn it off |
 | Guide | Play preview sound | On | Whether the preview's sound comes on after 5 seconds |
@@ -105,7 +105,7 @@ Opening Settings asks GitHub once per app start for the rolling `snapshot` prere
 
 With a PIN set, opening Settings shows a lock page instead: enter the PIN and select Unlock. The PIN keeps a child or a guest out of Settings, the channel manager and the startup picker; watching, zapping, the CC key, favorites in the player and pairing from a `sofaking://pair` link are not affected. The unlock lasts until you leave Settings. After five wrong PINs in a row, Unlock waits 30 seconds. The PIN is stored on this device as a salted hash, never on the server, and does not sync to other devices.
 
-Forgot the PIN, on the lock page, takes the server's API token instead: the admin portal shows it under Settings, Reveal the API token, and a match removes the PIN. On a server that runs without a token, the PIN can only be removed by clearing the app's data on the device.
+Forgot the PIN, on the lock page, takes the server's API token instead: the admin portal shows it under Settings, Advanced, Reveal the API token, and a match removes the PIN. On a server that runs without a token, the PIN can only be removed by clearing the app's data on the device.
 
 ### Channel manager
 

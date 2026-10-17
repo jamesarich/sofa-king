@@ -41,6 +41,7 @@ body:
         - macOS desktop
         - Windows desktop
         - iOS
+        - Apple TV
         - Web
     validations:
       required: true

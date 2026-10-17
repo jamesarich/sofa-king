@@ -1,6 +1,6 @@
 # Architecture
 
-One Kotlin/JVM process serves the HTTP API, the admin portal and the media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programs, the server identity and source health. It also holds probe attempt times, observation history, the logo cache index, native provider state (device IDs, tokens), and the lineup policy's station availability and change log. The logo files sit beside the database in the data directory. Playback sessions and resolved native stream URLs exist in memory.
+One Kotlin/JVM process serves the HTTP API, the admin portal and the media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programs, the server identity and source health. It also holds probe attempt times, observation history, the logo cache index, native provider state (device IDs, tokens), the lineup policy's station availability and change log, the paired viewers and their preferences, the runtime settings saved in the portal and the home page items it ignores. The logo files sit beside the database in the data directory. Playback sessions, admin portal sessions, the live pairing code and resolved native stream URLs exist in memory.
 
 The terms used here (provider, source, candidate, station) are defined in the [glossary](README.md#glossary), and lineup entry in the [repository glossary](../../docs/README.md#glossary). In code, a source is an `Offering`.
 
@@ -146,7 +146,7 @@ When the upstream ends or fails, the relay reconnects with backoff from 0.5 to 8
 
 ## Supported scope
 
-The server supports configured HTTP(S) playlists and guides, native provider clients, the lineup policy, JSON control and admin requests, and the admin portal. It supports HLS and MPEG-TS passthrough, M3U and XMLTV output with per-channel stream URLs for third-party players, and cached lineup logos served from this server. It supports HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification. Recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery, device pairing and events are not implemented. HLS variable substitution and content steering are unsupported.
+The server supports configured HTTP(S) playlists and guides, native provider clients, the lineup policy, JSON control and admin requests, and the admin portal. It supports HLS and MPEG-TS passthrough, M3U and XMLTV output with per-channel stream URLs for third-party players, and cached lineup logos served from this server. It supports HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification. Recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery and events are not implemented. HLS variable substitution and content steering are unsupported.
 
 ## Operations
 

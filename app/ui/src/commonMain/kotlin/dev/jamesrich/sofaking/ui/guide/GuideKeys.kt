@@ -18,6 +18,9 @@ internal fun Key.guideShortcut(): GuideShortcut? = when (this) {
     else -> null
 }
 
+/** Back, or Escape on a keyboard, closes the program details on a TV; the panel takes these keys itself. */
+internal fun Key.closesDetails(): Boolean = this == Key.Back || this == Key.Escape
+
 /** Rows one Channel or Page key moves in the grid; about one screenful on a 1080p TV. */
 internal const val GUIDE_PAGE_ROWS = 4
 

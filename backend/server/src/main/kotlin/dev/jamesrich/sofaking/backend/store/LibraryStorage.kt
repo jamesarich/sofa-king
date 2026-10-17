@@ -47,10 +47,13 @@ suspend fun BackendStore.renameLibrary(id: String, name: String): Boolean = quer
     Libraries.update({ Libraries.id eq id }) { it[Libraries.name] = name } > 0
 }
 
-/** Removes the library, its items and their watch state; the files are never touched. */
+/** Removes the library, its items, their watch state and their TMDB lookups; the files are never touched. */
 suspend fun BackendStore.deleteLibrary(id: String): Boolean = query {
     val itemIds = LibraryItems.select(LibraryItems.id).where { LibraryItems.libraryId eq id }.map { it[LibraryItems.id] }
-    itemIds.chunked(500).forEach { chunk -> PlayStates.deleteWhere { itemId inList chunk } }
+    itemIds.chunked(500).forEach { chunk ->
+        PlayStates.deleteWhere { itemId inList chunk }
+        LibraryMetadataRows.deleteWhere { itemId inList chunk }
+    }
     LibraryItems.deleteWhere { libraryId eq id }
     Libraries.deleteWhere { Libraries.id eq id } > 0
 }
@@ -90,10 +93,11 @@ suspend fun BackendStore.markLibraryItemsMissing(ids: Collection<String>, at: In
     }
 }
 
-/** Deletes [ids] and their watch state. */
+/** Deletes [ids], their watch state and their TMDB lookups. */
 suspend fun BackendStore.deleteLibraryItems(ids: Collection<String>) = query {
     ids.chunked(500).forEach { chunk ->
         PlayStates.deleteWhere { itemId inList chunk }
+        LibraryMetadataRows.deleteWhere { itemId inList chunk }
         LibraryItems.deleteWhere { id inList chunk }
     }
 }

@@ -186,3 +186,12 @@ internal object PlayStates : Table("play_state") {
     val updatedAt = text("updated_at")
     override val primaryKey = PrimaryKey(itemId)
 }
+
+/** What TMDB says about one item, and when it was last asked; [tmdbId] is null when no match was found. */
+internal object LibraryMetadataRows : Table("library_metadata") {
+    val itemId = text("item_id")
+    val tmdbId = integer("tmdb_id").nullable()
+    val checkedAt = text("checked_at")
+    val factsJson = text("facts_json").nullable()
+    override val primaryKey = PrimaryKey(itemId)
+}

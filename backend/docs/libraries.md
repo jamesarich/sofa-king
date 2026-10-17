@@ -45,7 +45,15 @@ Artwork is read from the files beside the video, as `.jpg`, `.jpeg`, `.png` or `
 | Season | `season01-poster` in the show's folder, or `poster`, `folder` in the season's | |
 | Episode or video | `Name-thumb`, or an image with the video's name | |
 
-The server looks nothing up online.
+Without a TMDB token the server looks nothing up online.
+
+## Details from TMDB
+
+With `SOFA_TMDB_TOKEN` set to a [TMDB](https://www.themoviedb.org/settings/api) API read access token (or a v3 API key), each scan of a Movies or TV shows library looks up what the files do not say: a movie's or show's overview, genres, rating, cast and artwork, and each season's and episode's title, air date, overview and still. Other videos libraries are never looked up. `SOFA_TMDB_LANGUAGE` (default `en-US`) picks the language, and its region picks the content rating.
+
+A title is matched by its name and year. A `{tmdb-348}` or `[tmdbid-348]` tag in the folder or file name, or a TMDB id in the `.nfo`, pins the match instead. A match is kept for 30 days and a title TMDB does not know is tried again after 7; a new episode of a known show fetches only its season. A `.nfo` beside the file wins over TMDB's text, and local artwork wins over TMDB's images. A refused token or TMDB's rate limit ends the lookups for that scan, and the scan's job note says why; the next scan carries on.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## Scans
 

@@ -41,6 +41,10 @@ data class ItemDetails(
     val rating: Double? = null,
     val cast: List<String> = emptyList(),
     val directors: List<String> = emptyList(),
+    /** The TMDB id a `.nfo` or a `{tmdb-N}` tag in the name gives; it pins the TMDB match. */
+    val tmdbId: Int? = null,
+    /** Whether a `.nfo` supplied these facts, so they win over TMDB's. */
+    val nfo: Boolean = false,
 )
 
 /**
@@ -77,3 +81,25 @@ data class LibraryItemRecord(
 data class ScanResult(val added: Int, val updated: Int, val missing: Int, val removed: Int, val files: Int, val unavailable: Boolean = false) {
     val note: String get() = if (unavailable) "LIBRARY_UNAVAILABLE" else "$files files, $added new, $updated changed, $missing missing, $removed removed"
 }
+
+/** What TMDB says about a movie, show, season or episode; [poster] and [backdrop] are TMDB image paths such as `/abc.jpg`. */
+@Serializable
+data class MetadataFacts(
+    val title: String? = null,
+    val year: Int? = null,
+    val aired: String? = null,
+    val overview: String? = null,
+    val tagline: String? = null,
+    val genres: List<String> = emptyList(),
+    val studio: String? = null,
+    val contentRating: String? = null,
+    val rating: Double? = null,
+    val cast: List<String> = emptyList(),
+    val directors: List<String> = emptyList(),
+    val runtimeMinutes: Int? = null,
+    val poster: String? = null,
+    val backdrop: String? = null,
+)
+
+/** One item's stored TMDB lookup. */
+data class MetadataRecord(val itemId: String, val tmdbId: Int?, val checkedAt: String, val facts: MetadataFacts?)

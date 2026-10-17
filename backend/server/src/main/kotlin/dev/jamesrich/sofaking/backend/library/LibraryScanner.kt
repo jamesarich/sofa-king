@@ -124,7 +124,8 @@ class LibraryScanner(
         return LibraryItemRecord(
             id = itemId(libraryId, "file:${file.relative}"), libraryId = libraryId, kind = ItemKind.MOVIE, path = file.relative,
             title = title, sortTitle = sortTitle(nfo?.sortTitle ?: title), year = nfo?.year ?: named.year, aired = nfo?.aired, overview = nfo?.plot,
-            durationMs = nfo?.runtimeMinutes?.let { it * 60_000L }, size = file.size, modifiedAt = file.modifiedAt, details = nfo?.details(),
+            durationMs = nfo?.runtimeMinutes?.let { it * 60_000L }, size = file.size, modifiedAt = file.modifiedAt,
+            details = (tmdbIdIn(stem) ?: folder?.let { tmdbIdIn(it.fileName.toString()) }).let { tag -> nfo?.details(tag) ?: tagged(tag) },
             poster = art(root, path.resolveSibling("$stem-poster"), folder?.resolve("poster"), folder?.resolve("folder"), folder?.resolve("cover")),
             backdrop = art(root, path.resolveSibling("$stem-fanart"), folder?.resolve("fanart"), folder?.resolve("backdrop")),
             addedAt = "",
@@ -165,7 +166,7 @@ class LibraryScanner(
                 LibraryItemRecord(
                     id = itemId(libraryId, "show:$showKey"), libraryId = libraryId, kind = ItemKind.SHOW, title = title,
                     sortTitle = sortTitle(nfo?.sortTitle ?: title), year = nfo?.year ?: named.year, aired = nfo?.aired, overview = nfo?.plot,
-                    details = nfo?.details(),
+                    details = tmdbIdIn(showKey).let { tag -> nfo?.details(tag) ?: tagged(tag) },
                     poster = showFolder?.let { art(root, it.resolve("poster"), it.resolve("folder"), it.resolve("cover")) },
                     backdrop = showFolder?.let { art(root, it.resolve("fanart"), it.resolve("backdrop")) },
                     addedAt = "",
@@ -220,4 +221,7 @@ private fun art(root: Path, vararg bases: Path?): String? {
     return null
 }
 
-private fun Nfo.details(): ItemDetails = ItemDetails(tagline, genres, studio, contentRating, rating, cast, directors)
+private fun Nfo.details(tagged: Int? = null): ItemDetails = ItemDetails(tagline, genres, studio, contentRating, rating, cast, directors, tmdbId ?: tagged, nfo = true)
+
+/** No `.nfo`, but maybe a TMDB id in the name. */
+private fun tagged(id: Int?): ItemDetails? = id?.let { ItemDetails(tmdbId = it) }

@@ -17,7 +17,7 @@ import kotlinx.serialization.json.jsonObject
 enum class SecretOrigin { ENVIRONMENT, FILE, GENERATED }
 
 /** The secrets that `NAME_FILE` can supply instead of `NAME`. */
-internal val FILE_SECRETS = listOf("SOFA_API_TOKEN", "SOFA_ADMIN_TOKEN", "SOFA_OUTPUT_TOKEN", "SOFA_PLEX_TOKEN")
+internal val FILE_SECRETS = listOf("SOFA_API_TOKEN", "SOFA_ADMIN_TOKEN", "SOFA_OUTPUT_TOKEN", "SOFA_PLEX_TOKEN", "SOFA_TMDB_TOKEN")
 
 /**
  * [environment] with each `NAME_FILE` replaced by `NAME` holding the file's contents without trailing line breaks,

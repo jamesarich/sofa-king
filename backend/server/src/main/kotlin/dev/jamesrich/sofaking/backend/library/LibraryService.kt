@@ -54,6 +54,8 @@ class LibraryService(
     private val scanner: LibraryScanner,
     private val jobs: Jobs,
     private val every: Duration = Duration.ofHours(6),
+    /** TMDB lookups after each scan, when `SOFA_TMDB_TOKEN` is set. */
+    val metadata: LibraryMetadata? = null,
 ) {
     private val trigger = Channel<Unit>(Channel.CONFLATED)
     private val pending = ConcurrentHashMap.newKeySet<String>()
@@ -128,9 +130,11 @@ class LibraryService(
             if (plan.save.isNotEmpty()) store.saveLibraryItems(plan.save)
             if (plan.missing.isNotEmpty()) store.markLibraryItemsMissing(plan.missing, now)
             if (plan.delete.isNotEmpty()) store.deleteLibraryItems(plan.delete)
-            store.recordLibraryScan(library.id, now, !plan.result.unavailable, plan.result.note)
+            val looked = if (plan.result.unavailable) null else metadata?.refresh(library, store.libraryItems(library.id))
+            val note = listOfNotNull(plan.result.note, looked?.note).joinToString("; ")
+            store.recordLibraryScan(library.id, now, !plan.result.unavailable, note)
             result = plan.result
-            JobOutcome(!plan.result.unavailable, "${library.name}: ${plan.result.note}")
+            JobOutcome(!plan.result.unavailable && looked?.stopped == null, "${library.name}: $note")
         }
         result!!
     }

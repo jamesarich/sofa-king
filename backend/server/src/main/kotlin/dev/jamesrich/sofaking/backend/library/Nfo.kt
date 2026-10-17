@@ -27,6 +27,7 @@ internal data class Nfo(
     val rating: Double? = null,
     val cast: List<String> = emptyList(),
     val directors: List<String> = emptyList(),
+    val tmdbId: Int? = null,
 )
 
 /** The largest sidecar a scan reads; a real one is a few kilobytes. */
@@ -73,6 +74,8 @@ internal fun parseNfo(input: InputStream): Nfo? {
         rating = rating,
         cast = root.children("actor").mapNotNull { it.child("name")?.textContent?.trim()?.ifEmpty { null } }.take(20),
         directors = all("director"),
+        tmdbId = root.children("uniqueid").firstOrNull { it.getAttribute("type").equals("tmdb", ignoreCase = true) }?.textContent?.trim()?.toIntOrNull()
+            ?: text("tmdbid")?.toIntOrNull(),
     )
 }
 

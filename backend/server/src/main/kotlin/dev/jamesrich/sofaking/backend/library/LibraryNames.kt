@@ -97,6 +97,11 @@ private fun titleAfter(stem: String, from: Int): String? {
     return clean(rest.substring(dash + 3).replace(SAME_DAY_TIME, "")).ifEmpty { null }
 }
 
+private val TMDB_TAG = Regex("""(?i)[\[{](?:tmdb|tmdbid)[-=](\d+)[\]}]""")
+
+/** The TMDB id a name carries as `{tmdb-348}` or `[tmdbid-348]`, as Plex and Jellyfin read it. */
+internal fun tmdbIdIn(name: String): Int? = TMDB_TAG.find(name)?.groupValues?.get(1)?.toIntOrNull()
+
 /** The name a list sorts by: lower case, without a leading English article. */
 internal fun sortTitle(title: String): String {
     val lower = title.lowercase().trim()

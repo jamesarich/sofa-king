@@ -64,7 +64,7 @@ A device appears once it pairs or saves its preferences (its hidden channels, fa
 
 ## Library
 
-Add a library names it, says what it holds (movies, TV shows or other videos, which decides how [file names are read](libraries.md#lay-out-the-folders)) and picks its folder from those under `SOFA_MEDIA_DIR` that no other library uses. The first scan starts at once; later ones run every six hours, and Scan now queues one. A scan that finds the folder missing, or empty while the library held files, reads it as an unmounted disk: the row says Folder unavailable and nothing is changed. Remove asks once, then forgets the library's items and their watch progress; the files are never touched, and adding the folder again brings the items back with the same ids.
+Add a library names it, says what it holds (movies, TV shows or other videos, which decides how [file names are read](libraries.md#lay-out-the-folders)) and picks its folder from those under `SOFA_MEDIA_DIR` that no other library uses. The first scan starts at once; later ones run every six hours, and Scan now queues one. A scan that finds the folder missing, or empty while the library held files, reads it as an unmounted disk: the row says Folder unavailable and nothing is changed. Remove asks once, then forgets the library's items and their watch progress; the files are never touched, and adding the folder again brings the items back with the same ids. The Details and artwork panel says whether scans also [look titles up on TMDB](libraries.md#details-from-tmdb), which `SOFA_TMDB_TOKEN` turns on.
 
 ## Update
 

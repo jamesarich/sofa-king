@@ -462,7 +462,7 @@ class AdminPortal(
         val service = libraries()
         return LibraryView(
             service.libraries(), service.counts(), service.roots.map { it.root.toString() }, service.folderChoices().map { it.toString() },
-            runtime.jobs.snapshot().any { it.id == LIBRARY_SCAN_JOB && it.running }, errors, proposed, removing,
+            runtime.jobs.snapshot().any { it.id == LIBRARY_SCAN_JOB && it.running }, errors, proposed, removing, service.metadata?.enabled == true,
         )
     }
 

@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.admin
 import dev.jamesrich.sofaking.backend.library.ItemKind
 import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
+import dev.jamesrich.sofaking.backend.library.TMDB_NOTICE
 import kotlinx.html.*
 
 /**
@@ -20,6 +21,8 @@ internal class LibraryView(
     val proposed: Map<String, String>? = null,
     /** The library whose Remove asks for confirmation. */
     val removing: LibraryRecord? = null,
+    /** Whether TMDB lookups are on (`SOFA_TMDB_TOKEN` is set). */
+    val tmdb: Boolean = false,
 )
 
 /** What a library holds, in words: "120 movies", "14 shows, 612 episodes". */
@@ -96,6 +99,14 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
         askDialog(chrome, "Remove ${library.name}?", "/admin/library/${library.id}/remove", "/admin/library#libraries", "Remove", danger = true) {
             p { +"The app stops showing it, and its watch progress is forgotten. The files in ${library.path} stay where they are; add the folder again to bring it back." }
         }
+    }
+    panel("Details and artwork", id = "tmdb") {
+        if (view.tmdb) {
+            p("mt-0") { +"Movies and shows get their titles, plots, genres, ratings, cast, posters and backdrops from TMDB after each scan; episodes get their names, plots and stills. A .nfo file beside a video, or local artwork, wins over TMDB. A {tmdb-123} tag in a folder name pins the match." }
+        } else {
+            p("mt-0") { +"Details come from file names, .nfo files and local artwork only. Set SOFA_TMDB_TOKEN to a TMDB API read access token (free from themoviedb.org) and restart to fill in plots, ratings, cast, posters and backdrops." }
+        }
+        p("muted small") { +TMDB_NOTICE }
     }
     panel("Add a library", id = "add") {
         if (view.errors.isNotEmpty()) notice("Not added:", view.errors)

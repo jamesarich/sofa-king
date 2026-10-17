@@ -79,7 +79,7 @@ class MigrationsTest {
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT version FROM schema_version ORDER BY version").use { rows ->
-                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 200, 201), buildList { while (rows.next()) add(rows.getInt(1)) })
+                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 200, 201), buildList { while (rows.next()) add(rows.getInt(1)) })
                     }
                 }
             }
@@ -166,7 +166,7 @@ class MigrationsTest {
         val db = databaseAt(dir)
         try {
             applyMigrations(db, foundationMigrations())
-            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 200, 201), foundationMigrations().map { it.version })
+            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 200, 201), foundationMigrations().map { it.version })
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").use { rows ->

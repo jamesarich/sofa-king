@@ -37,7 +37,7 @@ Recordings are MPEG-TS files, stream-copied from the source, in the layout Plex,
 | An episode without a season and episode number, such as news or sports | `TV/Show/Season 2026/Show - 2026-10-17 - Episode.ts`, dated in the server's time zone |
 | A movie | `Movies/Title (1995)/Title (1995).ts`, without the year when the guide gives none |
 
-A second recording with the same name gets its start time, as in `Show - 2026-10-17 (18.30).ts`. Names leave out `/ \ : * ? " < > |` and control characters. A recording is written under the hidden `.inprogress` folder at the same path and moved into place when it ends, so a scanner never picks up a partial file. The server does not record yet.
+A second recording with the same name gets its start time, as in `Show - 2026-10-17 (18.30).ts`. Names leave out `/ \ : * ? " < > |` and control characters. A recording is written under the hidden `.inprogress` folder at the same path and moved into place when it ends, so a scanner never picks up a partial file. [Recordings](recordings.md) covers scheduling them.
 
 ## The media folder
 

@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.catalog.LineupService
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.library.PlayableFile
 import dev.jamesrich.sofaking.backend.store.*
 import dev.jamesrich.sofaking.contract.*
 import java.nio.file.Files
@@ -151,6 +152,14 @@ class Dvr(
     }
 
     suspend fun recording(id: String): Recording = (store.recording(id)?.takeIf { it.state != CANCELLED } ?: throw notFound()).toWire()
+
+    /** The file of a running or finished recording, for playback; null when [id] has recorded nothing. */
+    suspend fun playable(id: String): PlayableFile? {
+        val recording = store.recording(id) ?: return null
+        val relative = recording.path?.takeIf { recording.state == Wire.RecordingState.RECORDING || recording.state == Wire.RecordingState.COMPLETED } ?: return null
+        val growing = recording.state == Wire.RecordingState.RECORDING
+        return PlayableFile(root.resolve(relative), if (growing) Duration.between(recording.recordFrom, recording.recordUntil).toMillis() else null, growing)
+    }
 
     /** Schedules the programme on [ScheduleRecording.channelId] that starts at [ScheduleRecording.startsAt]. */
     suspend fun schedule(request: ScheduleRecording): Recording {

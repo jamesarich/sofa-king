@@ -35,11 +35,25 @@ private const val SEGMENT_SECONDS = 4
 private val TS_VIDEO = setOf("h264", "hevc", "mpeg2video")
 private val TS_AUDIO = setOf("aac", "ac3", "eac3", "mp3", "mp2")
 
-/** One library file being played; [process] is the FFmpeg writing its HLS stream, null for direct play. */
+/** How long FFmpeg waits for a growing recording to grow before it ends the stream. */
+private const val FOLLOW_TIMEOUT_MICROS = 60_000_000L
+
+/**
+ * A recording's file as [VodSessions] plays it. [growing] is true while it records, so its stream follows the file;
+ * [durationMs] is then the length it will have.
+ */
+class PlayableFile(val file: Path, val durationMs: Long?, val growing: Boolean)
+
+/**
+ * One library file or recording being played; [process] is the FFmpeg writing its HLS stream, null for direct play.
+ * A recording's [file] and [growing] change when it finishes, as the file moves into place.
+ */
 internal class VodState(
     val id: String,
     val itemId: String,
-    val file: Path,
+    val recordingId: String?,
+    var file: Path,
+    var growing: Boolean,
     val mode: String,
     val durationMs: Long?,
     val audioIndex: Int?,
@@ -57,7 +71,8 @@ class VodMedia(val file: Path, val contentType: String)
 /**
  * Plays library files. A file the client's [ClientProfile] can play is served as it is, with byte ranges; otherwise
  * FFmpeg writes it as HLS into [directory], copying what the client can play and converting the rest, at most
- * [maxConverting] files at once. A session lives while the client renews it or fetches its media.
+ * [maxConverting] files at once. A session lives while the client renews it or fetches its media. [recordings] finds a
+ * recording's file and [probe] reads it; without them only library items play.
  */
 class VodSessions(
     private val catalog: LibraryCatalog,
@@ -66,6 +81,8 @@ class VodSessions(
     private val directory: Path,
     private val maxConverting: Int = 2,
     private val lease: Duration = Duration.ofMinutes(5),
+    private val recordings: (suspend (String) -> PlayableFile?)? = null,
+    private val probe: suspend (Path) -> MediaInfo? = { null },
 ) {
     private val sessions = HashMap<String, VodState>()
     private val mutex = Mutex()
@@ -75,6 +92,8 @@ class VodSessions(
     suspend fun start() = withContext(Dispatchers.IO) { clear(directory) }
 
     suspend fun open(request: OpenVodPlayback): VodSession {
+        if (request.startMs < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
+        request.recordingId?.let { return openRecording(it, request) }
         val snapshot = catalog.snapshot()
         val view = snapshot.views[request.itemId] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
         val relative = view.record.path?.takeIf { view.record.kind != ItemKind.SHOW && view.record.kind != ItemKind.SEASON }
@@ -85,17 +104,29 @@ class VodSessions(
         if (!file.startsWith(root) || withContext(Dispatchers.IO) { !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }) {
             throw ApiFailure(404, "ITEM_MISSING", "The file is not there; is its disk mounted?")
         }
-        if (request.startMs < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
-        val media = view.record.media
+        return start(request, view.record.id, null, file, growing = false, view.record.media, view.item.durationMs)
+    }
+
+    /** Plays a recording; one still recording is never played directly, as its stream has to follow the file. */
+    private suspend fun openRecording(id: String, request: OpenVodPlayback): VodSession {
+        val playable = recordings?.invoke(id) ?: throw ApiFailure(404, "RECORDING_NOT_FOUND", "No such recording, or nothing recorded yet")
+        val size = withContext(Dispatchers.IO) { if (Files.isRegularFile(playable.file, LinkOption.NOFOLLOW_LINKS)) Files.size(playable.file) else -1L }
+        if (size < 0) throw ApiFailure(404, "RECORDING_MISSING", "The recording's file is not there; is its disk mounted?")
+        if (size == 0L) throw ApiFailure(409, "RECORDING_NOT_READY", "Nothing has been recorded yet; try again in a few seconds", true)
+        val media = probe(playable.file)
+        return start(request, "", id, playable.file, playable.growing, media, playable.durationMs ?: media?.durationMs)
+    }
+
+    private suspend fun start(request: OpenVodPlayback, itemId: String, recordingId: String?, file: Path, growing: Boolean, media: MediaInfo?, durationMs: Long?): VodSession {
         val audio = request.audioIndex?.let { index -> media?.audio?.firstOrNull { it.index == index } ?: throw ApiFailure(400, "INVALID_REQUEST", "No audio stream $index") }
-        val mode = vodMode(media, request.profile, audio)
+        val mode = vodMode(media, if (growing) request.profile.copy(containers = emptyList()) else request.profile, audio)
         return mutex.withLock {
             reap()
             if (mode != Wire.VodMode.DIRECT && sessions.values.count { it.mode != Wire.VodMode.DIRECT } >= maxConverting) {
                 throw ApiFailure(503, Wire.ErrorCode.CAPACITY_EXHAUSTED, "Too many files are being converted; try again when one stops", true)
             }
             val state = VodState(
-                UUID.randomUUID().toString(), view.record.id, file, mode, view.item.durationMs, audio?.index, media, secret(), epoch = 1,
+                UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs, audio?.index, media, secret(), epoch = 1,
                 startMs = if (mode == Wire.VodMode.DIRECT) 0 else request.startMs, expires = clock.instant().plus(lease),
             )
             if (mode != Wire.VodMode.DIRECT) launch(state)
@@ -107,18 +138,25 @@ class VodSessions(
     suspend fun get(id: String): VodSession = mutex.withLock { live(id).wire() }
 
     /** Renews [id]'s lease; with a start, restarts a converted stream there under a new epoch. */
-    suspend fun update(id: String, update: UpdateVodPlayback): VodSession = mutex.withLock {
-        val state = live(id)
-        state.expires = clock.instant().plus(lease)
+    suspend fun update(id: String, update: UpdateVodPlayback): VodSession {
         val start = update.startMs
+        if (start != null && start < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
+        // A recording may have finished and moved since the stream started, so a restart finds its file again.
+        val recordingId = mutex.withLock { live(id).recordingId }
+        val playable = if (start != null && recordingId != null) recordings?.invoke(recordingId) else null
+        return mutex.withLock { restart(live(id), start, playable) }
+    }
+
+    private fun restart(state: VodState, start: Long?, playable: PlayableFile?): VodSession {
+        state.expires = clock.instant().plus(lease)
         if (start != null && state.mode != Wire.VodMode.DIRECT) {
-            if (start < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
+            playable?.let { state.file = it.file; state.growing = it.growing }
             stop(state)
             state.epoch++
             state.startMs = start
             launch(state)
         }
-        state.wire()
+        return state.wire()
     }
 
     suspend fun release(id: String): Boolean = mutex.withLock { sessions.remove(id)?.also { stop(it) } != null }
@@ -174,7 +212,7 @@ class VodSessions(
         val dir = directory.resolve(state.id)
         clear(dir)
         Files.createDirectories(dir)
-        val command = vodCommand(ffmpeg, state.file, dir, state.mode, state.startMs, state.media, state.audioIndex)
+        val command = vodCommand(ffmpeg, state.file, dir, state.mode, state.startMs, state.media, state.audioIndex, follow = state.growing)
         state.process = try {
             ProcessBuilder(command).redirectErrorStream(true).redirectOutput(dir.resolve("ffmpeg.log").toFile()).start()
         } catch (e: IOException) {
@@ -197,7 +235,7 @@ class VodSessions(
         val base = "/media/vod/$id/$epoch/$secret"
         val descriptor = if (mode == Wire.VodMode.DIRECT) PlaybackDescriptor("file", directType(media), "$base/file.${extension(media)}", epoch)
         else PlaybackDescriptor("hls", "application/vnd.apple.mpegurl", "$base/index.m3u8", epoch)
-        return VodSession(id, itemId, mode, descriptor, startMs, durationMs, expires.toString())
+        return VodSession(id, itemId, mode, descriptor, startMs, durationMs, expires.toString(), recordingId)
     }
 
     private fun secret(): String = HexFormat.of().formatHex(ByteArray(16).also(random::nextBytes))
@@ -255,14 +293,18 @@ internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStre
     }
 }
 
-/** The FFmpeg command that writes [file] from [startMs] as an HLS EVENT playlist and MPEG-TS segments in [dir]. */
-internal fun vodCommand(ffmpeg: String, file: Path, dir: Path, mode: String, startMs: Long, media: MediaInfo?, audioIndex: Int?): List<String> {
+/**
+ * The FFmpeg command that writes [file] from [startMs] as an HLS EVENT playlist and MPEG-TS segments in [dir]. With
+ * [follow] it reads a file still being written, ending the stream once the file stops growing for a minute.
+ */
+internal fun vodCommand(ffmpeg: String, file: Path, dir: Path, mode: String, startMs: Long, media: MediaInfo?, audioIndex: Int?, follow: Boolean = false): List<String> {
     val audio = audioIndex ?: media?.audio?.let { tracks -> (tracks.firstOrNull { it.default } ?: tracks.firstOrNull())?.index }
     val copyVideo = mode == Wire.VodMode.REMUX || mode == Wire.VodMode.AUDIO
     val copyAudio = mode == Wire.VodMode.REMUX
     return buildList {
         addAll(listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error"))
         if (startMs > 0) addAll(listOf("-ss", "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0)))
+        if (follow) addAll(listOf("-follow", "1", "-rw_timeout", "$FOLLOW_TIMEOUT_MICROS"))
         addAll(listOf("-i", file.toString(), "-map", "0:v:0?"))
         if (audio != null) addAll(listOf("-map", "0:$audio")) else add("-an")
         addAll(listOf("-sn", "-dn"))

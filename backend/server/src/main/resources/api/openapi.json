@@ -207,8 +207,8 @@
         }
       },
       "OpenVodPlayback": {
-        "type": "object", "required": ["itemId"],
-        "properties": { "itemId": { "type": "string" }, "profile": { "$ref": "#/components/schemas/ClientProfile" }, "startMs": { "type": "integer", "minimum": 0 }, "audioIndex": { "type": ["integer", "null"], "description": "An audio stream index from the item's tracks; the file's default when null." } }
+        "type": "object",
+        "properties": { "itemId": { "type": "string", "description": "The item to play; leave it out with recordingId." }, "recordingId": { "type": ["string", "null"], "description": "A running or finished recording to play instead of an item." }, "profile": { "$ref": "#/components/schemas/ClientProfile" }, "startMs": { "type": "integer", "minimum": 0 }, "audioIndex": { "type": ["integer", "null"], "description": "An audio stream index from the item's tracks; the file's default when null." } }
       },
       "UpdateVodPlayback": {
         "type": "object",
@@ -220,7 +220,7 @@
           "id": { "type": "string" }, "itemId": { "type": "string" }, "mode": { "type": "string", "enum": ["direct", "remux", "audio", "transcode"] },
           "descriptor": { "type": "object", "properties": { "protocol": { "type": "string", "enum": ["file", "hls"] }, "mimeType": { "type": "string" }, "url": { "type": "string" }, "epoch": { "type": "integer" } } },
           "startMs": { "type": "integer", "description": "Where in the item the HLS stream's time 0 is; 0 for direct play." }, "durationMs": { "type": ["integer", "null"] },
-          "expiresAt": { "type": "string", "format": "date-time" }
+          "expiresAt": { "type": "string", "format": "date-time" }, "recordingId": { "type": ["string", "null"], "description": "Set, with an empty itemId, when the session plays a recording." }
         }
       },
       "ViewerPreferences": {

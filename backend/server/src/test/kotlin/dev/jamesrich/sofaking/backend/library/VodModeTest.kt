@@ -46,4 +46,10 @@ class VodModeTest {
         assertEquals("libx264", converted[converted.indexOf("-c:v") + 1])
         assertTrue("0:2" in converted)
     }
+
+    @Test fun `a file still being written is followed until it stops growing`() {
+        val command = vodCommand("ffmpeg", Path.of("/r/a.ts"), Path.of("/t/s"), Wire.VodMode.REMUX, 0, null, null, follow = true)
+        assertEquals(listOf("-follow", "1", "-rw_timeout", "60000000", "-i", "/r/a.ts"), command.subList(command.indexOf("-follow"), command.indexOf("-follow") + 6))
+        assertFalse("-follow" in vodCommand("ffmpeg", Path.of("/r/a.ts"), Path.of("/t/s"), Wire.VodMode.REMUX, 0, null, null))
+    }
 }

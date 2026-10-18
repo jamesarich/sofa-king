@@ -92,14 +92,15 @@ import kotlinx.serialization.Serializable
 )
 
 /**
- * `POST /api/v1/vod-sessions`: play the movie, episode or video [itemId] from [startMs], with the audio stream whose
- * index is [audioIndex] (the file's default when null).
+ * `POST /api/v1/vod-sessions`: play the movie, episode or video [itemId], or the recording [recordingId], from
+ * [startMs], with the audio stream whose index is [audioIndex] (the file's default when null).
  */
 @Serializable data class OpenVodPlayback(
-    val itemId: String,
+    val itemId: String = "",
     val profile: ClientProfile = ClientProfile(),
     val startMs: Long = 0,
     val audioIndex: Int? = null,
+    val recordingId: String? = null,
 )
 
 /** `PATCH /api/v1/vod-sessions/{id}`: renew the lease, and with [startMs] restart a converted stream there. */
@@ -108,7 +109,8 @@ import kotlinx.serialization.Serializable
 /**
  * A library file being played. [mode] is a [Wire.VodMode] value. The descriptor's protocol is `file` for direct play,
  * which seeks on its own, or `hls` for the others, whose media time 0 is [startMs] into the item: a seek past what the
- * stream holds asks for a restart there with [UpdateVodPlayback]. [durationMs] is the item's whole length.
+ * stream holds asks for a restart there with [UpdateVodPlayback]. [durationMs] is the item's whole length. A recording
+ * has [recordingId] and an empty [itemId]; while it records, its stream grows and [durationMs] is the length it will have.
  */
 @Serializable data class VodSession(
     val id: String,
@@ -118,4 +120,5 @@ import kotlinx.serialization.Serializable
     val startMs: Long = 0,
     val durationMs: Long? = null,
     val expiresAt: String = "",
+    val recordingId: String? = null,
 )

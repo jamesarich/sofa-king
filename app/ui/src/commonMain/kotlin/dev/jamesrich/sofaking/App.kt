@@ -40,7 +40,9 @@ import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialSeasonId
 import dev.jamesrich.sofaking.data.initialSubtitle
+import dev.jamesrich.sofaking.data.initialAudio
 import dev.jamesrich.sofaking.data.isPictureSubtitle
+import dev.jamesrich.sofaking.data.trackChoice
 import dev.jamesrich.sofaking.data.trackLabel
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
@@ -470,19 +472,25 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     // Keyed by the item, so the next episode starts a fresh screen rather than inheriting this one's end.
                     item != null -> key(item.id) {
                         var next by remember { mutableStateOf<MediaItem?>(null) }
-                        // The tracks picked in the player, so a retry opens the item with them again.
-                        var audio by remember { mutableStateOf<Int?>(null) }
-                        // A forced picture subtitle the item starts with is drawn in from the first stream.
-                        var pictureSubtitle by remember {
-                            mutableStateOf((detail as? ItemDetailState.Ready)?.detail?.let(::initialSubtitle)?.takeIf(::isPictureSubtitle)?.index)
-                        }
+                        val ready = (detail as? ItemDetailState.Ready)?.detail
+                        // The tracks the viewer picked in this show start its episodes, read once as the item opens.
+                        val choice = remember { item.showId?.let { settings?.trackChoices?.get(it) } }
+                        val startAudio = remember { ready?.let { initialAudio(it, choice) } }
+                        val startSubtitle = remember { ready?.let { initialSubtitle(it, choice) } }
+                        // The tracks the stream carries, so a retry opens the item with them again: an audio track other
+                        // than the default, and a picture subtitle drawn in from the first stream.
+                        var audio by remember { mutableStateOf(startAudio?.index?.takeIf { it != ready?.let(::defaultAudio)?.index }) }
+                        var pictureSubtitle by remember { mutableStateOf(startSubtitle?.takeIf(::isPictureSubtitle)?.index) }
                         val tracks = remember(detail) {
                             (detail as? ItemDetailState.Ready)?.detail?.let { d ->
                                 VodTracks(
                                     audio = d.audio.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1)) },
                                     subtitles = d.subtitles.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1), isPictureSubtitle(t)) },
-                                    initialAudio = defaultAudio(d)?.index,
-                                    initialSubtitle = initialSubtitle(d)?.index,
+                                    initialAudio = startAudio?.index ?: defaultAudio(d)?.index,
+                                    initialSubtitle = startSubtitle?.index,
+                                    onPicked = { audioIndex, subtitleIndex ->
+                                        item.showId?.let { vm.setTrackChoice(it, trackChoice(d, audioIndex, subtitleIndex)) }
+                                    },
                                     select = { audioIndex, subtitleIndex, position ->
                                         audio = audioIndex
                                         pictureSubtitle = subtitleIndex

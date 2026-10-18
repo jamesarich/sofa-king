@@ -32,12 +32,23 @@ private const val WATCHED_AT = 0.90
 /** How many items a home row holds. */
 private const val SHELF_SIZE = 20
 
+/** The kinds that show a frame of their video when they have no picture. */
+private val FRAMED = setOf(ItemKind.MOVIE, ItemKind.EPISODE, ItemKind.VIDEO)
+
+/** Where a frame is taken: a tenth of the way in, past any opening titles, but no later than ten minutes. */
+internal fun frameAt(durationMs: Long?): Long = durationMs?.let { (it / 10).coerceAtMost(600_000) } ?: 0
+
 /** Where an item's poster or backdrop comes from: a file in its library folder, or a TMDB image path. */
 sealed interface ArtSource {
     /** [root] is the library folder; [relative] the image inside it. */
     data class Local(val root: Path, val relative: String) : ArtSource
     /** [path] is TMDB's `/abc.jpg`; [size] one of its sizes, such as `w342`. */
     data class Tmdb(val path: String, val size: String) : ArtSource
+    /**
+     * A frame of the video [relative] in the library folder [root], taken [atMs] in; [stamp] is the file's size and
+     * change time, so a replaced file gets a new frame.
+     */
+    data class Frame(val root: Path, val relative: String, val atMs: Long, val stamp: String) : ArtSource
 
     val version: String get() = hash(toString()).take(12)
 }
@@ -235,10 +246,15 @@ class LibraryCatalog internal constructor(
         fun <T> nfoFirst(own: T?, tmdb: T?): T? = if (nfo && own != null) own else tmdb ?: own
         fun nfoFirst(own: List<String>?, tmdb: List<String>?): List<String> = if (nfo && !own.isNullOrEmpty()) own else tmdb.takeUnless { it.isNullOrEmpty() } ?: own.orEmpty()
         val title = if (nfo) record.title else facts?.title ?: record.title
+        // A file with no picture of its own shows a frame from it, as an episode's or a video's still and a movie's backdrop.
+        val frame = record.path?.takeIf { record.media?.video != null && record.kind in FRAMED }?.let {
+            ArtSource.Frame(root, it, frameAt(record.durationMs ?: record.media?.durationMs), "${record.size}-${record.modifiedAt}")
+        }
         val poster = record.poster?.let { ArtSource.Local(root, it) }
             ?: facts?.poster?.let { ArtSource.Tmdb(it, if (record.kind == ItemKind.EPISODE) "w300" else "w342") }
             ?: showView?.poster.takeIf { record.kind == ItemKind.SEASON }
-        val backdrop = record.backdrop?.let { ArtSource.Local(root, it) } ?: facts?.backdrop?.let { ArtSource.Tmdb(it, "w1280") } ?: showView?.backdrop
+            ?: frame?.takeIf { record.kind != ItemKind.MOVIE }
+        val backdrop = record.backdrop?.let { ArtSource.Local(root, it) } ?: facts?.backdrop?.let { ArtSource.Tmdb(it, "w1280") } ?: showView?.backdrop ?: frame
         val video = record.media?.video
         val item = LibraryItem(
             id = record.id, libraryId = record.libraryId, kind = record.kind, title = title, parentId = record.parentId,

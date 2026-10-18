@@ -30,6 +30,24 @@ private val log = LoggerFactory.getLogger(VodSessions::class.java)
 
 /** The HLS segment length FFmpeg cuts to, in seconds. */
 private const val SEGMENT_SECONDS = 4
+private const val SEGMENT_MS = SEGMENT_SECONDS * 1000L
+
+/**
+ * How many segments a whole playlist of an item [durationMs] long lists. Less than a second left over joins the last
+ * segment, as the stream's last frames can end that much before its audio does.
+ */
+internal fun segmentCount(durationMs: Long): Int = maxOf(1, ((durationMs + SEGMENT_MS - 1000) / SEGMENT_MS).toInt())
+
+/** A VOD playlist of every segment of an item [durationMs] long, the last one as long as what is left. */
+internal fun wholePlaylist(durationMs: Long): String = buildString {
+    append("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:${SEGMENT_SECONDS + 1}\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n")
+    val count = segmentCount(durationMs)
+    for (i in 0 until count) {
+        val length = if (i == count - 1) durationMs - i * SEGMENT_MS else SEGMENT_MS
+        append("#EXTINF:%.3f,\nseg$i.ts\n".format(java.util.Locale.ROOT, length / 1000.0))
+    }
+    append("#EXT-X-ENDLIST\n")
+}
 
 /** The init segment of a fragmented MP4 stream. */
 private const val FMP4_INIT = "init.mp4"
@@ -84,8 +102,18 @@ internal class VodState(
     var epoch: Int,
     var startMs: Long,
     var expires: Instant,
+    val startedAt: Instant,
     var process: Process? = null,
+    /**
+     * True when the session serves a playlist of the whole item and converts from the segment a player asks for;
+     * [runStart] is the segment the running FFmpeg started at.
+     */
+    val whole: Boolean = false,
+    var runStart: Int = 0,
 )
+
+/** A library file or recording being played, as the portal's Watching now lists it. */
+class VodActivity(val id: String, val itemId: String, val recordingId: String?, val mode: String, val startedAt: Instant, val expiresAt: Instant)
 
 /** A file to serve for a VOD media request, and its type. */
 class VodMedia(val file: Path, val contentType: String)
@@ -208,6 +236,8 @@ class VodSessions(
         // Drawing subtitles into the picture means encoding it.
         val mode = if (burn != null) Wire.VodMode.TRANSCODE
         else vodMode(media, if (growing) request.profile.copy(containers = emptyList()) else request.profile, audio)
+        // Only a conversion cuts segments where it likes; a copy cuts at the file's own key frames, which nothing lists.
+        val whole = request.wholePlaylist && mode == Wire.VodMode.TRANSCODE && !growing && durationMs != null && durationMs > 0
         return mutex.withLock {
             reap()
             if (mode != Wire.VodMode.DIRECT && sessions.values.count { it.mode != Wire.VodMode.DIRECT } >= maxConverting) {
@@ -215,7 +245,8 @@ class VodSessions(
             }
             val state = VodState(
                 UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs, audio?.index, burn, media, secret(), epoch = 1,
-                startMs = if (mode == Wire.VodMode.DIRECT) 0 else request.startMs, expires = clock.instant().plus(lease),
+                startMs = if (mode == Wire.VodMode.DIRECT || whole) 0 else request.startMs, expires = clock.instant().plus(lease), startedAt = clock.instant(),
+                whole = whole, runStart = if (whole) (request.startMs / SEGMENT_MS).toInt() else 0,
             )
             if (mode != Wire.VodMode.DIRECT) launch(state)
             sessions[state.id] = state
@@ -224,6 +255,12 @@ class VodSessions(
     }
 
     suspend fun get(id: String): VodSession = mutex.withLock { live(id).wire() }
+
+    /** The sessions playing now, oldest first. */
+    suspend fun snapshot(): List<VodActivity> = mutex.withLock {
+        reap()
+        sessions.values.sortedBy { it.startedAt }.map { VodActivity(it.id, it.itemId, it.recordingId, it.mode, it.startedAt, it.expires) }
+    }
 
     /** Renews [id]'s lease; with a start, restarts a converted stream there under a new epoch. */
     suspend fun update(id: String, update: UpdateVodPlayback): VodSession {
@@ -237,7 +274,8 @@ class VodSessions(
 
     private fun restart(state: VodState, start: Long?, playable: PlayableFile?): VodSession {
         state.expires = clock.instant().plus(lease)
-        if (start != null && state.mode != Wire.VodMode.DIRECT) {
+        // A whole playlist seeks anywhere already; a restart there only renews it.
+        if (start != null && state.mode != Wire.VodMode.DIRECT && !state.whole) {
             playable?.let { state.file = it.file; state.growing = it.growing }
             stop(state)
             state.epoch++
@@ -268,6 +306,7 @@ class VodSessions(
             return if (name == "file.${extension(state.media)}") VodMedia(state.file, directType(state.media)) else null
         }
         val dir = directory.resolve(state.id)
+        if (state.whole) return wholeMedia(state, dir, name)
         return when {
             name == "index.m3u8" -> waitFor(state, epoch) { Files.isRegularFile(dir.resolve(name)) && Files.isRegularFile(dir.resolve(firstSegment(state))) }
                 ?.let { VodMedia(dir.resolve(name), "application/vnd.apple.mpegurl") }
@@ -275,6 +314,30 @@ class VodSessions(
             FMP4_SEGMENT.matches(name) || name == FMP4_INIT -> waitFor(state, epoch) { Files.isRegularFile(dir.resolve(name)) }?.let { VodMedia(dir.resolve(name), "video/mp4") }
             else -> null
         }
+    }
+
+    /**
+     * A whole-playlist session's media: the playlist, written once, or a segment, converted from there when FFmpeg is
+     * not already on its way to it.
+     */
+    private suspend fun wholeMedia(state: VodState, dir: Path, name: String): VodMedia? {
+        if (name == "index.m3u8") return VodMedia(dir.resolve(name), "application/vnd.apple.mpegurl")
+        val segment = SEGMENT.matchEntire(name)?.groupValues?.get(1)?.toIntOrNull() ?: return null
+        if (segment >= segmentCount(state.durationMs!!)) return null
+        val file = dir.resolve(name)
+        if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return VodMedia(file, "video/mp2t")
+        val epoch = mutex.withLock {
+            if (sessions[state.id] !== state) return null
+            val running = state.process?.isAlive == true
+            val reached = withContext(Dispatchers.IO) { written(dir, state.runStart) }
+            if (!running || segment < state.runStart || segment > reached + LOOKAHEAD_SEGMENTS) {
+                stop(state, clearFiles = false)
+                state.runStart = segment
+                launch(state)
+            }
+            state.epoch
+        }
+        return waitFor(state, epoch) { Files.isRegularFile(file) }?.let { VodMedia(file, "video/mp2t") }
     }
 
     private suspend fun waitFor(state: VodState, epoch: Int, ready: () -> Boolean): Unit? {
@@ -299,25 +362,33 @@ class VodSessions(
 
     private fun launch(state: VodState) {
         val dir = directory.resolve(state.id)
-        clear(dir)
-        Files.createDirectories(dir)
-        val command = vodCommand(ffmpeg, state.file, dir, state.mode, state.startMs, state.media, state.audioIndex, follow = state.growing, encoder = encoder, burn = state.burn)
+        // A whole playlist keeps the segments already converted, so a seek back to them plays at once.
+        if (!state.whole || !Files.isDirectory(dir)) {
+            clear(dir)
+            Files.createDirectories(dir)
+            if (state.whole) Files.writeString(dir.resolve("index.m3u8"), wholePlaylist(state.durationMs!!))
+        }
+        val command = if (state.whole) {
+            vodCommand(ffmpeg, state.file, dir, state.mode, state.runStart * SEGMENT_MS, state.media, state.audioIndex, encoder = encoder, burn = state.burn, firstSegment = state.runStart)
+        } else {
+            vodCommand(ffmpeg, state.file, dir, state.mode, state.startMs, state.media, state.audioIndex, follow = state.growing, encoder = encoder, burn = state.burn)
+        }
         state.process = try {
             ProcessBuilder(command).redirectErrorStream(true).redirectOutput(dir.resolve("ffmpeg.log").toFile()).start()
         } catch (e: IOException) {
             log.warn("vod ffmpeg did not start class={}", e.javaClass.simpleName)
             throw ApiFailure(503, "TRANSCODER_UNAVAILABLE", "FFmpeg could not start", true)
         }
-        log.info("vod session started session={} mode={} startMs={}", state.id, state.mode, state.startMs)
+        log.info("vod session started session={} mode={} startMs={}", state.id, state.mode, if (state.whole) state.runStart * SEGMENT_MS else state.startMs)
     }
 
-    private fun stop(state: VodState) {
+    private fun stop(state: VodState, clearFiles: Boolean = true) {
         state.process?.let { process ->
             process.destroy()
             if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
         }
         state.process = null
-        clear(directory.resolve(state.id))
+        if (clearFiles) clear(directory.resolve(state.id))
     }
 
     private fun VodState.wire(): VodSession {
@@ -330,7 +401,17 @@ class VodSessions(
     private fun secret(): String = HexFormat.of().formatHex(ByteArray(16).also(random::nextBytes))
 
     private companion object {
-        val SEGMENT = Regex("seg[0-9]{1,6}\\.ts")
+        val SEGMENT = Regex("seg([0-9]{1,6})\\.ts")
+
+        /** How far past the last segment written a request may be and still wait for the running FFmpeg. */
+        const val LOOKAHEAD_SEGMENTS = 3
+
+        /** The last segment written in a row from [start], or `start - 1` before the first. */
+        fun written(dir: Path, start: Int): Int {
+            var last = start - 1
+            while (Files.isRegularFile(dir.resolve("seg${last + 1}.ts"))) last++
+            return last
+        }
         val FMP4_SEGMENT = Regex("seg[0-9]{1,6}\\.m4s")
 
         fun firstSegment(state: VodState) = if (fragmentedMp4(state.mode, state.media)) "seg0.m4s" else "seg0.ts"
@@ -434,6 +515,11 @@ internal fun vodCommand(
     follow: Boolean = false,
     encoder: VideoEncoder = VideoEncoder(),
     burn: SubtitleSource? = null,
+    /**
+     * For a whole playlist, the segment [startMs] begins: FFmpeg numbers its segments from it, offsets their times to
+     * the item's, and writes its own playlist aside, as the server lists every segment itself.
+     */
+    firstSegment: Int? = null,
 ): List<String> {
     val audio = audioIndex ?: media?.audio?.let { tracks -> (tracks.firstOrNull { it.default } ?: tracks.firstOrNull())?.index }
     val copyVideo = mode == Wire.VodMode.REMUX || mode == Wire.VodMode.AUDIO
@@ -463,8 +549,13 @@ internal fun vodCommand(
         if (audio != null) {
             if (copyAudio) addAll(listOf("-c:a", "copy")) else addAll(listOf("-c:a", "aac", "-ac", "2", "-b:a", "192k"))
         }
+        if (firstSegment != null) {
+            addAll(listOf("-output_ts_offset", "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0), "-start_number", "$firstSegment"))
+        } else {
+            addAll(listOf("-avoid_negative_ts", "make_zero"))
+        }
         addAll(listOf(
-            "-avoid_negative_ts", "make_zero", "-f", "hls", "-hls_time", "$SEGMENT_SECONDS", "-hls_list_size", "0",
+            "-f", "hls", "-hls_time", "$SEGMENT_SECONDS", "-hls_list_size", "0",
             "-hls_playlist_type", "event", "-hls_flags", "temp_file+independent_segments",
         ))
         if (fmp4) {
@@ -472,6 +563,6 @@ internal fun vodCommand(
         } else {
             addAll(listOf("-hls_segment_type", "mpegts", "-hls_segment_filename", dir.resolve("seg%d.ts").toString()))
         }
-        add(dir.resolve("index.m3u8").toString())
+        add(dir.resolve(if (firstSegment != null) "ffmpeg.m3u8" else "index.m3u8").toString())
     }
 }

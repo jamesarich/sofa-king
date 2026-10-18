@@ -394,6 +394,7 @@ class PlaybackSessions(
             audioIndex = audioIndex,
             recordingId = itemId.takeIf { recording },
             subtitleIndex = subtitleIndex,
+            wholePlaylist = profile.wholePlaylist,
         )
     }
 

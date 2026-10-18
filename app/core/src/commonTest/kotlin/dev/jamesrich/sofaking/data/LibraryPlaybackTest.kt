@@ -186,6 +186,7 @@ class LibraryPlaybackTest {
         assertEquals(95_000, body["startMs"]!!.jsonPrimitive.longOrNull)
         assertEquals(2, body["audioIndex"]!!.jsonPrimitive.longOrNull?.toInt())
         assertEquals(1000, body["subtitleIndex"]!!.jsonPrimitive.longOrNull?.toInt(), "the drawn subtitle stays on")
+        assertNull(body["wholePlaylist"], "a player that restarts conversions itself leaves it out")
     }
 
     @Test

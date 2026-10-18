@@ -12,7 +12,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.use
+import dev.jamesrich.sofaking.ItemDetailState
+import dev.jamesrich.sofaking.LibraryGrid
+import dev.jamesrich.sofaking.LibraryHomeState
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.ItemKind
+import dev.jamesrich.sofaking.data.LibraryKind
+import dev.jamesrich.sofaking.data.LibrarySort
+import dev.jamesrich.sofaking.data.MediaHome
+import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.MediaLibrary
+import dev.jamesrich.sofaking.data.MediaShelf
+import dev.jamesrich.sofaking.data.PlayProgress
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
@@ -29,6 +41,12 @@ import dev.jamesrich.sofaking.ui.player.InfoOverlay
 import dev.jamesrich.sofaking.ui.player.MiniGuide
 import dev.jamesrich.sofaking.ui.player.MiniGuideActions
 import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
+import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
+import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
+import dev.jamesrich.sofaking.ui.library.LibraryGridActions
+import dev.jamesrich.sofaking.ui.library.LibraryGridScreen
+import dev.jamesrich.sofaking.ui.library.LibraryHomeActions
+import dev.jamesrich.sofaking.ui.library.LibraryHomeScreen
 import dev.jamesrich.sofaking.ui.settings.SettingsLockScreen
 import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
@@ -286,6 +304,115 @@ class RenderSmokeTest {
         }
         // An align() inside AnimatedVisibility's content once left the bar at the top of the screen.
         assertTrue(image.firstContentRow() > image.height / 3)
+    }
+
+    private val movies = MediaLibrary("movies", "Movies", LibraryKind.MOVIES, itemCount = 42)
+    private val shows = MediaLibrary("shows", "TV Shows", LibraryKind.SHOWS, itemCount = 12)
+    private fun movie(i: Int) = MediaItem(
+        id = "m$i",
+        libraryId = "movies",
+        kind = ItemKind.MOVIE,
+        title = listOf("The Long Night", "Harbor Lights", "Paper Moon", "Quiet Town", "Northbound", "Second Act", "Glass Garden", "Dust")[i % 8],
+        year = 1990 + i,
+        durationMs = 6_480_000,
+        poster = logo.takeIf { i % 3 != 1 },
+        backdrop = logo,
+        overview = "A night shift at a lighthouse turns into a search for a missing ship. ".repeat(3),
+        genres = listOf("Drama", "Mystery"),
+        contentRating = "PG-13",
+        rating = 7.4,
+        videoHeight = 2160,
+        hdr = i == 0,
+        progress = when (i) {
+            0 -> PlayProgress(1_800_000, 6_480_000, watched = false)
+            2 -> PlayProgress(0, 6_480_000, watched = true)
+            else -> null
+        },
+    )
+    private fun episode(season: Int, i: Int, progress: PlayProgress? = null) = MediaItem(
+        id = "e$season-$i",
+        libraryId = "shows",
+        kind = ItemKind.EPISODE,
+        title = "Chapter ${i + 1}",
+        parentId = "s$season",
+        showId = "show",
+        showTitle = "Harbor Patrol",
+        season = season,
+        episode = i + 1,
+        aired = "2024-0${season}-1${i}",
+        durationMs = 2_700_000,
+        backdrop = logo.takeIf { i % 2 == 0 },
+        overview = "The crew follows a lead across the bay while a storm closes in on the harbor.",
+        progress = progress,
+    )
+    private val show = MediaItem(
+        id = "show",
+        libraryId = "shows",
+        kind = ItemKind.SHOW,
+        title = "Harbor Patrol",
+        year = 2023,
+        poster = logo,
+        backdrop = logo,
+        overview = "Coast guard officers keep a small harbor town safe through storms, smugglers and summer crowds.",
+        genres = listOf("Drama"),
+        contentRating = "TV-14",
+        rating = 8.1,
+        children = 2,
+        unwatched = 9,
+    )
+
+    @Test
+    fun `the library home renders its rows and libraries`() {
+        val home = MediaHome(
+            shelves = listOf(
+                MediaShelf("continue", "Continue watching", listOf(movie(0), episode(1, 2, PlayProgress(900_000, 2_700_000, false)))),
+                MediaShelf("recent-movies", "Recently added in Movies", List(8) { movie(it) }, libraryId = "movies"),
+                MediaShelf("recent-shows", "Recently added in TV Shows", listOf(show), libraryId = "shows"),
+            ),
+            libraries = listOf(movies, shows),
+        )
+        val image = render("library-home") {
+            LibraryHomeScreen(LibraryHomeState.Ready(home), LibraryHomeActions({}, {}, {}, {}))
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
+    fun `a movie's page renders its hero, details and buttons`() {
+        val detail = MediaItemDetail(
+            item = movie(0),
+            tagline = "Some lights never go out.",
+            cast = listOf("Ana Reyes", "Tom Hale", "June Park"),
+            directors = listOf("Lee Moran"),
+        )
+        val image = render("library-movie") {
+            ItemDetailsScreen(ItemDetailState.Ready(detail), season = null, selectedSeasonId = null, actions = ItemDetailsActions({ _, _ -> }, { _, _ -> }, {}, {}))
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
+    fun `a show's page renders its seasons and episodes`() {
+        val seasons = List(2) { MediaItem("s${it + 1}", "shows", ItemKind.SEASON, "Season ${it + 1}", parentId = "show", season = it + 1, unwatched = 4) }
+        val next = episode(2, 1, PlayProgress(600_000, 2_700_000, false))
+        val detail = MediaItemDetail(item = show, children = seasons, next = next)
+        val season = MediaItemDetail(
+            item = seasons[1],
+            children = listOf(episode(2, 0, PlayProgress(0, 2_700_000, true)), next) + List(3) { episode(2, it + 2) },
+        )
+        val image = render("library-show") {
+            ItemDetailsScreen(ItemDetailState.Ready(detail), ItemDetailState.Ready(season), selectedSeasonId = "s2", actions = ItemDetailsActions({ _, _ -> }, { _, _ -> }, {}, {}))
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
+    fun `a library's grid renders its chips and posters`() {
+        val grid = LibraryGrid("movies", LibrarySort.ADDED, unwatched = false, items = List(14) { movie(it) }, total = 42, next = "c2", loading = false)
+        val image = render("library-grid") {
+            LibraryGridScreen(movies, grid, LibraryGridActions({}, {}, {}, {}, {}))
+        }
+        assertTrue(image.hasContent())
     }
 
     private fun Image.firstContentRow(): Int {

@@ -14,6 +14,16 @@ Each channel shows its logo beside its number. The details above the grid show t
 
 The app shows its saved lineup while refreshing. Channels load before guide data. Automatic refresh runs every three hours; select Refresh to request a new load.
 
+## Library
+
+When the server keeps media libraries, the app shows a Library tab beside Live. On a TV both tabs sit in the header next to the app's name, Up from the guide's chips reaches them, and Settings stays the header's last button; on a phone the tabs are a bar along the bottom, and on a tablet, desktop or browser a rail at the side, with Settings as the last item. A server without libraries shows no Library tab.
+
+The Library tab opens on Continue watching (what you stopped partway through and the next episode of a show you are watching), each library's recent additions, then the libraries themselves. A library opens as a grid of posters with chips to sort by title, recently added, year or rating and to show only what is unwatched; more load as you scroll. Cards show a bar for how far in you are, a tick once watched and, on a show, how many episodes are unwatched. OK opens an item's page; the remote's Play key plays a movie or episode straight from its card. Back goes from an item's page to where you opened it, from a library's grid to the Library tab, and from the Library tab to Live.
+
+An item's page shows its backdrop, title, year, length, rating, genres and badges for the picture (4K, HD, HDR), the overview, and who directed and stars in it. Focus starts on Play, or Resume from the time you stopped, with Play from beginning beside it and Mark watched or Mark unwatched after. A show's page plays or resumes its next episode, lists its seasons as chips (opening on the season with that episode) and the season's episodes under them; OK on an episode plays it, resuming where you stopped.
+
+Playing a library item opens the full-screen player. Left and Rewind step back 10 seconds and Right and Fast Forward 30; holding the key moves a minute and then five at a time. The target shows on the bar under the title and plays once you stop pressing, or at once on OK; Back while moving cancels it, and Back otherwise returns to the item's page with the episode you watched focused. OK, Play/Pause, Play and Pause pause and resume, and Up, Down or Info show the bar. The server plays a file your device can play as it is; for anything else it converts the file as it plays, and a jump past what it has converted restarts it there, which takes a moment. Where you stop is saved every 10 seconds, when you leave and when another app comes to the front; the server marks an item watched past 90%. Returning to the app picks up where you were.
+
 ## Channels
 
 Channels come from the server's lineup. The app lists a channel when the server reports it as playable and gives it a numeric display number, and lists them in number order. The server tags each channel with its lineup group, such as News, and each tag is a guide category with its own chip; a channel with several tags is under each, and one without a tag is under Other. Chips show how many channels they list.
@@ -72,7 +82,7 @@ The Apple TV app lists the channels, favorites first, with the program on now an
 
 ## Settings
 
-Settings opens from the guide's header, with focus on Back. Switches and choices apply at once. The Server section reads Connected to with the server's address and a Change button; Change opens the server fields, which apply when you select Save & reload under them, and Cancel closes them. On a device with no server yet, the fields are open with focus on Server URL.
+Settings opens from the header on a TV and from the navigation bar or rail elsewhere, with focus on Back. Switches and choices apply at once. The Server section reads Connected to with the server's address and a Change button; Change opens the server fields, which apply when you select Save & reload under them, and Cancel closes them. On a device with no server yet, the fields are open with focus on Server URL.
 
 | Section | Setting | Default | What it does |
 | --- | --- | --- | --- |

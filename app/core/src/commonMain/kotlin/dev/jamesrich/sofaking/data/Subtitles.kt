@@ -88,10 +88,11 @@ internal fun vttTime(value: String): Long? {
  * the tags are stripped again once the entities are read; a `<br>` breaks the line even when its `>` is missing.
  * Only the tag names of WebVTT and of subtitle HTML count as tags, so `<<Previously>>` and `x<y` stay as text.
  * Some muxed tracks cut each line at a fixed length, mid-tag, and replace its last character; the cut-off tag
- * (`help<?`, `most<br /s`) and a stray `>` it leaves at the end of a line (`Ma></i>`) are dropped.
+ * (`help<?`, `most<br /s`), a stray `>` it leaves at the end of a line (`Ma></i>`) and a row of only punctuation
+ * are dropped, and a break that lost its `<` (`that.Br />fertile`) still breaks the line.
  */
 private fun cleanCueText(raw: String): String {
-    fun String.untagged() = replace(BREAK, "\n").replace(TAG, "")
+    fun String.untagged() = replace(BREAK, "\n").replace(HEADLESS_BREAK, "\n").replace(TAG, "")
     return raw.replace(CUT_TAG, "").untagged()
         .replace(STRAY_CLOSE, "$1")
         .replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&lrm;", "").replace("&rlm;", "")
@@ -100,7 +101,8 @@ private fun cleanCueText(raw: String): String {
         .untagged()
         .lines()
         .map { it.trim() }
-        .filter { it.isNotEmpty() }
+        // A cut line can leave a row of nothing but its replaced punctuation; `♪` and `-t.` are kept.
+        .filter { line -> line.any { it !in ASCII_PUNCTUATION && !it.isWhitespace() } }
         .joinToString("\n")
 }
 
@@ -114,6 +116,11 @@ private val BREAK = Regex("""<\s*br\b(?:[^<>\n]*>)?""", RegexOption.IGNORE_CASE)
 
 /** A tag cut off at the end of a line: `<`, a few characters of `br`, `b`, `/` or spaces, and one replaced character. */
 private val CUT_TAG = Regex("""<[bBrR/ ]{0,5}[^<>\n\d]?$""", RegexOption.MULTILINE)
+
+/** A `<br />` that lost its `<` and maybe more: `Br />`, `R />` or ` />`. */
+private val HEADLESS_BREAK = Regex("""(?:\b[Bb]?[Rr])? ?/>""")
+
+private const val ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
 
 /** A `>` left at the end of a line after a word, by a cut tag. */
 private val STRAY_CLOSE = Regex("""(\w)>[ \t]*$""", RegexOption.MULTILINE)

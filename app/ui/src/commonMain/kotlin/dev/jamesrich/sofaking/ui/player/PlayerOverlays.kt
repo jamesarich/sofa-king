@@ -87,7 +87,7 @@ import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 
-private val OverlayShape = RoundedCornerShape(8.dp)
+internal val OverlayShape = RoundedCornerShape(8.dp)
 
 internal fun CaptionToggleOutcome.labelRes(): StringResource = when (this) {
     CaptionToggleOutcome.ON -> Res.string.captions_on
@@ -487,8 +487,9 @@ internal fun BoxScope.StreamCard(
         if (tracks.isNotEmpty()) {
             Text(stringResource(Res.string.stream_card_audio), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             tracks.forEachIndexed { position, track ->
-                AudioTrackRow(
-                    track,
+                TrackRow(
+                    track.label,
+                    track.selected,
                     onClick = { onSelectTrack(track.id) },
                     modifier = if (position == focusTrack) Modifier.focusRequester(focusRequester) else Modifier,
                 )
@@ -518,9 +519,9 @@ private fun StatLine(label: String, value: String) {
     }
 }
 
-/** An audio track to pick; the playing one reads as selected, and OK on any row plays it. */
+/** A track to pick; the playing one reads as [selected], and OK on any row plays it. */
 @Composable
-private fun AudioTrackRow(track: AudioTrack, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
     Row(
@@ -528,13 +529,13 @@ private fun AudioTrackRow(track: AudioTrack, onClick: () -> Unit, modifier: Modi
             .fillMaxWidth()
             .background(if (focused) colors.primary else Color.Transparent, OverlayShape)
             .onFocusChanged { focused = it.isFocused }
-            .selectable(selected = track.selected, role = Role.RadioButton, onClick = onClick)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(if (track.selected) "●" else "○", style = MaterialTheme.typography.bodyMedium, color = if (focused) colors.onPrimary else colors.primary)
-        Text(track.label, style = MaterialTheme.typography.bodyMedium, color = if (focused) colors.onPrimary else colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(if (selected) "●" else "○", style = MaterialTheme.typography.bodyMedium, color = if (focused) colors.onPrimary else colors.primary)
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = if (focused) colors.onPrimary else colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

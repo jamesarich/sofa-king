@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibraryRepository
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaHome
@@ -13,6 +14,9 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.SofaKingException
+import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.episodeAfter
+import dev.jamesrich.sofaking.data.seasonAfter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -227,6 +231,48 @@ class LibraryViewModel(
         val start = item.progress?.takeIf { !fromStart && it.inProgress }?.positionMs ?: 0
         saved.remove(item.id)
         return sessions.play(item.id, profile, start, audioIndex)
+    }
+
+    /**
+     * The episode to offer when [item] ends: the next in its season, else the first of the next season. Null for
+     * anything but an episode, after a show's last episode, or when the server cannot be reached.
+     */
+    suspend fun upNext(item: MediaItem): MediaItem? {
+        val repository = repository ?: return null
+        if (item.kind != ItemKind.EPISODE) return null
+        val parent = item.parentId ?: return null
+        return try {
+            episodeAfter(repository.detail(parent).children, item.id) ?: run {
+                val show = item.showId?.takeIf { it != parent } ?: return null
+                val season = seasonAfter(repository.detail(show).children, parent) ?: return null
+                repository.detail(season.id).children.firstOrNull { it.kind.playable }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.w { "up next failed: ${describe(e)}" }
+            null
+        }
+    }
+
+    /**
+     * Plays [item] again from [positionMs] with the audio track [audioIndex], on the same terms as [play]; the
+     * player loads the new stream the sessions publish.
+     */
+    suspend fun switchAudio(item: MediaItem, profile: PlaybackProfile, positionMs: Long, audioIndex: Int): PlaybackStream =
+        sessions.play(item.id, profile, positionMs, audioIndex)
+
+    /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
+    suspend fun subtitles(itemId: String, index: Int): Subtitles? {
+        val repository = repository ?: return null
+        return try {
+            repository.subtitles(itemId, index)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.w { "subtitles failed: ${describe(e)}" }
+            null
+        }
     }
 
     /**

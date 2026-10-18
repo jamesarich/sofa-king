@@ -37,6 +37,9 @@ class LibraryRepository(private val api: SofaKingApi) {
         )
     }
 
+    /** Text subtitle track [index] of [id], with its cues in the item's time. */
+    suspend fun subtitles(id: String, index: Int): Subtitles = parseWebVtt(api.librarySubtitles(id, index))
+
     /** Saves [positionMs] into [id]; the server marks it watched past 90% and clears a position under 5%. */
     suspend fun savePosition(id: String, positionMs: Long, durationMs: Long?): MediaItem =
         item(api.updatePlayState(id, UpdatePlayStateDto(positionMs = positionMs.coerceAtLeast(0), durationMs = durationMs)))

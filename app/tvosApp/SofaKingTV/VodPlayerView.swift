@@ -23,6 +23,12 @@ struct VodRequest: Identifiable, Hashable {
         self.fromStart = fromStart
     }
 
+    /// The library item, or nil for a recording.
+    var libraryItem: MediaItem? {
+        if case .item(let item) = source { return item }
+        return nil
+    }
+
     /// The library item's or the recording's id, which the session's stream carries as its `itemId`.
     var id: String {
         switch source {
@@ -36,7 +42,10 @@ struct VodRequest: Identifiable, Hashable {
 /// The system player's transport bar scrubs; a converted stream scrubs within what the server has converted so far.
 /// A recording's commercial breaks show on the bar, and with Skip commercials on, playback that runs into one jumps
 /// to its end. The position is saved as it plays and when it stops; leaving releases the session, and backgrounding
-/// releases it until the app returns, when the item reopens where it was. Reaching the end returns to the page.
+/// releases it until the app returns, when the item reopens where it was. Reaching the end of an episode offers the
+/// next one, played after a countdown; reaching the end of anything else returns to the page. For a library item,
+/// the transport bar's Audio and Subtitles menus pick a track: another audio track plays the item again from where it
+/// is, and subtitles are drawn over the picture from the item's position.
 struct VodPlayerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
@@ -51,12 +60,30 @@ struct VodPlayerView: View {
     @State private var durationMs: Int64 = 0
     @State private var ended = false
     @State private var backgrounded = false
+    @State private var next: MediaItem?
+    @State private var detail: MediaItemDetail?
+    @State private var detailWatch: Watch?
+    @State private var audioIndex: Int32?
+    @State private var subtitleIndex: Int32?
+    @State private var subtitles: Subtitles?
+    @State private var subtitleText: String?
     /// Where the last tick found the player in the item, so a break is skipped only when playback runs into it.
     @State private var lastPositionMs: Int64 = 0
 
     var body: some View {
         ZStack {
-            VodController(player: player).ignoresSafeArea()
+            VodController(player: player, menus: trackMenus).ignoresSafeArea()
+            if let subtitleText {
+                Text(subtitleText)
+                    .font(.title3)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.6), in: .rect(cornerRadius: 8))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 60)
+                    .allowsHitTesting(false)
+            }
             if let failure {
                 VStack(spacing: 24) {
                     Text(failure)
@@ -65,6 +92,11 @@ struct VodPlayerView: View {
                 .padding()
                 .background(.thinMaterial, in: .rect(cornerRadius: 16))
             }
+            if let next {
+                UpNextCard(next: next, onPlay: { play(next) }, onCancel: { dismiss() })
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(60)
+            }
         }
         .task { await open() }
         .onAppear {
@@ -72,9 +104,21 @@ struct VodPlayerView: View {
             replaced = model.core.watchReplaced { s in
                 if s.itemId == request.id { load(s) }
             }
+            // A library item's tracks, for the Audio and Subtitles menus; a recording has none to pick.
+            if let item = request.libraryItem {
+                detailWatch = model.core.watchItem(id: item.id) { state in
+                    guard let ready = state as? ItemDetailStateReady else { return }
+                    if detail == nil {
+                        audioIndex = LibraryChoicesKt.defaultAudio(detail: ready.detail).map { $0.index }
+                        subtitleIndex = LibraryChoicesKt.initialSubtitle(detail: ready.detail).map { $0.index }
+                    }
+                    detail = ready.detail
+                }
+            }
         }
         .onDisappear {
             replaced?.cancel()
+            detailWatch?.cancel()
             itemObservers.removeAll()
             if !ended && stream != nil { stopped() }
             player.replaceCurrentItem(with: nil)
@@ -85,6 +129,20 @@ struct VodPlayerView: View {
                 try? await Task.sleep(for: .seconds(1))
                 tick()
             }
+        }
+        .task {
+            // The subtitle on screen follows the item's position four times a second.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                subtitleText = currentSubtitle()
+            }
+        }
+        .task(id: subtitleIndex) {
+            subtitles = nil
+            guard let index = subtitleIndex else { return }
+            guard let item = request.libraryItem else { return }
+            subtitles = try? await model.core.subtitles(itemId: item.id, index: index)
+            if subtitles == nil && !Task.isCancelled { subtitleIndex = nil }
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -196,6 +254,53 @@ struct VodPlayerView: View {
         }
     }
 
+    /// The subtitle at the player's position in the item, or nil.
+    private func currentSubtitle() -> String? {
+        guard let subtitles, let s = stream else { return nil }
+        let seconds = player.currentTime().seconds
+        guard seconds.isFinite else { return nil }
+        return subtitles.textAt(positionMs: Int64(seconds * 1000) + s.offsetMs)
+    }
+
+    /// The transport bar's Audio menu, when the file has more than one track, and its Subtitles menu.
+    private var trackMenus: [UIMenuElement] {
+        guard let detail else { return [] }
+        var menus: [UIMenuElement] = []
+        if detail.audio.count > 1 {
+            let actions = detail.audio.enumerated().map { number, track in
+                UIAction(title: LibraryChoicesKt.trackLabel(track: track, number: Int32(number + 1)), state: track.index == audioIndex ? .on : .off) { _ in
+                    pickAudio(track.index)
+                }
+            }
+            menus.append(UIMenu(title: "Audio", image: UIImage(systemName: "speaker.wave.2"), options: .singleSelection, children: actions))
+        }
+        let text = LibraryChoicesKt.textSubtitles(detail: detail)
+        if !text.isEmpty {
+            var actions = [UIAction(title: "Off", state: subtitleIndex == nil ? .on : .off) { _ in subtitleIndex = nil }]
+            actions += text.enumerated().map { number, track in
+                UIAction(title: LibraryChoicesKt.trackLabel(track: track, number: Int32(number + 1)), state: track.index == subtitleIndex ? .on : .off) { _ in
+                    subtitleIndex = track.index
+                }
+            }
+            menus.append(UIMenu(title: "Subtitles", image: UIImage(systemName: "captions.bubble"), options: .singleSelection, children: actions))
+        }
+        return menus
+    }
+
+    /// Plays the item again from where it is with the audio track `index`.
+    private func pickAudio(_ index: Int32) {
+        guard index != audioIndex, let item = request.libraryItem else { return }
+        audioIndex = index
+        let at = positionMs
+        Task {
+            do {
+                load(try await model.core.switchItemAudio(item: item, positionMs: at, audioIndex: index))
+            } catch {
+                failure = error.localizedDescription
+            }
+        }
+    }
+
     private func stopped() {
         report(stoppedAt: positionMs)
     }
@@ -212,7 +317,22 @@ struct VodPlayerView: View {
         ended = true
         let end = durationMs > 0 ? durationMs : positionMs
         report(stoppedAt: end)
-        dismiss()
+        guard let item = request.libraryItem else {
+            dismiss()
+            return
+        }
+        Task {
+            if let upNext = try? await model.core.upNext(item: item) {
+                next = upNext
+            } else {
+                dismiss()
+            }
+        }
+    }
+
+    /// Swaps the cover to [item], which opens on its own session as this one releases.
+    private func play(_ item: MediaItem) {
+        model.vod = VodRequest(item: item, fromStart: false)
     }
 
     /// The title, and for an episode its show and number or for a recording when it aired, as the transport bar's
@@ -242,15 +362,64 @@ struct VodPlayerView: View {
     }
 }
 
+/// The Up next card once an episode ends: the next one's still, number and title, counting down to playing it.
+/// Play now or the countdown plays it; Cancel or Menu returns to the page.
+private struct UpNextCard: View {
+    let next: MediaItem
+    let onPlay: () -> Void
+    let onCancel: () -> Void
+    @State private var secondsLeft = 10
+    @FocusState private var playFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Up next").font(.headline).foregroundStyle(.tint)
+            Artwork(url: next.backdrop ?? next.poster, title: next.title)
+                .frame(width: 480, height: 270)
+                .clipShape(.rect(cornerRadius: 12))
+            if let subtitle = [next.showTitle, next.episodeLabel].compactMap({ $0 }).joined(separator: " · ").nilIfEmpty {
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
+            }
+            Text(next.title).font(.title3).lineLimit(2)
+            ProgressView(value: Double(10 - secondsLeft), total: 10)
+            HStack(spacing: 24) {
+                Button("Play now (\(secondsLeft))", systemImage: "play.fill", action: onPlay).focused($playFocused)
+                Button("Cancel", action: onCancel)
+            }
+        }
+        .frame(width: 480)
+        .padding(32)
+        .background(.thinMaterial, in: .rect(cornerRadius: 24))
+        .onAppear { playFocused = true }
+        .onExitCommand(perform: onCancel)
+        .task {
+            while secondsLeft > 0 {
+                try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled { return }
+                secondsLeft -= 1
+            }
+            onPlay()
+        }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
 /// The system player UI, which handles the Siri Remote's play, pause, scrubbing and Menu.
 private struct VodController: UIViewControllerRepresentable {
     let player: AVPlayer
+    let menus: [UIMenuElement]
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
+        controller.transportBarCustomMenuItems = menus
         return controller
     }
 
-    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {}
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        controller.transportBarCustomMenuItems = menus
+    }
 }

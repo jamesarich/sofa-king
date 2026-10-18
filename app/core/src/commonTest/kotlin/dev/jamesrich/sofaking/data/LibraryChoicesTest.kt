@@ -36,4 +36,46 @@ class LibraryChoicesTest {
         assertEquals("s1", initialSeasonId(MediaItemDetail(show, seasons.map { it.copy(unwatched = 0) })), "else the first")
         assertNull(initialSeasonId(MediaItemDetail(item("m", ItemKind.MOVIE))))
     }
+
+    @Test
+    fun `the episode after one is the next in its season and none after the last`() {
+        val episodes = listOf(item("e1", ItemKind.EPISODE), item("e2", ItemKind.EPISODE), item("e3", ItemKind.EPISODE))
+        assertEquals("e2", episodeAfter(episodes, "e1")?.id)
+        assertNull(episodeAfter(episodes, "e3"))
+        assertNull(episodeAfter(episodes, "missing"))
+    }
+
+    @Test
+    fun `the season after one skips Specials`() {
+        val seasons = listOf(item("s0", ItemKind.SEASON, season = 0), item("s1", ItemKind.SEASON, season = 1), item("s2", ItemKind.SEASON, season = 2))
+        assertEquals("s2", seasonAfter(seasons, "s1")?.id)
+        assertEquals("s1", seasonAfter(seasons, "s0")?.id)
+        assertNull(seasonAfter(seasons, "s2"))
+        assertNull(seasonAfter(listOf(item("s1", ItemKind.SEASON, season = 1), item("s0", ItemKind.SEASON, season = 0)), "s1"))
+    }
+
+    @Test
+    fun `pickers list text subtitles and start on a forced one`() {
+        val detail = MediaItemDetail(
+            item("m", ItemKind.MOVIE),
+            subtitles = listOf(
+                MediaTrackInfo(3, "hdmv_pgs_subtitle", "eng"),
+                MediaTrackInfo(4, "subrip", "eng"),
+                MediaTrackInfo(5, "subrip", "eng", forced = true),
+            ),
+            audio = listOf(MediaTrackInfo(1, "ac3", "eng", channels = 6), MediaTrackInfo(2, "aac", "spa", default = true, channels = 2)),
+        )
+        assertEquals(listOf(4, 5), textSubtitles(detail).map { it.index })
+        assertEquals(5, initialSubtitle(detail)?.index)
+        assertEquals(2, defaultAudio(detail)?.index)
+        assertNull(initialSubtitle(detail.copy(subtitles = emptyList())))
+    }
+
+    @Test
+    fun `a track label names its language title and format`() {
+        assertEquals("English · Commentary · AC3 5.1", trackLabel(MediaTrackInfo(1, "ac3", "eng", "Commentary", channels = 6), 1))
+        assertEquals("XYZ", trackLabel(MediaTrackInfo(3, "subrip", "xyz"), 1))
+        assertEquals("Spanish", trackLabel(MediaTrackInfo(3, "subrip", "spa", "Spanish"), 1), "a title repeating the language is dropped")
+        assertEquals("Track 2", trackLabel(MediaTrackInfo(3, "subrip"), 2))
+    }
 }

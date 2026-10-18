@@ -31,7 +31,8 @@ class VodModeTest {
     @Test fun `a picked audio stream decides the audio`() {
         val file = media("mov,mp4,m4a,3gp,3g2,mj2", "h264", "truehd")
         assertEquals(Wire.VodMode.AUDIO, vodMode(file, browser))
-        assertEquals(Wire.VodMode.DIRECT, vodMode(file, browser, file.audio[1]))
+        assertEquals(Wire.VodMode.REMUX, vodMode(file, browser, file.audio[1]), "a stream it plays is copied, as the players start on the default")
+        assertEquals(Wire.VodMode.DIRECT, media("mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac").let { vodMode(it, browser, it.audio[0]) }, "picking the default changes nothing")
     }
 
     @Test fun `the FFmpeg command copies or converts per mode and starts where asked`() {

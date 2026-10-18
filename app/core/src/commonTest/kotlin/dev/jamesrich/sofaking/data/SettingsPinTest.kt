@@ -17,7 +17,8 @@ class SettingsPinTest {
 
     @Test
     fun `the stored hash matches its own PIN and no other`() {
-        val stored = SettingsPin.hash("1234")
+        // A fixed salt: a random one shows "1234" in its hex about once in 700 runs.
+        val stored = SettingsPin.hash("1234", salt = "ab".repeat(16))
         assertTrue(SettingsPin.matches("1234", stored))
         assertFalse(SettingsPin.matches("1235", stored))
         assertFalse(SettingsPin.matches("", stored))

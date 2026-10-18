@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,7 +37,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import dev.jamesrich.sofaking.data.LibrarySort
+import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialSeasonId
+import dev.jamesrich.sofaking.data.initialSubtitle
+import dev.jamesrich.sofaking.data.textSubtitles
+import dev.jamesrich.sofaking.data.trackLabel
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
 import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
@@ -85,6 +90,9 @@ import dev.jamesrich.sofaking.ui.player.VodMarker
 import dev.jamesrich.sofaking.ui.player.VodMarkerKind
 import dev.jamesrich.sofaking.ui.player.VodPlayerScreen
 import dev.jamesrich.sofaking.ui.player.VodTitle
+import dev.jamesrich.sofaking.ui.player.VodTrack
+import dev.jamesrich.sofaking.ui.player.VodTracks
+import dev.jamesrich.sofaking.ui.player.VodUpNext
 import dev.jamesrich.sofaking.ui.recordings.RecordingsScreen
 import dev.jamesrich.sofaking.ui.recordings.recordingSubtitle
 import dev.jamesrich.sofaking.ui.player.ZapScope
@@ -459,15 +467,39 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                 val leave = { screen = current.parent.returningFrom(current.itemId) }
                 BackHandler(enabled = item == null, onBack = leave)
                 when {
-                    item != null -> VodPlayerScreen(
-                        title = item.vodTitle(),
-                        player = player,
-                        sessions = sessions,
-                        open = { libraryVm.play(item, player.playbackProfile, current.fromStart) },
-                        onPosition = { position, duration -> libraryVm.progress(item.id, position, duration) },
-                        onStopped = { position, duration -> libraryVm.stopped(item.id, position, duration) },
-                        onExit = leave,
-                    )
+                    // Keyed by the item, so the next episode starts a fresh screen rather than inheriting this one's end.
+                    item != null -> key(item.id) {
+                        var next by remember { mutableStateOf<MediaItem?>(null) }
+                        // The audio track picked in the player, so a retry opens the item with it again.
+                        var audio by remember { mutableStateOf<Int?>(null) }
+                        val tracks = remember(detail) {
+                            (detail as? ItemDetailState.Ready)?.detail?.let { d ->
+                                VodTracks(
+                                    audio = d.audio.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1)) },
+                                    subtitles = textSubtitles(d).mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1)) },
+                                    initialAudio = defaultAudio(d)?.index,
+                                    initialSubtitle = initialSubtitle(d)?.index,
+                                    selectAudio = { index, position ->
+                                        audio = index
+                                        libraryVm.switchAudio(item, player.playbackProfile, position, index)
+                                    },
+                                    loadSubtitles = { index -> libraryVm.subtitles(item.id, index) },
+                                )
+                            } ?: VodTracks()
+                        }
+                        VodPlayerScreen(
+                            title = item.vodTitle(),
+                            player = player,
+                            sessions = sessions,
+                            open = { libraryVm.play(item, player.playbackProfile, current.fromStart, audio) },
+                            onPosition = { position, duration -> libraryVm.progress(item.id, position, duration) },
+                            onStopped = { position, duration -> libraryVm.stopped(item.id, position, duration) },
+                            onExit = leave,
+                            upNext = { libraryVm.upNext(item)?.also { next = it }?.upNext() },
+                            onPlayNext = { next?.let { screen = Screen.Vod(it.id, fromStart = false, parent = current.parent) } },
+                            tracks = tracks,
+                        )
+                    }
                     detail is ItemDetailState.Failed -> MessageScreen(
                         message = stringResource(Res.string.library_load_failed),
                         detail = (detail as ItemDetailState.Failed).message,
@@ -660,6 +692,13 @@ private fun MediaItem.vodTitle(): VodTitle {
     }
     return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster)
 }
+
+/** The Up next card for an episode: its number and title under the show, with its still. */
+private fun MediaItem.upNext(): VodUpNext = VodUpNext(
+    title = title,
+    subtitle = listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null },
+    artworkUrl = backdrop ?: poster,
+)
 
 /** What the player shows for a recording: its episode and when it aired, with the commercial breaks marked. */
 @Composable

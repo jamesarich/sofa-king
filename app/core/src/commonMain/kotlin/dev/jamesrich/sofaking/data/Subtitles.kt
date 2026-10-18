@@ -84,19 +84,27 @@ internal fun vttTime(value: String): Long? {
 }
 
 /**
- * A cue's text without markup, one line per row: a `<br>` breaks the line even when its `>` is missing or it came
- * escaped as `&lt;br&gt;`, as subtitle files carry it, and blank rows are dropped.
+ * A cue's text without markup, one line per row. Subtitle files often carry their HTML escaped (`&lt;i&gt;`), so
+ * the tags are stripped again once the entities are read; a `<br>` breaks the line even when its `>` is missing.
+ * Only the tag names of WebVTT and of subtitle HTML count as tags, so `<<Previously>>` and `x<y` stay as text.
+ * Some muxed tracks cut each line at a fixed length, mid-tag, and replace its last character; the cut-off tag
+ * (`help<?`, `most<br /s`), a stray `>` it leaves at the end of a line (`Ma></i>`) and a row of only punctuation
+ * are dropped, and a break that lost its `<` (`that.Br />fertile`) still breaks the line.
  */
-private fun cleanCueText(raw: String): String = raw
-    .replace(BREAK, "\n")
-    .replace(TAG, "")
-    .replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&lrm;", "").replace("&rlm;", "")
-    .replace("&amp;", "&")
-    .replace(BREAK, "\n")
-    .lines()
-    .map { it.trim() }
-    .filter { it.isNotEmpty() }
-    .joinToString("\n")
+private fun cleanCueText(raw: String): String {
+    fun String.untagged() = replace(BREAK, "\n").replace(HEADLESS_BREAK, "\n").replace(TAG, "")
+    return raw.replace(CUT_TAG, "").replace(CUT_BARE_BREAK, "$1").untagged()
+        .replace(STRAY_CLOSE, "$1")
+        .replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&lrm;", "").replace("&rlm;", "")
+        .replace("&quot;", "\"").replace("&apos;", "'").replace("&#39;", "'")
+        .replace("&amp;", "&")
+        .untagged()
+        .lines()
+        .map { it.trim() }
+        // A cut line can leave a row of nothing but its replaced punctuation; `♪` and `-t.` are kept.
+        .filter { line -> line.any { it !in ASCII_PUNCTUATION && !it.isWhitespace() } }
+        .joinToString("\n")
+}
 
 private val BLANK_LINES = Regex("\n[ \t]*\n+")
 
@@ -106,5 +114,22 @@ private val SKIPPED_BLOCKS = listOf("WEBVTT", "NOTE", "STYLE", "REGION")
 /** A line break tag in any spelling, with or without its closing `>`. */
 private val BREAK = Regex("""<\s*br\b(?:[^<>\n]*>)?""", RegexOption.IGNORE_CASE)
 
-/** A WebVTT or HTML tag, or a karaoke timestamp; a `<` that opens no tag is text. */
-private val TAG = Regex("""</?[A-Za-z][^<>\n]*>|<\d[\d:.]*>""")
+/** A tag cut off at the end of a line: `<`, a few characters of `br`, `b`, `/` or spaces, and one replaced character. */
+private val CUT_TAG = Regex("""<[bBrR/ ]{0,5}[^<>\n\d]?$""", RegexOption.MULTILINE)
+
+/** A cut break that lost both brackets, after the sentence it ends: `her?R /.` */
+private val CUT_BARE_BREAK = Regex("""([.?!,])[Bb]?[Rr] ?/.?$""", RegexOption.MULTILINE)
+
+/** A `<br />` that lost its `<` and maybe more: `Br />`, `R />` or ` />`. */
+private val HEADLESS_BREAK = Regex("""(?:\b[Bb]?[Rr])? ?/>""")
+
+private const val ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
+
+/** A `>` left at the end of a line after a word, by a cut tag. */
+private val STRAY_CLOSE = Regex("""(\w)>[ \t]*$""", RegexOption.MULTILINE)
+
+/** A WebVTT or subtitle HTML tag, opening or closing, or a karaoke timestamp. */
+private val TAG = Regex(
+    """</?(?:i|b|u|s|c|v|lang|ruby|rt|font|span|em|strong|p|div)(?:[\s.][^<>\n]*)?\s*>|<\d+(?::\d+)+\.\d+>""",
+    RegexOption.IGNORE_CASE,
+)

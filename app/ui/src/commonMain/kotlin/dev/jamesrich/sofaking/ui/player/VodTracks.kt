@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.resources.*
@@ -96,10 +97,10 @@ internal fun BoxScope.TracksCard(tracks: VodTracks, audio: Int?, subtitle: Int?,
     }
 }
 
-/** The subtitle on screen, centered above the bottom edge, or above the info bar while it shows. */
+/** The subtitle on screen, centered [bottom] above the bottom edge's overscan. */
 @Composable
-internal fun BoxScope.SubtitleText(text: String, raised: Boolean) {
-    Box(Modifier.align(Alignment.BottomCenter).screenPadding().padding(bottom = if (raised) 200.dp else 24.dp)) {
+internal fun BoxScope.SubtitleText(text: String, bottom: Dp) {
+    Box(Modifier.align(Alignment.BottomCenter).screenPadding().padding(bottom = bottom)) {
         Text(
             text,
             style = MaterialTheme.typography.headlineSmall,

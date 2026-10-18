@@ -25,6 +25,20 @@ The HDHomeRun emulation for Plex stays off until `.env` sets `SOFA_HDHR_ENABLED=
 
 The log names the sources and policy files the server picked, and why, at every start. `SOFA_SOURCES` and `SOFA_POLICY` override the files in the folder. Back up the whole folder, as [operations](operations.md#backups) describes, and keep it out of version control: the database and `secrets.json` hold credentials.
 
+## The recordings folder
+
+`deploy/recordings` is mounted at `/recordings`, the server's `SOFA_RECORDINGS_DIR`. Create it next to `config` before the first start, since Docker creates a missing folder as root and the server then cannot write to it. To keep recordings on another disk, change the left side of the mount, for example `/mnt/disk/recordings:/recordings`, and give the folder to the user the container runs as. Without the mount and the variable, recordings go in `config/recordings`.
+
+Recordings are MPEG-TS files, stream-copied from the source, in the layout Plex, Jellyfin, Emby and Kodi scan without help, so a media server can use the folder as its TV and movie libraries:
+
+| Recording | Path in the recordings folder |
+| --- | --- |
+| An episode the guide numbers | `TV/Show/Season 01/Show - S01E02 - Episode.ts` |
+| An episode without a season and episode number, such as news or sports | `TV/Show/Season 2026/Show - 2026-10-17 - Episode.ts`, dated in the server's time zone |
+| A movie | `Movies/Title (1995)/Title (1995).ts`, without the year when the guide gives none |
+
+A second recording with the same name gets its start time, as in `Show - 2026-10-17 (18.30).ts`. Names leave out `/ \ : * ? " < > |` and control characters. A recording is written under the hidden `.inprogress` folder at the same path and moved into place when it ends, so a scanner never picks up a partial file. The server does not record yet.
+
 ## Run as your own user
 
 Compose runs the container as `1000:1000`, the first user on most Linux hosts, so a `config` folder you created is writable by the server and its files stay yours. When `id -u` or `id -g` prints something else, set them in `deploy/.env`:
@@ -33,7 +47,7 @@ Compose runs the container as `1000:1000`, the first user on most Linux hosts, s
 printf 'UID=%s\nGID=%s\n' "$(id -u)" "$(id -g)" >> .env
 ```
 
-The image runs under any `user: "UID:GID"`. The process writes only `/config` and `/tmp`, so it needs no root step, no `PUID` or `PGID`, and no entry in the image's `/etc/passwd`. Without a `user:` line, it runs as the image's `sofa` user (uid 10001), which must then own the folder.
+The image runs under any `user: "UID:GID"`. The process writes only `/config`, `/recordings` and `/tmp`, so it needs no root step, no `PUID` or `PGID`, and no entry in the image's `/etc/passwd`. Without a `user:` line, it runs as the image's `sofa` user (uid 10001), which must then own the folder.
 
 ## Secrets
 
@@ -158,7 +172,7 @@ A [Homepage](https://gethomepage.dev/configs/docker/) instance with access to th
 | `deploy/sofa-king-update.sh`, `deploy/systemd/` | Keeps a host on the published image, see [update automatically](#update-automatically) |
 | `.github/workflows/backend.yml` (at the repository root) | Tests pull requests and pushes to `main`, and publishes the image for `main`, as [contributing](../../CONTRIBUTING.md#ci) describes |
 
-`deploy/.env` and `deploy/config/` are ignored by Git.
+`deploy/.env`, `deploy/config/` and `deploy/recordings/` are ignored by Git.
 
 ## Build
 
@@ -173,7 +187,7 @@ REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml bui
 
 ### Container limits
 
-The Compose file runs the container with a read-only root filesystem; the server writes only `/config` and temporary files in a 64 MiB `/tmp`. `/tmp` is mounted `exec` because the SQLite driver loads its native library from there; a `noexec` `/tmp` stops the server at startup. The container drops every capability and cannot gain privileges, runs at most 1,024 processes, and keeps three 10 MB log files. Stopping sends `SIGTERM` and waits up to 20 seconds for the ordered shutdown.
+The Compose file runs the container with a read-only root filesystem; the server writes only `/config`, `/recordings` and temporary files in a 64 MiB `/tmp`. `/tmp` is mounted `exec` because the SQLite driver loads its native library from there; a `noexec` `/tmp` stops the server at startup. The container drops every capability and cannot gain privileges, runs at most 1,024 processes, and keeps three 10 MB log files. Stopping sends `SIGTERM` and waits up to 20 seconds for the ordered shutdown.
 
 `mem_limit` (4 GiB) covers the JVM and its FFmpeg processes, and the heap is 75% of it (`SERVER_OPTS`; `JAVA_OPTS` adds to those flags). Each FFmpeg process takes tens of megabytes, so raise the limit with `SOFA_MAX_SESSIONS` or `SOFA_PROBE_PARALLELISM`.
 

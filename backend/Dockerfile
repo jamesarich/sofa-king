@@ -20,15 +20,16 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 sofa \
     && useradd --system --uid 10001 --gid sofa --home-dir /config --shell /usr/sbin/nologin sofa \
-    && mkdir -p /config \
-    && chown sofa:sofa /config
+    && mkdir -p /config /recordings \
+    && chown sofa:sofa /config /recordings
 
 COPY --from=split /dist/lib /opt/sofa/lib
 COPY --from=split /app/bin /opt/sofa/bin
 COPY --from=split /app/lib /opt/sofa/lib
 
 # /config holds the database, the logo cache, the generated tokens, and sources.json and policy.json when present.
-# Any uid that owns a bind-mounted /config can run the image (user: "UID:GID"); it writes nothing else but /tmp.
+# Any uid that owns a bind-mounted /config can run the image (user: "UID:GID"); it writes nothing else but /tmp and
+# SOFA_RECORDINGS_DIR, which defaults to /config/recordings; Compose sets it to the /recordings mount.
 # SOFA_HDHR_ALLOW is required for the LAN bind unless SOFA_HDHR_ENABLED=false; unset API and admin tokens are generated.
 # The start script reads SERVER_OPTS (APP_NAME + _OPTS) and JAVA_OPTS; the image sets the former so JAVA_OPTS stays the operator's knob.
 # preferIPv4Stack: the HTTP client connects to the first resolved address, and a container without an IPv6 route is still

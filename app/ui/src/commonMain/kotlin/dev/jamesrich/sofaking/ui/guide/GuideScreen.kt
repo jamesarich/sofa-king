@@ -73,6 +73,10 @@ import dev.jamesrich.sofaking.ui.preview.PreviewDetails
 import dev.jamesrich.sofaking.ui.preview.PreviewDwell
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.player.ChannelNumberBadge
+import dev.jamesrich.sofaking.ui.player.StatusPill
+import dev.jamesrich.sofaking.ui.PopIn
+import dev.jamesrich.sofaking.ui.PopOut
+import androidx.compose.animation.AnimatedVisibility
 import dev.jamesrich.sofaking.ui.player.rememberChannelNumberInput
 import dev.jamesrich.sofaking.ui.player.digitValue
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
@@ -180,6 +184,8 @@ fun GuideScreen(
     onRecord: suspend (Programme) -> Boolean = { false },
     /** Records the programme's series or stops it; false when the server did not take it. */
     onRecordSeries: suspend (Programme) -> Boolean = { false },
+    /** The header's open tab, which Back from the chips focuses; null when the header has no tabs. */
+    headerFocus: FocusRequester? = null,
     modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
@@ -279,6 +285,14 @@ fun GuideScreen(
     val focusedState = remember { mutableStateOf<FocusedCell?>(null) }
     var focused by focusedState
     var gridFocused by remember { mutableStateOf(false) }
+    var chipsFocused by remember { mutableStateOf(false) }
+    // A first Back with nowhere left to climb shows the hint; a second one within EXIT_CONFIRM_MS exits.
+    var exitArmed by remember { mutableStateOf(false) }
+    LaunchedEffect(exitArmed) {
+        if (!exitArmed) return@LaunchedEffect
+        delay(EXIT_CONFIRM_MS)
+        exitArmed = false
+    }
     // The preview's rest timers: muted on tune, sound after five seconds, full screen after the chosen delay,
     // restarted by any key. Both run only while a cell holds focus with search closed, so typing never opens a channel.
     // TalkBack reads the grid aloud as focus moves; a channel opening full screen would cut that off.
@@ -362,6 +376,13 @@ fun GuideScreen(
     val onJumpHandled: (Boolean) -> Unit = { landed ->
         jump = null
         if (landed) initialFocusDone = true else if (!initialFocusDone) initialFocusAttempt++
+    }
+    // Only a composed row answers a jump; one whose row left the list (the lineup refreshing under the first
+    // focus) would wait forever, so it counts as missed and the first focus scrolls to the row again.
+    LaunchedEffect(jump) {
+        val waiting = jump ?: return@LaunchedEffect
+        repeat(FIRST_FOCUS_FRAMES * 2) { withFrameNanos { } }
+        if (jump == waiting) onJumpHandled(false)
     }
 
     // The guide fills in after the channels, so the focused cell's programmes change under it without a focus
@@ -505,8 +526,9 @@ fun GuideScreen(
     }
     LaunchedEffect(Unit) { if (startSearch) openVoiceSearch() }
     // From the grid, Back climbs to the selected chip (scrolled into the row first, since only a composed chip
-    // can take focus); from the chips or the header it leaves the activity to finish.
-    val backAction = guideBackAction(searchOpen, gridFocused)
+    // can take focus), from the chips to the header's open tab; a press with nowhere left to climb asks for a
+    // second, and that one leaves the activity to finish.
+    val backAction = guideBackAction(searchOpen, gridFocused, chipsFocused, hasHeader = headerFocus != null, exitArmed = exitArmed)
     BackHandler(enabled = backAction != GuideBack.EXIT) {
         when (backAction) {
             GuideBack.CLOSE_SEARCH -> closeSearch()
@@ -514,6 +536,8 @@ fun GuideScreen(
                 chipsState.scrollToItem(selectedChipIndex(filters, activeFilter))
                 requestFocusWhenAttached(selectedChip)
             }
+            GuideBack.FOCUS_HEADER -> headerFocus?.requestFocus()
+            GuideBack.ARM_EXIT -> exitArmed = true
             GuideBack.EXIT -> Unit
         }
     }
@@ -597,7 +621,7 @@ fun GuideScreen(
                 filter = it
                 onFilterChanged(it.key())
             },
-            modifier = chipModifier,
+            modifier = chipModifier.onFocusChanged { chipsFocused = it.hasFocus },
         )
     }
     val searchBar: @Composable (Modifier) -> Unit = { barModifier ->
@@ -808,6 +832,9 @@ fun GuideScreen(
             }
         }
         ChannelNumberBadge(numbers)
+        AnimatedVisibility(exitArmed, modifier = Modifier.align(Alignment.BottomCenter).screenPadding().padding(bottom = 24.dp), enter = PopIn, exit = PopOut) {
+            StatusPill(stringResource(Res.string.guide_exit_hint))
+        }
         details?.let { shown ->
             ProgrammeSheet(
                 details = shown,

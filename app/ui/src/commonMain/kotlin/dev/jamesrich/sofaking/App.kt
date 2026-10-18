@@ -25,7 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.CircleShape
@@ -230,6 +232,14 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         else -> true
     }
     var screen by rememberSerializable { mutableStateOf<Screen>(Screen.Guide()) }
+    // Where Back from Settings goes: the tab's page it was opened from, with focus on the header's open tab, as
+    // the Settings button it left from sits beside it.
+    var settingsReturn by rememberSerializable { mutableStateOf<Screen>(Screen.Guide()) }
+    var focusTabOnReturn by remember { mutableStateOf(false) }
+    val leaveSettings = {
+        focusTabOnReturn = true
+        screen = settingsReturn
+    }
     val pairingScope = rememberCoroutineScope()
     // Why the last pairing attempt failed; Settings shows it until the next attempt.
     var pairingFailure by remember { mutableStateOf<PairingFailure?>(null) }
@@ -360,7 +370,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         vm.setSettingsPin(null)
                         settingsUnlocked = true
                     },
-                    onBack = { screen = Screen.Guide() },
+                    onBack = leaveSettings,
                     lock = settingsLock,
                 )
             } else when (current) {
@@ -368,7 +378,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     SettingsScreen(
                         settings = s,
                         onSave = { url, token -> vm.saveServer(url, token); screen = Screen.Guide() },
-                        onBack = { screen = Screen.Guide() },
+                        onBack = leaveSettings,
                         channelCount = lineup?.channels?.size ?: 0,
                         channels = lineup?.channels.orEmpty(),
                         actions = SettingsActions(
@@ -579,17 +589,28 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     }
                 }
                 val settingsFocus = remember { FocusRequester() }
+                val tabFocus = remember { FocusRequester() }
+                val openSettings = {
+                    settingsReturn = if (current is Screen.Guide) Screen.Guide() else current
+                    screen = Screen.Settings
+                }
                 TopLevel(
                     tv = LocalLayoutProfile.current.tv,
                     tabs = TabsModel(tab, libraryShown, capabilities.recordings, openTab),
-                    onSettings = { screen = Screen.Settings },
+                    onSettings = openSettings,
                     settingsFocus = settingsFocus,
                 ) { showsTabs ->
+                    // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
+                    LaunchedEffect(Unit) {
+                        if (!focusTabOnReturn) return@LaunchedEffect
+                        if (showsTabs) requestFocusWhenAttached(tabFocus)
+                        focusTabOnReturn = false
+                    }
                     Column {
                         Header(
                             refreshing = if (tab == Tab.LIVE) loading && state is LineupState.Ready else false,
                             notice = notice,
-                            onSettings = { screen = Screen.Settings }.takeIf { showsTabs },
+                            onSettings = openSettings.takeIf { showsTabs },
                             onRefresh = when (tab) {
                                 Tab.LIVE -> vm::refresh
                                 Tab.LIBRARY -> libraryVm::refreshHome
@@ -597,6 +618,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                             },
                             settingsFocus = settingsFocus,
                             tabs = TabsModel(tab, libraryShown, capabilities.recordings, openTab).takeIf { showsTabs },
+                            tabFocus = tabFocus,
                         )
                         when (current) {
                             // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
@@ -643,6 +665,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                         recordingMarks = recordingMarks.takeIf { capabilities.recordings },
                                         onRecord = vm.recordings::toggle,
                                         onRecordSeries = vm.recordings::toggleSeries,
+                                        headerFocus = tabFocus.takeIf { showsTabs },
                                     )
                                 }
                             }
@@ -779,6 +802,7 @@ private fun GuideOrEmpty(
     recordingMarks: RecordingMarks?,
     onRecord: suspend (Programme) -> Boolean,
     onRecordSeries: suspend (Programme) -> Boolean,
+    headerFocus: FocusRequester?,
 ) {
     if (lineup.channels.isEmpty()) {
         MessageScreen(stringResource(Res.string.no_channels), hint = stringResource(Res.string.no_channels_hint))
@@ -806,6 +830,7 @@ private fun GuideOrEmpty(
             recordingMarks = recordingMarks,
             onRecord = onRecord,
             onRecordSeries = onRecordSeries,
+            headerFocus = headerFocus,
         )
     }
 }
@@ -865,24 +890,31 @@ private fun TopLevel(tv: Boolean, tabs: TabsModel, onSettings: () -> Unit, setti
     }
 }
 
-/** The TV's destinations as pills in the header: the open one filled, every one with the D-pad focus cue. */
+/**
+ * The TV's destinations as pills in the header: the open one filled, every one with the D-pad focus cue. Focus
+ * coming up from the page lands on the open one ([tabFocus]).
+ */
 @Composable
-private fun HeaderTabs(tabs: TabsModel) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        HeaderTab(stringResource(Res.string.nav_live), tabs.selected == Tab.LIVE) { tabs.onTab(Tab.LIVE) }
-        if (tabs.libraryShown) HeaderTab(stringResource(Res.string.nav_library), tabs.selected == Tab.LIBRARY) { tabs.onTab(Tab.LIBRARY) }
-        if (tabs.recordingsShown) HeaderTab(stringResource(Res.string.recordings_title), tabs.selected == Tab.RECORDINGS) { tabs.onTab(Tab.RECORDINGS) }
+private fun HeaderTabs(tabs: TabsModel, tabFocus: FocusRequester) {
+    Row(
+        Modifier.focusProperties { onEnter = { tabFocus.requestFocus() } }.focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HeaderTab(stringResource(Res.string.nav_live), tabs.selected == Tab.LIVE, tabFocus) { tabs.onTab(Tab.LIVE) }
+        if (tabs.libraryShown) HeaderTab(stringResource(Res.string.nav_library), tabs.selected == Tab.LIBRARY, tabFocus) { tabs.onTab(Tab.LIBRARY) }
+        if (tabs.recordingsShown) HeaderTab(stringResource(Res.string.recordings_title), tabs.selected == Tab.RECORDINGS, tabFocus) { tabs.onTab(Tab.RECORDINGS) }
     }
 }
 
 @Composable
-private fun HeaderTab(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun HeaderTab(label: String, selected: Boolean, tabFocus: FocusRequester, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = CircleShape,
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
         contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.semantics { this.selected = selected }.tvFocus(CircleShape),
+        modifier = Modifier.semantics { this.selected = selected }.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier).tvFocus(CircleShape),
     ) {
         Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
     }
@@ -897,6 +929,7 @@ private fun Header(
     onRefresh: () -> Unit,
     settingsFocus: FocusRequester,
     tabs: TabsModel? = null,
+    tabFocus: FocusRequester = remember { FocusRequester() },
 ) {
     Row(
         Modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
@@ -905,7 +938,7 @@ private fun Header(
     ) {
         LogoMark(40.dp)
         Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
-        tabs?.let { HeaderTabs(it) }
+        tabs?.let { HeaderTabs(it, tabFocus) }
         // Status sits right of the name in whatever the buttons leave, so a long notice ellipsizes rather than
         // squeezing Refresh and Settings.
         Row(

@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
+import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
@@ -60,6 +61,9 @@ class SofaKingTv {
 
     /** The media libraries, playing through the same session as the channels. */
     val library = LibraryViewModel(viewModel.api, viewModel.sessions)
+
+    /** The server's recordings, playing through the same session; a delete refreshes the guide's record marks. */
+    val recordings = RecordingsViewModel(viewModel.api, viewModel.sessions, changed = viewModel.recordings::refresh)
 
     fun watchState(onChange: (LineupState) -> Unit): Watch = watch(viewModel.state, onChange)
 
@@ -137,6 +141,40 @@ class SofaKingTv {
 
     /** Playback of [itemId] stopped at [positionMs]; saved now, and the library's pages reload. */
     fun itemStopped(itemId: String, positionMs: Long, durationMs: Long) = library.stopped(itemId, positionMs, durationMs.takeIf { it > 0 })
+
+    fun watchRecordings(onChange: (RecordingsState) -> Unit): Watch = watch(recordings.state, onChange)
+
+    fun refreshRecordings() = recordings.refresh()
+
+    /** Stops, cancels or deletes [recording]; false when the server refused or could not be reached. */
+    @Throws(Exception::class)
+    suspend fun deleteRecording(recording: DvrRecording): Boolean = recordings.delete(recording)
+
+    /** Opens [recording] on the session, from the start with [fromStart], else where the household stopped in it. */
+    @Throws(Exception::class)
+    suspend fun playRecording(recording: DvrRecording, fromStart: Boolean): PlaybackStream = recordings.play(recording, appleTvProfile, fromStart)
+
+    /** The player is at [positionMs] in [recordingId]; [durationMs] is 0 while the length is unknown. */
+    fun recordingProgress(recordingId: String, positionMs: Long, durationMs: Long) =
+        recordings.progress(recordingId, positionMs, durationMs.takeIf { it > 0 })
+
+    /** Playback of [recordingId] stopped at [positionMs]; saved now, watched near the end. */
+    fun recordingStopped(recordingId: String, positionMs: Long, durationMs: Long) =
+        recordings.stopped(recordingId, positionMs, durationMs.takeIf { it > 0 })
+
+    /** Whether recordings jump over the commercial breaks the server found. */
+    fun setSkipCommercials(enabled: Boolean) {
+        viewModel.setSkipCommercials(enabled)
+    }
+
+    /** When [recording] aired, in milliseconds since the epoch. */
+    fun recordingStartMs(recording: DvrRecording): Long = recording.startsAt.toEpochMilliseconds()
+
+    /** When [recording]'s program ends, in milliseconds since the epoch. */
+    fun recordingEndMs(recording: DvrRecording): Long = recording.endsAt.toEpochMilliseconds()
+
+    /** The recording's description; the property clashes with `NSObject.description`, so Swift reads it here. */
+    fun recordingSummary(recording: DvrRecording): String? = recording.description
 
     /** Claims a pairing [code] at [url] and saves the server it opens; null on success, else why it failed. */
     suspend fun pair(url: String, code: String): PairingFailure? = viewModel.pair(url, code)

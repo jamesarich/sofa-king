@@ -66,6 +66,7 @@ class SubtitlesTest {
             "Yeah, huh. />I can't read that .",
             "-Yeah, no...Pun intended.\n.",
             "♪ ♪\n-t.",
+            "You had situations with her?R /.",
         )
         val document = "WEBVTT\n\n" + lines.mapIndexed { i, line -> "00:${i.toString().padStart(2, '0')}.000 --> 00:${i.toString().padStart(2, '0')}.900\n$line" }.joinToString("\n\n")
         assertEquals(
@@ -73,7 +74,7 @@ class SubtitlesTest {
                 "Woman:\nhello, you've reach.", "For comments and complaints,", "Stupid with", "Did ancient aliens really help",
                 "dinosaurs, one of the most", "friend", "maya. Ma", "I <3 it so",
                 "just named it that.\nfertile.", "Yeah, that's what it is.\nwe .", "Yeah, huh.\nI can't read that .",
-                "-Yeah, no...Pun intended.", "♪ ♪\n-t.",
+                "-Yeah, no...Pun intended.", "♪ ♪\n-t.", "You had situations with her?",
             ),
             parseWebVtt(document).cues.map { it.text },
         )

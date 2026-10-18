@@ -93,7 +93,7 @@ internal fun vttTime(value: String): Long? {
  */
 private fun cleanCueText(raw: String): String {
     fun String.untagged() = replace(BREAK, "\n").replace(HEADLESS_BREAK, "\n").replace(TAG, "")
-    return raw.replace(CUT_TAG, "").untagged()
+    return raw.replace(CUT_TAG, "").replace(CUT_BARE_BREAK, "$1").untagged()
         .replace(STRAY_CLOSE, "$1")
         .replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&lrm;", "").replace("&rlm;", "")
         .replace("&quot;", "\"").replace("&apos;", "'").replace("&#39;", "'")
@@ -116,6 +116,9 @@ private val BREAK = Regex("""<\s*br\b(?:[^<>\n]*>)?""", RegexOption.IGNORE_CASE)
 
 /** A tag cut off at the end of a line: `<`, a few characters of `br`, `b`, `/` or spaces, and one replaced character. */
 private val CUT_TAG = Regex("""<[bBrR/ ]{0,5}[^<>\n\d]?$""", RegexOption.MULTILINE)
+
+/** A cut break that lost both brackets, after the sentence it ends: `her?R /.` */
+private val CUT_BARE_BREAK = Regex("""([.?!,])[Bb]?[Rr] ?/.?$""", RegexOption.MULTILINE)
 
 /** A `<br />` that lost its `<` and maybe more: `Br />`, `R />` or ` />`. */
 private val HEADLESS_BREAK = Regex("""(?:\b[Bb]?[Rr])? ?/>""")

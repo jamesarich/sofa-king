@@ -6,7 +6,9 @@ import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.PgsFixture
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.*
+import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.submitForm
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.testing.testApplication
@@ -212,6 +214,46 @@ class VodApiTest {
             }
             assertEquals(HttpStatusCode.BadRequest, open(1001).status, "text is drawn by the player")
             assertEquals(HttpStatusCode.NotFound, open(7).status)
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
+    @Test fun `a video with no picture shows a frame and the portal lists what plays from the libraries`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-vod-portal-")
+        val admin = "admin".repeat(8)
+        val episode = dir.resolve("media/tv/Show (2020)/Season 01/Show - S01E01 - Pilot.mkv")
+        clip(episode)
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, adminToken = admin, hdhr = HdhrConfig(enabled = false), updateImage = null)
+        val store = openStore(dir)
+        val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
+        try {
+            assertEquals(listOf("Media", "Recordings"), runtime.libraries!!.roots.map { it.label }, "recordings can be a library too")
+            val library = runtime.libraries!!.create("TV", LibraryKind.SHOWS, dir.resolve("media/tv").toString())
+            runtime.libraries!!.scan(library.id)
+            val show = runtime.libraries!!.catalog.items(library.id, null, false, null, 10).items.single()
+            val season = runtime.libraries!!.catalog.item(show.id).children.single()
+            val pilot = runtime.libraries!!.catalog.item(season.id).children.single()
+            application { backendModule(store, MutableClock(), runtime, token, admin, config = config) }
+
+            val still = client.get(pilot.poster!!)
+            assertEquals(HttpStatusCode.OK, still.status)
+            assertEquals(ContentType.Image.JPEG, still.contentType())
+            val bytes = still.readRawBytes()
+            assertTrue(bytes.size > 100 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte(), "a JPEG of the frame")
+            assertEquals(pilot.poster!!.substringBefore('?').replace("poster", "backdrop"), pilot.backdrop!!.substringBefore('?'), "the frame is its backdrop too")
+            assertNull(show.poster, "a show has no frame of its own")
+
+            client.post("/api/v1/vod-sessions") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback(pilot.id, ClientProfile())))
+            }
+            val browser = createClient { install(HttpCookies); followRedirects = false }
+            browser.submitForm("/admin/login", parameters { append("token", admin) })
+            val home = browser.get("/admin").bodyAsText()
+            assertTrue("Show · S1E1 · Pilot" in home && "transcode" in home, "Watching now lists the episode being converted")
+            val id = runtime.vod!!.snapshot().single().id
+            val csrf = Regex("""name="csrf" value="([^"]*)"""").find(home)!!.groupValues[1]
+            assertEquals(HttpStatusCode.SeeOther, browser.submitForm("/admin/vod/$id/stop", parameters { append("csrf", csrf) }).status)
+            assertTrue(runtime.vod!!.snapshot().isEmpty(), "Stop ends it")
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
     }
 }

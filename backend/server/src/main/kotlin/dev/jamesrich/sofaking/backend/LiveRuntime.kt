@@ -185,9 +185,9 @@ class LiveRuntime(
                 val updates = UpdateChecker(http, clock, config.dataDirectory, config.updateImage, RunningBuild(config.revision, config.version), jobs)
                 updates.start(scope)
                 val libraries = LibraryService(
-                    store, clock, listOf(MediaRoot("Media", config.mediaDirectory)), LibraryScanner(MediaProbe(ffprobeBeside(config.ffmpeg))::probe), jobs,
+                    store, clock, listOf(MediaRoot("Media", config.mediaDirectory), MediaRoot("Recordings", config.recordingsDirectory)), LibraryScanner(MediaProbe(ffprobeBeside(config.ffmpeg))::probe), jobs,
                     metadata = config.tmdb?.let { LibraryMetadata(store, TmdbClient(http, it), clock, it.region) },
-                    artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork")),
+                    artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork"), ffmpeg = config.ffmpeg),
                 )
                 libraries.start(scope)
                 val vod = VodSessions(

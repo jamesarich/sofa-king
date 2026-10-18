@@ -16,7 +16,7 @@ A media library is a folder of movies, TV shows or other videos that the server 
 
 Put each library in its own folder inside it, for example `/media/movies`, `/media/tv` and `/media/videos`. If you already keep a `data/media` tree for other tools, mount that folder at `/media`. The server must be able to read every file: with `user: "UID:GID"`, that user needs read access to the files and to list each folder.
 
-A library's folder must sit inside `SOFA_MEDIA_DIR`. Links are not followed during a scan, and a library folder that is itself a link must point inside the media folder.
+A library's folder must sit inside `SOFA_MEDIA_DIR`, or inside the DVR's `SOFA_RECORDINGS_DIR`: a TV shows library on its `TV` folder and a Movies library on its `Movies` folder put recordings in the Library tab beside the rest, with posters and TMDB details. A recording being made is in the hidden `.inprogress` folder, which scans skip, so it joins the library at the next scan after it ends; a recording's watch progress in the Library tab is separate from the one in the Recordings tab. Links are not followed during a scan, and a library folder that is itself a link must point inside the folder it is under.
 
 ## Lay out the folders
 
@@ -44,6 +44,8 @@ Artwork is read from the files beside the video, as `.jpg`, `.jpeg`, `.png` or `
 | Show | `poster`, `folder`, `cover` in its folder | `fanart`, `backdrop` |
 | Season | `season01-poster` in the show's folder, or `poster`, `folder` in the season's | |
 | Episode or video | `Name-thumb`, or an image with the video's name | |
+
+When neither the files nor TMDB have a picture, FFmpeg takes a frame a tenth of the way into the video (at most ten minutes in) as an episode's or a video's still and as any file's backdrop. The frame is taken the first time it is asked for and kept under `SOFA_DATA_DIR/artwork`.
 
 Without a TMDB token the server looks nothing up online.
 

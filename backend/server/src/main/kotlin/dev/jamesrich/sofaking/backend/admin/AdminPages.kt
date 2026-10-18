@@ -11,6 +11,8 @@ import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.api.PolicyUnmappedCategory
 import dev.jamesrich.sofaking.backend.api.ProviderStatus
 import dev.jamesrich.sofaking.backend.api.SourcePin
+import dev.jamesrich.sofaking.backend.library.VodActivity
+import dev.jamesrich.sofaking.contract.Wire
 import java.time.Duration
 import java.time.Instant
 import kotlinx.html.*
@@ -40,6 +42,9 @@ internal class PlexSummary(val lastSyncAt: String?, val lastError: String?, val 
 /** One live session on the overview: the session, its channel's name and what that channel airs now. */
 internal class SessionRow(val active: ActiveSession, val channel: String?, val onNow: String?)
 
+/** A library file or recording being played, with what the portal calls it. */
+internal class PlayingRow(val activity: VodActivity, val title: String)
+
 /** A session the operator asked to stop, waiting for the confirmation. */
 internal class StopConfirm(val row: SessionRow)
 
@@ -54,6 +59,8 @@ internal class OverviewView(
     /** Null when Plex sync is not configured. */
     val plex: PlexSummary?,
     val sessions: List<SessionRow>,
+    /** Library files and recordings being played. */
+    val playing: List<PlayingRow> = emptyList(),
     val lastRun: PolicyApplyResult?, val policy: Boolean,
     val stop: StopConfirm? = null,
     /** Setup, for the steps the page shows while the server has no source file or no policy; null when unavailable. */
@@ -64,7 +71,7 @@ internal class OverviewView(
     /** [view] with a stop confirmation, or asking to confirm the starter lineup. */
     constructor(view: OverviewView, stop: StopConfirm? = null, confirmStarter: Boolean = false) : this(
         view.attention, view.ignored, view.stations, view.enabled, view.guide, view.required, view.requiredOff, view.suggestions, view.findings, view.unverified,
-        view.providersOk, view.providersTotal, view.plex, view.sessions, view.lastRun, view.policy, stop, view.setup, confirmStarter,
+        view.providersOk, view.providersTotal, view.plex, view.sessions, view.playing, view.lastRun, view.policy, stop, view.setup, confirmStarter,
     )
 }
 
@@ -228,9 +235,9 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
         }
     }
     div("cols") {
-        panel("Watching now", id = "watching", aside = { span("muted") { +plural(view.sessions.size, "session") } }) {
-            if (view.sessions.isEmpty()) p("muted") { +"Nobody is watching." }
-            else div("scroll") {
+        panel("Watching now", id = "watching", aside = { span("muted") { +plural(view.sessions.size + view.playing.size, "session") } }) {
+            if (view.sessions.isEmpty() && view.playing.isEmpty()) p("muted") { +"Nobody is watching." }
+            else if (view.sessions.isNotEmpty()) div("scroll") {
                 table {
                     caption("sr") { +"Watching now" }
                     thead { tr { col("Channel"); col("On now"); col("Player"); col("Watching for"); col("Sent", "num"); col("Lease ends"); col("Action", "sr") } }
@@ -261,7 +268,42 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
                     }
                 }
             }
-            p("muted small") { +"Sent counts the bytes relayed to the player over this session. Stop ends the session; the player sees its stream end and may open a new one." }
+            if (view.playing.isNotEmpty()) div("scroll") {
+                table {
+                    caption("sr") { +"Playing from libraries and recordings" }
+                    thead { tr { col("Playing"); col("How"); col("Watching for"); col("Lease ends"); col("Action", "sr") } }
+                    tbody {
+                        for (row in view.playing) {
+                            val active = row.activity
+                            tr(chrome.flash?.takeIf { it.target == active.id }?.let { if (it.tone == Tone.BAD) "err-row" else "flash" }) {
+                                td {
+                                    +row.title
+                                    br(); span("muted small") { +(if (active.recordingId != null) "Recording" else "Library") }
+                                }
+                                td {
+                                    chip(
+                                        when (active.mode) {
+                                            Wire.VodMode.DIRECT -> "direct play"
+                                            Wire.VodMode.REMUX -> "remux"
+                                            Wire.VodMode.AUDIO -> "audio converted"
+                                            else -> "transcode"
+                                        },
+                                        if (active.mode == Wire.VodMode.TRANSCODE) Tone.WARN else Tone.OK,
+                                    )
+                                }
+                                td("nowrap") { +since(active.startedAt.toString(), now) }
+                                td("nowrap") { ago(active.expiresAt.toString(), now) }
+                                td {
+                                    postForm("/admin/vod/${active.id}/stop", chrome.session, keepScroll = true) {
+                                        button(type = ButtonType.submit, classes = "small quiet") { attributes["aria-label"] = "Stop playing ${row.title}"; +"Stop" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            p("muted small") { +"Sent counts the bytes relayed to the player over a live session. Direct play serves the file as it is; remux and transcode run FFmpeg, and transcodes count toward the conversion limit. Stop ends the session; the player sees its stream end and may open a new one." }
         }
         if (view.policy) panel("Last lineup run", aside = { a("/admin/settings#changes") { +"Change log" } }) {
             val run = view.lastRun

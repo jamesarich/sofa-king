@@ -84,8 +84,12 @@ internal class VodState(
     var epoch: Int,
     var startMs: Long,
     var expires: Instant,
+    val startedAt: Instant,
     var process: Process? = null,
 )
+
+/** A library file or recording being played, as the portal's Watching now lists it. */
+class VodActivity(val id: String, val itemId: String, val recordingId: String?, val mode: String, val startedAt: Instant, val expiresAt: Instant)
 
 /** A file to serve for a VOD media request, and its type. */
 class VodMedia(val file: Path, val contentType: String)
@@ -215,7 +219,7 @@ class VodSessions(
             }
             val state = VodState(
                 UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs, audio?.index, burn, media, secret(), epoch = 1,
-                startMs = if (mode == Wire.VodMode.DIRECT) 0 else request.startMs, expires = clock.instant().plus(lease),
+                startMs = if (mode == Wire.VodMode.DIRECT) 0 else request.startMs, expires = clock.instant().plus(lease), startedAt = clock.instant(),
             )
             if (mode != Wire.VodMode.DIRECT) launch(state)
             sessions[state.id] = state
@@ -224,6 +228,12 @@ class VodSessions(
     }
 
     suspend fun get(id: String): VodSession = mutex.withLock { live(id).wire() }
+
+    /** The sessions playing now, oldest first. */
+    suspend fun snapshot(): List<VodActivity> = mutex.withLock {
+        reap()
+        sessions.values.sortedBy { it.startedAt }.map { VodActivity(it.id, it.itemId, it.recordingId, it.mode, it.startedAt, it.expires) }
+    }
 
     /** Renews [id]'s lease; with a start, restarts a converted stream there under a new epoch. */
     suspend fun update(id: String, update: UpdateVodPlayback): VodSession {

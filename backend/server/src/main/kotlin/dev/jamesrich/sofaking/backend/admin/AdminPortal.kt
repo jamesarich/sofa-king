@@ -154,6 +154,13 @@ class AdminPortal(
                     }
                 }
             }
+            action("/vod/{id}/stop") { session, _ ->
+                val id = call.parameters["id"]!!
+                val row = playingRows().firstOrNull { it.activity.id == id }
+                if (row == null || runtime.vod?.release(id) != true) session.flash.set(Flash("That session already ended.", Tone.WARN))
+                else session.flash.set(Flash("Stopped playing ${row.title}."))
+                seeOther(call, "/admin#watching")
+            }
             action("/attention/ignore") { session, form ->
                 val key = form["key"]?.trim().orEmpty().take(64)
                 val fingerprint = form["fingerprint"]?.trim().orEmpty().take(64)
@@ -762,8 +769,25 @@ class AdminPortal(
             providersOk = providers.count { it.errorCode == null && it.lastSuccessAt != null }, providersTotal = providers.size,
             plex = plex?.let { PlexSummary(it.lastSyncAt, it.lastError, it.devices.size, it.devices.sumOf { d -> d.mapped }, it.missingDevices.size, it.syncMinutes) },
             sessions = sessionRows(now),
+            playing = playingRows(),
             lastRun = applied?.result, policy = policy != null, setup = runtime.setup,
         )
+    }
+
+    /** The library files and recordings being played, named as their pages name them. */
+    private suspend fun playingRows(): List<PlayingRow> {
+        val active = runtime.vod?.snapshot().orEmpty()
+        if (active.isEmpty()) return emptyList()
+        val views = runtime.libraries?.catalog?.snapshot()?.views.orEmpty()
+        return active.map { activity ->
+            val title = activity.recordingId?.let { id ->
+                runCatching { runtime.dvr?.recording(id) }.getOrNull()?.let { r -> listOfNotNull(r.title, r.episodeTitle).joinToString(" · ") } ?: "Recording"
+            } ?: views[activity.itemId]?.item?.let { item ->
+                val episode = item.season?.let { s -> item.episode?.let { e -> "S${s}E$e" } }
+                listOfNotNull(item.showTitle, episode, item.title).joinToString(" · ")
+            } ?: "Removed item"
+            PlayingRow(activity, title)
+        }
     }
 
     /** The live sessions with their channel's name and the programme it airs now, read once per guide. */

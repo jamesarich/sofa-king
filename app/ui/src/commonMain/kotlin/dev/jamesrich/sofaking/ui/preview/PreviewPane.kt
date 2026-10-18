@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -171,6 +172,8 @@ internal fun PreviewVideo(
     LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
     // Bumped when the relay answers 410, so the tune effect reopens the channel at once instead of after the debounce.
     var retune by remember { mutableIntStateOf(0) }
+    // The channel whose stream the player holds; until it is the focused one, the card covers the last channel's picture.
+    var showing by remember { mutableStateOf(player.currentChannelId) }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(player) {
@@ -198,6 +201,7 @@ internal fun PreviewVideo(
         val held = player.currentChannelId == guideId
         if (held && retune == 0 && player.status.value.state != PlaybackState.IDLE) {
             // Back from the full screen with its stream still playing: keep it, as a preview again.
+            showing = guideId
             try {
                 sessions.setIntent(guideId, PlaybackIntent.PREVIEW)
             } catch (e: CancellationException) {
@@ -225,6 +229,7 @@ internal fun PreviewVideo(
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
             player.setStream(stream)
             player.prepare()
+            showing = guideId
         }
     }
 
@@ -233,7 +238,7 @@ internal fun PreviewVideo(
         player.Video(Modifier.fillMaxSize()) { PreviewCard(channel, failed) }
         // No overscan inset: the box sits inside the guide's margins already.
         if (showPreviewCaptions(captionsEnabled, channel != null, failed)) Captions(player, captionStyle, bottomFraction = 0f, Modifier.fillMaxSize())
-        if (failed) PreviewCard(channel, failed = true)
+        if (failed) PreviewCard(channel, failed = true) else if (channel != null && showing != channel.guideId) PreviewCard(channel, failed = false)
         AnimatedVisibility(
             rememberSettled(buffering && !failed),
             modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),

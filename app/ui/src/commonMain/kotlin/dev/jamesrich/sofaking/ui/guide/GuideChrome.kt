@@ -38,6 +38,7 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.formatTemplate
+import dev.jamesrich.sofaking.ui.horizontalFadingEdges
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
@@ -100,7 +101,7 @@ internal fun FilterChipRow(
 ) {
     LazyRow(
         state = listState,
-        modifier = modifier.focusRestorer(selectedChip),
+        modifier = modifier.focusRestorer(selectedChip).horizontalFadingEdges(listState),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "now") {
@@ -155,19 +156,23 @@ internal fun SearchField(
     )
 }
 
-/** One horizontally scrolled strip; the header and every row share [scrollState] so columns stay aligned. */
+/**
+ * One horizontally scrolled strip; the header and every row share [scrollState] so columns stay aligned. The now
+ * line crosses the time row on top and runs behind a row's cells ([nowLineBehind]), so it never cuts a title.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun TimelineStrip(
     scrollState: ScrollState,
     nowMinute: Long?,
     modifier: Modifier,
+    nowLineBehind: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     // Focus must not scroll the strip: the default bring-into-view would chase a long cell's far end
     // (hours ahead) on a vertical move. GuideScreen scrolls the timeline itself in revealMinute.
     CompositionLocalProvider(LocalBringIntoViewSpec provides NoBringIntoView) {
-        TimelineStripContent(scrollState, nowMinute, modifier, content)
+        TimelineStripContent(scrollState, nowMinute, nowLineBehind, modifier, content)
     }
 }
 
@@ -176,25 +181,48 @@ private val NoBringIntoView = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
 }
 
+/**
+ * The channel list scrolls only as far as a focused row needs to be wholly on screen. A TV's default pivots the
+ * focused row toward a third of the way down, which leaves a sliver of the row above under the time header.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+internal val RowBringIntoView = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val trailing = offset + size
+        return when {
+            offset >= 0f && trailing <= containerSize -> 0f
+            offset < 0f && trailing > containerSize -> 0f
+            offset < 0f -> offset
+            else -> trailing - containerSize
+        }
+    }
+}
+
 @Composable
 private fun TimelineStripContent(
     scrollState: ScrollState,
     nowMinute: Long?,
+    nowLineBehind: Boolean,
     modifier: Modifier,
     content: @Composable () -> Unit,
 ) {
     Box(modifier.clipToBounds().horizontalScroll(scrollState, overscrollEffect = null)) {
+        if (nowLineBehind) NowLine(nowMinute)
         content()
-        if (nowMinute != null) {
-            Box(
-                Modifier
-                    .offset(x = nowOffset(nowMinute))
-                    .fillMaxHeight()
-                    .width(2.dp)
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        }
+        if (!nowLineBehind) NowLine(nowMinute)
     }
+}
+
+@Composable
+private fun NowLine(nowMinute: Long?) {
+    if (nowMinute == null) return
+    Box(
+        Modifier
+            .offset(x = nowOffset(nowMinute))
+            .fillMaxHeight()
+            .width(2.dp)
+            .background(MaterialTheme.colorScheme.primary),
+    )
 }
 
 @Composable

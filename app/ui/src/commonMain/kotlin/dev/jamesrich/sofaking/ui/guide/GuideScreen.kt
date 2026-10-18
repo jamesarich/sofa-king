@@ -19,6 +19,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
@@ -149,6 +152,7 @@ private data class FocusedCell(val channel: Channel, val cell: GuideCell)
  * last channel watched) is where a fresh guide starts, [startAtNow] puts the cursor at the current time
  * instead of where it was, and [startSearch] opens search by voice on arrival.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GuideScreen(
     lineup: Lineup,
@@ -774,6 +778,7 @@ fun GuideScreen(
                     modifier = Modifier.padding(top = 16.dp),
                 )
             } else {
+                CompositionLocalProvider(LocalBringIntoViewSpec provides RowBringIntoView) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).focusRestorer().onFocusChanged { gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),
@@ -804,6 +809,7 @@ fun GuideScreen(
                             )
                         }
                     }
+                }
                 }
             }
         }

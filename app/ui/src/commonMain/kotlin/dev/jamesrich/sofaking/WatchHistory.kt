@@ -11,3 +11,9 @@ internal data class WatchHistory(val watching: String? = null, val previous: Str
     /** The channel Last returns to when the player opens on [guideId]. */
     fun previousFor(guideId: String): String? = if (guideId == watching) previous else watching
 }
+
+/**
+ * How long a channel plays full screen before it joins Recent and becomes the one a cold start opens, so zapping
+ * past it, or a preview that opened by itself and was left at once, does not count as watching it.
+ */
+internal const val RECENT_AFTER_MS = 10_000L

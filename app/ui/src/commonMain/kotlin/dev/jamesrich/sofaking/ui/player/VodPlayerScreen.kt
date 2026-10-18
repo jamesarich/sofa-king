@@ -89,6 +89,7 @@ import org.jetbrains.compose.resources.stringResource
  * stream the session holds, including one it reopens after ON_START or a dropped lease or restarts for a seek past
  * what the server has written. [onPosition] gets the position in the item about once a second while it plays, and
  * [onStopped] where it stopped when the viewer leaves or it ends. Leaving stops the player and releases the session.
+ * When it ends, [upNext] names what plays after it, which the Up next card counts down to and [onPlayNext] opens.
  */
 @Composable
 fun VodPlayerScreen(
@@ -103,6 +104,9 @@ fun VodPlayerScreen(
     onEnded: () -> Unit = onExit,
     /** Jump over a [VodMarkerKind.BREAK] when playback runs into it. */
     autoSkipBreaks: Boolean = false,
+    /** What plays after this item, asked for when it ends; null ends as [onEnded] says. */
+    upNext: suspend () -> VodUpNext? = { null },
+    onPlayNext: () -> Unit = {},
 ) {
     val held by sessions.current.collectAsStateWithLifecycle()
     val stream = held?.takeIf { it.itemId != null }
@@ -121,12 +125,16 @@ fun VodPlayerScreen(
     var scrubTarget by remember { mutableStateOf<Long?>(null) }
     var skippedToast by remember { mutableStateOf(false) }
     var ended by remember { mutableStateOf(false) }
+    var next by remember { mutableStateOf<VodUpNext?>(null) }
+    var nextSecondsLeft by remember { mutableIntStateOf(UP_NEXT_SECONDS) }
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
     val scope = rememberCoroutineScope()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val currentOnPosition by rememberUpdatedState(onPosition)
     val currentOnStopped by rememberUpdatedState(onStopped)
     val currentOnEnded by rememberUpdatedState(onEnded)
+    val currentUpNext by rememberUpdatedState(upNext)
+    val currentOnPlayNext by rememberUpdatedState(onPlayNext)
     val currentTitle by rememberUpdatedState(title)
 
     var mediaSession by remember { mutableStateOf<MediaSessionHandle?>(null) }
@@ -211,8 +219,20 @@ fun VodPlayerScreen(
             ended = true
             val end = durationMs ?: positionMs
             currentOnStopped(end, durationMs)
-            currentOnEnded()
+            next = currentUpNext()
+            if (next == null) currentOnEnded()
         }
+    }
+    // The Up next card counts down once a second and then plays what it names.
+    LaunchedEffect(next) {
+        if (next == null) return@LaunchedEffect
+        for (left in UP_NEXT_SECONDS downTo 1) {
+            nextSecondsLeft = left
+            delay(1_000L)
+        }
+        // Not while another app is in front: the next item opens once this one is back.
+        lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
+        currentOnPlayNext()
     }
     // The clock of the screen: the position in the item, the length, a run into a break, a scrub that has
     // settled, and the position report once a second.
@@ -308,6 +328,12 @@ fun VodPlayerScreen(
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
+        if (next != null) {
+            // With the Up next card up, OK and play/pause play it now; Back leaves through the BackHandler.
+            if (event.key !in UP_NEXT_PLAY_KEYS) return false
+            if (event.type == KeyEventType.KeyUp) onPlayNext()
+            return true
+        }
         val action = event.key.vodAction() ?: return false
         if (event.type != KeyEventType.KeyDown) return true
         when (action) {
@@ -372,8 +398,9 @@ fun VodPlayerScreen(
             }
         }
         failure?.let { FailureCard(it) }
+        next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit) }
 
-        InfoBar(overlayVisible || failure != null) {
+        InfoBar((overlayVisible || failure != null) && next == null) {
             Column(
                 Modifier
                     .widthIn(max = 1200.dp)
@@ -462,6 +489,7 @@ private fun modeLabel(mode: String): String? = when (mode) {
     else -> null
 }
 
+private val UP_NEXT_PLAY_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)
 private val BarShape = RoundedCornerShape(8.dp)
 private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 private val log = Logger.withTag("SofaKing")

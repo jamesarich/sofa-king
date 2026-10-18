@@ -13,7 +13,8 @@ struct VodRequest: Identifiable, Hashable {
 /// A library item full screen on AVPlayer, through a server session core opens, renews and releases. The system
 /// player's transport bar scrubs; a converted stream scrubs within what the server has converted so far. The
 /// position is saved as it plays and when it stops; leaving releases the session, and backgrounding releases it
-/// until the app returns, when the item reopens where it was. Reaching the end returns to the page.
+/// until the app returns, when the item reopens where it was. Reaching the end of an episode offers the next one,
+/// played after a countdown; reaching the end of anything else returns to the page.
 struct VodPlayerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
@@ -28,6 +29,7 @@ struct VodPlayerView: View {
     @State private var durationMs: Int64 = 0
     @State private var ended = false
     @State private var backgrounded = false
+    @State private var next: MediaItem?
 
     var body: some View {
         ZStack {
@@ -39,6 +41,11 @@ struct VodPlayerView: View {
                 }
                 .padding()
                 .background(.thinMaterial, in: .rect(cornerRadius: 16))
+            }
+            if let next {
+                UpNextCard(next: next, onPlay: { play(next) }, onCancel: { dismiss() })
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .padding(60)
             }
         }
         .task { await open() }
@@ -141,7 +148,18 @@ struct VodPlayerView: View {
         ended = true
         let end = durationMs > 0 ? durationMs : positionMs
         model.core.itemStopped(itemId: request.item.id, positionMs: end, durationMs: durationMs)
-        dismiss()
+        Task {
+            if let upNext = try? await model.core.upNext(item: request.item) {
+                next = upNext
+            } else {
+                dismiss()
+            }
+        }
+    }
+
+    /// Swaps the cover to [item], which opens on its own session as this one releases.
+    private func play(_ item: MediaItem) {
+        model.vod = VodRequest(item: item, fromStart: false)
     }
 
     /// The title, and for an episode its show and number, as the transport bar's info panel shows them.
@@ -161,6 +179,51 @@ struct VodPlayerView: View {
             return entry.copy() as! AVMetadataItem
         }
     }
+}
+
+/// The Up next card once an episode ends: the next one's still, number and title, counting down to playing it.
+/// Play now or the countdown plays it; Cancel or Menu returns to the page.
+private struct UpNextCard: View {
+    let next: MediaItem
+    let onPlay: () -> Void
+    let onCancel: () -> Void
+    @State private var secondsLeft = 10
+    @FocusState private var playFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Up next").font(.headline).foregroundStyle(.tint)
+            Artwork(url: next.backdrop ?? next.poster, title: next.title)
+                .frame(width: 480, height: 270)
+                .clipShape(.rect(cornerRadius: 12))
+            if let subtitle = [next.showTitle, next.episodeLabel].compactMap({ $0 }).joined(separator: " · ").nilIfEmpty {
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
+            }
+            Text(next.title).font(.title3).lineLimit(2)
+            ProgressView(value: Double(10 - secondsLeft), total: 10)
+            HStack(spacing: 24) {
+                Button("Play now (\(secondsLeft))", systemImage: "play.fill", action: onPlay).focused($playFocused)
+                Button("Cancel", action: onCancel)
+            }
+        }
+        .frame(width: 480)
+        .padding(32)
+        .background(.thinMaterial, in: .rect(cornerRadius: 24))
+        .onAppear { playFocused = true }
+        .onExitCommand(perform: onCancel)
+        .task {
+            while secondsLeft > 0 {
+                try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled { return }
+                secondsLeft -= 1
+            }
+            onPlay()
+        }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 /// The system player UI, which handles the Siri Remote's play, pause, scrubbing and Menu.

@@ -36,5 +36,20 @@ fun initialSeasonId(detail: MediaItemDetail): String? {
         ?: seasons.first().id
 }
 
+/** The playable item after [id] in [children], a season's episodes in order; null when [id] is the last or absent. */
+fun episodeAfter(children: List<MediaItem>, id: String): MediaItem? {
+    val episodes = children.filter { it.kind.playable }
+    val at = episodes.indexOfFirst { it.id == id }
+    return if (at < 0) null else episodes.getOrNull(at + 1)
+}
+
+/** The season after [seasonId] among a show's [children], skipping Specials, which the viewer picks by hand. */
+fun seasonAfter(children: List<MediaItem>, seasonId: String): MediaItem? {
+    val seasons = children.filter { it.kind == ItemKind.SEASON }
+    val at = seasons.indexOfFirst { it.id == seasonId }
+    if (at < 0) return null
+    return seasons.drop(at + 1).firstOrNull { it.season != 0 }
+}
+
 /** The server's id for the row of items in progress and next episodes. */
 const val CONTINUE_SHELF = "continue"

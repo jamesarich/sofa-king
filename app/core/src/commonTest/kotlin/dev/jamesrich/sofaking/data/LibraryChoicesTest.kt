@@ -36,4 +36,21 @@ class LibraryChoicesTest {
         assertEquals("s1", initialSeasonId(MediaItemDetail(show, seasons.map { it.copy(unwatched = 0) })), "else the first")
         assertNull(initialSeasonId(MediaItemDetail(item("m", ItemKind.MOVIE))))
     }
+
+    @Test
+    fun `the episode after one is the next in its season and none after the last`() {
+        val episodes = listOf(item("e1", ItemKind.EPISODE), item("e2", ItemKind.EPISODE), item("e3", ItemKind.EPISODE))
+        assertEquals("e2", episodeAfter(episodes, "e1")?.id)
+        assertNull(episodeAfter(episodes, "e3"))
+        assertNull(episodeAfter(episodes, "missing"))
+    }
+
+    @Test
+    fun `the season after one skips Specials`() {
+        val seasons = listOf(item("s0", ItemKind.SEASON, season = 0), item("s1", ItemKind.SEASON, season = 1), item("s2", ItemKind.SEASON, season = 2))
+        assertEquals("s2", seasonAfter(seasons, "s1")?.id)
+        assertEquals("s1", seasonAfter(seasons, "s0")?.id)
+        assertNull(seasonAfter(seasons, "s2"))
+        assertNull(seasonAfter(listOf(item("s1", ItemKind.SEASON, season = 1), item("s0", ItemKind.SEASON, season = 0)), "s1"))
+    }
 }

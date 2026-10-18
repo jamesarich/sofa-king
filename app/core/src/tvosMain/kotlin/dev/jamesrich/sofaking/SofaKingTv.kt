@@ -114,6 +114,10 @@ class SofaKingTv {
     @Throws(Exception::class)
     suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream = library.play(item, appleTvProfile, fromStart)
 
+    /** The episode to offer when [item] ends, or null; see [LibraryViewModel.upNext]. */
+    @Throws(Exception::class)
+    suspend fun upNext(item: MediaItem): MediaItem? = library.upNext(item)
+
     /** Restarts a converted stream at [positionMs] in the item; a file played as it is comes back unchanged. */
     @Throws(Exception::class)
     suspend fun restartItemAt(positionMs: Long): PlaybackStream? = viewModel.sessions.restartAt(positionMs)

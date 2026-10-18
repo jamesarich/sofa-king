@@ -179,4 +179,27 @@ class LibraryViewModelTest {
         assertEquals(3, opens.size)
         model.viewModelScope.cancel()
     }
+
+    @Test
+    fun `up next is the next episode in the season then the first of the next season`() = runTest {
+        fun episode(id: String, season: String) = item(id, "episode", ""","parentId":"$season","showId":"show"""")
+        val server = Server(this) { _, path, _ ->
+            when (path) {
+                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                "/api/v1/library/items/s1" -> 200 to """{"item":${item("s1", "season")},"children":[${episode("e1", "s1")},${episode("e2", "s1")}]}"""
+                "/api/v1/library/items/s2" -> 200 to """{"item":${item("s2", "season")},"children":[${episode("e3", "s2")}]}"""
+                "/api/v1/library/items/show" -> 200 to """{"item":${item("show", "show")},"children":[${item("s1", "season", ""","season":1""")},${item("s2", "season", ""","season":2""")}]}"""
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+        fun mapped(id: String, season: String) = MediaItem(id, "lib", ItemKind.EPISODE, "Title $id", parentId = season, showId = "show")
+
+        assertEquals("e2", model.upNext(mapped("e1", "s1"))?.id)
+        assertEquals("e3", model.upNext(mapped("e2", "s1"))?.id, "the last of a season goes on to the next")
+        assertEquals(null, model.upNext(mapped("e3", "s2")), "nothing after the show's last episode")
+        assertEquals(null, model.upNext(MediaItem("m", "lib", ItemKind.MOVIE, "Movie")), "a movie has no next")
+        model.viewModelScope.cancel()
+    }
 }

@@ -22,6 +22,7 @@ final class AppModel {
     private(set) var settings: AppSettings?
     private(set) var capabilities: ServerCapabilities?
     private(set) var libraryHome: LibraryHomeState = LibraryHomeStateLoading.shared
+    private(set) var recordings: RecordingsState = RecordingsStateLoading.shared
     /// The library item the player shows, from whichever library page asked for it.
     var vod: VodRequest?
     /// Whether the one cold-start decision, opening the last channel, has been made.
@@ -52,6 +53,7 @@ final class AppModel {
         })
         watches.append(core.watchCapabilities { [weak self] in self?.capabilities = $0 })
         watches.append(core.watchLibraryHome { [weak self] in self?.libraryHome = $0 })
+        watches.append(core.watchRecordings { [weak self] in self?.recordings = $0 })
     }
 
     var lineup: Lineup? { (state as? LineupStateReady)?.lineup }
@@ -73,6 +75,9 @@ final class AppModel {
         default: return true
         }
     }
+
+    /// The Recordings tab shows when the server records.
+    var recordingsShown: Bool { capabilities?.recordings == true }
 
     var favorites: Set<String> { Set(settings?.favorites.compactMap { $0 as? String } ?? []) }
 
@@ -97,7 +102,7 @@ final class AppModel {
 
 /// The top-level tabs, in the tvOS tab bar along the top.
 enum AppTab: Hashable {
-    case live, library, settings
+    case live, library, recordings, settings
 }
 
 struct ContentView: View {
@@ -110,6 +115,9 @@ struct ContentView: View {
             if model.libraryShown {
                 LibraryHomeView().tabItem { Label("Library", systemImage: "film.stack") }.tag(AppTab.library)
             }
+            if model.recordingsShown {
+                RecordingsView().tabItem { Label("Recordings", systemImage: "record.circle") }.tag(AppTab.recordings)
+            }
             NavigationStack { SettingsView() }.tabItem { Label("Settings", systemImage: "gear") }.tag(AppTab.settings)
         }
         .onChange(of: model.requestedChannel) { _, requested in
@@ -118,6 +126,9 @@ struct ContentView: View {
         }
         .onChange(of: model.libraryShown) { _, shown in
             if !shown && tab == .library { tab = .live }
+        }
+        .onChange(of: model.recordingsShown) { _, shown in
+            if !shown && tab == .recordings { tab = .live }
         }
         .onOpenURL { url in
             if let guideId = TopShelfChannels.guideId(from: url) {

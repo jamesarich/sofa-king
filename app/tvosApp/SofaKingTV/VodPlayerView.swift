@@ -3,17 +3,40 @@ import Combine
 import SwiftUI
 import SofaKingCore
 
-/// A library item to play, from the start or from where the household stopped in it.
+/// A library item or a recording to play, from the start or from where the household stopped in it.
 struct VodRequest: Identifiable, Hashable {
-    let item: MediaItem
+    enum Source: Hashable {
+        case item(MediaItem)
+        case recording(DvrRecording)
+    }
+
+    let source: Source
     let fromStart: Bool
-    var id: String { item.id }
+
+    init(item: MediaItem, fromStart: Bool) {
+        source = .item(item)
+        self.fromStart = fromStart
+    }
+
+    init(recording: DvrRecording, fromStart: Bool) {
+        source = .recording(recording)
+        self.fromStart = fromStart
+    }
+
+    /// The library item's or the recording's id, which the session's stream carries as its `itemId`.
+    var id: String {
+        switch source {
+        case .item(let item): item.id
+        case .recording(let recording): recording.id
+        }
+    }
 }
 
-/// A library item full screen on AVPlayer, through a server session core opens, renews and releases. The system
-/// player's transport bar scrubs; a converted stream scrubs within what the server has converted so far. The
-/// position is saved as it plays and when it stops; leaving releases the session, and backgrounding releases it
-/// until the app returns, when the item reopens where it was. Reaching the end returns to the page.
+/// A library item or recording full screen on AVPlayer, through a server session core opens, renews and releases.
+/// The system player's transport bar scrubs; a converted stream scrubs within what the server has converted so far.
+/// A recording's commercial breaks show on the bar, and with Skip commercials on, playback that runs into one jumps
+/// to its end. The position is saved as it plays and when it stops; leaving releases the session, and backgrounding
+/// releases it until the app returns, when the item reopens where it was. Reaching the end returns to the page.
 struct VodPlayerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
@@ -28,6 +51,8 @@ struct VodPlayerView: View {
     @State private var durationMs: Int64 = 0
     @State private var ended = false
     @State private var backgrounded = false
+    /// Where the last tick found the player in the item, so a break is skipped only when playback runs into it.
+    @State private var lastPositionMs: Int64 = 0
 
     var body: some View {
         ZStack {
@@ -45,7 +70,7 @@ struct VodPlayerView: View {
         .onAppear {
             // A renewal that finds the stream replaced hands back the new URL for the same item.
             replaced = model.core.watchReplaced { s in
-                if s.itemId == request.item.id { load(s) }
+                if s.itemId == request.id { load(s) }
             }
         }
         .onDisappear {
@@ -86,7 +111,12 @@ struct VodPlayerView: View {
     private func open() async {
         failure = nil
         do {
-            load(try await model.core.playItem(item: request.item, fromStart: request.fromStart))
+            switch request.source {
+            case .item(let item):
+                load(try await model.core.playItem(item: item, fromStart: request.fromStart))
+            case .recording(let recording):
+                load(try await model.core.playRecording(recording: recording, fromStart: request.fromStart))
+            }
         } catch {
             failure = error.localizedDescription
         }
@@ -100,6 +130,11 @@ struct VodPlayerView: View {
         durationMs = s.itemDurationMs?.int64Value ?? 0
         let item = AVPlayerItem(url: url)
         item.externalMetadata = metadata()
+        item.interstitialTimeRanges = breaks.map { b in
+            let start = CMTime(value: b.startMs - s.offsetMs, timescale: 1000)
+            return AVInterstitialTimeRange(timeRange: CMTimeRange(start: start, duration: CMTime(value: b.endMs - b.startMs, timescale: 1000)))
+        }
+        lastPositionMs = s.startAtMs
         let seekMs = s.startAtMs - s.offsetMs
         var sought = seekMs <= 0
         itemObservers = [
@@ -129,30 +164,74 @@ struct VodPlayerView: View {
         } else if item.duration.seconds.isFinite {
             durationMs = Int64(item.duration.seconds * 1000) + s.offsetMs
         }
-        if player.rate > 0 { model.core.itemProgress(itemId: request.item.id, positionMs: positionMs, durationMs: durationMs) }
+        skipBreak(from: lastPositionMs, to: positionMs, in: s)
+        lastPositionMs = positionMs
+        guard player.rate > 0 else { return }
+        switch request.source {
+        case .item(let item): model.core.itemProgress(itemId: item.id, positionMs: positionMs, durationMs: durationMs)
+        case .recording(let recording): model.core.recordingProgress(recordingId: recording.id, positionMs: positionMs, durationMs: durationMs)
+        }
+    }
+
+    /// The recording's commercial breaks; a library item has none.
+    private var breaks: [CommercialBreak] {
+        if case .recording(let recording) = request.source { return recording.breaks }
+        return []
+    }
+
+    /// With Skip commercials on, jumps to the end of a break that playback ran into between two ticks; a seek into
+    /// a break stays there. A break end past what the server has converted restarts the conversion there.
+    private func skipBreak(from previousMs: Int64, to nowMs: Int64, in s: PlaybackStream) {
+        guard model.settings?.skipCommercials == true, player.rate > 0,
+              let b = breaks.first(where: { previousMs < $0.startMs && nowMs >= $0.startMs && nowMs < $0.endMs })
+        else { return }
+        let target = CMTime(value: b.endMs - s.offsetMs, timescale: 1000)
+        let seekableEnd = player.currentItem?.seekableTimeRanges.last?.timeRangeValue.end ?? .zero
+        if s.mode == "direct" || CMTimeCompare(target, seekableEnd) <= 0 {
+            player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
+        } else {
+            Task {
+                if let restarted = try? await model.core.restartItemAt(positionMs: b.endMs) { load(restarted) }
+            }
+        }
     }
 
     private func stopped() {
-        model.core.itemStopped(itemId: request.item.id, positionMs: positionMs, durationMs: durationMs)
+        report(stoppedAt: positionMs)
+    }
+
+    private func report(stoppedAt ms: Int64) {
+        switch request.source {
+        case .item(let item): model.core.itemStopped(itemId: item.id, positionMs: ms, durationMs: durationMs)
+        case .recording(let recording): model.core.recordingStopped(recordingId: recording.id, positionMs: ms, durationMs: durationMs)
+        }
     }
 
     private func finished() {
         guard !ended else { return }
         ended = true
         let end = durationMs > 0 ? durationMs : positionMs
-        model.core.itemStopped(itemId: request.item.id, positionMs: end, durationMs: durationMs)
+        report(stoppedAt: end)
         dismiss()
     }
 
-    /// The title, and for an episode its show and number, as the transport bar's info panel shows them.
+    /// The title, and for an episode its show and number or for a recording when it aired, as the transport bar's
+    /// info panel shows them.
     private func metadata() -> [AVMetadataItem] {
-        let item = request.item
-        var entries: [(AVMetadataIdentifier, String)] = [(.commonIdentifierTitle, item.title)]
-        if item.kind == .episode {
-            let subtitle = [item.showTitle, item.episodeLabel].compactMap { $0 }.joined(separator: " · ")
-            if !subtitle.isEmpty { entries.append((.iTunesMetadataTrackSubTitle, subtitle)) }
+        var entries: [(AVMetadataIdentifier, String)] = []
+        switch request.source {
+        case .item(let item):
+            entries.append((.commonIdentifierTitle, item.title))
+            if item.kind == .episode {
+                let subtitle = [item.showTitle, item.episodeLabel].compactMap { $0 }.joined(separator: " · ")
+                if !subtitle.isEmpty { entries.append((.iTunesMetadataTrackSubTitle, subtitle)) }
+            }
+            if let overview = item.overview { entries.append((.commonIdentifierDescription, overview)) }
+        case .recording(let recording):
+            entries.append((.commonIdentifierTitle, recording.title))
+            entries.append((.iTunesMetadataTrackSubTitle, model.core.recordingSubtitle(recording)))
+            if let summary = model.core.recordingSummary(recording: recording) { entries.append((.commonIdentifierDescription, summary)) }
         }
-        if let overview = item.overview { entries.append((.commonIdentifierDescription, overview)) }
         return entries.map { identifier, value in
             let entry = AVMutableMetadataItem()
             entry.identifier = identifier

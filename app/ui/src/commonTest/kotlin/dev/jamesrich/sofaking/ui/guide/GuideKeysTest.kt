@@ -15,6 +15,18 @@ class GuideKeysTest {
     }
 
     @Test
+    fun `Left on the first cell and Right on the last stay in the row`() {
+        val first = GuideCell(null, startMinute = 0, endMinute = 30)
+        val middle = GuideCell(null, startMinute = 30, endMinute = 60)
+        val last = GuideCell(null, startMinute = 1410, endMinute = 1440)
+        assertTrue(Key.DirectionLeft.stopsAtRowEdge(first, 1440))
+        assertFalse(Key.DirectionRight.stopsAtRowEdge(first, 1440))
+        assertFalse(Key.DirectionLeft.stopsAtRowEdge(middle, 1440))
+        assertTrue(Key.DirectionRight.stopsAtRowEdge(last, 1440))
+        assertFalse(Key.DirectionUp.stopsAtRowEdge(first, 1440))
+    }
+
+    @Test
     fun `navigation keys are not shortcuts`() {
         assertNull(Key.DirectionDown.guideShortcut())
         assertNull(Key.Back.guideShortcut())

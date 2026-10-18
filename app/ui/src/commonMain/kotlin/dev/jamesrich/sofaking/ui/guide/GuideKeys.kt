@@ -36,6 +36,16 @@ internal fun Key.gridStep(): GridStep? = when (this) {
     else -> null
 }
 
+/**
+ * Left on a row's first cell or Right on its last stays put: there is nothing further in the window, and focus
+ * search would otherwise leave the grid for the chips or the preview.
+ */
+internal fun Key.stopsAtRowEdge(cell: GuideCell, windowMinutes: Long): Boolean = when (this) {
+    Key.DirectionLeft -> cell.startMinute <= 0
+    Key.DirectionRight -> cell.endMinute >= windowMinutes
+    else -> false
+}
+
 /** How many days ahead of the live window the grid can show; the server's guide data rarely reaches further. */
 internal const val MAX_DAY_OFFSET = 6
 

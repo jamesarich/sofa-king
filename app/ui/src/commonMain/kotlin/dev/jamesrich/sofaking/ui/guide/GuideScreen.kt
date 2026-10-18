@@ -432,6 +432,8 @@ fun GuideScreen(
     // Up and Down land on the cell under the time cursor. Default focus search treats any cell overlapping a
     // long focused cell (a full-row "No listing") as a candidate and can pick one hours ahead.
     val onGridKey: (KeyEvent) -> Boolean = handler@{ event ->
+        val edgeCell = focused?.cell?.takeIf { laterFocused == null && pendingRow == null }
+        if (edgeCell != null && event.key.stopsAtRowEdge(edgeCell, GuideTimeline.WINDOW_MINUTES)) return@handler true
         val (step, paged) = event.key.gridStep() ?: return@handler false
         if (event.type != KeyEventType.KeyDown) return@handler true
         // Rapid presses arrive before focus lands, so count from the row already requested.

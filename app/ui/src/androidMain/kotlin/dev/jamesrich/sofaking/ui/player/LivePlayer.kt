@@ -27,6 +27,7 @@ import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.PlaybackPreferences
+import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -186,6 +187,8 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
         pauseClock.onPause(uptimeMs())
         exo.pause()
     }
+
+    override val playbackProfile: PlaybackProfile by lazy { media3Profile(context) }
 
     override val isSeekable: Boolean get() = seekableItem && exo.isCurrentMediaItemSeekable
 

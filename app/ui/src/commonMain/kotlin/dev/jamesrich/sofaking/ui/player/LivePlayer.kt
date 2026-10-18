@@ -5,6 +5,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import dev.jamesrich.sofaking.data.PlaybackPreferences
+import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -173,6 +174,13 @@ interface LivePlayer {
 
     /** Moves a seekable item to [positionMs], clamped to its length; does nothing otherwise. */
     fun seekTo(positionMs: Long) = Unit
+
+    /**
+     * What the engine plays as it is, sent when a library item opens: the server plays a file that fits as it is
+     * and copies or converts the rest into HLS. Engines claim only what they decode on every device they run on;
+     * the default, MP4 with H.264 and AAC up to 1080p, is what every engine plays.
+     */
+    val playbackProfile: PlaybackProfile get() = PlaybackProfile(listOf("mp4"), listOf("h264"), listOf("aac"), maxHeight = 1080)
 
     /** Opens the system media session; next and previous from it zap through [onZapStep] (+1 next, -1 previous). */
     fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle

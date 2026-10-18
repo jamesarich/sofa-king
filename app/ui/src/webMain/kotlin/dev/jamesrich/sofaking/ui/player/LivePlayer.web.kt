@@ -25,6 +25,7 @@ import dev.jamesrich.sofaking.data.HLS_MIME_TYPE
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
 import org.jetbrains.compose.resources.stringResource
+import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.browser.document
@@ -223,6 +224,14 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         pauseClock.onPause(uptimeMs())
         playWhenReady = false
     }
+
+    /** What current browsers' video elements all play: MP4 and WebM with H.264, VP8 or VP9. */
+    override val playbackProfile = PlaybackProfile(
+        containers = listOf("mp4", "webm"),
+        videoCodecs = listOf("h264", "vp8", "vp9"),
+        audioCodecs = listOf("aac", "mp3", "opus", "vorbis", "flac"),
+        maxHeight = 2160,
+    )
 
     override val isSeekable: Boolean get() = stream?.seekable == true && loaded && video.seekable.length > 0
 

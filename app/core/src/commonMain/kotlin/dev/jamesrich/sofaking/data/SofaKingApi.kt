@@ -108,6 +108,55 @@ class SofaKingApi(
         http.put("preferences/" + clientId.encodeURLPathPart()) { json(preferences) }.decode()
     }
 
+    /** The server's libraries; a server without libraries answers 404 (a [SofaKingException]). */
+    internal suspend fun libraries(): List<LibraryDto> = call {
+        http.get("libraries").decode()
+    }
+
+    /** One page of [libraryId]'s top-level items in [sort] order (`title`, `added`, `year` or `rating`), from [cursor]. */
+    internal suspend fun libraryItems(libraryId: String, sort: String, unwatched: Boolean, cursor: String?, limit: Int): LibraryPageDto = call {
+        http.get("libraries/" + libraryId.encodeURLPathPart() + "/items") {
+            url.parameters.append("sort", sort)
+            url.parameters.append("limit", limit.toString())
+            if (unwatched) url.parameters.append("unwatched", "true")
+            if (cursor != null) url.parameters.append("cursor", cursor)
+        }.decode()
+    }
+
+    internal suspend fun libraryHome(): LibraryHomeDto = call {
+        http.get("library/home").decode()
+    }
+
+    internal suspend fun librarySearch(query: String): LibraryPageDto = call {
+        http.get("library/search") { url.parameters.append("q", query) }.decode()
+    }
+
+    internal suspend fun libraryItem(id: String): LibraryItemDetailDto = call {
+        http.get(itemPath(id)).decode()
+    }
+
+    /** Saves where the household stopped in [id], or marks it (a show or season: every episode in it) watched or not. */
+    internal suspend fun updatePlayState(id: String, update: UpdatePlayStateDto): LibraryItemDto = call {
+        http.put(itemPath(id) + "/play-state") { json(update) }.decode()
+    }
+
+    internal suspend fun openVod(request: OpenVodPlaybackDto): VodSessionDto = call {
+        http.post("vod-sessions") { json(request) }.decode()
+    }
+
+    internal suspend fun vodSession(id: String): VodSessionDto = call {
+        http.get(vodPath(id)).decode()
+    }
+
+    /** Renews the lease, or with [startMs] restarts a converted stream there under a new epoch. */
+    internal suspend fun updateVod(id: String, startMs: Long?): VodSessionDto = call {
+        http.patch(vodPath(id)) { json(UpdateVodPlaybackDto(startMs)) }.decode()
+    }
+
+    internal suspend fun releaseVod(id: String) = call {
+        http.delete(vodPath(id)).checkSuccess()
+    }
+
     /** The absolute media URL for a descriptor, whose [PlaybackDescriptorDto.url] is relative to the server. */
     internal fun mediaUrl(descriptor: PlaybackDescriptorDto): String = try {
         URLBuilder(base).takeFrom(descriptor.url).buildString()
@@ -124,6 +173,10 @@ class SofaKingApi(
 
     /** The session's endpoint, relative to the API, with [id] encoded as one path segment. */
     private fun sessionPath(id: String) = "playback-sessions/" + id.encodeURLPathPart()
+
+    private fun vodPath(id: String) = "vod-sessions/" + id.encodeURLPathPart()
+
+    private fun itemPath(id: String) = "library/items/" + id.encodeURLPathPart()
 
     private inline fun <reified T> HttpRequestBuilder.json(body: T) {
         setBody(TextContent(wireJson.encodeToString(body), JSON))

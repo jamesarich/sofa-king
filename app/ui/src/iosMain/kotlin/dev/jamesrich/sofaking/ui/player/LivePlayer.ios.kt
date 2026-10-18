@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.UIKitView
+import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -237,6 +238,17 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         pauseClock.onPause(uptimeMs())
         playWhenReady = false
     }
+
+    /**
+     * AVPlayer plays MP4 and its audio as is. HEVC is left out: AVPlayer takes it only tagged `hvc1` and in
+     * fragmented MP4, not in the MPEG-TS segments the server copies streams into, so HEVC files are converted.
+     */
+    override val playbackProfile = PlaybackProfile(
+        containers = listOf("mp4"),
+        videoCodecs = listOf("h264"),
+        audioCodecs = listOf("aac", "ac3", "eac3", "mp3", "alac", "flac"),
+        maxHeight = 2160,
+    )
 
     override val isSeekable: Boolean get() = stream?.seekable == true && av.currentItem?.status == AVPlayerItemStatusReadyToPlay
 

@@ -6,6 +6,18 @@ import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.ChannelGuide
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
+import dev.jamesrich.sofaking.contract.ClientProfile
+import dev.jamesrich.sofaking.contract.Library
+import dev.jamesrich.sofaking.contract.LibraryHome
+import dev.jamesrich.sofaking.contract.LibraryItem
+import dev.jamesrich.sofaking.contract.LibraryItemDetail
+import dev.jamesrich.sofaking.contract.LibraryPage
+import dev.jamesrich.sofaking.contract.MediaTrack
+import dev.jamesrich.sofaking.contract.OpenVodPlayback
+import dev.jamesrich.sofaking.contract.PlayState
+import dev.jamesrich.sofaking.contract.UpdatePlayState
+import dev.jamesrich.sofaking.contract.UpdateVodPlayback
+import dev.jamesrich.sofaking.contract.VodSession
 import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.contract.PairingClaim
 import dev.jamesrich.sofaking.contract.PairingResult
@@ -38,3 +50,15 @@ internal typealias ApiErrorDto = ApiError
 internal typealias PairingClaimDto = PairingClaim
 internal typealias PairingResultDto = PairingResult
 internal typealias ViewerPreferencesDto = ViewerPreferences
+internal typealias LibraryDto = Library
+internal typealias LibraryItemDto = LibraryItem
+internal typealias LibraryPageDto = LibraryPage
+internal typealias LibraryHomeDto = LibraryHome
+internal typealias LibraryItemDetailDto = LibraryItemDetail
+internal typealias MediaTrackDto = MediaTrack
+internal typealias PlayStateDto = PlayState
+internal typealias UpdatePlayStateDto = UpdatePlayState
+internal typealias OpenVodPlaybackDto = OpenVodPlayback
+internal typealias UpdateVodPlaybackDto = UpdateVodPlayback
+internal typealias VodSessionDto = VodSession
+internal typealias ClientProfileDto = ClientProfile

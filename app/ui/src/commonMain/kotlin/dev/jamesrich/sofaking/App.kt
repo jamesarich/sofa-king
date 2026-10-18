@@ -45,6 +45,7 @@ import dev.jamesrich.sofaking.data.isPictureSubtitle
 import dev.jamesrich.sofaking.data.trackChoice
 import dev.jamesrich.sofaking.data.trackLabel
 import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.library.CardMenu
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
 import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
 import dev.jamesrich.sofaking.ui.library.LibraryGridActions
@@ -654,6 +655,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                         onPlayItem = { screen = Screen.Vod(it.id, parent = Screen.Library()) },
                                         onOpenLibrary = { screen = Screen.LibraryGrid(it.id) },
                                         onRetry = libraryVm::refreshHome,
+                                        menu = CardMenu(
+                                            onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = Screen.Library()) },
+                                            onSetWatched = libraryVm::setWatched,
+                                        ),
                                     ),
                                     returnedFrom = current.returnedFrom,
                                 )
@@ -674,7 +679,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                 )
                             }
                             is Screen.LibraryGrid -> guideState.SaveableStateProvider("grid-${current.libraryId}") {
-                                LaunchedEffect(current.libraryId) { libraryVm.openGrid(current.libraryId, grid?.sort ?: LibrarySort.TITLE, grid?.unwatched ?: false) }
+                                LaunchedEffect(current.libraryId) {
+                                    val open = grid
+                                    libraryVm.openGrid(current.libraryId, open?.sort ?: LibrarySort.TITLE, open?.unwatched ?: false, open?.takeIf { it.libraryId == current.libraryId }?.genre)
+                                }
                                 BackHandler { screen = Screen.Library(returnedFrom = libraryFocusKey(current.libraryId)) }
                                 val shown = grid?.takeIf { it.libraryId == current.libraryId }
                                 val here = Screen.LibraryGrid(current.libraryId)
@@ -682,11 +690,16 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                     library = (libraryHome as? LibraryHomeState.Ready)?.home?.libraries?.firstOrNull { it.id == current.libraryId },
                                     grid = shown,
                                     actions = LibraryGridActions(
-                                        onSort = { libraryVm.openGrid(current.libraryId, it, shown?.unwatched ?: false) },
-                                        onUnwatched = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, it) },
+                                        onSort = { libraryVm.openGrid(current.libraryId, it, shown?.unwatched ?: false, shown?.genre) },
+                                        onUnwatched = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, it, shown?.genre) },
+                                        onGenre = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, shown?.unwatched ?: false, it) },
                                         onOpenItem = { screen = Screen.LibraryItem(it.id, parent = here) },
                                         onPlayItem = { screen = Screen.Vod(it.id, parent = here) },
                                         onLoadMore = libraryVm::loadMore,
+                                        menu = CardMenu(
+                                            onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = here) },
+                                            onSetWatched = libraryVm::setWatched,
+                                        ),
                                     ),
                                     returnedFrom = current.returnedFrom,
                                 )

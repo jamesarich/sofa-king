@@ -123,6 +123,33 @@ class LibraryViewModelTest {
     }
 
     @Test
+    fun `a genre reloads the grid and keeps the library's genres while it loads`() = runTest {
+        val server = Server(this) { _, path, _ ->
+            when (path) {
+                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                "/api/v1/libraries/lib/items" -> 200 to """{"items":[${item("m1")}],"total":1,"genres":["Comedy","Drama"]}"""
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+
+        model.openGrid("lib")
+        runCurrent()
+        assertEquals(listOf("Comedy", "Drama"), model.grid.value!!.genres)
+
+        model.openGrid("lib", genre = "Drama")
+        assertEquals(listOf("Comedy", "Drama"), model.grid.value!!.genres, "the chips stay while the page loads")
+        assertEquals("Drama", model.grid.value!!.genre)
+        runCurrent()
+        assertEquals(2, server.requests.count { it.contains("/items") })
+
+        model.openGrid("other")
+        assertEquals(emptyList(), model.grid.value!!.genres, "another library starts without them")
+        model.viewModelScope.cancel()
+    }
+
+    @Test
     fun `a playing item saves its position every ten seconds and at once when it stops`() = runTest {
         val saves = mutableListOf<String>()
         val server = Server(this) { method, path, body ->

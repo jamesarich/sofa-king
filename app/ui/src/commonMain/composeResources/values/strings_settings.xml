@@ -31,6 +31,7 @@
     <string name="settings_auto_open_help">A channel that keeps focus opens full screen after this long. TalkBack touch exploration turns this off.</string>
     <string name="settings_preview_sound">Play preview sound</string>
     <string name="settings_version">Version %1$s</string>
+    <string name="settings_tmdb_notice">Movie and show details and images can come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</string>
     <string name="settings_section_startup">Startup</string>
     <string name="settings_startup">Open on start</string>
     <string name="settings_startup_last">Last channel</string>

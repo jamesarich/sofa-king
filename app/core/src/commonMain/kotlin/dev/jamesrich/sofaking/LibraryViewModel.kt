@@ -42,12 +42,15 @@ sealed interface LibraryHomeState {
     data class Failed(val message: String) : LibraryHomeState
 }
 
-/** One library's grid as far as it is loaded; [next] is null once every page is in. */
+/** One library's grid as far as it is loaded, only [genre] when set; [next] is null once every page is in. */
 data class LibraryGrid(
     val libraryId: String,
     val sort: LibrarySort,
     val unwatched: Boolean,
+    val genre: String? = null,
     val items: List<MediaItem> = emptyList(),
+    /** Every genre in the library, from the first page. */
+    val genres: List<String> = emptyList(),
     val total: Int = 0,
     val next: String? = null,
     val loading: Boolean = true,
@@ -132,14 +135,16 @@ class LibraryViewModel(
     }
 
     /**
-     * Shows [libraryId] in [sort] order, only what is not watched when [unwatched] is set. The grid already open
-     * with the same choices is kept as it is, so returning from an item lands where the viewer was.
+     * Shows [libraryId] in [sort] order, only what is not watched when [unwatched] is set and only [genre] when given.
+     * The grid already open with the same choices is kept as it is, so returning from an item lands where the viewer
+     * was; one in another order keeps the genres it knows while the new page loads.
      */
-    fun openGrid(libraryId: String, sort: LibrarySort = LibrarySort.TITLE, unwatched: Boolean = false) {
+    fun openGrid(libraryId: String, sort: LibrarySort = LibrarySort.TITLE, unwatched: Boolean = false, genre: String? = null) {
         val open = _grid.value
-        if (open != null && open.libraryId == libraryId && open.sort == sort && open.unwatched == unwatched && open.error == null) return
+        val wanted = LibraryGrid(libraryId, sort, unwatched, genre, genres = open?.takeIf { it.libraryId == libraryId }?.genres.orEmpty())
+        if (open != null && open.sameQuery(wanted) && open.error == null) return
         gridJob?.cancel()
-        _grid.value = LibraryGrid(libraryId, sort, unwatched)
+        _grid.value = wanted
         loadPage(null)
     }
 
@@ -157,12 +162,12 @@ class LibraryViewModel(
         _grid.value = grid.copy(loading = true, error = null)
         gridJob = viewModelScope.launch {
             try {
-                val page = repository.page(grid.libraryId, grid.sort, grid.unwatched, cursor)
+                val page = repository.page(grid.libraryId, grid.sort, grid.unwatched, cursor, genre = grid.genre)
                 _grid.update { current ->
-                    if (current == null || current.libraryId != grid.libraryId || current.sort != grid.sort || current.unwatched != grid.unwatched) return@update current
+                    if (current == null || !current.sameQuery(grid)) return@update current
                     // A page can repeat an item that moved between requests; the first place it showed wins.
                     val items = (current.items + page.items).distinctBy { it.id }
-                    current.copy(items = items, total = page.total, next = page.next, loading = false)
+                    current.copy(items = items, genres = page.genres, total = page.total, next = page.next, loading = false)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -342,3 +347,6 @@ class LibraryViewModel(
         val log = Logger.withTag("SofaKing")
     }
 }
+
+private fun LibraryGrid.sameQuery(other: LibraryGrid) =
+    libraryId == other.libraryId && sort == other.sort && unwatched == other.unwatched && genre == other.genre

@@ -32,6 +32,17 @@ class LibraryChoicesTest {
     }
 
     @Test
+    fun `a card's menu offers the start for what is partway in and the watched toggle`() {
+        val partway = item("m", ItemKind.MOVIE, PlayProgress(60_000, 6_000_000, false))
+        assertEquals(listOf(CardMenuEntry.PLAY_FROM_START, CardMenuEntry.MARK_WATCHED), cardMenuEntries(partway, playFromStart = true))
+        assertEquals(listOf(CardMenuEntry.MARK_WATCHED), cardMenuEntries(partway, playFromStart = false))
+        assertEquals(listOf(CardMenuEntry.MARK_UNWATCHED), cardMenuEntries(item("m", ItemKind.MOVIE, PlayProgress(0, 6_000_000, true)), playFromStart = true))
+        val show = MediaItem("s", "lib", ItemKind.SHOW, "Show", children = 2, unwatched = 0)
+        assertEquals(listOf(CardMenuEntry.MARK_UNWATCHED), cardMenuEntries(show, playFromStart = true))
+        assertEquals(listOf(CardMenuEntry.MARK_WATCHED), cardMenuEntries(show.copy(unwatched = 3), playFromStart = true))
+    }
+
+    @Test
     fun `the next page loads near the end of what is loaded`() {
         assertTrue(shouldLoadMore(lastVisibleIndex = 45, loaded = 60, hasMore = true))
         assertFalse(shouldLoadMore(lastVisibleIndex = 20, loaded = 60, hasMore = true))

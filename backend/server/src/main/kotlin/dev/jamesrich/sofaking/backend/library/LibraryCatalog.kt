@@ -20,6 +20,7 @@ import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.Wire
 import java.nio.file.Path
 import java.time.Clock
+import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -126,8 +127,12 @@ class LibraryCatalog internal constructor(
         return LibraryHome(shelves, libraries())
     }
 
-    /** The movies, shows or videos of [libraryId], sorted by [sort] (`title`, `added`, `year` or `rating`), [limit] after [cursor]. */
-    suspend fun items(libraryId: String, sort: String?, unwatched: Boolean, cursor: String?, limit: Int): LibraryPage {
+    /**
+     * The movies, shows or videos of [libraryId], sorted by [sort] (`title`, `added`, `year`, `rating`, or `watched`
+     * for the most recently watched first), with [genre] only when given, [limit] after [cursor]. The page lists every
+     * genre in the library, for the filter.
+     */
+    suspend fun items(libraryId: String, sort: String?, unwatched: Boolean, cursor: String?, limit: Int, genre: String? = null): LibraryPage {
         val snapshot = snapshot()
         if (snapshot.libraries.none { it.id == libraryId }) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
         val states = store.playStates()
@@ -137,16 +142,26 @@ class LibraryCatalog internal constructor(
             "added" -> compareByDescending<View> { it.record.addedAt }.then(byTitle)
             "year" -> compareByDescending<View, Int?>(nullsFirst()) { it.item.year }.then(byTitle)
             "rating" -> compareByDescending<View, Double?>(nullsFirst()) { it.item.rating }.then(byTitle)
-            else -> throw ApiFailure(400, "INVALID_REQUEST", "sort is title, added, year or rating")
+            // A show was watched when any of its episodes was; what was never watched follows by title.
+            "watched" -> compareBy<View, Instant?>(nullsLast(reverseOrder())) { view ->
+                (snapshot.episodes[view.record.id]?.map { it.record.id } ?: listOf(view.record.id))
+                    .mapNotNull { id -> states[id]?.updatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } }
+                    .maxOrNull()
+            }.then(byTitle)
+            else -> throw ApiFailure(400, "INVALID_REQUEST", "sort is title, added, year, rating or watched")
         }
-        val all = snapshot.tops[libraryId].orEmpty()
+        val tops = snapshot.tops[libraryId].orEmpty()
+        val wanted = genre?.trim()?.ifEmpty { null }
+        val all = tops
+            .filter { view -> wanted == null || view.item.genres.any { it.equals(wanted, ignoreCase = true) } }
             .map { it to it.out(snapshot, states) }
             .filter { (_, item) -> !unwatched || item.unwatched > 0 || (item.kind != Wire.ItemKind.SHOW && item.playState?.watched != true) }
             .sortedWith(compareBy(order) { it.first })
         val from = cursor?.let { it.toIntOrNull()?.takeIf { offset -> offset >= 0 } ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid cursor") } ?: 0
         val page = all.drop(from).take(limit)
         val next = (from + page.size).takeIf { it < all.size }?.toString()
-        return LibraryPage(page.map { it.second }, all.size, next)
+        val genres = tops.flatMap { it.item.genres }.distinctBy { it.lowercase() }.sortedBy { it.lowercase() }
+        return LibraryPage(page.map { it.second }, all.size, next, genres)
     }
 
     suspend fun item(id: String): LibraryItemDetail {

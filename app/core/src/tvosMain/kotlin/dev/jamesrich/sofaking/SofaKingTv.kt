@@ -121,7 +121,8 @@ class SofaKingTv {
         library.detail(id, refresh = true)
     }
 
-    fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean) = library.openGrid(libraryId, sort, unwatched)
+    /** Opens [libraryId]'s grid in [sort] order, only what is not watched with [unwatched], only [genre] when given. */
+    fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?) = library.openGrid(libraryId, sort, unwatched, genre)
 
     fun loadMore() = library.loadMore()
 

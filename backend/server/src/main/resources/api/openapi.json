@@ -170,7 +170,7 @@
       },
       "LibraryPage": {
         "type": "object", "required": ["items"],
-        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } }, "total": { "type": "integer" }, "next": { "type": ["string", "null"], "description": "The cursor for the next page; null on the last." } }
+        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } }, "total": { "type": "integer" }, "next": { "type": ["string", "null"], "description": "The cursor for the next page; null on the last." }, "genres": { "type": "array", "items": { "type": "string" }, "description": "Every genre in the library; empty on search results." } }
       },
       "LibraryHome": {
         "type": "object", "required": ["shelves"],
@@ -695,7 +695,7 @@
     },
     "/api/v1/libraries/{id}/items": {
       "get": { "tags": ["Library"], "summary": "One page of a library's movies, shows or videos", "security": [{ "apiToken": [] }],
-        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["title", "added", "year", "rating"], "default": "title" } }, { "name": "unwatched", "in": "query", "schema": { "type": "boolean" } }, { "name": "cursor", "in": "query", "schema": { "type": "string" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["title", "added", "year", "rating", "watched"], "default": "title" } }, { "name": "unwatched", "in": "query", "schema": { "type": "boolean" } }, { "name": "genre", "in": "query", "schema": { "type": "string" } }, { "name": "cursor", "in": "query", "schema": { "type": "string" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "LIBRARY_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/home": {

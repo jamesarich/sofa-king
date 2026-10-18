@@ -66,9 +66,33 @@ class LibraryChoicesTest {
             audio = listOf(MediaTrackInfo(1, "ac3", "eng", channels = 6), MediaTrackInfo(2, "aac", "spa", default = true, channels = 2)),
         )
         assertEquals(listOf(4, 5), textSubtitles(detail).map { it.index })
+        assertEquals(listOf(true, false, false), detail.subtitles.map(::isPictureSubtitle))
         assertEquals(5, initialSubtitle(detail)?.index)
         assertEquals(2, defaultAudio(detail)?.index)
         assertNull(initialSubtitle(detail.copy(subtitles = emptyList())))
+        val forcedPictures = detail.copy(subtitles = listOf(MediaTrackInfo(4, "subrip", "eng"), MediaTrackInfo(1000, "hdmv_pgs_subtitle", "eng", forced = true)))
+        assertEquals(1000, initialSubtitle(forcedPictures)?.index, "a forced picture track is drawn in when there is no forced text")
+    }
+
+    @Test
+    fun `the tracks picked in a show start its next episode by language`() {
+        val detail = MediaItemDetail(
+            item("e", ItemKind.EPISODE),
+            audio = listOf(MediaTrackInfo(1, "aac", "eng", default = true), MediaTrackInfo(2, "aac", "jpn")),
+            subtitles = listOf(
+                MediaTrackInfo(3, "subrip", "eng", forced = true),
+                MediaTrackInfo(4, "hdmv_pgs_subtitle", "eng"),
+                MediaTrackInfo(1000, "subrip", "en"),
+            ),
+        )
+        val choice = trackChoice(detail, audioIndex = 2, subtitleIndex = 1000)
+        assertEquals(TrackChoice("jpn", subtitles = true, subtitleLanguage = "en"), choice)
+        assertEquals(2, initialAudio(detail, choice)?.index)
+        assertEquals(1000, initialSubtitle(detail, choice)?.index, "a full track in the language, text before pictures")
+        assertEquals(1, initialAudio(detail, null)?.index)
+        assertEquals(3, initialSubtitle(detail, TrackChoice(subtitles = false))?.index, "off still shows forced dialogue")
+        assertEquals(1, initialAudio(detail, TrackChoice("kor"))?.index, "a language the file lacks falls back to the default")
+        assertEquals(TrackChoice("eng"), trackChoice(detail, audioIndex = 1, subtitleIndex = null))
     }
 
     @Test

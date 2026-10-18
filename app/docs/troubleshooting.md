@@ -92,7 +92,7 @@ Only through a connection the server allows, such as a VPN or an HTTPS reverse p
 
 ### Does it record or play in the background?
 
-The server records, as [recordings](usage.md#recordings) describes, and the app plays them. It does not play in the background: playback stops when the app leaves the screen. Returning opens the same channel at the live edge, or a library item or recording where it stopped.
+It records: on a server that records, the program details offer Record and Record series, and recordings play from the Recordings tab, as [recordings](usage.md#recordings) describes. It does not play in the background: playback stops when the app leaves the screen, and returning opens the same channel at the live edge, or a library item or recording where it stopped.
 
 ### Why will a snapshot APK not install over my build?
 

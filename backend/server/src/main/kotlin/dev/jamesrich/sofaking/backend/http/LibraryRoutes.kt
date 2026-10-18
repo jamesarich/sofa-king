@@ -29,7 +29,8 @@ fun Route.libraryRoutes(libraries: LibraryService) {
     get("/api/v1/libraries/{id}/items") {
         val limit = call.request.queryParameters["limit"]?.let { it.toIntOrNull()?.takeIf { n -> n in 1..500 } ?: throw ApiFailure(400, "INVALID_REQUEST", "limit is 1 to 500") } ?: 100
         val unwatched = call.request.queryParameters["unwatched"] == "true"
-        call.respond(catalog.items(call.parameters["id"]!!, call.request.queryParameters["sort"], unwatched, call.request.queryParameters["cursor"], limit))
+        val query = call.request.queryParameters
+        call.respond(catalog.items(call.parameters["id"]!!, query["sort"], unwatched, query["cursor"], limit, query["genre"]))
     }
     get("/api/v1/library/home") { call.respond(catalog.home()) }
     get("/api/v1/library/search") {

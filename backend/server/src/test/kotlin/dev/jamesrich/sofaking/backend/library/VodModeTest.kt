@@ -91,6 +91,43 @@ class VodModeTest {
         assertEquals("h264_qsv", VideoEncoder(HardwareAccel.QSV).outputArgs(hdr = false, keyFrameSeconds = 4).let { it[it.indexOf("-c:v") + 1] })
     }
 
+    @Test fun `a picture subtitle is drawn over the converted picture at the picture's size`() {
+        val file = media("matroska,webm", "hevc", "eac3", 2160, "smpte2084").let { it.copy(video = it.video!!.copy(width = 3840)) }
+        val embedded = SubtitleSource(SubtitleStream(4, "hdmv_pgs_subtitle"), null)
+        val command = vodCommand("ffmpeg", Path.of("/m/a.mkv"), Path.of("/t/s"), Wire.VodMode.TRANSCODE, 5_000, file, null, burn = embedded)
+        val graph = command[command.indexOf("-filter_complex") + 1]
+        assertTrue(graph.startsWith("[0:v:0]zscale") && "[0:4]scale=3840:2160[sub]" in graph && "[base][sub]overlay" in graph, graph)
+        assertEquals("[v]", command[command.indexOf("-map") + 1], "the drawn picture is the output's video")
+        assertFalse("-vf" in command)
+        assertEquals(1, command.count { it == "-i" })
+
+        val sidecar = SubtitleSource(SubtitleStream(1000, "hdmv_pgs_subtitle"), Path.of("/m/a.en.sup"))
+        val withFile = vodCommand("ffmpeg", Path.of("/m/a.mkv"), Path.of("/t/s"), Wire.VodMode.TRANSCODE, 5_000, media("matroska,webm", "h264", "aac"), null, burn = sidecar)
+        val second = withFile.indexOf("/m/a.en.sup")
+        assertEquals("-i", withFile[second - 1])
+        assertEquals("5.000", withFile[second - 2], "the subtitle file seeks with the video")
+        val graph2 = withFile[withFile.indexOf("-filter_complex") + 1]
+        assertTrue(graph2.startsWith("[0:v:0]null[base];[1:s:0]null[sub]"), graph2)
+    }
+
+    @Test fun `a whole playlist lists every segment and FFmpeg numbers and times them from where it starts`() {
+        val playlist = wholePlaylist(9_500)
+        assertEquals(listOf("seg0.ts", "seg1.ts", "seg2.ts"), playlist.lines().filter { it.endsWith(".ts") })
+        assertTrue("#EXTINF:4.000,\nseg0.ts" in playlist && "#EXTINF:1.500,\nseg2.ts" in playlist && playlist.endsWith("#EXT-X-ENDLIST\n"), playlist)
+        assertTrue("#EXT-X-PLAYLIST-TYPE:VOD" in playlist)
+        assertEquals(2, segmentCount(8_000))
+        assertEquals(2, segmentCount(8_021), "a sliver past the last segment joins it")
+        assertTrue("#EXTINF:4.021,\nseg1.ts" in wholePlaylist(8_021))
+        assertEquals(1, segmentCount(300))
+
+        val command = vodCommand("ffmpeg", Path.of("/m/a.mkv"), Path.of("/t/s"), Wire.VodMode.TRANSCODE, 12_000, media("matroska,webm", "h264", "aac"), null, firstSegment = 3)
+        assertEquals("12.000", command[command.indexOf("-ss") + 1])
+        assertEquals("12.000", command[command.indexOf("-output_ts_offset") + 1])
+        assertEquals("3", command[command.indexOf("-start_number") + 1])
+        assertEquals("/t/s/ffmpeg.m3u8", command.last(), "the server's own playlist stays as written")
+        assertFalse("-avoid_negative_ts" in command)
+    }
+
     @Test fun `a hardware encoder that cannot encode falls back to software`() = runTest {
         assertEquals(HardwareAccel.NONE, VideoEncoder(HardwareAccel.VAAPI).verified("ffmpeg") { false }.accel)
         assertEquals(HardwareAccel.VAAPI, VideoEncoder(HardwareAccel.VAAPI).verified("ffmpeg") { true }.accel)

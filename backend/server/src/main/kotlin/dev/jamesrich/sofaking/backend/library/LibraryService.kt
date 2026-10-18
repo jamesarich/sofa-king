@@ -50,7 +50,7 @@ data class MediaRoot(val label: String, val root: Path)
 class LibraryService(
     private val store: BackendStore,
     private val clock: Clock,
-    /** The folders libraries may live under: the media directory, and later the recordings directory. */
+    /** The folders libraries may live under: the media directory and the DVR's recordings directory. */
     val roots: List<MediaRoot>,
     private val scanner: LibraryScanner,
     private val jobs: Jobs,

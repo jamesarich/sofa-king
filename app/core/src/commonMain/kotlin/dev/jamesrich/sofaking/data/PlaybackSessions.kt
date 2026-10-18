@@ -162,17 +162,18 @@ class PlaybackSessions(
 
     /**
      * Plays the library item [itemId] from [startMs], as [profile] can: the file as it is, or HLS the server copies
-     * or converts it into from that point. The held session, live or not, is released first.
+     * or converts it into from that point, with the audio track [audioIndex] and the picture subtitle track
+     * [subtitleIndex] drawn in. The held session, live or not, is released first.
      */
-    suspend fun play(itemId: String, profile: PlaybackProfile, startMs: Long = 0, audioIndex: Int? = null): PlaybackStream =
-        openItem(ItemRequest(itemId, profile, audioIndex), startMs)
+    suspend fun play(itemId: String, profile: PlaybackProfile, startMs: Long = 0, audioIndex: Int? = null, subtitleIndex: Int? = null): PlaybackStream =
+        openItem(ItemRequest(itemId, profile, audioIndex, subtitleIndex), startMs)
 
     /**
      * Plays the recording [recordingId] from [startMs] as [play] plays a library item; one still recording follows
      * the file as it grows. The stream's [PlaybackStream.itemId] is the recording's id.
      */
     suspend fun playRecording(recordingId: String, profile: PlaybackProfile, startMs: Long = 0): PlaybackStream =
-        openItem(ItemRequest(recordingId, profile, audioIndex = null, recording = true), startMs)
+        openItem(ItemRequest(recordingId, profile, audioIndex = null, subtitleIndex = null, recording = true), startMs)
 
     private suspend fun openItem(request: ItemRequest, startMs: Long): PlaybackStream = mutex.withLock {
         val api = api ?: throw IOException("No server configured")
@@ -378,14 +379,22 @@ class PlaybackSessions(
         }
     }
 
-    /** A library item or a [recording] as it was asked for: the same item, profile and audio stream reopen it. */
-    private data class ItemRequest(val itemId: String, val profile: PlaybackProfile, val audioIndex: Int?, val recording: Boolean = false) {
+    /** A library item or a [recording] as it was asked for: the same item, profile and tracks reopen it. */
+    private data class ItemRequest(
+        val itemId: String,
+        val profile: PlaybackProfile,
+        val audioIndex: Int?,
+        val subtitleIndex: Int?,
+        val recording: Boolean = false,
+    ) {
         fun dto(startMs: Long) = OpenVodPlaybackDto(
             itemId = if (recording) "" else itemId,
             profile = ClientProfileDto(profile.containers, profile.videoCodecs, profile.audioCodecs, profile.maxHeight, profile.hdr),
             startMs = startMs,
             audioIndex = audioIndex,
             recordingId = itemId.takeIf { recording },
+            subtitleIndex = subtitleIndex,
+            wholePlaylist = profile.wholePlaylist,
         )
     }
 

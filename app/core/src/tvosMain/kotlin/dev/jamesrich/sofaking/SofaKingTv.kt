@@ -12,8 +12,18 @@ import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.RecordingMark
+import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.TrackChoice
+import dev.jamesrich.sofaking.data.defaultAudio
+import dev.jamesrich.sofaking.data.initialAudio
+import dev.jamesrich.sofaking.data.initialSubtitle
+import dev.jamesrich.sofaking.data.trackChoice
+import dev.jamesrich.sofaking.data.isPictureSubtitle
 import dev.jamesrich.sofaking.data.onAppleTv
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +32,9 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSUserDomainMask
@@ -109,20 +121,44 @@ class SofaKingTv {
         library.detail(id, refresh = true)
     }
 
-    fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean) = library.openGrid(libraryId, sort, unwatched)
+    /** Opens [libraryId]'s grid in [sort] order, only what is not watched with [unwatched], only [genre] when given. */
+    fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean, genre: String?) = library.openGrid(libraryId, sort, unwatched, genre)
 
     fun loadMore() = library.loadMore()
 
     fun setWatched(item: MediaItem, watched: Boolean) = library.setWatched(item, watched)
 
-    /** Opens [item] on the session, from the start with [fromStart], else where the household stopped in it. */
+    /**
+     * Opens [item] on the session, from the start with [fromStart], else where the household stopped in it, with the
+     * tracks [initialAudio] and [initialSubtitle] pick: an audio track other than the default, and picture subtitles
+     * drawn in.
+     */
     @Throws(Exception::class)
-    suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream = library.play(item, appleTvProfile, fromStart)
+    suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream {
+        val state = withTimeoutOrNull(DETAIL_WAIT_MS) { library.detail(item.id).first { it !is ItemDetailState.Loading } }
+        val detail = (state as? ItemDetailState.Ready)?.detail
+        val choice = trackChoice(item)
+        val audio = detail?.let { initialAudio(it, choice) }?.takeIf { it.index != detail.let(::defaultAudio)?.index }
+        val picture = detail?.let { initialSubtitle(it, choice) }?.takeIf(::isPictureSubtitle)
+        return library.play(item, appleTvProfile, fromStart, audio?.index, picture?.index)
+    }
 
-    /** Plays [item] again from [positionMs] with the audio track [audioIndex]. */
+    /** The tracks the viewer picked in [item]'s show, which its episodes start with; null for none or a movie. */
+    fun trackChoice(item: MediaItem): TrackChoice? = item.showId?.let { viewModel.settings.value?.trackChoices?.get(it) }
+
+    /** Keeps the audio track [audioIndex] and subtitle track [subtitleIndex] (negative for none) for [item]'s show. */
+    fun rememberTracks(item: MediaItem, detail: MediaItemDetail, audioIndex: Int, subtitleIndex: Int) {
+        val show = item.showId ?: return
+        viewModel.setTrackChoice(show, trackChoice(detail, audioIndex.takeIf { it >= 0 }, subtitleIndex.takeIf { it >= 0 }))
+    }
+
+    /**
+     * Plays [item] again from [positionMs] with the audio track [audioIndex] (the file's default when negative) and
+     * the picture subtitle track [subtitleIndex] drawn in (none when negative).
+     */
     @Throws(Exception::class)
-    suspend fun switchItemAudio(item: MediaItem, positionMs: Long, audioIndex: Int): PlaybackStream =
-        library.switchAudio(item, appleTvProfile, positionMs, audioIndex)
+    suspend fun switchItemTracks(item: MediaItem, positionMs: Long, audioIndex: Int, subtitleIndex: Int): PlaybackStream =
+        library.switchTracks(item, appleTvProfile, positionMs, audioIndex.takeIf { it >= 0 }, subtitleIndex.takeIf { it >= 0 })
 
     /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
     @Throws(Exception::class)
@@ -161,6 +197,31 @@ class SofaKingTv {
     /** Playback of [recordingId] stopped at [positionMs]; saved now, watched near the end. */
     fun recordingStopped(recordingId: String, positionMs: Long, durationMs: Long) =
         recordings.stopped(recordingId, positionMs, durationMs.takeIf { it > 0 })
+
+    /** Which guide programmes are set to record, on their own or by a series rule. */
+    fun watchRecordingMarks(onChange: (RecordingMarks) -> Unit): Watch = watch(viewModel.recordings.marks, onChange)
+
+    /** Whether [programme] records, by [marks]. */
+    fun recordingMark(marks: RecordingMarks, programme: Programme): RecordingMark = marks.of(programme)
+
+    /** True until [programme] ends: only then can it still be recorded. */
+    fun recordable(programme: Programme): Boolean = programme.stop > Clock.System.now()
+
+    /** Records [programme], or cancels its recording; false when the server refused or could not be reached. */
+    @Throws(Exception::class)
+    suspend fun toggleRecording(programme: Programme): Boolean = viewModel.recordings.toggle(programme).also { recordings.refresh() }
+
+    /** Records every airing of [programme]'s title on its channel, or stops the series rule that takes it. */
+    @Throws(Exception::class)
+    suspend fun toggleSeries(programme: Programme): Boolean = viewModel.recordings.toggleSeries(programme).also { recordings.refresh() }
+
+    /** Sets whether [rule] takes new episodes only and how many recordings it keeps (0 for all). */
+    @Throws(Exception::class)
+    suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean = recordings.updateRule(rule, newOnly, keep)
+
+    /** Stops [rule]: it and the recordings it scheduled go, what it recorded stays. */
+    @Throws(Exception::class)
+    suspend fun deleteRule(rule: SeriesRule): Boolean = recordings.deleteRule(rule)
 
     /** Whether recordings jump over the commercial breaks the server found. */
     fun setSkipCommercials(enabled: Boolean) {
@@ -204,9 +265,13 @@ class SofaKingTv {
     private fun <T> watch(flow: Flow<T>, onChange: (T) -> Unit): Watch = Watch(scope.launch { flow.collect { onChange(it) } })
 
     private companion object {
+        /** How long playing an item waits for its page to learn whether it starts with drawn-in subtitles. */
+        const val DETAIL_WAIT_MS = 5_000L
+
         /**
          * What AVPlayer plays as it is, as the iOS app asks for: H.264 and HEVC tagged `hvc1` in MP4, which the
-         * server copies HEVC into for HLS, and HDR10 and HLG, which an Apple TV 4K shows and tone-maps otherwise.
+         * server copies HEVC into for HLS, and HDR10 and HLG, which an Apple TV 4K shows and tone-maps otherwise. The
+         * system scrubber seeks only within the playlist, so a converted item comes as a playlist of all of it.
          */
         val appleTvProfile = PlaybackProfile(
             containers = listOf("mp4"),
@@ -214,6 +279,7 @@ class SofaKingTv {
             audioCodecs = listOf("aac", "ac3", "eac3", "mp3", "alac", "flac"),
             maxHeight = 2160,
             hdr = true,
+            wholePlaylist = true,
         )
     }
 }

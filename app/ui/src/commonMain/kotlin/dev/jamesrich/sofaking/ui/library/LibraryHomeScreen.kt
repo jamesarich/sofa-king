@@ -49,6 +49,8 @@ internal class LibraryHomeActions(
     val onPlayItem: (MediaItem) -> Unit,
     val onOpenLibrary: (MediaLibrary) -> Unit,
     val onRetry: () -> Unit,
+    /** What a held OK on a card offers. */
+    val menu: CardMenu? = null,
 )
 
 /**
@@ -133,8 +135,8 @@ private fun Shelf(shelf: MediaShelf, actions: LibraryHomeActions, insets: Paddin
                 val focus = if (item.id == focusItem) Modifier.focusRequester(focusRequester) else Modifier
                 val play = if (item.kind.playable) ({ actions.onPlayItem(item) }) else null
                 when (style) {
-                    CardStyle.POSTER -> PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = focus)
-                    CardStyle.WIDE -> WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = focus)
+                    CardStyle.POSTER -> PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = focus, menu = actions.menu)
+                    CardStyle.WIDE -> WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = focus, menu = actions.menu)
                 }
             }
         }

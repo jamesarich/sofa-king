@@ -38,6 +38,9 @@ enum class LibrarySort(internal val wire: String) {
     ADDED("added"),
     YEAR("year"),
     RATING("rating"),
+
+    /** The most recently watched first. */
+    WATCHED("watched"),
 }
 
 data class MediaLibrary(
@@ -150,6 +153,8 @@ data class MediaPage(
     val items: List<MediaItem>,
     val total: Int,
     val next: String?,
+    /** Every genre in the library, for a filter. */
+    val genres: List<String> = emptyList(),
 )
 
 /**
@@ -163,4 +168,9 @@ data class PlaybackProfile(
     val audioCodecs: List<String> = emptyList(),
     val maxHeight: Int? = null,
     val hdr: Boolean = false,
+    /**
+     * True for a player whose own scrubber cannot ask for a conversion to restart: the server then lists the whole
+     * item and converts from wherever it seeks.
+     */
+    val wholePlaylist: Boolean = false,
 )

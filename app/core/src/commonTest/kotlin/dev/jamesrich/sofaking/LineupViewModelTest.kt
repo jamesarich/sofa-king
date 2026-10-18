@@ -19,6 +19,7 @@ import dev.jamesrich.sofaking.data.MemoryDataStore
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.SettingsStore
+import dev.jamesrich.sofaking.data.TrackChoice
 import dev.jamesrich.sofaking.data.apiError
 import dev.jamesrich.sofaking.data.json
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -78,6 +79,7 @@ class LineupViewModelTest {
             settings.update { it.copy(hiddenChannels = if (hidden) it.hiddenChannels + guideIds else it.hiddenChannels - guideIds.toSet()) }
         override suspend fun setZapSkipsHidden(enabled: Boolean) = settings.update { it.copy(zapSkipsHidden = enabled) }
         override suspend fun setSkipCommercials(enabled: Boolean) = settings.update { it.copy(skipCommercials = enabled) }
+        override suspend fun setTrackChoice(showId: String, choice: TrackChoice) = settings.update { it.copy(trackChoices = it.trackChoices + (showId to choice)) }
         override suspend fun setFavoritesOrder(order: List<String>) = settings.update { it.copy(favoritesOrder = order) }
         override suspend fun setMatchFrameRate(enabled: Boolean) = settings.update { it.copy(playback = it.playback.copy(matchFrameRate = enabled)) }
         override suspend fun setDecoder(decoder: DecoderPreference) = settings.update { it.copy(playback = it.playback.copy(decoder = decoder)) }

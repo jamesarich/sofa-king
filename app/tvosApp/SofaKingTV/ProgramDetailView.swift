@@ -1,7 +1,8 @@
 import SwiftUI
 import SofaKingCore
 
-/// What is on the channel now, in full, and what follows it, with Watch and the favorite toggle.
+/// What is on the channel now, in full, and what follows it, with Watch and the favorite toggle, and on a server
+/// that records, Record and Record series for each.
 struct ProgramDetailView: View {
     @Environment(AppModel.self) private var model
     let lineup: Lineup
@@ -32,6 +33,7 @@ struct ProgramDetailView: View {
                         if let summary = model.core.summary(programme: now), !summary.isEmpty {
                             Text(summary).font(.body)
                         }
+                        RecordButtons(programme: now)
                     } else {
                         Text("No program information").font(.title2)
                     }
@@ -42,6 +44,7 @@ struct ProgramDetailView: View {
                         if let line = episodeLine(next) {
                             Text(line).font(.caption).foregroundStyle(.tertiary)
                         }
+                        RecordButtons(programme: next)
                     }
                     HStack(spacing: 24) {
                         Button("Watch", systemImage: "play.fill", action: watch)
@@ -73,5 +76,42 @@ struct ProgramDetailView: View {
         let range = (start..<end).formatted(.interval.hour().minute())
         let left = max(0, Int(end.timeIntervalSinceNow / 60))
         return "\(range) · \(left) min left"
+    }
+}
+
+/// Record (Cancel recording once set) and Record series (Stop series once set) for a program that has not ended,
+/// on a server that records; a line says when the server did not take the change.
+private struct RecordButtons: View {
+    @Environment(AppModel.self) private var model
+    let programme: Programme
+    @State private var busy = false
+    @State private var failed = false
+
+    var body: some View {
+        if model.recordingsShown, model.core.recordable(programme: programme), let marks = model.recordingMarks {
+            let mark = model.core.recordingMark(marks: marks, programme: programme)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 24) {
+                    Button(mark.recording ? "Cancel recording" : "Record", systemImage: mark.recording ? "xmark.circle" : "record.circle") {
+                        change { try await model.core.toggleRecording(programme: programme) }
+                    }
+                    Button(mark.series ? "Stop series" : "Record series", systemImage: mark.series ? "xmark.circle" : "repeat.circle") {
+                        change { try await model.core.toggleSeries(programme: programme) }
+                    }
+                }
+                if failed {
+                    Text("The server did not take that change. Try again.").font(.caption).foregroundStyle(.red)
+                }
+            }
+        }
+    }
+
+    private func change(_ action: @escaping () async throws -> KotlinBoolean) {
+        guard !busy else { return }
+        busy = true
+        Task {
+            failed = !((try? await action())?.boolValue ?? false)
+            busy = false
+        }
     }
 }

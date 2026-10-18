@@ -176,8 +176,9 @@ class LiveRuntime(
                         onHealthChanged = { service?.requestRun("health") }, targets = targets,
                     )
                 } else null
+                val relay = MediaRelay(http, feeds, sessions, scope)
                 val dvr = Dvr(
-                    store, lineup, guides, Recorder(config.ffmpeg, sessions, feeds, clock), config.recordingsDirectory, clock, { settings.current.maxSessions },
+                    store, lineup, guides, Recorder(config.ffmpeg, sessions, feeds, clock, shared = relay::joinShared), config.recordingsDirectory, clock, { settings.current.maxSessions },
                     { java.time.Duration.ofDays(settings.current.guideDays.toLong()) },
                     retention = { settings.current.let { Retention(it.recordingsFreeGib, it.recordingsKeepDays) } },
                     commercials = config.comskip?.let { Commercials(it, config.dataDirectory.resolve("dvr")) }, jobs = jobs,
@@ -185,9 +186,9 @@ class LiveRuntime(
                 val updates = UpdateChecker(http, clock, config.dataDirectory, config.updateImage, RunningBuild(config.revision, config.version), jobs)
                 updates.start(scope)
                 val libraries = LibraryService(
-                    store, clock, listOf(MediaRoot("Media", config.mediaDirectory)), LibraryScanner(MediaProbe(ffprobeBeside(config.ffmpeg))::probe), jobs,
+                    store, clock, listOf(MediaRoot("Media", config.mediaDirectory), MediaRoot("Recordings", config.recordingsDirectory)), LibraryScanner(MediaProbe(ffprobeBeside(config.ffmpeg))::probe), jobs,
                     metadata = config.tmdb?.let { LibraryMetadata(store, TmdbClient(http, it), clock, it.region) },
-                    artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork")),
+                    artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork"), ffmpeg = config.ffmpeg),
                 )
                 libraries.start(scope)
                 val vod = VodSessions(
@@ -196,7 +197,7 @@ class LiveRuntime(
                 )
                 vod.start()
                 val runtime = LiveRuntime(
-                    store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
+                    store, feeds, guides, lineup, catalog, sessions, relay, TsRemux(config.ffmpeg), logos, http, scope,
                     policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart), libraries, vod, dvr,
                 )
                 dvr.start(scope)

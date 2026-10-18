@@ -114,12 +114,16 @@ class SofaKingApi(
         http.get("libraries").decode()
     }
 
-    /** One page of [libraryId]'s top-level items in [sort] order (`title`, `added`, `year` or `rating`), from [cursor]. */
-    internal suspend fun libraryItems(libraryId: String, sort: String, unwatched: Boolean, cursor: String?, limit: Int): LibraryPageDto = call {
+    /**
+     * One page of [libraryId]'s top-level items in [sort] order (`title`, `added`, `year`, `rating` or `watched`), only
+     * those in [genre] when given, from [cursor].
+     */
+    internal suspend fun libraryItems(libraryId: String, sort: String, unwatched: Boolean, cursor: String?, limit: Int, genre: String? = null): LibraryPageDto = call {
         http.get("libraries/" + libraryId.encodeURLPathPart() + "/items") {
             url.parameters.append("sort", sort)
             url.parameters.append("limit", limit.toString())
             if (unwatched) url.parameters.append("unwatched", "true")
+            if (genre != null) url.parameters.append("genre", genre)
             if (cursor != null) url.parameters.append("cursor", cursor)
         }.decode()
     }
@@ -205,6 +209,11 @@ class SofaKingApi(
 
     internal suspend fun createRecordingRule(request: CreateRecordingRuleDto): RecordingRuleDto = call {
         http.post("recording-rules") { json(request) }.decode()
+    }
+
+    /** Changes a series rule; the server schedules again from it. */
+    internal suspend fun updateRecordingRule(id: String, update: UpdateRecordingRuleDto): RecordingRuleDto = call {
+        http.patch("recording-rules/" + id.encodeURLPathPart()) { json(update) }.decode()
     }
 
     /** Deletes a series rule and the recordings it scheduled; the ones it already made stay. */

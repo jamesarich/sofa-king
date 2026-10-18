@@ -500,6 +500,12 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 UpdateRow(update = update, onCheckAgain = { actions.onCheckForUpdate(version, true) })
+                // TMDB's terms ask apps that show its data to say so.
+                Text(
+                    stringResource(Res.string.settings_tmdb_notice),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

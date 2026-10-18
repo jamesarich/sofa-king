@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -54,14 +55,18 @@ import org.jetbrains.compose.resources.stringResource
 internal class LibraryGridActions(
     val onSort: (LibrarySort) -> Unit,
     val onUnwatched: (Boolean) -> Unit,
+    /** Shows only one genre, or every one when null. */
+    val onGenre: (String?) -> Unit,
     val onOpenItem: (MediaItem) -> Unit,
     val onPlayItem: (MediaItem) -> Unit,
     val onLoadMore: () -> Unit,
+    /** What a held OK on a card offers. */
+    val menu: CardMenu? = null,
 )
 
 /**
  * One library as a grid: posters for movies and shows, wide cards for videos, under a row of sort chips and an
- * Unwatched filter. Pages load as the grid nears its end. [returnedFrom] is the item whose page the viewer just
+ * Unwatched filter, and a row of genres when the library has any. Pages load as the grid nears its end. [returnedFrom] is the item whose page the viewer just
  * left, which takes focus; otherwise the first card does.
  */
 @Composable
@@ -110,9 +115,9 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
             val modifier = if (item.id == focusId) Modifier.focusRequester(focus) else Modifier
             val play = if (item.kind.playable) ({ actions.onPlayItem(item) }) else null
             if (wide) {
-                WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier)
+                WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
             } else {
-                PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier)
+                PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
             }
         }
         val g = grid
@@ -157,6 +162,18 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
                 GuideChip(selected = unwatched, onClick = { actions.onUnwatched(!unwatched) }, label = stringResource(Res.string.library_filter_unwatched))
             }
         }
+        val genres = grid?.genres.orEmpty()
+        if (genres.isNotEmpty()) {
+            val genre = grid?.genre
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                item {
+                    GuideChip(selected = genre == null, onClick = { actions.onGenre(null) }, label = stringResource(Res.string.library_genre_all))
+                }
+                items(genres, key = { it }) { option ->
+                    GuideChip(selected = option.equals(genre, ignoreCase = true), onClick = { actions.onGenre(option) }, label = option)
+                }
+            }
+        }
     }
 }
 
@@ -165,4 +182,5 @@ private fun LibrarySort.label(): StringResource = when (this) {
     LibrarySort.ADDED -> Res.string.library_sort_added
     LibrarySort.YEAR -> Res.string.library_sort_year
     LibrarySort.RATING -> Res.string.library_sort_rating
+    LibrarySort.WATCHED -> Res.string.library_sort_watched
 }

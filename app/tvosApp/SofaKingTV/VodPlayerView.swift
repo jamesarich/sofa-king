@@ -109,8 +109,10 @@ struct VodPlayerView: View {
                 detailWatch = model.core.watchItem(id: item.id) { state in
                     guard let ready = state as? ItemDetailStateReady else { return }
                     if detail == nil {
-                        audioIndex = LibraryChoicesKt.defaultAudio(detail: ready.detail).map { $0.index }
-                        subtitleIndex = LibraryChoicesKt.initialSubtitle(detail: ready.detail).map { $0.index }
+                        // The tracks picked in this show start its episodes, as playItem opened the stream with them.
+                        let choice = model.core.trackChoice(item: item)
+                        audioIndex = LibraryChoicesKt.initialAudio(detail: ready.detail, choice: choice).map { $0.index }
+                        subtitleIndex = LibraryChoicesKt.initialSubtitle(detail: ready.detail, choice: choice).map { $0.index }
                     }
                     detail = ready.detail
                 }
@@ -139,7 +141,8 @@ struct VodPlayerView: View {
         }
         .task(id: subtitleIndex) {
             subtitles = nil
-            guard let index = subtitleIndex else { return }
+            // A picture subtitle is drawn into the stream by the server; only text is drawn here.
+            guard let index = subtitleIndex, !isPicture(index) else { return }
             guard let item = request.libraryItem else { return }
             subtitles = try? await model.core.subtitles(itemId: item.id, index: index)
             if subtitles == nil && !Task.isCancelled { subtitleIndex = nil }
@@ -274,12 +277,11 @@ struct VodPlayerView: View {
             }
             menus.append(UIMenu(title: "Audio", image: UIImage(systemName: "speaker.wave.2"), options: .singleSelection, children: actions))
         }
-        let text = LibraryChoicesKt.textSubtitles(detail: detail)
-        if !text.isEmpty {
-            var actions = [UIAction(title: "Off", state: subtitleIndex == nil ? .on : .off) { _ in subtitleIndex = nil }]
-            actions += text.enumerated().map { number, track in
+        if !detail.subtitles.isEmpty {
+            var actions = [UIAction(title: "Off", state: subtitleIndex == nil ? .on : .off) { _ in pickSubtitle(nil) }]
+            actions += detail.subtitles.enumerated().map { number, track in
                 UIAction(title: LibraryChoicesKt.trackLabel(track: track, number: Int32(number + 1)), state: track.index == subtitleIndex ? .on : .off) { _ in
-                    subtitleIndex = track.index
+                    pickSubtitle(track.index)
                 }
             }
             menus.append(UIMenu(title: "Subtitles", image: UIImage(systemName: "captions.bubble"), options: .singleSelection, children: actions))
@@ -289,12 +291,41 @@ struct VodPlayerView: View {
 
     /// Plays the item again from where it is with the audio track `index`.
     private func pickAudio(_ index: Int32) {
-        guard index != audioIndex, let item = request.libraryItem else { return }
+        guard index != audioIndex else { return }
         audioIndex = index
+        rememberTracks()
+        restream()
+    }
+
+    /// Shows subtitle track `index`, or none: text is drawn here over the same stream, pictures need a new one.
+    private func pickSubtitle(_ index: Int32?) {
+        guard index != subtitleIndex else { return }
+        let picture = index.map(isPicture) == true || subtitleIndex.map(isPicture) == true
+        subtitleIndex = index
+        rememberTracks()
+        if picture { restream() }
+    }
+
+    /// Keeps the picked tracks for the show, so its next episodes start with them.
+    private func rememberTracks() {
+        guard let item = request.libraryItem, let detail else { return }
+        model.core.rememberTracks(item: item, detail: detail, audioIndex: audioIndex ?? -1, subtitleIndex: subtitleIndex ?? -1)
+    }
+
+    /// True when subtitle track `index` is pictures (PGS, DVD), which the server draws into the picture.
+    private func isPicture(_ index: Int32) -> Bool {
+        detail?.subtitles.first { $0.index == index }.map { LibraryChoicesKt.isPictureSubtitle(track: $0) } ?? false
+    }
+
+    /// Plays the item again from where it is with the picked audio track and picture subtitle.
+    private func restream() {
+        guard let item = request.libraryItem else { return }
         let at = positionMs
+        let audio = audioIndex ?? -1
+        let picture = subtitleIndex.flatMap { isPicture($0) ? $0 : nil } ?? -1
         Task {
             do {
-                load(try await model.core.switchItemAudio(item: item, positionMs: at, audioIndex: index))
+                load(try await model.core.switchItemTracks(item: item, positionMs: at, audioIndex: audio, subtitleIndex: picture))
             } catch {
                 failure = error.localizedDescription
             }

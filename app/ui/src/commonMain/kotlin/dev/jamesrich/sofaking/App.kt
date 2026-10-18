@@ -40,9 +40,12 @@ import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialSeasonId
 import dev.jamesrich.sofaking.data.initialSubtitle
-import dev.jamesrich.sofaking.data.textSubtitles
+import dev.jamesrich.sofaking.data.initialAudio
+import dev.jamesrich.sofaking.data.isPictureSubtitle
+import dev.jamesrich.sofaking.data.trackChoice
 import dev.jamesrich.sofaking.data.trackLabel
 import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.library.CardMenu
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
 import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
 import dev.jamesrich.sofaking.ui.library.LibraryGridActions
@@ -470,18 +473,29 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     // Keyed by the item, so the next episode starts a fresh screen rather than inheriting this one's end.
                     item != null -> key(item.id) {
                         var next by remember { mutableStateOf<MediaItem?>(null) }
-                        // The audio track picked in the player, so a retry opens the item with it again.
-                        var audio by remember { mutableStateOf<Int?>(null) }
+                        val ready = (detail as? ItemDetailState.Ready)?.detail
+                        // The tracks the viewer picked in this show start its episodes, read once as the item opens.
+                        val choice = remember { item.showId?.let { settings?.trackChoices?.get(it) } }
+                        val startAudio = remember { ready?.let { initialAudio(it, choice) } }
+                        val startSubtitle = remember { ready?.let { initialSubtitle(it, choice) } }
+                        // The tracks the stream carries, so a retry opens the item with them again: an audio track other
+                        // than the default, and a picture subtitle drawn in from the first stream.
+                        var audio by remember { mutableStateOf(startAudio?.index?.takeIf { it != ready?.let(::defaultAudio)?.index }) }
+                        var pictureSubtitle by remember { mutableStateOf(startSubtitle?.takeIf(::isPictureSubtitle)?.index) }
                         val tracks = remember(detail) {
                             (detail as? ItemDetailState.Ready)?.detail?.let { d ->
                                 VodTracks(
                                     audio = d.audio.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1)) },
-                                    subtitles = textSubtitles(d).mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1)) },
-                                    initialAudio = defaultAudio(d)?.index,
-                                    initialSubtitle = initialSubtitle(d)?.index,
-                                    selectAudio = { index, position ->
-                                        audio = index
-                                        libraryVm.switchAudio(item, player.playbackProfile, position, index)
+                                    subtitles = d.subtitles.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1), isPictureSubtitle(t)) },
+                                    initialAudio = startAudio?.index ?: defaultAudio(d)?.index,
+                                    initialSubtitle = startSubtitle?.index,
+                                    onPicked = { audioIndex, subtitleIndex ->
+                                        item.showId?.let { vm.setTrackChoice(it, trackChoice(d, audioIndex, subtitleIndex)) }
+                                    },
+                                    select = { audioIndex, subtitleIndex, position ->
+                                        audio = audioIndex
+                                        pictureSubtitle = subtitleIndex
+                                        libraryVm.switchTracks(item, player.playbackProfile, position, audioIndex, subtitleIndex)
                                     },
                                     loadSubtitles = { index -> libraryVm.subtitles(item.id, index) },
                                 )
@@ -491,7 +505,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                             title = item.vodTitle(),
                             player = player,
                             sessions = sessions,
-                            open = { libraryVm.play(item, player.playbackProfile, current.fromStart, audio) },
+                            open = { libraryVm.play(item, player.playbackProfile, current.fromStart, audio, pictureSubtitle) },
                             onPosition = { position, duration -> libraryVm.progress(item.id, position, duration) },
                             onStopped = { position, duration -> libraryVm.stopped(item.id, position, duration) },
                             onExit = leave,
@@ -641,6 +655,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                         onPlayItem = { screen = Screen.Vod(it.id, parent = Screen.Library()) },
                                         onOpenLibrary = { screen = Screen.LibraryGrid(it.id) },
                                         onRetry = libraryVm::refreshHome,
+                                        menu = CardMenu(
+                                            onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = Screen.Library()) },
+                                            onSetWatched = libraryVm::setWatched,
+                                        ),
                                     ),
                                     returnedFrom = current.returnedFrom,
                                 )
@@ -656,10 +674,15 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                     onDelete = recordingsVm::delete,
                                     onRetry = recordingsVm::refresh,
                                     onBack = { openTab(Tab.LIVE) },
+                                    onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
+                                    onRuleDelete = recordingsVm::deleteRule,
                                 )
                             }
                             is Screen.LibraryGrid -> guideState.SaveableStateProvider("grid-${current.libraryId}") {
-                                LaunchedEffect(current.libraryId) { libraryVm.openGrid(current.libraryId, grid?.sort ?: LibrarySort.TITLE, grid?.unwatched ?: false) }
+                                LaunchedEffect(current.libraryId) {
+                                    val open = grid
+                                    libraryVm.openGrid(current.libraryId, open?.sort ?: LibrarySort.TITLE, open?.unwatched ?: false, open?.takeIf { it.libraryId == current.libraryId }?.genre)
+                                }
                                 BackHandler { screen = Screen.Library(returnedFrom = libraryFocusKey(current.libraryId)) }
                                 val shown = grid?.takeIf { it.libraryId == current.libraryId }
                                 val here = Screen.LibraryGrid(current.libraryId)
@@ -667,11 +690,16 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                     library = (libraryHome as? LibraryHomeState.Ready)?.home?.libraries?.firstOrNull { it.id == current.libraryId },
                                     grid = shown,
                                     actions = LibraryGridActions(
-                                        onSort = { libraryVm.openGrid(current.libraryId, it, shown?.unwatched ?: false) },
-                                        onUnwatched = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, it) },
+                                        onSort = { libraryVm.openGrid(current.libraryId, it, shown?.unwatched ?: false, shown?.genre) },
+                                        onUnwatched = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, it, shown?.genre) },
+                                        onGenre = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, shown?.unwatched ?: false, it) },
                                         onOpenItem = { screen = Screen.LibraryItem(it.id, parent = here) },
                                         onPlayItem = { screen = Screen.Vod(it.id, parent = here) },
                                         onLoadMore = libraryVm::loadMore,
+                                        menu = CardMenu(
+                                            onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = here) },
+                                            onSetWatched = libraryVm::setWatched,
+                                        ),
                                     ),
                                     returnedFrom = current.returnedFrom,
                                 )

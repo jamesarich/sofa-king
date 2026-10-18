@@ -144,6 +144,109 @@ class DvrTest {
         dir.toFile().deleteRecursively()
     }
 
+    @Test fun `a manual recording takes a time window on a channel without a guide`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-dvr-manual-")
+        val guide = guideServer(emptyList())
+        MediaFixture().use { media ->
+            val runtime = runtime(dir, media, guide)
+            try {
+                val dvr = assertNotNull(runtime.dvr)
+                val live = runtime.lineup.entries().single { it.number == "2" }
+                val start = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(3600)
+                val guideless = assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> { dvr.schedule(ScheduleRecording(live.id, start.toString())) }
+                assertEquals("PROGRAMME_NOT_FOUND", guideless.code)
+                val tooLong = assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> {
+                    dvr.schedule(ScheduleRecording(live.id, start.toString(), start.plus(java.time.Duration.ofHours(13)).toString()))
+                }
+                assertEquals(400, tooLong.status)
+                val manual = dvr.schedule(ScheduleRecording(live.id, start.toString(), start.plusSeconds(1800).toString(), "  Late Game  "))
+                assertEquals("Late Game", manual.title)
+                assertEquals(Wire.RecordingState.SCHEDULED, manual.state)
+                assertEquals(start.plusSeconds(1800).toString(), manual.endsAt)
+                assertEquals(0, manual.startPaddingSeconds)
+                assertEquals(0, manual.endPaddingSeconds)
+                val untitled = dvr.schedule(ScheduleRecording(live.id, start.plusSeconds(7200).toString(), start.plusSeconds(9000).toString()))
+                assertEquals(live.name, untitled.title)
+            } finally {
+                runtime.close(); runtime.store.close(); guide.stop(0)
+            }
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    @Test fun `a rule edit moves it to another channel or to any channel`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-dvr-rule-")
+        val guide = guideServer(emptyList())
+        MediaFixture().use { media ->
+            val runtime = runtime(dir, media, guide)
+            try {
+                val dvr = assertNotNull(runtime.dvr)
+                val live = runtime.lineup.entries().single { it.number == "2" }
+                val rule = dvr.createRule(CreateRecordingRule("News"))
+                assertEquals(live.id, dvr.updateRule(rule.id, UpdateRecordingRule(channelId = live.id, priority = 5)).channelId)
+                val any = dvr.updateRule(rule.id, UpdateRecordingRule(anyChannel = true))
+                assertNull(any.channelId)
+                assertEquals(5, any.priority)
+                val unknown = assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> { dvr.updateRule(rule.id, UpdateRecordingRule(channelId = "nope")) }
+                assertEquals(404, unknown.status)
+            } finally {
+                runtime.close(); runtime.store.close(); guide.stop(0)
+            }
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    @Test fun `a recording that runs the disk low makes cleanup free space, then stops with DISK_FULL`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-dvr-full-")
+        val start = Instant.now().truncatedTo(ChronoUnit.SECONDS)
+        val guide = guideServer(listOf(Triple("Long Show", start.minusSeconds(5), start.plusSeconds(600))))
+        MediaFixture().use { media ->
+            val runtime = runtime(dir, media, guide)
+            try {
+                val root = dir.resolve("recordings")
+                val gib = 1024L * 1024 * 1024
+                // Free space falls once the recording has written anything: the disk is full apart from what cleanup frees.
+                var free = 20 * gib
+                // Its own store, so the runtime's DVR never sees, and records, the same recording.
+                val store = openStore(dir.resolve("own"))
+                val dvr = Dvr(
+                    store, runtime.lineup, runtime.guides, Recorder("ffmpeg", runtime.sessions, runtime.feeds, Clock.systemUTC()), root, Clock.systemUTC(),
+                    { 4 }, retention = { Retention(freeGib = 5) }, freeSpace = { free },
+                )
+                kotlinx.coroutines.coroutineScope {
+                    val jobs = dvr.start(this)
+                    try {
+                        val live = runtime.lineup.entries().single { it.number == "2" }
+                        val old = start.minus(java.time.Duration.ofDays(3))
+                        Files.createDirectories(root.resolve("TV/Old")); Files.write(root.resolve("TV/Old/old.ts"), byteArrayOf(0x47))
+                        store.addRecording(StoredRecording(
+                            "old", null, live.id, "Live", old, old.plusSeconds(1800), java.time.Duration.ZERO, java.time.Duration.ZERO, "Old",
+                            state = Wire.RecordingState.COMPLETED, path = "TV/Old/old.ts", bytes = 1, createdAt = old, updatedAt = old,
+                        ))
+                        val running = dvr.schedule(ScheduleRecording(live.id, start.minusSeconds(5).toString(), start.plusSeconds(600).toString(), "Long Show"))
+                        withTimeout(30_000) { while (dvr.recording(running.id).state != Wire.RecordingState.RECORDING) delay(100) }
+                        // Protected, so the cleanup after it stops keeps it for the assertions below.
+                        dvr.update(running.id, UpdateRecording(protected = true))
+                        free = 100L * 1024 * 1024
+                        val stopped = withTimeout(60_000) {
+                            while (dvr.recording(running.id).state == Wire.RecordingState.RECORDING) delay(200)
+                            dvr.recording(running.id)
+                        }
+                        assertEquals(Dvr.DISK_FULL, stopped.reason)
+                        assertFalse(Files.exists(root.resolve("TV/Old/old.ts")), "cleanup deleted the finished recording first")
+                        assertEquals(listOf(running.id), dvr.recordings().recordings.map { it.id })
+                    } finally {
+                        jobs.forEach { it.cancel() }
+                    }
+                }
+                store.close()
+            } finally {
+                runtime.close(); runtime.store.close(); guide.stop(0)
+            }
+        }
+        dir.toFile().deleteRecursively()
+    }
+
     @Test fun `cleanup deletes past the keep count, past the keep days, then oldest first until the space floor holds`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-dvr-cull-")
         val guide = guideServer(emptyList())

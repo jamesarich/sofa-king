@@ -173,7 +173,7 @@ class LibraryPlaybackTest {
     @Test
     fun `a released item reopens where the player last was`() = runTest {
         val (fake, sessions) = fixture()
-        sessions.play("m1", tv, startMs = 10_000, audioIndex = 2)
+        sessions.play("m1", tv, startMs = 10_000, audioIndex = 2, subtitleIndex = 1000)
         sessions.reportPosition(95_000)
 
         sessions.release()
@@ -185,6 +185,8 @@ class LibraryPlaybackTest {
         val body = Json.parseToJsonElement(fake.requests.last().substringAfter("vod-sessions ")).jsonObject
         assertEquals(95_000, body["startMs"]!!.jsonPrimitive.longOrNull)
         assertEquals(2, body["audioIndex"]!!.jsonPrimitive.longOrNull?.toInt())
+        assertEquals(1000, body["subtitleIndex"]!!.jsonPrimitive.longOrNull?.toInt(), "the drawn subtitle stays on")
+        assertNull(body["wholePlaylist"], "a player that restarts conversions itself leaves it out")
     }
 
     @Test

@@ -20,8 +20,11 @@ import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.Wire
 import java.nio.file.Path
 import java.time.Clock
+import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** Below this share of a file, a stop counts as not started; at or past [WATCHED_AT], as watched. */
 private const val STARTED_AT = 0.05
@@ -30,12 +33,23 @@ private const val WATCHED_AT = 0.90
 /** How many items a home row holds. */
 private const val SHELF_SIZE = 20
 
+/** The kinds that show a frame of their video when they have no picture. */
+private val FRAMED = setOf(ItemKind.MOVIE, ItemKind.EPISODE, ItemKind.VIDEO)
+
+/** Where a frame is taken: a tenth of the way in, past any opening titles, but no later than ten minutes. */
+internal fun frameAt(durationMs: Long?): Long = durationMs?.let { (it / 10).coerceAtMost(600_000) } ?: 0
+
 /** Where an item's poster or backdrop comes from: a file in its library folder, or a TMDB image path. */
 sealed interface ArtSource {
     /** [root] is the library folder; [relative] the image inside it. */
     data class Local(val root: Path, val relative: String) : ArtSource
     /** [path] is TMDB's `/abc.jpg`; [size] one of its sizes, such as `w342`. */
     data class Tmdb(val path: String, val size: String) : ArtSource
+    /**
+     * A frame of the video [relative] in the library folder [root], taken [atMs] in; [stamp] is the file's size and
+     * change time, so a replaced file gets a new frame.
+     */
+    data class Frame(val root: Path, val relative: String, val atMs: Long, val stamp: String) : ArtSource
 
     val version: String get() = hash(toString()).take(12)
 }
@@ -63,7 +77,15 @@ internal class Snapshot(
     val episodes: Map<String, List<View>>,
     /** The movies, shows and videos of each library. */
     val tops: Map<String, List<View>>,
-)
+) {
+    /** Where [view]'s file is: a movie, episode or video inside its library's folder; null for anything else. */
+    fun fileOf(view: View): Path? {
+        val relative = view.record.path?.takeIf { view.record.kind != ItemKind.SHOW && view.record.kind != ItemKind.SEASON } ?: return null
+        val library = libraries.firstOrNull { it.id == view.record.libraryId } ?: return null
+        val root = Path.of(library.path).normalize()
+        return root.resolve(relative).normalize().takeIf { it.startsWith(root) }
+    }
+}
 
 /**
  * What the app reads from the libraries: the home rows, a library's items, one item's page, search, and the
@@ -105,8 +127,12 @@ class LibraryCatalog internal constructor(
         return LibraryHome(shelves, libraries())
     }
 
-    /** The movies, shows or videos of [libraryId], sorted by [sort] (`title`, `added`, `year` or `rating`), [limit] after [cursor]. */
-    suspend fun items(libraryId: String, sort: String?, unwatched: Boolean, cursor: String?, limit: Int): LibraryPage {
+    /**
+     * The movies, shows or videos of [libraryId], sorted by [sort] (`title`, `added`, `year`, `rating`, or `watched`
+     * for the most recently watched first), with [genre] only when given, [limit] after [cursor]. The page lists every
+     * genre in the library, for the filter.
+     */
+    suspend fun items(libraryId: String, sort: String?, unwatched: Boolean, cursor: String?, limit: Int, genre: String? = null): LibraryPage {
         val snapshot = snapshot()
         if (snapshot.libraries.none { it.id == libraryId }) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
         val states = store.playStates()
@@ -116,16 +142,26 @@ class LibraryCatalog internal constructor(
             "added" -> compareByDescending<View> { it.record.addedAt }.then(byTitle)
             "year" -> compareByDescending<View, Int?>(nullsFirst()) { it.item.year }.then(byTitle)
             "rating" -> compareByDescending<View, Double?>(nullsFirst()) { it.item.rating }.then(byTitle)
-            else -> throw ApiFailure(400, "INVALID_REQUEST", "sort is title, added, year or rating")
+            // A show was watched when any of its episodes was; what was never watched follows by title.
+            "watched" -> compareBy<View, Instant?>(nullsLast(reverseOrder())) { view ->
+                (snapshot.episodes[view.record.id]?.map { it.record.id } ?: listOf(view.record.id))
+                    .mapNotNull { id -> states[id]?.updatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } }
+                    .maxOrNull()
+            }.then(byTitle)
+            else -> throw ApiFailure(400, "INVALID_REQUEST", "sort is title, added, year, rating or watched")
         }
-        val all = snapshot.tops[libraryId].orEmpty()
+        val tops = snapshot.tops[libraryId].orEmpty()
+        val wanted = genre?.trim()?.ifEmpty { null }
+        val all = tops
+            .filter { view -> wanted == null || view.item.genres.any { it.equals(wanted, ignoreCase = true) } }
             .map { it to it.out(snapshot, states) }
             .filter { (_, item) -> !unwatched || item.unwatched > 0 || (item.kind != Wire.ItemKind.SHOW && item.playState?.watched != true) }
             .sortedWith(compareBy(order) { it.first })
         val from = cursor?.let { it.toIntOrNull()?.takeIf { offset -> offset >= 0 } ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid cursor") } ?: 0
         val page = all.drop(from).take(limit)
         val next = (from + page.size).takeIf { it < all.size }?.toString()
-        return LibraryPage(page.map { it.second }, all.size, next)
+        val genres = tops.flatMap { it.item.genres }.distinctBy { it.lowercase() }.sortedBy { it.lowercase() }
+        return LibraryPage(page.map { it.second }, all.size, next, genres)
     }
 
     suspend fun item(id: String): LibraryItemDetail {
@@ -133,13 +169,15 @@ class LibraryCatalog internal constructor(
         val view = snapshot.views[id] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
         val states = store.playStates()
         val media = view.record.media
+        // Subtitle files beside the video, read now so a file added since the scan shows.
+        val sidecars = snapshot.fileOf(view)?.let { withContext(Dispatchers.IO) { sidecarSubtitles(it) } }.orEmpty()
         return LibraryItemDetail(
             item = view.out(snapshot, states),
             children = snapshot.children[id].orEmpty().map { it.out(snapshot, states) },
             next = if (view.record.kind == ItemKind.SHOW) nextEpisode(snapshot.episodes[id].orEmpty(), states)?.out(snapshot, states) else null,
             tagline = view.tagline, studio = view.studio, cast = view.cast, directors = view.directors,
             audio = media?.audio.orEmpty().map { MediaTrack(it.index, it.codec, it.language, it.title, it.channels, it.default) },
-            subtitles = media?.subtitles.orEmpty().map { MediaTrack(it.index, it.codec, it.language, it.title, default = it.default, forced = it.forced) },
+            subtitles = (media?.subtitles.orEmpty() + sidecars.map { it.stream }).map { MediaTrack(it.index, it.codec, it.language, it.title, default = it.default, forced = it.forced) },
             container = media?.container,
             videoCodec = media?.video?.codec,
         )
@@ -223,10 +261,15 @@ class LibraryCatalog internal constructor(
         fun <T> nfoFirst(own: T?, tmdb: T?): T? = if (nfo && own != null) own else tmdb ?: own
         fun nfoFirst(own: List<String>?, tmdb: List<String>?): List<String> = if (nfo && !own.isNullOrEmpty()) own else tmdb.takeUnless { it.isNullOrEmpty() } ?: own.orEmpty()
         val title = if (nfo) record.title else facts?.title ?: record.title
+        // A file with no picture of its own shows a frame from it, as an episode's or a video's still and a movie's backdrop.
+        val frame = record.path?.takeIf { record.media?.video != null && record.kind in FRAMED }?.let {
+            ArtSource.Frame(root, it, frameAt(record.durationMs ?: record.media?.durationMs), "${record.size}-${record.modifiedAt}")
+        }
         val poster = record.poster?.let { ArtSource.Local(root, it) }
             ?: facts?.poster?.let { ArtSource.Tmdb(it, if (record.kind == ItemKind.EPISODE) "w300" else "w342") }
             ?: showView?.poster.takeIf { record.kind == ItemKind.SEASON }
-        val backdrop = record.backdrop?.let { ArtSource.Local(root, it) } ?: facts?.backdrop?.let { ArtSource.Tmdb(it, "w1280") } ?: showView?.backdrop
+            ?: frame?.takeIf { record.kind != ItemKind.MOVIE }
+        val backdrop = record.backdrop?.let { ArtSource.Local(root, it) } ?: facts?.backdrop?.let { ArtSource.Tmdb(it, "w1280") } ?: showView?.backdrop ?: frame
         val video = record.media?.video
         val item = LibraryItem(
             id = record.id, libraryId = record.libraryId, kind = record.kind, title = title, parentId = record.parentId,

@@ -536,6 +536,9 @@ fun PlayerScreen(
     var swallowBackUp by remember { mutableStateOf(false) }
     BackHandler {
         when {
+            // The press that closed a panel ends here: with the panel's focused row gone, its key-up can miss the
+            // surface's key handler and arrive as a Back of its own.
+            swallowBackUp -> swallowBackUp = false
             streamCardOpen -> streamCardOpen = false
             miniGuideOpen -> miniGuideOpen = false
             else -> onExit()

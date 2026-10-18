@@ -181,7 +181,7 @@
       },
       "MediaTrack": {
         "type": "object", "required": ["index", "codec"],
-        "properties": { "index": { "type": "integer" }, "codec": { "type": "string" }, "language": { "type": ["string", "null"] }, "title": { "type": ["string", "null"] }, "channels": { "type": ["integer", "null"] }, "default": { "type": "boolean" }, "forced": { "type": "boolean" } }
+        "properties": { "index": { "type": "integer", "description": "The stream's index in the file; from 1000, a subtitle file beside it." }, "codec": { "type": "string", "description": "A subtitle codec other than subrip, ass, ssa, mov_text, webvtt or text is pictures, drawn through subtitleIndex." }, "language": { "type": ["string", "null"] }, "title": { "type": ["string", "null"] }, "channels": { "type": ["integer", "null"] }, "default": { "type": "boolean" }, "forced": { "type": "boolean" } }
       },
       "LibraryItemDetail": {
         "type": "object", "required": ["item"],
@@ -208,7 +208,7 @@
       },
       "OpenVodPlayback": {
         "type": "object",
-        "properties": { "itemId": { "type": "string", "description": "The item to play; leave it out with recordingId." }, "recordingId": { "type": ["string", "null"], "description": "A running or finished recording to play instead of an item." }, "profile": { "$ref": "#/components/schemas/ClientProfile" }, "startMs": { "type": "integer", "minimum": 0 }, "audioIndex": { "type": ["integer", "null"], "description": "An audio stream index from the item's tracks; the file's default when null." } }
+        "properties": { "itemId": { "type": "string", "description": "The item to play; leave it out with recordingId." }, "recordingId": { "type": ["string", "null"], "description": "A running or finished recording to play instead of an item." }, "profile": { "$ref": "#/components/schemas/ClientProfile" }, "startMs": { "type": "integer", "minimum": 0 }, "audioIndex": { "type": ["integer", "null"], "description": "An audio stream index from the item's tracks; the file's default when null." }, "subtitleIndex": { "type": ["integer", "null"], "description": "A picture subtitle track from the item's subtitles to draw into the picture, which converts the stream. A text track or a recording answers 400." } }
       },
       "UpdateVodPlayback": {
         "type": "object",
@@ -717,7 +717,7 @@
         "responses": { "200": { "description": "The item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
     "/api/v1/library/items/{id}/subtitles/{index}": {
-      "get": { "tags": ["Library"], "summary": "A text subtitle stream of the item as WebVTT", "description": "index is a subtitle track's index from the item. Times are in the item's time. The first read extracts the stream, which reads the whole file; later reads serve the kept copy. A picture subtitle answers 415 SUBTITLE_NOT_TEXT.", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Library"], "summary": "A text subtitle track of the item as WebVTT", "description": "index is a subtitle track's index from the item: a stream of its file, or from 1000 a subtitle file beside it. Times are in the item's time. The first read extracts the stream, which reads the whole file; later reads serve the kept copy. A picture subtitle answers 415 SUBTITLE_NOT_TEXT.", "security": [{ "apiToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "index", "in": "path", "required": true, "schema": { "type": "integer" } }],
         "responses": { "200": { "description": "WebVTT", "content": { "text/vtt": { "schema": { "type": "string" } } } }, "404": { "description": "ITEM_NOT_FOUND, ITEM_MISSING or RESOURCE_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "415": { "description": "SUBTITLE_NOT_TEXT", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "502": { "description": "SUBTITLE_FAILED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },

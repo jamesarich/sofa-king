@@ -40,7 +40,7 @@ import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialSeasonId
 import dev.jamesrich.sofaking.data.initialSubtitle
-import dev.jamesrich.sofaking.data.textSubtitles
+import dev.jamesrich.sofaking.data.isPictureSubtitle
 import dev.jamesrich.sofaking.data.trackLabel
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
@@ -470,18 +470,23 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     // Keyed by the item, so the next episode starts a fresh screen rather than inheriting this one's end.
                     item != null -> key(item.id) {
                         var next by remember { mutableStateOf<MediaItem?>(null) }
-                        // The audio track picked in the player, so a retry opens the item with it again.
+                        // The tracks picked in the player, so a retry opens the item with them again.
                         var audio by remember { mutableStateOf<Int?>(null) }
+                        // A forced picture subtitle the item starts with is drawn in from the first stream.
+                        var pictureSubtitle by remember {
+                            mutableStateOf((detail as? ItemDetailState.Ready)?.detail?.let(::initialSubtitle)?.takeIf(::isPictureSubtitle)?.index)
+                        }
                         val tracks = remember(detail) {
                             (detail as? ItemDetailState.Ready)?.detail?.let { d ->
                                 VodTracks(
                                     audio = d.audio.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1)) },
-                                    subtitles = textSubtitles(d).mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1)) },
+                                    subtitles = d.subtitles.mapIndexed { i, t -> VodTrack(t.index, trackLabel(t, i + 1), isPictureSubtitle(t)) },
                                     initialAudio = defaultAudio(d)?.index,
                                     initialSubtitle = initialSubtitle(d)?.index,
-                                    selectAudio = { index, position ->
-                                        audio = index
-                                        libraryVm.switchAudio(item, player.playbackProfile, position, index)
+                                    select = { audioIndex, subtitleIndex, position ->
+                                        audio = audioIndex
+                                        pictureSubtitle = subtitleIndex
+                                        libraryVm.switchTracks(item, player.playbackProfile, position, audioIndex, subtitleIndex)
                                     },
                                     loadSubtitles = { index -> libraryVm.subtitles(item.id, index) },
                                 )
@@ -491,7 +496,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                             title = item.vodTitle(),
                             player = player,
                             sessions = sessions,
-                            open = { libraryVm.play(item, player.playbackProfile, current.fromStart, audio) },
+                            open = { libraryVm.play(item, player.playbackProfile, current.fromStart, audio, pictureSubtitle) },
                             onPosition = { position, duration -> libraryVm.progress(item.id, position, duration) },
                             onStopped = { position, duration -> libraryVm.stopped(item.id, position, duration) },
                             onExit = leave,

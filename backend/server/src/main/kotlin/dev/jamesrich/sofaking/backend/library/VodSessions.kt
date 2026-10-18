@@ -41,6 +41,14 @@ private val TS_AUDIO = setOf("aac", "ac3", "eac3", "mp3", "mp2")
 /** Subtitle codecs FFmpeg converts to WebVTT; the others are pictures. */
 private val TEXT_SUBTITLES = setOf("subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text")
 
+/**
+ * A subtitle track to read or draw: stream [index] of the item's own file when [file] is null, else the subtitle
+ * file [file] beside it.
+ */
+internal class SubtitleSource(val stream: SubtitleStream, val file: Path?) {
+    val picture: Boolean get() = stream.codec !in TEXT_SUBTITLES
+}
+
 /** Where extracted subtitles are kept, under the conversion directory. */
 private const val SUBTITLES = "subtitles"
 
@@ -69,6 +77,8 @@ internal class VodState(
     val mode: String,
     val durationMs: Long?,
     val audioIndex: Int?,
+    /** The picture subtitle drawn into the picture, if one is. */
+    val burn: SubtitleSource?,
     val media: MediaInfo?,
     val secret: String,
     var epoch: Int,
@@ -112,19 +122,26 @@ class VodSessions(
         if (request.startMs < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
         request.recordingId?.let { return openRecording(it, request) }
         val (item, file) = itemFile(request.itemId)
-        return start(request, item.record.id, null, file, growing = false, item.record.media, item.item.durationMs)
+        val burn = request.subtitleIndex?.let { index ->
+            subtitleSource(item, file, index).also {
+                if (!it.picture) throw ApiFailure(400, "INVALID_REQUEST", "Subtitle stream $index is text; the player draws it")
+            }
+        }
+        return start(request, item.record.id, null, file, growing = false, item.record.media, item.item.durationMs, burn)
     }
 
     /**
-     * Text subtitle stream [index] of the library item [itemId] as WebVTT, in the item's time. FFmpeg extracts it the
-     * first time, which reads the whole file, and the copy under `subtitles/` serves after that until the file
-     * changes. A picture subtitle (PGS, DVD, DVB) has no text, so it is refused.
+     * Text subtitle track [index] of the library item [itemId] as WebVTT, in the item's time: a stream of its file,
+     * or from [SIDECAR_BASE] a subtitle file beside it. FFmpeg converts it the first time, which reads the whole
+     * file, and the copy under `subtitles/` serves after that until the file changes. A picture subtitle (PGS, DVD,
+     * DVB) has no text, so it is refused; a player asks for it to be drawn into the picture instead.
      */
     suspend fun subtitles(itemId: String, index: Int): Path {
-        val (item, file) = itemFile(itemId)
-        val track = item.record.media?.subtitles?.firstOrNull { it.index == index }
-            ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "No subtitle stream $index")
-        if (track.codec !in TEXT_SUBTITLES) throw ApiFailure(415, "SUBTITLE_NOT_TEXT", "Subtitle stream $index is pictures, not text")
+        val (item, video) = itemFile(itemId)
+        val source = subtitleSource(item, video, index)
+        if (source.picture) throw ApiFailure(415, "SUBTITLE_NOT_TEXT", "Subtitle stream $index is pictures, not text")
+        val file = source.file ?: video
+        val map = if (source.file == null) "0:$index" else "0:s:0"
         val dir = directory.resolve(SUBTITLES)
         return extracting.withLock {
             withContext(Dispatchers.IO) {
@@ -134,7 +151,7 @@ class VodSessions(
                 if (!Files.isRegularFile(out)) {
                     Files.createDirectories(dir)
                     val partial = dir.resolve("$name.part")
-                    val command = listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", file.toString(), "-map", "0:$index", "-c:s", "webvtt", "-f", "webvtt", partial.toString())
+                    val command = listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", file.toString(), "-map", map, "-c:s", "webvtt", "-f", "webvtt", partial.toString())
                     if (!runs(command, SUBTITLE_TIMEOUT_MINUTES)) {
                         Files.deleteIfExists(partial)
                         throw ApiFailure(502, "SUBTITLE_FAILED", "The subtitles could not be read from the file")
@@ -151,19 +168,30 @@ class VodSessions(
     private suspend fun itemFile(itemId: String): Pair<View, Path> {
         val snapshot = catalog.snapshot()
         val view = snapshot.views[itemId] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
-        val relative = view.record.path?.takeIf { view.record.kind != ItemKind.SHOW && view.record.kind != ItemKind.SEASON }
-            ?: throw ApiFailure(400, "INVALID_REQUEST", "Only a movie, episode or video plays")
-        val library = snapshot.libraries.firstOrNull { it.id == view.record.libraryId } ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
-        val root = Path.of(library.path).normalize()
-        val file = root.resolve(relative).normalize()
-        if (!file.startsWith(root) || withContext(Dispatchers.IO) { !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }) {
+        if (view.record.path == null || view.record.kind == ItemKind.SHOW || view.record.kind == ItemKind.SEASON) {
+            throw ApiFailure(400, "INVALID_REQUEST", "Only a movie, episode or video plays")
+        }
+        val file = snapshot.fileOf(view)
+        if (file == null || withContext(Dispatchers.IO) { !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }) {
             throw ApiFailure(404, "ITEM_MISSING", "The file is not there; is its disk mounted?")
         }
         return view to file
     }
 
+    /** Subtitle track [index] of [item], whose file is [video]: one of its streams, or a subtitle file beside it. */
+    private suspend fun subtitleSource(item: View, video: Path, index: Int): SubtitleSource {
+        if (index >= SIDECAR_BASE) {
+            val sidecar = withContext(Dispatchers.IO) { sidecarSubtitles(video) }.firstOrNull { it.stream.index == index }
+            if (sidecar != null) return SubtitleSource(sidecar.stream, sidecar.file)
+        } else {
+            item.record.media?.subtitles?.firstOrNull { it.index == index }?.let { return SubtitleSource(it, null) }
+        }
+        throw ApiFailure(404, "RESOURCE_NOT_FOUND", "No subtitle stream $index")
+    }
+
     /** Plays a recording; one still recording is never played directly, as its stream has to follow the file. */
     private suspend fun openRecording(id: String, request: OpenVodPlayback): VodSession {
+        if (request.subtitleIndex != null) throw ApiFailure(400, "INVALID_REQUEST", "A recording has no subtitle tracks to draw")
         val playable = recordings?.invoke(id) ?: throw ApiFailure(404, "RECORDING_NOT_FOUND", "No such recording, or nothing recorded yet")
         val size = withContext(Dispatchers.IO) { if (Files.isRegularFile(playable.file, LinkOption.NOFOLLOW_LINKS)) Files.size(playable.file) else -1L }
         if (size < 0) throw ApiFailure(404, "RECORDING_MISSING", "The recording's file is not there; is its disk mounted?")
@@ -172,16 +200,21 @@ class VodSessions(
         return start(request, "", id, playable.file, playable.growing, media, playable.durationMs ?: media?.durationMs)
     }
 
-    private suspend fun start(request: OpenVodPlayback, itemId: String, recordingId: String?, file: Path, growing: Boolean, media: MediaInfo?, durationMs: Long?): VodSession {
+    private suspend fun start(
+        request: OpenVodPlayback, itemId: String, recordingId: String?, file: Path, growing: Boolean, media: MediaInfo?, durationMs: Long?,
+        burn: SubtitleSource? = null,
+    ): VodSession {
         val audio = request.audioIndex?.let { index -> media?.audio?.firstOrNull { it.index == index } ?: throw ApiFailure(400, "INVALID_REQUEST", "No audio stream $index") }
-        val mode = vodMode(media, if (growing) request.profile.copy(containers = emptyList()) else request.profile, audio)
+        // Drawing subtitles into the picture means encoding it.
+        val mode = if (burn != null) Wire.VodMode.TRANSCODE
+        else vodMode(media, if (growing) request.profile.copy(containers = emptyList()) else request.profile, audio)
         return mutex.withLock {
             reap()
             if (mode != Wire.VodMode.DIRECT && sessions.values.count { it.mode != Wire.VodMode.DIRECT } >= maxConverting) {
                 throw ApiFailure(503, Wire.ErrorCode.CAPACITY_EXHAUSTED, "Too many files are being converted; try again when one stops", true)
             }
             val state = VodState(
-                UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs, audio?.index, media, secret(), epoch = 1,
+                UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs, audio?.index, burn, media, secret(), epoch = 1,
                 startMs = if (mode == Wire.VodMode.DIRECT) 0 else request.startMs, expires = clock.instant().plus(lease),
             )
             if (mode != Wire.VodMode.DIRECT) launch(state)
@@ -268,7 +301,7 @@ class VodSessions(
         val dir = directory.resolve(state.id)
         clear(dir)
         Files.createDirectories(dir)
-        val command = vodCommand(ffmpeg, state.file, dir, state.mode, state.startMs, state.media, state.audioIndex, follow = state.growing, encoder = encoder)
+        val command = vodCommand(ffmpeg, state.file, dir, state.mode, state.startMs, state.media, state.audioIndex, follow = state.growing, encoder = encoder, burn = state.burn)
         state.process = try {
             ProcessBuilder(command).redirectErrorStream(true).redirectOutput(dir.resolve("ffmpeg.log").toFile()).start()
         } catch (e: IOException) {
@@ -386,8 +419,9 @@ internal fun fragmentedMp4(mode: String, media: MediaInfo?): Boolean =
 
 /**
  * The FFmpeg command that writes [file] from [startMs] as an HLS EVENT playlist in [dir], with MPEG-TS segments, or
- * fragmented MP4 for copied HEVC. [encoder] converts the video when the mode does. With [follow] it reads a file still
- * being written, ending the stream once the file stops growing for a minute.
+ * fragmented MP4 for copied HEVC. [encoder] converts the video when the mode does, drawing the picture subtitles
+ * [burn] over it. With [follow] it reads a file still being written, ending the stream once the file stops growing
+ * for a minute.
  */
 internal fun vodCommand(
     ffmpeg: String,
@@ -399,6 +433,7 @@ internal fun vodCommand(
     audioIndex: Int?,
     follow: Boolean = false,
     encoder: VideoEncoder = VideoEncoder(),
+    burn: SubtitleSource? = null,
 ): List<String> {
     val audio = audioIndex ?: media?.audio?.let { tracks -> (tracks.firstOrNull { it.default } ?: tracks.firstOrNull())?.index }
     val copyVideo = mode == Wire.VodMode.REMUX || mode == Wire.VodMode.AUDIO
@@ -407,14 +442,21 @@ internal fun vodCommand(
     return buildList {
         addAll(listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error"))
         if (!copyVideo) addAll(encoder.inputArgs())
-        if (startMs > 0) addAll(listOf("-ss", "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0)))
+        val seek = if (startMs > 0) listOf("-ss", "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0)) else emptyList()
+        addAll(seek)
         if (follow) addAll(listOf("-follow", "1", "-rw_timeout", "$FOLLOW_TIMEOUT_MICROS"))
-        addAll(listOf("-i", file.toString(), "-map", "0:v:0?"))
+        addAll(listOf("-i", file.toString()))
+        // A subtitle file is a second input, seeked to the same point.
+        burn?.file?.let { addAll(seek + listOf("-i", it.toString())) }
+        val subtitle = burn?.let { if (it.file == null) "0:${it.stream.index}" else "1:s:0" }
+        if (subtitle == null) addAll(listOf("-map", "0:v:0?")) else addAll(encoder.overlayGraph(subtitle, media?.video))
         if (audio != null) addAll(listOf("-map", "0:$audio")) else add("-an")
         addAll(listOf("-sn", "-dn"))
         if (copyVideo) {
             addAll(listOf("-c:v", "copy"))
             if (fmp4) addAll(listOf("-tag:v", "hvc1"))
+        } else if (subtitle != null) {
+            addAll(encoder.codecArgs(keyFrameSeconds = SEGMENT_SECONDS))
         } else {
             addAll(encoder.outputArgs(hdr = media?.video?.transfer != null, keyFrameSeconds = SEGMENT_SECONDS))
         }

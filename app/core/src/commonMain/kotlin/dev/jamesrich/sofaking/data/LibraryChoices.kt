@@ -52,10 +52,20 @@ fun seasonAfter(children: List<MediaItem>, seasonId: String): MediaItem? {
 }
 
 /** The subtitle tracks the server serves as text, which a player can draw; picture tracks (PGS, DVD) are left out. */
-fun textSubtitles(detail: MediaItemDetail): List<MediaTrackInfo> = detail.subtitles.filter { it.codec in TEXT_SUBTITLE_CODECS }
+fun textSubtitles(detail: MediaItemDetail): List<MediaTrackInfo> = detail.subtitles.filterNot(::isPictureSubtitle)
 
-/** The subtitles on when an item starts: a forced track, which carries only the dialogue the audio does not, else none. */
-fun initialSubtitle(detail: MediaItemDetail): MediaTrackInfo? = textSubtitles(detail).firstOrNull { it.forced }
+/**
+ * True for a picture subtitle track (PGS, DVD, DVB), which has no text: the server draws it into the picture when
+ * the session asks for it, so picking one plays the item again.
+ */
+fun isPictureSubtitle(track: MediaTrackInfo): Boolean = track.codec !in TEXT_SUBTITLE_CODECS
+
+/**
+ * The subtitles on when an item starts: a forced track, which carries only the dialogue the audio does not, text
+ * before pictures (which the server has to draw in), else none.
+ */
+fun initialSubtitle(detail: MediaItemDetail): MediaTrackInfo? =
+    detail.subtitles.filter { it.forced }.minByOrNull { isPictureSubtitle(it) }
 
 /** The audio track playing when none is picked: the file's default, else its first. */
 fun defaultAudio(detail: MediaItemDetail): MediaTrackInfo? = detail.audio.firstOrNull { it.default } ?: detail.audio.firstOrNull()

@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.*
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.library.LibraryKind
+import dev.jamesrich.sofaking.backend.library.PgsFixture
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.*
 import io.ktor.client.request.*
@@ -160,6 +161,57 @@ class VodApiTest {
             }.bodyAsText())
             assertEquals(Wire.VodMode.DIRECT, open(1).mode, "the default stream plays directly")
             assertEquals(Wire.VodMode.REMUX, open(2).mode, "another stream is carried in the stream")
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
+    @Test fun `subtitle files beside a video are read as text and picture subtitles are drawn into the picture`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-vod-sidecars-")
+        val source = dir.resolve("plain.mkv")
+        clip(source)
+        val sup = dir.resolve("embedded.sup")
+        PgsFixture.write(sup, listOf(1_000L..3_000L, 4_000L..6_500L), 320, 180)
+        val movie = dir.resolve("media/movies/Talk (2021)/Talk (2021).mkv")
+        Files.createDirectories(movie.parent)
+        // The clip's video and audio, and PGS subtitles as stream 2.
+        val mux = ProcessBuilder(
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", source.toString(), "-i", sup.toString(),
+            "-map", "0:v", "-map", "0:a", "-map", "1:s", "-c", "copy", movie.toString(),
+        ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+        assertTrue(mux.waitFor(60, TimeUnit.SECONDS) && mux.exitValue() == 0, "FFmpeg muxed the subtitles")
+        Files.writeString(movie.resolveSibling("Talk (2021).en.forced.srt"), "1\n00:00:01,000 --> 00:00:03,000\nHello there\n")
+        PgsFixture.write(movie.resolveSibling("Talk (2021).de.sup"), listOf(2_000L..5_000L), 320, 180)
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null, maxTranscodes = 2)
+        val store = openStore(dir)
+        val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
+        try {
+            val library = runtime.libraries!!.create("Movies", LibraryKind.MOVIES, dir.resolve("media/movies").toString())
+            runtime.libraries!!.scan(library.id)
+            val item = runtime.libraries!!.catalog.items(library.id, null, false, null, 10).items.single()
+            val detail = runtime.libraries!!.catalog.item(item.id)
+            assertEquals(listOf(2 to "hdmv_pgs_subtitle", 1000 to "hdmv_pgs_subtitle", 1001 to "subrip"), detail.subtitles.map { it.index to it.codec })
+            assertEquals("de", detail.subtitles[1].language)
+            assertTrue(detail.subtitles[2].forced)
+            application { backendModule(store, MutableClock(), runtime, token, config = config) }
+
+            val vtt = client.get("/api/v1/library/items/${item.id}/subtitles/1001") { bearerAuth(token) }.bodyAsText()
+            assertTrue(vtt.startsWith("WEBVTT") && "Hello there" in vtt, vtt)
+            assertEquals(HttpStatusCode.UnsupportedMediaType, client.get("/api/v1/library/items/${item.id}/subtitles/2") { bearerAuth(token) }.status)
+            assertEquals(HttpStatusCode.UnsupportedMediaType, client.get("/api/v1/library/items/${item.id}/subtitles/1000") { bearerAuth(token) }.status)
+            assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/library/items/${item.id}/subtitles/1002") { bearerAuth(token) }.status)
+
+            val profile = ClientProfile(listOf("mkv"), listOf(detail.videoCodec!!), listOf("aac"))
+            suspend fun open(subtitleIndex: Int?) = client.post("/api/v1/vod-sessions") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback(item.id, profile, startMs = 1_500, subtitleIndex = subtitleIndex)))
+            }
+            for (index in listOf(2, 1000)) {
+                val session = json.decodeFromString<VodSession>(open(index).bodyAsText())
+                assertEquals(Wire.VodMode.TRANSCODE, session.mode, "subtitle $index is drawn, so the picture is encoded")
+                assertTrue("seg0.ts" in client.get(session.descriptor.url).bodyAsText(), "FFmpeg drew subtitle $index")
+                assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/vod-sessions/${session.id}") { bearerAuth(token) }.status)
+            }
+            assertEquals(HttpStatusCode.BadRequest, open(1001).status, "text is drawn by the player")
+            assertEquals(HttpStatusCode.NotFound, open(7).status)
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
     }
 }

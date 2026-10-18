@@ -227,10 +227,10 @@ class LibraryViewModel(
      * Opens [item] on the app's one session, releasing whatever was held: from the start with [fromStart], else
      * where the household stopped in it. [profile] is what the player plays as it is.
      */
-    suspend fun play(item: MediaItem, profile: PlaybackProfile, fromStart: Boolean = false, audioIndex: Int? = null): PlaybackStream {
+    suspend fun play(item: MediaItem, profile: PlaybackProfile, fromStart: Boolean = false, audioIndex: Int? = null, subtitleIndex: Int? = null): PlaybackStream {
         val start = item.progress?.takeIf { !fromStart && it.inProgress }?.positionMs ?: 0
         saved.remove(item.id)
-        return sessions.play(item.id, profile, start, audioIndex)
+        return sessions.play(item.id, profile, start, audioIndex, subtitleIndex)
     }
 
     /**
@@ -256,11 +256,12 @@ class LibraryViewModel(
     }
 
     /**
-     * Plays [item] again from [positionMs] with the audio track [audioIndex], on the same terms as [play]; the
-     * player loads the new stream the sessions publish.
+     * Plays [item] again from [positionMs] with the audio track [audioIndex] and the picture subtitle track
+     * [subtitleIndex] drawn in (none when null), on the same terms as [play]; the player loads the new stream the
+     * sessions publish.
      */
-    suspend fun switchAudio(item: MediaItem, profile: PlaybackProfile, positionMs: Long, audioIndex: Int): PlaybackStream =
-        sessions.play(item.id, profile, positionMs, audioIndex)
+    suspend fun switchTracks(item: MediaItem, profile: PlaybackProfile, positionMs: Long, audioIndex: Int?, subtitleIndex: Int?): PlaybackStream =
+        sessions.play(item.id, profile, positionMs, audioIndex, subtitleIndex)
 
     /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
     suspend fun subtitles(itemId: String, index: Int): Subtitles? {

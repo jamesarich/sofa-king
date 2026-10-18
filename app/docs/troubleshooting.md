@@ -52,7 +52,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 
 | Symptom | Check |
 | --- | --- |
-| No Library tab | The server has no media library, or is too old to serve them. Add one on the admin portal's [Library page](../../backend/docs/admin.md#library). |
+| No Library tab | The server has no media library, or is too old to serve them. Add one on the admin portal's [Library page](../../backend/docs/admin.md#library); the tab appears within five minutes. |
 | No Recordings tab or Record button | The server is too old to record; update it. Record shows only on programs that have not ended. |
 | A line under Record says the server did not take it | The program is not in the server's guide, or has ended. The server's [troubleshooting](../../backend/docs/troubleshooting.md#recordings) has the rest. |
 | `CAPACITY_EXHAUSTED` playing a library item or a recording | The server is already converting as many files as `SOFA_MAX_TRANSCODES` allows. Stop playback elsewhere and try again. |

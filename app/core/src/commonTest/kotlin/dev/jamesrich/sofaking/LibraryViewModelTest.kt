@@ -29,6 +29,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
@@ -90,6 +91,42 @@ class LibraryViewModelTest {
         runCurrent()
         assertEquals(LibraryHomeState.Unconfigured, none.home.value)
         none.viewModelScope.cancel()
+    }
+
+    @Test
+    fun `every Recently added row has its own key`() = runTest {
+        val server = Server(this) { _, path, _ ->
+            if (path == "/api/v1/library/home") 200 to """{"shelves":[
+                {"id":"continue","title":"Continue watching","items":[${item("e1", "episode")}]},
+                {"id":"recent","title":"Recently added in Movies","libraryId":"movies","items":[${item("m1")}]},
+                {"id":"recent","title":"Recently added in TV shows","libraryId":"shows","items":[${item("s1", "show")}]}],
+                "libraries":[{"id":"movies","name":"Movies","kind":"movies"},{"id":"shows","name":"TV shows","kind":"shows"}]}""" else null
+        }
+        val model = viewModel(server)
+        runCurrent()
+
+        val shelves = assertIs<LibraryHomeState.Ready>(model.home.value).home.shelves
+        assertEquals(listOf("continue", "recent:movies", "recent:shows"), shelves.map { it.key })
+        model.viewModelScope.cancel()
+    }
+
+    @Test
+    fun `a home with no library is loaded again until the server adds one`() = runTest {
+        var libraries = ""
+        val server = Server(this) { _, path, _ ->
+            if (path == "/api/v1/library/home") 200 to """{"shelves":[],"libraries":[$libraries]}""" else null
+        }
+        val model = viewModel(server)
+        runCurrent()
+        assertTrue(assertIs<LibraryHomeState.Ready>(model.home.value).home.libraries.isEmpty())
+
+        libraries = """{"id":"lib","name":"Movies","kind":"movies","items":3}"""
+        advanceTimeBy(5.minutes + 1.seconds)
+        assertEquals(listOf("lib"), assertIs<LibraryHomeState.Ready>(model.home.value).home.libraries.map { it.id })
+
+        advanceTimeBy(30.minutes)
+        assertEquals(2, server.requests.count { it.contains("/library/home") }, "a home with a library is not polled")
+        model.viewModelScope.cancel()
     }
 
     @Test

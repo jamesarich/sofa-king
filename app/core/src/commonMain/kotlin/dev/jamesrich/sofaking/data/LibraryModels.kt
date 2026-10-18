@@ -141,7 +141,10 @@ data class MediaShelf(
     val items: List<MediaItem>,
     /** The library the row is from, or null for a row across libraries. */
     val libraryId: String? = null,
-)
+) {
+    /** Unique among the home's rows, where every library's Recently added row has the same [id]. */
+    val key: String get() = libraryId?.let { "$id:$it" } ?: id
+}
 
 data class MediaHome(
     val shelves: List<MediaShelf>,

@@ -190,7 +190,10 @@ class LiveRuntime(
                     artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork")),
                 )
                 libraries.start(scope)
-                val vod = VodSessions(libraries.catalog, clock, config.ffmpeg, config.dataDirectory.resolve("transcode"), config.maxTranscodes)
+                val vod = VodSessions(
+                    libraries.catalog, clock, config.ffmpeg, config.dataDirectory.resolve("transcode"), config.maxTranscodes,
+                    recordings = dvr::playable, probe = MediaProbe(ffprobeBeside(config.ffmpeg))::probe,
+                )
                 vod.start()
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,

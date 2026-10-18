@@ -5,9 +5,13 @@ import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.LibrarySort
+import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.onAppleTv
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
@@ -53,7 +57,13 @@ class SofaKingTv {
 
     val viewModel = LineupViewModel(store = DataStoreSettingsStore(storage.settings), lineupCache = storage.lineupCache, client = storage.client)
 
+    /** The media libraries, playing through the same session as the channels. */
+    val library = LibraryViewModel(viewModel.api, viewModel.sessions)
+
     fun watchState(onChange: (LineupState) -> Unit): Watch = watch(viewModel.state, onChange)
+
+    /** What the server offers beyond live TV; the Library tab shows when it serves libraries. */
+    fun watchCapabilities(onChange: (ServerCapabilities) -> Unit): Watch = watch(viewModel.capabilities, onChange)
 
     fun watchSettings(onChange: (AppSettings) -> Unit): Watch = watch(viewModel.settings.filterNotNull(), onChange)
 
@@ -79,6 +89,40 @@ class SofaKingTv {
     fun stopWatching() {
         scope.launch { viewModel.sessions.release(forget = true) }
     }
+
+    fun watchLibraryHome(onChange: (LibraryHomeState) -> Unit): Watch = watch(library.home, onChange)
+
+    /** The grid [openGrid] opened last, as its pages load. */
+    fun watchLibraryGrid(onChange: (LibraryGrid?) -> Unit): Watch = watch(library.grid, onChange)
+
+    /** [id]'s page, loaded on the first watch. */
+    fun watchItem(id: String, onChange: (ItemDetailState) -> Unit): Watch = watch(library.detail(id), onChange)
+
+    fun refreshLibrary() = library.refreshHome()
+
+    fun refreshItem(id: String) {
+        library.detail(id, refresh = true)
+    }
+
+    fun openGrid(libraryId: String, sort: LibrarySort, unwatched: Boolean) = library.openGrid(libraryId, sort, unwatched)
+
+    fun loadMore() = library.loadMore()
+
+    fun setWatched(item: MediaItem, watched: Boolean) = library.setWatched(item, watched)
+
+    /** Opens [item] on the session, from the start with [fromStart], else where the household stopped in it. */
+    @Throws(Exception::class)
+    suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream = library.play(item, appleTvProfile, fromStart)
+
+    /** Restarts a converted stream at [positionMs] in the item; a file played as it is comes back unchanged. */
+    @Throws(Exception::class)
+    suspend fun restartItemAt(positionMs: Long): PlaybackStream? = viewModel.sessions.restartAt(positionMs)
+
+    /** The player is at [positionMs] in [itemId]; [durationMs] is 0 while the length is unknown. */
+    fun itemProgress(itemId: String, positionMs: Long, durationMs: Long) = library.progress(itemId, positionMs, durationMs.takeIf { it > 0 })
+
+    /** Playback of [itemId] stopped at [positionMs]; saved now, and the library's pages reload. */
+    fun itemStopped(itemId: String, positionMs: Long, durationMs: Long) = library.stopped(itemId, positionMs, durationMs.takeIf { it > 0 })
 
     /** Claims a pairing [code] at [url] and saves the server it opens; null on success, else why it failed. */
     suspend fun pair(url: String, code: String): PairingFailure? = viewModel.pair(url, code)
@@ -106,4 +150,17 @@ class SofaKingTv {
     fun summary(programme: Programme): String? = programme.description
 
     private fun <T> watch(flow: Flow<T>, onChange: (T) -> Unit): Watch = Watch(scope.launch { flow.collect { onChange(it) } })
+
+    private companion object {
+        /**
+         * What AVPlayer plays as it is, as the iOS app asks for: H.264 in MP4. HEVC is converted, since AVPlayer
+         * takes it only tagged `hvc1` and in fragmented MP4, not in the MPEG-TS segments the server copies into.
+         */
+        val appleTvProfile = PlaybackProfile(
+            containers = listOf("mp4"),
+            videoCodecs = listOf("h264"),
+            audioCodecs = listOf("aac", "ac3", "eac3", "mp3", "alac", "flac"),
+            maxHeight = 2160,
+        )
+    }
 }

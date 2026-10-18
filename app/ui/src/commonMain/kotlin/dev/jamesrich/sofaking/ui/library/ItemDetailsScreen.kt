@@ -47,6 +47,8 @@ import dev.jamesrich.sofaking.ItemDetailState
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.PrimaryAction
+import dev.jamesrich.sofaking.data.primaryAction
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.MessageScreen

@@ -70,6 +70,10 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):
 
+- [ ] The tab bar shows Live, Library (only for a server with libraries) and Settings; a Top Shelf channel opens on Live from any tab.
+- [ ] In the Library, a card opens its page, play/pause on the remote plays a movie or episode straight from its card, and a library's grid sorts, filters and loads more as it scrolls.
+- [ ] A show's page opens on the season with the next episode; selecting an episode plays it, resuming where it stopped, and its context menu starts it over or marks it watched.
+- [ ] The library player resumes where the item stopped, scrubs in the transport bar, returns to the page at the end, and after Home and back picks up where it was.
 - [ ] Holding the touch surface on a channel opens its program details, and Watch plays it.
 - [ ] The player's transport bar menu toggles the favorite and switches channels from Recent, Favorites and All channels.
 - [ ] After watching a few channels, the Top Shelf shows them newest first, and selecting one opens the app on it; the app and the extension must be signed with the `group.dev.jamesrich.sofaking` app group for the list to reach the extension.

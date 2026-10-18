@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import dev.jamesrich.sofaking.data.LibrarySort
+import dev.jamesrich.sofaking.data.initialSeasonId
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
 import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
@@ -43,7 +44,6 @@ import dev.jamesrich.sofaking.ui.library.LibraryGridActions
 import dev.jamesrich.sofaking.ui.library.LibraryGridScreen
 import dev.jamesrich.sofaking.ui.library.LibraryHomeActions
 import dev.jamesrich.sofaking.ui.library.LibraryHomeScreen
-import dev.jamesrich.sofaking.ui.library.initialSeasonId
 import dev.jamesrich.sofaking.ui.library.libraryFocusKey
 import dev.jamesrich.sofaking.ui.player.PlayerIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus

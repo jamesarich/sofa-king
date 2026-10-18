@@ -15,8 +15,10 @@ FROM eclipse-temurin:21.0.12.1_1-jre-noble@sha256:000fd431958bc81a24abe1e8e5f0f0
 
 # tini reaps the FFmpeg processes the server starts for probes and remuxing, under any container runtime.
 # sqlite3 takes online database backups from inside the container. comskip (GPL, run as its own program) finds commercial breaks in recordings.
+# The VA-API drivers (Mesa for AMD; Intel's media driver and Quick Sync runtime on amd64) serve SOFA_HWACCEL.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg comskip curl ca-certificates tini sqlite3 \
+    && apt-get install -y --no-install-recommends ffmpeg comskip curl ca-certificates tini sqlite3 mesa-va-drivers \
+        $(if [ "$(dpkg --print-architecture)" = amd64 ]; then echo intel-media-va-driver libmfx-gen1.2; fi) \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 10001 sofa \
     && useradd --system --uid 10001 --gid sofa --home-dir /config --shell /usr/sbin/nologin sofa \

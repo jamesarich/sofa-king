@@ -1,7 +1,9 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.http.AddressAllowList
+import dev.jamesrich.sofaking.backend.library.HardwareAccel
 import dev.jamesrich.sofaking.backend.library.TmdbConfig
+import dev.jamesrich.sofaking.backend.library.VideoEncoder
 import dev.jamesrich.sofaking.backend.logging.LogSettings
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import java.nio.file.Files
@@ -101,6 +103,8 @@ data class ServerConfig(
     val tmdb: TmdbConfig? = null,
     /** Library files FFmpeg converts or remuxes at once (`SOFA_MAX_TRANSCODES`); direct play is not counted. */
     val maxTranscodes: Int = 2,
+    /** `SOFA_HWACCEL` and `SOFA_HWACCEL_DEVICE`: the GPU encoder library conversions use; software when unset. */
+    val videoEncoder: VideoEncoder = VideoEncoder(),
     /** `SOFA_RECORDINGS_FREE_GIB`: the space the DVR keeps free on the recordings folder's disk by deleting the oldest recordings. */
     val recordingsFreeGib: Int = 10,
     /** `SOFA_RECORDINGS_KEEP_DAYS`: the days the DVR keeps a recording; 0 keeps it until space runs short. */
@@ -272,6 +276,10 @@ data class ServerConfig(
                 tmdb = tmdbConfig(environment),
                 maxTranscodes = (environment["SOFA_MAX_TRANSCODES"] ?: "2").toIntOrNull()?.takeIf { it in 1..8 }
                     ?: throw IllegalArgumentException("SOFA_MAX_TRANSCODES must be between 1 and 8"),
+                videoEncoder = VideoEncoder(
+                    HardwareAccel.parse(environment["SOFA_HWACCEL"]),
+                    environment["SOFA_HWACCEL_DEVICE"]?.trim()?.ifEmpty { null } ?: VideoEncoder.DEFAULT_DEVICE,
+                ),
                 recordingsFreeGib = freeGib,
                 recordingsKeepDays = keepDays,
                 comskip = comskip.takeUnless { it == "none" },

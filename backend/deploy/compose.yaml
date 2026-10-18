@@ -54,6 +54,11 @@ services:
       - ./recordings:/recordings
       # Your movies and shows, read only: the server never writes to them.
       # - /mnt/disk/media:/media:ro
+    # A GPU for converting library files with SOFA_HWACCEL=vaapi or qsv; see docs/libraries.md#hardware-transcoding.
+    # devices:
+    #   - /dev/dri:/dev/dri
+    # group_add:
+    #   - "RENDER_GID"
     extra_hosts:
       # Lets sources.json reach a playlist or guide served by this Docker host as http://host.docker.internal:PORT/...
       - "host.docker.internal:host-gateway"

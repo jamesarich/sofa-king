@@ -192,7 +192,7 @@ class LiveRuntime(
                 libraries.start(scope)
                 val vod = VodSessions(
                     libraries.catalog, clock, config.ffmpeg, config.dataDirectory.resolve("transcode"), config.maxTranscodes,
-                    recordings = dvr::playable, probe = MediaProbe(ffprobeBeside(config.ffmpeg))::probe,
+                    recordings = dvr::playable, probe = MediaProbe(ffprobeBeside(config.ffmpeg))::probe, encoder = config.videoEncoder,
                 )
                 vod.start()
                 val runtime = LiveRuntime(

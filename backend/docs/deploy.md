@@ -41,7 +41,7 @@ A second recording with the same name gets its start time, as in `Show - 2026-10
 
 ## The media folder
 
-[Media libraries](libraries.md) are added from `SOFA_MEDIA_DIR`. To use them, uncomment the `SOFA_MEDIA_DIR: /media` line and the `/media` mount in `compose.yaml`, and change the left side of the mount to the folder that holds your movies and shows, for example `/mnt/disk/media:/media:ro`. Keep the `:ro`: the server only reads the folder. The user the container runs as needs read access to it. Then add each library on the portal's Library page.
+[Media libraries](libraries.md) are added from `SOFA_MEDIA_DIR`. To use them, uncomment the `SOFA_MEDIA_DIR: /media` line and the `/media` mount in `compose.yaml`, and change the left side of the mount to the folder that holds your movies and shows, for example `/mnt/disk/media:/media:ro`. Keep the `:ro`: the server only reads the folder. The user the container runs as needs read access to it. Then add each library on the portal's Library page. To convert files on a GPU, see [hardware transcoding](libraries.md#hardware-transcoding).
 
 ## Run as your own user
 

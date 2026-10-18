@@ -1,9 +1,12 @@
 package dev.jamesrich.sofaking.data
 
 import dev.jamesrich.sofaking.contract.ApiError
+import dev.jamesrich.sofaking.contract.Bootstrap
+import dev.jamesrich.sofaking.contract.Capabilities
 import dev.jamesrich.sofaking.contract.Catalog
 import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.ChannelGuide
+import dev.jamesrich.sofaking.contract.CreateRecordingRule
 import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.contract.GuideWindow
 import dev.jamesrich.sofaking.contract.ClientProfile
@@ -24,6 +27,11 @@ import dev.jamesrich.sofaking.contract.PairingResult
 import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.PlaybackSession
 import dev.jamesrich.sofaking.contract.Programme
+import dev.jamesrich.sofaking.contract.Recording
+import dev.jamesrich.sofaking.contract.RecordingList
+import dev.jamesrich.sofaking.contract.RecordingRule
+import dev.jamesrich.sofaking.contract.RecordingRuleList
+import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.ViewerPreferences
 import kotlinx.serialization.json.Json
@@ -62,3 +70,11 @@ internal typealias OpenVodPlaybackDto = OpenVodPlayback
 internal typealias UpdateVodPlaybackDto = UpdateVodPlayback
 internal typealias VodSessionDto = VodSession
 internal typealias ClientProfileDto = ClientProfile
+internal typealias BootstrapDto = Bootstrap
+internal typealias CapabilitiesDto = Capabilities
+internal typealias RecordingDto = Recording
+internal typealias RecordingListDto = RecordingList
+internal typealias RecordingRuleDto = RecordingRule
+internal typealias RecordingRuleListDto = RecordingRuleList
+internal typealias ScheduleRecordingDto = ScheduleRecording
+internal typealias CreateRecordingRuleDto = CreateRecordingRule

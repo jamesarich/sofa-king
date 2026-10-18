@@ -27,7 +27,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
@@ -57,6 +62,7 @@ import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
 
@@ -64,7 +70,7 @@ import kotlin.time.Instant
 @Immutable
 internal data class ProgrammeDetails(val channel: Channel, val programme: Programme?)
 
-/** The side panel's width on a TV: room for the image beside the title and the three buttons on one line. */
+/** The side panel's width on a TV: room for the image beside the title and three buttons on a line. */
 private val PANEL_WIDTH = 560.dp
 
 /** The image's width beside the title in the TV panel, at 16:9. */
@@ -74,8 +80,9 @@ private val PANEL_IMAGE_WIDTH = 160.dp
 private val SHEET_TEXT_MAX_HEIGHT = 360.dp
 
 /**
- * The programme's details with Watch and Favorite: a side panel over the guide on a TV, where a window of its own
- * would not take D-pad focus, and a Material bottom sheet elsewhere. Back and Close dismiss it.
+ * The programme's details with Watch and Favorite, and Record and Record series when [recording] says how the
+ * programme is set (null on a server that does not record): a side panel over the guide on a TV, where a window of
+ * its own would not take D-pad focus, and a Material bottom sheet elsewhere. Back and Close dismiss it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,9 +94,16 @@ internal fun ProgrammeSheet(
     onWatch: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     onDismiss: () -> Unit,
+    recording: RecordingMark? = null,
+    onRecord: suspend (Programme) -> Boolean = { false },
+    onRecordSeries: suspend (Programme) -> Boolean = { false },
 ) {
     val watchFocus = remember { FocusRequester() }
-    val buttons: @Composable () -> Unit = { SheetButtons(details.channel, isFavorite, watchFocus, onWatch, onToggleFavorite, onDismiss) }
+    val recordable = details.programme?.takeIf { recording != null && programmeTiming(it, now) != ProgrammeTiming.Ended }
+    val buttons: @Composable () -> Unit = {
+        SheetButtons(details.channel, isFavorite, watchFocus, onWatch, onToggleFavorite, onDismiss)
+        if (recordable != null && recording != null) RecordButtons(recordable, recording, onRecord, onRecordSeries)
+    }
     if (LocalLayoutProfile.current.tv) {
         BackHandler(onBack = onDismiss)
         LaunchedEffect(details) { requestFocusWhenAttached(watchFocus) }
@@ -225,6 +239,42 @@ private fun SheetButtons(
             Text(stringResource(if (isFavorite) Res.string.guide_details_remove_favorite else Res.string.guide_details_add_favorite), maxLines = 1)
         }
         SofaButton(onClick = onDismiss) { Text(stringResource(Res.string.guide_details_close), maxLines = 1) }
+    }
+}
+
+/**
+ * Record or cancel the programme, and record or stop its series, with a line when the server did not take the
+ * change. A press waits for the server, so a second press cannot undo the first before the marks catch up.
+ */
+@Composable
+private fun RecordButtons(
+    programme: Programme,
+    mark: RecordingMark,
+    onRecord: suspend (Programme) -> Boolean,
+    onRecordSeries: suspend (Programme) -> Boolean,
+) {
+    val scope = rememberCoroutineScope()
+    var busy by remember(programme) { mutableStateOf(false) }
+    var failed by remember(programme) { mutableStateOf(false) }
+    fun run(action: suspend (Programme) -> Boolean) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            try { failed = !action(programme) } finally { busy = false }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SofaButton(onClick = { run(onRecord) }) {
+                Text(stringResource(if (mark.recording) Res.string.guide_details_cancel_recording else Res.string.guide_details_record), maxLines = 1)
+            }
+            SofaButton(onClick = { run(onRecordSeries) }) {
+                Text(stringResource(if (mark.series) Res.string.guide_details_stop_series else Res.string.guide_details_record_series), maxLines = 1)
+            }
+        }
+        if (failed) {
+            Text(stringResource(Res.string.guide_details_record_failed), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        }
     }
 }
 

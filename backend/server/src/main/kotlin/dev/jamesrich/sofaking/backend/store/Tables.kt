@@ -136,3 +136,62 @@ internal object Viewers : Table("viewer") {
     val updatedAt = text("updated_at").nullable()
     override val primaryKey = PrimaryKey(clientId)
 }
+
+/** One media library: a folder under the media directory and how its files are named. */
+internal object Libraries : Table("library") {
+    val id = text("id")
+    val name = text("name")
+    val kind = text("kind")
+    val path = text("path")
+    val createdAt = text("created_at")
+    val scannedAt = text("scanned_at").nullable()
+    val scanOk = bool("scan_ok").nullable()
+    val scanNote = text("scan_note").nullable()
+    override val primaryKey = PrimaryKey(id)
+}
+
+/** One movie, show, season, episode or video of a library; [path] is relative to the library's folder and null for a show or season. */
+internal object LibraryItems : Table("library_item") {
+    val id = text("id")
+    val libraryId = text("library_id")
+    val kind = text("kind")
+    val parentId = text("parent_id").nullable()
+    val path = text("path").nullable()
+    val title = text("title")
+    val sortTitle = text("sort_title")
+    val year = integer("year").nullable()
+    val season = integer("season").nullable()
+    val episode = integer("episode").nullable()
+    val episodeEnd = integer("episode_end").nullable()
+    val aired = text("aired").nullable()
+    val overview = text("overview").nullable()
+    val durationMs = long("duration_ms").nullable()
+    val size = long("size").nullable()
+    val modifiedAt = text("modified_at").nullable()
+    val mediaJson = text("media_json").nullable()
+    val detailsJson = text("details_json").nullable()
+    val poster = text("poster").nullable()
+    val backdrop = text("backdrop").nullable()
+    val addedAt = text("added_at")
+    val missingSince = text("missing_since").nullable()
+    override val primaryKey = PrimaryKey(id)
+}
+
+/** The household's resume point and watched flag for one item. */
+internal object PlayStates : Table("play_state") {
+    val itemId = text("item_id")
+    val positionMs = long("position_ms")
+    val durationMs = long("duration_ms").nullable()
+    val watched = bool("watched")
+    val updatedAt = text("updated_at")
+    override val primaryKey = PrimaryKey(itemId)
+}
+
+/** What TMDB says about one item, and when it was last asked; [tmdbId] is null when no match was found. */
+internal object LibraryMetadataRows : Table("library_metadata") {
+    val itemId = text("item_id")
+    val tmdbId = integer("tmdb_id").nullable()
+    val checkedAt = text("checked_at")
+    val factsJson = text("facts_json").nullable()
+    override val primaryKey = PrimaryKey(itemId)
+}

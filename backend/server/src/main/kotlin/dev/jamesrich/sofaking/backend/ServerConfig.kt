@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.http.AddressAllowList
+import dev.jamesrich.sofaking.backend.library.TmdbConfig
 import dev.jamesrich.sofaking.backend.logging.LogSettings
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
 import java.nio.file.Files
@@ -94,6 +95,10 @@ data class ServerConfig(
     val corsOrigins: List<CorsOrigin> = emptyList(),
     /** `SOFA_RECORDINGS_DIR`, where the DVR writes recordings; unset, `recordings` in the data directory. */
     val recordingsDirectory: Path = dataDirectory.resolve("recordings"),
+    /** `SOFA_MEDIA_DIR`: the folder media libraries live under, read only; `media` in the data directory when unset. */
+    val mediaDirectory: Path = dataDirectory.resolve("media"),
+    /** `SOFA_TMDB_TOKEN` and `SOFA_TMDB_LANGUAGE`: TMDB lookups for the media libraries; null leaves them off. */
+    val tmdb: TmdbConfig? = null,
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -248,6 +253,9 @@ data class ServerConfig(
                 updateImage = environment["SOFA_UPDATE_IMAGE"]?.trim()?.takeIf { it.isNotEmpty() }?.also { UpdateChecker.ImageRef.parse(it) } ?: if (environment["SOFA_UPDATE_IMAGE"] == null) DEFAULT_UPDATE_IMAGE else null,
                 corsOrigins = corsOrigins(environment["SOFA_CORS_ORIGINS"]),
                 recordingsDirectory = recordings ?: Path.of(directory).resolve("recordings"),
+                mediaDirectory = environment["SOFA_MEDIA_DIR"]?.let { require(it.isNotBlank()) { "SOFA_MEDIA_DIR must not be blank" }; Path.of(it) }
+                    ?: Path.of(directory).resolve("media"),
+                tmdb = tmdbConfig(environment),
             )
         }
 
@@ -262,6 +270,14 @@ data class ServerConfig(
                 val host = uri.host.lowercase()
                 CorsOrigin(scheme, if (uri.port == -1) host else "$host:${uri.port}")
             }.distinct()
+
+        private fun tmdbConfig(environment: Map<String, String>): TmdbConfig? {
+            val language = environment["SOFA_TMDB_LANGUAGE"]?.trim()
+            require(language == null || language.matches(Regex("[a-z]{2,3}(-[A-Z]{2})?"))) { "SOFA_TMDB_LANGUAGE must be a language tag such as en-US" }
+            val token = environment["SOFA_TMDB_TOKEN"]?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            require(token.length >= 32 && token.none { it <= ' ' || it == '\u007f' }) { "SOFA_TMDB_TOKEN must be a TMDB API read access token or API key" }
+            return TmdbConfig(token, language ?: "en-US")
+        }
 
         private fun plexConfig(environment: Map<String, String>, hdhrEnabled: Boolean): PlexConfig? {
             val url = environment["SOFA_PLEX_URL"]

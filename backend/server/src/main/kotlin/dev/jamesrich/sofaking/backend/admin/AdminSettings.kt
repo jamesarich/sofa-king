@@ -81,12 +81,15 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
             s("SOFA_ALLOW_LOOPBACK_UPSTREAMS", config.allowLoopbackUpstreams, false),
             s("SOFA_LOG_FORMAT", config.logging.format, "text"),
             s("SOFA_CORS_ORIGINS", config.corsOrigins.joinToString(), ""),
+            s("SOFA_MEDIA_DIR", config.mediaDirectory, config.dataDirectory.resolve("media")),
+            s("SOFA_TMDB_LANGUAGE", config.tmdb?.language ?: "en-US", "en-US"),
         )),
         SettingGroup("Tokens", listOf(
             secret("SOFA_API_TOKEN", config.apiToken, "Opens /api/v1; the Sofa King app needs it"),
             secret("SOFA_ADMIN_TOKEN", config.adminToken, if (config.adminToken == null) "The API token signs in here and opens the admin API" else "Signs in here and opens the admin API"),
             secret("SOFA_OUTPUT_TOKEN", config.outputs.token, "Players and Plex fetch /output with it; reveal it on the Plex page"),
             secret("SOFA_PLEX_TOKEN", plex?.token, "Sent to Plex only"),
+            secret("SOFA_TMDB_TOKEN", config.tmdb?.token, "Sent to TMDB only, for library details and artwork"),
         )),
         SettingGroup("HDHomeRun", listOf(
             s("SOFA_HDHR_ENABLED", hdhr.enabled, true),

@@ -1009,4 +1009,37 @@ class AdminPortalTest {
             assertEquals(HttpStatusCode.NotFound, api.get("/api/v1/preferences/den-tv") { bearerAuth(token) }.status)
         }
     }
+
+    @Test fun `the library page adds, scans, renames and removes a library without touching its files`() = testApplication {
+        portal {
+            val movies = Files.createDirectories(dataDirectory.resolve("media/movies/Alien (1979)")).parent
+            Files.writeString(movies.resolve("Alien (1979)/Alien (1979).mkv"), "not really a movie")
+            browser.signIn()
+            val page = browser.get("/admin/library").bodyAsText()
+            assertTrue(page.contains("No library yet"), page)
+            assertTrue(page.contains(">Library<"), "the nav names the destination")
+            assertTrue(page.contains("""value="$movies""""), "the folder is offered")
+            val csrf = field(page, "csrf")
+
+            val refused = browser.post("/admin/library", "csrf" to csrf, "name" to "", "kind" to "movies", "path" to movies.toString())
+            assertEquals(HttpStatusCode.BadRequest, refused.status)
+            assertTrue(refused.bodyAsText().contains("1 to 100 characters"))
+
+            assertEquals(HttpStatusCode.SeeOther, browser.post("/admin/library", "csrf" to csrf, "name" to "Movies", "kind" to "movies", "path" to movies.toString()).status)
+            val library = runtime.libraries!!.libraries().single()
+            runtime.libraries!!.scan(library.id)
+            val listed = browser.get("/admin/library").bodyAsText()
+            assertTrue(listed.contains("1 movie"), listed)
+
+            browser.post("/admin/library/${library.id}/rename", "csrf" to csrf, "name" to "Films")
+            assertEquals("Films", runtime.libraries!!.library(library.id).name)
+
+            val ask = browser.post("/admin/library/${library.id}/remove", "csrf" to csrf)
+            assertTrue(ask.bodyAsText().contains("Remove Films?"), "removal asks first")
+            assertEquals(1, runtime.libraries!!.libraries().size)
+            browser.post("/admin/library/${library.id}/remove", "csrf" to csrf, "confirm" to "yes")
+            assertTrue(runtime.libraries!!.libraries().isEmpty())
+            assertTrue(Files.exists(movies.resolve("Alien (1979)/Alien (1979).mkv")), "the files stay")
+        }
+    }
 }

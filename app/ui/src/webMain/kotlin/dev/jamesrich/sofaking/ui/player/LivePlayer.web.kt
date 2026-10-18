@@ -211,7 +211,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     }
 
     override fun play() {
-        val toLive = pauseClock.onPlay(uptimeMs())
+        val toLive = pauseClock.onPlay(uptimeMs()) && stream?.seekable != true
         playWhenReady = true
         if (toLive) {
             stop()
@@ -222,6 +222,24 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     override fun pause() {
         pauseClock.onPause(uptimeMs())
         playWhenReady = false
+    }
+
+    override val isSeekable: Boolean get() = stream?.seekable == true && loaded && video.seekable.length > 0
+
+    override val positionMs: Long get() = if (isSeekable) (video.currentTime * 1000).toLong().coerceAtLeast(0L) else 0L
+
+    /** A finished file reports its duration; a growing recording reports Infinity, so its seekable end stands in. */
+    override val durationMs: Long?
+        get() {
+            if (!isSeekable) return null
+            val seconds = video.duration.takeIf { it.isFinite() && it > 0 } ?: video.seekable.end(video.seekable.length - 1)
+            return (seconds * 1000).toLong().takeIf { it > 0L }
+        }
+
+    override fun seekTo(positionMs: Long) {
+        if (!isSeekable) return
+        val target = durationMs?.let { positionMs.coerceIn(0L, it) } ?: positionMs.coerceAtLeast(0L)
+        video.currentTime = target / 1000.0
     }
 
     /**

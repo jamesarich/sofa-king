@@ -58,7 +58,15 @@ import platform.AVFoundation.mediaSelectionGroupForMediaCharacteristic
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
+import platform.AVFoundation.CMTimeRangeValue
+import platform.AVFoundation.currentTime
+import platform.AVFoundation.duration
 import platform.AVFoundation.seekToDate
+import platform.AVFoundation.seekToTime
+import platform.AVFoundation.seekableTimeRanges
+import platform.CoreMedia.CMTimeGetSeconds
+import platform.CoreMedia.CMTimeMakeWithSeconds
+import platform.Foundation.NSValue
 import platform.AVFoundation.selectMediaOption
 import platform.AVFoundation.timeControlStatus
 import platform.AVFoundation.volume
@@ -221,13 +229,35 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     }
 
     override fun play() {
-        if (pauseClock.onPlay(uptimeMs())) av.currentItem?.seekToDate(NSDate())
+        if (pauseClock.onPlay(uptimeMs()) && stream?.seekable != true) av.currentItem?.seekToDate(NSDate())
         playWhenReady = true
     }
 
     override fun pause() {
         pauseClock.onPause(uptimeMs())
         playWhenReady = false
+    }
+
+    override val isSeekable: Boolean get() = stream?.seekable == true && av.currentItem?.status == AVPlayerItemStatusReadyToPlay
+
+    override val positionMs: Long
+        get() = if (isSeekable) (CMTimeGetSeconds(av.currentTime()) * 1000).takeIf { it.isFinite() }?.toLong()?.coerceAtLeast(0L) ?: 0L else 0L
+
+    /** A finished file reports its duration; a growing recording's is indefinite, so the end of its seekable range stands in. */
+    override val durationMs: Long?
+        get() {
+            val item = av.currentItem?.takeIf { isSeekable } ?: return null
+            val seconds = CMTimeGetSeconds(item.duration).takeIf { it.isFinite() && it > 0 }
+                ?: (item.seekableTimeRanges.lastOrNull() as? NSValue)?.CMTimeRangeValue?.useContents {
+                    start.value.toDouble() / start.timescale + duration.value.toDouble() / duration.timescale
+                }?.takeIf { it.isFinite() && it > 0 }
+            return seconds?.let { (it * 1000).toLong() }
+        }
+
+    override fun seekTo(positionMs: Long) {
+        if (!isSeekable) return
+        val target = durationMs?.let { positionMs.coerceIn(0L, it) } ?: positionMs.coerceAtLeast(0L)
+        av.seekToTime(CMTimeMakeWithSeconds(target / 1000.0, 600))
     }
 
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle {

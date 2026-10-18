@@ -188,7 +188,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     }
 
     override fun play() {
-        val toLive = pauseClock.onPlay(uptimeMs())
+        val toLive = pauseClock.onPlay(uptimeMs()) && stream?.seekable != true
         playWhenReady = true
         // A live relay has no seekable past: rejoining the edge is reopening the stream.
         if (toLive) {
@@ -200,6 +200,19 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     override fun pause() {
         pauseClock.onPause(uptimeMs())
         playWhenReady = false
+    }
+
+    // libVLC answers these from its own state without blocking, so they are read on the caller's thread.
+    override val isSeekable: Boolean get() = stream?.seekable == true && vlc.status().isSeekable
+
+    override val positionMs: Long get() = if (isSeekable) vlc.status().time().coerceAtLeast(0L) else 0L
+
+    override val durationMs: Long? get() = vlc.status().length().takeIf { isSeekable && it > 0L }
+
+    override fun seekTo(positionMs: Long) {
+        if (!isSeekable) return
+        val target = durationMs?.let { positionMs.coerceIn(0L, it) } ?: positionMs.coerceAtLeast(0L)
+        commands.execute { vlc.controls().setTime(target) }
     }
 
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = NoMediaSession

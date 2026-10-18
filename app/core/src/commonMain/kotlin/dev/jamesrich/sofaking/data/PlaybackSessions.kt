@@ -51,6 +51,8 @@ data class PlaybackStream(
     val intent: PlaybackIntent,
     /** The server's source for the stream, as its lineup names it; empty from a server that does not say. */
     val providerId: String = "",
+    /** True for a recording or library file the viewer can move through; a live channel never is. */
+    val seekable: Boolean = false,
 )
 
 /**

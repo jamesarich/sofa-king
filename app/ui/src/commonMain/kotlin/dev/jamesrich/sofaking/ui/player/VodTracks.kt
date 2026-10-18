@@ -45,6 +45,8 @@ class VodTracks(
     val initialSubtitle: Int? = null,
     val select: suspend (audio: Int?, pictureSubtitle: Int?, positionMs: Long) -> Unit = { _, _, _ -> },
     val loadSubtitles: suspend (index: Int) -> Subtitles? = { null },
+    /** Told the audio and subtitle tracks after each pick, null for the default audio or no subtitles. */
+    val onPicked: (audio: Int?, subtitle: Int?) -> Unit = { _, _ -> },
 ) {
     /** True when there is a choice to make: more than one audio track, or any subtitles. */
     val pickable: Boolean get() = audio.size > 1 || subtitles.isNotEmpty()

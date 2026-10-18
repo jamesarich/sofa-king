@@ -14,7 +14,12 @@ import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.TrackChoice
+import dev.jamesrich.sofaking.data.defaultAudio
+import dev.jamesrich.sofaking.data.initialAudio
 import dev.jamesrich.sofaking.data.initialSubtitle
+import dev.jamesrich.sofaking.data.trackChoice
 import dev.jamesrich.sofaking.data.isPictureSubtitle
 import dev.jamesrich.sofaking.data.onAppleTv
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -120,14 +125,27 @@ class SofaKingTv {
     fun setWatched(item: MediaItem, watched: Boolean) = library.setWatched(item, watched)
 
     /**
-     * Opens [item] on the session, from the start with [fromStart], else where the household stopped in it, with its
-     * forced picture subtitles drawn in when [initialSubtitle] picks them.
+     * Opens [item] on the session, from the start with [fromStart], else where the household stopped in it, with the
+     * tracks [initialAudio] and [initialSubtitle] pick: an audio track other than the default, and picture subtitles
+     * drawn in.
      */
     @Throws(Exception::class)
     suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream {
-        val detail = withTimeoutOrNull(DETAIL_WAIT_MS) { library.detail(item.id).first { it !is ItemDetailState.Loading } }
-        val forced = (detail as? ItemDetailState.Ready)?.detail?.let(::initialSubtitle)?.takeIf(::isPictureSubtitle)
-        return library.play(item, appleTvProfile, fromStart, subtitleIndex = forced?.index)
+        val state = withTimeoutOrNull(DETAIL_WAIT_MS) { library.detail(item.id).first { it !is ItemDetailState.Loading } }
+        val detail = (state as? ItemDetailState.Ready)?.detail
+        val choice = trackChoice(item)
+        val audio = detail?.let { initialAudio(it, choice) }?.takeIf { it.index != detail.let(::defaultAudio)?.index }
+        val picture = detail?.let { initialSubtitle(it, choice) }?.takeIf(::isPictureSubtitle)
+        return library.play(item, appleTvProfile, fromStart, audio?.index, picture?.index)
+    }
+
+    /** The tracks the viewer picked in [item]'s show, which its episodes start with; null for none or a movie. */
+    fun trackChoice(item: MediaItem): TrackChoice? = item.showId?.let { viewModel.settings.value?.trackChoices?.get(it) }
+
+    /** Keeps the audio track [audioIndex] and subtitle track [subtitleIndex] (negative for none) for [item]'s show. */
+    fun rememberTracks(item: MediaItem, detail: MediaItemDetail, audioIndex: Int, subtitleIndex: Int) {
+        val show = item.showId ?: return
+        viewModel.setTrackChoice(show, trackChoice(detail, audioIndex.takeIf { it >= 0 }, subtitleIndex.takeIf { it >= 0 }))
     }
 
     /**

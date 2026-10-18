@@ -49,6 +49,8 @@ data class AppSettings(
     val preferencesSyncedAt: String = "",
     /** The hash of the PIN that locks Settings (see [SettingsPin]), empty while there is no lock; never synced. */
     val settingsPin: String = "",
+    /** The tracks picked in each show, by show id, most recent first; never synced. */
+    val trackChoices: Map<String, TrackChoice> = emptyMap(),
 ) {
     /** True while Settings asks for a PIN before it opens. */
     val settingsLocked: Boolean get() = settingsPin.isNotEmpty()
@@ -66,7 +68,7 @@ data class AppSettings(
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
             "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
-            "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"})"
+            "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, trackChoices=${trackChoices.size})"
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
@@ -143,6 +145,9 @@ interface SettingsStore {
     suspend fun setZapSkipsHidden(enabled: Boolean)
 
     suspend fun setSkipCommercials(enabled: Boolean)
+
+    /** Keeps [choice] as the tracks picked in the show [showId]. */
+    suspend fun setTrackChoice(showId: String, choice: TrackChoice)
 
     suspend fun setFavoritesOrder(order: List<String>)
 

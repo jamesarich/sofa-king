@@ -78,10 +78,13 @@ class LiveRuntime(
     val setup: SetupService? = null,
     /** The media libraries; null for a runtime built without a config. */
     val libraries: LibraryService? = null,
+    /** Library files being played; null without libraries. */
+    val vod: VodSessions? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
         sessions.close()
+        vod?.close()
         remux.close()
         http.close()
     }
@@ -174,11 +177,14 @@ class LiveRuntime(
                     artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork")),
                 )
                 libraries.start(scope)
+                val vod = VodSessions(libraries.catalog, clock, config.ffmpeg, config.dataDirectory.resolve("transcode"), config.maxTranscodes)
+                vod.start()
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
-                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart), libraries,
+                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart), libraries, vod,
                 )
                 scope.launchEvery("session-expire", 1000) { sessions.expire() }
+                scope.launchEvery("vod-expire", 5000) { vod.expire() }
                 if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }
                 return runtime
             } catch (failure: Throwable) { scope.cancel(); http.close(); throw failure }

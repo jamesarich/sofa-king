@@ -2,16 +2,25 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.library.LibraryService
+import dev.jamesrich.sofaking.backend.library.VodSessions
+import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.UpdatePlayState
+import dev.jamesrich.sofaking.contract.UpdateVodPlayback
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.install
 import io.ktor.server.http.content.LocalPathContent
+import io.ktor.server.plugins.partialcontent.PartialContent
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
+import io.ktor.server.routing.patch
+import io.ktor.server.routing.post
 import io.ktor.server.routing.put
+import io.ktor.server.routing.route
 
 /** The libraries as the app reads them, under `/api/v1/libraries` and `/api/v1/library`. */
 fun Route.libraryRoutes(libraries: LibraryService) {
@@ -52,5 +61,27 @@ fun Route.artworkRoutes(libraries: LibraryService) {
         if (call.request.headers[HttpHeaders.IfNoneMatch] == etag) return@get call.respond(HttpStatusCode.NotModified)
         val image = artwork.image(source) ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown artwork")
         call.respond(LocalPathContent(image.file, ContentType.parse(image.contentType)))
+    }
+}
+
+/**
+ * Library playback: `/api/v1/vod-sessions` opens, renews, restarts and releases a session, and its media is under
+ * `/media/vod/{id}/{epoch}/{secret}/{name}`, which takes no token: the secret in the path is the session's own.
+ */
+fun Route.vodRoutes(vod: VodSessions) {
+    post("/api/v1/vod-sessions") { call.respond(HttpStatusCode.Created, vod.open(call.appBody<OpenVodPlayback>())) }
+    get("/api/v1/vod-sessions/{id}") { call.respond(vod.get(call.parameters["id"]!!)) }
+    patch("/api/v1/vod-sessions/{id}") { call.respond(vod.update(call.parameters["id"]!!, call.appBody<UpdateVodPlayback>())) }
+    delete("/api/v1/vod-sessions/{id}") { vod.release(call.parameters["id"]!!); call.respond(HttpStatusCode.NoContent) }
+    route("/media/vod/{id}/{epoch}/{secret}/{name}") {
+        // Direct play seeks with byte ranges; the HLS files are small and served whole.
+        install(PartialContent)
+        get {
+            val epoch = call.parameters["epoch"]?.toIntOrNull() ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown media")
+            val media = vod.media(call.parameters["id"]!!, epoch, call.parameters["secret"]!!, call.parameters["name"]!!)
+                ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown media")
+            call.response.header(HttpHeaders.CacheControl, if (media.contentType.endsWith("mpegurl")) "no-store" else "private, max-age=3600")
+            call.respond(LocalPathContent(media.file, ContentType.parse(media.contentType)))
+        }
     }
 }

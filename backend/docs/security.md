@@ -18,6 +18,7 @@ The server is designed for a private network. It has no accounts, no per-user ac
 | None | | `/healthz`, `/readyz`, `/logos/{key}`, the admin sign-in page (`GET /admin` and `POST /admin/login`), the portal icon `/admin/static/icon.svg` and its stylesheet `/admin/static/admin.css` |
 | None; client address allow-list | | The HDHomeRun routes (`/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/auto/v{number}`). `SOFA_HDHR_ALLOW` admits the listed addresses and answers everyone else `403` |
 | Session URL | | `/media/sessions/{id}/{epoch}/{token}`. `{token}` is random per resource, and the URL stops working when the session ends or its epoch changes |
+| Library playback URL | | `/media/vod/{id}/{epoch}/{secret}/{name}`. `{secret}` is random per session, and the URL serves only that session's file or HLS output until the session ends or its epoch changes |
 
 Notes on the table:
 

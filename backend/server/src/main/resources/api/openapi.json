@@ -193,6 +193,32 @@
         "type": "object",
         "properties": { "positionMs": { "type": "integer", "minimum": 0 }, "durationMs": { "type": ["integer", "null"], "minimum": 0 }, "watched": { "type": ["boolean", "null"], "description": "Set by hand; wins over the position. The only field a show or season takes." } }
       },
+      "ClientProfile": {
+        "type": "object", "description": "What the player decodes as is.",
+        "properties": {
+          "containers": { "type": "array", "items": { "type": "string" }, "description": "mp4, mkv, webm, ts" },
+          "videoCodecs": { "type": "array", "items": { "type": "string" }, "description": "h264, hevc, vp9, av1, mpeg2video" },
+          "audioCodecs": { "type": "array", "items": { "type": "string" }, "description": "aac, ac3, eac3, mp3, opus, flac, dts, truehd" },
+          "maxHeight": { "type": ["integer", "null"] }, "hdr": { "type": "boolean" }
+        }
+      },
+      "OpenVodPlayback": {
+        "type": "object", "required": ["itemId"],
+        "properties": { "itemId": { "type": "string" }, "profile": { "$ref": "#/components/schemas/ClientProfile" }, "startMs": { "type": "integer", "minimum": 0 }, "audioIndex": { "type": ["integer", "null"], "description": "An audio stream index from the item's tracks; the file's default when null." } }
+      },
+      "UpdateVodPlayback": {
+        "type": "object",
+        "properties": { "startMs": { "type": ["integer", "null"], "minimum": 0, "description": "Restart a converted stream here, under a new epoch." } }
+      },
+      "VodSession": {
+        "type": "object", "required": ["id", "itemId", "mode", "descriptor"],
+        "properties": {
+          "id": { "type": "string" }, "itemId": { "type": "string" }, "mode": { "type": "string", "enum": ["direct", "remux", "audio", "transcode"] },
+          "descriptor": { "type": "object", "properties": { "protocol": { "type": "string", "enum": ["file", "hls"] }, "mimeType": { "type": "string" }, "url": { "type": "string" }, "epoch": { "type": "integer" } } },
+          "startMs": { "type": "integer", "description": "Where in the item the HLS stream's time 0 is; 0 for direct play." }, "durationMs": { "type": ["integer", "null"] },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      },
       "ViewerPreferences": {
         "type": "object",
         "properties": {
@@ -499,6 +525,24 @@
       "put": { "tags": ["Library"], "summary": "Record where playback stopped, or mark an item watched", "description": "A stop in the first 5% leaves the item where it was; one at 90% or later marks it watched. A show or season takes watched only, and marks every episode in it.", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlayState" } } } },
         "responses": { "200": { "description": "The item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/vod-sessions": {
+      "post": { "tags": ["Library"], "summary": "Play a library movie, episode or video", "description": "Direct play when the profile takes the file as is; otherwise HLS that FFmpeg remuxes or converts. At most SOFA_MAX_TRANSCODES convert at once.", "security": [{ "apiToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OpenVodPlayback" } } } },
+        "responses": { "201": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND or ITEM_MISSING", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }, "503": { "description": "CAPACITY_EXHAUSTED or TRANSCODER_UNAVAILABLE", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/vod-sessions/{id}": {
+      "get": { "tags": ["Library"], "summary": "A library playback session", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
+      "patch": { "tags": ["Library"], "summary": "Renew the session, or restart its converted stream", "description": "A session lasts five minutes past its last renewal or media request.", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateVodPlayback" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VodSession" } } } }, "400": { "$ref": "#/components/responses/Error" }, "410": { "description": "SESSION_EXPIRED", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } },
+      "delete": { "tags": ["Library"], "summary": "Release the session", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }], "responses": { "204": { "description": "Released" } } }
+    },
+    "/media/vod/{id}/{epoch}/{secret}/{name}": {
+      "get": { "tags": ["Library"], "summary": "A library playback session's media", "description": "The URL the session's descriptor names: the file itself with byte ranges, or the HLS playlist and its segments. No token; the secret is the session's.", "security": [],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "epoch", "in": "path", "required": true, "schema": { "type": "integer" } }, { "name": "secret", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "The file, a playlist or a segment" }, "206": { "description": "A byte range of the file" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/artwork/{id}/{role}": {
       "get": { "tags": ["Library"], "summary": "An item's poster or backdrop", "description": "The path an item names, with its ?v= version. Carries an ETag and Cache-Control: public, max-age=604800.", "security": [],

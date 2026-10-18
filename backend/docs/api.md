@@ -6,7 +6,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. The examples
 
 Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin` take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. On a loopback server with no token, leave the header out. A missing or wrong token answers `401 AUTH_REQUIRED`.
 
-These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id}/{role}`, `POST /api/v1/pair` (a [pairing code](#pair-a-client) stands in for the token) and the session media URLs under `/media/sessions/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
+These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id}/{role}`, `POST /api/v1/pair` (a [pairing code](#pair-a-client) stands in for the token) and the session media URLs under `/media/sessions/` and `/media/vod/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
 
 ## Endpoints
 
@@ -38,6 +38,11 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | GET | `/api/v1/library/items/{id}` | An item with its seasons or episodes, the next episode of a show, and a file's tracks |
 | GET | `/api/v1/library/search?q=` | Movies, shows and videos whose title holds `q`, then episodes; at most 50 |
 | PUT | `/api/v1/library/items/{id}/play-state` | Record where playback stopped, or mark an item, season or show watched or unwatched |
+| POST | `/api/v1/vod-sessions` | Play a library movie, episode or video, see [play library files](#play-library-files) |
+| GET | `/api/v1/vod-sessions/{id}` | Read a library playback session |
+| PATCH | `/api/v1/vod-sessions/{id}` | Renew it, and with `startMs` restart a converted stream there |
+| DELETE | `/api/v1/vod-sessions/{id}` | Release it; returns 204 |
+| GET | `/media/vod/{id}/{epoch}/{secret}/{name}` | The session's file with byte ranges, or its HLS playlist and segments |
 | GET | `/artwork/{id}/{role}` | An item's `poster` or `backdrop`, public, see [media libraries](#media-libraries) |
 | GET | `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/device.xml` | HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
 | GET, POST | `/lineup.post` | Accepts Plex's channel-scan request; answers 200 |
@@ -145,6 +150,19 @@ A library's items come sorted by `sort`: `title` (the default, ignoring a leadin
 `PUT /api/v1/library/items/{id}/play-state` takes `positionMs`, `durationMs` and `watched`, and answers the item. A stop in the first 5% leaves the item where it was, and one at 90% or later marks it watched and back at the start. `watched` set by hand wins over the position; it is the only field a show or season takes, and it marks every episode in it. Watch state belongs to the household, not one device. Continue watching lists, newest first, the movies, videos and episodes stopped part way and the next episode of each show whose last-played episode was finished, one entry per show.
 
 `poster` and `backdrop` are server-relative `/artwork/ID/ROLE?v=VERSION` paths a client resolves against its API base URL. A season without its own poster, and a season or episode without its own backdrop, name their show's. The route takes no token, as image loaders fetch with none, and serves only the image the library holds for that item; the version changes with the image, so a client may cache it for good. TMDB's images are downloaded once into `SOFA_DATA_DIR/artwork`, which can be deleted at any time.
+
+## Play library files
+
+`POST /api/v1/vod-sessions` takes the item's `itemId`, the player's `profile`, `startMs` (where to start, for a resume) and `audioIndex` (the audio stream's index from the item's `audio` tracks; the file's default when absent). The profile lists the `containers` (`mp4`, `mkv`, `webm`, `ts`), `videoCodecs` (`h264`, `hevc`, `vp9`, `av1`, `mpeg2video`) and `audioCodecs` (`aac`, `ac3`, `eac3`, `mp3`, `opus`, `flac`, `dts`, `truehd`) the player decodes, its `maxHeight`, and `hdr` when it shows HDR. The server answers `201` with a session whose `mode` says how it plays:
+
+| Mode | When | What the player gets |
+| --- | --- | --- |
+| `direct` | The player takes the container, the video and the audio | The file itself (`protocol` `file`), with byte ranges; the player seeks and picks audio on its own |
+| `remux` | It takes the codecs but not the container | HLS with MPEG-TS segments, the streams copied |
+| `audio` | It takes the video but not the audio | HLS with the video copied and the audio converted to stereo AAC |
+| `transcode` | Anything else, an HDR file on an SDR player, or a file FFprobe could not read | HLS with H.264 at up to 1080 lines and stereo AAC |
+
+An HLS session's playlist grows as FFmpeg writes it (an EVENT playlist) and ends when the file does. Its media time 0 is `startMs` into the item, and `durationMs` is the item's whole length. To seek past what the playlist holds, `PATCH` the session with the new `startMs`: FFmpeg restarts there, the epoch changes, and the player loads the new descriptor's URL. A copied stream starts at the key frame before `startMs`, so it can begin a few seconds early. At most `SOFA_MAX_TRANSCODES` sessions convert or remux at once (direct play is not counted); one more answers `503 CAPACITY_EXHAUSTED`. A session lasts five minutes past its last renewal or media request; the player renews it with `PATCH` while paused and releases it with `DELETE`. Its files are under `SOFA_DATA_DIR/transcode` and are deleted when it ends. A missing file answers `404 ITEM_MISSING`. Subtitles are not served yet, and an HDR file converted for an SDR player is not tone-mapped, so its colors look washed out.
 
 ## Player outputs
 

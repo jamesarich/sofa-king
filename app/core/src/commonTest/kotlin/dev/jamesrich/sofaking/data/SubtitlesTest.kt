@@ -17,6 +17,28 @@ class SubtitlesTest {
         )
     }
 
+    /** What FFmpeg 6.1, the server's, writes for an SRT file whose rows carry `<br>`. */
+    @Test
+    fun `a break FFmpeg wrote as a blank line keeps the rest of its cue`() {
+        val subtitles = parseWebVtt(
+            "WEBVTT\n\n00:01.000 --> 00:03.000\nlead\n\n\ntrail\n\n" +
+                "00:04.000 --> 00:06.000\n\nx y\nz\n\nNOTE between\n\n00:07.000 --> 00:08.000\nlast\n",
+        )
+        assertEquals(
+            listOf(SubtitleCue(1_000, 3_000, "lead\ntrail"), SubtitleCue(4_000, 6_000, "x y\nz"), SubtitleCue(7_000, 8_000, "last")),
+            subtitles.cues,
+        )
+    }
+
+    @Test
+    fun `a break tag is a new line even without its bracket or escaped`() {
+        val subtitles = parseWebVtt(
+            "WEBVTT\n\n00:01.000 --> 00:02.000\none<br\ntwo <BR/> three\n\n" +
+                "00:03.000 --> 00:04.000\nfour &lt;br&gt; five <br six\n\n00:05.000 --> 00:06.000\na < b <i>and</i> c > d <00:05.500>e\n",
+        )
+        assertEquals(listOf("one\ntwo\nthree", "four\nfive\nsix", "a < b and c > d e"), subtitles.cues.map { it.text })
+    }
+
     @Test
     fun `the text at a position is every cue showing then`() {
         val subtitles = Subtitles(listOf(SubtitleCue(5_000, 9_000, "b"), SubtitleCue(1_000, 6_000, "a"), SubtitleCue(10_000, 11_000, "c")))

@@ -32,18 +32,41 @@ class Subtitles(cues: List<SubtitleCue>) {
     }
 }
 
-/** The cues of a WebVTT document; blocks without a timing line (the header, NOTE, STYLE) are skipped. */
+/**
+ * The cues of a WebVTT document; the header and NOTE, STYLE and REGION blocks are skipped. FFmpeg writes a subtitle
+ * file's `<br>` at the start or end of a line as a blank line inside the cue, which ends a WebVTT cue, so a block
+ * with no timing line after a cue is read as more of that cue's text rather than dropped.
+ */
 fun parseWebVtt(document: String): Subtitles {
-    val cues = document.replace("\r\n", "\n").replace('\r', '\n').split(BLANK_LINES).mapNotNull { block ->
+    val cues = ArrayList<SubtitleCue>()
+    var previous: Triple<Long, Long, String>? = null
+    fun finish() {
+        previous?.let { (startMs, endMs, raw) ->
+            val text = cleanCueText(raw)
+            if (text.isNotEmpty() && endMs > startMs) cues += SubtitleCue(startMs, endMs, text)
+        }
+        previous = null
+    }
+    for (block in document.replace("\r\n", "\n").replace('\r', '\n').split(BLANK_LINES)) {
         val lines = block.lines()
         val timing = lines.indexOfFirst { "-->" in it }
-        if (timing < 0) return@mapNotNull null
+        if (timing < 0) {
+            val first = lines.first().trimStart()
+            val open = previous
+            if (open != null && first.isNotEmpty() && SKIPPED_BLOCKS.none { first.startsWith(it) }) {
+                previous = open.copy(third = open.third + "\n" + block)
+            } else {
+                finish()
+            }
+            continue
+        }
+        finish()
         val (start, end) = lines[timing].split("-->", limit = 2).map { it.trim().substringBefore(' ') }
-        val startMs = vttTime(start) ?: return@mapNotNull null
-        val endMs = vttTime(end) ?: return@mapNotNull null
-        val text = lines.drop(timing + 1).joinToString("\n") { cleanCueText(it) }.trim()
-        if (text.isEmpty() || endMs <= startMs) null else SubtitleCue(startMs, endMs, text)
+        val startMs = vttTime(start) ?: continue
+        val endMs = vttTime(end) ?: continue
+        previous = Triple(startMs, endMs, lines.drop(timing + 1).joinToString("\n"))
     }
+    finish()
     return Subtitles(cues)
 }
 
@@ -60,10 +83,28 @@ internal fun vttTime(value: String): Long? {
     return ((hours * 60 + minutes) * 60 + whole) * 1000 + millis
 }
 
-private fun cleanCueText(line: String): String = line
+/**
+ * A cue's text without markup, one line per row: a `<br>` breaks the line even when its `>` is missing or it came
+ * escaped as `&lt;br&gt;`, as subtitle files carry it, and blank rows are dropped.
+ */
+private fun cleanCueText(raw: String): String = raw
+    .replace(BREAK, "\n")
     .replace(TAG, "")
     .replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&lrm;", "").replace("&rlm;", "")
     .replace("&amp;", "&")
+    .replace(BREAK, "\n")
+    .lines()
+    .map { it.trim() }
+    .filter { it.isNotEmpty() }
+    .joinToString("\n")
 
 private val BLANK_LINES = Regex("\n[ \t]*\n+")
-private val TAG = Regex("<[^>]*>")
+
+/** Blocks that are not cue text: the header and WebVTT's comments and settings. */
+private val SKIPPED_BLOCKS = listOf("WEBVTT", "NOTE", "STYLE", "REGION")
+
+/** A line break tag in any spelling, with or without its closing `>`. */
+private val BREAK = Regex("""<\s*br\b(?:[^<>\n]*>)?""", RegexOption.IGNORE_CASE)
+
+/** A WebVTT or HTML tag, or a karaoke timestamp; a `<` that opens no tag is text. */
+private val TAG = Regex("""</?[A-Za-z][^<>\n]*>|<\d[\d:.]*>""")

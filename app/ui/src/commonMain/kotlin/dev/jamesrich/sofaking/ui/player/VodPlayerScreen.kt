@@ -48,6 +48,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -441,6 +443,10 @@ fun VodPlayerScreen(
     val durationText = durationMs?.let(::formatPlayTime)
     val positionDescription = if (durationText != null) stringResource(Res.string.vod_position_description, positionText, durationText) else positionText
 
+    val density = LocalDensity.current
+    // The info bar's height as last drawn, so a subtitle sits just above it while it shows.
+    var barHeight by remember { mutableStateOf(0.dp) }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -468,13 +474,14 @@ fun VodPlayerScreen(
                 StatusPill(stringResource(Res.string.vod_subtitles_failed))
             }
         }
-        subtitles?.let { cues -> cues.textAt(positionMs)?.let { SubtitleText(it, raised = overlayVisible) } }
         failure?.let { FailureCard(it) }
         next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit) }
 
-        InfoBar((overlayVisible || failure != null) && next == null) {
+        val barVisible = (overlayVisible || failure != null) && next == null
+        InfoBar(barVisible) {
             Column(
                 Modifier
+                    .onSizeChanged { barHeight = with(density) { it.height.toDp() } }
                     .widthIn(max = 1200.dp)
                     .fillMaxWidth()
                     .background(SofaOverlayScrim, BarShape)
@@ -527,6 +534,12 @@ fun VodPlayerScreen(
                 }
             }
         }
+        // Drawn over the bar and clear of its top edge; it waits while a card would cover it.
+        if (!tracksOpen && failure == null && next == null) {
+            subtitles?.let { cues ->
+                cues.textAt(positionMs)?.let { SubtitleText(it, bottom = if (barVisible) barHeight + SUBTITLE_GAP else SUBTITLE_GAP) }
+            }
+        }
         if (tracksOpen) {
             TracksCard(tracks, audioTrack, subtitleTrack, onAudio = { pickAudio(it); focus.requestFocus() }, onSubtitle = { pickSubtitle(it); focus.requestFocus() })
         }
@@ -572,6 +585,7 @@ private fun modeLabel(mode: String): String? = when (mode) {
 
 private val UP_NEXT_PLAY_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)
 private val BarShape = RoundedCornerShape(8.dp)
+private val SUBTITLE_GAP = 24.dp
 private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 private val log = Logger.withTag("SofaKing")
 private const val TICK_MS = 250L

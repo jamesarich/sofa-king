@@ -1,0 +1,118 @@
+package dev.jamesrich.sofaking.backend.http
+
+import dev.jamesrich.sofaking.backend.*
+import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.library.LibraryKind
+import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.contract.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.server.testing.testApplication
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.Duration
+import java.util.concurrent.TimeUnit
+import kotlinx.serialization.json.Json
+import kotlin.test.*
+
+class VodApiTest {
+    private val json = Json { ignoreUnknownKeys = true }
+    private val token = "secret".repeat(8)
+
+    /** An eight-second H.264 and AAC Matroska file, or MPEG-2 video where FFmpeg has no libx264. */
+    private fun clip(file: Path) {
+        Files.createDirectories(file.parent)
+        fun run(codec: List<String>): Boolean {
+            val command = listOf(
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+                "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+                "-t", "8", "-pix_fmt", "yuv420p", "-g", "15",
+            ) + codec + listOf("-c:a", "aac", file.toString())
+            val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+            if (!process.waitFor(60, TimeUnit.SECONDS)) { process.destroyForcibly(); return false }
+            return process.exitValue() == 0
+        }
+        check(run(listOf("-c:v", "libx264", "-preset", "ultrafast")) || run(listOf("-c:v", "mpeg2video"))) { "FFmpeg could not write the clip" }
+    }
+
+    @Test fun `a library file plays directly with ranges, or as HLS that restarts where asked`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-vod-")
+        clip(dir.resolve("media/movies/Clip (2020)/Clip (2020).mkv"))
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null, maxTranscodes = 1)
+        val store = openStore(dir)
+        val clock = MutableClock()
+        val runtime = LiveRuntime.create(store, config, clock, probes = false)
+        try {
+            val library = runtime.libraries!!.create("Movies", LibraryKind.MOVIES, dir.resolve("media/movies").toString())
+            runtime.libraries!!.scan(library.id)
+            val movie = runtime.libraries!!.catalog.items(library.id, null, false, null, 10).items.single()
+            val video = assertNotNull(runtime.libraries!!.catalog.item(movie.id).videoCodec, "FFprobe read the clip")
+            application { backendModule(store, clock, runtime, token, config = config) }
+            suspend fun open(profile: ClientProfile, startMs: Long = 0) = client.post("/api/v1/vod-sessions") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback(movie.id, profile, startMs)))
+            }
+
+            assertEquals(HttpStatusCode.Unauthorized, client.post("/api/v1/vod-sessions").status)
+
+            // A client that plays Matroska with these codecs gets the file itself, and seeks with byte ranges.
+            val direct = json.decodeFromString<VodSession>(open(ClientProfile(listOf("mkv"), listOf(video), listOf("aac"))).bodyAsText())
+            assertEquals(Wire.VodMode.DIRECT, direct.mode)
+            assertEquals("file", direct.descriptor.protocol)
+            assertEquals("video/x-matroska", direct.descriptor.mimeType)
+            val part = client.get(direct.descriptor.url) { header(HttpHeaders.Range, "bytes=0-99") }
+            assertEquals(HttpStatusCode.PartialContent, part.status, "media takes no token; ranges answer 206")
+            assertEquals(100, part.readRawBytes().size)
+            assertEquals(HttpStatusCode.NotFound, client.get(direct.descriptor.url.replaceAfterLast('/', "other.mkv")).status)
+            assertEquals(HttpStatusCode.NotFound, client.get(direct.descriptor.url.replace("/1/", "/2/")).status, "a stale epoch is gone")
+
+            // One that takes the codecs but not the container gets them copied into HLS, from where it asked to start.
+            val remuxed = open(ClientProfile(listOf("mp4"), listOf(video), listOf("aac")), startMs = 2000)
+            assertEquals(HttpStatusCode.Created, remuxed.status)
+            val remuxBody = remuxed.bodyAsText()
+            assertKeepsWireFixture("v1/vod-session.json", remuxBody)
+            val remux = json.decodeFromString<VodSession>(remuxBody)
+            assertEquals(Wire.VodMode.REMUX, remux.mode)
+            assertEquals(2000, remux.startMs)
+            assertEquals("hls", remux.descriptor.protocol)
+            val playlist = client.get(remux.descriptor.url).bodyAsText()
+            assertTrue("seg0.ts" in playlist, playlist)
+            val segment = client.get(remux.descriptor.url.replaceAfterLast('/', "seg0.ts"))
+            assertEquals(HttpStatusCode.OK, segment.status)
+            assertEquals(ContentType.parse("video/mp2t"), segment.contentType())
+
+            // Only one file converts at a time here; direct play is not counted.
+            val busy = open(ClientProfile())
+            assertEquals(HttpStatusCode.ServiceUnavailable, busy.status)
+            assertEquals(Wire.ErrorCode.CAPACITY_EXHAUSTED, json.decodeFromString<ApiError>(busy.bodyAsText()).code)
+
+            // A seek past what is written restarts FFmpeg there under a new epoch; the old URLs stop answering.
+            val restarted = json.decodeFromString<VodSession>(client.patch("/api/v1/vod-sessions/${remux.id}") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"startMs":4000}""")
+            }.bodyAsText())
+            assertEquals(2, restarted.descriptor.epoch)
+            assertEquals(4000, restarted.startMs)
+            assertEquals(HttpStatusCode.NotFound, client.get(remux.descriptor.url).status)
+            assertTrue("seg0.ts" in client.get(restarted.descriptor.url).bodyAsText())
+
+            assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/vod-sessions/${remux.id}") { bearerAuth(token) }.status)
+            assertEquals(HttpStatusCode.Gone, client.get("/api/v1/vod-sessions/${remux.id}") { bearerAuth(token) }.status)
+
+            // With the slot free, a client that plays nothing listed gets the file converted.
+            val converted = json.decodeFromString<VodSession>(open(ClientProfile()).bodyAsText())
+            assertEquals(Wire.VodMode.TRANSCODE, converted.mode)
+            assertTrue("seg0.ts" in client.get(converted.descriptor.url).bodyAsText())
+
+            // An unrenewed session expires and frees its slot.
+            clock.now = clock.now.plus(Duration.ofMinutes(6))
+            runtime.vod!!.expire()
+            assertEquals(HttpStatusCode.Gone, client.get("/api/v1/vod-sessions/${converted.id}") { bearerAuth(token) }.status)
+            assertFalse(Files.exists(dir.resolve("transcode/${converted.id}")), "its files are deleted")
+            assertEquals(HttpStatusCode.NotFound, client.post("/api/v1/vod-sessions") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"itemId":"nope"}""")
+            }.status)
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
+}

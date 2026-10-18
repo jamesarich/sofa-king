@@ -99,6 +99,8 @@ data class ServerConfig(
     val mediaDirectory: Path = dataDirectory.resolve("media"),
     /** `SOFA_TMDB_TOKEN` and `SOFA_TMDB_LANGUAGE`: TMDB lookups for the media libraries; null leaves them off. */
     val tmdb: TmdbConfig? = null,
+    /** Library files FFmpeg converts or remuxes at once (`SOFA_MAX_TRANSCODES`); direct play is not counted. */
+    val maxTranscodes: Int = 2,
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -256,6 +258,8 @@ data class ServerConfig(
                 mediaDirectory = environment["SOFA_MEDIA_DIR"]?.let { require(it.isNotBlank()) { "SOFA_MEDIA_DIR must not be blank" }; Path.of(it) }
                     ?: Path.of(directory).resolve("media"),
                 tmdb = tmdbConfig(environment),
+                maxTranscodes = (environment["SOFA_MAX_TRANSCODES"] ?: "2").toIntOrNull()?.takeIf { it in 1..8 }
+                    ?: throw IllegalArgumentException("SOFA_MAX_TRANSCODES must be between 1 and 8"),
             )
         }
 

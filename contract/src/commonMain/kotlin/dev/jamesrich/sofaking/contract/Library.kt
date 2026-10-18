@@ -77,3 +77,45 @@ import kotlinx.serialization.Serializable
 
 /** `PUT /api/v1/library/items/{id}/play-state`: where playback stopped; [watched] set by hand wins over the position. */
 @Serializable data class UpdatePlayState(val positionMs: Long = 0, val durationMs: Long? = null, val watched: Boolean? = null)
+
+/**
+ * What a player can play as is: containers (`mp4`, `mkv`, `webm`, `ts`), video codecs (`h264`, `hevc`, `vp9`, `av1`)
+ * and audio codecs (`aac`, `ac3`, `eac3`, `mp3`, `opus`, `flac`, `dts`, `truehd`), the tallest video it decodes, and
+ * whether it shows HDR. What it cannot play the server remuxes or converts. An empty profile plays only what the server converts.
+ */
+@Serializable data class ClientProfile(
+    val containers: List<String> = emptyList(),
+    val videoCodecs: List<String> = emptyList(),
+    val audioCodecs: List<String> = emptyList(),
+    val maxHeight: Int? = null,
+    val hdr: Boolean = false,
+)
+
+/**
+ * `POST /api/v1/vod-sessions`: play the movie, episode or video [itemId] from [startMs], with the audio stream whose
+ * index is [audioIndex] (the file's default when null).
+ */
+@Serializable data class OpenVodPlayback(
+    val itemId: String,
+    val profile: ClientProfile = ClientProfile(),
+    val startMs: Long = 0,
+    val audioIndex: Int? = null,
+)
+
+/** `PATCH /api/v1/vod-sessions/{id}`: renew the lease, and with [startMs] restart a converted stream there. */
+@Serializable data class UpdateVodPlayback(val startMs: Long? = null)
+
+/**
+ * A library file being played. [mode] is a [Wire.VodMode] value. The descriptor's protocol is `file` for direct play,
+ * which seeks on its own, or `hls` for the others, whose media time 0 is [startMs] into the item: a seek past what the
+ * stream holds asks for a restart there with [UpdateVodPlayback]. [durationMs] is the item's whole length.
+ */
+@Serializable data class VodSession(
+    val id: String,
+    val itemId: String,
+    val mode: String,
+    val descriptor: PlaybackDescriptor,
+    val startMs: Long = 0,
+    val durationMs: Long? = null,
+    val expiresAt: String = "",
+)

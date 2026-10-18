@@ -46,6 +46,18 @@ object Wire {
         const val VIDEO = "video"
     }
 
+    /** How a VOD session plays its file. */
+    object VodMode {
+        /** The file as is, with byte ranges. */
+        const val DIRECT = "direct"
+        /** The streams as they are, in an HLS container. */
+        const val REMUX = "remux"
+        /** The video as it is and the audio converted. */
+        const val AUDIO = "audio"
+        /** Video and audio converted. */
+        const val TRANSCODE = "transcode"
+    }
+
     /** The library home's rows. */
     object ShelfId {
         const val CONTINUE = "continue"

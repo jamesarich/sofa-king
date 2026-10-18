@@ -224,6 +224,7 @@ fun Application.backendModule(
             outputRoutes(runtime, clock, outputs, apiToken)
             logoRoutes(runtime.logos)
             runtime.libraries?.let { libraryRoutes(it); artworkRoutes(it) }
+            runtime.vod?.let { vodRoutes(it) }
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
             portal?.install(this)
         }

@@ -19,6 +19,7 @@ dependencies {
     implementation(libs.ktor.server.call.id)
     implementation(libs.ktor.server.cors)
     implementation(libs.ktor.server.call.logging)
+    implementation(libs.ktor.server.partial.content)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)

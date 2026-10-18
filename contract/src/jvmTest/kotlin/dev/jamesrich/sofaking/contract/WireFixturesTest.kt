@@ -29,6 +29,9 @@ class WireFixturesTest {
         val home = client.decodeFromString<LibraryHome>(fixture("v1/library-home.json"))
         assertEquals(listOf(Wire.ShelfId.CONTINUE, Wire.ShelfId.RECENT), home.shelves.map { it.id })
         assertEquals(600000, home.shelves.first().items.single().playState?.positionMs)
+        val vod = client.decodeFromString<VodSession>(fixture("v1/vod-session.json"))
+        assertEquals(Wire.VodMode.REMUX, vod.mode)
+        assertEquals(2000, vod.startMs)
     }
 
     @Test
@@ -55,6 +58,15 @@ class WireFixturesTest {
         assertEquals(0, item.unwatched)
         assertNull(item.playState)
         assertEquals(emptyList(), client.decodeFromString<LibraryHome>("""{"shelves":[]}""").libraries)
+    }
+
+    @Test
+    fun `a client opens a VOD session with its profile and where to start`() {
+        val body = Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback("i", ClientProfile(listOf("mp4"), listOf("h264"), listOf("aac"), 1080), 5000))
+        assertEquals("""{"itemId":"i","profile":{"containers":["mp4"],"videoCodecs":["h264"],"audioCodecs":["aac"],"maxHeight":1080},"startMs":5000}""", body)
+        assertEquals(VodSession("s", "i", "direct", PlaybackDescriptor("file", "video/mp4", "/u", 1)), client.decodeFromString<VodSession>(
+            """{"id":"s","itemId":"i","mode":"direct","descriptor":{"protocol":"file","mimeType":"video/mp4","url":"/u","epoch":1}}""",
+        ))
     }
 
     @Test

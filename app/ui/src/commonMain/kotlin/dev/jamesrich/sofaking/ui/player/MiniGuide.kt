@@ -1,7 +1,11 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -86,6 +90,7 @@ internal class MiniGuideActions(
  * row reaches the top row. [onChipsFocused] tells the owner when the top row has focus, so Left and Right move
  * along its chips and buttons instead of being swallowed.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun BoxScope.MiniGuide(
     lineup: Lineup,
@@ -107,8 +112,9 @@ internal fun BoxScope.MiniGuide(
         miniGuideRows(filter, lineup.channels, scope?.guideIds, favorites, recent, previousGuideId, favoritesOrder)
     }
     val focusRow = miniGuideFocusRow(rows, currentGuideId)
-    // Two rows above the focused one, so it sits near the middle of the panel rather than the top edge.
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = (focusRow - 2).coerceAtLeast(0))
+    // The focused row starts at the top: the panel holds little more than one row on a 1080p TV, and a row
+    // scrolled out of the list cannot take focus, which would leave the D-pad nothing to move.
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = focusRow.coerceAtLeast(0))
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { requestFocusWhenAttached(focusRequester) }
     val timeFormat = rememberTimeFormatter()
@@ -161,6 +167,7 @@ internal fun BoxScope.MiniGuide(
                     modifier = Modifier.padding(16.dp),
                 )
             }
+            CompositionLocalProvider(LocalBringIntoViewSpec provides FocusedRowOnTop) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxWidth().weight(1f).focusRestorer(),
@@ -180,8 +187,18 @@ internal fun BoxScope.MiniGuide(
                     )
                 }
             }
+            }
         }
     }
+}
+
+/**
+ * The focused row sits at the top of the list with the next one peeking below it. A TV's default pivots it a third
+ * of the way down, which in a panel little taller than one row leaves a sliver of the row above.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+private val FocusedRowOnTop = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset
 }
 
 /** The action buttons, chip-high; each does what its remote key does, and the icons show the captions and favorite state. */

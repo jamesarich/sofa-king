@@ -157,6 +157,39 @@ class SofaKingApi(
         http.delete(vodPath(id)).checkSuccess()
     }
 
+    /** The server's id, time and [CapabilitiesDto]: what it offers beyond live TV. */
+    internal suspend fun bootstrap(): BootstrapDto = call {
+        http.get("bootstrap").decode()
+    }
+
+    /** Every recording but cancelled ones, soonest scheduled first. */
+    internal suspend fun recordings(): RecordingListDto = call {
+        http.get("recordings").decode()
+    }
+
+    /** Records the programme on [ScheduleRecordingDto.channelId] that starts at [ScheduleRecordingDto.startsAt]. */
+    internal suspend fun scheduleRecording(request: ScheduleRecordingDto): RecordingDto = call {
+        http.post("recordings") { json(request) }.decode()
+    }
+
+    /** Cancels a scheduled recording, stops a running one, or deletes a finished one and its file. */
+    internal suspend fun deleteRecording(id: String) = call {
+        http.delete("recordings/" + id.encodeURLPathPart()).checkSuccess()
+    }
+
+    internal suspend fun recordingRules(): RecordingRuleListDto = call {
+        http.get("recording-rules").decode()
+    }
+
+    internal suspend fun createRecordingRule(request: CreateRecordingRuleDto): RecordingRuleDto = call {
+        http.post("recording-rules") { json(request) }.decode()
+    }
+
+    /** Deletes a series rule and the recordings it scheduled; the ones it already made stay. */
+    internal suspend fun deleteRecordingRule(id: String) = call {
+        http.delete("recording-rules/" + id.encodeURLPathPart()).checkSuccess()
+    }
+
     /** The absolute media URL for a descriptor, whose [PlaybackDescriptorDto.url] is relative to the server. */
     internal fun mediaUrl(descriptor: PlaybackDescriptorDto): String = try {
         URLBuilder(base).takeFrom(descriptor.url).buildString()

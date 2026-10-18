@@ -64,6 +64,8 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.MessageScreen
@@ -192,11 +194,17 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val loading by vm.loading.collectAsStateWithLifecycle()
     val pairingBusy by vm.pairing.collectAsStateWithLifecycle()
     val update by vm.update.collectAsStateWithLifecycle()
+    val capabilities by vm.capabilities.collectAsStateWithLifecycle()
+    val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val libraryVm = viewModel { LibraryViewModel(vm.api, vm.sessions) }
     val libraryHome by libraryVm.home.collectAsStateWithLifecycle()
     val grid by libraryVm.grid.collectAsStateWithLifecycle()
-    // The Library tab shows once the server answers with libraries, or fails to: a server without any hides it.
-    val libraryShown = libraryHome is LibraryHomeState.Ready || libraryHome is LibraryHomeState.Failed
+    // The Library tab shows when the server's bootstrap says it serves libraries and it has at least one.
+    val libraryShown = capabilities.library && when (val home = libraryHome) {
+        LibraryHomeState.Unavailable -> false
+        is LibraryHomeState.Ready -> home.home.libraries.isNotEmpty()
+        else -> true
+    }
     var screen by rememberSerializable { mutableStateOf<Screen>(Screen.Guide()) }
     val pairingScope = rememberCoroutineScope()
     // Why the last pairing attempt failed; Settings shows it until the next attempt.
@@ -539,6 +547,9 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                         captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
                                         autoOpenDelay = settings?.autoOpenDelay ?: AutoOpenDelay.AFTER_10_SECONDS,
                                         previewSound = settings?.previewSound ?: true,
+                                        recordingMarks = recordingMarks.takeIf { capabilities.recordings },
+                                        onRecord = vm.recordings::toggle,
+                                        onRecordSeries = vm.recordings::toggleSeries,
                                     )
                                 }
                             }
@@ -626,6 +637,9 @@ private fun GuideOrEmpty(
     captionStyle: CaptionStyle,
     autoOpenDelay: AutoOpenDelay,
     previewSound: Boolean,
+    recordingMarks: RecordingMarks?,
+    onRecord: suspend (Programme) -> Boolean,
+    onRecordSeries: suspend (Programme) -> Boolean,
 ) {
     if (lineup.channels.isEmpty()) {
         MessageScreen(stringResource(Res.string.no_channels), hint = stringResource(Res.string.no_channels_hint))
@@ -650,6 +664,9 @@ private fun GuideOrEmpty(
             captionStyle = captionStyle,
             autoOpenDelay = autoOpenDelay,
             previewSound = previewSound,
+            recordingMarks = recordingMarks,
+            onRecord = onRecord,
+            onRecordSeries = onRecordSeries,
         )
     }
 }

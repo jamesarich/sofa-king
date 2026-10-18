@@ -58,3 +58,11 @@ data class Lineup(
         return programmes[index] to programmes.getOrNull(index + 1)
     }
 }
+
+/** What a server offers beyond live TV, as its bootstrap says. */
+data class ServerCapabilities(
+    /** It records from the guide. */
+    val recordings: Boolean = false,
+    /** It serves media libraries. */
+    val library: Boolean = false,
+)

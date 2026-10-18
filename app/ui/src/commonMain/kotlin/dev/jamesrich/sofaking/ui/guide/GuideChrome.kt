@@ -158,7 +158,7 @@ internal fun SearchField(
 
 /**
  * One horizontally scrolled strip; the header and every row share [scrollState] so columns stay aligned. The now
- * line crosses the time row on top and runs behind a row's cells ([nowLineBehind]), so it never cuts a title.
+ * line runs behind the strip's content, so it shows between cells and under the time labels but never cuts a title.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -166,13 +166,12 @@ internal fun TimelineStrip(
     scrollState: ScrollState,
     nowMinute: Long?,
     modifier: Modifier,
-    nowLineBehind: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     // Focus must not scroll the strip: the default bring-into-view would chase a long cell's far end
     // (hours ahead) on a vertical move. GuideScreen scrolls the timeline itself in revealMinute.
     CompositionLocalProvider(LocalBringIntoViewSpec provides NoBringIntoView) {
-        TimelineStripContent(scrollState, nowMinute, nowLineBehind, modifier, content)
+        TimelineStripContent(scrollState, nowMinute, modifier, content)
     }
 }
 
@@ -190,14 +189,12 @@ internal val NoBringIntoView = object : BringIntoViewSpec {
 private fun TimelineStripContent(
     scrollState: ScrollState,
     nowMinute: Long?,
-    nowLineBehind: Boolean,
     modifier: Modifier,
     content: @Composable () -> Unit,
 ) {
     Box(modifier.clipToBounds().horizontalScroll(scrollState, overscrollEffect = null)) {
-        if (nowLineBehind) NowLine(nowMinute)
+        NowLine(nowMinute)
         content()
-        if (!nowLineBehind) NowLine(nowMinute)
     }
 }
 

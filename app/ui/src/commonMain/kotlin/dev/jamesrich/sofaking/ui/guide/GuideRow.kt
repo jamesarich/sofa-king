@@ -175,7 +175,7 @@ internal fun ChannelRow(
                 )
             }
         }
-        TimelineStrip(scrollState = env.scrollState, nowMinute = nowMinute, modifier = Modifier.weight(1f), nowLineBehind = true) {
+        TimelineStrip(scrollState = env.scrollState, nowMinute = nowMinute, modifier = Modifier.weight(1f)) {
             Row(Modifier.fillMaxHeight()) {
                 cells.forEachIndexed { index, cell ->
                     GuideCellItem(

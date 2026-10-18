@@ -9,7 +9,7 @@ The terms used here (provider, source, candidate, station) are defined in the [g
 | Module | Contents |
 | --- | --- |
 | `../contract` | The live TV request and response types the server shares with the app, a Kotlin Multiplatform build included from `settings.gradle.kts` |
-| `server` | The admin, lineup policy and status models, Ktor Netty server, imports, SQLite storage, lineup, source probes, media relay, player outputs, HDHomeRun emulation and admin portal, JVM 21 |
+| `server` | The admin, lineup policy and status models, Ktor Netty server, imports, SQLite storage, lineup, source probes, media relay, player outputs, HDHomeRun emulation, media library scans and admin portal, JVM 21 |
 
 ## Data flow
 
@@ -144,9 +144,13 @@ Sessions playing the same MPEG-TS source share one upstream connection. The rela
 
 When the upstream ends or fails, the relay reconnects with backoff from 0.5 to 8 seconds, for a 30-second grace period measured from the last received packet. Throughout any gap of more than a second it writes MPEG-TS null packets (PID 0x1FFF) to every session about once per second, so an 8-second player read timeout never fires. Sessions end only when the grace period expires. The upstream socket has a 15-second inactivity timeout, which counts as a failure and starts the grace period. An upstream with no sessions closes after two seconds.
 
+## Media libraries
+
+`LibraryService` keeps the libraries in SQLite (`library`, `library_item`, `play_state`) and runs one scan at a time on its loop. `LibraryScanner` walks a library's folder without following links, skipping hidden and extras folders, and builds movies, shows with their seasons and episodes, or videos from the [file names](libraries.md#lay-out-the-folders), `.nfo` sidecars and local artwork. FFprobe reads new or changed files, two at a time, with a 30-second limit each. Item ids are name-based UUIDs of the library id and the relative path. A missing file is marked and deleted after seven days; an absent or emptied folder changes nothing, since that is what an unmounted disk looks like.
+
 ## Supported scope
 
-The server supports configured HTTP(S) playlists and guides, native provider clients, the lineup policy, JSON control and admin requests, and the admin portal. It supports HLS and MPEG-TS passthrough, M3U and XMLTV output with per-channel stream URLs for third-party players, and cached lineup logos served from this server. It supports HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification. Recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery and events are not implemented. HLS variable substitution and content steering are unsupported.
+The server supports configured HTTP(S) playlists and guides, native provider clients, the lineup policy, JSON control and admin requests, and the admin portal. It supports HLS and MPEG-TS passthrough, M3U and XMLTV output with per-channel stream URLs for third-party players, and cached lineup logos served from this server. It supports HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification. Playing library items, recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery and events are not implemented. HLS variable substitution and content steering are unsupported.
 
 ## Operations
 

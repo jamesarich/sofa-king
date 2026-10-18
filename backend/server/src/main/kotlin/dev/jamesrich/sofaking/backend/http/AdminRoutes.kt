@@ -91,6 +91,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         plexRoutes(runtime.plex)
         setupRoutes(runtime.setup)
         viewerAdminRoutes(runtime)
+        libraryAdminRoutes(runtime.libraries)
     }
 }
 

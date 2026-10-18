@@ -177,9 +177,10 @@ interface LivePlayer {
 
     /**
      * What the engine plays as it is, sent when a library item opens: the server plays a file that fits as it is
-     * and copies or converts the rest into HLS. Engines claim only what they decode on every device they run on.
+     * and copies or converts the rest into HLS. Engines claim only what they decode on every device they run on;
+     * the default, MP4 with H.264 and AAC up to 1080p, is what every engine plays.
      */
-    val playbackProfile: PlaybackProfile get() = BASIC_PROFILE
+    val playbackProfile: PlaybackProfile get() = PlaybackProfile(listOf("mp4"), listOf("h264"), listOf("aac"), maxHeight = 1080)
 
     /** Opens the system media session; next and previous from it zap through [onZapStep] (+1 next, -1 previous). */
     fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle
@@ -206,6 +207,3 @@ class LivePauseClock {
     /** True when the player should jump to the live edge before resuming. */
     fun onPlay(nowMs: Long): Boolean = shouldResumeAtLive(pausedAtMs, nowMs).also { pausedAtMs = null }
 }
-
-/** MP4 with H.264 and AAC up to 1080p: what every engine plays. */
-internal val BASIC_PROFILE = PlaybackProfile(listOf("mp4"), listOf("h264"), listOf("aac"), maxHeight = 1080)

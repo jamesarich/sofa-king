@@ -157,18 +157,27 @@ class PlaybackSessions(
     suspend fun reopen(): PlaybackStream? = when (val last = mutex.withLock { resumable }) {
         null -> null
         is Resumable.Live -> tune(last.channelId, last.intent)
-        is Resumable.Item -> play(last.itemId, last.profile, mutex.withLock { itemPositionMs }, last.audioIndex)
+        is Resumable.Item -> openItem(last.request, mutex.withLock { itemPositionMs })
     }
 
     /**
      * Plays the library item [itemId] from [startMs], as [profile] can: the file as it is, or HLS the server copies
      * or converts it into from that point. The held session, live or not, is released first.
      */
-    suspend fun play(itemId: String, profile: PlaybackProfile, startMs: Long = 0, audioIndex: Int? = null): PlaybackStream = mutex.withLock {
+    suspend fun play(itemId: String, profile: PlaybackProfile, startMs: Long = 0, audioIndex: Int? = null): PlaybackStream =
+        openItem(ItemRequest(itemId, profile, audioIndex), startMs)
+
+    /**
+     * Plays the recording [recordingId] from [startMs] as [play] plays a library item; one still recording follows
+     * the file as it grows. The stream's [PlaybackStream.itemId] is the recording's id.
+     */
+    suspend fun playRecording(recordingId: String, profile: PlaybackProfile, startMs: Long = 0): PlaybackStream =
+        openItem(ItemRequest(recordingId, profile, audioIndex = null, recording = true), startMs)
+
+    private suspend fun openItem(request: ItemRequest, startMs: Long): PlaybackStream = mutex.withLock {
         val api = api ?: throw IOException("No server configured")
         _current.value?.let { releaseHeld(api, it) }
         itemPositionMs = startMs.coerceAtLeast(0)
-        val request = ItemRequest(itemId, profile, audioIndex)
         val opened = withContext(NonCancellable) {
             withTimeoutOrNull(openTimeout) { api.openVod(request.dto(itemPositionMs)) }
                 ?: throw SessionTimeoutException("session open timed out")
@@ -263,7 +272,7 @@ class PlaybackSessions(
             epoch = session.descriptor.epoch,
             intent = PlaybackIntent.WATCH,
             seekable = true,
-            itemId = session.itemId,
+            itemId = request.itemId,
             mode = session.mode,
             offsetMs = session.startMs,
             startAtMs = startAtMs,
@@ -369,23 +378,20 @@ class PlaybackSessions(
         }
     }
 
-    /** A library item as it was asked for: the same item, profile and audio stream reopen it. */
-    private data class ItemRequest(val itemId: String, val profile: PlaybackProfile, val audioIndex: Int?) {
+    /** A library item or a [recording] as it was asked for: the same item, profile and audio stream reopen it. */
+    private data class ItemRequest(val itemId: String, val profile: PlaybackProfile, val audioIndex: Int?, val recording: Boolean = false) {
         fun dto(startMs: Long) = OpenVodPlaybackDto(
-            itemId = itemId,
+            itemId = if (recording) "" else itemId,
             profile = ClientProfileDto(profile.containers, profile.videoCodecs, profile.audioCodecs, profile.maxHeight, profile.hdr),
             startMs = startMs,
             audioIndex = audioIndex,
+            recordingId = itemId.takeIf { recording },
         )
     }
 
     private sealed interface Resumable {
         data class Live(val channelId: String, val intent: PlaybackIntent) : Resumable
-        data class Item(val request: ItemRequest) : Resumable {
-            val itemId get() = request.itemId
-            val profile get() = request.profile
-            val audioIndex get() = request.audioIndex
-        }
+        data class Item(val request: ItemRequest) : Resumable
     }
 
     private companion object {

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="recordings_title">Recordings</string>
+    <string name="recordings_now">Recording now</string>
+    <string name="recordings_recorded">Recorded</string>
+    <string name="recordings_scheduled">Scheduled</string>
+    <string name="recordings_empty">Nothing recorded yet</string>
+    <string name="recordings_empty_hint">Open a program's details in the guide and press Record.</string>
+    <string name="recordings_unavailable">This server does not record</string>
+    <string name="recordings_space">%1$s free of %2$s</string>
+    <string name="recordings_until">Recording until %1$s</string>
+    <string name="recordings_failed">Failed</string>
+    <string name="recordings_failed_reason">Failed: %1$s</string>
+    <string name="recordings_watched">Watched</string>
+    <string name="recordings_play">Play</string>
+    <string name="recordings_resume">Resume</string>
+    <string name="recordings_from_start">From start</string>
+    <string name="recordings_delete">Delete</string>
+    <string name="recordings_stop">Stop</string>
+    <string name="recordings_cancel">Cancel</string>
+    <string name="recordings_confirm_delete">Delete for good?</string>
+    <string name="recordings_confirm_stop">Stop recording?</string>
+    <string name="recordings_confirm_cancel">Cancel recording?</string>
+    <string name="recordings_change_failed">The server did not take that change. Try again.</string>
+    <string name="recordings_skip_commercials">Skip commercials</string>
+    <string name="recordings_skip_commercials_help">Playback jumps over the breaks the server found in a recording.</string>
+</resources>

@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlin.test.Test
@@ -20,7 +21,7 @@ import kotlin.time.Duration.Companion.milliseconds
 class LibraryPlaybackTest {
     /** A server with live and VOD sessions: a VOD open answers [mode], and a PATCH with a start bumps the epoch. */
     private class FakeServer(scope: TestScope) {
-        class Vod(val id: String, val itemId: String, val mode: String, var startMs: Long, var epoch: Int = 1)
+        class Vod(val id: String, val itemId: String, val mode: String, var startMs: Long, var epoch: Int = 1, val recordingId: String? = null)
 
         val vods = linkedMapOf<String, Vod>()
         var mode = "remux"
@@ -33,7 +34,8 @@ class LibraryPlaybackTest {
                 request.method == "POST" && request.path == "/api/v1/vod-sessions" -> {
                     val body = Json.parseToJsonElement(request.body).jsonObject
                     val start = body["startMs"]?.jsonPrimitive?.longOrNull ?: 0
-                    val vod = Vod("v${nextId++}", body["itemId"]!!.jsonPrimitive.content, mode, if (mode == "direct") 0 else start)
+                    val recordingId = body["recordingId"]?.jsonPrimitive?.contentOrNull
+                    val vod = Vod("v${nextId++}", body["itemId"]?.jsonPrimitive?.content.orEmpty(), mode, if (mode == "direct") 0 else start, recordingId = recordingId)
                     vods[vod.id] = vod
                     json(vod.body(), status = 201)
                 }
@@ -67,7 +69,8 @@ class LibraryPlaybackTest {
         private fun Vod.body(): String {
             val descriptor = if (mode == "direct") """{"protocol":"file","mimeType":"video/x-matroska","url":"/media/vod/$id/$epoch/k/file.mkv","epoch":$epoch}"""
             else """{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/vod/$id/$epoch/k/index.m3u8","epoch":$epoch}"""
-            return """{"id":"$id","itemId":"$itemId","mode":"$mode","descriptor":$descriptor,"startMs":$startMs,"durationMs":3600000,"expiresAt":"2026-10-10T10:05:00Z"}"""
+            val recording = recordingId?.let { ""","recordingId":"$it"""" }.orEmpty()
+            return """{"id":"$id","itemId":"$itemId","mode":"$mode","descriptor":$descriptor,"startMs":$startMs,"durationMs":3600000,"expiresAt":"2026-10-10T10:05:00Z"$recording}"""
         }
     }
 
@@ -99,6 +102,31 @@ class LibraryPlaybackTest {
         assertEquals("m1", body["itemId"]!!.jsonPrimitive.content)
         assertEquals(120_000, body["startMs"]!!.jsonPrimitive.longOrNull)
         assertEquals("""["mp4","mkv"]""", body["profile"]!!.jsonObject["containers"].toString())
+    }
+
+    @Test
+    fun `a recording opens by its id and seeks restart it like an item`() = runTest {
+        val (fake, sessions) = fixture()
+
+        val stream = sessions.playRecording("r1", tv, startMs = 60_000)
+
+        assertEquals("r1", stream.itemId, "the screen tells an item stream by its id")
+        assertTrue(stream.seekable)
+        val body = Json.parseToJsonElement(fake.requests.single().substringAfter("vod-sessions ")).jsonObject
+        assertEquals("r1", body["recordingId"]!!.jsonPrimitive.content)
+        assertNull(body["itemId"], "an empty item id is the default, so it is left out")
+        assertEquals(60_000, body["startMs"]!!.jsonPrimitive.longOrNull)
+
+        val restarted = sessions.restartAt(900_000)!!
+        assertEquals("r1", restarted.itemId)
+        assertEquals(900_000, restarted.offsetMs)
+
+        sessions.reportPosition(950_000)
+        sessions.release()
+        assertEquals("r1", sessions.reopen()!!.itemId)
+        val reopened = Json.parseToJsonElement(fake.requests.last().substringAfter("vod-sessions ")).jsonObject
+        assertEquals("r1", reopened["recordingId"]!!.jsonPrimitive.content, "a reopen asks for the recording again")
+        assertEquals(950_000, reopened["startMs"]!!.jsonPrimitive.longOrNull)
     }
 
     @Test

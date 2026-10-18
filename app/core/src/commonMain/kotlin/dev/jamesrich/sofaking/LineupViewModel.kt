@@ -396,6 +396,8 @@ class LineupViewModel(
 
     fun setZapSkipsHidden(enabled: Boolean) = viewModelScope.launch { store.setZapSkipsHidden(enabled) }
 
+    fun setSkipCommercials(enabled: Boolean) = viewModelScope.launch { store.setSkipCommercials(enabled) }
+
     fun setFavoritesOrder(order: List<String>) = viewModelScope.launch { store.setFavoritesOrder(order) }
 
     fun setMatchFrameRate(enabled: Boolean) = viewModelScope.launch { store.setMatchFrameRate(enabled) }

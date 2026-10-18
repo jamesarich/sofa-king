@@ -274,7 +274,7 @@ fun VodPlayerScreen(
     // The picked subtitle track's cues, read once per pick; a track the server cannot give turns them off.
     LaunchedEffect(subtitleTrack) {
         subtitles = null
-        val index = subtitleTrack ?: return@LaunchedEffect
+        val index = subtitleTrack?.takeUnless(tracks::isPicture) ?: return@LaunchedEffect
         subtitles = tracks.loadSubtitles(index)
         if (subtitles == null) {
             subtitleTrack = null
@@ -350,21 +350,37 @@ fun VodPlayerScreen(
         }
     }
 
+    // Plays the item again from here with the picked audio and, when the subtitle is pictures, that subtitle drawn in.
+    fun reopenWithTracks() {
+        val audio = audioTrack
+        val picture = subtitleTrack?.takeIf(tracks::isPicture)
+        player.stop()
+        scope.launch {
+            try {
+                tracks.select(audio, picture, positionMs)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.w { "vod: track switch failed: ${e.message}" }
+                failure = (e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE
+            }
+        }
+    }
+
     fun pickAudio(index: Int) {
         tracksOpen = false
         if (index == audioTrack) return
         audioTrack = index
-        player.stop()
-        scope.launch {
-            try {
-                tracks.selectAudio(index, positionMs)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log.w { "vod: audio switch failed: ${e.message}" }
-                failure = (e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE
-            }
-        }
+        reopenWithTracks()
+    }
+
+    // A text subtitle is drawn here over the same stream; a picture one, on or off, needs a new stream.
+    fun pickSubtitle(index: Int?) {
+        tracksOpen = false
+        if (index == subtitleTrack) return
+        val restream = tracks.isPicture(index) || tracks.isPicture(subtitleTrack)
+        subtitleTrack = index
+        if (restream) reopenWithTracks()
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
@@ -510,7 +526,7 @@ fun VodPlayerScreen(
             }
         }
         if (tracksOpen) {
-            TracksCard(tracks, audioTrack, subtitleTrack, onAudio = { pickAudio(it); focus.requestFocus() }, onSubtitle = { subtitleTrack = it; tracksOpen = false; focus.requestFocus() })
+            TracksCard(tracks, audioTrack, subtitleTrack, onAudio = { pickAudio(it); focus.requestFocus() }, onSubtitle = { pickSubtitle(it); focus.requestFocus() })
         }
     }
 }

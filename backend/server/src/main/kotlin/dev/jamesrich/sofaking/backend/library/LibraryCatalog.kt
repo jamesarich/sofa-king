@@ -20,8 +20,10 @@ import dev.jamesrich.sofaking.contract.UpdatePlayState
 import dev.jamesrich.sofaking.contract.Wire
 import java.nio.file.Path
 import java.time.Clock
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** Below this share of a file, a stop counts as not started; at or past [WATCHED_AT], as watched. */
 private const val STARTED_AT = 0.05
@@ -63,7 +65,15 @@ internal class Snapshot(
     val episodes: Map<String, List<View>>,
     /** The movies, shows and videos of each library. */
     val tops: Map<String, List<View>>,
-)
+) {
+    /** Where [view]'s file is: a movie, episode or video inside its library's folder; null for anything else. */
+    fun fileOf(view: View): Path? {
+        val relative = view.record.path?.takeIf { view.record.kind != ItemKind.SHOW && view.record.kind != ItemKind.SEASON } ?: return null
+        val library = libraries.firstOrNull { it.id == view.record.libraryId } ?: return null
+        val root = Path.of(library.path).normalize()
+        return root.resolve(relative).normalize().takeIf { it.startsWith(root) }
+    }
+}
 
 /**
  * What the app reads from the libraries: the home rows, a library's items, one item's page, search, and the
@@ -133,13 +143,15 @@ class LibraryCatalog internal constructor(
         val view = snapshot.views[id] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
         val states = store.playStates()
         val media = view.record.media
+        // Subtitle files beside the video, read now so a file added since the scan shows.
+        val sidecars = snapshot.fileOf(view)?.let { withContext(Dispatchers.IO) { sidecarSubtitles(it) } }.orEmpty()
         return LibraryItemDetail(
             item = view.out(snapshot, states),
             children = snapshot.children[id].orEmpty().map { it.out(snapshot, states) },
             next = if (view.record.kind == ItemKind.SHOW) nextEpisode(snapshot.episodes[id].orEmpty(), states)?.out(snapshot, states) else null,
             tagline = view.tagline, studio = view.studio, cast = view.cast, directors = view.directors,
             audio = media?.audio.orEmpty().map { MediaTrack(it.index, it.codec, it.language, it.title, it.channels, it.default) },
-            subtitles = media?.subtitles.orEmpty().map { MediaTrack(it.index, it.codec, it.language, it.title, default = it.default, forced = it.forced) },
+            subtitles = (media?.subtitles.orEmpty() + sidecars.map { it.stream }).map { MediaTrack(it.index, it.codec, it.language, it.title, default = it.default, forced = it.forced) },
             container = media?.container,
             videoCodec = media?.video?.codec,
         )

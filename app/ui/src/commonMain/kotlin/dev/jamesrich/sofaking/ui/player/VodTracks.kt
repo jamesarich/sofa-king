@@ -27,23 +27,30 @@ import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import org.jetbrains.compose.resources.stringResource
 
-/** One audio or subtitle track the item offers: its stream index in the file, and what the picker calls it. */
-data class VodTrack(val index: Int, val label: String)
+/**
+ * One audio or subtitle track the item offers: its index, and what the picker calls it. A [picture] subtitle has
+ * no text, so the server draws it into the picture.
+ */
+data class VodTrack(val index: Int, val label: String, val picture: Boolean = false)
 
 /**
- * The tracks the Audio and subtitles card lists. [selectAudio] plays the item again from a position with another
- * audio track, and [loadSubtitles] reads a subtitle track's cues, null when the server cannot give them.
+ * The tracks the Audio and subtitles card lists. [select] plays the item again from a position with an audio
+ * track and a picture subtitle drawn in (each null for none picked), and [loadSubtitles] reads a text subtitle
+ * track's cues, null when the server cannot give them.
  */
 class VodTracks(
     val audio: List<VodTrack> = emptyList(),
     val subtitles: List<VodTrack> = emptyList(),
     val initialAudio: Int? = null,
     val initialSubtitle: Int? = null,
-    val selectAudio: suspend (index: Int, positionMs: Long) -> Unit = { _, _ -> },
+    val select: suspend (audio: Int?, pictureSubtitle: Int?, positionMs: Long) -> Unit = { _, _, _ -> },
     val loadSubtitles: suspend (index: Int) -> Subtitles? = { null },
 ) {
     /** True when there is a choice to make: more than one audio track, or any subtitles. */
     val pickable: Boolean get() = audio.size > 1 || subtitles.isNotEmpty()
+
+    /** True when subtitle track [index] is pictures the server draws, rather than text the player does. */
+    fun isPicture(index: Int?): Boolean = index != null && subtitles.any { it.index == index && it.picture }
 }
 
 /**

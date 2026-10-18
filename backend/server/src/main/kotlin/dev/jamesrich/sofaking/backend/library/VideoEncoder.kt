@@ -41,20 +41,45 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
     fun outputArgs(hdr: Boolean, keyFrameSeconds: Int): List<String> {
         val filters = buildList {
             if (hdr) add(TONE_MAP)
-            add("scale=-2:'min(1080,ih)'")
-            when (accel) {
-                HardwareAccel.NONE, HardwareAccel.NVENC -> add("format=yuv420p")
-                HardwareAccel.QSV -> add("format=nv12")
-                HardwareAccel.VAAPI -> addAll(listOf("format=nv12", "hwupload"))
-            }
+            addAll(sizeAndFormat())
         }
+        return listOf("-vf", filters.joinToString(",")) + codecArgs(keyFrameSeconds)
+    }
+
+    /**
+     * The filter graph that draws the picture subtitle stream [subtitle] (an FFmpeg stream specifier such as `0:3`)
+     * over the first video stream of input 0, which [video] describes, and maps the result as the output's video;
+     * [codecArgs] then encodes it. The subtitle is scaled to the picture's size, as a 1080p PGS track over a 4K picture
+     * would otherwise sit in its corner, and an HDR picture is tone-mapped before the subtitle goes on.
+     */
+    fun overlayGraph(subtitle: String, video: VideoStream?): List<String> {
+        val base = if (video?.transfer != null) "[0:v:0]$TONE_MAP,format=yuv420p[base]" else "[0:v:0]null[base]"
+        val width = video?.width
+        val height = video?.height
+        val sub = if (width != null && height != null) "[$subtitle]scale=$width:$height[sub]" else "[$subtitle]null[sub]"
+        val rest = (listOf("overlay=eof_action=pass:repeatlast=0") + sizeAndFormat()).joinToString(",")
+        return listOf("-filter_complex", "$base;$sub;[base][sub]$rest[v]", "-map", "[v]")
+    }
+
+    /** The encoder and its key frames, after [outputArgs]' filter or [overlayGraph]. */
+    fun codecArgs(keyFrameSeconds: Int): List<String> {
         val encoder = when (accel) {
             HardwareAccel.NONE -> listOf("-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-maxrate", "10M", "-bufsize", "20M")
             HardwareAccel.VAAPI -> listOf("-c:v", "h264_vaapi", "-b:v", "8M", "-maxrate", "10M", "-bufsize", "20M")
             HardwareAccel.QSV -> listOf("-c:v", "h264_qsv", "-preset", "veryfast", "-global_quality", "23", "-forced_idr", "1")
             HardwareAccel.NVENC -> listOf("-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0", "-maxrate", "10M", "-bufsize", "20M", "-forced-idr", "1")
         }
-        return listOf("-vf", filters.joinToString(",")) + encoder + listOf("-force_key_frames", "expr:gte(t,n_forced*$keyFrameSeconds)")
+        return encoder + listOf("-force_key_frames", "expr:gte(t,n_forced*$keyFrameSeconds)")
+    }
+
+    /** At most 1080 lines, in the pixel format the encoder takes. */
+    private fun sizeAndFormat(): List<String> = buildList {
+        add("scale=-2:'min(1080,ih)'")
+        when (accel) {
+            HardwareAccel.NONE, HardwareAccel.NVENC -> add("format=yuv420p")
+            HardwareAccel.QSV -> add("format=nv12")
+            HardwareAccel.VAAPI -> addAll(listOf("format=nv12", "hwupload"))
+        }
     }
 
     /**

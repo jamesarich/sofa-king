@@ -66,9 +66,12 @@ class LibraryChoicesTest {
             audio = listOf(MediaTrackInfo(1, "ac3", "eng", channels = 6), MediaTrackInfo(2, "aac", "spa", default = true, channels = 2)),
         )
         assertEquals(listOf(4, 5), textSubtitles(detail).map { it.index })
+        assertEquals(listOf(true, false, false), detail.subtitles.map(::isPictureSubtitle))
         assertEquals(5, initialSubtitle(detail)?.index)
         assertEquals(2, defaultAudio(detail)?.index)
         assertNull(initialSubtitle(detail.copy(subtitles = emptyList())))
+        val forcedPictures = detail.copy(subtitles = listOf(MediaTrackInfo(4, "subrip", "eng"), MediaTrackInfo(1000, "hdmv_pgs_subtitle", "eng", forced = true)))
+        assertEquals(1000, initialSubtitle(forcedPictures)?.index, "a forced picture track is drawn in when there is no forced text")
     }
 
     @Test

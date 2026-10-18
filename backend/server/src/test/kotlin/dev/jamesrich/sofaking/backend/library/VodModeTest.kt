@@ -91,6 +91,25 @@ class VodModeTest {
         assertEquals("h264_qsv", VideoEncoder(HardwareAccel.QSV).outputArgs(hdr = false, keyFrameSeconds = 4).let { it[it.indexOf("-c:v") + 1] })
     }
 
+    @Test fun `a picture subtitle is drawn over the converted picture at the picture's size`() {
+        val file = media("matroska,webm", "hevc", "eac3", 2160, "smpte2084").let { it.copy(video = it.video!!.copy(width = 3840)) }
+        val embedded = SubtitleSource(SubtitleStream(4, "hdmv_pgs_subtitle"), null)
+        val command = vodCommand("ffmpeg", Path.of("/m/a.mkv"), Path.of("/t/s"), Wire.VodMode.TRANSCODE, 5_000, file, null, burn = embedded)
+        val graph = command[command.indexOf("-filter_complex") + 1]
+        assertTrue(graph.startsWith("[0:v:0]zscale") && "[0:4]scale=3840:2160[sub]" in graph && "[base][sub]overlay" in graph, graph)
+        assertEquals("[v]", command[command.indexOf("-map") + 1], "the drawn picture is the output's video")
+        assertFalse("-vf" in command)
+        assertEquals(1, command.count { it == "-i" })
+
+        val sidecar = SubtitleSource(SubtitleStream(1000, "hdmv_pgs_subtitle"), Path.of("/m/a.en.sup"))
+        val withFile = vodCommand("ffmpeg", Path.of("/m/a.mkv"), Path.of("/t/s"), Wire.VodMode.TRANSCODE, 5_000, media("matroska,webm", "h264", "aac"), null, burn = sidecar)
+        val second = withFile.indexOf("/m/a.en.sup")
+        assertEquals("-i", withFile[second - 1])
+        assertEquals("5.000", withFile[second - 2], "the subtitle file seeks with the video")
+        val graph2 = withFile[withFile.indexOf("-filter_complex") + 1]
+        assertTrue(graph2.startsWith("[0:v:0]null[base];[1:s:0]null[sub]"), graph2)
+    }
+
     @Test fun `a hardware encoder that cannot encode falls back to software`() = runTest {
         assertEquals(HardwareAccel.NONE, VideoEncoder(HardwareAccel.VAAPI).verified("ffmpeg") { false }.accel)
         assertEquals(HardwareAccel.VAAPI, VideoEncoder(HardwareAccel.VAAPI).verified("ffmpeg") { true }.accel)

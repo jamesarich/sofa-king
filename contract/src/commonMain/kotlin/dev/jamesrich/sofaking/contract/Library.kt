@@ -54,7 +54,11 @@ import kotlinx.serialization.Serializable
 /** The library home: Continue watching, then Recently added per library, and every library. */
 @Serializable data class LibraryHome(val shelves: List<LibraryShelf>, val libraries: List<Library> = emptyList())
 
-/** An audio or subtitle track the item offers; [index] is the stream's index in its file. */
+/**
+ * An audio or subtitle track the item offers; [index] is the stream's index in its file, or from 1000 a subtitle
+ * file beside it. A subtitle whose [codec] is pictures (`hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`) has no
+ * text, so a player shows it by asking for it in [OpenVodPlayback.subtitleIndex].
+ */
 @Serializable data class MediaTrack(val index: Int, val codec: String, val language: String? = null, val title: String? = null, val channels: Int? = null, val default: Boolean = false, val forced: Boolean = false)
 
 /**
@@ -93,7 +97,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * `POST /api/v1/vod-sessions`: play the movie, episode or video [itemId], or the recording [recordingId], from
- * [startMs], with the audio stream whose index is [audioIndex] (the file's default when null).
+ * [startMs], with the audio stream whose index is [audioIndex] (the file's default when null). [subtitleIndex] names
+ * a picture subtitle track the server draws into the picture, which converts the stream.
  */
 @Serializable data class OpenVodPlayback(
     val itemId: String = "",
@@ -101,6 +106,7 @@ import kotlinx.serialization.Serializable
     val startMs: Long = 0,
     val audioIndex: Int? = null,
     val recordingId: String? = null,
+    val subtitleIndex: Int? = null,
 )
 
 /** `PATCH /api/v1/vod-sessions/{id}`: renew the lease, and with [startMs] restart a converted stream there. */

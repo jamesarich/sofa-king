@@ -1,6 +1,6 @@
 # Sofa King server
 
-The Sofa King server is a self-hosted live TV server for a home network. It builds one channel lineup from free streaming services, M3U playlists and XMLTV guides, and serves it to Plex as an HDHomeRun tuner, to M3U and XMLTV players, and to the Sofa King app on TVs, phones, desktops, iOS and the web.
+The Sofa King server is a self-hosted live TV server for a home network. It builds one channel lineup from free streaming services, M3U playlists and XMLTV guides, and serves it to Plex as an HDHomeRun tuner, to M3U and XMLTV players, and to the Sofa King app on TVs, phones, desktops, iOS, Apple TV and the web. It also records programs from the guide and serves your own movies and shows to the app.
 
 ## Why
 
@@ -21,11 +21,12 @@ The Sofa King server is a self-hosted live TV server for a home network. It buil
 - [Source health](docs/source-health.md) probes, quarantine and automatic failover between sources
 - HLS and MPEG-TS relayed through the server, and an MPEG-TS remux for Plex
 - M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
-- Media libraries: movies, shows and other videos from a read-only folder, scanned with their `.nfo` files and artwork, played by the app ([media libraries](docs/libraries.md))
-- A DVR: one-off, time-window and series recordings from the guide into a Plex-style folder, with cleanup and commercial break detection ([recordings](docs/recordings.md))
+- [Recordings](docs/recordings.md) of one program, a time window or a whole series, in the folder layout Plex, Jellyfin, Emby and Kodi scan, with cleanup by keep count, age and free space, and commercial breaks found by Comskip
+- [Media libraries](docs/libraries.md): movies, shows and other videos from a read-only folder, scanned with their `.nfo` files and artwork, with details from TMDB when a token is set, and household watch progress
+- Library files and recordings played as they are, or copied or converted to HLS by FFmpeg for a player that cannot take the file, on the CPU or a GPU
 - A logo cache, so every client loads logos from this server
-- A JSON API whose live TV types the app shares ([API](docs/api.md))
-- An [admin portal](docs/admin.md) at `/admin` that shows what needs attention, sets up the sources and a starter lineup, edits channels, merges, groups and provider priority, pairs devices with a code, and asks the host's updater for a new image
+- A JSON API whose live TV, recording and library types the app shares ([API](docs/api.md))
+- An [admin portal](docs/admin.md) at `/admin` that shows what needs attention, sets up the sources and a starter lineup, edits channels, merges, groups and provider priority, manages recordings and series rules, adds media libraries, pairs devices with a code, and asks the host's updater for a new image
 - A Docker image for `linux/amd64` and `linux/arm64`, with an SBOM and build provenance
 
 ## Clients
@@ -60,6 +61,8 @@ The [documentation index](docs/README.md) lists every page. The most used are:
 - [Deploy with Docker](docs/deploy.md)
 - [Build a starter lineup](docs/starter-lineup.md)
 - [Live TV: configuration, lineup and sources](docs/live-tv.md)
+- [Recordings](docs/recordings.md)
+- [Media libraries](docs/libraries.md)
 - [Troubleshooting and FAQ](docs/troubleshooting.md)
 - [Lineup policy](docs/lineup-policy.md)
 - [HTTP API](docs/api.md)

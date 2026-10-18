@@ -1,6 +1,6 @@
 # Using Sofa King
 
-This page covers the guide, the channels it lists, the remote and keyboard controls, captions and the settings. [Getting started](getting-started.md) connects the app to a server first.
+This page covers the guide, the library, recordings, the channels the guide lists, the remote and keyboard controls, captions and the settings. [Getting started](getting-started.md) connects the app to a server first.
 
 ## Guide
 

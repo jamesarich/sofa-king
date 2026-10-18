@@ -11,6 +11,8 @@ Every library version is an exact pin in [the version catalog](../../gradle/libs
 
 The wrapper's version is in [the Gradle wrapper settings](../gradle/wrapper/gradle-wrapper.properties). Every version is exact and the wrapper has a pinned distribution checksum; resolved versions are not locked. Every library comes from Maven Central.
 
+The image's programs come from its Ubuntu 24.04 (noble) base as distribution packages, at the versions its archive holds: FFmpeg 6.1, Comskip, `sqlite3`, `curl`, `tini`, and the VA-API drivers (Mesa, and on amd64 Intel's media driver and Quick Sync runtime). Renovate updates the base image by digest, which brings their security updates.
+
 The server targets JVM 21. The [contract](../../contract/README.md) it shares with the app compiles to JVM 17 bytecode for the server and Android, and to every other target the app builds; it pins the same Kotlin and kotlinx.serialization versions as the server.
 
 ## Vendored htmx

@@ -17,11 +17,13 @@
   <img src="docs/images/guide.png" alt="The guide in the desktop app: category chips, the focused channel's program and its muted preview, and a grid of channels over the afternoon" width="800">
 </p>
 
-A self-hosted live TV server for a home network, and an app that watches it on Android TV, Google TV, phones, desktops, iOS, Apple TV and the web.
+A self-hosted live TV server for a home network, with a DVR and your own movies and shows, and an app that watches it on Android TV, Google TV, phones, desktops, iOS, Apple TV and the web.
 
 - **One lineup from free TV.** The server merges free streaming services, M3U playlists and XMLTV guides into one numbered lineup, with fallbacks across services.
 - **Plays anywhere.** The same lineup goes to the app, to Plex as an HDHomeRun tuner, and to M3U and XMLTV players.
 - **Previews that become the show.** The app's guide previews the focused channel muted and opens it full screen on the same stream, with no second tune.
+- **Records from the guide.** The server records programs and series into folders Plex and Kodi scan, finds the commercial breaks, and the app plays the recordings and can skip the breaks.
+- **Your own library too.** Movies, shows and other videos from a folder, with details and artwork from their `.nfo` files or TMDB, play in the same app, converted on the fly for a device that cannot play the file.
 
 <p align="center">
   <img src="docs/images/player.png" alt="The player in the desktop app: a channel full screen with the info bar showing its number, name, program, rating, time and what is next" width="800">

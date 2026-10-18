@@ -1,6 +1,6 @@
 # Sofa King app
 
-The Sofa King app is a live TV app for the channels of your own [Sofa King server](../backend/README.md). It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide and the streams come from that server; the app includes no channel subscription.
+The Sofa King app is a live TV app for the channels of your own [Sofa King server](../backend/README.md), and plays that server's recordings and media libraries too. It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide, recordings, the libraries and the streams come from that server; the app includes no channel subscription.
 
 ## Why
 
@@ -19,6 +19,8 @@ The Sofa King app is a live TV app for the channels of your own [Sofa King serve
 - A full-screen player with channel up and down, number entry, the previous channel, a channel list with Recent, Favorites and filter chips, and a stream card with audio tracks and stream details
 - Closed captions, with per-channel timing on Android and a style setting where the app draws them ([captions](docs/usage.md#captions))
 - A saved lineup that shows at once while the app refreshes from the server
+- Record a program or a series from its details, and a Recordings tab that plays recordings as they grow, resumes them and can skip the commercial breaks the server found ([recordings](docs/usage.md#recordings))
+- A Library tab with Continue watching, recent additions, poster grids and item pages for movies and shows, a seekable player with audio and subtitle choices, and Up next for the following episode ([library](docs/usage.md#library))
 - Reconnection with backoff when a stream fails, and the channel followed by number, then name, when the server's lineup drops its id
 
 ## Platforms
@@ -67,11 +69,11 @@ The [security page](docs/security.md) describes what the app stores, where the t
 ## Limitations
 
 - The app does not discover the server. Enter its address by hand.
-- iOS, Apple TV and the web play HLS channels only; MPEG-TS needs Android or a desktop.
+- iOS, Apple TV and the web play HLS channels only; MPEG-TS needs Android or a desktop. Library files and recordings play on every platform, since the server converts what a player cannot take.
 - The desktop app needs VLC 3. The `.deb` installs it through apt; on macOS and Windows install it first.
 - The web app has no default server and needs an origin the server allows, as [getting started](docs/getting-started.md#web) describes.
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
-- There is no background playback. Playback stops when the app leaves the screen.
+- There is no background playback. Playback stops when the app leaves the screen; a library item or recording resumes where it stopped.
 - There is no published iOS or Apple TV build. Snapshot APKs use a debug key and the desktop packages are unsigned.
 
 ## License

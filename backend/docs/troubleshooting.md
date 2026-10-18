@@ -1,6 +1,6 @@
 # Troubleshooting and FAQ
 
-Start with the log. The admin portal's Events page (under System) shows the newest lines at INFO and above, and its Jobs page says when each import, policy run and Plex sync last ran and how it ended. With Docker, `docker compose logs --tail 200 sofa-king-backend` in `deploy` shows the whole log. Every response carries an `X-Request-Id` header, and the log lines for that request end with the same `requestId`, so a failing request is easy to find. Set `SOFA_LOG_LEVEL=debug` in `.env` and run `docker compose up -d` for more detail. [Logs](operations.md#logs) describes the format.
+Start with the log. The admin portal's Events page (under System) shows the newest lines at INFO and above, and its Jobs page says when each import, policy run, Plex sync, recording job and library scan last ran and how it ended. With Docker, `docker compose logs --tail 200 sofa-king-backend` in `deploy` shows the whole log. Every response carries an `X-Request-Id` header, and the log lines for that request end with the same `requestId`, so a failing request is easy to find. Set `SOFA_LOG_LEVEL=debug` in `.env` and run `docker compose up -d` for more detail. [Logs](operations.md#logs) describes the format.
 
 The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_API_TOKEN` and `$SOFA_ADMIN_TOKEN`. Outside Docker the port is 8080.
 
@@ -72,6 +72,29 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 | A channel plays for a moment and stops | FFmpeg ended the remux. The log has `remux ended exit=` with FFmpeg's last lines, URLs removed. |
 | "There was a problem saving channel mappings" | One device carries more channels than Plex saves at once, about 250. Split the lineup with `SOFA_HDHR_EXTRA_PORTS`, as [several devices](live-tv.md#several-devices-for-a-large-lineup) describes. |
 | Plex channels lag the lineup | Check `lastError` and `findings` in `GET /api/v1/admin/plex`. `answered 401` means `SOFA_PLEX_TOKEN` is wrong, and a device in `missingDevices` is in no DVR. `POST /api/v1/admin/plex/sync` runs a sync now. Without Plex sync, run "Scan channels" for the DVR in Plex. |
+
+## Recordings
+
+| Symptom | Check |
+| --- | --- |
+| A recording is `failed` with `MISSED` | Its whole window passed while the server was down. A restart during a window resumes into the same file instead. |
+| A recording is `failed` with `CAPACITY_EXHAUSTED` | Every playback slot was held by someone watching for the whole window; a recording takes a preview's or an idle player's slot but never a viewer's. Raise `SOFA_MAX_SESSIONS`, or check `conflict` on the scheduled ones. |
+| Scheduling answers `PROGRAMME_NOT_FOUND` | The channel has no guide, or the program is not in it. Map a guide to the channel, or record it as a [time window](recordings.md#record-a-time-window). |
+| The server cannot write recordings at the first start | Docker created `deploy/recordings` as root. Create it before the first start, or `chown` it to the container's user; see [the recordings folder](deploy.md#the-recordings-folder). |
+| No commercial breaks on a recording | `commercials` is `done` with no `breaks` when Comskip found none, and `failed` when it could not run; the log has `commercial scan failed`. Comskip finds fewer breaks on channels without a logo or black frames between ads. Outside the image, set `SOFA_COMSKIP` to its path. |
+| A recording ends early with `DISK_FULL` | The recordings folder's disk fell below 512 MiB free with no finished recording left to delete. Free space on that disk or move the folder to a bigger one. |
+| Recordings disappear | Cleanup deleted them: the log names each `recording culled` with `KEEP`, `AGE` or `SPACE`. Protect a recording, raise a rule's `keep`, or lower `SOFA_RECORDINGS_FREE_GIB` or `SOFA_RECORDINGS_KEEP_DAYS` on the Settings page. |
+
+## Media libraries
+
+| Symptom | Check |
+| --- | --- |
+| The portal says Folder unavailable | The library's folder is missing or empty, as an unmounted disk reads. Mount it at the same path under `SOFA_MEDIA_DIR`; the scan changes nothing until it is back. |
+| A library folder cannot be added | It must sit inside `SOFA_MEDIA_DIR` or the recordings folder, and a link must point inside it. Check the `/media` mount in `compose.yaml` and that the container's user can read and list it. |
+| A movie or show has the wrong title or no details | Name it as [lay out the folders](libraries.md#lay-out-the-folders) shows, or pin the TMDB match with `{tmdb-ID}` in the folder name. Without `SOFA_TMDB_TOKEN` the details come only from the names and `.nfo` files; with it, the scan's job note says when TMDB refused the token or rate-limited the scan. |
+| `503 CAPACITY_EXHAUSTED` when playing a library file | `SOFA_MAX_TRANSCODES` files are already being copied or converted. Stop one, or raise it if the CPU or GPU keeps up. |
+| Library playback stutters or is slow to start | The file is being converted on the CPU. Give the container a GPU and set `SOFA_HWACCEL`, as [hardware transcoding](libraries.md#hardware-transcoding) describes. |
+| `vod encoder unavailable` in the log at start | The GPU encoder failed its test frame, so files convert in software. Check the `/dev/dri` device and `group_add` for `vaapi` and `qsv`, or the NVIDIA Container Toolkit for `nvenc`. |
 
 ## Reverse proxy
 

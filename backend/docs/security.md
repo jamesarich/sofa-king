@@ -15,7 +15,7 @@ The server is designed for a private network. It has no accounts, no per-user ac
 | Admin portal session | `sofa_admin` cookie, set by signing in at `/admin` with the admin token (or the API token when no admin token is set) | `/admin/*`, the [admin portal](admin.md). Actions also need the session's CSRF token |
 | Pairing code | `POST /api/v1/pair` body, no bearer | Issued from the portal's Devices page, six digits, valid 10 minutes, one at a time, spent on the first match and voided after five wrong guesses. A match answers with the API token |
 | Output token (`SOFA_OUTPUT_TOKEN`) | `?token=` query or bearer | `/output/*`: the playlist, the guide and the stream URLs |
-| None | | `/healthz`, `/readyz`, `/logos/{key}`, the admin sign-in page (`GET /admin` and `POST /admin/login`), the portal icon `/admin/static/icon.svg` and its stylesheet `/admin/static/admin.css` |
+| None | | `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id}/{role}`, the admin sign-in page (`GET /admin` and `POST /admin/login`), the portal icon `/admin/static/icon.svg` and its stylesheet `/admin/static/admin.css` |
 | None; client address allow-list | | The HDHomeRun routes (`/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/auto/v{number}`). `SOFA_HDHR_ALLOW` admits the listed addresses and answers everyone else `403` |
 | Session URL | | `/media/sessions/{id}/{epoch}/{token}`. `{token}` is random per resource, and the URL stops working when the session ends or its epoch changes |
 | Library playback URL | | `/media/vod/{id}/{epoch}/{secret}/{name}`. `{secret}` is random per session, and the URL serves only that session's file or HLS output until the session ends or its epoch changes |
@@ -28,7 +28,7 @@ Notes on the table:
 - On a loopback bind, a token that is not configured leaves its routes open. With no API token, every `/api/` route is open, and with neither output nor API token, `/output/*` is open. This is for local development.
 - Tokens are compared in constant time. The API token is never accepted in a query string.
 - A token in a URL lands in player configuration, screenshots and proxy logs. That is why the output token is separate from the API token and opens nothing but `/output/*`.
-- Logo URLs and HDHomeRun routes carry no token because the clients that fetch them, Plex and players, send none. Logos are fetched only for URLs the lineup names.
+- Logo URLs and HDHomeRun routes carry no token because the clients that fetch them, Plex and players, send none. Logos are fetched only for URLs the lineup names. Artwork URLs carry none for the same reason, and serve only the poster or backdrop a library holds for that item, so anyone who can reach the port can fetch a library's images by item id.
 - Unless `SOFA_CORS_ORIGINS` is set, the server sends no CORS headers, so only pages on its own origin can call it from a browser. A page on a listed origin may call any route with the token it holds, as a bearer header, and read the `ETag` and `X-Request-Id` response headers. Credentialed cross-origin requests are not allowed, so the admin portal's cookie never works from another origin.
 
 ## Request limits
@@ -40,14 +40,14 @@ Notes on the table:
 
 ## Outbound requests
 
-The server makes requests to the playlist, guide, logo and stream hosts that you configure. The upstream address policy applies to all of them:
+The server makes requests to the playlist, guide, logo and stream hosts that you configure, and, with `SOFA_TMDB_TOKEN` set, to `api.themoviedb.org` and `image.tmdb.org` for library details and artwork. The upstream address policy applies to all of them:
 
 - Only `http` and `https` URLs without user information are fetched.
 - Loopback, link-local, unspecified and multicast addresses are refused, including as redirect targets. Private LAN addresses are allowed, because LAN restream proxies are a common setup.
 - Hostnames are not resolved before the request, so a name that resolves to a refused address is not caught by this check.
 - Provider headers, such as an authorization header, go only to the configured origin. A cross-origin CDN request receives only `User-Agent`, `Accept`, `Accept-Language`, `Origin` and `Referer`.
 - Redirects are limited to five, and an HTTPS redirect cannot downgrade to HTTP.
-- FFmpeg, which probes sources and remuxes them for Plex, may open only the `http`, `https`, `tcp`, `tls` and `crypto` protocols. A playlist that names `file:`, `concat:` or any other protocol cannot make it read files in the container.
+- FFmpeg, which probes sources and remuxes them for Plex, may open only the `http`, `https`, `tcp`, `tls` and `crypto` protocols. A playlist that names `file:`, `concat:` or any other protocol cannot make it read files in the container. FFmpeg and FFprobe read local files only for library items under `SOFA_MEDIA_DIR` and recordings under `SOFA_RECORDINGS_DIR`, by paths the server chose, never by a client's.
 
 Details are in [live TV: upstream addresses and provider headers](live-tv.md#provider-headers).
 
@@ -55,6 +55,7 @@ Details are in [live TV: upstream addresses and provider headers](live-tv.md#pro
 
 - Let the server generate the API and admin tokens, or set them to values of at least 32 characters from `openssl rand -hex 32`. Prefer the `_FILE` variables with Docker secrets over plain values in `.env`.
 - Set `SOFA_OUTPUT_TOKEN` when players or Plex use the outputs, from `openssl rand -hex 16`.
+- Mount the media folder read only (`:ro`), as [media libraries](libraries.md#mount-the-media-folder) shows; the server never writes to it. Pass `SOFA_TMDB_TOKEN` through `SOFA_TMDB_TOKEN_FILE` like the other tokens.
 - Set `SOFA_HDHR_ALLOW` to the address of the Plex server, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 - Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens, and the source file can hold playlist URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
 - With [automatic updates](deploy.md#update-automatically), the updater's database backups hold the same session tokens as the database. Those in the config folder are readable by the container's user alone, and the fallback backups in the Compose directory by root alone.

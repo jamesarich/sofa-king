@@ -8,17 +8,21 @@ The config folder holds everything the server keeps across restarts:
 
 | Path | Contents |
 | --- | --- |
-| `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, the last Plex sync, the paired viewers and their preferences, the portal's runtime settings and ignored home page items, and the server identity |
+| `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, the last Plex sync, the paired viewers and their preferences, the recordings, series rules and commercial breaks, the media libraries with their scanned items, TMDB matches and the household's watch progress, the portal's runtime settings and ignored home page items, and the server identity |
 | `logos/` | Cached lineup logos, one file per source URL |
+| `artwork/` | TMDB images and the video frames taken as stills for the media libraries; deleting it fetches and takes them again as clients ask |
+| `transcode/` | The HLS output of library playback sessions, deleted when each session ends, and the subtitles extracted from library files |
+| `dvr/` | Comskip's working files while it scans a recording |
+| `recordings/` | The recordings, when `SOFA_RECORDINGS_DIR` is unset. Compose mounts its own `deploy/recordings` folder instead, as [the recordings folder](deploy.md#the-recordings-folder) describes |
 | `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand. The updater's fallback backups and its `failed-image` record are in `backups/` in the Compose directory instead |
 | `secrets.json` | The generated API and admin tokens |
 | `sources.json`, `policy.json` | The source file and the lineup policy, when they are kept here |
 
-Playback sessions, admin portal sessions, the live pairing code and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions.
+Playback sessions, library playback sessions, admin portal sessions, the live pairing code and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions. A recording running at the restart resumes into the same file.
 
 ## Backups
 
-Back up the whole config folder. The database needs a consistent copy, either from SQLite's backup API while the server runs or from a stopped server; a plain copy of a running database can miss what is still in its write-ahead log. The logo cache is a cache: a restore without `logos/` fetches the logos again on the first sweep.
+Back up the whole config folder. The database needs a consistent copy, either from SQLite's backup API while the server runs or from a stopped server; a plain copy of a running database can miss what is still in its write-ahead log. The logo cache is a cache: a restore without `logos/` fetches the logos again on the first sweep. `artwork/` and `transcode/` can be left out the same way. The recordings folder sits outside the config folder in Compose, so back it up on its own if you keep recordings; the media folder is yours and the server never writes to it.
 
 Online, without stopping the server. The image includes `sqlite3`, so one line copies the database into `config/backups/`:
 
@@ -31,7 +35,7 @@ docker compose exec sofa-king-backend sqlite3 /config/backend.sqlite ".backup '/
 
 ```sh
 mkdir -p backup
-tar czf backup/config-$(date +%F).tgz --exclude='backend.sqlite*' --exclude=logos -C config .
+tar czf backup/config-$(date +%F).tgz --exclude='backend.sqlite*' --exclude=logos --exclude=artwork --exclude=transcode -C config .
 ```
 
 Stopped, which copies everything in one step, from `backend/deploy`:
@@ -97,12 +101,14 @@ cd deploy && docker compose up -d --no-build --force-recreate
 | `GET /api/v1/admin/sessions` | Live playback sessions. An empty list means nothing is playing |
 | `GET /api/v1/admin/policy/changes` | What lineup policy runs changed, newest first |
 | `GET /api/v1/admin/policy/findings` | Open findings of the lineup policy, such as missing required sources |
+| `GET /api/v1/recordings` | Every recording with its `state`, `reason` and `conflict`, and the recordings folder's free space in `storage` |
+| `GET /api/v1/admin/libraries` | Each media library with its last scan's `scanOk` and `scanNote` |
 
 Use `Authorization: Bearer $SOFA_API_TOKEN` for the `/api/v1` checks, and `Authorization: Bearer $SOFA_ADMIN_TOKEN` for the `/api/v1/admin` routes.
 
 ## Logs
 
-The server logs to stderr, which `docker compose logs` shows. The admin portal's [Events page](admin.md#pages) shows the newest 500 lines at INFO and above since the server started, whatever the level, and its Jobs page the last run of each import, policy run, Plex sync, logo sweep and update check. `SOFA_LOG_LEVEL` sets the level (`info` by default); the portal's [runtime settings](admin.md#settings) change it without a restart and take precedence, as they do for the XMLTV days, the Plex sync interval, the streams per HDHomeRun device and the sessions at once. `SOFA_LOG_FORMAT` sets the format:
+The server logs to stderr, which `docker compose logs` shows. The admin portal's [Events page](admin.md#pages) shows the newest 500 lines at INFO and above since the server started, whatever the level, and its Jobs page the last run of each import, policy run, Plex sync, logo sweep, recording schedule, recording cleanup, library scan and update check. `SOFA_LOG_LEVEL` sets the level (`info` by default); the portal's [runtime settings](admin.md#settings) change it without a restart and take precedence, as they do for the XMLTV days, the Plex sync interval, the streams per HDHomeRun device and the sessions at once. `SOFA_LOG_FORMAT` sets the format:
 
 - `text`, the default: one line per event with the time in UTC, the level, the thread and the logger, then the message. A line written while handling a request ends with `requestId=...`.
 - `json`: one JSON object per line from logback's JSON encoder, with the level, the logger, the formatted message and the request id. Use it when a log collector parses the output.
@@ -119,6 +125,8 @@ Messages are `key=value` text that name providers, guides, sources and entries b
 - relay upstream reconnects and failures: source ID, attempt, exception class and HTTP status
 - `remux ended exit=` with FFmpeg's last lines, URLs removed, when an HDHomeRun remux exits with an error
 - rejected tokens: `auth failed route=ROUTE remote=ADDRESS`, at most 30 lines a minute
+- recordings: `recording schedule`, `recording started`, `recording attempt failed`, `recording finished`, `recording failed` or `recording missed`, `recording culled` with its reason, and `commercial scan` with the breaks found or why it failed
+- media libraries and their playback: `library scan failed`, `artwork fetch failed`, `vod session started` with its mode, and at start `vod encoder ready` or `vod encoder unavailable` for `SOFA_HWACCEL`
 
 A request that fails with a closed channel, broken pipe or connection reset, as when a player switches channels mid-body, logs at debug with the exception class. Other request failures log at error. Stream URLs, guide URLs, tokens and provider exception messages are never logged; a guide or logo failure message is logged only after URL redaction.
 

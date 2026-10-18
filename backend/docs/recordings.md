@@ -1,6 +1,6 @@
 # Recordings
 
-The server records programs from the guide into the [recordings folder](deploy.md#the-recordings-folder) (`SOFA_RECORDINGS_DIR`), as MPEG-TS files named the way Plex, Jellyfin, Emby and Kodi scan them. Manage recordings and series rules on the portal's [Recordings](admin.md#recordings) page, or through the [API](api.md#recordings) with the API token.
+The server records programs from the guide into the [recordings folder](deploy.md#the-recordings-folder) (`SOFA_RECORDINGS_DIR`), as MPEG-TS files named the way Plex, Jellyfin, Emby and Kodi scan them. Manage recordings and series rules on the portal's [Recordings](admin.md#recordings) page, in the app (Record in a program's details and the [Recordings tab](../../app/docs/usage.md#recordings)), or through the [API](api.md#recordings) with the API token.
 
 ## Record a program
 
@@ -55,7 +55,7 @@ A server restart in the middle of a window resumes the recording into the same f
 
 ## Play a recording
 
-A running or finished recording plays through the same [VOD sessions](api.md#play-library-files) as a library file, so the player chooses direct play, a copy into HLS or a conversion by what it can play. A recording still being made always plays as HLS that grows with the file, from its start or wherever the player seeks; it ends a minute after the file stops growing, so when the recording finishes the player reaches the end like any other file.
+A running or finished recording plays through the same [library playback sessions](api.md#play-library-files) as a library file, so the player chooses direct play, a copy into HLS or a conversion by what it can play. A recording still being made always plays as HLS that grows with the file, from its start or wherever the player seeks; it ends a minute after the file stops growing, so when the recording finishes the player reaches the end like any other file.
 
 ## Commercial breaks
 
@@ -65,7 +65,7 @@ Comskip finds breaks by black frames, silence, the station logo, scene changes a
 
 ## Cleanup
 
-The DVR deletes finished recordings it no longer keeps, after every recording ends and every 30 minutes, as the `dvr-cull` job on the portal's Jobs page:
+The DVR deletes finished recordings it no longer keeps, after every recording ends and every 30 minutes, as the Recording cleanup job on the portal's Jobs page:
 
 1. A rule with a `keep` count keeps its newest recordings up to that count; protected ones count toward it.
 2. With `SOFA_RECORDINGS_KEEP_DAYS` set, any recording older than that many days.
@@ -91,3 +91,4 @@ While a recording runs, the DVR checks the free space every five seconds. Below 
 - An HLS source recorded while someone watches the same channel opens a second connection to it; only MPEG-TS sources share one.
 - A series rule needs the guide; a channel without one is recorded only as a [time window](#record-a-time-window).
 - Cleanup frees space only by deleting finished recordings; when there are none left, a running recording stops rather than fill the disk.
+- Breaks are skipped only by the app, with Skip commercials on, and by players that read the EDL.

@@ -20,6 +20,10 @@ final class AppModel {
     let core = SofaKingTv()
     private(set) var state: LineupState = LineupStateLoading.shared
     private(set) var settings: AppSettings?
+    private(set) var capabilities: ServerCapabilities?
+    private(set) var libraryHome: LibraryHomeState = LibraryHomeStateLoading.shared
+    /// The library item the player shows, from whichever library page asked for it.
+    var vod: VodRequest?
     /// Whether the one cold-start decision, opening the last channel, has been made.
     var launchDecided = false
     /// A channel a `sofaking://channel/<guideId>` link (the Top Shelf) asked for; the list or the player takes it and clears it.
@@ -46,6 +50,8 @@ final class AppModel {
             self?.settings = $0
             self?.publishTopShelf()
         })
+        watches.append(core.watchCapabilities { [weak self] in self?.capabilities = $0 })
+        watches.append(core.watchLibraryHome { [weak self] in self?.libraryHome = $0 })
     }
 
     var lineup: Lineup? { (state as? LineupStateReady)?.lineup }
@@ -55,6 +61,16 @@ final class AppModel {
         Task {
             let failure = try? await core.pair(url: request.serverUrl, code: request.code)
             pairingFailure = failure.map(\.message)
+        }
+    }
+
+    /// The Library tab shows when the server serves libraries and has at least one.
+    var libraryShown: Bool {
+        guard capabilities?.library == true else { return false }
+        switch libraryHome {
+        case is LibraryHomeStateUnavailable: return false
+        case let ready as LibraryHomeStateReady: return !ready.home.libraries.isEmpty
+        default: return true
         }
     }
 
@@ -79,10 +95,45 @@ final class AppModel {
     }
 }
 
+/// The top-level tabs, in the tvOS tab bar along the top.
+enum AppTab: Hashable {
+    case live, library, settings
+}
+
 struct ContentView: View {
     @Environment(AppModel.self) private var model
+    @State private var tab = AppTab.live
 
     var body: some View {
+        TabView(selection: $tab) {
+            live.tabItem { Label("Live", systemImage: "tv") }.tag(AppTab.live)
+            if model.libraryShown {
+                LibraryHomeView().tabItem { Label("Library", systemImage: "film.stack") }.tag(AppTab.library)
+            }
+            NavigationStack { SettingsView() }.tabItem { Label("Settings", systemImage: "gear") }.tag(AppTab.settings)
+        }
+        .onChange(of: model.requestedChannel) { _, requested in
+            // A Top Shelf channel plays from the Live tab.
+            if requested != nil { tab = .live }
+        }
+        .onChange(of: model.libraryShown) { _, shown in
+            if !shown && tab == .library { tab = .live }
+        }
+        .onOpenURL { url in
+            if let guideId = TopShelfChannels.guideId(from: url) {
+                model.requestedChannel = guideId
+            } else if let request = PairingLinkKt.parsePairingLink(link: url.absoluteString) {
+                model.pair(request)
+            }
+        }
+        .alert("Pairing failed", isPresented: Binding(get: { model.pairingFailure != nil }, set: { if !$0 { model.pairingFailure = nil } })) {
+            Button("OK") {}
+        } message: {
+            Text(model.pairingFailure ?? "")
+        }
+    }
+
+    private var live: some View {
         NavigationStack {
             switch model.state {
             case let ready as LineupStateReady:
@@ -99,18 +150,6 @@ struct ContentView: View {
             default:
                 ProgressView("Loading the lineup")
             }
-        }
-        .onOpenURL { url in
-            if let guideId = TopShelfChannels.guideId(from: url) {
-                model.requestedChannel = guideId
-            } else if let request = PairingLinkKt.parsePairingLink(link: url.absoluteString) {
-                model.pair(request)
-            }
-        }
-        .alert("Pairing failed", isPresented: Binding(get: { model.pairingFailure != nil }, set: { if !$0 { model.pairingFailure = nil } })) {
-            Button("OK") {}
-        } message: {
-            Text(model.pairingFailure ?? "")
         }
     }
 }

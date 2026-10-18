@@ -31,9 +31,6 @@ struct ChannelListView: View {
         }
         .searchable(text: $query, prompt: "Channel name or number")
         .navigationTitle("Sofa King")
-        .toolbar {
-            NavigationLink { SettingsView() } label: { Label("Settings", systemImage: "gear").labelStyle(.iconOnly) }
-        }
         .navigationDestination(item: $detail) { channel in
             ProgramDetailView(lineup: lineup, channel: channel) { playing = channel }
         }

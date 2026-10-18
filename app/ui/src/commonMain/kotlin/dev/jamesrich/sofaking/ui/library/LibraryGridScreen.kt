@@ -60,6 +60,8 @@ internal class LibraryGridActions(
     val onOpenItem: (MediaItem) -> Unit,
     val onPlayItem: (MediaItem) -> Unit,
     val onLoadMore: () -> Unit,
+    /** What a held OK on a card offers. */
+    val menu: CardMenu? = null,
 )
 
 /**
@@ -113,9 +115,9 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
             val modifier = if (item.id == focusId) Modifier.focusRequester(focus) else Modifier
             val play = if (item.kind.playable) ({ actions.onPlayItem(item) }) else null
             if (wide) {
-                WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier)
+                WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
             } else {
-                PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier)
+                PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
             }
         }
         val g = grid

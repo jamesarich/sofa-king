@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.ui.library
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -18,13 +20,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -39,29 +50,32 @@ import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.ui.guide.HeldOkGuard
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import androidx.compose.runtime.LaunchedEffect
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
  * A movie or show as a 2:3 poster with its title underneath: a bar for how far in it is, a tick once watched and
  * a count of unwatched episodes on a show. OK calls [onClick]; the remote's Play key calls [onPlay] for an item
- * that plays.
+ * that plays; a held OK, a long touch or a right click opens [menu].
  */
 @Composable
-internal fun PosterCard(item: MediaItem, onClick: () -> Unit, onPlay: (() -> Unit)?, modifier: Modifier = Modifier, width: Dp = POSTER_WIDTH) {
+internal fun PosterCard(
+    item: MediaItem,
+    onClick: () -> Unit,
+    onPlay: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    width: Dp = POSTER_WIDTH,
+    menu: CardMenu? = null,
+) {
     Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Card(
-            onClick = onClick,
-            shape = CardShape,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).playKey(onPlay).tvFocus(CardShape),
-        ) {
-            Box(Modifier.fillMaxSize()) {
-                Artwork(item.poster, item.title)
-                ItemMarks(item)
-            }
+        ItemCard(item, onClick, onPlay, menu, aspectRatio = 2f / 3f, focusScale = null) {
+            Artwork(item.poster, item.title)
         }
         CardLabel(item.title, posterSubtitle(item))
     }
@@ -69,18 +83,17 @@ internal fun PosterCard(item: MediaItem, onClick: () -> Unit, onPlay: (() -> Uni
 
 /** An episode, video or item in progress as a 16:9 card, its show and episode number under the title. */
 @Composable
-internal fun WideCard(item: MediaItem, onClick: () -> Unit, onPlay: (() -> Unit)?, modifier: Modifier = Modifier, width: Dp = WIDE_WIDTH) {
+internal fun WideCard(
+    item: MediaItem,
+    onClick: () -> Unit,
+    onPlay: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    width: Dp = WIDE_WIDTH,
+    menu: CardMenu? = null,
+) {
     Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Card(
-            onClick = onClick,
-            shape = CardShape,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).playKey(onPlay).tvFocus(CardShape, WIDE_FOCUS_SCALE),
-        ) {
-            Box(Modifier.fillMaxSize()) {
-                Artwork(item.backdrop ?: item.poster, item.showTitle ?: item.title)
-                ItemMarks(item)
-            }
+        ItemCard(item, onClick, onPlay, menu, aspectRatio = 16f / 9f, focusScale = WIDE_FOCUS_SCALE) {
+            Artwork(item.backdrop ?: item.poster, item.showTitle ?: item.title)
         }
         if (item.kind == ItemKind.EPISODE) {
             CardLabel(item.showTitle ?: item.title, listOfNotNull(item.episodeLabel, item.title.takeIf { item.showTitle != null }).joinToString(" · "))
@@ -89,6 +102,90 @@ internal fun WideCard(item: MediaItem, onClick: () -> Unit, onPlay: (() -> Unit)
         }
     }
 }
+
+/** What a card's menu does: play from the start (null when that is not offered) and mark watched or unwatched. */
+internal class CardMenu(val onPlayFromStart: ((MediaItem) -> Unit)?, val onSetWatched: (MediaItem, Boolean) -> Unit)
+
+/**
+ * The card itself, with [menu] on a held OK. The rest of the press that opened it, its repeats and key-up, is
+ * swallowed, so the menu's first entry is not pressed by the same OK.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ItemCard(
+    item: MediaItem,
+    onClick: () -> Unit,
+    onPlay: (() -> Unit)?,
+    menu: CardMenu?,
+    aspectRatio: Float,
+    focusScale: Float?,
+    picture: @Composable BoxScope.() -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val heldOk = remember { HeldOkGuard() }
+    val focus = if (focusScale == null) Modifier.tvFocus(CardShape) else Modifier.tvFocus(CardShape, focusScale)
+    Box {
+        Card(
+            shape = CardShape,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio).playKey(onPlay).heldOk(heldOk).then(focus).clip(CardShape)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClickLabel = if (menu != null) stringResource(Res.string.library_card_menu) else null,
+                    onLongClick = menu?.let {
+                        {
+                            heldOk.arm()
+                            open = true
+                        }
+                    },
+                ),
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                picture()
+                ItemMarks(item)
+            }
+        }
+        if (menu != null) {
+            val first = remember { FocusRequester() }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.heldOk(heldOk)) {
+                val entries = cardMenuEntries(item, playFromStart = menu.onPlayFromStart != null)
+                entries.forEachIndexed { index, entry ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(entry.label)) },
+                        onClick = {
+                            open = false
+                            when (entry) {
+                                CardMenuEntry.PLAY_FROM_START -> menu.onPlayFromStart?.invoke(item)
+                                CardMenuEntry.MARK_WATCHED -> menu.onSetWatched(item, true)
+                                CardMenuEntry.MARK_UNWATCHED -> menu.onSetWatched(item, false)
+                            }
+                        },
+                        modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
+                    )
+                }
+                LaunchedEffect(Unit) { requestFocusWhenAttached(first) }
+            }
+        }
+    }
+}
+
+/** Passes OK's key-down and key-up through [guard], dropping the ones it swallows. */
+private fun Modifier.heldOk(guard: HeldOkGuard): Modifier = onPreviewKeyEvent { event ->
+    val ok = event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter
+    when {
+        !ok -> false
+        event.type == KeyEventType.KeyDown -> guard.onKeyDown()
+        event.type == KeyEventType.KeyUp -> guard.onKeyUp()
+        else -> false
+    }
+}
+
+private val CardMenuEntry.label: StringResource
+    get() = when (this) {
+        CardMenuEntry.PLAY_FROM_START -> Res.string.library_play_from_start
+        CardMenuEntry.MARK_WATCHED -> Res.string.library_mark_watched
+        CardMenuEntry.MARK_UNWATCHED -> Res.string.library_mark_unwatched
+    }
 
 /** The picture filling its card, or the title in its place while there is none. */
 @Composable

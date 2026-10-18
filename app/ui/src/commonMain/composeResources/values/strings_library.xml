@@ -25,6 +25,7 @@
     <string name="library_resume_episode">Resume %1$s</string>
     <string name="library_mark_watched">Mark watched</string>
     <string name="library_mark_unwatched">Mark unwatched</string>
+    <string name="library_card_menu">More options</string>
     <string name="library_season">Season %1$d</string>
     <string name="library_specials">Specials</string>
     <string name="library_seasons">%1$d seasons</string>

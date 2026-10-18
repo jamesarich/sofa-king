@@ -209,10 +209,7 @@ private fun MetaLine(detail: MediaItemDetail) {
 private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primaryFocus: FocusRequester) {
     val item = detail.item
     val action = primaryAction(detail)
-    val watched = when (item.kind) {
-        ItemKind.SHOW, ItemKind.SEASON -> item.unwatched == 0 && item.children > 0
-        else -> item.progress?.watched == true
-    }
+    val watched = isWatched(item)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (action != null) {
             SofaButton(onClick = { actions.onPlay(action.item, false) }, modifier = Modifier.focusRequester(primaryFocus)) {

@@ -45,6 +45,7 @@ import dev.jamesrich.sofaking.data.isPictureSubtitle
 import dev.jamesrich.sofaking.data.trackChoice
 import dev.jamesrich.sofaking.data.trackLabel
 import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.library.CardMenu
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
 import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
 import dev.jamesrich.sofaking.ui.library.LibraryGridActions
@@ -654,6 +655,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                         onPlayItem = { screen = Screen.Vod(it.id, parent = Screen.Library()) },
                                         onOpenLibrary = { screen = Screen.LibraryGrid(it.id) },
                                         onRetry = libraryVm::refreshHome,
+                                        menu = CardMenu(
+                                            onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = Screen.Library()) },
+                                            onSetWatched = libraryVm::setWatched,
+                                        ),
                                     ),
                                     returnedFrom = current.returnedFrom,
                                 )
@@ -689,6 +694,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                         onOpenItem = { screen = Screen.LibraryItem(it.id, parent = here) },
                                         onPlayItem = { screen = Screen.Vod(it.id, parent = here) },
                                         onLoadMore = libraryVm::loadMore,
+                                        menu = CardMenu(
+                                            onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = here) },
+                                            onSetWatched = libraryVm::setWatched,
+                                        ),
                                     ),
                                     returnedFrom = current.returnedFrom,
                                 )

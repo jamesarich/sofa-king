@@ -676,7 +676,6 @@ fun GuideScreen(
             return@handler true
         }
         if (event.type != KeyEventType.KeyDown) return@handler false
-        if (!event.key.closesDetails()) exitArmed = false
         dwell.onKey(uptimeMs())
         dwellNonce++
         when (val shortcut = event.key.guideShortcut()) {

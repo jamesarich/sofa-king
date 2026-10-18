@@ -30,6 +30,28 @@ object Wire {
         const val PAIRING_INVALID = "PAIRING_INVALID"
     }
 
+    /** What a library holds. */
+    object LibraryKind {
+        const val MOVIES = "movies"
+        const val SHOWS = "shows"
+        const val VIDEOS = "videos"
+    }
+
+    /** What a library item is; shows and seasons are folders, the others play. */
+    object ItemKind {
+        const val MOVIE = "movie"
+        const val SHOW = "show"
+        const val SEASON = "season"
+        const val EPISODE = "episode"
+        const val VIDEO = "video"
+    }
+
+    /** The library home's rows. */
+    object ShelfId {
+        const val CONTINUE = "continue"
+        const val RECENT = "recent"
+    }
+
     /** A pairing code is this many decimal digits. */
     const val PAIRING_CODE_LENGTH = 6
 

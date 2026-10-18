@@ -1,0 +1,85 @@
+{
+    "shelves": [
+        {
+            "id": "continue",
+            "title": "Continue watching",
+            "items": [
+                {
+                    "id": "c69c03f3-2c92-3e22-a5f0-d906be1400a2",
+                    "libraryId": "df7a820d-6ba7-4717-83d8-3c4ecab00f9a",
+                    "kind": "episode",
+                    "title": "Second",
+                    "parentId": "d2aa5c9a-ba6c-3cb4-8c9f-f8f55931d65c",
+                    "showId": "9adb7b90-dd64-3ae9-87fa-fb97480b3db3",
+                    "showTitle": "Show",
+                    "year": null,
+                    "season": 1,
+                    "episode": 2,
+                    "episodeEnd": null,
+                    "aired": null,
+                    "overview": null,
+                    "durationMs": null,
+                    "poster": null,
+                    "backdrop": null,
+                    "addedAt": "2026-10-10T13:00:00Z",
+                    "genres": [],
+                    "contentRating": null,
+                    "rating": null,
+                    "videoHeight": null,
+                    "hdr": false,
+                    "children": 0,
+                    "unwatched": 0,
+                    "playState": {
+                        "positionMs": 600000,
+                        "durationMs": 6000000,
+                        "watched": false,
+                        "updatedAt": "2026-10-10T13:00:00Z"
+                    }
+                }
+            ],
+            "libraryId": null
+        },
+        {
+            "id": "recent",
+            "title": "Recently added in TV",
+            "items": [
+                {
+                    "id": "9adb7b90-dd64-3ae9-87fa-fb97480b3db3",
+                    "libraryId": "df7a820d-6ba7-4717-83d8-3c4ecab00f9a",
+                    "kind": "show",
+                    "title": "Show",
+                    "parentId": null,
+                    "showId": null,
+                    "showTitle": null,
+                    "year": 2020,
+                    "season": null,
+                    "episode": null,
+                    "episodeEnd": null,
+                    "aired": null,
+                    "overview": null,
+                    "durationMs": null,
+                    "poster": "/artwork/9adb7b90-dd64-3ae9-87fa-fb97480b3db3/poster?v=3a895fb46ab4",
+                    "backdrop": null,
+                    "addedAt": "2026-10-10T13:00:00Z",
+                    "genres": [],
+                    "contentRating": null,
+                    "rating": null,
+                    "videoHeight": null,
+                    "hdr": false,
+                    "children": 1,
+                    "unwatched": 1,
+                    "playState": null
+                }
+            ],
+            "libraryId": "df7a820d-6ba7-4717-83d8-3c4ecab00f9a"
+        }
+    ],
+    "libraries": [
+        {
+            "id": "df7a820d-6ba7-4717-83d8-3c4ecab00f9a",
+            "name": "TV",
+            "kind": "shows",
+            "items": 1
+        }
+    ]
+}

@@ -1,0 +1,33 @@
+{
+    "items": [
+        {
+            "id": "9adb7b90-dd64-3ae9-87fa-fb97480b3db3",
+            "libraryId": "df7a820d-6ba7-4717-83d8-3c4ecab00f9a",
+            "kind": "show",
+            "title": "Show",
+            "parentId": null,
+            "showId": null,
+            "showTitle": null,
+            "year": 2020,
+            "season": null,
+            "episode": null,
+            "episodeEnd": null,
+            "aired": null,
+            "overview": null,
+            "durationMs": null,
+            "poster": "/artwork/9adb7b90-dd64-3ae9-87fa-fb97480b3db3/poster?v=3a895fb46ab4",
+            "backdrop": null,
+            "addedAt": "2026-10-10T13:00:00Z",
+            "genres": [],
+            "contentRating": null,
+            "rating": null,
+            "videoHeight": null,
+            "hdr": false,
+            "children": 1,
+            "unwatched": 2,
+            "playState": null
+        }
+    ],
+    "total": 1,
+    "next": null
+}

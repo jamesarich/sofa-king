@@ -64,9 +64,9 @@ internal fun requestBodyLimit(method: HttpMethod, path: String?): Long = when {
 
 private val accessLog = LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.http.Access")
 
-/** Whether a request to the routed [path] gets an access log line: not media, logos, player streams or health checks. */
+/** Whether a request to the routed [path] gets an access log line: not media, logos, artwork, player streams or health checks. */
 internal fun accessLogged(path: String?): Boolean = path == null || !(
-    path.startsWith("/media/") || path.startsWith("/logos/") || path.startsWith("/output/stream/") || path.startsWith("/auto/") ||
+    path.startsWith("/media/") || path.startsWith("/logos/") || path.startsWith("/artwork/") || path.startsWith("/output/stream/") || path.startsWith("/auto/") ||
         path == "/healthz" || path == "/readyz"
     )
 
@@ -188,7 +188,7 @@ fun Application.backendModule(
         }
         get("/api/v1/bootstrap") {
             if (!store.ready()) call.respond(HttpStatusCode.ServiceUnavailable, ApiError("NOT_READY", "Storage unavailable", true))
-            else call.respond(Bootstrap(serverId = store.serverId(), serverTime = clock.instant().toString(), capabilities = Capabilities(catalog = runtime != null, guide = runtime != null, playback = runtime != null, viewers = runtime != null)))
+            else call.respond(Bootstrap(serverId = store.serverId(), serverTime = clock.instant().toString(), capabilities = Capabilities(catalog = runtime != null, guide = runtime != null, playback = runtime != null, viewers = runtime != null, library = runtime?.libraries != null)))
         }
         if (runtime != null) {
             get("/api/v1/channels") {
@@ -223,6 +223,7 @@ fun Application.backendModule(
             }
             outputRoutes(runtime, clock, outputs, apiToken)
             logoRoutes(runtime.logos)
+            runtime.libraries?.let { libraryRoutes(it); artworkRoutes(it) }
             if (hdhr.enabled) hdhrRoutes(runtime, hdhr, store)
             portal?.install(this)
         }

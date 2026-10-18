@@ -1,6 +1,6 @@
 # Media libraries
 
-A media library is a folder of movies, TV shows or other videos that the server reads and the Sofa King app browses. Libraries live under one media folder, `SOFA_MEDIA_DIR`, which the server never writes to. The admin portal's [Library page](admin.md#library) adds them, and the [admin API](api.md#admin-api) does the same.
+A media library is a folder of movies, TV shows or other videos that the server reads and serves to clients. Libraries live under one media folder, `SOFA_MEDIA_DIR`, which the server never writes to. The admin portal's [Library page](admin.md#library) adds them, and the [admin API](api.md#admin-api) does the same.
 
 ## Mount the media folder
 
@@ -60,3 +60,7 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
 A library is scanned when it is added, every six hours, and when Scan now is pressed in the portal or `POST /api/v1/admin/libraries/{id}/scan` is called. The Jobs page lists the scan as Library scan. FFprobe reads each new or changed file's container, length and video, audio and subtitle streams; an unchanged file (same size and change time) keeps what the last scan read.
 
 Every file keeps one id for as long as its path is the same, even across a removed and re-added library, so watch progress survives a rescan. A file that disappears is marked missing and is removed after seven days unless it comes back. A library folder that is gone, or empty while the library held files, reads as an unmounted disk: the scan changes nothing, and the portal shows Folder unavailable until the folder is back.
+
+## Browse and watch
+
+Clients read the libraries through the [library API](api.md#media-libraries): a home with Continue watching and Recently added for each library, each library's movies, shows or videos, a show's seasons and episodes, and search. Watch progress is the household's: an episode finished on the TV is watched on the phone too, and a show's next episode is the one after the last finished. The app's library screens and playing library files are not built yet.

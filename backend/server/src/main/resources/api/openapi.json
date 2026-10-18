@@ -18,7 +18,7 @@
     { "name": "Policy", "description": "The lineup policy and its runs. Bearer: the admin token." },
     { "name": "Plex", "description": "Plex Live TV sync. Bearer: the admin token." },
     { "name": "Viewers", "description": "Pairing a client to the server and the preferences each client keeps on it. Bearer: the API token, except the pairing claim, which takes none." },
-    { "name": "Library", "description": "Media libraries: folders of movies, shows and other videos under SOFA_MEDIA_DIR, which the server reads and never writes." }
+    { "name": "Library", "description": "Media libraries: folders of movies, shows and other videos under SOFA_MEDIA_DIR, which the server reads and never writes. The app's routes take the API token; /artwork takes none; the admin routes take the admin token." }
   ],
   "components": {
     "securitySchemes": {
@@ -46,7 +46,7 @@
         "type": "object",
         "properties": {
           "serverId": { "type": "string" }, "serverTime": { "type": "string", "format": "date-time" }, "apiVersion": { "type": "integer" },
-          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." } } }
+          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." } } }
         }
       },
       "Catalog": {
@@ -141,6 +141,58 @@
         }
       },
       "PairingResult": { "type": "object", "required": ["apiToken"], "properties": { "apiToken": { "type": "string", "description": "Empty when the server runs without one." }, "serverId": { "type": "string" } } },
+      "Library": {
+        "type": "object", "required": ["id", "name", "kind"],
+        "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "kind": { "type": "string", "enum": ["movies", "shows", "videos"] }, "items": { "type": "integer", "description": "Its movies, shows or videos." } }
+      },
+      "PlayState": {
+        "type": "object",
+        "properties": { "positionMs": { "type": "integer" }, "durationMs": { "type": ["integer", "null"] }, "watched": { "type": "boolean" }, "updatedAt": { "type": "string", "format": "date-time" } }
+      },
+      "LibraryItem": {
+        "type": "object", "required": ["id", "libraryId", "kind", "title"],
+        "properties": {
+          "id": { "type": "string" }, "libraryId": { "type": "string" }, "kind": { "type": "string", "enum": ["movie", "show", "season", "episode", "video"] }, "title": { "type": "string" },
+          "parentId": { "type": ["string", "null"] }, "showId": { "type": ["string", "null"] }, "showTitle": { "type": ["string", "null"] },
+          "year": { "type": ["integer", "null"] }, "season": { "type": ["integer", "null"] }, "episode": { "type": ["integer", "null"] }, "episodeEnd": { "type": ["integer", "null"] },
+          "aired": { "type": ["string", "null"] }, "overview": { "type": ["string", "null"] }, "durationMs": { "type": ["integer", "null"] },
+          "poster": { "type": ["string", "null"], "description": "A server-relative /artwork path." }, "backdrop": { "type": ["string", "null"], "description": "A server-relative /artwork path." },
+          "addedAt": { "type": "string", "format": "date-time" }, "genres": { "type": "array", "items": { "type": "string" } }, "contentRating": { "type": ["string", "null"] }, "rating": { "type": ["number", "null"] },
+          "videoHeight": { "type": ["integer", "null"] }, "hdr": { "type": "boolean" },
+          "children": { "type": "integer", "description": "A show's seasons (or episodes when it has no season folders), or a season's episodes." },
+          "unwatched": { "type": "integer", "description": "A show's or season's unwatched episodes." },
+          "playState": { "oneOf": [{ "$ref": "#/components/schemas/PlayState" }, { "type": "null" }], "description": "A movie's, episode's or video's watch state; null before it is started." }
+        }
+      },
+      "LibraryPage": {
+        "type": "object", "required": ["items"],
+        "properties": { "items": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } }, "total": { "type": "integer" }, "next": { "type": ["string", "null"], "description": "The cursor for the next page; null on the last." } }
+      },
+      "LibraryHome": {
+        "type": "object", "required": ["shelves"],
+        "properties": {
+          "shelves": { "type": "array", "items": { "type": "object", "required": ["id", "title", "items"], "properties": { "id": { "type": "string", "enum": ["continue", "recent"] }, "title": { "type": "string" }, "items": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } }, "libraryId": { "type": ["string", "null"] } } } },
+          "libraries": { "type": "array", "items": { "$ref": "#/components/schemas/Library" } }
+        }
+      },
+      "MediaTrack": {
+        "type": "object", "required": ["index", "codec"],
+        "properties": { "index": { "type": "integer" }, "codec": { "type": "string" }, "language": { "type": ["string", "null"] }, "title": { "type": ["string", "null"] }, "channels": { "type": ["integer", "null"] }, "default": { "type": "boolean" }, "forced": { "type": "boolean" } }
+      },
+      "LibraryItemDetail": {
+        "type": "object", "required": ["item"],
+        "properties": {
+          "item": { "$ref": "#/components/schemas/LibraryItem" }, "children": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryItem" } },
+          "next": { "oneOf": [{ "$ref": "#/components/schemas/LibraryItem" }, { "type": "null" }], "description": "For a show, the episode to play next." },
+          "tagline": { "type": ["string", "null"] }, "studio": { "type": ["string", "null"] }, "cast": { "type": "array", "items": { "type": "string" } }, "directors": { "type": "array", "items": { "type": "string" } },
+          "audio": { "type": "array", "items": { "$ref": "#/components/schemas/MediaTrack" } }, "subtitles": { "type": "array", "items": { "$ref": "#/components/schemas/MediaTrack" } },
+          "container": { "type": ["string", "null"] }, "videoCodec": { "type": ["string", "null"] }
+        }
+      },
+      "UpdatePlayState": {
+        "type": "object",
+        "properties": { "positionMs": { "type": "integer", "minimum": 0 }, "durationMs": { "type": ["integer", "null"], "minimum": 0 }, "watched": { "type": ["boolean", "null"], "description": "Set by hand; wins over the position. The only field a show or season takes." } }
+      },
       "ViewerPreferences": {
         "type": "object",
         "properties": {
@@ -420,6 +472,38 @@
       "get": { "tags": ["Logos"], "summary": "A cached channel logo", "description": "key is the lowercase hex SHA-256 of the logo's source URL. Carries an ETag and Cache-Control: public, max-age=86400.", "security": [],
         "parameters": [{ "name": "key", "in": "path", "required": true, "schema": { "type": "string" } }, { "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
         "responses": { "200": { "description": "PNG, JPEG, WebP, GIF or SVG" }, "304": { "description": "Unchanged" }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/libraries": {
+      "get": { "tags": ["Library"], "summary": "Every media library", "security": [{ "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Library" } } } } } } }
+    },
+    "/api/v1/libraries/{id}/items": {
+      "get": { "tags": ["Library"], "summary": "One page of a library's movies, shows or videos", "security": [{ "apiToken": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["title", "added", "year", "rating"], "default": "title" } }, { "name": "unwatched", "in": "query", "schema": { "type": "boolean" } }, { "name": "cursor", "in": "query", "schema": { "type": "string" } }, { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "LIBRARY_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/library/home": {
+      "get": { "tags": ["Library"], "summary": "Continue watching, Recently added per library, and the libraries", "security": [{ "apiToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryHome" } } } } } }
+    },
+    "/api/v1/library/search": {
+      "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "At most 50.", "security": [{ "apiToken": [] }],
+        "parameters": [{ "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 100 } }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/library/items/{id}": {
+      "get": { "tags": ["Library"], "summary": "An item with its seasons or episodes, a show's next episode and a file's tracks", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItemDetail" } } } }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/api/v1/library/items/{id}/play-state": {
+      "put": { "tags": ["Library"], "summary": "Record where playback stopped, or mark an item watched", "description": "A stop in the first 5% leaves the item where it was; one at 90% or later marks it watched. A show or season takes watched only, and marks every episode in it.", "security": [{ "apiToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePlayState" } } } },
+        "responses": { "200": { "description": "The item", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryItem" } } } }, "400": { "$ref": "#/components/responses/Error" }, "404": { "description": "ITEM_NOT_FOUND", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
+    },
+    "/artwork/{id}/{role}": {
+      "get": { "tags": ["Library"], "summary": "An item's poster or backdrop", "description": "The path an item names, with its ?v= version. Carries an ETag and Cache-Control: public, max-age=604800.", "security": [],
+        "parameters": [{ "$ref": "#/components/parameters/id" }, { "name": "role", "in": "path", "required": true, "schema": { "type": "string", "enum": ["poster", "backdrop"] } }, { "name": "If-None-Match", "in": "header", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "JPEG, PNG or WebP" }, "304": { "description": "Unchanged" }, "404": { "$ref": "#/components/responses/Error" } } }
     },
     "/discover.json": { "get": { "tags": ["HDHomeRun"], "summary": "The device Plex discovers", "security": [], "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Discover" } } } }, "403": { "description": "The client address is not allowed" } } } },
     "/lineup.json": { "get": { "tags": ["HDHomeRun"], "summary": "The device's channels", "security": [], "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LineupItem" } } } } }, "403": { "description": "The client address is not allowed" } } } },

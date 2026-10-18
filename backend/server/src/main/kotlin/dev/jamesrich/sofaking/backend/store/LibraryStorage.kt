@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.library.LibraryItemRecord
 import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
 import dev.jamesrich.sofaking.backend.library.MediaInfo
+import dev.jamesrich.sofaking.backend.library.PlayStateRecord
 import java.time.Instant
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -100,6 +101,27 @@ suspend fun BackendStore.deleteLibraryItems(ids: Collection<String>) = query {
         LibraryMetadataRows.deleteWhere { itemId inList chunk }
         LibraryItems.deleteWhere { id inList chunk }
     }
+}
+
+/** Every stored watch state, by item id; the table holds a row only for items someone started or finished. */
+suspend fun BackendStore.playStates(): Map<String, PlayStateRecord> = query {
+    PlayStates.selectAll().map {
+        PlayStateRecord(it[PlayStates.itemId], it[PlayStates.positionMs], it[PlayStates.durationMs], it[PlayStates.watched], it[PlayStates.updatedAt])
+    }.associateBy { it.itemId }
+}
+
+/** Writes [states], and forgets [cleared]: an item back at the start and unwatched keeps no row. */
+suspend fun BackendStore.savePlayStates(states: List<PlayStateRecord>, cleared: Collection<String> = emptyList()) = query {
+    states.chunked(500).forEach { chunk ->
+        PlayStates.batchUpsert(chunk) { state ->
+            this[PlayStates.itemId] = state.itemId
+            this[PlayStates.positionMs] = state.positionMs
+            this[PlayStates.durationMs] = state.durationMs
+            this[PlayStates.watched] = state.watched
+            this[PlayStates.updatedAt] = state.updatedAt
+        }
+    }
+    cleared.chunked(500).forEach { chunk -> PlayStates.deleteWhere { itemId inList chunk } }
 }
 
 private fun UpdateBuilder<*>.write(item: LibraryItemRecord) {

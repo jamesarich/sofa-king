@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.contract
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlinx.serialization.json.Json
 
 /**
@@ -23,6 +24,11 @@ class WireFixturesTest {
         assertEquals(Wire.ErrorCode.AUTH_REQUIRED, client.decodeFromString<ApiError>(fixture("v1/api-error.json")).code)
         assertEquals(64, client.decodeFromString<PairingResult>(fixture("v1/pairing-result.json")).apiToken.length)
         assertEquals("Living room TV", client.decodeFromString<ViewerPreferences>(fixture("v1/viewer-preferences.json")).name)
+        assertEquals(Wire.ItemKind.SHOW, client.decodeFromString<LibraryPage>(fixture("v1/library-page.json")).items.single().kind)
+        assertEquals(listOf(1, 2), client.decodeFromString<LibraryItemDetail>(fixture("v1/library-item-detail.json")).children.map { it.episode })
+        val home = client.decodeFromString<LibraryHome>(fixture("v1/library-home.json"))
+        assertEquals(listOf(Wire.ShelfId.CONTINUE, Wire.ShelfId.RECENT), home.shelves.map { it.id })
+        assertEquals(600000, home.shelves.first().items.single().playState?.positionMs)
     }
 
     @Test
@@ -44,6 +50,17 @@ class WireFixturesTest {
         assertEquals(false, client.decodeFromString<Bootstrap>("""{"serverId":"s","serverTime":"t","capabilities":{"catalog":true}}""").capabilities.viewers)
         assertEquals("", client.decodeFromString<PairingResult>("""{"apiToken":"t"}""").serverId)
         assertEquals(ViewerPreferences(), client.decodeFromString<ViewerPreferences>("{}"))
+        assertEquals(PlayState(), client.decodeFromString<PlayState>("{}"))
+        val item = client.decodeFromString<LibraryItem>("""{"id":"i","libraryId":"l","kind":"movie","title":"Alien"}""")
+        assertEquals(0, item.unwatched)
+        assertNull(item.playState)
+        assertEquals(emptyList(), client.decodeFromString<LibraryHome>("""{"shelves":[]}""").libraries)
+    }
+
+    @Test
+    fun `a client sends only the play state it changes`() {
+        assertEquals("""{"positionMs":1000}""", Json.encodeToString(UpdatePlayState.serializer(), UpdatePlayState(positionMs = 1000)))
+        assertEquals("""{"watched":true}""", Json.encodeToString(UpdatePlayState.serializer(), UpdatePlayState(watched = true)))
     }
 
     @Test

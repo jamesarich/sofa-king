@@ -6,7 +6,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. The examples
 
 Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin` take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. On a loopback server with no token, leave the header out. A missing or wrong token answers `401 AUTH_REQUIRED`.
 
-These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `POST /api/v1/pair` (a [pairing code](#pair-a-client) stands in for the token) and the session media URLs under `/media/sessions/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
+These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id}/{role}`, `POST /api/v1/pair` (a [pairing code](#pair-a-client) stands in for the token) and the session media URLs under `/media/sessions/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
 
 ## Endpoints
 
@@ -14,7 +14,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `POST /api/v1
 | --- | --- | --- |
 | GET | `/healthz` | Public liveness check |
 | GET | `/readyz` | Public database readiness check |
-| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`) |
+| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`) |
 | POST | `/api/v1/pair` | Exchange a pairing code for the API token, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
 | GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
 | PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt` |
@@ -32,12 +32,19 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `POST /api/v1
 | GET | `/output/guide.xml?days=` | The lineup's programs as XMLTV |
 | GET | `/output/stream/{channelId}.m3u8` or `.ts` | Opens a player session for the channel and streams it |
 | GET | `/logos/{key}` | A cached lineup logo, public, see [logos](#logos) |
+| GET | `/api/v1/libraries` | Every [media library](#media-libraries) with its count of movies, shows or videos |
+| GET | `/api/v1/libraries/{id}/items?sort=&unwatched=&cursor=&limit=` | One page of a library's movies, shows or videos |
+| GET | `/api/v1/library/home` | Continue watching, then Recently added for each library, and the libraries |
+| GET | `/api/v1/library/items/{id}` | An item with its seasons or episodes, the next episode of a show, and a file's tracks |
+| GET | `/api/v1/library/search?q=` | Movies, shows and videos whose title holds `q`, then episodes; at most 50 |
+| PUT | `/api/v1/library/items/{id}/play-state` | Record where playback stopped, or mark an item, season or show watched or unwatched |
+| GET | `/artwork/{id}/{role}` | An item's `poster` or `backdrop`, public, see [media libraries](#media-libraries) |
 | GET | `/discover.json`, `/lineup.json`, `/lineup_status.json`, `/device.xml` | HDHomeRun device as Plex reads it, see [HDHomeRun emulation](#hdhomerun-emulation) |
 | GET, POST | `/lineup.post` | Accepts Plex's channel-scan request; answers 200 |
 | GET | `/auto/v{number}` | MPEG-TS stream of the channel with that lineup number |
 | GET, POST | `/admin`, `/admin/*` | The [admin portal](#admin-portal-routes), HTML |
 
-Request bodies are limited to 64 KiB, except a policy write through `PUT /api/v1/admin/policy` or the portal's group and provider edits (4 MiB). A larger body answers `413 REQUEST_TOO_LARGE` before the token is checked. Every response carries an `X-Request-Id` header with the id the server's log lines for that request carry. Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams and logos never are. The live TV fields are defined in the [contract](../../contract/src/commonMain/kotlin/dev/jamesrich/sofaking/contract/), which the app compiles against too, and the admin fields in the [server's models](../server/src/main/kotlin/dev/jamesrich/sofaking/backend/api/); see [shared types](#shared-types).
+Request bodies are limited to 64 KiB, except a policy write through `PUT /api/v1/admin/policy` or the portal's group and provider edits (4 MiB). A larger body answers `413 REQUEST_TOO_LARGE` before the token is checked. Every response carries an `X-Request-Id` header with the id the server's log lines for that request carry. Responses under `/api/` and `/admin`, the M3U playlist, the XMLTV guide and `/lineup.json` are gzip- or deflate-compressed when the request's `Accept-Encoding` allows it; media, streams, logos and artwork never are. The live TV fields are defined in the [contract](../../contract/src/commonMain/kotlin/dev/jamesrich/sofaking/contract/), which the app compiles against too, and the admin fields in the [server's models](../server/src/main/kotlin/dev/jamesrich/sofaking/backend/api/); see [shared types](#shared-types).
 
 Channel IDs are lineup entry IDs. A channel's `displayNumber`, `name` and `tags` (the group) come from its entry; `logo` is the channel's logo as the server-relative path `/logos/KEY` (see [logos](#logos)), which a client resolves against the base URL it uses for the API, a proxy included (the server cannot be served under a sub-path); `legacyGuideId` is the mapped XMLTV channel ID; `guideStatus` is `unassigned`, `empty`, `available` or `stale`; `playbackEligible` is true when any of the entry's sources is selectable. Channels are listed in lineup order.
 
@@ -128,6 +135,16 @@ Each client keeps one document under its own id, so a reinstall or a second devi
 | `name`, `platform` | How the device calls itself; an empty value keeps the stored one |
 
 Each list holds at most 1,000 distinct ids. The server sets `updatedAt` and answers the stored document; a client compares that stamp to the one it last synced to decide whether the server's copy is newer than its own. The app pushes a change a few seconds after it settles and takes the server's copy over at start when another device wrote it since.
+
+## Media libraries
+
+`library` in the bootstrap capabilities says the server has the routes below. Items are what a [library scan](libraries.md) found, with what TMDB knows filled in; a `.nfo` beside a file wins over TMDB's text, and the library's own images over TMDB's. `kind` is `movie`, `show`, `season`, `episode` or `video`. A show's `children` counts its seasons (or its episodes when it has no season folders) and `unwatched` its unwatched episodes; an episode names its show in `showId` and `showTitle`. `videoHeight` and `hdr` come from FFprobe, for a 4K, HD or HDR badge.
+
+A library's items come sorted by `sort`: `title` (the default, ignoring a leading "The", "A" or "An"), `added`, `year` or `rating`, the newest or highest first. `unwatched=true` keeps only unwatched movies and videos and shows with an unwatched episode. `limit` is 1 to 500 (default 100), and `next` is the `cursor` for the page after. An item's page lists a show's seasons in order (Specials, season 0, first) or a season's episodes, and for a show `next`: the episode last played if unfinished, else the first unwatched one after it, never a special.
+
+`PUT /api/v1/library/items/{id}/play-state` takes `positionMs`, `durationMs` and `watched`, and answers the item. A stop in the first 5% leaves the item where it was, and one at 90% or later marks it watched and back at the start. `watched` set by hand wins over the position; it is the only field a show or season takes, and it marks every episode in it. Watch state belongs to the household, not one device. Continue watching lists, newest first, the movies, videos and episodes stopped part way and the next episode of each show whose last-played episode was finished, one entry per show.
+
+`poster` and `backdrop` are server-relative `/artwork/ID/ROLE?v=VERSION` paths a client resolves against its API base URL. A season without its own poster, and a season or episode without its own backdrop, name their show's. The route takes no token, as image loaders fetch with none, and serves only the image the library holds for that item; the version changes with the image, so a client may cache it for good. TMDB's images are downloaded once into `SOFA_DATA_DIR/artwork`, which can be deleted at any time.
 
 ## Player outputs
 
@@ -329,7 +346,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 
 ## Shared types
 
-The live TV requests and responses above (`/api/v1/bootstrap`, `/api/v1/channels`, `/api/v1/guide/query`, `/api/v1/playback-sessions`) and the error body are Kotlin types in the [contract](../../contract/README.md) build, which the server and the Sofa King app both compile against. `Wire` in the same package names the intents, guide statuses, error codes and guide limits clients act on.
+The live TV and library requests and responses above (`/api/v1/bootstrap`, `/api/v1/channels`, `/api/v1/guide/query`, `/api/v1/playback-sessions`, `/api/v1/libraries`, `/api/v1/library`) and the error body are Kotlin types in the [contract](../../contract/README.md) build, which the server and the Sofa King app both compile against. `Wire` in the same package names the intents, guide statuses, error codes, guide limits and library item kinds clients act on.
 
 The server keeps clients older and newer than itself working: a response keeps every field of the frozen fixtures in `contract/src/jvmTest/resources/wire`, a field no client reads has a default, and the guide query and playback session requests ignore fields the server does not know. Admin requests reject unknown fields.
 

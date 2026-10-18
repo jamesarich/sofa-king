@@ -21,6 +21,7 @@ import java.time.Clock
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -56,7 +57,15 @@ class LibraryService(
     private val every: Duration = Duration.ofHours(6),
     /** TMDB lookups after each scan, when `SOFA_TMDB_TOKEN` is set. */
     val metadata: LibraryMetadata? = null,
+    /** The posters and backdrops `/artwork` serves. */
+    val artwork: LibraryArtwork? = null,
 ) {
+    /** Counts changes to what the libraries hold, so [catalog] rebuilds its view only after one. */
+    private val revision = AtomicLong()
+
+    /** What clients read: the home rows, the items, search and watch state. */
+    val catalog = LibraryCatalog(store, clock) { revision.get() }
+
     private val trigger = Channel<Unit>(Channel.CONFLATED)
     private val pending = ConcurrentHashMap.newKeySet<String>()
     private val scanLock = Mutex()
@@ -98,6 +107,7 @@ class LibraryService(
         if (store.libraries().any { it.path == folder.toString() }) throw ApiFailure(409, "LIBRARY_EXISTS", "Another library already uses that folder")
         val library = LibraryRecord(UUID.randomUUID().toString(), title, kind, folder.toString(), clock.instant().toString())
         store.insertLibrary(library)
+        revision.incrementAndGet()
         requestScan(library.id)
         return library
     }
@@ -106,12 +116,14 @@ class LibraryService(
         val title = name.trim()
         if (title.isEmpty() || title.length > 100) throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
         if (!store.renameLibrary(id, title)) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+        revision.incrementAndGet()
         return library(id)
     }
 
     /** Forgets the library, its items and their watch state; its files stay where they are. */
     suspend fun delete(id: String) {
         scanLock.withLock { if (!store.deleteLibrary(id)) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library") }
+        revision.incrementAndGet()
     }
 
     /** Queues a scan of [id], or of every library when null; requests before the loop runs coalesce. */
@@ -133,6 +145,7 @@ class LibraryService(
             val looked = if (plan.result.unavailable) null else metadata?.refresh(library, store.libraryItems(library.id))
             val note = listOfNotNull(plan.result.note, looked?.note).joinToString("; ")
             store.recordLibraryScan(library.id, now, !plan.result.unavailable, note)
+            revision.incrementAndGet()
             result = plan.result
             JobOutcome(!plan.result.unavailable && looked?.stopped == null, "${library.name}: $note")
         }

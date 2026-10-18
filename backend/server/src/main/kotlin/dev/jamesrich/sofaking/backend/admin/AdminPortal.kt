@@ -14,6 +14,8 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.contract.UpdateRecording
 import dev.jamesrich.sofaking.contract.CreateRecordingRule
+import dev.jamesrich.sofaking.contract.ScheduleRecording
+import dev.jamesrich.sofaking.contract.UpdateRecordingRule
 import dev.jamesrich.sofaking.backend.dvr.Retention
 import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.catalog.SourceDocument
@@ -303,13 +305,48 @@ class AdminPortal(
             action("/recordings/rules") { session, form ->
                 val dvr = runtime.dvr ?: run { seeOther(call, "/admin"); return@action }
                 try {
-                    val keep = form["keep"]?.trim()?.toIntOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "Keep must be a number")
-                    val rule = dvr.createRule(CreateRecordingRule(form["title"].orEmpty(), form["channelId"]?.takeIf { it.isNotBlank() }, form["newOnly"] == "true", keep))
+                    val rule = dvr.createRule(CreateRecordingRule(
+                        form["title"].orEmpty(), form["channelId"]?.takeIf { it.isNotBlank() }, form["newOnly"] == "true", formInt(form, "keep", "Keep"),
+                        formInt(form, "startPadding", "Start early", 1) * 60, formInt(form, "endPadding", "Run late", 2) * 60, formInt(form, "priority", "Priority", 0),
+                    ))
                     session.flash.set(Flash("Added the rule for ${rule.title}; the schedule updates in a moment.", target = rule.id))
                 } catch (e: ApiFailure) {
                     session.flash.set(Flash("Not added: ${e.message}", Tone.BAD))
                 }
                 seeOther(call, "/admin/recordings#rules")
+            }
+            action("/recordings/rules/{id}") { session, form ->
+                val dvr = runtime.dvr ?: run { seeOther(call, "/admin"); return@action }
+                val id = call.parameters["id"]!!
+                try {
+                    val channel = form["channelId"]?.takeIf { it.isNotBlank() }
+                    val rule = dvr.updateRule(id, UpdateRecordingRule(
+                        channelId = channel, anyChannel = channel == null, newOnly = form["newOnly"] == "true", keep = formInt(form, "keep", "Keep"),
+                        startPaddingSeconds = formInt(form, "startPadding", "Start early") * 60, endPaddingSeconds = formInt(form, "endPadding", "Run late") * 60,
+                        priority = formInt(form, "priority", "Priority"),
+                    ))
+                    session.flash.set(Flash("Saved the rule for ${rule.title}; the schedule updates in a moment.", target = rule.id))
+                } catch (e: ApiFailure) {
+                    session.flash.set(Flash("Not saved: ${e.message}", Tone.BAD, target = id))
+                }
+                seeOther(call, "/admin/recordings#rules")
+            }
+            action("/recordings/manual") { session, form ->
+                val dvr = runtime.dvr ?: run { seeOther(call, "/admin"); return@action }
+                try {
+                    val start = try {
+                        java.time.LocalDateTime.parse(form["start"].orEmpty()).atZone(java.time.ZoneId.systemDefault()).toInstant()
+                    } catch (_: java.time.format.DateTimeParseException) { throw ApiFailure(400, "INVALID_REQUEST", "Pick a start date and time") }
+                    val minutes = formInt(form, "minutes", "Minutes")
+                    if (minutes !in 1..720) throw ApiFailure(400, "INVALID_REQUEST", "Minutes must be 1 to 720")
+                    val recording = dvr.schedule(ScheduleRecording(
+                        form["channelId"].orEmpty(), start.toString(), start.plusSeconds(minutes * 60L).toString(), form["title"]?.takeIf { it.isNotBlank() },
+                    ))
+                    session.flash.set(Flash("Scheduled ${recording.title}.", target = recording.id))
+                } catch (e: ApiFailure) {
+                    session.flash.set(Flash("Not scheduled: ${e.message}", Tone.BAD))
+                }
+                seeOther(call, "/admin/recordings#upcoming")
             }
             action("/recordings/rules/{id}/delete") { session, _ ->
                 val dvr = runtime.dvr ?: run { seeOther(call, "/admin"); return@action }
@@ -519,8 +556,10 @@ class AdminPortal(
     private suspend fun recordingsView(dvr: Dvr): RecordingsView {
         val channels = runtime.lineup.entries().filter { it.enabled && it.guide != null }.sortedBy { it.number.toDoubleOrNull() ?: Double.MAX_VALUE }
             .associate { it.id to "${it.number} ${it.name}" }
+        val all = runtime.lineup.entries().filter { it.enabled }.sortedBy { it.number.toDoubleOrNull() ?: Double.MAX_VALUE }
+            .associate { it.id to "${it.number} ${it.name}" }
         val values = runtime.settings.current
-        return RecordingsView(dvr.recordings(), dvr.rules(), channels, dvr.root.toString(), Retention(values.recordingsFreeGib, values.recordingsKeepDays))
+        return RecordingsView(dvr.recordings(), dvr.rules(), channels, dvr.root.toString(), Retention(values.recordingsFreeGib, values.recordingsKeepDays), all)
     }
 
     /** The viewers the server knows and the live pairing code, with the address this request reached the server at. */

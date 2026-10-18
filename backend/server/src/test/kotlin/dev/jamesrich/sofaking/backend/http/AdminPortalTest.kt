@@ -1065,6 +1065,38 @@ class AdminPortalTest {
             assertEquals(1, rules.size)
             val ruleId = rules.single().jsonObject["id"]!!.jsonPrimitive.content
             assertEquals(3, rules.single().jsonObject["keep"]!!.jsonPrimitive.int)
+            assertTrue(withRule.contains("1 min before, 2 min after"), withRule)
+
+            // Editing sets the padding and priority the add form left at their defaults.
+            browser.post(
+                "/admin/recordings/rules/$ruleId", "channelId" to "", "keep" to "5", "startPadding" to "3", "endPadding" to "10", "priority" to "7",
+                "csrf" to field(withRule, "csrf"),
+            )
+            val edited = browser.get("/admin/recordings").bodyAsText()
+            assertTrue(edited.contains("Saved the rule for Evening News") && edited.contains("3 min before, 10 min after") && edited.contains("All airings"), edited)
+            val rule = Json.parseToJsonElement(api.get("/api/v1/recording-rules") { bearerAuth(token) }.bodyAsText()).jsonObject["rules"]!!.jsonArray.single().jsonObject
+            assertEquals(180, rule["startPaddingSeconds"]!!.jsonPrimitive.int)
+            assertEquals(600, rule["endPaddingSeconds"]!!.jsonPrimitive.int)
+            assertEquals(7, rule["priority"]!!.jsonPrimitive.int)
+            assertEquals(5, rule["keep"]!!.jsonPrimitive.int)
+            assertFalse(rule["newOnly"]!!.jsonPrimitive.boolean)
+
+            // A time window records any enabled channel, guide or not.
+            runtime.adoptAll()
+            val channelId = runtime.lineup.entries().first { it.enabled }.id
+            val badWindow = browser.post("/admin/recordings/manual", "channelId" to channelId, "start" to "", "minutes" to "30", "csrf" to field(edited, "csrf"))
+            assertEquals(HttpStatusCode.SeeOther, badWindow.status)
+            assertTrue(browser.get("/admin/recordings").bodyAsText().contains("Not scheduled: Pick a start date and time"))
+            val startsAt = java.time.LocalDateTime.now().plusDays(1).withSecond(0).withNano(0)
+            browser.post("/admin/recordings/manual", "channelId" to channelId, "start" to startsAt.toString(), "minutes" to "45", "title" to "Late Game", "csrf" to field(edited, "csrf"))
+            val manualPage = browser.get("/admin/recordings").bodyAsText()
+            assertTrue(manualPage.contains("Scheduled Late Game"), manualPage)
+            val manual = Json.parseToJsonElement(api.get("/api/v1/recordings") { bearerAuth(token) }.bodyAsText()).jsonObject["recordings"]!!.jsonArray
+                .single { it.jsonObject["title"]!!.jsonPrimitive.content == "Late Game" }.jsonObject
+            val start = java.time.Instant.parse(manual["startsAt"]!!.jsonPrimitive.content)
+            assertEquals(startsAt.atZone(java.time.ZoneId.systemDefault()).toInstant(), start)
+            assertEquals(start.plusSeconds(45 * 60), java.time.Instant.parse(manual["endsAt"]!!.jsonPrimitive.content))
+            browser.post("/admin/recordings/${manual["id"]!!.jsonPrimitive.content}/delete", "csrf" to field(manualPage, "csrf"))
 
             val now = java.time.Instant.parse("2026-10-17T12:00:00Z")
             runtime.store.addRecording(dev.jamesrich.sofaking.backend.dvr.StoredRecording(

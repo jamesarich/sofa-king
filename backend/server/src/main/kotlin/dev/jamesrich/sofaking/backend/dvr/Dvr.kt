@@ -56,6 +56,9 @@ class Dvr(
     private val log = LoggerFactory.getLogger(Dvr::class.java)
     private val mutex = Mutex()
     private val running = ConcurrentHashMap<String, Job>()
+    /** Why the server itself stopped a running recording early, by recording. */
+    private val stopReasons = ConcurrentHashMap<String, String>()
+    private var lastSpaceCull: Instant? = null
     private val trigger = Channel<String>(Channel.CONFLATED)
     private val scans = Channel<String>(Channel.UNLIMITED)
     private lateinit var scope: CoroutineScope
@@ -123,7 +126,9 @@ class Dvr(
 
     suspend fun updateRule(id: String, update: UpdateRecordingRule): RecordingRule {
         val rule = store.recordingRule(id) ?: throw ApiFailure(404, "RULE_NOT_FOUND", "Unknown recording rule")
+        update.channelId?.let { if (lineup.entry(it) == null) throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel") }
         val changed = rule.copy(
+            channelId = if (update.anyChannel == true) null else update.channelId ?: rule.channelId,
             newOnly = update.newOnly ?: rule.newOnly,
             keep = update.keep?.let(::keep) ?: rule.keep,
             startPadding = update.startPaddingSeconds?.let { padding(it, rule.startPadding) } ?: rule.startPadding,
@@ -161,20 +166,34 @@ class Dvr(
         return PlayableFile(root.resolve(relative), if (growing) Duration.between(recording.recordFrom, recording.recordUntil).toMillis() else null, growing)
     }
 
-    /** Schedules the programme on [ScheduleRecording.channelId] that starts at [ScheduleRecording.startsAt]. */
+    /**
+     * Schedules the programme on [ScheduleRecording.channelId] that starts at [ScheduleRecording.startsAt], or, with
+     * [ScheduleRecording.endsAt], that window of the channel under [ScheduleRecording.title], guide or not.
+     */
     suspend fun schedule(request: ScheduleRecording): Recording {
         val entry = lineup.entry(request.channelId)?.takeIf { it.enabled } ?: throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
-        val start = try { Instant.parse(request.startsAt) } catch (_: Exception) { throw ApiFailure(400, "INVALID_REQUEST", "Invalid startsAt timestamp") }
-        val mapping = entry.guide ?: throw ApiFailure(404, "PROGRAMME_NOT_FOUND", "The channel has no guide")
-        val programme = guides.programmes(mapping.guideId, listOf(mapping.channelId), start, start.plusSeconds(1))[mapping.channelId]
-            ?.firstOrNull { it.startsAt == start } ?: throw ApiFailure(404, "PROGRAMME_NOT_FOUND", "No program starts then on that channel")
+        val start = instant(request.startsAt, "startsAt")
+        val manual = request.endsAt != null
+        val programme = if (manual) {
+            val end = instant(request.endsAt!!, "endsAt")
+            if (end <= start || Duration.between(start, end) > MAX_MANUAL) throw ApiFailure(400, "INVALID_REQUEST", "endsAt must be after startsAt and at most ${MAX_MANUAL.toHours()} hours later")
+            val title = request.title?.trim()?.takeIf { it.isNotEmpty() } ?: entry.name
+            if (title.length > 200) throw ApiFailure(400, "INVALID_REQUEST", "A title has at most 200 characters")
+            GuideProgramme(channelId = entry.id, startsAt = start, endsAt = end, title = title)
+        } else {
+            val mapping = entry.guide ?: throw ApiFailure(404, "PROGRAMME_NOT_FOUND", "The channel has no guide; give endsAt to record a time window")
+            guides.programmes(mapping.guideId, listOf(mapping.channelId), start, start.plusSeconds(1))[mapping.channelId]
+                ?.firstOrNull { it.startsAt == start } ?: throw ApiFailure(404, "PROGRAMME_NOT_FOUND", "No program starts then on that channel")
+        }
         if (programme.endsAt <= clock.instant()) throw ApiFailure(409, "PROGRAMME_ENDED", "The program has already ended")
+        // A window someone picked by the clock is recorded as given; a guide programme gets the usual padding.
+        val padding = if (manual) Duration.ZERO to Duration.ZERO else DEFAULT_START_PADDING to DEFAULT_END_PADDING
         return mutex.withLock {
             store.recordings().firstOrNull { it.channelId == entry.id && it.startsAt == start }?.let { existing ->
                 if (existing.state != CANCELLED) return@withLock existing.toWire()
                 store.deleteRecording(existing.id)
             }
-            val recording = stored(null, Airing(entry.id, entry.name, programme), DEFAULT_START_PADDING, DEFAULT_END_PADDING)
+            val recording = stored(null, Airing(entry.id, entry.name, programme), padding.first, padding.second)
             store.addRecording(recording)
             recording.toWire()
         }.also { scope.launch { tick() } }
@@ -259,6 +278,27 @@ class Dvr(
             for (recording in due.sortedBy { it.recordFrom }) launchRecording(recording)
         }
         for (orphan in store.recordings().filter { it.state == Wire.RecordingState.RECORDING && it.recordUntil <= now && !running.containsKey(it.id) }) finish(orphan, null)
+        if (running.isNotEmpty()) guardSpace(now)
+    }
+
+    /**
+     * Keeps a running recording from filling the disk: below the cleanup floor, cleanup runs (at most every
+     * [SPACE_CULL_EVERY]) and deletes finished recordings; below [MIN_FREE_BYTES] with nothing left to delete, the
+     * running recordings stop and keep what they wrote, with the reason `DISK_FULL`.
+     */
+    private suspend fun guardSpace(now: Instant) {
+        val free = withContext(Dispatchers.IO) { freeSpace(root) } ?: return
+        if (free >= retention().freeGib.toLong() * GIB) return
+        if (lastSpaceCull?.let { Duration.between(it, now) < SPACE_CULL_EVERY } != true) {
+            lastSpaceCull = now
+            cull("space")
+        }
+        if ((withContext(Dispatchers.IO) { freeSpace(root) } ?: return) >= MIN_FREE_BYTES) return
+        for ((id, job) in running.entries.toList()) {
+            stopReasons[id] = DISK_FULL
+            log.warn("recording stopped id={} reason={}", id, DISK_FULL)
+            job.cancel()
+        }
     }
 
     private fun launchRecording(recording: StoredRecording) {
@@ -286,13 +326,14 @@ class Dvr(
     /** Moves the file into place and records the outcome; an empty or missing file fails the recording and is removed. */
     private suspend fun finish(recording: StoredRecording, take: RecordedTake?) = mutex.withLock {
         val now = clock.instant()
+        val stopReason = stopReasons.remove(recording.id)
         val latest = store.recording(recording.id) ?: return@withLock
         val partial = latest.path?.let { root.resolve(it) }
         val bytes = withContext(Dispatchers.IO) { partial?.takeIf(Files::exists)?.let(Files::size) ?: 0L }
         if (partial == null || bytes == 0L) {
             withContext(Dispatchers.IO) { partial?.let(Files::deleteIfExists) }
-            store.saveRecording(latest.copy(state = Wire.RecordingState.FAILED, reason = take?.lastFailure ?: "NO_MEDIA", path = null, bytes = 0, updatedAt = now))
-            log.warn("recording failed id={} title=\"{}\" reason={}", latest.id, latest.title, take?.lastFailure ?: "NO_MEDIA")
+            store.saveRecording(latest.copy(state = Wire.RecordingState.FAILED, reason = stopReason ?: take?.lastFailure ?: "NO_MEDIA", path = null, bytes = 0, updatedAt = now))
+            log.warn("recording failed id={} title=\"{}\" reason={}", latest.id, latest.title, stopReason ?: take?.lastFailure ?: "NO_MEDIA")
             return@withLock
         }
         val final = RecordingLayout.path(latest.name, latest.startsAt, zone) { taken(it, except = latest.path) }
@@ -305,7 +346,7 @@ class Dvr(
         val short = now < latest.recordUntil.minusSeconds(5)
         val scan = if (commercials != null) Wire.CommercialScan.SCANNING else null
         store.saveRecording(latest.copy(
-            state = Wire.RecordingState.COMPLETED, reason = if (short) take?.lastFailure ?: "STOPPED" else null, path = final.toString(), bytes = bytes,
+            state = Wire.RecordingState.COMPLETED, reason = if (short) stopReason ?: take?.lastFailure ?: "STOPPED" else null, path = final.toString(), bytes = bytes,
             commercials = scan, updatedAt = now,
         ))
         if (scan != null) scans.trySend(latest.id)
@@ -409,6 +450,9 @@ class Dvr(
         )
     }
 
+    private fun instant(text: String, field: String): Instant =
+        try { Instant.parse(text) } catch (_: Exception) { throw ApiFailure(400, "INVALID_REQUEST", "Invalid $field timestamp") }
+
     private fun notFound() = ApiFailure(404, "RECORDING_NOT_FOUND", "Unknown recording")
 
     private fun keep(value: Int): Int = value.takeIf { it in 0..1000 } ?: throw ApiFailure(400, "INVALID_REQUEST", "keep must be 0 to 1000")
@@ -418,11 +462,18 @@ class Dvr(
 
     companion object {
         const val SCHEDULE_JOB = "dvr-schedule"
+        const val DISK_FULL = "DISK_FULL"
         const val CULL_JOB = "dvr-cull"
         private const val GIB = 1024L * 1024 * 1024
         val DEFAULT_START_PADDING: Duration = Duration.ofMinutes(1)
         val DEFAULT_END_PADDING: Duration = Duration.ofMinutes(2)
         const val MAX_PADDING_SECONDS = 3600
+        /** The longest window a manual recording may span. */
+        val MAX_MANUAL: Duration = Duration.ofHours(12)
+        /** Below this much free space running recordings stop, whatever the cleanup floor, so the database can still write. */
+        const val MIN_FREE_BYTES = 512L * 1024 * 1024
+        /** How often a running recording may make cleanup run for space. */
+        val SPACE_CULL_EVERY: Duration = Duration.ofMinutes(1)
         val SCHEDULE_EVERY: Duration = Duration.ofMinutes(30)
         val TICK: Duration = Duration.ofSeconds(5)
     }

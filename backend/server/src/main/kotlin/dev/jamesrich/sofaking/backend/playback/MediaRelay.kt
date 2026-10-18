@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.FeedService
+import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.upstream.inflateHead
@@ -98,6 +99,20 @@ class MediaRelay(
         throw ApiFailure(410, Wire.ErrorCode.STREAM_CHANGED, "Stream protocol changed; fetch the current session descriptor", true)
     }
 
+    /**
+     * A reader of [offering]'s one upstream MPEG-TS connection, opening it from [stream] when nobody else reads it;
+     * players and recordings of the same source share it.
+     */
+    internal suspend fun joinShared(offering: Offering, stream: ResolvedStream): TsFanout.Reader =
+        shared.join(offering.id) { consume ->
+            permits.withPermit {
+                http.withUpstreamResponse(stream.url, stream.url, stream.headers, unbounded = true, policy = feeds.upstream) { response ->
+                    if (response.status.value != 200) throw UpstreamStatusException(response.status.value)
+                    consume(response.bodyAsChannel())
+                }
+            }
+        }
+
     private suspend fun serveShared(
         call: ApplicationCall,
         id: String,
@@ -106,15 +121,7 @@ class MediaRelay(
         resource: MediaResource,
         stream: ResolvedStream,
     ) {
-        val reader =
-            shared.join(resource.offering.id) { consume ->
-                permits.withPermit {
-                    http.withUpstreamResponse(stream.url, stream.url, stream.headers, unbounded = true, policy = feeds.upstream) { response ->
-                        if (response.status.value != 200) throw UpstreamStatusException(response.status.value)
-                        consume(response.bodyAsChannel())
-                    }
-                }
-            }
+        val reader = joinShared(resource.offering, stream)
         try {
             try {
                 reader.awaitStarted()

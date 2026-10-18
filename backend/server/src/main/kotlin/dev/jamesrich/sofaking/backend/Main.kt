@@ -8,7 +8,6 @@ import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import java.time.Clock
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 
@@ -26,14 +25,15 @@ fun main(): Unit = runBlocking<Unit> {
         }
     val ports = listOf(config.port) + if (config.hdhr.enabled) config.hdhr.extraPorts else emptyList()
     val plexStatus = runtime.plex?.let { sync -> PlexStatusSource { sync.status() } }
-    val closed = AtomicBoolean(false)
-    fun close() {
-        if (!closed.compareAndSet(false, true)) return
+    // Both Ktor's shutdown hook and main's finally close; whichever comes second waits for the first to finish,
+    // so the hook cannot return (and the JVM halt) while main is still closing the store.
+    val closing = lazy {
         runBlocking { runtime.close() }
         log.info("shutdown: runtime closed")
         store.close()
         log.info("shutdown: store closed")
     }
+    fun close() = closing.value
     // Ktor stops with its defaults, a 1 s grace period and a 5 s timeout.
     val server = embeddedServer(Netty, configure = { ports.forEach { p -> connector { host = config.host; port = p } } }) {
         backendModule(store, clock, runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr, plexStatus, config)

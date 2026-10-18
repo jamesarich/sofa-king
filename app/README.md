@@ -71,7 +71,7 @@ The [security page](docs/security.md) describes what the app stores, where the t
 - The desktop app needs VLC 3. The `.deb` installs it through apt; on macOS and Windows install it first.
 - The web app has no default server and needs an origin the server allows, as [getting started](docs/getting-started.md#web) describes.
 - Caption timing and smoothing work on Android only. Chrome's built-in HLS player shows no captions.
-- There is no recording and no background playback. Playback stops when the app leaves the screen.
+- There is no background playback. Playback stops when the app leaves the screen.
 - There is no published iOS or Apple TV build. Snapshot APKs use a debug key and the desktop packages are unsigned.
 
 ## License

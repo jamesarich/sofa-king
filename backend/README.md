@@ -21,13 +21,12 @@ The Sofa King server is a self-hosted live TV server for a home network. It buil
 - [Source health](docs/source-health.md) probes, quarantine and automatic failover between sources
 - HLS and MPEG-TS relayed through the server, and an MPEG-TS remux for Plex
 - M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
-- Media libraries: movies, shows and other videos from a read-only folder, scanned with their `.nfo` files and artwork ([media libraries](docs/libraries.md)); the app cannot browse or play them yet
+- Media libraries: movies, shows and other videos from a read-only folder, scanned with their `.nfo` files and artwork, played by the app ([media libraries](docs/libraries.md))
+- A DVR: one-off, time-window and series recordings from the guide into a Plex-style folder, with cleanup and commercial break detection ([recordings](docs/recordings.md))
 - A logo cache, so every client loads logos from this server
 - A JSON API whose live TV types the app shares ([API](docs/api.md))
 - An [admin portal](docs/admin.md) at `/admin` that shows what needs attention, sets up the sources and a starter lineup, edits channels, merges, groups and provider priority, pairs devices with a code, and asks the host's updater for a new image
 - A Docker image for `linux/amd64` and `linux/arm64`, with an SBOM and build provenance
-
-The server has no DVR of its own.
 
 ## Clients
 
@@ -79,7 +78,7 @@ The [security page](docs/security.md) describes the intended deployment, which t
 - The HDHomeRun remux of an HLS source carries one video stream and one audio stream.
 - The native providers are unofficial clients of public service endpoints. They stop working when a service changes them.
 - DRM channels are skipped by the native providers. M3U playlists are not filtered for DRM.
-- [Recordings](docs/recordings.md#limitations) need the guide and are not yet played by the app.
+- [Series recordings](docs/recordings.md#limitations) need the guide; a channel without one records only as a time window.
 
 ## License
 

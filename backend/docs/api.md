@@ -28,13 +28,13 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent |
 | DELETE | `/api/v1/playback-sessions/{id}` | Release the session; returns 204 |
 | GET | `/api/v1/recordings` | Every [recording](#recordings), scheduled and running soonest first, then the rest newest first, and the recordings folder's `storage` |
-| POST | `/api/v1/recordings` | Record the program on `channelId` that starts at `startsAt`; `201`, or the existing recording. `404 CHANNEL_NOT_FOUND` or `PROGRAMME_NOT_FOUND`, `409 PROGRAMME_ENDED` |
+| POST | `/api/v1/recordings` | Record the program on `channelId` that starts at `startsAt`, or with `endsAt` (and an optional `title`) that [time window](recordings.md#record-a-time-window); `201`, or the existing recording. `404 CHANNEL_NOT_FOUND` or `PROGRAMME_NOT_FOUND`, `409 PROGRAMME_ENDED` |
 | GET | `/api/v1/recordings/{id}` | One recording; `404 RECORDING_NOT_FOUND` |
 | PATCH | `/api/v1/recordings/{id}` | Set `protected`, `positionMs` or `watched` |
 | DELETE | `/api/v1/recordings/{id}` | Cancel a scheduled recording, stop a running one, or delete a finished one and its file; returns 204 |
 | GET | `/api/v1/recording-rules` | Every series rule, oldest first |
 | POST | `/api/v1/recording-rules` | Add a series rule; `201` |
-| PATCH | `/api/v1/recording-rules/{id}` | Change `newOnly`, `keep`, the paddings or `priority`; `404 RULE_NOT_FOUND` |
+| PATCH | `/api/v1/recording-rules/{id}` | Change `channelId` (`anyChannel: true` clears it), `newOnly`, `keep`, the paddings or `priority`; `404 RULE_NOT_FOUND` |
 | DELETE | `/api/v1/recording-rules/{id}` | Delete a rule and its scheduled recordings; what it recorded stays. Returns 204 |
 | GET | `/media/sessions/{id}/{epoch}/{token}` | Session-authorized HLS or MPEG-TS media. `{epoch}` is the descriptor's epoch and `{token}` a random token for one playlist, segment or key |
 | GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |

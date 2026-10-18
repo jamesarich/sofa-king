@@ -297,11 +297,11 @@ fun VodPlayerScreen(
         player.stop()
         // A file played as it is picks up where it failed; a converted one restarts there.
         if (stream?.mode == Wire.VodMode.DIRECT) {
-            pendingSeek = (positionMs - (stream?.offsetMs ?: 0)).takeIf { it > 0 }
+            pendingSeek = (positionMs - stream.offsetMs).takeIf { it > 0 }
             player.prepare()
         } else if (stream != null) {
             seekItem(positionMs)
-            if (player.currentStreamUrl == stream?.url) player.prepare()
+            if (player.currentStreamUrl == stream.url) player.prepare()
         } else {
             openRequest++
         }

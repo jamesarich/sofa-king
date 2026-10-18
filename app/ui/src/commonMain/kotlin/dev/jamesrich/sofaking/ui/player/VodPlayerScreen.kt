@@ -385,6 +385,12 @@ fun VodPlayerScreen(
         if (restream) reopenWithTracks()
     }
 
+    // The card stands in for the bar, which would otherwise run under it; the next key brings the bar back.
+    fun openTracks() {
+        tracksOpen = true
+        overlayVisible = false
+    }
+
     fun handleKeyEvent(event: KeyEvent): Boolean {
         // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
         if (tracksOpen) return false
@@ -416,7 +422,7 @@ fun VodPlayerScreen(
             VodAction.PAUSE -> if (player.playWhenReady) togglePause()
             VodAction.SHOW_INFO -> when {
                 // Down on the bar opens the Audio and subtitles card.
-                event.key == Key.DirectionDown && overlayVisible && tracks.pickable && failure == null -> tracksOpen = true
+                event.key == Key.DirectionDown && overlayVisible && tracks.pickable && failure == null -> openTracks()
                 overlayVisible && !paused && event.key == Key.Info -> overlayVisible = false
                 else -> showOverlay()
             }
@@ -521,7 +527,7 @@ fun VodPlayerScreen(
                         }
                         ControlIcon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(Res.string.vod_control_forward), { seekItem(positionMs + 30_000L); showOverlay() })
                         if (tracks.pickable) {
-                            ControlIcon(PlayerIcons.ClosedCaption, stringResource(Res.string.vod_tracks_title), { tracksOpen = !tracksOpen })
+                            ControlIcon(PlayerIcons.ClosedCaption, stringResource(Res.string.vod_tracks_title), { if (tracksOpen) tracksOpen = false else openTracks() })
                         }
                     }
                 }

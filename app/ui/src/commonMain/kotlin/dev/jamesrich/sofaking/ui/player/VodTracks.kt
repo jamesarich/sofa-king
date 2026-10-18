@@ -55,14 +55,32 @@ class VodTracks(
     fun isPicture(index: Int?): Boolean = index != null && subtitles.any { it.index == index && it.picture }
 }
 
+/** The row the Audio and subtitles card opens on. */
+internal sealed interface TracksFocus {
+    data class Audio(val index: Int) : TracksFocus
+
+    /** A subtitle track by its index, or Off for null. */
+    data class Subtitle(val index: Int?) : TracksFocus
+}
+
+/**
+ * The playing audio track when there is a choice of audio, otherwise the subtitle track on screen (Off when none is),
+ * so the card opens on what is playing.
+ */
+internal fun tracksFocus(tracks: VodTracks, audio: Int?, subtitle: Int?): TracksFocus = when {
+    tracks.audio.size > 1 -> TracksFocus.Audio(audio?.takeIf { a -> tracks.audio.any { it.index == a } } ?: tracks.audio.first().index)
+    else -> TracksFocus.Subtitle(subtitle?.takeIf { s -> tracks.subtitles.any { it.index == s } })
+}
+
 /**
  * The Audio and subtitles card at the side of the player: the audio tracks, then Off and the subtitle tracks. Focus
- * starts on the playing audio track; OK picks a row and Back closes the card.
+ * starts on what is playing ([tracksFocus]); OK picks a row and Back closes the card.
  */
 @Composable
 internal fun BoxScope.TracksCard(tracks: VodTracks, audio: Int?, subtitle: Int?, onAudio: (Int) -> Unit, onSubtitle: (Int?) -> Unit) {
     val focus = remember { FocusRequester() }
-    val focusAudio = tracks.audio.indexOfFirst { it.index == audio }.coerceAtLeast(0)
+    val start = remember { tracksFocus(tracks, audio, subtitle) }
+    fun focusFor(row: TracksFocus) = if (row == start) Modifier.focusRequester(focus) else Modifier
     LaunchedEffect(Unit) { requestFocusWhenAttached(focus) }
     Column(
         Modifier
@@ -77,8 +95,8 @@ internal fun BoxScope.TracksCard(tracks: VodTracks, audio: Int?, subtitle: Int?,
         Text(stringResource(Res.string.vod_tracks_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         if (tracks.audio.size > 1) {
             Text(stringResource(Res.string.stream_card_audio), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            tracks.audio.forEachIndexed { position, track ->
-                TrackRow(track.label, track.index == audio, onClick = { onAudio(track.index) }, modifier = if (position == focusAudio) Modifier.focusRequester(focus) else Modifier)
+            tracks.audio.forEach { track ->
+                TrackRow(track.label, track.index == audio, onClick = { onAudio(track.index) }, modifier = focusFor(TracksFocus.Audio(track.index)))
             }
         }
         if (tracks.subtitles.isNotEmpty()) {
@@ -87,10 +105,10 @@ internal fun BoxScope.TracksCard(tracks: VodTracks, audio: Int?, subtitle: Int?,
                 stringResource(Res.string.vod_tracks_subtitles_off),
                 subtitle == null,
                 onClick = { onSubtitle(null) },
-                modifier = if (tracks.audio.size <= 1) Modifier.focusRequester(focus) else Modifier,
+                modifier = focusFor(TracksFocus.Subtitle(null)),
             )
             tracks.subtitles.forEach { track ->
-                TrackRow(track.label, track.index == subtitle, onClick = { onSubtitle(track.index) })
+                TrackRow(track.label, track.index == subtitle, onClick = { onSubtitle(track.index) }, modifier = focusFor(TracksFocus.Subtitle(track.index)))
             }
         }
     }

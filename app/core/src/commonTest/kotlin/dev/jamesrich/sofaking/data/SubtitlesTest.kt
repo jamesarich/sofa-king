@@ -49,6 +49,29 @@ class SubtitlesTest {
         assertEquals(listOf("Previously &lt;3", "<<Previously>> x<y vtt"), subtitles.cues.map { it.text })
     }
 
+    /** Lines from an embedded SubRip track that was cut at a fixed length mid-tag, as FFmpeg 6.1 passes them on. */
+    @Test
+    fun `a tag cut off at the end of a line is dropped with the text before it kept`() {
+        val lines = listOf(
+            "Woman:<br />hello, you've reach.",
+            "For comments and complaints,<br.",
+            "Stupid with<.",
+            "Did ancient aliens really help<?",
+            "dinosaurs, one of the most<br /s",
+            "friend<bs",
+            "<i>maya. Ma></i>",
+            "I <3 it <i>so</i>",
+        )
+        val document = "WEBVTT\n\n" + lines.mapIndexed { i, line -> "00:0$i.000 --> 00:0$i.900\n$line" }.joinToString("\n\n")
+        assertEquals(
+            listOf(
+                "Woman:\nhello, you've reach.", "For comments and complaints,", "Stupid with", "Did ancient aliens really help",
+                "dinosaurs, one of the most", "friend", "maya. Ma", "I <3 it so",
+            ),
+            parseWebVtt(document).cues.map { it.text },
+        )
+    }
+
     @Test
     fun `the text at a position is every cue showing then`() {
         val subtitles = Subtitles(listOf(SubtitleCue(5_000, 9_000, "b"), SubtitleCue(1_000, 6_000, "a"), SubtitleCue(10_000, 11_000, "c")))

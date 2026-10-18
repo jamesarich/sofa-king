@@ -87,10 +87,13 @@ internal fun vttTime(value: String): Long? {
  * A cue's text without markup, one line per row. Subtitle files often carry their HTML escaped (`&lt;i&gt;`), so
  * the tags are stripped again once the entities are read; a `<br>` breaks the line even when its `>` is missing.
  * Only the tag names of WebVTT and of subtitle HTML count as tags, so `<<Previously>>` and `x<y` stay as text.
+ * Some muxed tracks cut each line at a fixed length, mid-tag, and replace its last character; the cut-off tag
+ * (`help<?`, `most<br /s`) and a stray `>` it leaves at the end of a line (`Ma></i>`) are dropped.
  */
 private fun cleanCueText(raw: String): String {
     fun String.untagged() = replace(BREAK, "\n").replace(TAG, "")
-    return raw.untagged()
+    return raw.replace(CUT_TAG, "").untagged()
+        .replace(STRAY_CLOSE, "$1")
         .replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&lrm;", "").replace("&rlm;", "")
         .replace("&quot;", "\"").replace("&apos;", "'").replace("&#39;", "'")
         .replace("&amp;", "&")
@@ -108,6 +111,12 @@ private val SKIPPED_BLOCKS = listOf("WEBVTT", "NOTE", "STYLE", "REGION")
 
 /** A line break tag in any spelling, with or without its closing `>`. */
 private val BREAK = Regex("""<\s*br\b(?:[^<>\n]*>)?""", RegexOption.IGNORE_CASE)
+
+/** A tag cut off at the end of a line: `<`, a few characters of `br`, `b`, `/` or spaces, and one replaced character. */
+private val CUT_TAG = Regex("""<[bBrR/ ]{0,5}[^<>\n\d]?$""", RegexOption.MULTILINE)
+
+/** A `>` left at the end of a line after a word, by a cut tag. */
+private val STRAY_CLOSE = Regex("""(\w)>[ \t]*$""", RegexOption.MULTILINE)
 
 /** A WebVTT or subtitle HTML tag, opening or closing, or a karaoke timestamp. */
 private val TAG = Regex(

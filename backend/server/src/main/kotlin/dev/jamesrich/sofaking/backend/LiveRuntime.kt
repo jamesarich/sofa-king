@@ -171,6 +171,7 @@ class LiveRuntime(
                 val libraries = LibraryService(
                     store, clock, listOf(MediaRoot("Media", config.mediaDirectory)), LibraryScanner(MediaProbe(ffprobeBeside(config.ffmpeg))::probe), jobs,
                     metadata = config.tmdb?.let { LibraryMetadata(store, TmdbClient(http, it), clock, it.region) },
+                    artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork")),
                 )
                 libraries.start(scope)
                 val runtime = LiveRuntime(

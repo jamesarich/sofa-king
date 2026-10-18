@@ -5,8 +5,8 @@
 | Page | What it covers |
 | --- | --- |
 | [Getting started](getting-started.md) | From a running Sofa King server to a channel playing on a TV, a desktop, a phone or a browser, including serving the web app |
-| [Using Sofa King](usage.md) | The guide, the channels it lists, previews, the player, the remote and keyboard controls, captions, the Apple TV app and the settings |
-| [Troubleshooting and FAQ](troubleshooting.md) | Symptoms and fixes for connecting, the lineup and guide, playback, captions and each platform, and common questions |
+| [Using Sofa King](usage.md) | The guide, the channels it lists, previews, the library, recordings, the player, the remote and keyboard controls, captions, the Apple TV app and the settings |
+| [Troubleshooting and FAQ](troubleshooting.md) | Symptoms and fixes for connecting, the lineup and guide, playback, the library and recordings, captions and each platform, and common questions |
 
 ## Reference
 
@@ -38,4 +38,5 @@ The [repository glossary](../../docs/README.md#glossary) defines the terms the a
 | Stream card | The card the player opens on Info held or Stream info in the channel list, with the audio tracks, stream details and the server's source |
 | Live edge | The newest part of a live stream. Resuming after a long pause, or falling behind, returns to it |
 | Caption timing | How far captions are shifted against the picture, saved per channel |
+| Library, Recordings | The tabs beside Live that a server with media libraries, or one that records, adds |
 | Snapshot | A test build from `main`, published as the `snapshot` prerelease |

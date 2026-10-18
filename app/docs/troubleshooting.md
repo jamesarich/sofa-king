@@ -48,6 +48,17 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | No working source for this channel right now | The server answered `SOURCE_UNAVAILABLE`: every source for the channel is down or quarantined. The server rechecks sources on its own; the card counts down to the next try, and OK tries at once. |
 | The wrong language plays | Hold Info for the stream card and pick another audio track; the choice lasts for the channel. One track means no choice. |
 
+## Library and recordings
+
+| Symptom | Check |
+| --- | --- |
+| No Library tab | The server has no media library, or is too old to serve them. Add one on the admin portal's [Library page](../../backend/docs/admin.md#library). |
+| No Recordings tab or Record button | The server is too old to record; update it. Record shows only on programs that have not ended. |
+| A line under Record says the server did not take it | The program is not in the server's guide, or has ended. The server's [troubleshooting](../../backend/docs/troubleshooting.md#recordings) has the rest. |
+| `CAPACITY_EXHAUSTED` playing a library item or a recording | The server is already converting as many files as `SOFA_MAX_TRANSCODES` allows. Stop playback elsewhere and try again. |
+| A jump in a library item takes a moment | The server converts that file as it plays, and a jump past what it has converted restarts the conversion there. |
+| No commercial breaks on the seek bar | The server's Comskip scan found none, or has not finished; Skip commercials has nothing to skip. |
+
 ## Captions
 
 | Symptom | Check |
@@ -81,7 +92,7 @@ Only through a connection the server allows, such as a VPN or an HTTPS reverse p
 
 ### Does it record or play in the background?
 
-No. The server has no DVR, and playback stops when the app leaves the screen. Returning opens the same channel at the live edge.
+The server records, as [recordings](usage.md#recordings) describes, and the app plays them. It does not play in the background: playback stops when the app leaves the screen. Returning opens the same channel at the live edge, or a library item or recording where it stopped.
 
 ### Why will a snapshot APK not install over my build?
 

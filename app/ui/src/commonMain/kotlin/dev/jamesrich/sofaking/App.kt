@@ -55,6 +55,9 @@ import dev.jamesrich.sofaking.ui.library.LibraryGridScreen
 import dev.jamesrich.sofaking.ui.library.LibraryHomeActions
 import dev.jamesrich.sofaking.ui.library.LibraryHomeScreen
 import dev.jamesrich.sofaking.ui.library.libraryFocusKey
+import dev.jamesrich.sofaking.ui.library.LibrarySearchActions
+import dev.jamesrich.sofaking.ui.library.LibrarySearchScreen
+import dev.jamesrich.sofaking.ui.library.SEARCH_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.player.PlayerIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import coil3.compose.setSingletonImageLoaderFactory
@@ -176,6 +179,9 @@ private sealed interface Screen {
     /** The Library tab's home. [returnedFrom] is the item whose page the viewer just left, which it focuses. */
     @Serializable
     data class Library(@Transient val returnedFrom: String? = null) : Screen
+    /** Search across the libraries, under the Library tab; [voice] starts it by voice on arrival. */
+    @Serializable
+    data class LibrarySearch(@Transient val voice: Boolean = false, @Transient val returnedFrom: String? = null) : Screen
     /** One library's grid, under the Library tab. */
     @Serializable
     data class LibraryGrid(val libraryId: String, @Transient val returnedFrom: String? = null) : Screen
@@ -208,6 +214,7 @@ private sealed interface Screen {
         is Library -> copy(returnedFrom = itemId)
         is LibraryGrid -> copy(returnedFrom = itemId)
         is LibraryItem -> copy(returnedFrom = itemId)
+        is LibrarySearch -> copy(returnedFrom = itemId)
         else -> this
     }
 }
@@ -332,7 +339,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
             }
             is Screen.Player, is Screen.Vod, is Screen.Recording -> Unit
             // The library and the recordings play nothing until one is picked, so the guide's preview stops on the way in.
-            is Screen.Library, is Screen.LibraryGrid, is Screen.LibraryItem, Screen.Recordings -> {
+            is Screen.Library, is Screen.LibraryGrid, is Screen.LibrarySearch, is Screen.LibraryItem, Screen.Recordings -> {
                 player.stop()
                 sessions.release(forget = true)
             }
@@ -578,7 +585,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     returnedFrom = current.returnedFrom,
                 )
             }
-            is Screen.Guide, is Screen.Library, is Screen.LibraryGrid, Screen.Recordings -> {
+            is Screen.Guide, is Screen.Library, is Screen.LibraryGrid, is Screen.LibrarySearch, Screen.Recordings -> {
                 val tab = when (current) {
                     is Screen.Guide -> Tab.LIVE
                     Screen.Recordings -> Tab.RECORDINGS
@@ -683,6 +690,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                         onPlayItem = { screen = Screen.Vod(it.id, parent = Screen.Library()) },
                                         onOpenLibrary = { screen = Screen.LibraryGrid(it.id) },
                                         onRetry = libraryVm::refreshHome,
+                                        onSearch = { voice -> screen = Screen.LibrarySearch(voice) },
                                         menu = CardMenu(
                                             onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = Screen.Library()) },
                                             onSetWatched = libraryVm::setWatched,
@@ -704,6 +712,24 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                     onBack = { openTab(Tab.LIVE) },
                                     onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
                                     onRuleDelete = recordingsVm::deleteRule,
+                                )
+                            }
+                            // The query outlives a trip to an item's page and back.
+                            is Screen.LibrarySearch -> guideState.SaveableStateProvider("library-search") {
+                                BackHandler { screen = Screen.Library(returnedFrom = SEARCH_FOCUS_KEY) }
+                                val here = Screen.LibrarySearch()
+                                LibrarySearchScreen(
+                                    actions = LibrarySearchActions(
+                                        search = libraryVm::search,
+                                        onOpenItem = { screen = Screen.LibraryItem(it.id, parent = here) },
+                                        onPlayItem = { screen = Screen.Vod(it.id, parent = here) },
+                                        menu = CardMenu(
+                                            onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = here) },
+                                            onSetWatched = libraryVm::setWatched,
+                                        ),
+                                    ),
+                                    voice = current.voice,
+                                    returnedFrom = current.returnedFrom,
                                 )
                             }
                             is Screen.LibraryGrid -> guideState.SaveableStateProvider("grid-${current.libraryId}") {
@@ -749,13 +775,6 @@ private fun MediaItem.vodTitle(): VodTitle {
     return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster)
 }
 
-/** The Up next card for an episode: its number and title under the show, with its still. */
-private fun MediaItem.upNext(): VodUpNext = VodUpNext(
-    title = title,
-    subtitle = listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null },
-    artworkUrl = backdrop ?: poster,
-)
-
 /** What the player shows for a recording: its episode and when it aired, with the commercial breaks marked. */
 @Composable
 private fun DvrRecording.vodTitle(): VodTitle {
@@ -767,6 +786,13 @@ private fun DvrRecording.vodTitle(): VodTitle {
         markers = breaks.map { VodMarker(it.startMs, it.endMs, VodMarkerKind.BREAK) },
     )
 }
+
+/** The Up next card for an episode: its number and title under the show, with its still. */
+private fun MediaItem.upNext(): VodUpNext = VodUpNext(
+    title = title,
+    subtitle = listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null },
+    artworkUrl = backdrop ?: poster,
+)
 
 /** Back in front: a fresh session for the channel and intent released on stop, at the URL the player holds for it. */
 private suspend fun resume(player: LivePlayer, sessions: PlaybackSessions) {

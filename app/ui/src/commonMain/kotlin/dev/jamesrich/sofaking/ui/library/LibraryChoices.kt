@@ -8,6 +8,14 @@ import dev.jamesrich.sofaking.data.MediaShelf
 /** How a row draws its items: 2:3 posters for movies and shows, 16:9 cards for episodes and what is being watched. */
 internal enum class CardStyle { POSTER, WIDE }
 
+/** Search results split as the search draws them: movies and shows as posters, episodes and videos as wide cards. */
+internal class SearchSections(val posters: List<MediaItem>, val wide: List<MediaItem>)
+
+internal fun searchSections(results: List<MediaItem>): SearchSections {
+    val (wide, posters) = results.partition { it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO }
+    return SearchSections(posters, wide)
+}
+
 /** Continue watching and a row of episodes or videos are wide; anything else shows posters. */
 internal fun cardStyleFor(shelf: MediaShelf): CardStyle = when {
     shelf.id == CONTINUE_SHELF -> CardStyle.WIDE

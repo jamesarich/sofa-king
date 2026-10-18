@@ -24,6 +24,13 @@ class LibraryChoicesTest {
     }
 
     @Test
+    fun `search shows movies and shows as posters and episodes and videos as wide cards in their order`() {
+        val sections = searchSections(listOf(item("e1", ItemKind.EPISODE), item("m", ItemKind.MOVIE), item("v", ItemKind.VIDEO), item("s", ItemKind.SHOW)))
+        assertEquals(listOf("m", "s"), sections.posters.map { it.id })
+        assertEquals(listOf("e1", "v"), sections.wide.map { it.id })
+    }
+
+    @Test
     fun `running times round to the minute`() {
         assertEquals(1 to 48, runtimeParts(6_480_000))
         assertEquals(0 to 45, runtimeParts(2_699_000))

@@ -90,7 +90,7 @@ Models are immutable; the UI module's Compose stability configuration marks the 
 
 ## Playback
 
-The app holds one `LivePlayer`. Preview and full-screen playback share it, so opening the previewed channel preserves the stream. Preview tuning debounces focus by 350 ms. Tune effects wait for the host to reach STARTED. `PreviewDwell` holds the preview's rest timers on a monotonic clock: muted on tune, sound after 5 s, full screen after 10 s through the same promote handoff as OK; a key press or a focus move restarts both and mutes, focus off the grid or an open search stops them, nothing opens while the host is stopped and ON_START restarts the rest, and the channel the player was just left on is suppressed until another channel takes focus.
+The app holds one `LivePlayer`. Preview and full-screen playback share it, so opening the previewed channel preserves the stream. Preview tuning debounces focus by 350 ms, and the preview shows the channel's card over the last channel's picture until the new stream is set. Tune effects wait for the host to reach STARTED. `PreviewDwell` holds the preview's rest timers on a monotonic clock: muted on tune, sound after 5 s, full screen after 10 s through the same promote handoff as OK; a key press or a focus move restarts both and mutes, focus off the grid or an open search stops them, nothing opens while the host is stopped and ON_START restarts the rest, and the channel the player was just left on is suppressed until another channel takes focus.
 
 | Platform | Player | Plays | Captions | Media session |
 | --- | --- | --- | --- | --- |

@@ -38,6 +38,7 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.formatTemplate
+import dev.jamesrich.sofaking.ui.horizontalFadingEdges
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
@@ -100,7 +101,7 @@ internal fun FilterChipRow(
 ) {
     LazyRow(
         state = listState,
-        modifier = modifier.focusRestorer(selectedChip),
+        modifier = modifier.focusRestorer(selectedChip).horizontalFadingEdges(listState),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "now") {
@@ -155,7 +156,10 @@ internal fun SearchField(
     )
 }
 
-/** One horizontally scrolled strip; the header and every row share [scrollState] so columns stay aligned. */
+/**
+ * One horizontally scrolled strip; the header and every row share [scrollState] so columns stay aligned. The now
+ * line runs behind the strip's content, so it shows between cells and under the time labels but never cuts a title.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun TimelineStrip(
@@ -171,8 +175,13 @@ internal fun TimelineStrip(
     }
 }
 
+/**
+ * Focus never scrolls the guide: the timeline and the channel list are moved by GuideScreen itself (revealMinute,
+ * focusRow). A TV's default would chase a long cell's far end, and pivot the focused row a third of the way down,
+ * leaving a sliver of the row above under the time header.
+ */
 @OptIn(ExperimentalFoundationApi::class)
-private val NoBringIntoView = object : BringIntoViewSpec {
+internal val NoBringIntoView = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
 }
 
@@ -184,17 +193,21 @@ private fun TimelineStripContent(
     content: @Composable () -> Unit,
 ) {
     Box(modifier.clipToBounds().horizontalScroll(scrollState, overscrollEffect = null)) {
+        NowLine(nowMinute)
         content()
-        if (nowMinute != null) {
-            Box(
-                Modifier
-                    .offset(x = nowOffset(nowMinute))
-                    .fillMaxHeight()
-                    .width(2.dp)
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        }
     }
+}
+
+@Composable
+private fun NowLine(nowMinute: Long?) {
+    if (nowMinute == null) return
+    Box(
+        Modifier
+            .offset(x = nowOffset(nowMinute))
+            .fillMaxHeight()
+            .width(2.dp)
+            .background(MaterialTheme.colorScheme.primary),
+    )
 }
 
 @Composable

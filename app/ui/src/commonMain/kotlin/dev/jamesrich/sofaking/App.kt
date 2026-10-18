@@ -356,6 +356,14 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         }
     }
 
+    // The channel joins Recent, and becomes the one a cold start opens, once it has played for RECENT_AFTER_MS.
+    val playing = history.watching.takeIf { screen is Screen.Player }
+    LaunchedEffect(playing) {
+        if (playing == null) return@LaunchedEffect
+        delay(RECENT_AFTER_MS)
+        vm.setLastChannel(playing)
+    }
+
     CompositionLocalProvider(
         LocalClockFormat provides (settings?.clockFormat ?: ClockFormat.AUTO),
         LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
@@ -449,10 +457,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     onExit = { screen = Screen.Guide(returnedFrom = history.watching) },
                     onGuide = { screen = Screen.Guide(atNow = true, returnedFrom = history.watching) },
                     onSearch = { screen = Screen.Guide(search = true, returnedFrom = history.watching) },
-                    onChannelChanged = {
-                        history = history.tuned(it.guideId)
-                        vm.setLastChannel(it.guideId)
-                    },
+                    onChannelChanged = { history = history.tuned(it.guideId) },
                     reloadLineup = vm::reloadLineup,
                     onChannelGone = { channel ->
                         notice = formatTemplate(channelGone, channel.label())

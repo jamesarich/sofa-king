@@ -4,6 +4,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -82,19 +83,18 @@ private fun RecordingList(
     val firstFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { requestFocusWhenAttached(firstFocus) }
     LazyColumn(
-        modifier = Modifier.fillMaxSize().screenPadding(),
+        // The app's header sits above, with the tabs, so the list pads the sides and bottom only.
+        modifier = Modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item(key = "header") {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(stringResource(Res.string.recordings_title), style = MaterialTheme.typography.headlineSmall)
-                if (state.space.totalBytes > 0) {
-                    Text(
-                        stringResource(Res.string.recordings_space, formatBytes(state.space.freeBytes), formatBytes(state.space.totalBytes)),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+        if (state.space.totalBytes > 0) {
+            item(key = "space") {
+                Text(
+                    stringResource(Res.string.recordings_space, formatBytes(state.space.freeBytes), formatBytes(state.space.totalBytes)),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
         }
         item(key = "skip") {

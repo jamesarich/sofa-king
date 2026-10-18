@@ -1,6 +1,9 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.material.icons.materialPath
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.graphics.PathFillType.Companion.EvenOdd
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -8,7 +11,7 @@ import androidx.compose.ui.unit.dp
 /**
  * The player's icons that the core Material icon set lacks, copied from Material Icons 1.7.3 (Apache 2.0). The
  * extended set is a dependency the Kotlin/JS production build cannot shrink in a reasonable time: minifying it took
- * the web distribution from one minute to over twenty, so the five icons the player needs live here instead.
+ * the web distribution from one minute to over twenty, so the icons the player and the app's tabs need live here instead.
  */
 internal object PlayerIcons {
     val Audiotrack: ImageVector by lazy {
@@ -215,6 +218,35 @@ internal object PlayerIcons {
             }
         }
     }
+
+    val LiveTv: ImageVector by lazy {
+        pathIcon(
+            "Filled.LiveTv",
+            "M21,6h-7.59l3.29,-3.29L16,2l-4,4 -4,-4 -0.71,0.71L10.59,6L3,6c-1.1,0 -2,0.89 -2,2v12c0,1.1 0.9,2 2,2h18" +
+                "c1.1,0 2,-0.9 2,-2L23,8c0,-1.11 -0.9,-2 -2,-2zM21,20L3,20L3,8h18v12zM9,10v8l7,-4z",
+        )
+    }
+
+    val VideoLibrary: ImageVector by lazy {
+        pathIcon(
+            "Filled.VideoLibrary",
+            "M4,6L2,6v14c0,1.1 0.9,2 2,2h14v-2L4,20L4,6zM20,2L8,2c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h12" +
+                "c1.1,0 2,-0.9 2,-2L22,4c0,-1.1 -0.9,-2 -2,-2zM12,14.5v-9l6,4.5 -6,4.5z",
+        )
+    }
+
+    /** The Recordings tab's record mark. */
+    val Recordings: ImageVector by lazy {
+        pathIcon(
+            "Filled.RadioButtonChecked",
+            "M12,7c-2.76,0 -5,2.24 -5,5s2.24,5 5,5 5,-2.24 5,-5 -2.24,-5 -5,-5zM12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z" +
+                "M12,20c-4.42,0 -8,-3.58 -8,-8s3.58,-8 8,-8 8,3.58 8,8 -3.58,8 -8,8z",
+        )
+    }
+
+    /** An icon from its SVG path data, as the icon set's sources give it. */
+    private fun pathIcon(name: String, pathData: String): ImageVector =
+        materialIcon(name) { addPath(addPathNodes(pathData), fill = SolidColor(Color.Black)) }
 
     /** What the icon set's own internal builder does: a 24dp vector on a 24-unit viewport. */
     private inline fun materialIcon(name: String, block: ImageVector.Builder.() -> ImageVector.Builder): ImageVector =

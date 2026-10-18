@@ -176,26 +176,14 @@ internal fun TimelineStrip(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-private val NoBringIntoView = object : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
-}
-
 /**
- * The channel list scrolls only as far as a focused row needs to be wholly on screen. A TV's default pivots the
- * focused row toward a third of the way down, which leaves a sliver of the row above under the time header.
+ * Focus never scrolls the guide: the timeline and the channel list are moved by GuideScreen itself (revealMinute,
+ * focusRow). A TV's default would chase a long cell's far end, and pivot the focused row a third of the way down,
+ * leaving a sliver of the row above under the time header.
  */
 @OptIn(ExperimentalFoundationApi::class)
-internal val RowBringIntoView = object : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val trailing = offset + size
-        return when {
-            offset >= 0f && trailing <= containerSize -> 0f
-            offset < 0f && trailing > containerSize -> 0f
-            offset < 0f -> offset
-            else -> trailing - containerSize
-        }
-    }
+internal val NoBringIntoView = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
 }
 
 @Composable

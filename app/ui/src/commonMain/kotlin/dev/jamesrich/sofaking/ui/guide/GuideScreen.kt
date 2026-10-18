@@ -778,7 +778,7 @@ fun GuideScreen(
                     modifier = Modifier.padding(top = 16.dp),
                 )
             } else {
-                CompositionLocalProvider(LocalBringIntoViewSpec provides RowBringIntoView) {
+                CompositionLocalProvider(LocalBringIntoViewSpec provides NoBringIntoView) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).focusRestorer().onFocusChanged { gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),

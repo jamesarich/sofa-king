@@ -22,7 +22,9 @@ import dev.jamesrich.sofaking.data.LineupCache
 import dev.jamesrich.sofaking.data.GuideWindow
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.RecordingSchedule
 import dev.jamesrich.sofaking.data.ServerAddress
+import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.SettingsPin
 import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.UpdateChecker
@@ -138,6 +140,37 @@ class LineupViewModel(
             server.collect { sessions.configure(it?.api) }
         }
         if (viewerSync != null) viewModelScope.launch { viewerSync.run(server.map { it?.api }) }
+    }
+
+    /** What the server offers beyond live TV, from its bootstrap: nothing until it answers, or on a server too old to say. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val capabilities: StateFlow<ServerCapabilities> = server
+        .transformLatest { found ->
+            emit(ServerCapabilities())
+            if (found != null) emit(readCapabilities(found.api))
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ServerCapabilities())
+
+    /** Recording from the guide, on a server that records. */
+    val recordings = RecordingSchedule(viewModelScope, server.map { it?.api }, capabilities.map { it.recordings })
+
+    /** Asks until the server answers, backing off to every five minutes; a server without the route offers nothing. */
+    private suspend fun readCapabilities(api: SofaKingApi): ServerCapabilities {
+        var wait = 5.seconds
+        while (true) {
+            try {
+                return api.bootstrap().capabilities.let { ServerCapabilities(recordings = it.recordings, library = it.library) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: SofaKingException) {
+                if (e.status == 404) return ServerCapabilities()
+                log.w { "bootstrap refused: ${e.code}" }
+            } catch (e: Exception) {
+                log.w { "bootstrap failed: ${e.message}" }
+            }
+            delay(wait)
+            wait = (wait * 2).coerceAtMost(5.minutes)
+        }
     }
 
     private val _pairing = MutableStateFlow(false)

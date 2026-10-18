@@ -17,6 +17,7 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
 import dev.jamesrich.sofaking.data.MemoryDataStore
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.apiError
 import dev.jamesrich.sofaking.data.json
@@ -44,6 +45,8 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
+
+private const val NOW = "2026-10-10T10:17:42Z"
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LineupViewModelTest {
@@ -102,6 +105,8 @@ class LineupViewModelTest {
         val removed = mutableSetOf<String>()
         var catalogRequests = 0
         var guideRequests = 0
+        /** The bootstrap's capabilities; null answers 404, as a server from before the route. */
+        var capabilities: String? = null
 
         val http = FakeHttp(scope) { request ->
             when (request.path) {
@@ -128,6 +133,8 @@ class LineupViewModelTest {
                     if (request.body.contains(""""code":"654321"""")) json("""{"apiToken":"issued-token","serverId":"srv"}""")
                     else apiError(403, "PAIRING_INVALID")
                 }
+                "/api/v1/bootstrap" -> capabilities?.let { json("""{"serverId":"srv","serverTime":"$NOW","capabilities":$it}""") }
+                    ?: apiError(404, "RESOURCE_NOT_FOUND")
                 else -> apiError(404, "RESOURCE_NOT_FOUND")
             }
         }
@@ -166,6 +173,19 @@ class LineupViewModelTest {
         } finally {
             viewModel?.viewModelScope?.cancel()
         }
+    }
+
+    @Test
+    fun `the server capabilities come from its bootstrap and an older server offers none`() = viewModelTest {
+        val server = FakeServer(this).apply { capabilities = """{"catalog":true,"recordings":true,"library":true}""" }
+        val viewModel = start(server)
+        runCurrent()
+        assertEquals(ServerCapabilities(recordings = true, library = true), viewModel.capabilities.value)
+
+        server.capabilities = null
+        settings.setServer("http://sofa.test/other", "t")
+        runCurrent()
+        assertEquals(ServerCapabilities(), viewModel.capabilities.value)
     }
 
     @Test

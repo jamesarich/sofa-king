@@ -22,7 +22,8 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 | Component | Responsibility |
 | --- | --- |
 | `App`, `initSofaKing` | Screen selection and the cold-start decision, saved guide state, the shared player and the session's stop/start lifecycle; the graph starts once per process |
-| `LineupViewModel` | Settings flows, lineup state, refresh, cache ownership and the `PlaybackSessions` instance; its store, cache and API factory are constructor arguments |
+| `LineupViewModel` | Settings flows, lineup state, refresh, cache ownership, the server's capabilities from its bootstrap, and the `PlaybackSessions` and `RecordingSchedule` instances; its store, cache and API factory are constructor arguments |
+| `RecordingSchedule` | On a server that records: the scheduled recordings and series rules the program details mark, and their Record and Record series toggles |
 | `SofaKingApi` | The server's `/api/v1` JSON requests over Ktor with the bearer token; every engine's transport error surfaces as an `IOException` |
 | `SofaKingRepository`, `SofaKingMapper` | Catalog and guide queries mapped to `Channel` (with its logo and guide status) and `Programme` (with its episode, rating, new flag and image) |
 | `PlaybackSessions` | The one playback session, a live channel's or a library item's: open, promote, renew, restart, release, reopen, replaced streams |

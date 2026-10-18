@@ -65,6 +65,8 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.orderedFavorites
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.RecordingMark
+import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
@@ -172,6 +174,12 @@ fun GuideScreen(
     captionStyle: CaptionStyle,
     autoOpenDelay: AutoOpenDelay,
     previewSound: Boolean,
+    /** How programmes are set to record; null on a server that does not record, which hides the record buttons. */
+    recordingMarks: RecordingMarks? = null,
+    /** Records the programme or cancels its recording; false when the server did not take it. */
+    onRecord: suspend (Programme) -> Boolean = { false },
+    /** Records the programme's series or stops it; false when the server did not take it. */
+    onRecordSeries: suspend (Programme) -> Boolean = { false },
     modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
@@ -812,6 +820,9 @@ fun GuideScreen(
                 },
                 onToggleFavorite = onToggleFavorite,
                 onDismiss = closeDetails,
+                recording = recordingMarks?.let { marks -> shown.programme?.let(marks::of) ?: RecordingMark() },
+                onRecord = onRecord,
+                onRecordSeries = onRecordSeries,
             )
         }
     }

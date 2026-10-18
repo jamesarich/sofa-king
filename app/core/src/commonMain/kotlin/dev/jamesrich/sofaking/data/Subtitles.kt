@@ -84,19 +84,22 @@ internal fun vttTime(value: String): Long? {
 }
 
 /**
- * A cue's text without markup, one line per row: a `<br>` breaks the line even when its `>` is missing or it came
- * escaped as `&lt;br&gt;`, as subtitle files carry it, and blank rows are dropped.
+ * A cue's text without markup, one line per row. Subtitle files often carry their HTML escaped (`&lt;i&gt;`), so
+ * the tags are stripped again once the entities are read; a `<br>` breaks the line even when its `>` is missing.
+ * Only the tag names of WebVTT and of subtitle HTML count as tags, so `<<Previously>>` and `x<y` stay as text.
  */
-private fun cleanCueText(raw: String): String = raw
-    .replace(BREAK, "\n")
-    .replace(TAG, "")
-    .replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&lrm;", "").replace("&rlm;", "")
-    .replace("&amp;", "&")
-    .replace(BREAK, "\n")
-    .lines()
-    .map { it.trim() }
-    .filter { it.isNotEmpty() }
-    .joinToString("\n")
+private fun cleanCueText(raw: String): String {
+    fun String.untagged() = replace(BREAK, "\n").replace(TAG, "")
+    return raw.untagged()
+        .replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&lrm;", "").replace("&rlm;", "")
+        .replace("&quot;", "\"").replace("&apos;", "'").replace("&#39;", "'")
+        .replace("&amp;", "&")
+        .untagged()
+        .lines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .joinToString("\n")
+}
 
 private val BLANK_LINES = Regex("\n[ \t]*\n+")
 
@@ -106,5 +109,8 @@ private val SKIPPED_BLOCKS = listOf("WEBVTT", "NOTE", "STYLE", "REGION")
 /** A line break tag in any spelling, with or without its closing `>`. */
 private val BREAK = Regex("""<\s*br\b(?:[^<>\n]*>)?""", RegexOption.IGNORE_CASE)
 
-/** A WebVTT or HTML tag, or a karaoke timestamp; a `<` that opens no tag is text. */
-private val TAG = Regex("""</?[A-Za-z][^<>\n]*>|<\d[\d:.]*>""")
+/** A WebVTT or subtitle HTML tag, opening or closing, or a karaoke timestamp. */
+private val TAG = Regex(
+    """</?(?:i|b|u|s|c|v|lang|ruby|rt|font|span|em|strong|p|div)(?:[\s.][^<>\n]*)?\s*>|<\d+(?::\d+)+\.\d+>""",
+    RegexOption.IGNORE_CASE,
+)

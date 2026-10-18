@@ -39,6 +39,16 @@ class SubtitlesTest {
         assertEquals(listOf("one\ntwo\nthree", "four\nfive\nsix", "a < b and c > d e"), subtitles.cues.map { it.text })
     }
 
+    /** Web subtitles converted from TTML often escape their tags; FFmpeg passes the escapes through. */
+    @Test
+    fun `escaped tags are stripped and angle brackets that open no tag stay`() {
+        val subtitles = parseWebVtt(
+            "WEBVTT\n\n00:01.000 --> 00:02.000\n&lt;i&gt;Previously&lt;/i&gt; &amp;lt;3\n\n" +
+                "00:03.000 --> 00:04.000\n<<Previously>> x<y <c.yellow>vtt</c>\n",
+        )
+        assertEquals(listOf("Previously &lt;3", "<<Previously>> x<y vtt"), subtitles.cues.map { it.text })
+    }
+
     @Test
     fun `the text at a position is every cue showing then`() {
         val subtitles = Subtitles(listOf(SubtitleCue(5_000, 9_000, "b"), SubtitleCue(1_000, 6_000, "a"), SubtitleCue(10_000, 11_000, "c")))

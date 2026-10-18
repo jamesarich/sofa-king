@@ -51,8 +51,12 @@ import kotlinx.serialization.Serializable
 /** `GET /api/v1/recordings`: every recording the server knows, soonest scheduled first, then newest kept. */
 @Serializable data class RecordingList(val recordings: List<Recording> = emptyList(), val storage: RecordingStorage = RecordingStorage())
 
-/** `POST /api/v1/recordings`: record the programme on [channelId] that starts at [startsAt]. */
-@Serializable data class ScheduleRecording(val channelId: String, val startsAt: String)
+/**
+ * `POST /api/v1/recordings`: record the programme on [channelId] that starts at [startsAt]. With [endsAt], record
+ * that window instead, whatever the guide says, under [title] (the channel's name when null); a channel without a
+ * guide can be recorded only this way.
+ */
+@Serializable data class ScheduleRecording(val channelId: String, val startsAt: String, val endsAt: String? = null, val title: String? = null)
 
 /** `PATCH /api/v1/recordings/{id}`: each set field replaces the stored one. */
 @Serializable data class UpdateRecording(val protected: Boolean? = null, val positionMs: Long? = null, val watched: Boolean? = null)
@@ -88,8 +92,10 @@ import kotlinx.serialization.Serializable
     val priority: Int = 0,
 )
 
-/** `PATCH /api/v1/recording-rules/{id}`: each set field replaces the stored one. */
+/** `PATCH /api/v1/recording-rules/{id}`: each set field replaces the stored one; [anyChannel] true clears the channel. */
 @Serializable data class UpdateRecordingRule(
+    val channelId: String? = null,
+    val anyChannel: Boolean? = null,
     val newOnly: Boolean? = null,
     val keep: Int? = null,
     val startPaddingSeconds: Int? = null,

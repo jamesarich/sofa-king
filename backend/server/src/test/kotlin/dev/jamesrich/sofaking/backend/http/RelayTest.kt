@@ -84,6 +84,40 @@ class RelayTest {
         }
     }
 
+    @Test fun `a recording of an MPEG-TS channel someone watches reads the viewer's upstream connection`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-relay-record-")
+        val token = "secret".repeat(8)
+        Fixture().use { fixture ->
+            val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(listOf(fixture.tsFeed)))
+            val store = openStore(dir)
+            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
+            try {
+                runtime.feeds.refresh(fixture.tsFeed); runtime.adoptAll()
+                application { backendModule(store, MutableClock(), runtime, token) }
+                val channel = Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single()
+                val session = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") {
+                    bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "viewer")))
+                }.bodyAsText())
+                val recorder = dev.jamesrich.sofaking.backend.dvr.Recorder(
+                    "ffmpeg", runtime.sessions, runtime.feeds, java.time.Clock.systemUTC(), shared = runtime.relay::joinShared,
+                )
+                val file = dir.resolve("recording.ts")
+                val (head, take) = withTimeout(30_000) {
+                    client.prepareGet(session.descriptor.url).execute { response ->
+                        val head = response.bodyAsChannel().readHead(188 * 3)
+                        head to recorder.record(channel.id, file, java.time.Instant.now().plusSeconds(2))
+                    }
+                }
+                assertEquals(0x47.toByte(), head[0])
+                assertNull(take.lastFailure)
+                val bytes = Files.readAllBytes(file)
+                assertTrue(bytes.size >= 188 * 10 && bytes.size % 188 == 0, "recorded ${bytes.size} bytes")
+                assertEquals(0x47.toByte(), bytes[0])
+                assertEquals(1, fixture.tsConnections.get(), "the recording opened no second upstream connection")
+            } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+        }
+    }
+
     @Test fun `LL-HLS directives reach the upstream playlist and a refused upstream answers 502`() = testApplication {
         val dir = Files.createTempDirectory("sofa-relay-hls-edges-")
         val token = "secret".repeat(8)

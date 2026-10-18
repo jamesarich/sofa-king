@@ -38,6 +38,8 @@ data class AppSettings(
     val hiddenChannels: Set<String> = emptySet(),
     /** Whether Channel Up and Down and the D-pad skip [hiddenChannels] too, or only the lists leave them out. */
     val zapSkipsHidden: Boolean = false,
+    /** Whether a recording's playback jumps over the commercial breaks the server found. */
+    val skipCommercials: Boolean = false,
     /** The favorites in the order the user put them (see [orderedFavorites]); starred channels not listed follow by number. */
     val favoritesOrder: List<String> = emptyList(),
     val playback: PlaybackPreferences = PlaybackPreferences(),
@@ -63,7 +65,7 @@ data class AppSettings(
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
-            "zapSkipsHidden=$zapSkipsHidden, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
+            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"})"
 
     companion object {
@@ -139,6 +141,8 @@ interface SettingsStore {
     suspend fun setChannelsHidden(guideIds: Collection<String>, hidden: Boolean)
 
     suspend fun setZapSkipsHidden(enabled: Boolean)
+
+    suspend fun setSkipCommercials(enabled: Boolean)
 
     suspend fun setFavoritesOrder(order: List<String>)
 

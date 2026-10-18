@@ -55,6 +55,7 @@ class DataStoreSettingsStore(
                 guideDensity = prefs[GUIDE_DENSITY].toEnum(GuideDensity.COMFORTABLE),
                 hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
                 zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
+                skipCommercials = prefs[SKIP_COMMERCIALS] ?: false,
                 favoritesOrder = prefs[FAVORITES_ORDER].orEmpty().split(SEPARATOR).filter { it.isNotEmpty() }.distinct(),
                 playback = PlaybackPreferences(
                     matchFrameRate = prefs[MATCH_FRAME_RATE] ?: false,
@@ -166,6 +167,10 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[ZAP_SKIPS_HIDDEN] = enabled }
     }
 
+    override suspend fun setSkipCommercials(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[SKIP_COMMERCIALS] = enabled }
+    }
+
     override suspend fun setFavoritesOrder(order: List<String>) {
         dataStore.edit { prefs -> prefs[FAVORITES_ORDER] = order.distinct().joinToString(SEPARATOR.toString()) }
     }
@@ -264,6 +269,7 @@ class DataStoreSettingsStore(
         val GUIDE_DENSITY = stringPreferencesKey("guide_density")
         val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")
         val ZAP_SKIPS_HIDDEN = booleanPreferencesKey("zap_skips_hidden")
+        val SKIP_COMMERCIALS = booleanPreferencesKey("skip_commercials")
         val FAVORITES_ORDER = stringPreferencesKey("favorites_order")
         val MATCH_FRAME_RATE = booleanPreferencesKey("match_frame_rate")
         val DECODER = stringPreferencesKey("decoder")

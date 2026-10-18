@@ -14,6 +14,10 @@ Each channel shows its logo beside its number. The details above the grid show t
 
 The app shows its saved lineup while refreshing. Channels load before guide data. Automatic refresh runs every three hours; select Refresh to request a new load.
 
+## Recordings
+
+On a server that records, the guide's header has a Recordings button. The page lists what is recording now, then what was recorded, newest first, then what is scheduled, soonest first, with the recordings folder's free space at the top. Each row shows the title, the episode, the channel and when it aired, and whether it was watched, failed or is still recording. Play opens a recording full screen; one started before shows Resume, which picks up where the household stopped, and From start. A recording still being made plays as it grows. Left and Right step back 10 seconds and forward 30, and OK applies a seek once the presses rest. Commercial breaks the server found show on the seek bar, and Skip commercials at the top of the page makes playback jump over them. Stop, Cancel or Delete ends a running recording, takes a scheduled one off or deletes a finished one and its file, after a second press confirms it. Stopping within the last tenth of a recording marks it watched. Back returns to the guide from the list, and to the list from a recording.
+
 ## Channels
 
 Channels come from the server's lineup. The app lists a channel when the server reports it as playable and gives it a numeric display number, and lists them in number order. The server tags each channel with its lineup group, such as News, and each tag is a guide category with its own chip; a channel with several tags is under each, and one without a tag is under Other. Chips show how many channels they list.

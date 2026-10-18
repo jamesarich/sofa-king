@@ -33,6 +33,7 @@ import dev.jamesrich.sofaking.contract.RecordingRule
 import dev.jamesrich.sofaking.contract.RecordingRuleList
 import dev.jamesrich.sofaking.contract.ScheduleRecording
 import dev.jamesrich.sofaking.contract.UpdatePlayback
+import dev.jamesrich.sofaking.contract.UpdateRecording
 import dev.jamesrich.sofaking.contract.ViewerPreferences
 import kotlinx.serialization.json.Json
 
@@ -78,3 +79,4 @@ internal typealias RecordingRuleDto = RecordingRule
 internal typealias RecordingRuleListDto = RecordingRuleList
 internal typealias ScheduleRecordingDto = ScheduleRecording
 internal typealias CreateRecordingRuleDto = CreateRecordingRule
+internal typealias UpdateRecordingDto = UpdateRecording

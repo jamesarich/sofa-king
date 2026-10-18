@@ -133,6 +133,14 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `skipping commercials is off until it is turned on`() = runTest {
+        val store = newStore()
+        assertFalse(store.settings.first().skipCommercials)
+        store.setSkipCommercials(true)
+        assertTrue(store.settings.first().skipCommercials)
+    }
+
+    @Test
     fun `the favorites order is kept and an unstarred channel leaves it`() = runTest {
         val store = newStore()
         store.toggleFavorite("a")

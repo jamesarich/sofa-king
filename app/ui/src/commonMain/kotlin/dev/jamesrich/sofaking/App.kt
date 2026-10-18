@@ -39,6 +39,7 @@ import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.ClockFormat
+import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.ItemKind
@@ -55,12 +56,17 @@ import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
+import dev.jamesrich.sofaking.ui.player.VodMarker
+import dev.jamesrich.sofaking.ui.player.VodMarkerKind
 import dev.jamesrich.sofaking.ui.player.VodPlayerScreen
 import dev.jamesrich.sofaking.ui.player.VodTitle
+import dev.jamesrich.sofaking.ui.recordings.RecordingsScreen
+import dev.jamesrich.sofaking.ui.recordings.recordingSubtitle
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -131,6 +137,12 @@ private sealed interface Screen {
     /** A library item full screen; [fromStart] plays it from the beginning even when it is in progress. */
     @Serializable
     data class Vod(val itemId: String, val fromStart: Boolean = false) : Screen
+    /** The server's recordings. */
+    @Serializable
+    data object Recordings : Screen
+    /** A recording full screen; [fromStart] plays it from the beginning even when it is in progress. */
+    @Serializable
+    data class Recording(val recordingId: String, val fromStart: Boolean = false) : Screen
     @Serializable
     data object Settings : Screen
     /** The channel manager behind Settings. */
@@ -142,6 +154,9 @@ private sealed interface Screen {
 
     /** Settings and the pages behind it, where no stream plays. */
     val isSettings: Boolean get() = this is Settings || this is Channels || this is StartupChannel
+
+    /** A library item or recording full screen, which opens and reopens its own stream. */
+    val playsItem: Boolean get() = this is Vod || this is Recording
 }
 
 @Composable
@@ -154,6 +169,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val libraryVm = viewModel { LibraryViewModel(vm.api, vm.sessions) }
+    val recordingsVm = viewModel { RecordingsViewModel(vm.api, vm.sessions, changed = vm.recordings::refresh) }
     var screen by rememberSerializable { mutableStateOf<Screen>(Screen.Guide()) }
     val pairingScope = rememberCoroutineScope()
     // Why the last pairing attempt failed; Settings shows it until the next attempt.
@@ -234,7 +250,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         if (playback != null) player.setPlaybackPreferences(playback)
     }
     // Only the full screen asks for a display mode: the guide's preview zaps too often for a set that blanks on each switch.
-    MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && (screen is Screen.Player || screen is Screen.Vod))
+    MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && (screen is Screen.Player || screen.playsItem))
     // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
     // the server, so it releases the session outright rather than keeping it to reopen.
     LaunchedEffect(screen) {
@@ -245,7 +261,12 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                 player.stop()
                 sessions.release(forget = true)
             }
-            is Screen.Player, is Screen.Vod -> Unit
+            is Screen.Player, is Screen.Vod, is Screen.Recording -> Unit
+            // A list, where nothing plays; a recording opens its own session.
+            Screen.Recordings -> {
+                player.stop()
+                sessions.release(forget = true)
+            }
             // Reached from Settings, which already stopped the stream.
             Screen.Channels, Screen.StartupChannel -> Unit
         }
@@ -260,7 +281,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         sessions.releaseAsync()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (!currentScreen.isSettings && currentScreen !is Screen.Vod && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
+        if (!currentScreen.isSettings && !currentScreen.playsItem && currentScreen != Screen.Recordings && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
             captionSync.effectiveUs = captionSync.advanceUs
             scope.launch { resume(player, sessions) }
         }
@@ -405,6 +426,38 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     else -> MessageScreen(stringResource(Res.string.loading), loading = true)
                 }
             }
+            Screen.Recordings -> {
+                val recordings by recordingsVm.state.collectAsStateWithLifecycle()
+                LaunchedEffect(Unit) { recordingsVm.refresh() }
+                RecordingsScreen(
+                    state = recordings,
+                    skipCommercials = settings?.skipCommercials ?: false,
+                    onSkipCommercialsChanged = { vm.setSkipCommercials(it) },
+                    onPlay = { recording, fromStart -> screen = Screen.Recording(recording.id, fromStart) },
+                    onDelete = recordingsVm::delete,
+                    onRetry = recordingsVm::refresh,
+                    onBack = { screen = Screen.Guide() },
+                )
+            }
+            is Screen.Recording -> {
+                val recordings by recordingsVm.state.collectAsStateWithLifecycle()
+                // Kept once found, so a list reload while it plays never swaps the title or markers under the player.
+                val recording = remember(current.recordingId, recordings is RecordingsState.Ready) { recordingsVm.recording(current.recordingId) }
+                when {
+                    recording != null -> VodPlayerScreen(
+                        title = recording.vodTitle(),
+                        player = player,
+                        sessions = sessions,
+                        open = { recordingsVm.play(recording, player.playbackProfile, current.fromStart) },
+                        onPosition = { position, duration -> recordingsVm.progress(recording.id, position, duration) },
+                        onStopped = { position, duration -> recordingsVm.stopped(recording.id, position, duration) },
+                        onExit = { screen = Screen.Recordings },
+                        autoSkipBreaks = settings?.skipCommercials ?: false,
+                    )
+                    recordings is RecordingsState.Ready || recordings is RecordingsState.Failed -> LaunchedEffect(Unit) { screen = Screen.Recordings }
+                    else -> MessageScreen(stringResource(Res.string.loading), loading = true)
+                }
+            }
             // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
             is Screen.Guide -> guideState.SaveableStateProvider("guide") {
                 Column {
@@ -415,6 +468,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         onSettings = { screen = Screen.Settings },
                         onRefresh = vm::refresh,
                         settingsFocus = settingsFocus,
+                        onRecordings = { screen = Screen.Recordings }.takeIf { capabilities.recordings },
                     )
                     // With no server to talk to, Settings is the only thing to do, so it takes focus over Refresh.
                     val homeFocus = homeFocusFor(state)
@@ -473,6 +527,18 @@ private fun MediaItem.vodTitle(): VodTitle {
         else -> year?.toString()
     }
     return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster)
+}
+
+/** What the player shows for a recording: its episode and when it aired, with the commercial breaks marked. */
+@Composable
+private fun DvrRecording.vodTitle(): VodTitle {
+    val time = rememberTimeFormatter()
+    return VodTitle(
+        title = title,
+        subtitle = recordingSubtitle(this, time),
+        artworkUrl = imageUrl,
+        markers = breaks.map { VodMarker(it.startMs, it.endMs, VodMarkerKind.BREAK) },
+    )
 }
 
 /** Back in front: a fresh session for the channel and intent released on stop, at the URL the player holds for it. */
@@ -547,7 +613,15 @@ private fun GuideOrEmpty(
 
 /** App bar above the guide, inside the overscan margins; the mark sits within the buttons' height so no grid row is lost. */
 @Composable
-private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit, onRefresh: () -> Unit, settingsFocus: FocusRequester) {
+private fun Header(
+    refreshing: Boolean,
+    notice: String?,
+    onSettings: () -> Unit,
+    onRefresh: () -> Unit,
+    settingsFocus: FocusRequester,
+    /** Opens the recordings; null on a server that does not record. */
+    onRecordings: (() -> Unit)? = null,
+) {
     Row(
         Modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -590,6 +664,7 @@ private fun Header(refreshing: Boolean, notice: String?, onSettings: () -> Unit,
                 )
             }
         }
+        if (onRecordings != null) SofaButton(onClick = onRecordings) { Text(stringResource(Res.string.recordings_title)) }
         SofaButton(onClick = onRefresh) { Text(stringResource(Res.string.refresh)) }
         SofaButton(onClick = onSettings, modifier = Modifier.focusRequester(settingsFocus)) { Text(stringResource(Res.string.settings)) }
     }

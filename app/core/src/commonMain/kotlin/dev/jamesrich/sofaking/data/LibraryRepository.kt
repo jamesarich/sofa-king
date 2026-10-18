@@ -16,8 +16,8 @@ class LibraryRepository(private val api: SofaKingApi) {
         )
     }
 
-    suspend fun page(libraryId: String, sort: LibrarySort, unwatched: Boolean, cursor: String? = null, limit: Int = PAGE_SIZE): MediaPage =
-        page(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit))
+    suspend fun page(libraryId: String, sort: LibrarySort, unwatched: Boolean, cursor: String? = null, limit: Int = PAGE_SIZE, genre: String? = null): MediaPage =
+        page(api.libraryItems(libraryId, sort.wire, unwatched, cursor, limit, genre))
 
     suspend fun search(query: String): List<MediaItem> = page(api.librarySearch(query)).items
 
@@ -48,7 +48,7 @@ class LibraryRepository(private val api: SofaKingApi) {
     suspend fun setWatched(id: String, watched: Boolean): MediaItem =
         item(api.updatePlayState(id, UpdatePlayStateDto(watched = watched)))
 
-    private fun page(dto: LibraryPageDto) = MediaPage(dto.items.map(::item), dto.total, dto.next)
+    private fun page(dto: LibraryPageDto) = MediaPage(dto.items.map(::item), dto.total, dto.next, dto.genres)
 
     private fun library(dto: LibraryDto) = MediaLibrary(dto.id, dto.name, LibraryKind.fromWire(dto.kind), dto.items)
 

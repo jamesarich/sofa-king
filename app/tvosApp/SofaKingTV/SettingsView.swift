@@ -45,6 +45,11 @@ struct SettingsView: View {
                 Text("In the admin portal, open Players, then Devices, and choose Show a pairing code; enter the server address above and the code here instead of the token.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("About") {
+                // TMDB's terms ask apps that show its data to say so.
+                Text("Movie and show details and images can come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
         .navigationTitle("Settings")
         .onAppear {

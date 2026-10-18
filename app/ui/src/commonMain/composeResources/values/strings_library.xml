@@ -15,7 +15,9 @@
     <string name="library_sort_added">Recently added</string>
     <string name="library_sort_year">Year</string>
     <string name="library_sort_rating">Rating</string>
+    <string name="library_sort_watched">Recently watched</string>
     <string name="library_filter_unwatched">Unwatched</string>
+    <string name="library_genre_all">All genres</string>
     <string name="library_play">Play</string>
     <string name="library_resume">Resume from %1$s</string>
     <string name="library_play_from_start">Play from beginning</string>
@@ -23,6 +25,7 @@
     <string name="library_resume_episode">Resume %1$s</string>
     <string name="library_mark_watched">Mark watched</string>
     <string name="library_mark_unwatched">Mark unwatched</string>
+    <string name="library_card_menu">More options</string>
     <string name="library_season">Season %1$d</string>
     <string name="library_specials">Specials</string>
     <string name="library_seasons">%1$d seasons</string>

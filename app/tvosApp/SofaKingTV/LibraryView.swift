@@ -82,7 +82,7 @@ struct LibraryHomeView: View {
     }
 }
 
-/// One library as a grid of posters, with its sort order and an Unwatched filter; more load as it scrolls.
+/// One library as a grid of posters, with its sort order, an Unwatched filter and a genre; more load as it scrolls.
 struct LibraryGridView: View {
     @Environment(AppModel.self) private var model
     let library: MediaLibrary
@@ -90,8 +90,9 @@ struct LibraryGridView: View {
     @State private var watch: Watch?
     @State private var sort: LibrarySort = .title
     @State private var unwatched = false
+    @State private var genre: String?
 
-    private static let sorts: [(LibrarySort, String)] = [(.title, "Title"), (.added, "Recently added"), (.year, "Year"), (.rating, "Rating")]
+    private static let sorts: [(LibrarySort, String)] = [(.title, "Title"), (.added, "Added"), (.year, "Year"), (.rating, "Rating"), (.watched, "Watched")]
     private let columns = Array(repeating: GridItem(.fixed(240), spacing: 48), count: 6)
 
     var body: some View {
@@ -104,6 +105,14 @@ struct LibraryGridView: View {
                     }
                     .pickerStyle(.segmented)
                     Toggle("Unwatched", isOn: $unwatched)
+                    if let genres = shown?.genres, !genres.isEmpty {
+                        Menu(genre ?? "All genres") {
+                            Button("All genres") { genre = nil }
+                            ForEach(genres, id: \.self) { option in
+                                Button(option) { genre = option }
+                            }
+                        }
+                    }
                 }
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 48) {
                     ForEach(Array((shown?.items ?? []).enumerated()), id: \.element.id) { index, item in
@@ -140,10 +149,11 @@ struct LibraryGridView: View {
         .onDisappear { watch?.cancel() }
         .onChange(of: sort) { open() }
         .onChange(of: unwatched) { open() }
+        .onChange(of: genre) { open() }
     }
 
     private func open() {
-        model.core.openGrid(libraryId: library.id, sort: sort, unwatched: unwatched)
+        model.core.openGrid(libraryId: library.id, sort: sort, unwatched: unwatched, genre: genre)
     }
 }
 

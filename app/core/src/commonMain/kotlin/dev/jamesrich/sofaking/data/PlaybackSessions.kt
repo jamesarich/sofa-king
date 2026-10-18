@@ -146,8 +146,8 @@ class PlaybackSessions(
     }
 
     /** [release] on this instance's own scope, for callers that cannot suspend or whose scope may already be canceled. */
-    fun releaseAsync() {
-        scope.launch { release() }
+    fun releaseAsync(forget: Boolean = false) {
+        scope.launch { release(forget) }
     }
 
     /**

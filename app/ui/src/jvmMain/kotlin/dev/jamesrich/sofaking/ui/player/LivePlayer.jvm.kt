@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.asComposeImageBitmap
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -203,6 +204,14 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     }
 
     // libVLC answers these from its own state without blocking, so they are read on the caller's thread.
+    /** libVLC decodes nearly every container and codec in software; it does not map HDR to the screen. */
+    override val playbackProfile = PlaybackProfile(
+        containers = listOf("mp4", "mkv", "webm", "ts", "avi", "mov"),
+        videoCodecs = listOf("h264", "hevc", "vp8", "vp9", "av1", "mpeg2video", "mpeg4", "vc1"),
+        audioCodecs = listOf("aac", "ac3", "eac3", "dts", "truehd", "mp3", "mp2", "opus", "vorbis", "flac"),
+        maxHeight = 2160,
+    )
+
     override val isSeekable: Boolean get() = stream?.seekable == true && vlc.status().isSeekable
 
     override val positionMs: Long get() = if (isSeekable) vlc.status().time().coerceAtLeast(0L) else 0L

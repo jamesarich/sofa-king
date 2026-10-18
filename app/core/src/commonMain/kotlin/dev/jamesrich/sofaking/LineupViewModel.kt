@@ -35,6 +35,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -127,6 +128,9 @@ class LineupViewModel(
         .distinctUntilChanged()
         .map { found -> found?.let { (url, token) -> Server(url, token, newApi(url, token)) } }
         .shareIn(viewModelScope, SharingStarted.Eagerly, replay = 1)
+
+    /** The API client for the server Settings names, or null while there is none; the library screens read through it. */
+    val api: Flow<SofaKingApi?> = server.map { it?.api }
 
     init {
         // A new address or token releases the session held on the old server before anything tunes on the new one.

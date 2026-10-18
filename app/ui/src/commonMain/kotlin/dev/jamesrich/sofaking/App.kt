@@ -59,6 +59,7 @@ import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.ClockFormat
+import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.ItemKind
@@ -75,12 +76,17 @@ import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
+import dev.jamesrich.sofaking.ui.player.VodMarker
+import dev.jamesrich.sofaking.ui.player.VodMarkerKind
 import dev.jamesrich.sofaking.ui.player.VodPlayerScreen
 import dev.jamesrich.sofaking.ui.player.VodTitle
+import dev.jamesrich.sofaking.ui.recordings.RecordingsScreen
+import dev.jamesrich.sofaking.ui.recordings.recordingSubtitle
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -163,6 +169,12 @@ private sealed interface Screen {
     /** An item's page, full screen; Back returns to [parent]. [returnedFrom] is the episode just watched. */
     @Serializable
     data class LibraryItem(val itemId: String, val parent: Screen, @Transient val returnedFrom: String? = null) : Screen
+    /** The Recordings tab. */
+    @Serializable
+    data object Recordings : Screen
+    /** A recording full screen; [fromStart] plays it from the beginning even when it is in progress. */
+    @Serializable
+    data class Recording(val recordingId: String, val fromStart: Boolean = false) : Screen
     @Serializable
     data object Settings : Screen
     /** The channel manager behind Settings. */
@@ -197,6 +209,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val capabilities by vm.capabilities.collectAsStateWithLifecycle()
     val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val libraryVm = viewModel { LibraryViewModel(vm.api, vm.sessions) }
+    val recordingsVm = viewModel { RecordingsViewModel(vm.api, vm.sessions, changed = vm.recordings::refresh) }
     val libraryHome by libraryVm.home.collectAsStateWithLifecycle()
     val grid by libraryVm.grid.collectAsStateWithLifecycle()
     // The Library tab shows when the server's bootstrap says it serves libraries and it has at least one.
@@ -285,7 +298,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         if (playback != null) player.setPlaybackPreferences(playback)
     }
     // Only the full screen asks for a display mode: the guide's preview zaps too often for a set that blanks on each switch.
-    MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && (screen is Screen.Player || screen is Screen.Vod))
+    MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && (screen is Screen.Player || screen is Screen.Vod || screen is Screen.Recording))
     // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
     // the server, so it releases the session outright rather than keeping it to reopen.
     LaunchedEffect(screen) {
@@ -296,9 +309,9 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                 player.stop()
                 sessions.release(forget = true)
             }
-            is Screen.Player, is Screen.Vod -> Unit
-            // The library plays nothing until an item is picked, so the guide's preview stops on the way in.
-            is Screen.Library, is Screen.LibraryGrid, is Screen.LibraryItem -> {
+            is Screen.Player, is Screen.Vod, is Screen.Recording -> Unit
+            // The library and the recordings play nothing until one is picked, so the guide's preview stops on the way in.
+            is Screen.Library, is Screen.LibraryGrid, is Screen.LibraryItem, Screen.Recordings -> {
                 player.stop()
                 sessions.release(forget = true)
             }
@@ -463,6 +476,26 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     else -> MessageScreen(stringResource(Res.string.library_loading), loading = true)
                 }
             }
+            is Screen.Recording -> {
+                val recordings by recordingsVm.state.collectAsStateWithLifecycle()
+                // Kept once found, so a list reload while it plays never swaps the title or markers under the player.
+                val recording = remember(current.recordingId, recordings is RecordingsState.Ready) { recordingsVm.recording(current.recordingId) }
+                BackHandler(enabled = recording == null) { screen = Screen.Recordings }
+                when {
+                    recording != null -> VodPlayerScreen(
+                        title = recording.vodTitle(),
+                        player = player,
+                        sessions = sessions,
+                        open = { recordingsVm.play(recording, player.playbackProfile, current.fromStart) },
+                        onPosition = { position, duration -> recordingsVm.progress(recording.id, position, duration) },
+                        onStopped = { position, duration -> recordingsVm.stopped(recording.id, position, duration) },
+                        onExit = { screen = Screen.Recordings },
+                        autoSkipBreaks = settings?.skipCommercials ?: false,
+                    )
+                    recordings is RecordingsState.Ready || recordings is RecordingsState.Failed -> LaunchedEffect(Unit) { screen = Screen.Recordings }
+                    else -> MessageScreen(stringResource(Res.string.loading), loading = true)
+                }
+            }
             is Screen.LibraryItem -> {
                 val detail by remember(current.itemId) { libraryVm.detail(current.itemId) }.collectAsStateWithLifecycle()
                 val ready = (detail as? ItemDetailState.Ready)?.detail
@@ -484,15 +517,25 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     returnedFrom = current.returnedFrom,
                 )
             }
-            is Screen.Guide, is Screen.Library, is Screen.LibraryGrid -> {
-                val tab = if (current is Screen.Guide) Tab.LIVE else Tab.LIBRARY
+            is Screen.Guide, is Screen.Library, is Screen.LibraryGrid, Screen.Recordings -> {
+                val tab = when (current) {
+                    is Screen.Guide -> Tab.LIVE
+                    Screen.Recordings -> Tab.RECORDINGS
+                    else -> Tab.LIBRARY
+                }
                 val openTab: (Tab) -> Unit = { picked ->
-                    if (picked != tab) screen = if (picked == Tab.LIVE) Screen.Guide(returnedFrom = history.watching) else Screen.Library()
+                    if (picked != tab) {
+                        screen = when (picked) {
+                            Tab.LIVE -> Screen.Guide(returnedFrom = history.watching)
+                            Tab.LIBRARY -> Screen.Library()
+                            Tab.RECORDINGS -> Screen.Recordings
+                        }
+                    }
                 }
                 val settingsFocus = remember { FocusRequester() }
                 TopLevel(
                     tv = LocalLayoutProfile.current.tv,
-                    tabs = TabsModel(tab, libraryShown, openTab),
+                    tabs = TabsModel(tab, libraryShown, capabilities.recordings, openTab),
                     onSettings = { screen = Screen.Settings },
                     settingsFocus = settingsFocus,
                 ) { showsTabs ->
@@ -501,9 +544,13 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                             refreshing = if (tab == Tab.LIVE) loading && state is LineupState.Ready else false,
                             notice = notice,
                             onSettings = { screen = Screen.Settings }.takeIf { showsTabs },
-                            onRefresh = if (tab == Tab.LIVE) vm::refresh else libraryVm::refreshHome,
+                            onRefresh = when (tab) {
+                                Tab.LIVE -> vm::refresh
+                                Tab.LIBRARY -> libraryVm::refreshHome
+                                Tab.RECORDINGS -> recordingsVm::refresh
+                            },
                             settingsFocus = settingsFocus,
-                            tabs = TabsModel(tab, libraryShown, openTab).takeIf { showsTabs },
+                            tabs = TabsModel(tab, libraryShown, capabilities.recordings, openTab).takeIf { showsTabs },
                         )
                         when (current) {
                             // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
@@ -566,6 +613,19 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                     returnedFrom = current.returnedFrom,
                                 )
                             }
+                            Screen.Recordings -> {
+                                val recordings by recordingsVm.state.collectAsStateWithLifecycle()
+                                LaunchedEffect(Unit) { recordingsVm.refresh() }
+                                RecordingsScreen(
+                                    state = recordings,
+                                    skipCommercials = settings?.skipCommercials ?: false,
+                                    onSkipCommercialsChanged = { vm.setSkipCommercials(it) },
+                                    onPlay = { recording, fromStart -> screen = Screen.Recording(recording.id, fromStart) },
+                                    onDelete = recordingsVm::delete,
+                                    onRetry = recordingsVm::refresh,
+                                    onBack = { openTab(Tab.LIVE) },
+                                )
+                            }
                             is Screen.LibraryGrid -> guideState.SaveableStateProvider("grid-${current.libraryId}") {
                                 LaunchedEffect(current.libraryId) { libraryVm.openGrid(current.libraryId, grid?.sort ?: LibrarySort.TITLE, grid?.unwatched ?: false) }
                                 BackHandler { screen = Screen.Library(returnedFrom = libraryFocusKey(current.libraryId)) }
@@ -599,6 +659,18 @@ private fun MediaItem.vodTitle(): VodTitle {
         else -> year?.toString()
     }
     return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster)
+}
+
+/** What the player shows for a recording: its episode and when it aired, with the commercial breaks marked. */
+@Composable
+private fun DvrRecording.vodTitle(): VodTitle {
+    val time = rememberTimeFormatter()
+    return VodTitle(
+        title = title,
+        subtitle = recordingSubtitle(this, time),
+        artworkUrl = imageUrl,
+        markers = breaks.map { VodMarker(it.startMs, it.endMs, VodMarkerKind.BREAK) },
+    )
 }
 
 /** Back in front: a fresh session for the channel and intent released on stop, at the URL the player holds for it. */
@@ -672,10 +744,10 @@ private fun GuideOrEmpty(
 }
 
 /** The app's top-level destinations; Settings sits apart, as a button on a TV and the last item elsewhere. */
-private enum class Tab { LIVE, LIBRARY }
+private enum class Tab { LIVE, LIBRARY, RECORDINGS }
 
-/** Which destination is open, whether Library is offered, and what picking one does. */
-private class TabsModel(val selected: Tab, val libraryShown: Boolean, val onTab: (Tab) -> Unit)
+/** Which destination is open, whether Library and Recordings are offered, and what picking one does. */
+private class TabsModel(val selected: Tab, val libraryShown: Boolean, val recordingsShown: Boolean, val onTab: (Tab) -> Unit)
 
 /**
  * Live, Library and Settings around [content]. A TV keeps them in the header, so the guide loses no width and Up
@@ -704,6 +776,14 @@ private fun TopLevel(tv: Boolean, tabs: TabsModel, onSettings: () -> Unit, setti
                     label = { Text(stringResource(Res.string.nav_library)) },
                 )
             }
+            if (tabs.recordingsShown) {
+                item(
+                    selected = tabs.selected == Tab.RECORDINGS,
+                    onClick = { tabs.onTab(Tab.RECORDINGS) },
+                    icon = { Icon(PlayerIcons.Recordings, contentDescription = null) },
+                    label = { Text(stringResource(Res.string.recordings_title)) },
+                )
+            }
             item(
                 selected = false,
                 onClick = onSettings,
@@ -724,6 +804,7 @@ private fun HeaderTabs(tabs: TabsModel) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         HeaderTab(stringResource(Res.string.nav_live), tabs.selected == Tab.LIVE) { tabs.onTab(Tab.LIVE) }
         if (tabs.libraryShown) HeaderTab(stringResource(Res.string.nav_library), tabs.selected == Tab.LIBRARY) { tabs.onTab(Tab.LIBRARY) }
+        if (tabs.recordingsShown) HeaderTab(stringResource(Res.string.recordings_title), tabs.selected == Tab.RECORDINGS) { tabs.onTab(Tab.RECORDINGS) }
     }
 }
 

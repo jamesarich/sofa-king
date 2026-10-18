@@ -177,6 +177,11 @@ class SofaKingApi(
         http.delete("recordings/" + id.encodeURLPathPart()).checkSuccess()
     }
 
+    /** Saves where the household is in a recording, whether it is watched, or whether cleanup keeps it. */
+    internal suspend fun updateRecording(id: String, update: UpdateRecordingDto): RecordingDto = call {
+        http.patch("recordings/" + id.encodeURLPathPart()) { json(update) }.decode()
+    }
+
     internal suspend fun recordingRules(): RecordingRuleListDto = call {
         http.get("recording-rules").decode()
     }

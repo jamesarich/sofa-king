@@ -43,10 +43,19 @@ internal fun titleYear(raw: String): TitleYear {
         if (year in 1880..2100) return TitleYear(clean(match.groupValues[1]), year)
     }
     BARE_YEAR.matchEntire(name)?.let { match -> return TitleYear(clean(match.groupValues[1]), match.groupValues[2].toInt()) }
-    return TitleYear(clean(name.replace(BRACKETED, "")), null)
+    return TitleYear(clean(name), null)
 }
 
-private fun clean(title: String): String = title.replace(BRACKETED, "").trim().trimEnd('-', '.', '_').trim()
+/** A release group after the bracketed tags, as Sonarr and Radarr name files: `Title [WEBDL-1080p][x264]-RAWR`. */
+private val RELEASE_GROUP = Regex("""(?<=[\]}])\s*-[A-Za-z0-9]+$""")
+
+/** An unbracketed quality at the end, with its release group: `Title WEBDL-1080p`, `Title Bluray-720p Proper-GROUP`. */
+private val QUALITY = Regex(
+    """(?i)\s+(?:WEB[-. ]?DL|WEB[-. ]?Rip|Blu-?ray|BDRip|BRRip|HDTV|SDTV|DVD(?:Rip)?|Remux|Raw-HD)(?:[-. ](?:480|576|720|1080|2160)p)?(?:\s+(?:Proper|Repack))*(?:-[A-Za-z0-9]+)?$""",
+)
+
+private fun clean(title: String): String =
+    title.replace(RELEASE_GROUP, "").replace(BRACKETED, "").trim().replace(QUALITY, "").trimEnd('-', '.', '_').trim()
 
 /** An episode's numbers or air date and the title after them, read from its file name. */
 internal data class EpisodeName(

@@ -85,6 +85,17 @@ internal class Snapshot(
         val root = Path.of(library.path).normalize()
         return root.resolve(relative).normalize().takeIf { it.startsWith(root) }
     }
+
+    /**
+     * Newest added first. Items one scan added together tie, so the newest file breaks the tie (a show's newest
+     * episode), then the title.
+     */
+    val byAdded: Comparator<View> = compareByDescending<View> { it.record.addedAt }
+        .thenByDescending { view -> newestFile(view) }
+        .thenBy { it.record.sortTitle }
+
+    private fun newestFile(view: View): Instant? =
+        (episodes[view.record.id] ?: listOf(view)).mapNotNull { it.record.modifiedAt?.let { at -> runCatching { Instant.parse(at) }.getOrNull() } }.maxOrNull()
 }
 
 /**
@@ -121,7 +132,7 @@ class LibraryCatalog internal constructor(
         val continuing = continueWatching(snapshot, states)
         if (continuing.isNotEmpty()) shelves += LibraryShelf(Wire.ShelfId.CONTINUE, "Continue watching", continuing.map { it.out(snapshot, states) })
         for (library in snapshot.libraries) {
-            val recent = snapshot.tops[library.id].orEmpty().sortedByDescending { it.record.addedAt }.take(SHELF_SIZE)
+            val recent = snapshot.tops[library.id].orEmpty().sortedWith(snapshot.byAdded).take(SHELF_SIZE)
             if (recent.isNotEmpty()) shelves += LibraryShelf(Wire.ShelfId.RECENT, "Recently added in ${library.name}", recent.map { it.out(snapshot, states) }, library.id)
         }
         return LibraryHome(shelves, libraries())
@@ -139,7 +150,7 @@ class LibraryCatalog internal constructor(
         val byTitle = compareBy<View>({ it.item.title.let(::sortTitle) }, { it.item.year })
         val order = when (sort ?: "title") {
             "title" -> byTitle
-            "added" -> compareByDescending<View> { it.record.addedAt }.then(byTitle)
+            "added" -> snapshot.byAdded
             "year" -> compareByDescending<View, Int?>(nullsFirst()) { it.item.year }.then(byTitle)
             "rating" -> compareByDescending<View, Double?>(nullsFirst()) { it.item.rating }.then(byTitle)
             // A show was watched when any of its episodes was; what was never watched follows by title.

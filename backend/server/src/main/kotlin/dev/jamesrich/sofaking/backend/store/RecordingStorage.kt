@@ -1,0 +1,117 @@
+package dev.jamesrich.sofaking.backend.store
+
+import dev.jamesrich.sofaking.backend.dvr.StoredRecording
+import dev.jamesrich.sofaking.backend.dvr.StoredRule
+import java.time.Duration
+import java.time.Instant
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
+import org.jetbrains.exposed.v1.jdbc.*
+
+suspend fun BackendStore.recordingRules(): List<StoredRule> = query { RecordingRules.selectAll().map { it.rule() }.sortedBy { it.createdAt } }
+
+suspend fun BackendStore.recordingRule(id: String): StoredRule? = query { RecordingRules.selectAll().where { RecordingRules.id eq id }.singleOrNull()?.rule() }
+
+/** Inserts or replaces [rule]. */
+suspend fun BackendStore.saveRecordingRule(rule: StoredRule) = query {
+    RecordingRules.deleteWhere { RecordingRules.id eq rule.id }
+    RecordingRules.insert {
+        it[id] = rule.id
+        it[title] = rule.title
+        it[channelId] = rule.channelId
+        it[newOnly] = rule.newOnly
+        it[keep] = rule.keep
+        it[startPadding] = rule.startPadding.seconds.toInt()
+        it[endPadding] = rule.endPadding.seconds.toInt()
+        it[priority] = rule.priority
+        it[createdAt] = rule.createdAt.toString()
+    }
+    Unit
+}
+
+/** Deletes the rule; its recordings keep their files but no longer name it, and its scheduled ones go. */
+suspend fun BackendStore.deleteRecordingRule(id: String, scheduledStates: Collection<String>): Boolean = query {
+    val deleted = RecordingRules.deleteWhere { RecordingRules.id eq id } > 0
+    Recordings.deleteWhere { (Recordings.ruleId eq id) and (Recordings.state inList scheduledStates) }
+    Recordings.update({ Recordings.ruleId eq id }) { it[ruleId] = null }
+    deleted
+}
+
+suspend fun BackendStore.recordings(): List<StoredRecording> = query { Recordings.selectAll().map { it.recording() } }
+
+suspend fun BackendStore.recording(id: String): StoredRecording? = query { Recordings.selectAll().where { Recordings.id eq id }.singleOrNull()?.recording() }
+
+/** Adds [recording] unless one is already stored for the same channel and start; true when it was added. */
+suspend fun BackendStore.addRecording(recording: StoredRecording): Boolean = query {
+    Recordings.insertIgnore { it.write(recording) }.insertedCount > 0
+}
+
+/** Replaces the stored copy of [recording], matched by id. */
+suspend fun BackendStore.saveRecording(recording: StoredRecording) = query {
+    Recordings.update({ Recordings.id eq recording.id }) { it.write(recording) }
+    Unit
+}
+
+suspend fun BackendStore.deleteRecording(id: String): Boolean = query { Recordings.deleteWhere { Recordings.id eq id } > 0 }
+
+private fun UpdateBuilder<*>.write(r: StoredRecording) {
+    this[Recordings.id] = r.id
+    this[Recordings.ruleId] = r.ruleId
+    this[Recordings.channelId] = r.channelId
+    this[Recordings.channelName] = r.channelName
+    this[Recordings.startsAt] = r.startsAt.epochSecond
+    this[Recordings.endsAt] = r.endsAt.epochSecond
+    this[Recordings.startPadding] = r.startPadding.seconds.toInt()
+    this[Recordings.endPadding] = r.endPadding.seconds.toInt()
+    this[Recordings.title] = r.title
+    this[Recordings.episodeTitle] = r.episodeTitle
+    this[Recordings.description] = r.description
+    this[Recordings.season] = r.season
+    this[Recordings.episode] = r.episode
+    this[Recordings.movie] = r.movie
+    this[Recordings.year] = r.year
+    this[Recordings.image] = r.image
+    this[Recordings.state] = r.state
+    this[Recordings.reason] = r.reason
+    this[Recordings.path] = r.path
+    this[Recordings.bytes] = r.bytes
+    this[Recordings.protected] = r.protected
+    this[Recordings.positionMs] = r.positionMs
+    this[Recordings.watched] = r.watched
+    this[Recordings.createdAt] = r.createdAt.toString()
+    this[Recordings.updatedAt] = r.updatedAt.toString()
+}
+
+private fun ResultRow.rule() = StoredRule(
+    this[RecordingRules.id], this[RecordingRules.title], this[RecordingRules.channelId], this[RecordingRules.newOnly], this[RecordingRules.keep],
+    Duration.ofSeconds(this[RecordingRules.startPadding].toLong()), Duration.ofSeconds(this[RecordingRules.endPadding].toLong()),
+    this[RecordingRules.priority], Instant.parse(this[RecordingRules.createdAt]),
+)
+
+private fun ResultRow.recording() = StoredRecording(
+    id = this[Recordings.id],
+    ruleId = this[Recordings.ruleId],
+    channelId = this[Recordings.channelId],
+    channelName = this[Recordings.channelName],
+    startsAt = Instant.ofEpochSecond(this[Recordings.startsAt]),
+    endsAt = Instant.ofEpochSecond(this[Recordings.endsAt]),
+    startPadding = Duration.ofSeconds(this[Recordings.startPadding].toLong()),
+    endPadding = Duration.ofSeconds(this[Recordings.endPadding].toLong()),
+    title = this[Recordings.title],
+    episodeTitle = this[Recordings.episodeTitle],
+    description = this[Recordings.description],
+    season = this[Recordings.season],
+    episode = this[Recordings.episode],
+    movie = this[Recordings.movie],
+    year = this[Recordings.year],
+    image = this[Recordings.image],
+    state = this[Recordings.state],
+    reason = this[Recordings.reason],
+    path = this[Recordings.path],
+    bytes = this[Recordings.bytes],
+    protected = this[Recordings.protected],
+    positionMs = this[Recordings.positionMs],
+    watched = this[Recordings.watched],
+    createdAt = Instant.parse(this[Recordings.createdAt]),
+    updatedAt = Instant.parse(this[Recordings.updatedAt]),
+)

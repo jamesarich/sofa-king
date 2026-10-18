@@ -188,7 +188,7 @@ fun Application.backendModule(
         }
         get("/api/v1/bootstrap") {
             if (!store.ready()) call.respond(HttpStatusCode.ServiceUnavailable, ApiError("NOT_READY", "Storage unavailable", true))
-            else call.respond(Bootstrap(serverId = store.serverId(), serverTime = clock.instant().toString(), capabilities = Capabilities(catalog = runtime != null, guide = runtime != null, playback = runtime != null, viewers = runtime != null, library = runtime?.libraries != null)))
+            else call.respond(Bootstrap(serverId = store.serverId(), serverTime = clock.instant().toString(), capabilities = Capabilities(catalog = runtime != null, guide = runtime != null, playback = runtime != null, viewers = runtime != null, library = runtime?.libraries != null, recordings = runtime?.dvr != null)))
         }
         if (runtime != null) {
             get("/api/v1/channels") {
@@ -213,6 +213,7 @@ fun Application.backendModule(
             post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.appBody<GuideQuery>())) }
             adminRoutes(runtime, clock, config?.revision ?: "unknown")
             viewerRoutes(runtime, clock, apiToken)
+            runtime.dvr?.let { recordingRoutes(it) }
             post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.appBody<OpenPlayback>(), call.request.origin.remoteAddress)) }
             get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }
             patch("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.update(call.parameters["id"]!!, call.appBody<UpdatePlayback>())) }

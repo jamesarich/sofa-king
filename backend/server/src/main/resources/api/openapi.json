@@ -18,7 +18,11 @@
     { "name": "Policy", "description": "The lineup policy and its runs. Bearer: the admin token." },
     { "name": "Plex", "description": "Plex Live TV sync. Bearer: the admin token." },
     { "name": "Viewers", "description": "Pairing a client to the server and the preferences each client keeps on it. Bearer: the API token, except the pairing claim, which takes none." },
-    { "name": "Library", "description": "Media libraries: folders of movies, shows and other videos under SOFA_MEDIA_DIR, which the server reads and never writes. The app's routes take the API token; /artwork takes none; the admin routes take the admin token." }
+    { "name": "Library", "description": "Media libraries: folders of movies, shows and other videos under SOFA_MEDIA_DIR, which the server reads and never writes. The app's routes take the API token; /artwork takes none; the admin routes take the admin token." },
+    {
+      "name": "Recordings",
+      "description": "The DVR: recordings and the series rules that schedule them. Bearer: the API token."
+    }
   ],
   "components": {
     "securitySchemes": {
@@ -46,7 +50,7 @@
         "type": "object",
         "properties": {
           "serverId": { "type": "string" }, "serverTime": { "type": "string", "format": "date-time" }, "apiVersion": { "type": "integer" },
-          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." } } }
+          "capabilities": { "type": "object", "properties": { "catalog": { "type": "boolean" }, "guide": { "type": "boolean" }, "playback": { "type": "boolean" }, "viewers": { "type": "boolean", "description": "The server pairs clients (/api/v1/pair) and keeps their preferences." }, "library": { "type": "boolean", "description": "The server serves media libraries (/api/v1/libraries, /api/v1/library)." }, "recordings": { "type": "boolean", "description": "The server records (/api/v1/recordings, /api/v1/recording-rules)." } } }
         }
       },
       "Catalog": {
@@ -412,7 +416,179 @@
           "unavailable": { "type": "boolean", "description": "The folder was missing or empty, so nothing changed." }
         }
       },
-      "LibraryFolders": { "type": "object", "required": ["roots", "folders"], "properties": { "roots": { "type": "array", "items": { "type": "string" } }, "folders": { "type": "array", "items": { "type": "string" } } } }
+      "LibraryFolders": { "type": "object", "required": ["roots", "folders"], "properties": { "roots": { "type": "array", "items": { "type": "string" } }, "folders": { "type": "array", "items": { "type": "string" } } } },
+      "Recording": {
+        "type": "object",
+        "required": ["id", "channelId", "title", "startsAt", "endsAt", "state"],
+        "properties": {
+          "id": { "type": "string" },
+          "channelId": { "type": "string" },
+          "channelName": { "type": "string" },
+          "title": { "type": "string" },
+          "episodeTitle": { "type": ["string", "null"] },
+          "description": { "type": ["string", "null"] },
+          "season": { "type": ["integer", "null"] },
+          "episode": { "type": ["integer", "null"] },
+          "movie": { "type": "boolean" },
+          "year": { "type": ["integer", "null"] },
+          "image": { "type": ["string", "null"] },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The program's start; recording begins startPaddingSeconds earlier."
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The program's end; recording runs endPaddingSeconds later."
+          },
+          "startPaddingSeconds": { "type": "integer" },
+          "endPaddingSeconds": { "type": "integer" },
+          "state": { "type": "string", "enum": ["scheduled", "recording", "completed", "failed"] },
+          "reason": {
+            "type": ["string", "null"],
+            "description": "Why a recording failed or was cut short: MISSED, NO_MEDIA, STOPPED, SOURCE_UNAVAILABLE, CAPACITY_EXHAUSTED and the like."
+          },
+          "ruleId": { "type": ["string", "null"] },
+          "path": { "type": ["string", "null"], "description": "Relative to the recordings folder." },
+          "bytes": { "type": "integer", "format": "int64" },
+          "protected": { "type": "boolean", "description": "Kept by culling." },
+          "conflict": {
+            "type": "boolean",
+            "description": "A scheduled recording that overlaps more recordings than the server has playback slots."
+          },
+          "positionMs": { "type": "integer", "format": "int64" },
+          "watched": { "type": "boolean" }
+        }
+      },
+      "RecordingStorage": {
+        "type": "object",
+        "properties": {
+          "freeBytes": { "type": "integer", "format": "int64" },
+          "totalBytes": { "type": "integer", "format": "int64" },
+          "usedBytes": { "type": "integer", "format": "int64", "description": "What running and kept recordings use." }
+        }
+      },
+      "RecordingList": {
+        "type": "object",
+        "properties": {
+          "recordings": { "type": "array", "items": { "$ref": "#/components/schemas/Recording" } },
+          "storage": { "$ref": "#/components/schemas/RecordingStorage" }
+        }
+      },
+      "ScheduleRecording": {
+        "type": "object",
+        "required": ["channelId", "startsAt"],
+        "properties": { "channelId": { "type": "string" }, "startsAt": { "type": "string", "format": "date-time" } }
+      },
+      "UpdateRecording": {
+        "type": "object",
+        "properties": {
+          "protected": { "type": "boolean" },
+          "positionMs": { "type": "integer", "format": "int64", "minimum": 0 },
+          "watched": { "type": "boolean" }
+        }
+      },
+      "RecordingRule": {
+        "type": "object",
+        "required": ["id", "title"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Matched against program titles, ignoring case."
+          },
+          "channelId": { "type": ["string", "null"], "description": "Null records the title on every channel." },
+          "newOnly": {
+            "type": "boolean",
+            "description": "Skip airings the guide marks previously shown.",
+            "default": true
+          },
+          "keep": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "Finished recordings the rule keeps, newest first; 0 keeps all.",
+            "default": 0
+          },
+          "startPaddingSeconds": { "type": "integer", "minimum": 0, "maximum": 3600, "default": 60 },
+          "endPaddingSeconds": { "type": "integer", "minimum": 0, "maximum": 3600, "default": 120 },
+          "priority": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "default": 0,
+            "description": "The higher wins a playback slot when recordings conflict; a one-off outranks every rule."
+          },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RecordingRuleList": {
+        "type": "object",
+        "properties": { "rules": { "type": "array", "items": { "$ref": "#/components/schemas/RecordingRule" } } }
+      },
+      "CreateRecordingRule": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Matched against program titles, ignoring case."
+          },
+          "channelId": { "type": ["string", "null"], "description": "Null records the title on every channel." },
+          "newOnly": {
+            "type": "boolean",
+            "description": "Skip airings the guide marks previously shown.",
+            "default": true
+          },
+          "keep": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "Finished recordings the rule keeps, newest first; 0 keeps all.",
+            "default": 0
+          },
+          "startPaddingSeconds": { "type": "integer", "minimum": 0, "maximum": 3600, "default": 60 },
+          "endPaddingSeconds": { "type": "integer", "minimum": 0, "maximum": 3600, "default": 120 },
+          "priority": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "default": 0,
+            "description": "The higher wins a playback slot when recordings conflict; a one-off outranks every rule."
+          }
+        }
+      },
+      "UpdateRecordingRule": {
+        "type": "object",
+        "properties": {
+          "newOnly": {
+            "type": "boolean",
+            "description": "Skip airings the guide marks previously shown.",
+            "default": true
+          },
+          "keep": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "description": "Finished recordings the rule keeps, newest first; 0 keeps all.",
+            "default": 0
+          },
+          "startPaddingSeconds": { "type": "integer", "minimum": 0, "maximum": 3600, "default": 60 },
+          "endPaddingSeconds": { "type": "integer", "minimum": 0, "maximum": 3600, "default": 120 },
+          "priority": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "default": 0,
+            "description": "The higher wins a playback slot when recordings conflict; a one-off outranks every rule."
+          }
+        }
+      }
     }
   },
   "paths": {
@@ -701,6 +877,165 @@
     "/api/v1/admin/libraries/{id}/scan": {
       "post": { "tags": ["Library"], "summary": "Scan a library now", "description": "Answers when the scan ends. A folder that is missing, or empty while the library held files, reads as unmounted: unavailable is true and nothing changes.", "security": [{ "adminToken": [] }], "parameters": [{ "$ref": "#/components/parameters/id" }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryScanInfo" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/recordings": {
+      "get": {
+        "tags": ["Recordings"],
+        "summary": "Every recording, scheduled and running soonest first, then kept and failed newest first",
+        "security": [{ "apiToken": [] }],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecordingList" } } }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Recordings"],
+        "summary": "Record one program",
+        "description": "Names the program by its channel and start, as the guide query gives them. Scheduling a program that already has a recording answers that recording.",
+        "security": [{ "apiToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScheduleRecording" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Recording" } } }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": {
+            "description": "CHANNEL_NOT_FOUND or PROGRAMME_NOT_FOUND",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          },
+          "409": {
+            "description": "PROGRAMME_ENDED",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/recordings/{id}": {
+      "get": {
+        "tags": ["Recordings"],
+        "summary": "One recording",
+        "security": [{ "apiToken": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Recording" } } }
+          },
+          "404": {
+            "description": "RECORDING_NOT_FOUND",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Recordings"],
+        "summary": "Protect a recording from culling, or save where the viewer stopped",
+        "security": [{ "apiToken": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateRecording" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Recording" } } }
+          },
+          "404": {
+            "description": "RECORDING_NOT_FOUND",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Recordings"],
+        "summary": "Cancel, stop or delete a recording",
+        "description": "Cancels a scheduled recording, stops a running one and keeps what it recorded, or deletes a finished one and its file. A cancelled airing of a rule is not scheduled again.",
+        "security": [{ "apiToken": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "204": { "description": "" },
+          "404": {
+            "description": "RECORDING_NOT_FOUND",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/recording-rules": {
+      "get": {
+        "tags": ["Recordings"],
+        "summary": "Every series rule, oldest first",
+        "security": [{ "apiToken": [] }],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecordingRuleList" } } }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Recordings"],
+        "summary": "Add a series rule",
+        "security": [{ "apiToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateRecordingRule" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecordingRule" } } }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": {
+            "description": "CHANNEL_NOT_FOUND",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          }
+        }
+      }
+    },
+    "/api/v1/recording-rules/{id}": {
+      "patch": {
+        "tags": ["Recordings"],
+        "summary": "Change a series rule",
+        "security": [{ "apiToken": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateRecordingRule" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecordingRule" } } }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": {
+            "description": "RULE_NOT_FOUND",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Recordings"],
+        "summary": "Delete a series rule and its scheduled recordings; what it recorded stays",
+        "security": [{ "apiToken": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "204": { "description": "" },
+          "404": {
+            "description": "RULE_NOT_FOUND",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          }
+        }
+      }
     }
   }
 }

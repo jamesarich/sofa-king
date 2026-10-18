@@ -17,6 +17,14 @@ object Wire {
         const val REMOVED = "removed"
     }
 
+    /** `Recording.state`: scheduled, running, kept, or not recorded and why in `reason`. */
+    object RecordingState {
+        const val SCHEDULED = "scheduled"
+        const val RECORDING = "recording"
+        const val COMPLETED = "completed"
+        const val FAILED = "failed"
+    }
+
     /** `ApiError.code` values a client acts on. */
     object ErrorCode {
         const val AUTH_REQUIRED = "AUTH_REQUIRED"

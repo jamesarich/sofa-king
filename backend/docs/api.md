@@ -14,7 +14,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | --- | --- | --- |
 | GET | `/healthz` | Public liveness check |
 | GET | `/readyz` | Public database readiness check |
-| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`) |
+| GET | `/api/v1/bootstrap` | Server ID, time, API version and capabilities (`catalog`, `guide`, `playback`, `events`, `viewers`, `library`, `recordings`) |
 | POST | `/api/v1/pair` | Exchange a pairing code for the API token, see [pair a client](#pair-a-client); no token. 10 claims a minute per client address, then `429` |
 | GET | `/api/v1/preferences/{clientId}` | The preferences the client with that id last saved, see [viewer preferences](#viewer-preferences); `404 VIEWER_NOT_FOUND` before its first save |
 | PUT | `/api/v1/preferences/{clientId}` | Replace that client's preferences; answers the stored document with the server's `updatedAt` |
@@ -27,6 +27,15 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | GET | `/api/v1/playback-sessions/{id}` | Read the current playback descriptor |
 | PATCH | `/api/v1/playback-sessions/{id}` | Renew the lease and optionally change intent |
 | DELETE | `/api/v1/playback-sessions/{id}` | Release the session; returns 204 |
+| GET | `/api/v1/recordings` | Every [recording](#recordings), scheduled and running soonest first, then the rest newest first, and the recordings folder's `storage` |
+| POST | `/api/v1/recordings` | Record the program on `channelId` that starts at `startsAt`; `201`, or the existing recording. `404 CHANNEL_NOT_FOUND` or `PROGRAMME_NOT_FOUND`, `409 PROGRAMME_ENDED` |
+| GET | `/api/v1/recordings/{id}` | One recording; `404 RECORDING_NOT_FOUND` |
+| PATCH | `/api/v1/recordings/{id}` | Set `protected`, `positionMs` or `watched` |
+| DELETE | `/api/v1/recordings/{id}` | Cancel a scheduled recording, stop a running one, or delete a finished one and its file; returns 204 |
+| GET | `/api/v1/recording-rules` | Every series rule, oldest first |
+| POST | `/api/v1/recording-rules` | Add a series rule; `201` |
+| PATCH | `/api/v1/recording-rules/{id}` | Change `newOnly`, `keep`, the paddings or `priority`; `404 RULE_NOT_FOUND` |
+| DELETE | `/api/v1/recording-rules/{id}` | Delete a rule and its scheduled recordings; what it recorded stays. Returns 204 |
 | GET | `/media/sessions/{id}/{epoch}/{token}` | Session-authorized HLS or MPEG-TS media. `{epoch}` is the descriptor's epoch and `{token}` a random token for one playlist, segment or key |
 | GET | `/output/playlist.m3u` | The enabled lineup as an M3U playlist for third-party players, see [player outputs](#player-outputs) |
 | GET | `/output/guide.xml?days=` | The lineup's programs as XMLTV |
@@ -163,6 +172,12 @@ A library's items come sorted by `sort`: `title` (the default, ignoring a leadin
 | `transcode` | Anything else, an HDR file on an SDR player, or a file FFprobe could not read | HLS with H.264 at up to 1080 lines and stereo AAC |
 
 An HLS session's playlist grows as FFmpeg writes it (an EVENT playlist) and ends when the file does. Its media time 0 is `startMs` into the item, and `durationMs` is the item's whole length. To seek past what the playlist holds, `PATCH` the session with the new `startMs`: FFmpeg restarts there, the epoch changes, and the player loads the new descriptor's URL. A copied stream starts at the key frame before `startMs`, so it can begin a few seconds early. At most `SOFA_MAX_TRANSCODES` sessions convert or remux at once (direct play is not counted); one more answers `503 CAPACITY_EXHAUSTED`. A session lasts five minutes past its last renewal or media request; the player renews it with `PATCH` while paused and releases it with `DELETE`. Its files are under `SOFA_DATA_DIR/transcode` and are deleted when it ends. A missing file answers `404 ITEM_MISSING`. Subtitles are not served yet, and an HDR file converted for an SDR player is not tone-mapped, so its colors look washed out.
+
+## Recordings
+
+[Recordings](recordings.md) describes the schedule and what a recording does while it runs. A recording carries the guide's `title`, `episodeTitle`, `description`, `season`, `episode`, `movie`, `year` and `image` as they were when it was scheduled; `startsAt` and `endsAt` are the program's times, and the recording runs `startPaddingSeconds` before and `endPaddingSeconds` after them. `state` is `scheduled`, `recording`, `completed` or `failed`, with `reason` when one failed or was cut short. `path` is relative to the recordings folder and `bytes` is the file's size. `conflict` marks a scheduled recording that overlaps more recordings than the server has playback slots. `storage` in the list holds the folder's disk `freeBytes` and `totalBytes`, and the `usedBytes` of running and kept recordings.
+
+A rule has a `title`, an optional `channelId`, `newOnly`, `keep` (0 keeps all), `startPaddingSeconds`, `endPaddingSeconds` and `priority`; [record a series](recordings.md#record-a-series) lists their defaults and ranges.
 
 ## Player outputs
 

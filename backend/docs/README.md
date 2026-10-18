@@ -16,6 +16,7 @@
 | Page | What it covers |
 | --- | --- |
 | [Live TV](live-tv.md) | Every environment variable, source files, source identity, the lineup, logos, player outputs, Plex Live TV and upstream addresses |
+| [Recordings](recordings.md) | Recording a program or a series, the schedule, what happens while a recording runs, and the recording states |
 | [Media libraries](libraries.md) | The media folder, how to name movies, shows and other videos, `.nfo` files and artwork, and scans |
 | [Native providers](providers.md) | The built-in clients for free streaming services, their options and their failure modes |
 | [Lineup policy](lineup-policy.md) | The policy file that rebuilds the whole lineup, its fields, runs, required stations, findings, API and the generator |

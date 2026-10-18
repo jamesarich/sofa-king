@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.dvr.Dvr
+import dev.jamesrich.sofaking.backend.dvr.Recorder
 import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
@@ -80,6 +82,8 @@ class LiveRuntime(
     val libraries: LibraryService? = null,
     /** Library files being played; null without libraries. */
     val vod: VodSessions? = null,
+    /** The DVR; null when the runtime was built without a config. */
+    val dvr: Dvr? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -112,11 +116,12 @@ class LiveRuntime(
                 val policy = UpstreamPolicy(allowLoopback = config.allowLoopbackUpstreams)
                 lateinit var logos: LogoCache
                 var policyService: PolicyService? = null
+                var dvrService: Dvr? = null
                 val providers = ProviderRegistry.create(sources.providers, http, store, clock, policy)
                 val feeds = FeedService(sources.providers, store, http, clock, policy, providers, jobs) { logos.requestSweep(); policyService?.requestRun("feeds") }
                 feeds.initialize()
                 lateinit var lineup: LineupService
-                val guides = GuideService(sources.allGuides, store, http, clock, policy, providers, onImported = { policyService?.requestRun("guides") }, jobs = jobs) {
+                val guides = GuideService(sources.allGuides, store, http, clock, policy, providers, onImported = { policyService?.requestRun("guides"); dvrService?.requestSchedule("guides") }, jobs = jobs) {
                     val mapped = lineup.wanted()
                     val extra = policyService?.wantedGuides().orEmpty()
                     if (extra.isEmpty()) mapped else (mapped.keys + extra.keys).associateWith { id -> mapped[id].orEmpty() + extra[id].orEmpty() }
@@ -169,6 +174,10 @@ class LiveRuntime(
                         onHealthChanged = { service?.requestRun("health") }, targets = targets,
                     )
                 } else null
+                val dvr = Dvr(
+                    store, lineup, guides, Recorder(config.ffmpeg, sessions, feeds, clock), config.recordingsDirectory, clock, { settings.current.maxSessions },
+                    { java.time.Duration.ofDays(settings.current.guideDays.toLong()) }, jobs = jobs,
+                ).also { dvrService = it }
                 val updates = UpdateChecker(http, clock, config.dataDirectory, config.updateImage, RunningBuild(config.revision, config.version), jobs)
                 updates.start(scope)
                 val libraries = LibraryService(
@@ -181,8 +190,10 @@ class LiveRuntime(
                 vod.start()
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux(config.ffmpeg), logos, http, scope,
-                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart), libraries, vod,
+                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart), libraries, vod, dvr,
                 )
+                dvr.start(scope)
+                dvr.requestSchedule("startup")
                 scope.launchEvery("session-expire", 1000) { sessions.expire() }
                 scope.launchEvery("vod-expire", 5000) { vod.expire() }
                 if (worker != null) scope.launch(CoroutineName("probe-worker")) { worker.run() }

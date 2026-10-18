@@ -366,8 +366,8 @@ class RenderSmokeTest {
         val home = MediaHome(
             shelves = listOf(
                 MediaShelf("continue", "Continue watching", listOf(movie(0), episode(1, 2, PlayProgress(900_000, 2_700_000, false)))),
-                MediaShelf("recent-movies", "Recently added in Movies", List(8) { movie(it) }, libraryId = "movies"),
-                MediaShelf("recent-shows", "Recently added in TV Shows", listOf(show), libraryId = "shows"),
+                MediaShelf("recent", "Recently added in Movies", List(8) { movie(it) }, libraryId = "movies"),
+                MediaShelf("recent", "Recently added in TV Shows", listOf(show), libraryId = "shows"),
             ),
             libraries = listOf(movies, shows),
         )

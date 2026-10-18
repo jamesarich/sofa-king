@@ -93,15 +93,15 @@ private fun Shelves(shelves: List<MediaShelf>, libraries: List<MediaLibrary>, ac
         if (returnedFrom != null) requestFocusWhenAttached(returnFocus)
     }
     // The item returned to may sit in several rows; the first takes the requester.
-    val returnShelf = returnedFrom?.let { id -> shelves.firstOrNull { shelf -> shelf.items.any { it.id == id } }?.id }
+    val returnShelf = returnedFrom?.let { id -> shelves.firstOrNull { shelf -> shelf.items.any { it.id == id } }?.key }
     LazyColumn(
         modifier.fillMaxSize(),
         state = rememberLazyListState(),
         contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
-        items(shelves, key = { it.id }) { shelf ->
-            Shelf(shelf, actions, insets, focusItem = if (shelf.id == returnShelf) returnedFrom else null, focusRequester = returnFocus)
+        items(shelves, key = { it.key }) { shelf ->
+            Shelf(shelf, actions, insets, focusItem = if (shelf.key == returnShelf) returnedFrom else null, focusRequester = returnFocus)
         }
         if (libraries.isNotEmpty()) {
             item(key = "libraries") {

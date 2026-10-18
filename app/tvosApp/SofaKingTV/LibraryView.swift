@@ -51,7 +51,7 @@ struct LibraryHomeView: View {
     private func shelves(_ home: MediaHome) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 48) {
-                ForEach(home.shelves, id: \.id) { shelf in
+                ForEach(home.shelves, id: \.key) { shelf in
                     let wide = shelf.isWide
                     Section {
                         CardRow {

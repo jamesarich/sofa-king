@@ -19,6 +19,7 @@ import dev.jamesrich.sofaking.data.episodeAfter
 import dev.jamesrich.sofaking.data.seasonAfter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
@@ -76,6 +78,8 @@ class LibraryViewModel(
     private val timeSource: TimeSource = TimeSource.Monotonic,
     /** How often a playing item's position is saved on the server. */
     private val saveInterval: Duration = 10.seconds,
+    /** How often a home with no library is loaded again. */
+    private val emptyRecheck: Duration = 5.minutes,
 ) : ViewModel() {
     private var repository: LibraryRepository? = null
 
@@ -117,14 +121,20 @@ class LibraryViewModel(
         homeJob?.cancel()
         homeJob = viewModelScope.launch {
             if (_home.value !is LibraryHomeState.Ready) _home.value = LibraryHomeState.Loading
-            _home.value = try {
-                LibraryHomeState.Ready(repository.home())
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: SofaKingException) {
-                if (e.status == 404) LibraryHomeState.Unavailable else failed(e)
-            } catch (e: Exception) {
-                failed(e)
+            while (true) {
+                val home = try {
+                    LibraryHomeState.Ready(repository.home())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: SofaKingException) {
+                    if (e.status == 404) LibraryHomeState.Unavailable else failed(e)
+                } catch (e: Exception) {
+                    failed(e)
+                }
+                _home.value = home
+                // The Library tab hides while the server has no library, so ask again until one is added.
+                if (home !is LibraryHomeState.Ready || home.home.libraries.isNotEmpty()) break
+                delay(emptyRecheck)
             }
         }
     }

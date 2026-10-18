@@ -190,21 +190,21 @@ private val CardMenuEntry.label: StringResource
     }
 
 /**
- * The picture filling its card. Without one, [label] stands in its place, or the library mark when the card's own
- * caption already names the item.
+ * The picture filling its card. Under it, and alone while it loads or when it fails, [label] stands in its place,
+ * or the library mark when the card's own caption already names the item.
  */
 @Composable
 internal fun BoxScope.Artwork(url: String?, label: String?) {
-    if (url == null && label == null) {
+    if (label == null) {
         Icon(
             PlayerIcons.VideoLibrary,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier.align(Alignment.Center).size(48.dp),
         )
-    } else if (url == null) {
+    } else {
         Text(
-            label.orEmpty(),
+            label,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -212,9 +212,8 @@ internal fun BoxScope.Artwork(url: String?, label: String?) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.align(Alignment.Center).padding(12.dp),
         )
-    } else {
-        AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
     }
+    if (url != null) AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
 }
 
 /** The progress bar along the bottom, the watched tick and a show's unwatched count. */

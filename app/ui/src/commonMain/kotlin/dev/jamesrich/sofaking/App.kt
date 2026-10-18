@@ -672,7 +672,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                 )
                             }
                             is Screen.LibraryGrid -> guideState.SaveableStateProvider("grid-${current.libraryId}") {
-                                LaunchedEffect(current.libraryId) { libraryVm.openGrid(current.libraryId, grid?.sort ?: LibrarySort.TITLE, grid?.unwatched ?: false) }
+                                LaunchedEffect(current.libraryId) {
+                                    val open = grid
+                                    libraryVm.openGrid(current.libraryId, open?.sort ?: LibrarySort.TITLE, open?.unwatched ?: false, open?.takeIf { it.libraryId == current.libraryId }?.genre)
+                                }
                                 BackHandler { screen = Screen.Library(returnedFrom = libraryFocusKey(current.libraryId)) }
                                 val shown = grid?.takeIf { it.libraryId == current.libraryId }
                                 val here = Screen.LibraryGrid(current.libraryId)
@@ -680,8 +683,9 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                     library = (libraryHome as? LibraryHomeState.Ready)?.home?.libraries?.firstOrNull { it.id == current.libraryId },
                                     grid = shown,
                                     actions = LibraryGridActions(
-                                        onSort = { libraryVm.openGrid(current.libraryId, it, shown?.unwatched ?: false) },
-                                        onUnwatched = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, it) },
+                                        onSort = { libraryVm.openGrid(current.libraryId, it, shown?.unwatched ?: false, shown?.genre) },
+                                        onUnwatched = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, it, shown?.genre) },
+                                        onGenre = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, shown?.unwatched ?: false, it) },
                                         onOpenItem = { screen = Screen.LibraryItem(it.id, parent = here) },
                                         onPlayItem = { screen = Screen.Vod(it.id, parent = here) },
                                         onLoadMore = libraryVm::loadMore,

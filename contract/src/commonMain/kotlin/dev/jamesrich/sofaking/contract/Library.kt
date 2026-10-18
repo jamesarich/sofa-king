@@ -45,8 +45,8 @@ import kotlinx.serialization.Serializable
     val playState: PlayState? = null,
 )
 
-/** One page of a library's items, in the order asked for; [next] is the cursor for the page after, null on the last. */
-@Serializable data class LibraryPage(val items: List<LibraryItem>, val total: Int = 0, val next: String? = null)
+/** One page of a library's items, in the order asked for; [next] is the cursor for the page after, null on the last, and [genres] every genre in the library, for a filter. */
+@Serializable data class LibraryPage(val items: List<LibraryItem>, val total: Int = 0, val next: String? = null, val genres: List<String> = emptyList())
 
 /** A row of the library home ([id] is a [Wire.ShelfId] value), for one library when [libraryId] is set. */
 @Serializable data class LibraryShelf(val id: String, val title: String, val items: List<LibraryItem>, val libraryId: String? = null)

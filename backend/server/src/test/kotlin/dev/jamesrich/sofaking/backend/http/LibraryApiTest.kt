@@ -77,4 +77,40 @@ class LibraryApiTest {
             assertKeepsWireFixture("v1/library-home.json", homeBody)
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
     }
+    @Test fun `a library's grid filters by genre and sorts by what was watched last`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-library-genre-")
+        val movies = Files.createDirectories(dir.resolve("media/movies"))
+        for ((name, genres) in listOf("Alpha (2001)" to listOf("Drama"), "Bravo (2002)" to listOf("Comedy", "drama"), "Charlie (2003)" to emptyList())) {
+            val folder = Files.createDirectories(movies.resolve(name))
+            Files.writeString(folder.resolve("$name.mkv"), "x")
+            Files.writeString(folder.resolve("$name.nfo"), "<movie>" + genres.joinToString("") { "<genre>$it</genre>" } + "</movie>")
+        }
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null)
+        val store = openStore(dir)
+        val clock = MutableClock()
+        val runtime = LiveRuntime.create(store, config, clock, probes = false)
+        try {
+            val library = runtime.libraries!!.create("Movies", LibraryKind.MOVIES, movies.toString())
+            runtime.libraries!!.scan(library.id)
+            application { backendModule(store, clock, runtime, token, config = config) }
+            suspend fun page(query: String) =
+                json.decodeFromString<LibraryPage>(client.get("/api/v1/libraries/${library.id}/items?$query") { bearerAuth(token) }.bodyAsText())
+
+            val all = page("sort=title")
+            assertEquals(listOf("Alpha", "Bravo", "Charlie"), all.items.map { it.title })
+            assertEquals(listOf("Comedy", "Drama"), all.genres)
+            assertEquals(listOf("Alpha", "Bravo"), page("genre=drama").items.map { it.title })
+            assertEquals(2, page("genre=drama").total)
+            assertEquals(listOf("Comedy", "Drama"), page("genre=drama").genres, "the filter still lists every genre")
+
+            suspend fun played(item: LibraryItem) = client.put("/api/v1/library/items/${item.id}/play-state") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"positionMs":600000,"durationMs":6000000}""")
+            }
+            assertEquals(HttpStatusCode.OK, played(all.items[2]).status)
+            clock.now = clock.now.plusSeconds(60)
+            assertEquals(HttpStatusCode.OK, played(all.items[1]).status)
+            assertEquals(listOf("Bravo", "Charlie", "Alpha"), page("sort=watched").items.map { it.title })
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
 }

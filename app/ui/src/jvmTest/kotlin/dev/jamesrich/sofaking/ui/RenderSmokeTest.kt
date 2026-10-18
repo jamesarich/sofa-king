@@ -408,9 +408,9 @@ class RenderSmokeTest {
 
     @Test
     fun `a library's grid renders its chips and posters`() {
-        val grid = LibraryGrid("movies", LibrarySort.ADDED, unwatched = false, items = List(14) { movie(it) }, total = 42, next = "c2", loading = false)
+        val grid = LibraryGrid("movies", LibrarySort.ADDED, unwatched = false, items = List(14) { movie(it) }, genres = listOf("Action", "Comedy", "Drama"), total = 42, next = "c2", loading = false)
         val image = render("library-grid") {
-            LibraryGridScreen(movies, grid, LibraryGridActions({}, {}, {}, {}, {}))
+            LibraryGridScreen(movies, grid, LibraryGridActions({}, {}, {}, {}, {}, {}))
         }
         assertTrue(image.hasContent())
     }

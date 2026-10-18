@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.backend.catalog.GuideService
 import dev.jamesrich.sofaking.backend.catalog.LineupService
+import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.store.*
@@ -46,6 +47,8 @@ class Dvr(
     private val retention: () -> Retention = { Retention() },
     /** The free space on the recordings folder's disk; a seam for tests. */
     private val freeSpace: (Path) -> Long? = { runCatching { Files.getFileStore(it).usableSpace }.getOrNull() },
+    /** Looks for commercial breaks in each finished recording; null when `SOFA_COMSKIP` is `none`. */
+    private val commercials: Commercials? = null,
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val jobs: Jobs = Jobs(clock),
 ) {
@@ -53,6 +56,7 @@ class Dvr(
     private val mutex = Mutex()
     private val running = ConcurrentHashMap<String, Job>()
     private val trigger = Channel<String>(Channel.CONFLATED)
+    private val scans = Channel<String>(Channel.UNLIMITED)
     private lateinit var scope: CoroutineScope
 
     init {
@@ -72,6 +76,15 @@ class Dvr(
                     }
                     try { cull(cause) } catch (e: CancellationException) { throw e } catch (e: Exception) {
                         log.warn("recording cleanup failed class={}", e.javaClass.simpleName)
+                    }
+                }
+            },
+            scope.launch(CoroutineName("dvr-commercials")) {
+                // A scan a restart interrupted runs again.
+                store.recordings().filter { it.commercials == Wire.CommercialScan.SCANNING }.forEach { scans.trySend(it.id) }
+                for (id in scans) {
+                    try { scan(id) } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                        log.warn("commercial scan failed id={} class={}", id, e.javaClass.simpleName)
                     }
                 }
             },
@@ -281,9 +294,33 @@ class Dvr(
         }
         // A recording cut short by a stop or a source that never came back is still kept; the reason says why.
         val short = now < latest.recordUntil.minusSeconds(5)
-        store.saveRecording(latest.copy(state = Wire.RecordingState.COMPLETED, reason = if (short) take?.lastFailure ?: "STOPPED" else null, path = final.toString(), bytes = bytes, updatedAt = now))
+        val scan = if (commercials != null) Wire.CommercialScan.SCANNING else null
+        store.saveRecording(latest.copy(
+            state = Wire.RecordingState.COMPLETED, reason = if (short) take?.lastFailure ?: "STOPPED" else null, path = final.toString(), bytes = bytes,
+            commercials = scan, updatedAt = now,
+        ))
+        if (scan != null) scans.trySend(latest.id)
         log.info("recording finished id={} title=\"{}\" bytes={} path=\"{}\"", latest.id, latest.title, bytes, final)
     }.also { if (::scope.isInitialized) scope.launch { cull("finished") } }
+
+    // Commercials
+
+    /** Finds the breaks in one finished recording and keeps them, unless it was deleted meanwhile. */
+    private suspend fun scan(id: String) {
+        val detector = commercials ?: return
+        val recording = store.recording(id)?.takeIf { it.state == Wire.RecordingState.COMPLETED && it.path != null } ?: return
+        val outcome = try {
+            Wire.CommercialScan.DONE to detector.detect(root.resolve(recording.path!!))
+        } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            log.warn("commercial scan failed id={} title=\"{}\" class={} message=\"{}\"", id, recording.title, e.javaClass.simpleName, redactedMessage(e))
+            Wire.CommercialScan.FAILED to emptyList()
+        }
+        mutex.withLock {
+            val latest = store.recording(id)?.takeIf { it.path == recording.path } ?: return@withLock
+            store.saveRecording(latest.copy(commercials = outcome.first, breaks = outcome.second, updatedAt = clock.instant()))
+        }
+        if (outcome.first == Wire.CommercialScan.DONE) log.info("commercial scan id={} title=\"{}\" breaks={}", id, recording.title, outcome.second.size)
+    }
 
     // Cleanup
 
@@ -331,6 +368,7 @@ class Dvr(
         val file = root.resolve(relative).normalize()
         if (!file.startsWith(root.normalize())) return
         Files.deleteIfExists(file)
+        Files.deleteIfExists(Commercials.sidecar(file))
         pruneEmpty(file.parent, root)
     }
 

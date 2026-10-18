@@ -234,5 +234,8 @@ internal object Recordings : Table("recording") {
     val watched = bool("watched")
     val createdAt = text("created_at")
     val updatedAt = text("updated_at")
+    val commercials = text("commercials").nullable()
+    /** The breaks as `startMs-endMs` pairs joined by commas. */
+    val breaks = text("breaks").nullable()
     override val primaryKey = PrimaryKey(id)
 }

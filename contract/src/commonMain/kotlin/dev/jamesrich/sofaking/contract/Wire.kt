@@ -25,6 +25,13 @@ object Wire {
         const val FAILED = "failed"
     }
 
+    /** How far the server got looking for a recording's commercial breaks. */
+    object CommercialScan {
+        const val SCANNING = "scanning"
+        const val DONE = "done"
+        const val FAILED = "failed"
+    }
+
     /** `ApiError.code` values a client acts on. */
     object ErrorCode {
         const val AUTH_REQUIRED = "AUTH_REQUIRED"

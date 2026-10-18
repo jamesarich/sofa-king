@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.dvr.Commercials
 import dev.jamesrich.sofaking.backend.dvr.Dvr
 import dev.jamesrich.sofaking.backend.dvr.Recorder
 import dev.jamesrich.sofaking.backend.dvr.Retention
@@ -178,7 +179,8 @@ class LiveRuntime(
                 val dvr = Dvr(
                     store, lineup, guides, Recorder(config.ffmpeg, sessions, feeds, clock), config.recordingsDirectory, clock, { settings.current.maxSessions },
                     { java.time.Duration.ofDays(settings.current.guideDays.toLong()) },
-                    retention = { settings.current.let { Retention(it.recordingsFreeGib, it.recordingsKeepDays) } }, jobs = jobs,
+                    retention = { settings.current.let { Retention(it.recordingsFreeGib, it.recordingsKeepDays) } },
+                    commercials = config.comskip?.let { Commercials(it, config.dataDirectory.resolve("dvr")) }, jobs = jobs,
                 ).also { dvrService = it }
                 val updates = UpdateChecker(http, clock, config.dataDirectory, config.updateImage, RunningBuild(config.revision, config.version), jobs)
                 updates.start(scope)

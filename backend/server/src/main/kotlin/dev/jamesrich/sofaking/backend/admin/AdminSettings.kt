@@ -75,6 +75,7 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
             s("SOFA_SOURCES", config.sourcesFile, null, found("SOFA_SOURCES")),
             s("SOFA_POLICY", config.policyFile, null, found("SOFA_POLICY")),
             s("SOFA_FFMPEG", config.ffmpeg, "ffmpeg"),
+            s("SOFA_COMSKIP", config.comskip ?: "none", "comskip"),
             s("SOFA_PROBE_PARALLELISM", config.probeParallelism, 6),
             s("SOFA_RESTREAM_ORIGINS", config.restreamOrigins.sorted().joinToString(), ""),
             s("SOFA_OBSERVATION_RETENTION_DAYS", config.observationRetentionDays, 7),

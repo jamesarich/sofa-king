@@ -70,9 +70,9 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
-      # The tests generate HLS fixtures with FFmpeg.
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # The tests generate HLS fixtures with FFmpeg and run Comskip on a generated recording.
+      - name: Install FFmpeg and Comskip
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg comskip
 
       - name: Test and build the distribution
         run: ./gradlew --console=plain test :server:installDist

@@ -105,6 +105,8 @@ data class ServerConfig(
     val recordingsFreeGib: Int = 10,
     /** `SOFA_RECORDINGS_KEEP_DAYS`: the days the DVR keeps a recording; 0 keeps it until space runs short. */
     val recordingsKeepDays: Int = 0,
+    /** `SOFA_COMSKIP`: the Comskip executable that finds commercial breaks in recordings; null when set to `none`. */
+    val comskip: String? = "comskip",
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -218,6 +220,8 @@ data class ServerConfig(
             require(freeGib != null && freeGib in 0..100_000) { "SOFA_RECORDINGS_FREE_GIB must be between 0 and 100000" }
             val keepDays = (environment["SOFA_RECORDINGS_KEEP_DAYS"] ?: "0").toIntOrNull()
             require(keepDays != null && keepDays in 0..3650) { "SOFA_RECORDINGS_KEEP_DAYS must be between 0 and 3650" }
+            val comskip = (environment["SOFA_COMSKIP"] ?: "comskip").trim()
+            require(comskip.isNotEmpty()) { "SOFA_COMSKIP must not be blank; set it to none to turn commercial detection off" }
             val hdhrEnabled = flag(environment, "SOFA_HDHR_ENABLED", true)
             val tuners = (environment["SOFA_HDHR_TUNERS"] ?: "2").toIntOrNull()
             require(tuners != null && tuners in 1..capacity) { "SOFA_HDHR_TUNERS must be between 1 and SOFA_MAX_SESSIONS" }
@@ -270,6 +274,7 @@ data class ServerConfig(
                     ?: throw IllegalArgumentException("SOFA_MAX_TRANSCODES must be between 1 and 8"),
                 recordingsFreeGib = freeGib,
                 recordingsKeepDays = keepDays,
+                comskip = comskip.takeUnless { it == "none" },
             )
         }
 

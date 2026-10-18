@@ -41,6 +41,12 @@ A recording that finds every slot taken retries until its window closes, and a r
 
 A server restart in the middle of a window resumes the recording into the same file. One whose whole window passed while the server was down is marked `failed` with reason `MISSED`.
 
+## Commercial breaks
+
+After a recording finishes, the server runs [Comskip](https://github.com/erikkaashoek/Comskip) on it, one recording at a time, to find its commercial breaks. Comskip is a separate GPL program the image installs from Ubuntu; the server only runs it. The breaks go on the recording as `breaks`, and as a Kodi EDL beside the file (`Show - S01E02 - Title.edl`, action 3, a commercial break), which Kodi and other EDL-aware players skip. `commercials` says how far it got: `scanning`, `done` (with no `breaks` when Comskip found none) or `failed`, which the log explains. A scan a restart interrupts runs again. Set `SOFA_COMSKIP` to the executable outside the image, or to `none` to turn the scan off. Deleting a recording deletes its EDL too.
+
+Comskip finds breaks by black frames, silence, the station logo, scene changes and aspect ratio. It misses some and marks some program as a break, more so on channels without a logo or with short or no black frames between ads; the file itself is never cut.
+
 ## Cleanup
 
 The DVR deletes finished recordings it no longer keeps, after every recording ends and every 30 minutes, as the `dvr-cull` job on the portal's Jobs page:
@@ -67,4 +73,4 @@ A protected recording is never deleted, nor is a scheduled or running one. Each 
 - A TS source recorded while someone watches the same channel opens a second connection to it.
 - Recordings need the guide: a channel without one cannot be recorded, and there is no manual time-based recording.
 - Cleanup runs after the fact: a recording that fills the disk while it runs is not stopped, and the next cleanup frees space only by deleting finished recordings.
-- No player in the app opens recordings yet.
+- No player in the app opens recordings yet, so nothing skips the breaks but players that read the EDL.

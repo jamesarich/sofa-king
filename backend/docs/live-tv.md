@@ -20,6 +20,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_MAX_SESSIONS` | `4` | Maximum active playback sessions, 1-16. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
 | `SOFA_RECORDINGS_FREE_GIB` | `10` | Free space, in GiB, the DVR keeps on the recordings folder's disk by deleting the oldest recordings, 0-100000; see [cleanup](recordings.md#cleanup). A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
 | `SOFA_RECORDINGS_KEEP_DAYS` | `0` | Days the DVR keeps a recording, 0-3650; `0` keeps it until space runs short. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
+| `SOFA_COMSKIP` | `comskip` | Comskip executable that finds [commercial breaks](recordings.md#commercial-breaks) in finished recordings; `none` turns the scan off. The image installs it |
 | `SOFA_FFMPEG` | `ffmpeg` | FFmpeg executable used by source probes and the HDHomeRun remux; FFprobe is looked for beside it, or on the path when this is a bare name |
 | `SOFA_MEDIA_DIR` | `SOFA_DATA_DIR/media` | The folder [media libraries](libraries.md) are added from. The server only reads it; mount it read only |
 | `SOFA_TMDB_TOKEN` | Unset | A [TMDB](https://www.themoviedb.org/settings/api) API read access token or v3 API key, at least 32 characters. With it, library scans [look up details and artwork](libraries.md#details-from-tmdb) for movies and shows |

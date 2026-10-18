@@ -10,6 +10,8 @@ import kotlinx.serialization.Serializable
  * to [endPaddingSeconds] after them. [state] is a [Wire.RecordingState] value and [reason] says why one failed.
  * [path] is relative to the recordings folder once the file exists. [conflict] marks a scheduled recording that
  * overlaps more recordings than the server has playback slots. [ruleId] names the series rule that scheduled it.
+ * [commercials] is a [Wire.CommercialScan] value once the server looks for commercial breaks, and [breaks] are the
+ * ones it found, in the order they play.
  */
 @Serializable data class Recording(
     val id: String,
@@ -36,7 +38,12 @@ import kotlinx.serialization.Serializable
     val conflict: Boolean = false,
     val positionMs: Long = 0,
     val watched: Boolean = false,
+    val commercials: String? = null,
+    val breaks: List<RecordingBreak> = emptyList(),
 )
+
+/** A commercial break in a recording, from [startMs] to [endMs] after the start of the file. */
+@Serializable data class RecordingBreak(val startMs: Long, val endMs: Long)
 
 /** The recordings folder's disk: what it holds free and in all, and what kept recordings use of it. */
 @Serializable data class RecordingStorage(val freeBytes: Long = 0, val totalBytes: Long = 0, val usedBytes: Long = 0)

@@ -111,9 +111,11 @@ private fun Shelves(shelves: List<MediaShelf>, libraries: List<MediaLibrary>, ac
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
         item(key = "chips") {
-            // Coming down from the tabs lands on Search first, then on the chip last left.
+            // Coming down from the tabs lands on Search, and back from a library or the search on its chip: focus
+            // requested inside the row enters through the restorer, so its fallback must be that chip.
+            val chipReturn = returnedFrom == SEARCH_FOCUS_KEY || returnedFrom?.startsWith(LIBRARY_FOCUS_PREFIX) == true
             LazyRow(
-                modifier = Modifier.focusRestorer(searchFocus),
+                modifier = Modifier.focusRestorer(if (chipReturn) returnFocus else searchFocus),
                 contentPadding = insets.horizontalOnly(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -160,7 +162,9 @@ private fun Shelf(shelf: MediaShelf, actions: LibraryHomeActions, insets: Paddin
 }
 
 /** What the home's `returnedFrom` holds for a library's chip, beside the items' own ids. */
-internal fun libraryFocusKey(libraryId: String): String = "library:$libraryId"
+internal fun libraryFocusKey(libraryId: String): String = LIBRARY_FOCUS_PREFIX + libraryId
+
+private const val LIBRARY_FOCUS_PREFIX = "library:"
 
 /** What the home's `returnedFrom` holds for the Search chip. */
 internal const val SEARCH_FOCUS_KEY = "search"

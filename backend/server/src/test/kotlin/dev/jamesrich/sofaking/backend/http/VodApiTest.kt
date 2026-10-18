@@ -256,4 +256,45 @@ class VodApiTest {
             assertTrue(runtime.vod!!.snapshot().isEmpty(), "Stop ends it")
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
     }
+
+    @Test fun `a whole playlist lists the item and converts from the segment a player asks for`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-vod-whole-")
+        clip(dir.resolve("media/movies/Long (2020)/Long (2020).mkv"))
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null)
+        val store = openStore(dir)
+        val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
+        try {
+            val library = runtime.libraries!!.create("Movies", LibraryKind.MOVIES, dir.resolve("media/movies").toString())
+            runtime.libraries!!.scan(library.id)
+            val item = runtime.libraries!!.catalog.items(library.id, null, false, null, 10).items.single()
+            application { backendModule(store, MutableClock(), runtime, token, config = config) }
+            suspend fun open(whole: Boolean, profile: ClientProfile = ClientProfile()) = json.decodeFromString<VodSession>(client.post("/api/v1/vod-sessions") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback(item.id, profile, startMs = 4_500, wholePlaylist = whole)))
+            }.bodyAsText())
+
+            val session = open(true)
+            assertEquals(Wire.VodMode.TRANSCODE, session.mode)
+            assertEquals(0, session.startMs, "the playlist starts at the item's start")
+            val base = session.descriptor.url.substringBeforeLast('/')
+            val playlist = client.get(session.descriptor.url).bodyAsText()
+            assertEquals(listOf("seg0.ts", "seg1.ts"), playlist.lines().filter { it.endsWith(".ts") }, playlist)
+            assertTrue(playlist.trimEnd().endsWith("#EXT-X-ENDLIST"))
+            val second = client.get("$base/seg1.ts")
+            assertEquals(HttpStatusCode.OK, second.status, "FFmpeg started at the segment holding startMs")
+            assertTrue(second.readRawBytes().isNotEmpty())
+            assertEquals(HttpStatusCode.OK, client.get("$base/seg0.ts").status, "a seek back converts from there")
+            assertEquals(HttpStatusCode.OK, client.get("$base/seg1.ts").status, "and a seek forward plays what is kept")
+            assertEquals(HttpStatusCode.NotFound, client.get("$base/seg2.ts").status, "past the end")
+            val renewed = json.decodeFromString<VodSession>(client.patch("/api/v1/vod-sessions/${session.id}") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"startMs":6000}""")
+            }.bodyAsText())
+            assertEquals(session.descriptor.url, renewed.descriptor.url, "a restart only renews a whole playlist")
+            client.delete("/api/v1/vod-sessions/${session.id}") { bearerAuth(token) }
+
+            val copied = open(true, ClientProfile(listOf("mp4"), listOf(item.let { runtime.libraries!!.catalog.item(it.id).videoCodec!! }), listOf("aac")))
+            assertEquals(4_500, copied.startMs, "a copy keeps the playlist that starts where asked")
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
 }

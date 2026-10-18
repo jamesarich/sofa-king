@@ -163,4 +163,9 @@ data class PlaybackProfile(
     val audioCodecs: List<String> = emptyList(),
     val maxHeight: Int? = null,
     val hdr: Boolean = false,
+    /**
+     * True for a player whose own scrubber cannot ask for a conversion to restart: the server then lists the whole
+     * item and converts from wherever it seeks.
+     */
+    val wholePlaylist: Boolean = false,
 )

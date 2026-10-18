@@ -78,6 +78,22 @@ class LibraryCatalogTest {
         assertTrue(pilot.subtitles.single().forced)
     }
 
+    @Test fun `Recently added breaks a tie from one scan by the newest file`() = runBlocking<Unit> {
+        val s = setup()
+        val old = s.root.file("movies/Alpha (2001)/Alpha (2001).mkv")
+        val new = s.root.file("movies/Zulu (2002)/Zulu (2002).mkv")
+        val middle = s.root.file("movies/Mike (2003)/Mike (2003).mkv")
+        Files.setLastModifiedTime(old, java.nio.file.attribute.FileTime.fromMillis(1_000_000_000_000))
+        Files.setLastModifiedTime(middle, java.nio.file.attribute.FileTime.fromMillis(1_500_000_000_000))
+        Files.setLastModifiedTime(new, java.nio.file.attribute.FileTime.fromMillis(1_700_000_000_000))
+        val library = s.service.create("Movies", LibraryKind.MOVIES, s.root.resolve("movies").toString()).also { s.service.scan(it.id) }
+        val catalog = s.service.catalog
+
+        val shelf = catalog.home().shelves.single { it.id == Wire.ShelfId.RECENT }
+        assertEquals(listOf("Zulu", "Mike", "Alpha"), shelf.items.map { it.title })
+        assertEquals(listOf("Zulu", "Mike", "Alpha"), catalog.items(library.id, "added", false, null, 100).items.map { it.title })
+    }
+
     @Test fun `play state follows the 5 and 90 percent rules and feeds Continue watching`() = runBlocking<Unit> {
         val s = setup()
         val library = s.shows()

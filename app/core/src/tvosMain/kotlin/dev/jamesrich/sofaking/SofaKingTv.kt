@@ -12,6 +12,9 @@ import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.RecordingMark
+import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.data.MediaItemDetail
@@ -194,6 +197,31 @@ class SofaKingTv {
     /** Playback of [recordingId] stopped at [positionMs]; saved now, watched near the end. */
     fun recordingStopped(recordingId: String, positionMs: Long, durationMs: Long) =
         recordings.stopped(recordingId, positionMs, durationMs.takeIf { it > 0 })
+
+    /** Which guide programmes are set to record, on their own or by a series rule. */
+    fun watchRecordingMarks(onChange: (RecordingMarks) -> Unit): Watch = watch(viewModel.recordings.marks, onChange)
+
+    /** Whether [programme] records, by [marks]. */
+    fun recordingMark(marks: RecordingMarks, programme: Programme): RecordingMark = marks.of(programme)
+
+    /** True until [programme] ends: only then can it still be recorded. */
+    fun recordable(programme: Programme): Boolean = programme.stop > Clock.System.now()
+
+    /** Records [programme], or cancels its recording; false when the server refused or could not be reached. */
+    @Throws(Exception::class)
+    suspend fun toggleRecording(programme: Programme): Boolean = viewModel.recordings.toggle(programme).also { recordings.refresh() }
+
+    /** Records every airing of [programme]'s title on its channel, or stops the series rule that takes it. */
+    @Throws(Exception::class)
+    suspend fun toggleSeries(programme: Programme): Boolean = viewModel.recordings.toggleSeries(programme).also { recordings.refresh() }
+
+    /** Sets whether [rule] takes new episodes only and how many recordings it keeps (0 for all). */
+    @Throws(Exception::class)
+    suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean = recordings.updateRule(rule, newOnly, keep)
+
+    /** Stops [rule]: it and the recordings it scheduled go, what it recorded stays. */
+    @Throws(Exception::class)
+    suspend fun deleteRule(rule: SeriesRule): Boolean = recordings.deleteRule(rule)
 
     /** Whether recordings jump over the commercial breaks the server found. */
     fun setSkipCommercials(enabled: Boolean) {

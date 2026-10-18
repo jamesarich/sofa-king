@@ -8,9 +8,11 @@ import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.RecordingSpace
+import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.UpdateRecordingDto
+import dev.jamesrich.sofaking.data.UpdateRecordingRuleDto
 import dev.jamesrich.sofaking.data.toModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -34,8 +36,8 @@ sealed interface RecordingsState {
     /** The server does not record, or is too old to. */
     data object Unavailable : RecordingsState
 
-    /** Every recording but cancelled ones, soonest scheduled first, then the rest newest first. */
-    data class Ready(val recordings: List<DvrRecording>, val space: RecordingSpace) : RecordingsState
+    /** Every recording but cancelled ones, soonest scheduled first, then the rest newest first, and the series rules, oldest first. */
+    data class Ready(val recordings: List<DvrRecording>, val space: RecordingSpace, val rules: List<SeriesRule> = emptyList()) : RecordingsState
     data class Failed(val message: String) : RecordingsState
 }
 
@@ -80,7 +82,8 @@ class RecordingsViewModel(
             if (_state.value !is RecordingsState.Ready) _state.value = RecordingsState.Loading
             _state.value = try {
                 val list = api.recordings()
-                RecordingsState.Ready(list.recordings.mapNotNull { it.toModel() }, RecordingSpace(list.storage.freeBytes, list.storage.totalBytes))
+                val rules = api.recordingRules().rules.map { it.toModel() }
+                RecordingsState.Ready(list.recordings.mapNotNull { it.toModel() }, RecordingSpace(list.storage.freeBytes, list.storage.totalBytes), rules)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: SofaKingException) {
@@ -115,6 +118,38 @@ class RecordingsViewModel(
             throw e
         } catch (e: Exception) {
             log.w { "deleting a recording failed: ${describe(e)}" }
+            false
+        }
+        refresh()
+        changed()
+        return done
+    }
+
+    /**
+     * Changes [rule]: whether it takes new episodes only, and how many recordings it keeps (0 for all). False when the
+     * server refused or could not be reached; the list reloads either way.
+     */
+    suspend fun updateRule(rule: SeriesRule, newOnly: Boolean = rule.newOnly, keep: Int = rule.keep): Boolean =
+        changeRule("changing a series rule") { api ->
+            val fresh = api.updateRecordingRule(rule.id, UpdateRecordingRuleDto(newOnly = newOnly, keep = keep)).toModel()
+            _state.update { state -> if (state is RecordingsState.Ready) state.copy(rules = state.rules.map { if (it.id == fresh.id) fresh else it }) else state }
+        }
+
+    /** Deletes [rule] and the recordings it scheduled; what it recorded stays. */
+    suspend fun deleteRule(rule: SeriesRule): Boolean = changeRule("deleting a series rule") { api ->
+        api.deleteRecordingRule(rule.id)
+        _state.update { state -> if (state is RecordingsState.Ready) state.copy(rules = state.rules.filterNot { it.id == rule.id }) else state }
+    }
+
+    private suspend fun changeRule(what: String, action: suspend (SofaKingApi) -> Unit): Boolean {
+        val api = api ?: return false
+        val done = try {
+            action(api)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.w { "$what failed: ${describe(e)}" }
             false
         }
         refresh()

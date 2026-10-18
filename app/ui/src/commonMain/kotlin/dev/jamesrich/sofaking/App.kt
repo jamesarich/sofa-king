@@ -674,6 +674,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                     onDelete = recordingsVm::delete,
                                     onRetry = recordingsVm::refresh,
                                     onBack = { openTab(Tab.LIVE) },
+                                    onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
+                                    onRuleDelete = recordingsVm::deleteRule,
                                 )
                             }
                             is Screen.LibraryGrid -> guideState.SaveableStateProvider("grid-${current.libraryId}") {

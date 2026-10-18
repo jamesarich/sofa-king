@@ -3,7 +3,8 @@ import SofaKingCore
 
 /// The Recordings tab: what is recording now, then what was recorded, newest first, then what is scheduled,
 /// soonest first. Selecting a recorded or running one plays it, resuming where the household stopped; holding
-/// select offers From start and Delete (Stop on a running one, Cancel on a scheduled one), which asks first.
+/// select offers From start and Delete (Stop on a running one, Cancel on a scheduled one), which asks first. The
+/// series rules follow, each with whether it takes repeats, how many recordings it keeps, and Stop series.
 struct RecordingsView: View {
     @Environment(AppModel.self) private var model
     @State private var playing: VodRequest?
@@ -98,6 +99,13 @@ struct RecordingsView: View {
                     }
                 }
             }
+            if !ready.rules.isEmpty {
+                Section("Series") {
+                    ForEach(ready.rules, id: \.id) { rule in
+                        SeriesRow(rule: rule) { failed = true }
+                    }
+                }
+            }
         }
     }
 
@@ -138,6 +146,54 @@ private struct RecordingRow: View {
         default:
             return nil
         }
+    }
+}
+
+/// One series rule: what it takes and keeps, with buttons that change them and Stop series, which asks first.
+private struct SeriesRow: View {
+    @Environment(AppModel.self) private var model
+    let rule: SeriesRule
+    let refused: () -> Void
+    @State private var stopping = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(rule.title).font(.headline).lineLimit(1)
+            Text(summary).font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 24) {
+                Button(rule.newOnly ? "Record repeats too" : "New episodes only") {
+                    change { try await model.core.updateRule(rule: rule, newOnly: !rule.newOnly, keep: rule.keep) }
+                }
+                Button("Keep: \(rule.keep == 0 ? "All" : String(rule.keep))") {
+                    change { try await model.core.updateRule(rule: rule, newOnly: rule.newOnly, keep: SeriesRow.nextKeep(rule.keep)) }
+                }
+                Button("Stop series", role: .destructive) { stopping = true }
+            }
+        }
+        .confirmationDialog("Stop recording \(rule.title)? What it recorded so far is kept.", isPresented: $stopping, titleVisibility: .visible) {
+            Button("Stop series", role: .destructive) { change { try await model.core.deleteRule(rule: rule) } }
+            Button("Keep it", role: .cancel) {}
+        }
+    }
+
+    /// "New episodes only · Keeps 5 · Any channel"
+    private var summary: String {
+        [
+            rule.newOnly ? "New episodes only" : "All airings",
+            rule.keep == 0 ? "Keeps all" : "Keeps \(rule.keep)",
+            rule.channelId == nil ? "Any channel" : nil,
+        ].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private func change(_ action: @escaping () async throws -> KotlinBoolean) {
+        Task {
+            if !((try? await action())?.boolValue ?? false) { refused() }
+        }
+    }
+
+    /// All, then 1, 3, 5 and 10, then all again, as the other apps step; a count set elsewhere goes to the next step above it.
+    static func nextKeep(_ keep: Int32) -> Int32 {
+        [1, 3, 5, 10].first { $0 > keep } ?? 0
     }
 }
 

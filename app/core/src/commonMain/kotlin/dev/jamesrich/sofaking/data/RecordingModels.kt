@@ -50,6 +50,14 @@ data class DvrRecording(
     val inProgress: Boolean get() = positionMs > 0 && !watched
 }
 
+/**
+ * A series rule: every airing of [title], on [channelId] or on any channel when null. [newOnly] skips repeats, and
+ * [keep] is how many finished recordings it keeps, newest first, 0 for all.
+ */
+data class SeriesRule(val id: String, val title: String, val channelId: String?, val newOnly: Boolean, val keep: Int)
+
+internal fun RecordingRuleDto.toModel() = SeriesRule(id, title, channelId, newOnly, keep)
+
 /** What the recordings folder's disk holds free and in all. */
 data class RecordingSpace(val freeBytes: Long, val totalBytes: Long)
 

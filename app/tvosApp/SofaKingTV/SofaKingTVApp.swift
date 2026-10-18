@@ -23,6 +23,8 @@ final class AppModel {
     private(set) var capabilities: ServerCapabilities?
     private(set) var libraryHome: LibraryHomeState = LibraryHomeStateLoading.shared
     private(set) var recordings: RecordingsState = RecordingsStateLoading.shared
+    /// Which guide programmes are set to record; empty on a server that does not record.
+    private(set) var recordingMarks: RecordingMarks?
     /// The library item the player shows, from whichever library page asked for it.
     var vod: VodRequest?
     /// Whether the one cold-start decision, opening the last channel, has been made.
@@ -54,6 +56,7 @@ final class AppModel {
         watches.append(core.watchCapabilities { [weak self] in self?.capabilities = $0 })
         watches.append(core.watchLibraryHome { [weak self] in self?.libraryHome = $0 })
         watches.append(core.watchRecordings { [weak self] in self?.recordings = $0 })
+        watches.append(core.watchRecordingMarks { [weak self] in self?.recordingMarks = $0 })
     }
 
     var lineup: Lineup? { (state as? LineupStateReady)?.lineup }

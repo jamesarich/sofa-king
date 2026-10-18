@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.RecordingSpace
 import dev.jamesrich.sofaking.data.RecordingState
+import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.apiError
 import dev.jamesrich.sofaking.data.json
@@ -40,7 +41,9 @@ class RecordingsViewModelTest {
 
     private class Server(scope: TestScope, val handler: suspend (String, String, String) -> Pair<Int, String>?) {
         val http = FakeHttp(scope) { request ->
-            handler(request.method, request.path, request.body)?.let { (status, body) -> json(body, status) } ?: apiError(404, "RESOURCE_NOT_FOUND")
+            // Every recording server has rules; a test that does not answer them sees none.
+            (handler(request.method, request.path, request.body) ?: ("""{"rules":[]}""".takeIf { request.method == "GET" && request.path == "/api/v1/recording-rules" }?.let { 200 to it }))
+                ?.let { (status, body) -> json(body, status) } ?: apiError(404, "RESOURCE_NOT_FOUND")
         }
         val requests get() = http.requests.map { it.toString() }
     }
@@ -76,6 +79,39 @@ class RecordingsViewModelTest {
         assertEquals(listOf(CommercialBreak(30_000, 90_000), CommercialBreak(900_000, 1_080_000)), first.breaks, "in order, empty ones dropped")
         assertEquals(RecordingState.OTHER, ready.recordings.last().state)
         assertFalse(ready.recordings.last().playable)
+        model.viewModelScope.cancel()
+    }
+
+    @Test
+    fun `series rules load with the list and change in place and stop and tell the guide each time`() = runTest {
+        var rules = """{"id":"s1","title":"Evening News","channelId":"c1","newOnly":true,"keep":0,"startPaddingSeconds":60,"endPaddingSeconds":120,"priority":0,"createdAt":"2026-10-18T00:00:00Z"}"""
+        var told = 0
+        val server = Server(this) { method, path, body ->
+            when {
+                method == "GET" && path == "/api/v1/recordings" -> 200 to """{"recordings":[]}"""
+                method == "GET" && path == "/api/v1/recording-rules" -> 200 to """{"rules":[$rules]}"""
+                method == "PATCH" && path == "/api/v1/recording-rules/s1" -> {
+                    rules = rules.replace("\"newOnly\":true", "\"newOnly\":false").replace("\"keep\":0", "\"keep\":3")
+                    200 to rules
+                }
+                method == "DELETE" && path == "/api/v1/recording-rules/s1" -> { rules = ""; 204 to "" }
+                else -> null
+            }
+        }
+        val model = viewModel(server, changed = { told++ })
+        runCurrent()
+
+        val rule = assertIs<RecordingsState.Ready>(model.state.value).rules.single()
+        assertEquals(SeriesRule("s1", "Evening News", "c1", newOnly = true, keep = 0), rule)
+        assertTrue(model.updateRule(rule, newOnly = false, keep = 3))
+        assertEquals("""PATCH /api/v1/recording-rules/s1 {"newOnly":false,"keep":3}""", server.requests.first { it.startsWith("PATCH") })
+        runCurrent()
+        assertEquals(SeriesRule("s1", "Evening News", "c1", newOnly = false, keep = 3), assertIs<RecordingsState.Ready>(model.state.value).rules.single())
+
+        assertTrue(model.deleteRule(rule))
+        runCurrent()
+        assertEquals(emptyList(), assertIs<RecordingsState.Ready>(model.state.value).rules)
+        assertEquals(2, told)
         model.viewModelScope.cancel()
     }
 

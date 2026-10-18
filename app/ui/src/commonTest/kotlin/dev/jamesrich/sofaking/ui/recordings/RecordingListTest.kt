@@ -51,4 +51,11 @@ class RecordingListTest {
         assertEquals("3 GB", formatBytes(3_000_000_000))
         assertEquals("12 TB", formatBytes(12_000_000_000_000))
     }
+
+    @Test
+    fun `the Keep button steps from all through 1 3 5 and 10 and back to all`() {
+        assertEquals(listOf(1, 3, 5, 10, 0), KEEP_STEPS.map(::nextKeep))
+        assertEquals(5, nextKeep(4), "a count set on the portal goes to the next step above it")
+        assertEquals(0, nextKeep(25))
+    }
 }

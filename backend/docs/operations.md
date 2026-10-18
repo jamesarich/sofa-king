@@ -11,7 +11,7 @@ The config folder holds everything the server keeps across restarts:
 | `backend.sqlite` (with `-wal` and `-shm` while running) | The lineup, guides and retained programs, source health and probe times, the lineup policy's station availability and change log, native provider device IDs and session tokens, the last Plex sync, the paired viewers and their preferences, the recordings, series rules and commercial breaks, the media libraries with their scanned items, TMDB matches and the household's watch progress, the portal's runtime settings and ignored home page items, and the server identity |
 | `logos/` | Cached lineup logos, one file per source URL |
 | `artwork/` | TMDB images for the media libraries, downloaded once; deleting it fetches them again as clients ask |
-| `transcode/` | The HLS output of library playback sessions, deleted when each session ends, and the text subtitles extracted from library files |
+| `transcode/` | The HLS output of library playback sessions, deleted when each session ends, and the subtitles extracted from library files |
 | `dvr/` | Comskip's working files while it scans a recording |
 | `recordings/` | The recordings, when `SOFA_RECORDINGS_DIR` is unset. Compose mounts its own `deploy/recordings` folder instead, as [the recordings folder](deploy.md#the-recordings-folder) describes |
 | `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand. The updater's fallback backups and its `failed-image` record are in `backups/` in the Compose directory instead |

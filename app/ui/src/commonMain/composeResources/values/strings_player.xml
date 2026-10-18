@@ -45,6 +45,11 @@
     <string name="vod_mode_transcode">Converted</string>
     <string name="vod_position_description">%1$s of %2$s</string>
     <string name="vod_break_skipped">Skipped a break</string>
+    <string name="vod_tracks_title">Audio and subtitles</string>
+    <string name="vod_tracks_subtitles">Subtitles</string>
+    <string name="vod_tracks_subtitles_off">Off</string>
+    <string name="vod_tracks_hint">Down for audio and subtitles</string>
+    <string name="vod_subtitles_failed">The subtitles did not load</string>
     <string name="vod_up_next">Up next</string>
     <string name="vod_up_next_in">Playing in %1$d s</string>
     <string name="vod_up_next_play">Play now</string>

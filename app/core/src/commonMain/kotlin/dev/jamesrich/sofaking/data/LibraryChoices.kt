@@ -51,5 +51,48 @@ fun seasonAfter(children: List<MediaItem>, seasonId: String): MediaItem? {
     return seasons.drop(at + 1).firstOrNull { it.season != 0 }
 }
 
+/** The subtitle tracks the server serves as text, which a player can draw; picture tracks (PGS, DVD) are left out. */
+fun textSubtitles(detail: MediaItemDetail): List<MediaTrackInfo> = detail.subtitles.filter { it.codec in TEXT_SUBTITLE_CODECS }
+
+/** The subtitles on when an item starts: a forced track, which carries only the dialogue the audio does not, else none. */
+fun initialSubtitle(detail: MediaItemDetail): MediaTrackInfo? = textSubtitles(detail).firstOrNull { it.forced }
+
+/** The audio track playing when none is picked: the file's default, else its first. */
+fun defaultAudio(detail: MediaItemDetail): MediaTrackInfo? = detail.audio.firstOrNull { it.default } ?: detail.audio.firstOrNull()
+
+/**
+ * A track as a picker lists it: its language and its own title, with an audio track's codec and channels, such as
+ * "English · Commentary · AC3 5.1". [number] names a track with nothing else to go by.
+ */
+fun trackLabel(track: MediaTrackInfo, number: Int): String {
+    val language = track.language?.lowercase()?.let { LANGUAGES[it] ?: it.uppercase() }
+    val title = track.title?.takeIf { it.isNotBlank() && !it.equals(language, ignoreCase = true) }
+    val format = track.channels?.let { channels ->
+        val layout = when (channels) {
+            1 -> "Mono"
+            2 -> "Stereo"
+            6 -> "5.1"
+            8 -> "7.1"
+            else -> "$channels ch"
+        }
+        "${track.codec.uppercase()} $layout"
+    }
+    val parts = listOfNotNull(language, title, format)
+    return if (parts.isEmpty()) "Track $number" else parts.joinToString(" · ")
+}
+
+/** Subtitle codecs the server converts to WebVTT. */
+private val TEXT_SUBTITLE_CODECS = setOf("subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text")
+
+/** English names for the ISO 639-2 codes files carry most. */
+private val LANGUAGES = mapOf(
+    "eng" to "English", "spa" to "Spanish", "fre" to "French", "fra" to "French", "ger" to "German", "deu" to "German",
+    "ita" to "Italian", "por" to "Portuguese", "jpn" to "Japanese", "chi" to "Chinese", "zho" to "Chinese",
+    "kor" to "Korean", "rus" to "Russian", "dut" to "Dutch", "nld" to "Dutch", "swe" to "Swedish", "nor" to "Norwegian",
+    "dan" to "Danish", "fin" to "Finnish", "pol" to "Polish", "tur" to "Turkish", "ara" to "Arabic", "hin" to "Hindi",
+    "heb" to "Hebrew", "gre" to "Greek", "ell" to "Greek", "cze" to "Czech", "ces" to "Czech", "hun" to "Hungarian",
+    "tha" to "Thai", "vie" to "Vietnamese", "ukr" to "Ukrainian", "und" to "Unknown",
+)
+
 /** The server's id for the row of items in progress and next episodes. */
 const val CONTINUE_SHELF = "continue"

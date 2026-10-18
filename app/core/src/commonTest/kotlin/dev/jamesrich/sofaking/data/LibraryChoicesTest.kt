@@ -53,4 +53,29 @@ class LibraryChoicesTest {
         assertNull(seasonAfter(seasons, "s2"))
         assertNull(seasonAfter(listOf(item("s1", ItemKind.SEASON, season = 1), item("s0", ItemKind.SEASON, season = 0)), "s1"))
     }
+
+    @Test
+    fun `pickers list text subtitles and start on a forced one`() {
+        val detail = MediaItemDetail(
+            item("m", ItemKind.MOVIE),
+            subtitles = listOf(
+                MediaTrackInfo(3, "hdmv_pgs_subtitle", "eng"),
+                MediaTrackInfo(4, "subrip", "eng"),
+                MediaTrackInfo(5, "subrip", "eng", forced = true),
+            ),
+            audio = listOf(MediaTrackInfo(1, "ac3", "eng", channels = 6), MediaTrackInfo(2, "aac", "spa", default = true, channels = 2)),
+        )
+        assertEquals(listOf(4, 5), textSubtitles(detail).map { it.index })
+        assertEquals(5, initialSubtitle(detail)?.index)
+        assertEquals(2, defaultAudio(detail)?.index)
+        assertNull(initialSubtitle(detail.copy(subtitles = emptyList())))
+    }
+
+    @Test
+    fun `a track label names its language title and format`() {
+        assertEquals("English · Commentary · AC3 5.1", trackLabel(MediaTrackInfo(1, "ac3", "eng", "Commentary", channels = 6), 1))
+        assertEquals("XYZ", trackLabel(MediaTrackInfo(3, "subrip", "xyz"), 1))
+        assertEquals("Spanish", trackLabel(MediaTrackInfo(3, "subrip", "spa", "Spanish"), 1), "a title repeating the language is dropped")
+        assertEquals("Track 2", trackLabel(MediaTrackInfo(3, "subrip"), 2))
+    }
 }

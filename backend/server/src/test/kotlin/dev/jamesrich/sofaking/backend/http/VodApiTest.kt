@@ -115,4 +115,51 @@ class VodApiTest {
             }.status)
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
     }
+
+    @Test fun `text subtitles come as WebVTT and a picked audio stream is never played directly`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-vod-subs-")
+        val source = dir.resolve("plain.mkv")
+        clip(source)
+        val srt = dir.resolve("subs.srt")
+        Files.writeString(srt, "1\n00:00:01,000 --> 00:00:03,000\nHello there\n\n2\n00:00:04,000 --> 00:00:06,500\n<i>Second</i> line\n")
+        val movie = dir.resolve("media/movies/Talk (2021)/Talk (2021).mkv")
+        Files.createDirectories(movie.parent)
+        // The clip's video, its audio twice and the subtitles: streams 0, 1, 2 and 3.
+        val mux = ProcessBuilder(
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", source.toString(), "-i", srt.toString(),
+            "-map", "0:v", "-map", "0:a", "-map", "0:a", "-map", "1:s", "-c", "copy", "-c:s", "srt", movie.toString(),
+        ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+        assertTrue(mux.waitFor(60, TimeUnit.SECONDS) && mux.exitValue() == 0, "FFmpeg muxed the subtitles")
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null, maxTranscodes = 1)
+        val store = openStore(dir)
+        val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
+        try {
+            val library = runtime.libraries!!.create("Movies", LibraryKind.MOVIES, dir.resolve("media/movies").toString())
+            runtime.libraries!!.scan(library.id)
+            val item = runtime.libraries!!.catalog.items(library.id, null, false, null, 10).items.single()
+            val detail = runtime.libraries!!.catalog.item(item.id)
+            assertEquals(listOf(3), detail.subtitles.map { it.index })
+            assertEquals(listOf(1, 2), detail.audio.map { it.index })
+            application { backendModule(store, MutableClock(), runtime, token, config = config) }
+
+            val subs = client.get("/api/v1/library/items/${item.id}/subtitles/3") { bearerAuth(token) }
+            assertEquals(HttpStatusCode.OK, subs.status)
+            assertEquals(ContentType.parse("text/vtt"), subs.contentType()?.withoutParameters())
+            val vtt = subs.bodyAsText()
+            assertTrue(vtt.startsWith("WEBVTT"), vtt)
+            assertTrue("00:01.000 --> 00:03.000" in vtt && "Hello there" in vtt, vtt)
+            assertEquals(vtt, client.get("/api/v1/library/items/${item.id}/subtitles/3") { bearerAuth(token) }.bodyAsText(), "the second read is the kept copy")
+            assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/library/items/${item.id}/subtitles/1") { bearerAuth(token) }.status, "stream 1 is audio")
+            assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/library/items/${item.id}/subtitles/3").status)
+
+            val video = detail.videoCodec!!
+            suspend fun open(audioIndex: Int?) = json.decodeFromString<VodSession>(client.post("/api/v1/vod-sessions") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback(item.id, ClientProfile(listOf("mkv"), listOf(video), listOf("aac")), audioIndex = audioIndex)))
+            }.bodyAsText())
+            assertEquals(Wire.VodMode.DIRECT, open(1).mode, "the default stream plays directly")
+            assertEquals(Wire.VodMode.REMUX, open(2).mode, "another stream is carried in the stream")
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
 }

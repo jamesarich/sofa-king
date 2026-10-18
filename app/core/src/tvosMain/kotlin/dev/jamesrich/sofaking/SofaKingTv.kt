@@ -12,6 +12,7 @@ import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.ServerCapabilities
+import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.data.onAppleTv
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
@@ -113,6 +114,15 @@ class SofaKingTv {
     /** Opens [item] on the session, from the start with [fromStart], else where the household stopped in it. */
     @Throws(Exception::class)
     suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream = library.play(item, appleTvProfile, fromStart)
+
+    /** Plays [item] again from [positionMs] with the audio track [audioIndex]. */
+    @Throws(Exception::class)
+    suspend fun switchItemAudio(item: MediaItem, positionMs: Long, audioIndex: Int): PlaybackStream =
+        library.switchAudio(item, appleTvProfile, positionMs, audioIndex)
+
+    /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
+    @Throws(Exception::class)
+    suspend fun subtitles(itemId: String, index: Int): Subtitles? = library.subtitles(itemId, index)
 
     /** The episode to offer when [item] ends, or null; see [LibraryViewModel.upNext]. */
     @Throws(Exception::class)

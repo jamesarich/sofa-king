@@ -65,7 +65,8 @@ fun Route.artworkRoutes(libraries: LibraryService) {
 }
 
 /**
- * Library playback: `/api/v1/vod-sessions` opens, renews, restarts and releases a session, and its media is under
+ * Library playback: `/api/v1/vod-sessions` opens, renews, restarts and releases a session, an item's text subtitles
+ * come as WebVTT from `/api/v1/library/items/{id}/subtitles/{index}`, and a session's media is under
  * `/media/vod/{id}/{epoch}/{secret}/{name}`, which takes no token: the secret in the path is the session's own.
  */
 fun Route.vodRoutes(vod: VodSessions) {
@@ -73,6 +74,12 @@ fun Route.vodRoutes(vod: VodSessions) {
     get("/api/v1/vod-sessions/{id}") { call.respond(vod.get(call.parameters["id"]!!)) }
     patch("/api/v1/vod-sessions/{id}") { call.respond(vod.update(call.parameters["id"]!!, call.appBody<UpdateVodPlayback>())) }
     delete("/api/v1/vod-sessions/{id}") { vod.release(call.parameters["id"]!!); call.respond(HttpStatusCode.NoContent) }
+    get("/api/v1/library/items/{id}/subtitles/{index}") {
+        val index = call.parameters["index"]?.toIntOrNull() ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "No such subtitle stream")
+        val file = vod.subtitles(call.parameters["id"]!!, index)
+        call.response.header(HttpHeaders.CacheControl, "private, max-age=3600")
+        call.respond(LocalPathContent(file, ContentType.parse("text/vtt; charset=utf-8")))
+    }
     route("/media/vod/{id}/{epoch}/{secret}/{name}") {
         // Direct play seeks with byte ranges; the HLS files are small and served whole.
         install(PartialContent)

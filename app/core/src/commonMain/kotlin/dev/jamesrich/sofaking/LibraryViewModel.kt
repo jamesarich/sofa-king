@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.SofaKingException
+import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.data.episodeAfter
 import dev.jamesrich.sofaking.data.seasonAfter
 import kotlinx.coroutines.CancellationException
@@ -250,6 +251,26 @@ class LibraryViewModel(
             throw e
         } catch (e: Exception) {
             log.w { "up next failed: ${describe(e)}" }
+            null
+        }
+    }
+
+    /**
+     * Plays [item] again from [positionMs] with the audio track [audioIndex], on the same terms as [play]; the
+     * player loads the new stream the sessions publish.
+     */
+    suspend fun switchAudio(item: MediaItem, profile: PlaybackProfile, positionMs: Long, audioIndex: Int): PlaybackStream =
+        sessions.play(item.id, profile, positionMs, audioIndex)
+
+    /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
+    suspend fun subtitles(itemId: String, index: Int): Subtitles? {
+        val repository = repository ?: return null
+        return try {
+            repository.subtitles(itemId, index)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.w { "subtitles failed: ${describe(e)}" }
             null
         }
     }

@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.data
 
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
@@ -135,6 +136,22 @@ class SofaKingApi(
         http.get(itemPath(id)).decode()
     }
 
+    /**
+     * Text subtitle track [index] of the item [id] as WebVTT. The server reads the whole file the first time, so the
+     * request may take minutes.
+     */
+    internal suspend fun librarySubtitles(id: String, index: Int): String = call {
+        http.get(itemPath(id) + "/subtitles/$index") {
+            timeout {
+                requestTimeoutMillis = SUBTITLE_TIMEOUT_MS
+                socketTimeoutMillis = SUBTITLE_TIMEOUT_MS
+            }
+        }.let { response ->
+            response.checkSuccess()
+            response.bodyAsText()
+        }
+    }
+
     /** Saves where the household stopped in [id], or marks it (a show or season: every episode in it) watched or not. */
     internal suspend fun updatePlayState(id: String, update: UpdatePlayStateDto): LibraryItemDto = call {
         http.put(itemPath(id) + "/play-state") { json(update) }.decode()
@@ -257,6 +274,9 @@ class SofaKingApi(
 
     private companion object {
         val JSON = ContentType.parse("application/json; charset=utf-8")
+
+        /** How long the first read of a subtitle track may take, as the server reads the whole file. */
+        const val SUBTITLE_TIMEOUT_MS = 5 * 60_000L
     }
 }
 

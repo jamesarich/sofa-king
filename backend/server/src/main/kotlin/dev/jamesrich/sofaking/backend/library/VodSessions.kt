@@ -38,6 +38,15 @@ private const val FMP4_INIT = "init.mp4"
 private val TS_VIDEO = setOf("h264", "hevc", "mpeg2video")
 private val TS_AUDIO = setOf("aac", "ac3", "eac3", "mp3", "mp2")
 
+/** Subtitle codecs FFmpeg converts to WebVTT; the others are pictures. */
+private val TEXT_SUBTITLES = setOf("subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text")
+
+/** Where extracted subtitles are kept, under the conversion directory. */
+private const val SUBTITLES = "subtitles"
+
+/** How long reading one subtitle stream out of a file may take. */
+private const val SUBTITLE_TIMEOUT_MINUTES = 10L
+
 /** How long FFmpeg waits for a growing recording to grow before it ends the stream. */
 private const val FOLLOW_TIMEOUT_MICROS = 60_000_000L
 
@@ -91,6 +100,7 @@ class VodSessions(
     private val sessions = HashMap<String, VodState>()
     private val mutex = Mutex()
     private val random = SecureRandom()
+    private val extracting = Mutex()
 
     /** Clears what an earlier run left behind and checks the hardware encoder, if one is set, can encode. */
     suspend fun start() {
@@ -101,8 +111,46 @@ class VodSessions(
     suspend fun open(request: OpenVodPlayback): VodSession {
         if (request.startMs < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
         request.recordingId?.let { return openRecording(it, request) }
+        val (item, file) = itemFile(request.itemId)
+        return start(request, item.record.id, null, file, growing = false, item.record.media, item.item.durationMs)
+    }
+
+    /**
+     * Text subtitle stream [index] of the library item [itemId] as WebVTT, in the item's time. FFmpeg extracts it the
+     * first time, which reads the whole file, and the copy under `subtitles/` serves after that until the file
+     * changes. A picture subtitle (PGS, DVD, DVB) has no text, so it is refused.
+     */
+    suspend fun subtitles(itemId: String, index: Int): Path {
+        val (item, file) = itemFile(itemId)
+        val track = item.record.media?.subtitles?.firstOrNull { it.index == index }
+            ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "No subtitle stream $index")
+        if (track.codec !in TEXT_SUBTITLES) throw ApiFailure(415, "SUBTITLE_NOT_TEXT", "Subtitle stream $index is pictures, not text")
+        val dir = directory.resolve(SUBTITLES)
+        return extracting.withLock {
+            withContext(Dispatchers.IO) {
+                val stamp = "${Files.getLastModifiedTime(file).toMillis()}-${Files.size(file)}"
+                val name = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest("$itemId/$index/$stamp".toByteArray())).take(32)
+                val out = dir.resolve("$name.vtt")
+                if (!Files.isRegularFile(out)) {
+                    Files.createDirectories(dir)
+                    val partial = dir.resolve("$name.part")
+                    val command = listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", file.toString(), "-map", "0:$index", "-c:s", "webvtt", "-f", "webvtt", partial.toString())
+                    if (!runs(command, SUBTITLE_TIMEOUT_MINUTES)) {
+                        Files.deleteIfExists(partial)
+                        throw ApiFailure(502, "SUBTITLE_FAILED", "The subtitles could not be read from the file")
+                    }
+                    Files.move(partial, out, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                    prune(dir)
+                }
+                out
+            }
+        }
+    }
+
+    /** The library item [itemId] and its file, which must be a movie, episode or video inside its library's folder. */
+    private suspend fun itemFile(itemId: String): Pair<View, Path> {
         val snapshot = catalog.snapshot()
-        val view = snapshot.views[request.itemId] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
+        val view = snapshot.views[itemId] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
         val relative = view.record.path?.takeIf { view.record.kind != ItemKind.SHOW && view.record.kind != ItemKind.SEASON }
             ?: throw ApiFailure(400, "INVALID_REQUEST", "Only a movie, episode or video plays")
         val library = snapshot.libraries.firstOrNull { it.id == view.record.libraryId } ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
@@ -111,7 +159,7 @@ class VodSessions(
         if (!file.startsWith(root) || withContext(Dispatchers.IO) { !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) }) {
             throw ApiFailure(404, "ITEM_MISSING", "The file is not there; is its disk mounted?")
         }
-        return start(request, view.record.id, null, file, growing = false, view.record.media, view.item.durationMs)
+        return view to file
     }
 
     /** Plays a recording; one still recording is never played directly, as its stream has to follow the file. */
@@ -256,6 +304,27 @@ class VodSessions(
 
         fun sameSecret(a: String, b: String) = MessageDigest.isEqual(a.toByteArray(), b.toByteArray())
 
+        /** The extracted subtitle files kept; the oldest go first. */
+        const val SUBTITLES_KEPT = 200
+
+        fun prune(dir: Path) {
+            val files = Files.list(dir).use { paths -> paths.filter { it.fileName.toString().endsWith(".vtt") }.toList() }
+            if (files.size <= SUBTITLES_KEPT) return
+            files.sortedBy { Files.getLastModifiedTime(it) }.take(files.size - SUBTITLES_KEPT).forEach { runCatching { Files.deleteIfExists(it) } }
+        }
+
+        fun runs(command: List<String>, minutes: Long): Boolean = try {
+            val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+            if (!process.waitFor(minutes, TimeUnit.MINUTES)) {
+                process.destroyForcibly()
+                false
+            } else {
+                process.exitValue() == 0
+            }
+        } catch (_: IOException) {
+            false
+        }
+
         fun clear(dir: Path) {
             if (!Files.isDirectory(dir)) return
             Files.walk(dir).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach { runCatching { Files.deleteIfExists(it) } } }
@@ -286,11 +355,13 @@ private fun directType(media: MediaInfo?): String = when (containerOf(media?.con
 /**
  * How to play [media] on a client with [profile]: as it is when the client takes its container and codecs, else the
  * streams copied into HLS, else the video copied and the audio converted, else both converted. [audio] is the
- * stream the viewer picked; direct play leaves the choice to the player.
+ * stream the viewer picked; a pick other than the file's default is never played directly, since the players start
+ * on the default and the stream has to carry the pick.
  */
 internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStream? = null): String {
     val video = media?.video ?: return Wire.VodMode.TRANSCODE
-    val track = audio ?: media.audio.firstOrNull { it.default } ?: media.audio.firstOrNull()
+    val default = media.audio.firstOrNull { it.default } ?: media.audio.firstOrNull()
+    val track = audio ?: default
     val videoFits = video.codec in profile.videoCodecs &&
         (profile.maxHeight?.let { (video.height ?: 0) <= it } ?: true) && (video.transfer == null || profile.hdr)
     val audioFits = track == null || track.codec in profile.audioCodecs
@@ -299,7 +370,7 @@ internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStre
     val containerFits = (container in profile.containers && !(container == "mp4" && video.codec == "hevc" && video.tag == "hev1")) ||
         (container == "mkv" && "webm" in profile.containers && video.codec in setOf("vp8", "vp9", "av1"))
     return when {
-        videoFits && audioFits && containerFits -> Wire.VodMode.DIRECT
+        videoFits && audioFits && containerFits && track?.index == default?.index -> Wire.VodMode.DIRECT
         videoFits && video.codec in TS_VIDEO && (track == null || (audioFits && track.codec in TS_AUDIO)) -> Wire.VodMode.REMUX
         videoFits && video.codec in TS_VIDEO -> Wire.VodMode.AUDIO
         else -> Wire.VodMode.TRANSCODE

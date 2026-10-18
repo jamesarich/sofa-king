@@ -64,6 +64,7 @@ import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.SofaKingException
+import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.InputKind
@@ -107,6 +108,8 @@ fun VodPlayerScreen(
     /** What plays after this item, asked for when it ends; null ends as [onEnded] says. */
     upNext: suspend () -> VodUpNext? = { null },
     onPlayNext: () -> Unit = {},
+    /** The audio and subtitle tracks to pick from; none hides the picker. */
+    tracks: VodTracks = VodTracks(),
 ) {
     val held by sessions.current.collectAsStateWithLifecycle()
     val stream = held?.takeIf { it.itemId != null }
@@ -126,6 +129,11 @@ fun VodPlayerScreen(
     var skippedToast by remember { mutableStateOf(false) }
     var ended by remember { mutableStateOf(false) }
     var next by remember { mutableStateOf<VodUpNext?>(null) }
+    var tracksOpen by remember { mutableStateOf(false) }
+    var audioTrack by remember { mutableStateOf(tracks.initialAudio) }
+    var subtitleTrack by remember { mutableStateOf(tracks.initialSubtitle) }
+    var subtitles by remember { mutableStateOf<Subtitles?>(null) }
+    var subtitlesFailed by remember { mutableStateOf(false) }
     var nextSecondsLeft by remember { mutableIntStateOf(UP_NEXT_SECONDS) }
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
     val scope = rememberCoroutineScope()
@@ -263,6 +271,21 @@ fun VodPlayerScreen(
             }
         }
     }
+    // The picked subtitle track's cues, read once per pick; a track the server cannot give turns them off.
+    LaunchedEffect(subtitleTrack) {
+        subtitles = null
+        val index = subtitleTrack ?: return@LaunchedEffect
+        subtitles = tracks.loadSubtitles(index)
+        if (subtitles == null) {
+            subtitleTrack = null
+            subtitlesFailed = true
+        }
+    }
+    LaunchedEffect(subtitlesFailed) {
+        if (!subtitlesFailed) return@LaunchedEffect
+        delay(TOAST_MS)
+        subtitlesFailed = false
+    }
     LaunchedEffect(skippedToast) {
         if (!skippedToast) return@LaunchedEffect
         delay(TOAST_MS)
@@ -327,7 +350,26 @@ fun VodPlayerScreen(
         }
     }
 
+    fun pickAudio(index: Int) {
+        tracksOpen = false
+        if (index == audioTrack) return
+        audioTrack = index
+        player.stop()
+        scope.launch {
+            try {
+                tracks.selectAudio(index, positionMs)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.w { "vod: audio switch failed: ${e.message}" }
+                failure = (e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE
+            }
+        }
+    }
+
     fun handleKeyEvent(event: KeyEvent): Boolean {
+        // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
+        if (tracksOpen) return false
         if (next != null) {
             // With the Up next card up, OK and play/pause play it now; Back leaves through the BackHandler.
             if (event.key !in UP_NEXT_PLAY_KEYS) return false
@@ -354,7 +396,12 @@ fun VodPlayerScreen(
             }
             VodAction.PLAY -> if (!player.playWhenReady) togglePause()
             VodAction.PAUSE -> if (player.playWhenReady) togglePause()
-            VodAction.SHOW_INFO -> if (overlayVisible && !paused && event.key == Key.Info) overlayVisible = false else showOverlay()
+            VodAction.SHOW_INFO -> when {
+                // Down on the bar opens the Audio and subtitles card.
+                event.key == Key.DirectionDown && overlayVisible && tracks.pickable && failure == null -> tracksOpen = true
+                overlayVisible && !paused && event.key == Key.Info -> overlayVisible = false
+                else -> showOverlay()
+            }
         }
         return true
     }
@@ -362,7 +409,10 @@ fun VodPlayerScreen(
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     BackHandler {
-        if (scrubTarget != null) {
+        if (tracksOpen) {
+            tracksOpen = false
+            focus.requestFocus()
+        } else if (scrubTarget != null) {
             scrub.cancel()
             scrubTarget = null
         } else {
@@ -396,7 +446,11 @@ fun VodPlayerScreen(
             AnimatedVisibility(skippedToast, enter = PopIn, exit = PopOut) {
                 StatusPill(stringResource(Res.string.vod_break_skipped))
             }
+            AnimatedVisibility(subtitlesFailed, enter = PopIn, exit = PopOut) {
+                StatusPill(stringResource(Res.string.vod_subtitles_failed))
+            }
         }
+        subtitles?.let { cues -> cues.textAt(positionMs)?.let { SubtitleText(it, raised = overlayVisible) } }
         failure?.let { FailureCard(it) }
         next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit) }
 
@@ -431,6 +485,9 @@ fun VodPlayerScreen(
                     Spacer(Modifier.weight(1f))
                     durationText?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
+                if (tracks.pickable && !pointerDriven) {
+                    Text(stringResource(Res.string.vod_tracks_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 if (pointerDriven) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
                         ControlIcon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(Res.string.vod_control_back), { seekItem(positionMs - 10_000L); showOverlay() })
@@ -445,9 +502,15 @@ fun VodPlayerScreen(
                             )
                         }
                         ControlIcon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(Res.string.vod_control_forward), { seekItem(positionMs + 30_000L); showOverlay() })
+                        if (tracks.pickable) {
+                            ControlIcon(PlayerIcons.ClosedCaption, stringResource(Res.string.vod_tracks_title), { tracksOpen = !tracksOpen })
+                        }
                     }
                 }
             }
+        }
+        if (tracksOpen) {
+            TracksCard(tracks, audioTrack, subtitleTrack, onAudio = { pickAudio(it); focus.requestFocus() }, onSubtitle = { subtitleTrack = it; tracksOpen = false; focus.requestFocus() })
         }
     }
 }

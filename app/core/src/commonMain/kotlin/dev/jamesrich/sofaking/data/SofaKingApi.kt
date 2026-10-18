@@ -207,6 +207,11 @@ class SofaKingApi(
         http.post("recording-rules") { json(request) }.decode()
     }
 
+    /** Changes a series rule; the server schedules again from it. */
+    internal suspend fun updateRecordingRule(id: String, update: UpdateRecordingRuleDto): RecordingRuleDto = call {
+        http.patch("recording-rules/" + id.encodeURLPathPart()) { json(update) }.decode()
+    }
+
     /** Deletes a series rule and the recordings it scheduled; the ones it already made stay. */
     internal suspend fun deleteRecordingRule(id: String) = call {
         http.delete("recording-rules/" + id.encodeURLPathPart()).checkSuccess()

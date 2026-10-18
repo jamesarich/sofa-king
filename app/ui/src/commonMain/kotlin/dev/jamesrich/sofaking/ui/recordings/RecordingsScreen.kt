@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.RecordingsState
 import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.RecordingState
+import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.MessageScreen
@@ -48,7 +49,8 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * The server's recordings in three groups: running now, recorded, and scheduled. A recorded or running one plays
  * with [onPlay] (resuming where the household stopped unless `fromStart`); [onDelete] stops, cancels or deletes one
- * after a second press confirms it. [skipCommercials] is the setting the player follows.
+ * after a second press confirms it. [skipCommercials] is the setting the player follows. The series rules follow the
+ * recordings: [onRuleChange] sets whether one takes repeats and how many it keeps, and [onRuleDelete] stops one.
  */
 @Composable
 fun RecordingsScreen(
@@ -59,6 +61,8 @@ fun RecordingsScreen(
     onDelete: suspend (DvrRecording) -> Boolean,
     onRetry: () -> Unit,
     onBack: () -> Unit,
+    onRuleChange: suspend (rule: SeriesRule, newOnly: Boolean, keep: Int) -> Boolean = { _, _, _ -> false },
+    onRuleDelete: suspend (SeriesRule) -> Boolean = { false },
 ) {
     BackHandler(onBack = onBack)
     when (state) {
@@ -66,7 +70,7 @@ fun RecordingsScreen(
         RecordingsState.Unconfigured -> MessageScreen(stringResource(Res.string.unconfigured), hint = stringResource(Res.string.unconfigured_hint))
         RecordingsState.Unavailable -> MessageScreen(stringResource(Res.string.recordings_unavailable))
         is RecordingsState.Failed -> MessageScreen(stringResource(Res.string.load_failed), detail = state.message, onRetry = onRetry)
-        is RecordingsState.Ready -> RecordingList(state, skipCommercials, onSkipCommercialsChanged, onPlay, onDelete)
+        is RecordingsState.Ready -> RecordingList(state, skipCommercials, onSkipCommercialsChanged, onPlay, onDelete, onRuleChange, onRuleDelete)
     }
 }
 
@@ -77,6 +81,8 @@ private fun RecordingList(
     onSkipCommercialsChanged: (Boolean) -> Unit,
     onPlay: (DvrRecording, Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
+    onRuleChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
+    onRuleDelete: suspend (SeriesRule) -> Boolean,
 ) {
     val time = rememberTimeFormatter()
     val groups = remember(state.recordings) { recordingGroups(state.recordings) }
@@ -123,8 +129,88 @@ private fun RecordingList(
                 RecordingRow(recording, time, onPlay, onDelete, if (recording.id == firstId) Modifier.focusRequester(firstFocus) else Modifier)
             }
         }
+        if (state.rules.isNotEmpty()) {
+            item(key = "series") {
+                Text(stringResource(Res.string.recordings_series), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+            }
+            items(state.rules, key = { "rule-${it.id}" }) { rule -> SeriesRow(rule, onRuleChange, onRuleDelete) }
+        }
     }
 }
+
+/** One series rule: its title and what it takes and keeps, with buttons that change them and one that stops it. */
+@Composable
+private fun SeriesRow(
+    rule: SeriesRule,
+    onChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
+    onDelete: suspend (SeriesRule) -> Boolean,
+) {
+    val scope = rememberCoroutineScope()
+    var confirming by remember(rule.id) { mutableStateOf(false) }
+    var busy by remember(rule.id) { mutableStateOf(false) }
+    var failed by remember(rule.id) { mutableStateOf(false) }
+    // Buttons stay enabled while the server answers, as the recording rows do, so the D-pad focus never drops.
+    fun run(action: suspend () -> Boolean) {
+        if (busy) return
+        busy = true
+        failed = false
+        scope.launch {
+            failed = !action()
+            busy = false
+        }
+    }
+    Column(Modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(rule.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            seriesSummary(rule),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Row(
+            modifier = Modifier.padding(top = 4.dp).focusGroup().onFocusChanged { if (!it.hasFocus) confirming = false },
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SofaButton(onClick = { run { onChange(rule, !rule.newOnly, rule.keep) } }) {
+                Text(stringResource(if (rule.newOnly) Res.string.recordings_series_take_all else Res.string.recordings_series_take_new))
+            }
+            SofaButton(onClick = { run { onChange(rule, rule.newOnly, nextKeep(rule.keep)) } }) {
+                val count = if (rule.keep == 0) stringResource(Res.string.recordings_series_keep_all_short) else rule.keep.toString()
+                Text(stringResource(Res.string.recordings_series_keep_button, count))
+            }
+            SofaButton(onClick = {
+                if (!confirming) {
+                    confirming = true
+                    failed = false
+                } else {
+                    confirming = false
+                    run { onDelete(rule) }
+                }
+            }) {
+                Text(stringResource(if (confirming) Res.string.recordings_series_confirm_stop else Res.string.recordings_series_stop))
+            }
+        }
+        if (failed) {
+            Text(stringResource(Res.string.recordings_change_failed), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+/** What a rule takes and keeps, such as "New episodes only · Keeps 5 · Any channel". */
+@Composable
+private fun seriesSummary(rule: SeriesRule): String = listOfNotNull(
+    stringResource(if (rule.newOnly) Res.string.recordings_series_new_only else Res.string.recordings_series_all_airings),
+    if (rule.keep == 0) stringResource(Res.string.recordings_series_keep_all) else stringResource(Res.string.recordings_series_keeps, rule.keep),
+    stringResource(Res.string.recordings_series_any_channel).takeIf { rule.channelId == null },
+).joinToString(" · ")
+
+/** The keep counts the Keep button steps through, all first. */
+internal val KEEP_STEPS = listOf(0, 1, 3, 5, 10)
+
+/** The keep count after [keep]: the next step up, back to all after the last; a count set elsewhere goes to the next step above it. */
+internal fun nextKeep(keep: Int): Int = KEEP_STEPS.firstOrNull { it > keep } ?: 0
 
 @Composable
 private fun RecordingRow(

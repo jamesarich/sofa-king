@@ -22,6 +22,18 @@
     <string name="recordings_confirm_stop">Stop recording?</string>
     <string name="recordings_confirm_cancel">Cancel recording?</string>
     <string name="recordings_change_failed">The server did not take that change. Try again.</string>
+    <string name="recordings_series">Series</string>
+    <string name="recordings_series_new_only">New episodes only</string>
+    <string name="recordings_series_all_airings">All airings</string>
+    <string name="recordings_series_any_channel">Any channel</string>
+    <string name="recordings_series_keep_all">Keeps all</string>
+    <string name="recordings_series_keeps">Keeps %1$d</string>
+    <string name="recordings_series_take_all">Record repeats too</string>
+    <string name="recordings_series_take_new">New episodes only</string>
+    <string name="recordings_series_keep_button">Keep: %1$s</string>
+    <string name="recordings_series_keep_all_short">All</string>
+    <string name="recordings_series_stop">Stop series</string>
+    <string name="recordings_series_confirm_stop">Stop series?</string>
     <string name="recordings_skip_commercials">Skip commercials</string>
     <string name="recordings_skip_commercials_help">Playback jumps over the breaks the server found in a recording.</string>
 </resources>

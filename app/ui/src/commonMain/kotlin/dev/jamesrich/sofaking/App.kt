@@ -41,6 +41,8 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.ItemKind
+import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.LogoMark
@@ -55,6 +57,8 @@ import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
+import dev.jamesrich.sofaking.ui.player.VodPlayerScreen
+import dev.jamesrich.sofaking.ui.player.VodTitle
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -122,6 +126,9 @@ private sealed interface Screen {
     /** [scope] is the guide filter the channel was picked from, which Up and Down stay in. */
     @Serializable
     data class Player(val guideId: String, @Transient val scope: ZapScope? = null) : Screen
+    /** A library item full screen; [fromStart] plays it from the beginning even when it is in progress. */
+    @Serializable
+    data class Vod(val itemId: String, val fromStart: Boolean = false) : Screen
     @Serializable
     data object Settings : Screen
     /** The channel manager behind Settings. */
@@ -142,6 +149,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val loading by vm.loading.collectAsStateWithLifecycle()
     val pairingBusy by vm.pairing.collectAsStateWithLifecycle()
     val update by vm.update.collectAsStateWithLifecycle()
+    val libraryVm = viewModel { LibraryViewModel(vm.api, vm.sessions) }
     var screen by rememberSerializable { mutableStateOf<Screen>(Screen.Guide()) }
     val pairingScope = rememberCoroutineScope()
     // Why the last pairing attempt failed; Settings shows it until the next attempt.
@@ -199,9 +207,11 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val channelGone = stringResource(Res.string.channel_gone)
     // The server replaced the stream under the held session (new epoch, or a session it dropped and the app
-    // reopened): the player reopens the item it holds for that channel at the new URL, metadata intact.
+    // reopened): the player reopens the item it holds for that channel at the new URL, metadata intact. A library
+    // item's new stream may start elsewhere in it, so its own screen loads it and seeks.
     LaunchedEffect(sessions, player) {
         sessions.replaced.collect { stream ->
+            if (stream.itemId != null) return@collect
             lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
                 if (player.currentChannelId != stream.channelId || player.currentStreamUrl == stream.url) return@withStateAtLeast
                 captionSync.effectiveUs = captionSync.advanceUs
@@ -220,7 +230,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         if (playback != null) player.setPlaybackPreferences(playback)
     }
     // Only the full screen asks for a display mode: the guide's preview zaps too often for a set that blanks on each switch.
-    MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && screen is Screen.Player)
+    MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && (screen is Screen.Player || screen is Screen.Vod))
     // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
     // the server, so it releases the session outright rather than keeping it to reopen.
     LaunchedEffect(screen) {
@@ -231,21 +241,22 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                 player.stop()
                 sessions.release(forget = true)
             }
-            is Screen.Player -> Unit
+            is Screen.Player, is Screen.Vod -> Unit
             // Reached from Settings, which already stopped the stream.
             Screen.Channels, Screen.StartupChannel -> Unit
         }
     }
     // Stopped, not paused: the TV's one hardware decoder and the server's session go free while another app is
     // in front. The item and playWhenReady survive; on return a fresh session is opened for the same channel
-    // and intent and the item is prepared at its URL, at the live edge or still paused.
+    // and intent and the item is prepared at its URL, at the live edge or still paused. A library item's screen
+    // reopens it itself, where it was.
     val currentScreen by rememberUpdatedState(screen)
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         player.stop()
         sessions.releaseAsync()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (!currentScreen.isSettings && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
+        if (!currentScreen.isSettings && currentScreen !is Screen.Vod && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
             captionSync.effectiveUs = captionSync.advanceUs
             scope.launch { resume(player, sessions) }
         }
@@ -369,6 +380,27 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
             } else {
                 LaunchedEffect(Unit) { screen = Screen.Guide() }
             }
+            is Screen.Vod -> {
+                val detail by remember(current.itemId) { libraryVm.detail(current.itemId) }.collectAsStateWithLifecycle()
+                val item = (detail as? ItemDetailState.Ready)?.detail?.item
+                when {
+                    item != null -> VodPlayerScreen(
+                        title = item.vodTitle(),
+                        player = player,
+                        sessions = sessions,
+                        open = { libraryVm.play(item, player.playbackProfile, current.fromStart) },
+                        onPosition = { position, duration -> libraryVm.progress(item.id, position, duration) },
+                        onStopped = { position, duration -> libraryVm.stopped(item.id, position, duration) },
+                        onExit = { screen = Screen.Guide() },
+                    )
+                    detail is ItemDetailState.Failed -> MessageScreen(
+                        message = stringResource(Res.string.load_failed),
+                        detail = (detail as ItemDetailState.Failed).message,
+                        onRetry = { libraryVm.detail(current.itemId, refresh = true) },
+                    )
+                    else -> MessageScreen(stringResource(Res.string.loading), loading = true)
+                }
+            }
             // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
             is Screen.Guide -> guideState.SaveableStateProvider("guide") {
                 Column {
@@ -425,6 +457,15 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
             }
         }
     }
+}
+
+/** What the player shows for a library item: an episode under its show and number, a movie with its year. */
+private fun MediaItem.vodTitle(): VodTitle {
+    val subtitle = when (kind) {
+        ItemKind.EPISODE -> listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null }
+        else -> year?.toString()
+    }
+    return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster)
 }
 
 /** Back in front: a fresh session for the channel and intent released on stop, at the URL the player holds for it. */

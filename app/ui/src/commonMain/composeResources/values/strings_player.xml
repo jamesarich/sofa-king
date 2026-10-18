@@ -36,4 +36,13 @@
     <string name="player_control_captions">Captions</string>
     <string name="player_control_pause">Pause</string>
     <string name="player_control_play">Play</string>
+    <string name="vod_starting">Starting</string>
+    <string name="vod_control_back">Back 10 seconds</string>
+    <string name="vod_control_forward">Forward 30 seconds</string>
+    <string name="vod_mode_direct">Direct play</string>
+    <string name="vod_mode_remux">Repackaged</string>
+    <string name="vod_mode_audio">Audio converted</string>
+    <string name="vod_mode_transcode">Converted</string>
+    <string name="vod_position_description">%1$s of %2$s</string>
+    <string name="vod_break_skipped">Skipped a break</string>
 </resources>

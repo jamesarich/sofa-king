@@ -78,10 +78,11 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
     val focus = remember { FocusRequester() }
     val focusId = returnedFrom ?: grid?.items?.firstOrNull()?.id
     val hasItems = grid?.items?.isNotEmpty() == true
-    // Focus goes to the grid once, on arrival; a new sort or filter leaves it on the chip that changed it.
+    // Focus goes to the grid on arrival and back on the card whose page the viewer left; a new sort or filter
+    // leaves it on the chip that changed it.
     var focused by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(hasItems) {
-        if (hasItems && !focused) {
+    LaunchedEffect(hasItems, returnedFrom) {
+        if (hasItems && (!focused || returnedFrom != null)) {
             focused = true
             requestFocusWhenAttached(focus)
         }

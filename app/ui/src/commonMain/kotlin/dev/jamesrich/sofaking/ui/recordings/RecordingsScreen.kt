@@ -87,7 +87,8 @@ private fun RecordingList(
     val time = rememberTimeFormatter()
     val groups = remember(state.recordings) { recordingGroups(state.recordings) }
     val firstFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { requestFocusWhenAttached(firstFocus) }
+    // The first recording takes focus; with none, focus stays on the header's tab.
+    LaunchedEffect(groups.isEmpty()) { if (groups.isNotEmpty()) requestFocusWhenAttached(firstFocus) }
     LazyColumn(
         // The app's header sits above, with the tabs, so the list pads the sides and bottom only.
         modifier = Modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
@@ -102,15 +103,6 @@ private fun RecordingList(
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }
-        }
-        item(key = "skip") {
-            ToggleRow(
-                label = stringResource(Res.string.recordings_skip_commercials),
-                checked = skipCommercials,
-                onCheckedChange = onSkipCommercialsChanged,
-                help = stringResource(Res.string.recordings_skip_commercials_help),
-                modifier = if (groups.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier,
-            )
         }
         if (groups.isEmpty()) {
             item(key = "empty") {
@@ -134,6 +126,15 @@ private fun RecordingList(
                 Text(stringResource(Res.string.recordings_series), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
             }
             items(state.rules, key = { "rule-${it.id}" }) { rule -> SeriesRow(rule, onRuleChange, onRuleDelete) }
+        }
+        // A playback preference, so it follows the content rather than taking the page's first focus.
+        item(key = "skip") {
+            ToggleRow(
+                label = stringResource(Res.string.recordings_skip_commercials),
+                checked = skipCommercials,
+                onCheckedChange = onSkipCommercialsChanged,
+                help = stringResource(Res.string.recordings_skip_commercials_help),
+            )
         }
     }
 }

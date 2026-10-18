@@ -27,6 +27,7 @@ import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.SettingsPin
 import dev.jamesrich.sofaking.data.SettingsStore
+import dev.jamesrich.sofaking.data.TrackChoice
 import dev.jamesrich.sofaking.data.UpdateChecker
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.data.SofaKingApi
@@ -397,6 +398,9 @@ class LineupViewModel(
     fun setZapSkipsHidden(enabled: Boolean) = viewModelScope.launch { store.setZapSkipsHidden(enabled) }
 
     fun setSkipCommercials(enabled: Boolean) = viewModelScope.launch { store.setSkipCommercials(enabled) }
+
+    /** Keeps the tracks picked in the show [showId] for its next episodes. */
+    fun setTrackChoice(showId: String, choice: TrackChoice) = viewModelScope.launch { store.setTrackChoice(showId, choice) }
 
     fun setFavoritesOrder(order: List<String>) = viewModelScope.launch { store.setFavoritesOrder(order) }
 

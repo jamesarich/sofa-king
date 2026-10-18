@@ -56,6 +56,7 @@ class DataStoreSettingsStore(
                 hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
                 zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
                 skipCommercials = prefs[SKIP_COMMERCIALS] ?: false,
+                trackChoices = trackChoices(prefs),
                 favoritesOrder = prefs[FAVORITES_ORDER].orEmpty().split(SEPARATOR).filter { it.isNotEmpty() }.distinct(),
                 playback = PlaybackPreferences(
                     matchFrameRate = prefs[MATCH_FRAME_RATE] ?: false,
@@ -171,6 +172,19 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[SKIP_COMMERCIALS] = enabled }
     }
 
+    override suspend fun setTrackChoice(showId: String, choice: TrackChoice) {
+        dataStore.edit { prefs ->
+            val kept = (listOf(showId to choice) + trackChoices(prefs).filterKeys { it != showId }.toList()).take(TrackChoice.KEPT)
+            prefs[TRACK_CHOICES] = kept.joinToString("\n") { (id, c) -> "$id$SEPARATOR${c.encode()}" }
+        }
+    }
+
+    private fun trackChoices(prefs: Preferences): Map<String, TrackChoice> =
+        prefs[TRACK_CHOICES].orEmpty().lines().mapNotNull { line ->
+            val id = line.substringBefore(SEPARATOR, "").ifEmpty { return@mapNotNull null }
+            TrackChoice.decode(line.substringAfter(SEPARATOR))?.let { id to it }
+        }.toMap()
+
     override suspend fun setFavoritesOrder(order: List<String>) {
         dataStore.edit { prefs -> prefs[FAVORITES_ORDER] = order.distinct().joinToString(SEPARATOR.toString()) }
     }
@@ -271,6 +285,7 @@ class DataStoreSettingsStore(
         val ZAP_SKIPS_HIDDEN = booleanPreferencesKey("zap_skips_hidden")
         val SKIP_COMMERCIALS = booleanPreferencesKey("skip_commercials")
         val FAVORITES_ORDER = stringPreferencesKey("favorites_order")
+        val TRACK_CHOICES = stringPreferencesKey("track_choices")
         val MATCH_FRAME_RATE = booleanPreferencesKey("match_frame_rate")
         val DECODER = stringPreferencesKey("decoder")
         val CHANNEL_DECODER = stringSetPreferencesKey("channel_decoder")

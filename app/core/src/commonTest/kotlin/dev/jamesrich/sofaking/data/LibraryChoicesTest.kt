@@ -75,6 +75,27 @@ class LibraryChoicesTest {
     }
 
     @Test
+    fun `the tracks picked in a show start its next episode by language`() {
+        val detail = MediaItemDetail(
+            item("e", ItemKind.EPISODE),
+            audio = listOf(MediaTrackInfo(1, "aac", "eng", default = true), MediaTrackInfo(2, "aac", "jpn")),
+            subtitles = listOf(
+                MediaTrackInfo(3, "subrip", "eng", forced = true),
+                MediaTrackInfo(4, "hdmv_pgs_subtitle", "eng"),
+                MediaTrackInfo(1000, "subrip", "en"),
+            ),
+        )
+        val choice = trackChoice(detail, audioIndex = 2, subtitleIndex = 1000)
+        assertEquals(TrackChoice("jpn", subtitles = true, subtitleLanguage = "en"), choice)
+        assertEquals(2, initialAudio(detail, choice)?.index)
+        assertEquals(1000, initialSubtitle(detail, choice)?.index, "a full track in the language, text before pictures")
+        assertEquals(1, initialAudio(detail, null)?.index)
+        assertEquals(3, initialSubtitle(detail, TrackChoice(subtitles = false))?.index, "off still shows forced dialogue")
+        assertEquals(1, initialAudio(detail, TrackChoice("kor"))?.index, "a language the file lacks falls back to the default")
+        assertEquals(TrackChoice("eng"), trackChoice(detail, audioIndex = 1, subtitleIndex = null))
+    }
+
+    @Test
     fun `a track label names its language title and format`() {
         assertEquals("English · Commentary · AC3 5.1", trackLabel(MediaTrackInfo(1, "ac3", "eng", "Commentary", channels = 6), 1))
         assertEquals("XYZ", trackLabel(MediaTrackInfo(3, "subrip", "xyz"), 1))

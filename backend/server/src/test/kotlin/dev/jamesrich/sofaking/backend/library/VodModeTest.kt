@@ -110,6 +110,24 @@ class VodModeTest {
         assertTrue(graph2.startsWith("[0:v:0]null[base];[1:s:0]null[sub]"), graph2)
     }
 
+    @Test fun `a whole playlist lists every segment and FFmpeg numbers and times them from where it starts`() {
+        val playlist = wholePlaylist(9_500)
+        assertEquals(listOf("seg0.ts", "seg1.ts", "seg2.ts"), playlist.lines().filter { it.endsWith(".ts") })
+        assertTrue("#EXTINF:4.000,\nseg0.ts" in playlist && "#EXTINF:1.500,\nseg2.ts" in playlist && playlist.endsWith("#EXT-X-ENDLIST\n"), playlist)
+        assertTrue("#EXT-X-PLAYLIST-TYPE:VOD" in playlist)
+        assertEquals(2, segmentCount(8_000))
+        assertEquals(2, segmentCount(8_021), "a sliver past the last segment joins it")
+        assertTrue("#EXTINF:4.021,\nseg1.ts" in wholePlaylist(8_021))
+        assertEquals(1, segmentCount(300))
+
+        val command = vodCommand("ffmpeg", Path.of("/m/a.mkv"), Path.of("/t/s"), Wire.VodMode.TRANSCODE, 12_000, media("matroska,webm", "h264", "aac"), null, firstSegment = 3)
+        assertEquals("12.000", command[command.indexOf("-ss") + 1])
+        assertEquals("12.000", command[command.indexOf("-output_ts_offset") + 1])
+        assertEquals("3", command[command.indexOf("-start_number") + 1])
+        assertEquals("/t/s/ffmpeg.m3u8", command.last(), "the server's own playlist stays as written")
+        assertFalse("-avoid_negative_ts" in command)
+    }
+
     @Test fun `a hardware encoder that cannot encode falls back to software`() = runTest {
         assertEquals(HardwareAccel.NONE, VideoEncoder(HardwareAccel.VAAPI).verified("ffmpeg") { false }.accel)
         assertEquals(HardwareAccel.VAAPI, VideoEncoder(HardwareAccel.VAAPI).verified("ffmpeg") { true }.accel)

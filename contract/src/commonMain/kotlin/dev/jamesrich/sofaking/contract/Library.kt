@@ -98,7 +98,9 @@ import kotlinx.serialization.Serializable
 /**
  * `POST /api/v1/vod-sessions`: play the movie, episode or video [itemId], or the recording [recordingId], from
  * [startMs], with the audio stream whose index is [audioIndex] (the file's default when null). [subtitleIndex] names
- * a picture subtitle track the server draws into the picture, which converts the stream.
+ * a picture subtitle track the server draws into the picture, which converts the stream. With [wholePlaylist] a
+ * converted item comes as a playlist of the whole item that seeks anywhere, as a player that cannot ask for a restart
+ * needs: its session's [VodSession.startMs] is 0, and the player seeks to [startMs] itself.
  */
 @Serializable data class OpenVodPlayback(
     val itemId: String = "",
@@ -107,6 +109,7 @@ import kotlinx.serialization.Serializable
     val audioIndex: Int? = null,
     val recordingId: String? = null,
     val subtitleIndex: Int? = null,
+    val wholePlaylist: Boolean = false,
 )
 
 /** `PATCH /api/v1/vod-sessions/{id}`: renew the lease, and with [startMs] restart a converted stream there. */

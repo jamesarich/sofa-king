@@ -6,7 +6,9 @@ import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.PgsFixture
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.*
+import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.submitForm
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.testing.testApplication
@@ -212,6 +214,87 @@ class VodApiTest {
             }
             assertEquals(HttpStatusCode.BadRequest, open(1001).status, "text is drawn by the player")
             assertEquals(HttpStatusCode.NotFound, open(7).status)
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
+    @Test fun `a video with no picture shows a frame and the portal lists what plays from the libraries`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-vod-portal-")
+        val admin = "admin".repeat(8)
+        val episode = dir.resolve("media/tv/Show (2020)/Season 01/Show - S01E01 - Pilot.mkv")
+        clip(episode)
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, adminToken = admin, hdhr = HdhrConfig(enabled = false), updateImage = null)
+        val store = openStore(dir)
+        val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
+        try {
+            assertEquals(listOf("Media", "Recordings"), runtime.libraries!!.roots.map { it.label }, "recordings can be a library too")
+            val library = runtime.libraries!!.create("TV", LibraryKind.SHOWS, dir.resolve("media/tv").toString())
+            runtime.libraries!!.scan(library.id)
+            val show = runtime.libraries!!.catalog.items(library.id, null, false, null, 10).items.single()
+            val season = runtime.libraries!!.catalog.item(show.id).children.single()
+            val pilot = runtime.libraries!!.catalog.item(season.id).children.single()
+            application { backendModule(store, MutableClock(), runtime, token, admin, config = config) }
+
+            val still = client.get(pilot.poster!!)
+            assertEquals(HttpStatusCode.OK, still.status)
+            assertEquals(ContentType.Image.JPEG, still.contentType())
+            val bytes = still.readRawBytes()
+            assertTrue(bytes.size > 100 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte(), "a JPEG of the frame")
+            assertEquals(pilot.poster!!.substringBefore('?').replace("poster", "backdrop"), pilot.backdrop!!.substringBefore('?'), "the frame is its backdrop too")
+            assertNull(show.poster, "a show has no frame of its own")
+
+            client.post("/api/v1/vod-sessions") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback(pilot.id, ClientProfile())))
+            }
+            val browser = createClient { install(HttpCookies); followRedirects = false }
+            browser.submitForm("/admin/login", parameters { append("token", admin) })
+            val home = browser.get("/admin").bodyAsText()
+            assertTrue("Show · S1E1 · Pilot" in home && "transcode" in home, "Watching now lists the episode being converted")
+            val id = runtime.vod!!.snapshot().single().id
+            val csrf = Regex("""name="csrf" value="([^"]*)"""").find(home)!!.groupValues[1]
+            assertEquals(HttpStatusCode.SeeOther, browser.submitForm("/admin/vod/$id/stop", parameters { append("csrf", csrf) }).status)
+            assertTrue(runtime.vod!!.snapshot().isEmpty(), "Stop ends it")
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `a whole playlist lists the item and converts from the segment a player asks for`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-vod-whole-")
+        clip(dir.resolve("media/movies/Long (2020)/Long (2020).mkv"))
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null)
+        val store = openStore(dir)
+        val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
+        try {
+            val library = runtime.libraries!!.create("Movies", LibraryKind.MOVIES, dir.resolve("media/movies").toString())
+            runtime.libraries!!.scan(library.id)
+            val item = runtime.libraries!!.catalog.items(library.id, null, false, null, 10).items.single()
+            application { backendModule(store, MutableClock(), runtime, token, config = config) }
+            suspend fun open(whole: Boolean, profile: ClientProfile = ClientProfile()) = json.decodeFromString<VodSession>(client.post("/api/v1/vod-sessions") {
+                bearerAuth(token); contentType(ContentType.Application.Json)
+                setBody(Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback(item.id, profile, startMs = 4_500, wholePlaylist = whole)))
+            }.bodyAsText())
+
+            val session = open(true)
+            assertEquals(Wire.VodMode.TRANSCODE, session.mode)
+            assertEquals(0, session.startMs, "the playlist starts at the item's start")
+            val base = session.descriptor.url.substringBeforeLast('/')
+            val playlist = client.get(session.descriptor.url).bodyAsText()
+            assertEquals(listOf("seg0.ts", "seg1.ts"), playlist.lines().filter { it.endsWith(".ts") }, playlist)
+            assertTrue(playlist.trimEnd().endsWith("#EXT-X-ENDLIST"))
+            val second = client.get("$base/seg1.ts")
+            assertEquals(HttpStatusCode.OK, second.status, "FFmpeg started at the segment holding startMs")
+            assertTrue(second.readRawBytes().isNotEmpty())
+            assertEquals(HttpStatusCode.OK, client.get("$base/seg0.ts").status, "a seek back converts from there")
+            assertEquals(HttpStatusCode.OK, client.get("$base/seg1.ts").status, "and a seek forward plays what is kept")
+            assertEquals(HttpStatusCode.NotFound, client.get("$base/seg2.ts").status, "past the end")
+            val renewed = json.decodeFromString<VodSession>(client.patch("/api/v1/vod-sessions/${session.id}") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"startMs":6000}""")
+            }.bodyAsText())
+            assertEquals(session.descriptor.url, renewed.descriptor.url, "a restart only renews a whole playlist")
+            client.delete("/api/v1/vod-sessions/${session.id}") { bearerAuth(token) }
+
+            val copied = open(true, ClientProfile(listOf("mp4"), listOf(item.let { runtime.libraries!!.catalog.item(it.id).videoCodec!! }), listOf("aac")))
+            assertEquals(4_500, copied.startMs, "a copy keeps the playlist that starts where asked")
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
     }
 }

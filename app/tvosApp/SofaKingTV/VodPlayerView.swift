@@ -109,8 +109,10 @@ struct VodPlayerView: View {
                 detailWatch = model.core.watchItem(id: item.id) { state in
                     guard let ready = state as? ItemDetailStateReady else { return }
                     if detail == nil {
-                        audioIndex = LibraryChoicesKt.defaultAudio(detail: ready.detail).map { $0.index }
-                        subtitleIndex = LibraryChoicesKt.initialSubtitle(detail: ready.detail).map { $0.index }
+                        // The tracks picked in this show start its episodes, as playItem opened the stream with them.
+                        let choice = model.core.trackChoice(item: item)
+                        audioIndex = LibraryChoicesKt.initialAudio(detail: ready.detail, choice: choice).map { $0.index }
+                        subtitleIndex = LibraryChoicesKt.initialSubtitle(detail: ready.detail, choice: choice).map { $0.index }
                     }
                     detail = ready.detail
                 }
@@ -291,6 +293,7 @@ struct VodPlayerView: View {
     private func pickAudio(_ index: Int32) {
         guard index != audioIndex else { return }
         audioIndex = index
+        rememberTracks()
         restream()
     }
 
@@ -299,7 +302,14 @@ struct VodPlayerView: View {
         guard index != subtitleIndex else { return }
         let picture = index.map(isPicture) == true || subtitleIndex.map(isPicture) == true
         subtitleIndex = index
+        rememberTracks()
         if picture { restream() }
+    }
+
+    /// Keeps the picked tracks for the show, so its next episodes start with them.
+    private func rememberTracks() {
+        guard let item = request.libraryItem, let detail else { return }
+        model.core.rememberTracks(item: item, detail: detail, audioIndex: audioIndex ?? -1, subtitleIndex: subtitleIndex ?? -1)
     }
 
     /// True when subtitle track `index` is pictures (PGS, DVD), which the server draws into the picture.

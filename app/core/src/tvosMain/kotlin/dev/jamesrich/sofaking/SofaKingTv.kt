@@ -17,7 +17,12 @@ import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.MediaItemDetail
+import dev.jamesrich.sofaking.data.TrackChoice
+import dev.jamesrich.sofaking.data.defaultAudio
+import dev.jamesrich.sofaking.data.initialAudio
 import dev.jamesrich.sofaking.data.initialSubtitle
+import dev.jamesrich.sofaking.data.trackChoice
 import dev.jamesrich.sofaking.data.isPictureSubtitle
 import dev.jamesrich.sofaking.data.onAppleTv
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -123,14 +128,27 @@ class SofaKingTv {
     fun setWatched(item: MediaItem, watched: Boolean) = library.setWatched(item, watched)
 
     /**
-     * Opens [item] on the session, from the start with [fromStart], else where the household stopped in it, with its
-     * forced picture subtitles drawn in when [initialSubtitle] picks them.
+     * Opens [item] on the session, from the start with [fromStart], else where the household stopped in it, with the
+     * tracks [initialAudio] and [initialSubtitle] pick: an audio track other than the default, and picture subtitles
+     * drawn in.
      */
     @Throws(Exception::class)
     suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream {
-        val detail = withTimeoutOrNull(DETAIL_WAIT_MS) { library.detail(item.id).first { it !is ItemDetailState.Loading } }
-        val forced = (detail as? ItemDetailState.Ready)?.detail?.let(::initialSubtitle)?.takeIf(::isPictureSubtitle)
-        return library.play(item, appleTvProfile, fromStart, subtitleIndex = forced?.index)
+        val state = withTimeoutOrNull(DETAIL_WAIT_MS) { library.detail(item.id).first { it !is ItemDetailState.Loading } }
+        val detail = (state as? ItemDetailState.Ready)?.detail
+        val choice = trackChoice(item)
+        val audio = detail?.let { initialAudio(it, choice) }?.takeIf { it.index != detail.let(::defaultAudio)?.index }
+        val picture = detail?.let { initialSubtitle(it, choice) }?.takeIf(::isPictureSubtitle)
+        return library.play(item, appleTvProfile, fromStart, audio?.index, picture?.index)
+    }
+
+    /** The tracks the viewer picked in [item]'s show, which its episodes start with; null for none or a movie. */
+    fun trackChoice(item: MediaItem): TrackChoice? = item.showId?.let { viewModel.settings.value?.trackChoices?.get(it) }
+
+    /** Keeps the audio track [audioIndex] and subtitle track [subtitleIndex] (negative for none) for [item]'s show. */
+    fun rememberTracks(item: MediaItem, detail: MediaItemDetail, audioIndex: Int, subtitleIndex: Int) {
+        val show = item.showId ?: return
+        viewModel.setTrackChoice(show, trackChoice(detail, audioIndex.takeIf { it >= 0 }, subtitleIndex.takeIf { it >= 0 }))
     }
 
     /**
@@ -251,7 +269,8 @@ class SofaKingTv {
 
         /**
          * What AVPlayer plays as it is, as the iOS app asks for: H.264 and HEVC tagged `hvc1` in MP4, which the
-         * server copies HEVC into for HLS, and HDR10 and HLG, which an Apple TV 4K shows and tone-maps otherwise.
+         * server copies HEVC into for HLS, and HDR10 and HLG, which an Apple TV 4K shows and tone-maps otherwise. The
+         * system scrubber seeks only within the playlist, so a converted item comes as a playlist of all of it.
          */
         val appleTvProfile = PlaybackProfile(
             containers = listOf("mp4"),
@@ -259,6 +278,7 @@ class SofaKingTv {
             audioCodecs = listOf("aac", "ac3", "eac3", "mp3", "alac", "flac"),
             maxHeight = 2160,
             hdr = true,
+            wholePlaylist = true,
         )
     }
 }

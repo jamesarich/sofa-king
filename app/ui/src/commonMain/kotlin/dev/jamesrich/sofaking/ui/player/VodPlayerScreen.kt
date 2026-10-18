@@ -371,6 +371,7 @@ fun VodPlayerScreen(
         tracksOpen = false
         if (index == audioTrack) return
         audioTrack = index
+        tracks.onPicked(audioTrack, subtitleTrack)
         reopenWithTracks()
     }
 
@@ -380,6 +381,7 @@ fun VodPlayerScreen(
         if (index == subtitleTrack) return
         val restream = tracks.isPicture(index) || tracks.isPicture(subtitleTrack)
         subtitleTrack = index
+        tracks.onPicked(audioTrack, subtitleTrack)
         if (restream) reopenWithTracks()
     }
 

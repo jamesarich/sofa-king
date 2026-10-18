@@ -141,6 +141,19 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `the tracks picked in a show are kept per show and the newest pick replaces the last`() = runTest {
+        val store = newStore()
+        assertTrue(store.settings.first().trackChoices.isEmpty())
+        store.setTrackChoice("show-a", TrackChoice("jpn", subtitles = true, subtitleLanguage = "eng"))
+        store.setTrackChoice("show-b", TrackChoice(subtitles = false))
+        store.setTrackChoice("show-a", TrackChoice("eng"))
+        val kept = store.settings.first().trackChoices
+        assertEquals(TrackChoice("eng"), kept["show-a"])
+        assertEquals(TrackChoice(), kept["show-b"])
+        assertEquals(listOf("show-a", "show-b"), kept.keys.toList(), "most recent first")
+    }
+
+    @Test
     fun `the favorites order is kept and an unstarred channel leaves it`() = runTest {
         val store = newStore()
         store.toggleFavorite("a")

@@ -22,6 +22,9 @@ import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger(LibraryArtwork::class.java)
 
+/** How long taking one frame may run. */
+private const val FRAME_SECONDS = 30L
+
 /** A TMDB image path as its API returns one: a slash, then letters, digits, `_` or `-`, and an image extension. */
 private val TMDB_IMAGE_PATH = Regex("""/[A-Za-z0-9_-]{1,128}\.(jpg|jpeg|png|webp)""")
 
@@ -37,6 +40,8 @@ class LibraryArtwork(
     private val directory: Path,
     private val tmdbImages: String = "https://image.tmdb.org/t/p",
     private val maxBytes: Int = 8 * 1024 * 1024,
+    /** FFmpeg, which takes a frame for a file with no picture; null takes none. */
+    private val ffmpeg: String? = null,
 ) {
     private val locks = ConcurrentHashMap<String, Mutex>()
 
@@ -44,6 +49,47 @@ class LibraryArtwork(
     suspend fun image(source: ArtSource): Artwork? = when (source) {
         is ArtSource.Local -> local(source)
         is ArtSource.Tmdb -> tmdb(source)
+        is ArtSource.Frame -> frame(source)
+    }
+
+    /** A JPEG of the video's frame, 640 wide, taken once and kept beside the TMDB images. */
+    private suspend fun frame(source: ArtSource.Frame): Artwork? {
+        val ffmpeg = ffmpeg ?: return null
+        val video = source.root.resolve(source.relative).normalize()
+        if (!video.startsWith(source.root.normalize())) return null
+        val key = "frame-" + hash(source.toString())
+        val file = directory.resolve(key)
+        if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return Artwork(file, "image/jpeg")
+        return locks.computeIfAbsent(key) { Mutex() }.withLock {
+            try {
+                withContext(Dispatchers.IO) {
+                    if (Files.isRegularFile(file)) return@withContext Artwork(file, "image/jpeg")
+                    if (!Files.isRegularFile(video, LinkOption.NOFOLLOW_LINKS)) return@withContext null
+                    Files.createDirectories(directory)
+                    val partial = directory.resolve("$key.part.jpg")
+                    val seconds = "%.3f".format(java.util.Locale.ROOT, source.atMs / 1000.0)
+                    val command = listOf(
+                        ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", seconds, "-i", video.toString(),
+                        "-map", "0:v:0", "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", partial.toString(),
+                    )
+                    val made = try {
+                        val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+                        if (!process.waitFor(FRAME_SECONDS, java.util.concurrent.TimeUnit.SECONDS)) { process.destroyForcibly(); false } else process.exitValue() == 0
+                    } catch (_: java.io.IOException) {
+                        false
+                    }
+                    if (!made || !Files.isRegularFile(partial) || Files.size(partial) == 0L) {
+                        Files.deleteIfExists(partial)
+                        log.info("artwork frame failed")
+                        return@withContext null
+                    }
+                    Files.move(partial, file, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                    Artwork(file, "image/jpeg")
+                }
+            } finally {
+                locks.remove(key)
+            }
+        }
     }
 
     private suspend fun local(source: ArtSource.Local): Artwork? = withContext(Dispatchers.IO) {

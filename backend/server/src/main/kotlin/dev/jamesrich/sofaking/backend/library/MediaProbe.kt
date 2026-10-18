@@ -36,6 +36,8 @@ data class VideoStream(
     val pixelFormat: String? = null, val frameRate: Double? = null, val bitDepth: Int? = null,
     /** `smpte2084` (HDR10) or `arib-std-b67` (HLG) when the stream is HDR; null for SDR. */
     val transfer: String? = null,
+    /** The codec tag, such as `hvc1` or `hev1` for HEVC in MP4; null when the file has none. */
+    val tag: String? = null,
 )
 
 @Serializable
@@ -101,6 +103,7 @@ internal fun parseProbe(text: String): MediaInfo? {
             frameRate = s.str("avg_frame_rate")?.let(::rate) ?: s.str("r_frame_rate")?.let(::rate),
             bitDepth = s.int("bits_per_raw_sample"),
             transfer = s.str("color_transfer")?.takeIf { it == "smpte2084" || it == "arib-std-b67" },
+            tag = s.str("codec_tag_string")?.takeUnless { it.startsWith("[") },
         )
     }
     val audio = streams.filter { it.str("codec_type") == "audio" }.map { s ->

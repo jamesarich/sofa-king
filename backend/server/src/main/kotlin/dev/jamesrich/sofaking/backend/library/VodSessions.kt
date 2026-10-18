@@ -31,6 +31,9 @@ private val log = LoggerFactory.getLogger(VodSessions::class.java)
 /** The HLS segment length FFmpeg cuts to, in seconds. */
 private const val SEGMENT_SECONDS = 4
 
+/** The init segment of a fragmented MP4 stream. */
+private const val FMP4_INIT = "init.mp4"
+
 /** Codecs an MPEG-TS segment carries as they are; anything else is converted for HLS. */
 private val TS_VIDEO = setOf("h264", "hevc", "mpeg2video")
 private val TS_AUDIO = setOf("aac", "ac3", "eac3", "mp3", "mp2")
@@ -83,13 +86,17 @@ class VodSessions(
     private val lease: Duration = Duration.ofMinutes(5),
     private val recordings: (suspend (String) -> PlayableFile?)? = null,
     private val probe: suspend (Path) -> MediaInfo? = { null },
+    private var encoder: VideoEncoder = VideoEncoder(),
 ) {
     private val sessions = HashMap<String, VodState>()
     private val mutex = Mutex()
     private val random = SecureRandom()
 
-    /** Clears what an earlier run left behind. */
-    suspend fun start() = withContext(Dispatchers.IO) { clear(directory) }
+    /** Clears what an earlier run left behind and checks the hardware encoder, if one is set, can encode. */
+    suspend fun start() {
+        withContext(Dispatchers.IO) { clear(directory) }
+        encoder = encoder.verified(ffmpeg)
+    }
 
     suspend fun open(request: OpenVodPlayback): VodSession {
         if (request.startMs < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
@@ -181,9 +188,10 @@ class VodSessions(
         }
         val dir = directory.resolve(state.id)
         return when {
-            name == "index.m3u8" -> waitFor(state, epoch) { Files.isRegularFile(dir.resolve(name)) && Files.isRegularFile(dir.resolve("seg0.ts")) }
+            name == "index.m3u8" -> waitFor(state, epoch) { Files.isRegularFile(dir.resolve(name)) && Files.isRegularFile(dir.resolve(firstSegment(state))) }
                 ?.let { VodMedia(dir.resolve(name), "application/vnd.apple.mpegurl") }
             SEGMENT.matches(name) -> waitFor(state, epoch) { Files.isRegularFile(dir.resolve(name)) }?.let { VodMedia(dir.resolve(name), "video/mp2t") }
+            FMP4_SEGMENT.matches(name) || name == FMP4_INIT -> waitFor(state, epoch) { Files.isRegularFile(dir.resolve(name)) }?.let { VodMedia(dir.resolve(name), "video/mp4") }
             else -> null
         }
     }
@@ -212,7 +220,7 @@ class VodSessions(
         val dir = directory.resolve(state.id)
         clear(dir)
         Files.createDirectories(dir)
-        val command = vodCommand(ffmpeg, state.file, dir, state.mode, state.startMs, state.media, state.audioIndex, follow = state.growing)
+        val command = vodCommand(ffmpeg, state.file, dir, state.mode, state.startMs, state.media, state.audioIndex, follow = state.growing, encoder = encoder)
         state.process = try {
             ProcessBuilder(command).redirectErrorStream(true).redirectOutput(dir.resolve("ffmpeg.log").toFile()).start()
         } catch (e: IOException) {
@@ -242,6 +250,9 @@ class VodSessions(
 
     private companion object {
         val SEGMENT = Regex("seg[0-9]{1,6}\\.ts")
+        val FMP4_SEGMENT = Regex("seg[0-9]{1,6}\\.m4s")
+
+        fun firstSegment(state: VodState) = if (fragmentedMp4(state.mode, state.media)) "seg0.m4s" else "seg0.ts"
 
         fun sameSecret(a: String, b: String) = MessageDigest.isEqual(a.toByteArray(), b.toByteArray())
 
@@ -284,7 +295,9 @@ internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStre
         (profile.maxHeight?.let { (video.height ?: 0) <= it } ?: true) && (video.transfer == null || profile.hdr)
     val audioFits = track == null || track.codec in profile.audioCodecs
     val container = containerOf(media.container)
-    val containerFits = container in profile.containers || (container == "mkv" && "webm" in profile.containers && video.codec in setOf("vp8", "vp9", "av1"))
+    // HEVC tagged `hev1` in MP4 plays on Android but not in AVPlayer; the remux retags it `hvc1`, which plays on both.
+    val containerFits = (container in profile.containers && !(container == "mp4" && video.codec == "hevc" && video.tag == "hev1")) ||
+        (container == "mkv" && "webm" in profile.containers && video.codec in setOf("vp8", "vp9", "av1"))
     return when {
         videoFits && audioFits && containerFits -> Wire.VodMode.DIRECT
         videoFits && video.codec in TS_VIDEO && (track == null || (audioFits && track.codec in TS_AUDIO)) -> Wire.VodMode.REMUX
@@ -294,32 +307,58 @@ internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStre
 }
 
 /**
- * The FFmpeg command that writes [file] from [startMs] as an HLS EVENT playlist and MPEG-TS segments in [dir]. With
- * [follow] it reads a file still being written, ending the stream once the file stops growing for a minute.
+ * True when the stream is written as fragmented MP4 rather than MPEG-TS: copied HEVC, which AVPlayer plays only in
+ * fragmented MP4 tagged `hvc1`.
  */
-internal fun vodCommand(ffmpeg: String, file: Path, dir: Path, mode: String, startMs: Long, media: MediaInfo?, audioIndex: Int?, follow: Boolean = false): List<String> {
+internal fun fragmentedMp4(mode: String, media: MediaInfo?): Boolean =
+    (mode == Wire.VodMode.REMUX || mode == Wire.VodMode.AUDIO) && media?.video?.codec == "hevc"
+
+/**
+ * The FFmpeg command that writes [file] from [startMs] as an HLS EVENT playlist in [dir], with MPEG-TS segments, or
+ * fragmented MP4 for copied HEVC. [encoder] converts the video when the mode does. With [follow] it reads a file still
+ * being written, ending the stream once the file stops growing for a minute.
+ */
+internal fun vodCommand(
+    ffmpeg: String,
+    file: Path,
+    dir: Path,
+    mode: String,
+    startMs: Long,
+    media: MediaInfo?,
+    audioIndex: Int?,
+    follow: Boolean = false,
+    encoder: VideoEncoder = VideoEncoder(),
+): List<String> {
     val audio = audioIndex ?: media?.audio?.let { tracks -> (tracks.firstOrNull { it.default } ?: tracks.firstOrNull())?.index }
     val copyVideo = mode == Wire.VodMode.REMUX || mode == Wire.VodMode.AUDIO
     val copyAudio = mode == Wire.VodMode.REMUX
+    val fmp4 = fragmentedMp4(mode, media)
     return buildList {
         addAll(listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error"))
+        if (!copyVideo) addAll(encoder.inputArgs())
         if (startMs > 0) addAll(listOf("-ss", "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0)))
         if (follow) addAll(listOf("-follow", "1", "-rw_timeout", "$FOLLOW_TIMEOUT_MICROS"))
         addAll(listOf("-i", file.toString(), "-map", "0:v:0?"))
         if (audio != null) addAll(listOf("-map", "0:$audio")) else add("-an")
         addAll(listOf("-sn", "-dn"))
-        if (copyVideo) addAll(listOf("-c:v", "copy"))
-        else addAll(listOf(
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-maxrate", "10M", "-bufsize", "20M", "-pix_fmt", "yuv420p",
-            "-vf", "scale=-2:'min(1080,ih)'", "-force_key_frames", "expr:gte(t,n_forced*$SEGMENT_SECONDS)",
-        ))
+        if (copyVideo) {
+            addAll(listOf("-c:v", "copy"))
+            if (fmp4) addAll(listOf("-tag:v", "hvc1"))
+        } else {
+            addAll(encoder.outputArgs(hdr = media?.video?.transfer != null, keyFrameSeconds = SEGMENT_SECONDS))
+        }
         if (audio != null) {
             if (copyAudio) addAll(listOf("-c:a", "copy")) else addAll(listOf("-c:a", "aac", "-ac", "2", "-b:a", "192k"))
         }
         addAll(listOf(
             "-avoid_negative_ts", "make_zero", "-f", "hls", "-hls_time", "$SEGMENT_SECONDS", "-hls_list_size", "0",
-            "-hls_playlist_type", "event", "-hls_flags", "temp_file+independent_segments", "-hls_segment_type", "mpegts",
-            "-hls_segment_filename", dir.resolve("seg%d.ts").toString(), dir.resolve("index.m3u8").toString(),
+            "-hls_playlist_type", "event", "-hls_flags", "temp_file+independent_segments",
         ))
+        if (fmp4) {
+            addAll(listOf("-hls_segment_type", "fmp4", "-hls_fmp4_init_filename", FMP4_INIT, "-hls_segment_filename", dir.resolve("seg%d.m4s").toString()))
+        } else {
+            addAll(listOf("-hls_segment_type", "mpegts", "-hls_segment_filename", dir.resolve("seg%d.ts").toString()))
+        }
+        add(dir.resolve("index.m3u8").toString())
     }
 }

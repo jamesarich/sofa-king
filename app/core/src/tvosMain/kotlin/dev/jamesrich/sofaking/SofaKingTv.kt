@@ -153,14 +153,15 @@ class SofaKingTv {
 
     private companion object {
         /**
-         * What AVPlayer plays as it is, as the iOS app asks for: H.264 in MP4. HEVC is converted, since AVPlayer
-         * takes it only tagged `hvc1` and in fragmented MP4, not in the MPEG-TS segments the server copies into.
+         * What AVPlayer plays as it is, as the iOS app asks for: H.264 and HEVC tagged `hvc1` in MP4, which the
+         * server copies HEVC into for HLS, and HDR10 and HLG, which an Apple TV 4K shows and tone-maps otherwise.
          */
         val appleTvProfile = PlaybackProfile(
             containers = listOf("mp4"),
-            videoCodecs = listOf("h264"),
+            videoCodecs = listOf("h264", "hevc"),
             audioCodecs = listOf("aac", "ac3", "eac3", "mp3", "alac", "flac"),
             maxHeight = 2160,
+            hdr = true,
         )
     }
 }

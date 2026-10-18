@@ -63,4 +63,31 @@ Every file keeps one id for as long as its path is the same, even across a remov
 
 ## Browse and watch
 
-Clients read the libraries through the [library API](api.md#media-libraries): a home with Continue watching and Recently added for each library, each library's movies, shows or videos, a show's seasons and episodes, and search. Watch progress is the household's: an episode finished on the TV is watched on the phone too, and a show's next episode is the one after the last finished. A client plays a file through a [library playback session](api.md#play-library-files): as it is when the player takes its format, otherwise remuxed or converted to HLS by FFmpeg. The app's library screens are not built yet.
+Clients read the libraries through the [library API](api.md#media-libraries): a home with Continue watching and Recently added for each library, each library's movies, shows or videos, a show's seasons and episodes, and search. Watch progress is the household's: an episode finished on the TV is watched on the phone too, and a show's next episode is the one after the last finished. A client plays a file through a [library playback session](api.md#play-library-files): as it is when the player takes its format, otherwise remuxed or converted to HLS by FFmpeg. The app's Library tab, on the TV, phones, desktops, the web and the Apple TV, is the client; see the [app's usage](../../app/docs/usage.md#library).
+
+Copied HEVC is written as fragmented MP4 tagged `hvc1`, which every player takes, and an HEVC file in MP4 tagged `hev1` is remuxed that way instead of played as it is, since AVPlayer refuses that tag. An HDR file converted for a player that cannot show HDR is tone-mapped to SDR. Subtitles are not served yet.
+
+## Hardware transcoding
+
+A file the player cannot take is converted to H.264 with libx264 on the CPU. A GPU encoder takes most of that work off it: set `SOFA_HWACCEL` to `vaapi` (Intel or AMD), `qsv` (Intel Quick Sync) or `nvenc` (NVIDIA), and give the container the GPU. Decoding, scaling and tone mapping stay on the CPU, so any file still converts. On start the server encodes one test frame; when that fails it logs `vod encoder unavailable` and converts in software.
+
+For `vaapi` and `qsv`, pass the render node and the host group that owns it (`stat -c %g /dev/dri/renderD128` prints its id) in `compose.yaml`; `SOFA_HWACCEL_DEVICE` picks another node:
+
+```yaml
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "RENDER_GID"
+```
+
+The image carries Mesa's VA-API driver for AMD and, on amd64, Intel's media driver and Quick Sync runtime. For `nvenc`, install the NVIDIA Container Toolkit on the host and give the service the GPU:
+
+```yaml
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, video]
+```

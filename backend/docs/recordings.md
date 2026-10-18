@@ -1,6 +1,6 @@
 # Recordings
 
-The server records programs from the guide into the [recordings folder](deploy.md#the-recordings-folder) (`SOFA_RECORDINGS_DIR`), as MPEG-TS files named the way Plex, Jellyfin, Emby and Kodi scan them. Recordings and series rules are managed through the [API](api.md#recordings), with the API token.
+The server records programs from the guide into the [recordings folder](deploy.md#the-recordings-folder) (`SOFA_RECORDINGS_DIR`), as MPEG-TS files named the way Plex, Jellyfin, Emby and Kodi scan them. Manage recordings and series rules on the portal's [Recordings](admin.md#recordings) page, or through the [API](api.md#recordings) with the API token.
 
 ## Record a program
 
@@ -41,6 +41,16 @@ A recording that finds every slot taken retries until its window closes, and a r
 
 A server restart in the middle of a window resumes the recording into the same file. One whose whole window passed while the server was down is marked `failed` with reason `MISSED`.
 
+## Cleanup
+
+The DVR deletes finished recordings it no longer keeps, after every recording ends and every 30 minutes, as the `dvr-cull` job on the portal's Jobs page:
+
+1. A rule with a `keep` count keeps its newest recordings up to that count; protected ones count toward it.
+2. With `SOFA_RECORDINGS_KEEP_DAYS` set, any recording older than that many days.
+3. While the recordings folder's disk has less free space than `SOFA_RECORDINGS_FREE_GIB` (10 GiB by default), the next recording in order: watched ones first, then the oldest.
+
+A protected recording is never deleted, nor is a scheduled or running one. Each deletion removes the file and any folders it leaves empty, and logs a `recording culled` line with its reason, `KEEP`, `AGE` or `SPACE`. Both settings are runtime settings on the portal's Settings page.
+
 ## States
 
 | `state` | Meaning |
@@ -56,5 +66,5 @@ A server restart in the middle of a window resumes the recording into the same f
 
 - A TS source recorded while someone watches the same channel opens a second connection to it.
 - Recordings need the guide: a channel without one cannot be recorded, and there is no manual time-based recording.
-- Recordings are kept until deleted; nothing culls them by age or free space yet.
+- Cleanup runs after the fact: a recording that fills the disk while it runs is not stopped, and the next cleanup frees space only by deleting finished recordings.
 - No player in the app opens recordings yet.

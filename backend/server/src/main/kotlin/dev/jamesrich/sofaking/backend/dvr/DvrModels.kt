@@ -64,3 +64,6 @@ data class StoredRule(
 ) {
     fun toWire() = RecordingRule(id, title, channelId, newOnly, keep, startPadding.seconds.toInt(), endPadding.seconds.toInt(), priority, createdAt.toString())
 }
+
+/** What the culler keeps: [freeGib] free on the disk, and recordings no older than [keepDays] (0 for no age limit). */
+data class Retention(val freeGib: Int = 10, val keepDays: Int = 0)

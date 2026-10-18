@@ -101,6 +101,10 @@ data class ServerConfig(
     val tmdb: TmdbConfig? = null,
     /** Library files FFmpeg converts or remuxes at once (`SOFA_MAX_TRANSCODES`); direct play is not counted. */
     val maxTranscodes: Int = 2,
+    /** `SOFA_RECORDINGS_FREE_GIB`: the space the DVR keeps free on the recordings folder's disk by deleting the oldest recordings. */
+    val recordingsFreeGib: Int = 10,
+    /** `SOFA_RECORDINGS_KEEP_DAYS`: the days the DVR keeps a recording; 0 keeps it until space runs short. */
+    val recordingsKeepDays: Int = 0,
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -210,6 +214,10 @@ data class ServerConfig(
             }
             val guideDays = (environment["SOFA_XMLTV_DAYS"] ?: "3").toIntOrNull()
             require(guideDays != null && guideDays in 1..14) { "SOFA_XMLTV_DAYS must be between 1 and 14" }
+            val freeGib = (environment["SOFA_RECORDINGS_FREE_GIB"] ?: "10").toIntOrNull()
+            require(freeGib != null && freeGib in 0..100_000) { "SOFA_RECORDINGS_FREE_GIB must be between 0 and 100000" }
+            val keepDays = (environment["SOFA_RECORDINGS_KEEP_DAYS"] ?: "0").toIntOrNull()
+            require(keepDays != null && keepDays in 0..3650) { "SOFA_RECORDINGS_KEEP_DAYS must be between 0 and 3650" }
             val hdhrEnabled = flag(environment, "SOFA_HDHR_ENABLED", true)
             val tuners = (environment["SOFA_HDHR_TUNERS"] ?: "2").toIntOrNull()
             require(tuners != null && tuners in 1..capacity) { "SOFA_HDHR_TUNERS must be between 1 and SOFA_MAX_SESSIONS" }
@@ -260,6 +268,8 @@ data class ServerConfig(
                 tmdb = tmdbConfig(environment),
                 maxTranscodes = (environment["SOFA_MAX_TRANSCODES"] ?: "2").toIntOrNull()?.takeIf { it in 1..8 }
                     ?: throw IllegalArgumentException("SOFA_MAX_TRANSCODES must be between 1 and 8"),
+                recordingsFreeGib = freeGib,
+                recordingsKeepDays = keepDays,
             )
         }
 

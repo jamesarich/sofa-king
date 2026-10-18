@@ -198,6 +198,16 @@ private fun FlowContent.runtimePanel(chrome: Chrome, view: RuntimeSettingsView) 
                 numberInput(name = RuntimeValues.MAX_SESSIONS) { id = "r-sessions"; value = values.getValue(RuntimeValues.MAX_SESSIONS); min = "1"; max = "16"; required = true }
                 hint(RuntimeValues.MAX_SESSIONS, view.environment.maxSessions.toString())
             }
+            div("field") {
+                label { htmlFor = "r-free"; +"Recordings: keep free (GiB)" }
+                numberInput(name = RuntimeValues.RECORDINGS_FREE_GIB) { id = "r-free"; value = values.getValue(RuntimeValues.RECORDINGS_FREE_GIB); min = "0"; max = "100000"; required = true }
+                hint(RuntimeValues.RECORDINGS_FREE_GIB, view.environment.recordingsFreeGib.toString())
+            }
+            div("field") {
+                label { htmlFor = "r-keep"; +"Recordings: keep for (days, 0 for no limit)" }
+                numberInput(name = RuntimeValues.RECORDINGS_KEEP_DAYS) { id = "r-keep"; value = values.getValue(RuntimeValues.RECORDINGS_KEEP_DAYS); min = "0"; max = "3650"; required = true }
+                hint(RuntimeValues.RECORDINGS_KEEP_DAYS, view.environment.recordingsKeepDays.toString())
+            }
         }
         p("muted small") { +"Plex reads a device's tuner count when it adds the device, so a change here shows in Plex after the device is re-added; the server enforces it at once. Streams per device cannot exceed the sessions at once." }
         runtimeSave(view.proposed != null && runtimeChanged(view.current, view.proposed))

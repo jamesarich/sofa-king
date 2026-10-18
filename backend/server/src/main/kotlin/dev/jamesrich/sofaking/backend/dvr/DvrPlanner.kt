@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.dvr
 
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.contract.Wire
+import java.time.Duration
 import java.time.Instant
 
 /** One guide programme on one lineup channel, as a rule sees it. */
@@ -91,4 +92,27 @@ object DvrPlanner {
         }
         return conflicting
     }
+
+    /**
+     * The finished recordings [retention] and the rules' keep counts no longer keep, each with its reason: `KEEP` for
+     * a rule's oldest beyond its count (protected ones count but stay) and `AGE` for any older than the keep days.
+     */
+    fun cull(recordings: List<StoredRecording>, rules: Map<String, StoredRule>, retention: Retention, now: Instant): List<Pair<StoredRecording, String>> {
+        val completed = recordings.filter { it.state == Wire.RecordingState.COMPLETED }
+        val out = LinkedHashMap<String, Pair<StoredRecording, String>>()
+        for ((ruleId, held) in completed.filter { it.ruleId != null }.groupBy { it.ruleId!! }) {
+            val keep = rules[ruleId]?.keep ?: 0
+            if (keep > 0) held.sortedByDescending { it.startsAt }.drop(keep).filterNot { it.protected }.forEach { out[it.id] = it to "KEEP" }
+        }
+        if (retention.keepDays > 0) {
+            val cutoff = now.minus(Duration.ofDays(retention.keepDays.toLong()))
+            completed.filter { !it.protected && it.endsAt < cutoff && it.id !in out }.forEach { out[it.id] = it to "AGE" }
+        }
+        return out.values.toList()
+    }
+
+    /** The order the culler deletes in when space runs short: watched before unwatched, then oldest first; never a protected one. */
+    fun byCullOrder(recordings: List<StoredRecording>): List<StoredRecording> =
+        recordings.filter { it.state == Wire.RecordingState.COMPLETED && !it.protected }
+            .sortedWith(compareByDescending<StoredRecording> { it.watched }.thenBy { it.startsAt })
 }

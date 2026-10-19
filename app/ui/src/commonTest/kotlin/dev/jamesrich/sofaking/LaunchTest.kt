@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.StartupTarget
+import dev.jamesrich.sofaking.data.TopLevelTab
 import kotlin.test.assertEquals
 import kotlin.test.Test
 
@@ -49,5 +50,22 @@ class LaunchTest {
         assertEquals(LaunchTarget.Player("1"), launchTarget(ready, AppSettings(lastChannel = "2", startup = StartupTarget.CHANNEL, startupChannel = "1")))
         assertEquals(LaunchTarget.Guide, launchTarget(ready, AppSettings(lastChannel = "2", startup = StartupTarget.CHANNEL, startupChannel = "9")))
         assertEquals(LaunchTarget.Guide, launchTarget(ready, AppSettings(lastChannel = "2", startup = StartupTarget.CHANNEL, startupChannel = null)))
+    }
+
+    @Test
+    fun `where the viewer left off reopens the Library or Recordings tab with nothing playing`() {
+        assertEquals(LaunchTarget.OpenTab(Tab.LIBRARY), launchTarget(ready, AppSettings(lastChannel = "2", lastTab = TopLevelTab.LIBRARY)))
+        assertEquals(LaunchTarget.OpenTab(Tab.RECORDINGS), launchTarget(ready, AppSettings(lastChannel = "2", lastTab = TopLevelTab.RECORDINGS)))
+    }
+
+    @Test
+    fun `a startup of the library opens the Library tab whatever was watched`() {
+        assertEquals(LaunchTarget.OpenTab(Tab.LIBRARY), launchTarget(ready, AppSettings(lastChannel = "2", startup = StartupTarget.LIBRARY)))
+    }
+
+    @Test
+    fun `an unconfigured server opens the guide even when the library was last open`() {
+        assertEquals(LaunchTarget.Guide, launchTarget(LineupState.Unconfigured, AppSettings(lastTab = TopLevelTab.LIBRARY)))
+        assertEquals(LaunchTarget.Guide, launchTarget(LineupState.Failed("HTTP_503"), AppSettings(startup = StartupTarget.LIBRARY)))
     }
 }

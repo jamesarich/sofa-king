@@ -100,11 +100,25 @@ class DataStoreSettingsStoreTest {
     @Test
     fun `startup keeps a chosen channel only for the channel target`() = runTest {
         val store = newStore()
-        assertEquals(StartupTarget.LAST_CHANNEL, store.settings.first().startup)
+        assertEquals(StartupTarget.RESUME, store.settings.first().startup)
         store.setStartup(StartupTarget.CHANNEL, "7")
         assertEquals(StartupTarget.CHANNEL to "7", store.settings.first().let { it.startup to it.startupChannel })
         store.setStartup(StartupTarget.GUIDE, "7")
         assertEquals(StartupTarget.GUIDE to null, store.settings.first().let { it.startup to it.startupChannel })
+    }
+
+    @Test
+    fun `a stored last channel startup reads as where the viewer left off`() = runTest {
+        dataStore.edit { it[stringPreferencesKey("startup")] = "LAST_CHANNEL" }
+        assertEquals(StartupTarget.RESUME, newStore().settings.first().startup)
+    }
+
+    @Test
+    fun `the last tab is kept and starts on Live`() = runTest {
+        val store = newStore()
+        assertEquals(TopLevelTab.LIVE, store.settings.first().lastTab)
+        store.setLastTab(TopLevelTab.LIBRARY)
+        assertEquals(TopLevelTab.LIBRARY, store.settings.first().lastTab)
     }
 
     @Test

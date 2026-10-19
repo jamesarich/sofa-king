@@ -202,6 +202,7 @@ class RenderSmokeTest {
                 onSave = { _, _ -> },
                 onBack = {},
                 channelCount = channels.size,
+                libraryOffered = true,
             )
         }
         assertTrue(image.hasContent())

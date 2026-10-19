@@ -30,8 +30,10 @@ data class AppSettings(
     /** How many info bars have carried the key legend; it stops after [KEY_LEGEND_BARS]. */
     val keyLegendShown: Int = 0,
     /** Where a cold start lands; [startupChannel] is the channel for [StartupTarget.CHANNEL]. */
-    val startup: StartupTarget = StartupTarget.LAST_CHANNEL,
+    val startup: StartupTarget = StartupTarget.RESUME,
     val startupChannel: String? = null,
+    /** The top-level tab the app was last on, which [StartupTarget.RESUME] reopens; never synced. */
+    val lastTab: TopLevelTab = TopLevelTab.LIVE,
     val clockFormat: ClockFormat = ClockFormat.AUTO,
     val guideDensity: GuideDensity = GuideDensity.COMFORTABLE,
     /** [Channel.guideId]s the guide and channel list leave out on this device; the server's lineup is untouched. */
@@ -66,7 +68,7 @@ data class AppSettings(
             "captionAdvanceMs=$captionAdvanceMs, " +
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, keyLegendShown=$keyLegendShown, startup=$startup, " +
-            "startupChannel=$startupChannel, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
+            "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
             "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, trackChoices=${trackChoices.size})"
 
@@ -88,8 +90,14 @@ data class AppSettings(
     }
 }
 
-/** What a cold start opens: the channel watched last, the guide, or one chosen channel. */
-enum class StartupTarget { LAST_CHANNEL, GUIDE, CHANNEL }
+/**
+ * What a cold start opens: where the viewer left off ([AppSettings.lastTab], with the channel watched last full
+ * screen on Live), the guide, the library, or one chosen channel.
+ */
+enum class StartupTarget { RESUME, GUIDE, LIBRARY, CHANNEL }
+
+/** The app's top-level tabs, as the settings remember the one last open. */
+enum class TopLevelTab { LIVE, LIBRARY, RECORDINGS }
 
 /** How captions are drawn; SYSTEM defers to the platform's CaptioningManager settings. */
 enum class CaptionStyle { SYSTEM, LARGE_HIGH_CONTRAST }
@@ -132,6 +140,9 @@ interface SettingsStore {
 
     /** [guideId] is kept only for [StartupTarget.CHANNEL]; the other targets clear it. */
     suspend fun setStartup(target: StartupTarget, guideId: String? = null)
+
+    /** Remembers [tab] as the one the app was last on. */
+    suspend fun setLastTab(tab: TopLevelTab)
 
     suspend fun setClockFormat(format: ClockFormat)
 

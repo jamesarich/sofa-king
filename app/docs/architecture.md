@@ -75,7 +75,7 @@ Both are DataStores, so writes replace the file whole and a file that does not r
 
 ## Launch
 
-A cold start shows the loader until the lineup state and settings are both known, then decides once: the last watched channel opens full screen through the normal session path when the lineup has it; a first run, a channel the lineup lost, an unconfigured or unreachable server open the guide. With no server set, the guide shows its Connect message and focuses the header's Settings button (`homeFocusFor`). The guide and its preview do not compose before that decision, so no preview session is opened only to be replaced. Back from that player shows the guide focused on the channel being watched.
+A cold start shows the loader until the lineup state and settings are both known, then decides once (`launchTarget`): Open on start's Where I left off reopens the tab remembered on the device (`AppSettings.lastTab`, written whenever the open tab changes), which on Live is the last watched channel full screen through the normal session path when the lineup has it; Library or Recordings open on their first page with nothing playing, and give way to Live if the server turns out not to offer them; a first run, a channel the lineup lost, an unconfigured or unreachable server open the guide. With no server set, the guide shows its Connect message and focuses the header's Settings button (`homeFocusFor`). The guide and its preview do not compose before that decision, so no preview session is opened only to be replaced. Back from that player shows the guide focused on the channel being watched.
 
 ## UI
 

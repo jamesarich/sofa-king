@@ -34,9 +34,11 @@
     <string name="settings_tmdb_notice">Movie and show details and images can come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</string>
     <string name="settings_section_startup">Startup</string>
     <string name="settings_startup">Open on start</string>
-    <string name="settings_startup_last">Last channel</string>
+    <string name="settings_startup_resume">Where I left off</string>
     <string name="settings_startup_guide">Guide</string>
+    <string name="settings_startup_library">Library</string>
     <string name="settings_startup_channel">A channel</string>
+    <string name="settings_startup_help">Where I left off opens the channel you watched last, full screen, or the Library or Recordings tab when you left the app there.</string>
     <string name="settings_startup_channel_none">No channel chosen yet</string>
     <string name="settings_startup_choose">Choose</string>
     <string name="settings_startup_pick_help">Select the channel the app opens on.</string>

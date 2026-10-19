@@ -46,7 +46,7 @@ Both Swift hosts take their version from the catalog's `sofaking` through `tools
 
 The tests cannot see focus, the remote's keys or a real decoder. Check these on a real Android TV or Google TV device before a change that touches playback, focus or the remote:
 
-- [ ] Cold start opens the last watched channel, and Back shows the guide focused on it.
+- [ ] Cold start opens the last watched channel, and Back shows the guide focused on it. Leave the app from the Library tab and start it again: it opens on Library with nothing playing.
 - [ ] The Guide, Menu and Search keys work (the launcher may claim Guide on some devices), and voice search finds a channel.
 - [ ] D-pad focus moves through the guide without losing its place, including rapid focus changes over the preview, and the stream carries over between preview, player and guide.
 - [ ] Focus is visible on every button, chip, switch and field, including the Recent chip and a Later today line under a search result.
@@ -58,7 +58,7 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 - [ ] In the player, Left or Right on the info bar opens the channel list, Up from its top row reaches the chips and Left/Right move along them to the star, Captions, Pause and Stream info buttons, and OK on a row under All tunes a channel outside the guide filter.
 - [ ] With the remote's CC, Play/Pause and Info keys unused: the list's Captions button toggles captions and closes the list with the timing toast up, Pause pauses, the star changes the Favorites chip's rows, and Stream info opens the stream card with the playing audio track focused; OK on a card without tracks closes it.
 - [ ] CC then Left/Right moves the channel's caption timing both ways and the toast follows; Info held opens the stream card, and Up/Down and OK pick an audio track on a channel with several.
-- [ ] Settings → Open on start set to Guide opens the guide on a cold start, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
+- [ ] Settings → Open on start set to Guide opens the guide on a cold start, Library opens the Library tab, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
 - [ ] Settings → Manage channels: a group switched off empties its chip in the guide and its channels leave the channel list; the arrow opens the group's channels and one switched back on returns alone; hidden channels leave Channel Up/Down only once Skip hidden channels is on; the move buttons reorder the Favorites filter.
 - [ ] Settings → Time format 24-hour and Guide rows Compact change the guide at once; Open system caption settings opens the TV's captioning page.
 - [ ] Settings → Lock → Set a PIN, Back, open Settings: the lock page focuses the PIN field; a wrong PIN says so and the fifth starts a 30 s wait; the right PIN opens Settings; Forgot the PIN with the server's API token removes it.

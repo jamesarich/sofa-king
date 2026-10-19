@@ -182,16 +182,23 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val recordingsVm = viewModel { RecordingsViewModel(vm.api, vm.sessions, changed = vm.recordings::refresh) }
     val libraryHome by libraryVm.home.collectAsStateWithLifecycle()
     val grid by libraryVm.grid.collectAsStateWithLifecycle()
-    // The Library tab shows when the server's bootstrap says it serves libraries and it has at least one.
-    val libraryShown = capabilities.library && when (val home = libraryHome) {
-        LibraryHomeState.Unavailable -> false
-        is LibraryHomeState.Ready -> home.home.libraries.isNotEmpty()
-        else -> true
-    }
+    val recordingsState by recordingsVm.state.collectAsStateWithLifecycle()
     // Where the viewer is: a back stack per tab, shown by Navigation 3. It survives a restore; the one-shot
     // arrival details beside it do not.
     var nav by rememberSerializable { mutableStateOf(Navigation()) }
     val top = nav.top
+    // The Library tab shows when the server's bootstrap says it serves libraries and it has at least one, and the
+    // Recordings tab when it records. A start on either shows its tab before the bootstrap answers.
+    val libraryShown = (capabilities.library || nav.tab == Tab.LIBRARY) && when (val home = libraryHome) {
+        LibraryHomeState.Unavailable -> false
+        is LibraryHomeState.Ready -> home.home.libraries.isNotEmpty()
+        else -> true
+    }
+    val recordingsShown = capabilities.recordings || nav.tab == Tab.RECORDINGS && recordingsState != RecordingsState.Unavailable
+    // A tab the server turns out not to offer, or no longer offers, gives way to Live.
+    LaunchedEffect(nav.tab, libraryShown, recordingsShown) {
+        if (nav.tab == Tab.LIBRARY && !libraryShown || nav.tab == Tab.RECORDINGS && !recordingsShown) nav = nav.open(Tab.LIVE)
+    }
     // Leaving Settings lands on the page it was opened from, with focus on the header's open tab, as the Settings
     // button it left from sits beside it.
     var focusTabOnReturn by remember { mutableStateOf(false) }
@@ -242,7 +249,15 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     LaunchedEffect(launch, launchDecided) {
         if (launchDecided || launch == LaunchTarget.Undecided) return@LaunchedEffect
         launchDecided = true
-        if (launch is LaunchTarget.Player) nav = Navigation().push(Route.Player(launch.guideId))
+        when (launch) {
+            is LaunchTarget.Player -> nav = Navigation().push(Route.Player(launch.guideId))
+            is LaunchTarget.OpenTab -> nav = Navigation().open(launch.tab)
+            else -> Unit
+        }
+    }
+    // The open tab is remembered for the next start, once this start has picked its own.
+    LaunchedEffect(nav.tab, launchDecided) {
+        if (launchDecided && settings?.lastTab != nav.tab.topLevel) vm.setLastTab(nav.tab.topLevel)
     }
     // Back one page. The player hands the guide the channel it was left on, which may not be the one it opened.
     val back = { nav = nav.pop(if (nav.top is Route.Player) history.watching else nav.top.focusKey) }
@@ -330,7 +345,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val tv = LocalLayoutProfile.current.tv
     val settingsFocus = remember { FocusRequester() }
     val tabFocus = remember { FocusRequester() }
-    val tabs = TabsModel(nav.tab, libraryShown, capabilities.recordings) { picked ->
+    val tabs = TabsModel(nav.tab, libraryShown, recordingsShown) { picked ->
         nav = nav.closeSettings().open(picked, if (picked == Tab.LIVE) Arrival(returnedFrom = history.watching) else Arrival())
     }
     val openSettings = { nav = nav.push(Route.Settings) }
@@ -360,6 +375,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         onBack = leaveSettings,
                         channelCount = lineup?.channels?.size ?: 0,
                         channels = lineup?.channels.orEmpty(),
+                        libraryOffered = libraryShown,
                         actions = SettingsActions(
                             onCaptionsChanged = { vm.setCaptionsEnabled(it) },
                             onCaptionAdvanceChanged = { vm.setCaptionAdvanceMs(it) },

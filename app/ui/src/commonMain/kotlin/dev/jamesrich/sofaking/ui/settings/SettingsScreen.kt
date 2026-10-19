@@ -106,6 +106,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     /** The lineup's channels, for the name of the chosen startup channel. */
     channels: List<Channel> = emptyList(),
+    /** Whether the server has a library, so a start can open it. */
+    libraryOffered: Boolean = false,
     actions: SettingsActions = SettingsActions(),
     pairing: PairingUi = PairingUi(),
     /** The update check's answer, or null while none has run. */
@@ -249,13 +251,17 @@ fun SettingsScreen(
         item {
             ChoiceRow(
                 label = stringResource(Res.string.settings_startup),
-                choices = StartupTarget.entries,
+                help = stringResource(Res.string.settings_startup_help),
+                width = WIDE_CHOICE_WIDTH,
+                // The library is offered on a server that has one, and kept while it is the choice.
+                choices = StartupTarget.entries.filter { it != StartupTarget.LIBRARY || libraryOffered || startup == it },
                 selected = startup,
                 choiceLabel = {
                     stringResource(
                         when (it) {
-                            StartupTarget.LAST_CHANNEL -> Res.string.settings_startup_last
+                            StartupTarget.RESUME -> Res.string.settings_startup_resume
                             StartupTarget.GUIDE -> Res.string.settings_startup_guide
+                            StartupTarget.LIBRARY -> Res.string.settings_startup_library
                             StartupTarget.CHANNEL -> Res.string.settings_startup_channel
                         },
                     )

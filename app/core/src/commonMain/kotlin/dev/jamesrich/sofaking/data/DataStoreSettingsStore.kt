@@ -49,8 +49,10 @@ class DataStoreSettingsStore(
                 } ?: AutoOpenDelay.AFTER_10_SECONDS,
                 previewSound = prefs[PREVIEW_SOUND] ?: true,
                 keyLegendShown = prefs[KEY_LEGEND_SHOWN] ?: 0,
-                startup = prefs[STARTUP].toEnum(StartupTarget.LAST_CHANNEL),
+                // A stored LAST_CHANNEL, from before the tabs were remembered, reads as RESUME.
+                startup = prefs[STARTUP].toEnum(StartupTarget.RESUME),
                 startupChannel = prefs[STARTUP_CHANNEL],
+                lastTab = prefs[LAST_TAB].toEnum(TopLevelTab.LIVE),
                 clockFormat = prefs[CLOCK_FORMAT].toEnum(ClockFormat.AUTO),
                 guideDensity = prefs[GUIDE_DENSITY].toEnum(GuideDensity.COMFORTABLE),
                 hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
@@ -140,6 +142,10 @@ class DataStoreSettingsStore(
             val channel = guideId.takeIf { target == StartupTarget.CHANNEL }
             if (channel == null) prefs.remove(STARTUP_CHANNEL) else prefs[STARTUP_CHANNEL] = channel
         }
+    }
+
+    override suspend fun setLastTab(tab: TopLevelTab) {
+        dataStore.edit { prefs -> prefs[LAST_TAB] = tab.name }
     }
 
     override suspend fun setClockFormat(format: ClockFormat) {
@@ -279,6 +285,7 @@ class DataStoreSettingsStore(
         val KEY_LEGEND_SHOWN = intPreferencesKey("key_legend_shown")
         val STARTUP = stringPreferencesKey("startup")
         val STARTUP_CHANNEL = stringPreferencesKey("startup_channel")
+        val LAST_TAB = stringPreferencesKey("last_tab")
         val CLOCK_FORMAT = stringPreferencesKey("clock_format")
         val GUIDE_DENSITY = stringPreferencesKey("guide_density")
         val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")

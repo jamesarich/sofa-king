@@ -167,4 +167,23 @@ class LibraryCatalogTest {
         assertEquals(listOf("Return"), found.map { it.title })
         assertEquals(listOf(Wire.ItemKind.SHOW), s.service.catalog.search("show", 10).items.map { it.kind })
     }
+
+    @Test fun `search finds movies and shows by cast and director after title matches`() = runBlocking<Unit> {
+        val s = setup()
+        val movies = s.root.resolve("movies")
+        movies.file("Alien (1979)/Alien (1979).mkv")
+        movies.file("Weaver Story (2001)/Weaver Story (2001).mkv")
+        movies.file("Heat (1995)/Heat (1995).mkv")
+        val library = s.service.create("Movies", LibraryKind.MOVIES, movies.toString())
+        s.service.scan(library.id)
+        val items = s.store.libraryItems(library.id).associateBy { it.title }
+        s.store.saveLibraryMetadata(listOf(
+            MetadataRecord(items.getValue("Alien").id, 348, "2026-01-01T00:00:00Z", MetadataFacts(title = "Alien", cast = listOf("Sigourney Weaver"), directors = listOf("Ridley Scott"))),
+            MetadataRecord(items.getValue("Heat").id, 949, "2026-01-01T00:00:00Z", MetadataFacts(title = "Heat", cast = listOf("Al Pacino"), directors = listOf("Michael Mann"))),
+        ))
+        s.service.scan(library.id)
+
+        assertEquals(listOf("Weaver Story", "Alien"), s.service.catalog.search("weaver", 10).items.map { it.title })
+        assertEquals(listOf("Heat"), s.service.catalog.search("michael mann", 10).items.map { it.title })
+    }
 }

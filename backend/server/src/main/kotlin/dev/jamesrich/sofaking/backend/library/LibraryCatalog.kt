@@ -202,7 +202,11 @@ class LibraryCatalog internal constructor(
         val states = store.playStates()
         val matches = snapshot.views.values.filter { needle in it.item.title.lowercase() }
         val (tops, rest) = matches.partition { it.record.parentId == null }
-        val found = tops.sortedBy { sortTitle(it.item.title) } + rest.filter { it.record.kind == ItemKind.EPISODE }.sortedBy { sortTitle(it.item.title) }
+        val credited = snapshot.views.values.filter { view ->
+            view.record.parentId == null && needle !in view.item.title.lowercase() && (view.cast + view.directors).any { needle in it.lowercase() }
+        }
+        val found = tops.sortedBy { sortTitle(it.item.title) } + credited.sortedBy { sortTitle(it.item.title) } +
+            rest.filter { it.record.kind == ItemKind.EPISODE }.sortedBy { sortTitle(it.item.title) }
         return LibraryPage(found.take(limit).map { it.out(snapshot, states) }, found.size)
     }
 

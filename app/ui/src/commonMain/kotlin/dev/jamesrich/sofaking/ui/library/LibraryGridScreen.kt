@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.LibraryGrid
@@ -153,10 +154,13 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
             }
         }
         val sort = grid?.sort ?: LibrarySort.TITLE
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Each chip row comes back to the chip last focused in it, else its selected one.
+        val selectedSort = remember { FocusRequester() }
+        LazyRow(Modifier.focusRestorer(selectedSort), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(LibrarySort.entries.size) { i ->
                 val option = LibrarySort.entries[i]
-                GuideChip(selected = option == sort, onClick = { actions.onSort(option) }, label = stringResource(option.label()))
+                val focus = if (option == sort) Modifier.focusRequester(selectedSort) else Modifier
+                GuideChip(selected = option == sort, onClick = { actions.onSort(option) }, label = stringResource(option.label()), modifier = focus)
             }
             item {
                 val unwatched = grid?.unwatched == true
@@ -166,12 +170,17 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
         val genres = grid?.genres.orEmpty()
         if (genres.isNotEmpty()) {
             val genre = grid?.genre
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val selectedGenre = remember { FocusRequester() }
+            val genreShown = genre != null && genres.any { it.equals(genre, ignoreCase = true) }
+            LazyRow(Modifier.focusRestorer(selectedGenre), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
-                    GuideChip(selected = genre == null, onClick = { actions.onGenre(null) }, label = stringResource(Res.string.library_genre_all))
+                    val focus = if (!genreShown) Modifier.focusRequester(selectedGenre) else Modifier
+                    GuideChip(selected = genre == null, onClick = { actions.onGenre(null) }, label = stringResource(Res.string.library_genre_all), modifier = focus)
                 }
                 items(genres, key = { it }) { option ->
-                    GuideChip(selected = option.equals(genre, ignoreCase = true), onClick = { actions.onGenre(option) }, label = option)
+                    val selected = option.equals(genre, ignoreCase = true)
+                    val focus = if (selected) Modifier.focusRequester(selectedGenre) else Modifier
+                    GuideChip(selected = selected, onClick = { actions.onGenre(option) }, label = option, modifier = focus)
                 }
             }
         }

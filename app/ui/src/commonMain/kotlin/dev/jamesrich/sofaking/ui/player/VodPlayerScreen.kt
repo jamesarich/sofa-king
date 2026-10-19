@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
 import co.touchlab.kermit.Logger
@@ -178,11 +179,12 @@ fun VodPlayerScreen(
         positionMs = targetMs
     }
 
-    DisposableEffect(player) {
+    // Open only while the app is in front, as the app stops the player behind another app.
+    LifecycleStartEffect(player, lifecycleOwner = appLifecycleOwner) {
         val session = player.openMediaSession { step -> seekItem(positionMs + step * 30_000L) }
         mediaSession = session
         player.volume = 1f
-        onDispose {
+        onStopOrDispose {
             session.close()
             mediaSession = null
         }

@@ -153,11 +153,14 @@ fun SettingsScreen(
     val pair = { if (canPair && validUrl != null && validCode != null) pairing.onPair(validUrl, validCode) }
 
     // The server block opens on its fields only on a device with no server, or while a pairing attempt is being
-    // shown; otherwise it reads as one line with Change, and focus lands on Back rather than inside a field.
+    // shown; otherwise it reads as one line with Change, and focus lands on Back (or, where no Back button is drawn,
+    // the first setting) rather than inside a field.
     var changingServer by remember { mutableStateOf(settings.serverUrl.isEmpty()) }
     val serverOpen = changingServer || pairing.failure != null
     val unconfigured = remember { settings.serverUrl.isEmpty() }
     val backFocus = remember { FocusRequester() }
+    val contentFocus = remember { FocusRequester() }
+    val firstFocus = if (showsBackButton()) backFocus else contentFocus
     val channelsFocus = remember { FocusRequester() }
     val startupFocus = remember { FocusRequester() }
 
@@ -169,7 +172,7 @@ fun SettingsScreen(
             else -> null
         }
         if (returnTo != null && requestFocusWhenAttached(returnTo)) return@LaunchedEffect
-        requestFocusWhenAttached(if (settings.serverUrl.isEmpty()) serverFocus else backFocus)
+        requestFocusWhenAttached(if (settings.serverUrl.isEmpty()) serverFocus else firstFocus)
     }
     LaunchedEffect(changingServer) { if (changingServer && settings.serverUrl.isNotEmpty()) requestFocusWhenAttached(serverFocus) }
 
@@ -261,7 +264,9 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .screenPadding()
-            .focusRestorer(),
+            .focusRequester(contentFocus)
+            .focusRestorer()
+            .focusGroup(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { ScreenTitle(stringResource(Res.string.settings_title), onBack, backFocus) }

@@ -52,6 +52,7 @@ import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.guide.HeldOkGuard
+import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
@@ -173,7 +174,7 @@ private fun ItemCard(
 
 /** Passes OK's key-down and key-up through [guard], dropping the ones it swallows. */
 private fun Modifier.heldOk(guard: HeldOkGuard): Modifier = onPreviewKeyEvent { event ->
-    val ok = event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter
+    val ok = event.key.isOk
     when {
         !ok -> false
         event.type == KeyEventType.KeyDown -> guard.onKeyDown()

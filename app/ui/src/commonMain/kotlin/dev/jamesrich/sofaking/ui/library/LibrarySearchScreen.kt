@@ -67,6 +67,8 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
     var searching by remember { mutableStateOf(false) }
     // A spoken query moves focus to the first result once it is in; a typed one leaves it in the field.
     var focusResults by remember { mutableStateOf(false) }
+    // Back from a result's page: the result to focus once the search has run again.
+    var focusReturn by remember { mutableStateOf<String?>(null) }
     var arrived by rememberSaveable { mutableStateOf(false) }
     val currentSearch by rememberUpdatedState(actions.search)
 
@@ -79,9 +81,12 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
             field.requestFocus()
         }
     }
+    LaunchedEffect(returnedFrom) {
+        if (returnedFrom != null && arrived && query.text.isNotBlank()) focusReturn = returnedFrom
+    }
     LaunchedEffect(Unit) {
         when {
-            returnedFrom != null -> requestFocusWhenAttached(returnFocus)
+            arrived && query.text.isNotBlank() -> Unit
             !arrived && initialQuery != null -> {
                 query.setTextAndPlaceCursorAtEnd(initialQuery)
                 focusResults = true
@@ -104,7 +109,15 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
         }
     }
     val sections = remember(results) { searchSections(results.orEmpty()) }
-    LaunchedEffect(sections, searching) {
+    LaunchedEffect(sections, searching, focusReturn) {
+        val target = focusReturn
+        if (target != null) {
+            if (searching || results == null) return@LaunchedEffect
+            // Cleared only once the request is done: clearing it restarts this effect, which would cancel the request.
+            requestFocusWhenAttached(if (results.orEmpty().any { it.id == target }) returnFocus else if (sections.posters.isNotEmpty() || sections.wide.isNotEmpty()) firstResult else field)
+            focusReturn = null
+            return@LaunchedEffect
+        }
         if (!focusResults || searching || results == null) return@LaunchedEffect
         focusResults = false
         // Nothing matched what was said: the field takes focus so the query can be changed.

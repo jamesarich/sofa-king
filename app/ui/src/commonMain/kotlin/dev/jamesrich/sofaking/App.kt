@@ -1,6 +1,24 @@
 package dev.jamesrich.sofaking
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldValue
+import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavEntryDecorator
+import androidx.navigation3.runtime.rememberDecoratedNavEntries
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.scene.Scene
+import androidx.navigation3.ui.NavDisplay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,7 +37,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,7 +52,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -126,8 +142,6 @@ import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 import kotlin.time.Instant
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -155,80 +169,6 @@ fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
     }
 }
 
-/** The screen the user is on; it survives a restore, but the one-shot arrival details marked [Transient] do not. */
-@Serializable
-private sealed interface Screen {
-    /**
-     * [atNow] moves the guide's cursor to the current time on arrival (the Guide key from the player); [search]
-     * opens its search by voice (the Search key); [returnedFrom] is the channel the player was left on, which
-     * the guide focuses and the preview must not reopen by itself until focus moves.
-     */
-    @Serializable
-    data class Guide(
-        val atNow: Boolean = false,
-        @Transient val search: Boolean = false,
-        @Transient val returnedFrom: String? = null,
-    ) : Screen
-    /** [scope] is the guide filter the channel was picked from, which Up and Down stay in. */
-    @Serializable
-    data class Player(val guideId: String, @Transient val scope: ZapScope? = null) : Screen
-    /**
-     * A library item full screen; [fromStart] plays it from the beginning even when it is in progress. Leaving
-     * returns to [parent], the library page it was played from, with the item focused.
-     */
-    @Serializable
-    data class Vod(val itemId: String, val fromStart: Boolean = false, val parent: Screen = Library()) : Screen
-    /** The Library tab's home. [returnedFrom] is the item whose page the viewer just left, which it focuses. */
-    @Serializable
-    data class Library(@Transient val returnedFrom: String? = null) : Screen
-    /**
-     * Search across the libraries, under the Library tab; [voice] starts it by voice on arrival, and [query] searches
-     * for a name from an item's page, which Back returns to as [parent].
-     */
-    @Serializable
-    data class LibrarySearch(
-        @Transient val voice: Boolean = false,
-        @Transient val returnedFrom: String? = null,
-        val query: String? = null,
-        val parent: Screen? = null,
-    ) : Screen
-    /** One library's grid, under the Library tab. */
-    @Serializable
-    data class LibraryGrid(val libraryId: String, @Transient val returnedFrom: String? = null) : Screen
-    /** An item's page, full screen; Back returns to [parent]. [returnedFrom] is the episode just watched. */
-    @Serializable
-    data class LibraryItem(val itemId: String, val parent: Screen, @Transient val returnedFrom: String? = null) : Screen
-    /** The Recordings tab. */
-    @Serializable
-    data object Recordings : Screen
-    /** A recording full screen; [fromStart] plays it from the beginning even when it is in progress. */
-    @Serializable
-    data class Recording(val recordingId: String, val fromStart: Boolean = false) : Screen
-    @Serializable
-    data object Settings : Screen
-    /** The channel manager behind Settings. */
-    @Serializable
-    data object Channels : Screen
-    /** The startup channel picker behind Settings. */
-    @Serializable
-    data object StartupChannel : Screen
-
-    /** Settings and the pages behind it, where no stream plays. */
-    val isSettings: Boolean get() = this is Settings || this is Channels || this is StartupChannel
-
-    /** The guide and the live player, which hold a live channel's stream. */
-    val playsLive: Boolean get() = this is Guide || this is Player
-
-    /** This screen with the item [itemId] marked as the one the viewer comes back from, to focus. */
-    fun returningFrom(itemId: String): Screen = when (this) {
-        is Library -> copy(returnedFrom = itemId)
-        is LibraryGrid -> copy(returnedFrom = itemId)
-        is LibraryItem -> copy(returnedFrom = itemId)
-        is LibrarySearch -> copy(returnedFrom = itemId)
-        else -> this
-    }
-}
-
 @Composable
 private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewModel() }, pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -248,14 +188,16 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         is LibraryHomeState.Ready -> home.home.libraries.isNotEmpty()
         else -> true
     }
-    var screen by rememberSerializable { mutableStateOf<Screen>(Screen.Guide()) }
-    // Where Back from Settings goes: the tab's page it was opened from, with focus on the header's open tab, as
-    // the Settings button it left from sits beside it.
-    var settingsReturn by rememberSerializable { mutableStateOf<Screen>(Screen.Guide()) }
+    // Where the viewer is: a back stack per tab, shown by Navigation 3. It survives a restore; the one-shot
+    // arrival details beside it do not.
+    var nav by rememberSerializable { mutableStateOf(Navigation()) }
+    val top = nav.top
+    // Leaving Settings lands on the page it was opened from, with focus on the header's open tab, as the Settings
+    // button it left from sits beside it.
     var focusTabOnReturn by remember { mutableStateOf(false) }
     val leaveSettings = {
         focusTabOnReturn = true
-        screen = settingsReturn
+        nav = nav.closeSettings()
     }
     val pairingScope = rememberCoroutineScope()
     // Why the last pairing attempt failed; Settings shows it until the next attempt.
@@ -263,7 +205,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val pair: (String, String) -> Unit = { url, code ->
         pairingScope.launch {
             pairingFailure = vm.pair(url, code)
-            screen = if (pairingFailure == null) Screen.Guide() else Screen.Settings
+            nav = if (pairingFailure == null) Navigation() else nav.push(Route.Settings)
         }
     }
     // A scanned QR code pairs at once; a refused one lands in Settings with the reason.
@@ -284,7 +226,6 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     var settingsUnlocked by rememberSaveable { mutableStateOf(false) }
     val settingsLock = remember { SettingsLock() }
     val settingsLocked = settings?.settingsLocked == true && !settingsUnlocked
-    val guideState = rememberSaveableStateHolder()
     val lineup = (state as? LineupState.Ready)?.lineup
     // The lineup as this device shows it: hidden channels leave the guide and the channel list, and the player's
     // zapping when that switch is on; the full lineup stays for the manager, the picker and a channel opened by number.
@@ -301,8 +242,12 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     LaunchedEffect(launch, launchDecided) {
         if (launchDecided || launch == LaunchTarget.Undecided) return@LaunchedEffect
         launchDecided = true
-        if (launch is LaunchTarget.Player) screen = Screen.Player(launch.guideId)
+        if (launch is LaunchTarget.Player) nav = Navigation().push(Route.Player(launch.guideId))
     }
+    // Back one page. The player hands the guide the channel it was left on, which may not be the one it opened.
+    val back = { nav = nav.pop(if (nav.top is Route.Player) history.watching else nav.top.focusKey) }
+    // From the player to the guide by its Guide or Search key: the guide opens at Now or with search open.
+    val toGuide = { arrival: Arrival -> nav = nav.pop(history.watching).let { it.copy(arrival = arrival.copy(returnedFrom = it.arrival.returnedFrom)) } }
 
     // One player for the guide preview and the full screen, so OK on the previewed channel continues its stream,
     // and one server session behind it, promoted from preview to watch in place.
@@ -310,7 +255,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val player = rememberLivePlayer(captionSync)
     val sessions = vm.sessions
     val scope = rememberCoroutineScope()
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycle = lifecycleOwner.lifecycle
     val channelGone = stringResource(Res.string.channel_gone)
     // The server replaced the stream under the held session (new epoch, or a session it dropped and the app
     // reopened): the player reopens the item it holds for that channel at the new URL, metadata intact. A library
@@ -336,57 +282,65 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         if (playback != null) player.setPlaybackPreferences(playback)
     }
     // Only the full screen asks for a display mode: the guide's preview zaps too often for a set that blanks on each switch.
-    MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && (screen is Screen.Player || screen is Screen.Vod || screen is Screen.Recording))
+    MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && top.playsFullScreen)
     // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
     // the server, so it releases the session outright rather than keeping it to reopen.
-    LaunchedEffect(screen) {
-        if (!screen.isSettings) settingsUnlocked = false
-        when (val s = screen) {
-            is Screen.Guide -> captionSync.advanceUs = 0L
-            Screen.Settings -> {
+    LaunchedEffect(top) {
+        if (!top.isSettings) settingsUnlocked = false
+        when (top) {
+            Route.Guide -> captionSync.advanceUs = 0L
+            Route.Settings -> {
                 player.stop()
                 sessions.release(forget = true)
             }
-            is Screen.Player, is Screen.Vod, is Screen.Recording -> Unit
+            is Route.Player, is Route.Vod, is Route.Recording -> Unit
             // The library and the recordings play nothing until one is picked, so the guide's preview stops on the way in.
-            is Screen.Library, is Screen.LibraryGrid, is Screen.LibrarySearch, is Screen.LibraryItem, Screen.Recordings -> {
+            Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, is Route.LibraryItem, Route.Recordings -> {
                 player.stop()
                 sessions.release(forget = true)
             }
             // Reached from Settings, which already stopped the stream.
-            Screen.Channels, Screen.StartupChannel -> Unit
+            Route.Channels, Route.StartupChannel -> Unit
         }
     }
     // Stopped, not paused: the TV's one hardware decoder and the server's session go free while another app is
     // in front. The item and playWhenReady survive; on return a fresh session is opened for the same channel
     // and intent and the item is prepared at its URL, at the live edge or still paused. A library item's screen
     // reopens it itself, where it was, and the library's other pages hold no stream.
-    val currentScreen by rememberUpdatedState(screen)
+    val currentTop by rememberUpdatedState(top)
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         player.stop()
         sessions.releaseAsync()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (currentScreen.playsLive && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
+        if (currentTop.playsLive && player.hasItem && player.status.value.state == PlaybackState.IDLE) {
             captionSync.effectiveUs = captionSync.advanceUs
             scope.launch { resume(player, sessions) }
         }
     }
 
     // The channel joins Recent, and becomes the one a cold start opens, once it has played for RECENT_AFTER_MS.
-    val playing = history.watching.takeIf { screen is Screen.Player }
+    val playing = history.watching.takeIf { top is Route.Player }
     LaunchedEffect(playing) {
         if (playing == null) return@LaunchedEffect
         delay(RECENT_AFTER_MS)
         vm.setLastChannel(playing)
     }
 
-    CompositionLocalProvider(
-        LocalClockFormat provides (settings?.clockFormat ?: ClockFormat.AUTO),
-        LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
-    ) {
-        when (val current = screen) {
-            Screen.Settings, Screen.Channels, Screen.StartupChannel -> if (settingsLocked) settings?.let { s ->
+    val tv = LocalLayoutProfile.current.tv
+    val settingsFocus = remember { FocusRequester() }
+    val tabFocus = remember { FocusRequester() }
+    val tabs = TabsModel(nav.tab, libraryShown, capabilities.recordings) { picked ->
+        nav = nav.closeSettings().open(picked, if (picked == Tab.LIVE) Arrival(returnedFrom = history.watching) else Arrival())
+    }
+    val openSettings = { nav = nav.push(Route.Settings) }
+
+    // The page for a route, built fresh on each recomposition so it reads the current state; the entries
+    // Navigation 3 keeps call through this, never a copy captured when the page was opened.
+    val page by rememberUpdatedState<@Composable (Route) -> Unit> { route ->
+        val arrival = if (route == nav.top) nav.arrival else Arrival()
+        when (val current = route) {
+            Route.Settings, Route.Channels, Route.StartupChannel -> if (settingsLocked) settings?.let { s ->
                 SettingsLockScreen(
                     pinHash = s.settingsPin,
                     apiToken = s.apiToken,
@@ -399,10 +353,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     lock = settingsLock,
                 )
             } else when (current) {
-                Screen.Settings -> settings?.let { s ->
+                Route.Settings -> settings?.let { s ->
                     SettingsScreen(
                         settings = s,
-                        onSave = { url, token -> vm.saveServer(url, token); screen = Screen.Guide() },
+                        onSave = { url, token -> vm.saveServer(url, token); nav = Navigation() },
                         onBack = leaveSettings,
                         channelCount = lineup?.channels?.size ?: 0,
                         channels = lineup?.channels.orEmpty(),
@@ -414,10 +368,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                             onAutoOpenDelayChanged = { vm.setAutoOpenDelay(it) },
                             onPreviewSoundChanged = { vm.setPreviewSound(it) },
                             onStartupChanged = { target, guideId -> vm.setStartup(target, guideId) },
-                            onChooseStartupChannel = { screen = Screen.StartupChannel },
+                            onChooseStartupChannel = { nav = nav.push(Route.StartupChannel) },
                             onClockFormatChanged = { vm.setClockFormat(it) },
                             onGuideDensityChanged = { vm.setGuideDensity(it) },
-                            onManageChannels = { screen = Screen.Channels },
+                            onManageChannels = { nav = nav.push(Route.Channels) },
                             onMatchFrameRateChanged = { vm.setMatchFrameRate(it) },
                             onDecoderChanged = { vm.setDecoder(it) },
                             onBufferChanged = { vm.setBuffer(it) },
@@ -430,9 +384,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         ),
                         pairing = PairingUi(busy = pairingBusy, failure = pairingFailure, onPair = pair),
                         update = update,
+                        returnedFrom = arrival.returnedFrom,
                     )
                 }
-                Screen.Channels -> settings?.let { s ->
+                Route.Channels -> settings?.let { s ->
                     ChannelManagerScreen(
                         channels = lineup?.channels.orEmpty(),
                         favorites = s.favorites,
@@ -443,23 +398,23 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         onChannelHiddenChanged = { guideId, hide -> vm.setChannelHidden(guideId, hide) },
                         onChannelsHiddenChanged = { guideIds, hide -> vm.setChannelsHidden(guideIds, hide) },
                         onZapSkipsHiddenChanged = { vm.setZapSkipsHidden(it) },
-                        onBack = { screen = Screen.Settings },
+                        onBack = back,
                     )
                 }
-                Screen.StartupChannel -> settings?.let { s ->
+                Route.StartupChannel -> settings?.let { s ->
                     ChannelPickerScreen(
                         channels = lineup?.channels.orEmpty(),
                         selected = s.startupChannel,
                         onPick = { channel ->
                             vm.setStartup(StartupTarget.CHANNEL, channel.guideId)
-                            screen = Screen.Settings
+                            back()
                         },
-                        onBack = { screen = Screen.Settings },
+                        onBack = back,
                     )
                 }
                 else -> Unit
             }
-            is Screen.Player -> if (lineup != null && visibleLineup != null) {
+            is Route.Player -> if (lineup != null && visibleLineup != null) {
                 // Hidden channels drop out of zapping only when asked, and never under the channel being watched.
                 val playerLineup = if (settings?.zapSkipsHidden == true && current.guideId !in hidden) visibleLineup else lineup
                 val start = playerLineup.channels.indexOfFirst { it.guideId == current.guideId }.coerceAtLeast(0)
@@ -471,14 +426,14 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     zapScope = current.scope,
                     player = player,
                     sessions = sessions,
-                    onExit = { screen = Screen.Guide(returnedFrom = history.watching) },
-                    onGuide = { screen = Screen.Guide(atNow = true, returnedFrom = history.watching) },
-                    onSearch = { screen = Screen.Guide(search = true, returnedFrom = history.watching) },
+                    onExit = back,
+                    onGuide = { toGuide(Arrival(atNow = true)) },
+                    onSearch = { toGuide(Arrival(search = true)) },
                     onChannelChanged = { history = history.tuned(it.guideId) },
                     reloadLineup = vm::reloadLineup,
                     onChannelGone = { channel ->
                         notice = formatTemplate(channelGone, channel.label())
-                        screen = Screen.Guide(returnedFrom = history.watching)
+                        back()
                     },
                     captionsEnabled = settings?.captionsEnabled ?: false,
                     onCaptionsChanged = { vm.setCaptionsEnabled(it) },
@@ -494,13 +449,11 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     onKeyLegendShown = { vm.setKeyLegendShown(it) },
                 )
             } else {
-                LaunchedEffect(Unit) { screen = Screen.Guide() }
+                LaunchedEffect(Unit) { back() }
             }
-            is Screen.Vod -> {
+            is Route.Vod -> {
                 val detail by remember(current.itemId) { libraryVm.detail(current.itemId) }.collectAsStateWithLifecycle()
                 val item = (detail as? ItemDetailState.Ready)?.detail?.item
-                val leave = { screen = current.parent.returningFrom(current.itemId) }
-                BackHandler(enabled = item == null, onBack = leave)
                 when {
                     // Keyed by the item, so the next episode starts a fresh screen rather than inheriting this one's end.
                     item != null -> key(item.id) {
@@ -540,9 +493,9 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                             open = { libraryVm.play(item, player.playbackProfile, current.fromStart, audio, pictureSubtitle) },
                             onPosition = { position, duration -> libraryVm.progress(item.id, position, duration) },
                             onStopped = { position, duration -> libraryVm.stopped(item.id, position, duration) },
-                            onExit = leave,
+                            onExit = back,
                             upNext = { libraryVm.upNext(item)?.also { next = it }?.upNext() },
-                            onPlayNext = { next?.let { screen = Screen.Vod(it.id, fromStart = false, parent = current.parent) } },
+                            onPlayNext = { next?.let { nav = nav.replaceTop(Route.Vod(it.id)) } },
                             tracks = tracks,
                         )
                     }
@@ -554,11 +507,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     else -> MessageScreen(stringResource(Res.string.library_loading), loading = true)
                 }
             }
-            is Screen.Recording -> {
+            is Route.Recording -> {
                 val recordings by recordingsVm.state.collectAsStateWithLifecycle()
                 // Kept once found, so a list reload while it plays never swaps the title or markers under the player.
                 val recording = remember(current.recordingId, recordings is RecordingsState.Ready) { recordingsVm.recording(current.recordingId) }
-                BackHandler(enabled = recording == null) { screen = Screen.Recordings }
                 when {
                     recording != null -> VodPlayerScreen(
                         title = recording.vodTitle(),
@@ -567,225 +519,265 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         open = { recordingsVm.play(recording, player.playbackProfile, current.fromStart) },
                         onPosition = { position, duration -> recordingsVm.progress(recording.id, position, duration) },
                         onStopped = { position, duration -> recordingsVm.stopped(recording.id, position, duration) },
-                        onExit = { screen = Screen.Recordings },
+                        onExit = back,
                         autoSkipBreaks = settings?.skipCommercials ?: false,
                     )
-                    recordings is RecordingsState.Ready || recordings is RecordingsState.Failed -> LaunchedEffect(Unit) { screen = Screen.Recordings }
+                    recordings is RecordingsState.Ready || recordings is RecordingsState.Failed -> LaunchedEffect(Unit) { back() }
                     else -> MessageScreen(stringResource(Res.string.loading), loading = true)
                 }
             }
-            is Screen.LibraryItem -> {
+            is Route.LibraryItem -> {
                 val detail by remember(current.itemId) { libraryVm.detail(current.itemId) }.collectAsStateWithLifecycle()
                 val ready = (detail as? ItemDetailState.Ready)?.detail
                 // The season shown under a show: the viewer's pick, else the one with the next episode.
                 var pickedSeason by rememberSaveable(current.itemId) { mutableStateOf<String?>(null) }
                 val seasonId = pickedSeason ?: ready?.let(::initialSeasonId)
                 val season = seasonId?.let { id -> remember(id) { libraryVm.detail(id) }.collectAsStateWithLifecycle().value }
-                BackHandler { screen = current.parent.returningFrom(current.itemId) }
                 ItemDetailsScreen(
                     state = detail,
                     season = season,
                     selectedSeasonId = seasonId,
                     actions = ItemDetailsActions(
-                        onPlay = { item, fromStart -> screen = Screen.Vod(item.id, fromStart, parent = current.copy(returnedFrom = null)) },
+                        onPlay = { item, fromStart -> nav = nav.push(Route.Vod(item.id, fromStart)) },
                         onSetWatched = libraryVm::setWatched,
                         onSelectSeason = { pickedSeason = it },
                         onRetry = { libraryVm.detail(current.itemId, refresh = true) },
-                        onPerson = { screen = Screen.LibrarySearch(query = it, parent = current.copy(returnedFrom = null)) },
-                        onOpenShow = { screen = Screen.LibraryItem(it, parent = current.copy(returnedFrom = null)) },
+                        onPerson = { nav = nav.push(Route.LibrarySearch(query = it)) },
+                        onOpenShow = { nav = nav.push(Route.LibraryItem(it)) },
                     ),
-                    returnedFrom = current.returnedFrom,
+                    returnedFrom = arrival.returnedFrom,
                 )
             }
-            is Screen.Guide, is Screen.Library, is Screen.LibraryGrid, is Screen.LibrarySearch, Screen.Recordings -> {
-                val tab = when (current) {
-                    is Screen.Guide -> Tab.LIVE
-                    Screen.Recordings -> Tab.RECORDINGS
-                    else -> Tab.LIBRARY
-                }
-                val openTab: (Tab) -> Unit = { picked ->
-                    if (picked != tab) {
-                        screen = when (picked) {
-                            Tab.LIVE -> Screen.Guide(returnedFrom = history.watching)
-                            Tab.LIBRARY -> Screen.Library()
-                            Tab.RECORDINGS -> Screen.Recordings
+            Route.Guide, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, Route.Recordings -> TabPage(
+                tv = tv,
+                tabs = tabs,
+                tabFocus = tabFocus,
+                settingsFocus = settingsFocus,
+                focusTabOnReturn = focusTabOnReturn,
+                onTabFocusRequested = { focusTabOnReturn = false },
+                refreshing = if (nav.tab == Tab.LIVE) loading && state is LineupState.Ready else false,
+                notice = notice,
+                onSettings = openSettings,
+                onRefresh = when (nav.tab) {
+                    Tab.LIVE -> vm::refresh
+                    Tab.LIBRARY -> libraryVm::refreshHome
+                    Tab.RECORDINGS -> recordingsVm::refresh
+                },
+            ) { showsTabs, tabBack ->
+                when (current) {
+                    Route.Guide -> {
+                        // With no server to talk to, Settings is the only thing to do, so it takes focus over Refresh.
+                        val homeFocus = homeFocusFor(state)
+                        LaunchedEffect(homeFocus) {
+                            if (homeFocus == HomeFocus.SETTINGS) requestFocusWhenAttached(settingsFocus)
+                        }
+                        // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
+                        val s = state
+                        when {
+                            s is LineupState.Loading || settings == null || !launchDecided -> MessageScreen(stringResource(Res.string.loading), loading = true)
+                            s is LineupState.Unconfigured -> MessageScreen(
+                                message = stringResource(Res.string.unconfigured),
+                                hint = stringResource(Res.string.unconfigured_hint),
+                            )
+                            s is LineupState.Failed -> MessageScreen(
+                                message = stringResource(Res.string.load_failed),
+                                detail = s.message,
+                                hint = stringResource(Res.string.load_failed_hint),
+                                onRetry = vm::refresh,
+                            )
+                            s is LineupState.Ready -> GuideOrEmpty(
+                                lineup = visibleLineup ?: s.lineup,
+                                favorites = settings?.favorites.orEmpty(),
+                                favoritesOrder = settings?.favoritesOrder.orEmpty(),
+                                recentChannels = settings?.recentChannels.orEmpty(),
+                                lastChannel = settings?.lastChannel,
+                                lastFilterKey = settings?.guideFilter,
+                                startAtNow = arrival.atNow,
+                                startSearch = arrival.search,
+                                returnedFrom = arrival.returnedFrom,
+                                onPlay = { guideId, scope -> nav = nav.push(Route.Player(guideId, scope)) },
+                                onToggleFavorite = vm::toggleFavorite,
+                                onFilterChanged = vm::setGuideFilter,
+                                onLoadGuideWindow = vm::loadGuideWindow,
+                                previewPlayer = player,
+                                sessions = sessions,
+                                captionsEnabled = settings?.captionsEnabled ?: false,
+                                captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
+                                autoOpenDelay = settings?.autoOpenDelay ?: AutoOpenDelay.AFTER_10_SECONDS,
+                                previewSound = settings?.previewSound ?: true,
+                                recordingMarks = recordingMarks.takeIf { capabilities.recordings },
+                                onRecord = vm.recordings::toggle,
+                                onRecordSeries = vm.recordings::toggleSeries,
+                                headerFocus = tabFocus.takeIf { showsTabs },
+                            )
                         }
                     }
-                }
-                val settingsFocus = remember { FocusRequester() }
-                val tabFocus = remember { FocusRequester() }
-                val openSettings = {
-                    settingsReturn = if (current is Screen.Guide) Screen.Guide() else current
-                    screen = Screen.Settings
-                }
-                TopLevel(
-                    tv = LocalLayoutProfile.current.tv,
-                    tabs = TabsModel(tab, libraryShown, capabilities.recordings, openTab),
-                    onSettings = openSettings,
-                    settingsFocus = settingsFocus,
-                ) { showsTabs ->
-                    // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
-                    LaunchedEffect(Unit) {
-                        if (!focusTabOnReturn) return@LaunchedEffect
-                        if (showsTabs) requestFocusWhenAttached(tabFocus)
-                        focusTabOnReturn = false
-                    }
-                    var headerFocused by remember { mutableStateOf(false) }
-                    val tabBack: () -> Unit = {
-                        when (tabBackAction(hasHeader = showsTabs, headerFocused = headerFocused)) {
-                            TabBack.FOCUS_HEADER -> tabFocus.requestFocus()
-                            TabBack.OPEN_LIVE -> openTab(Tab.LIVE)
-                        }
-                    }
-                    Column {
-                        Header(
-                            modifier = Modifier.onFocusChanged { headerFocused = it.hasFocus },
-                            refreshing = if (tab == Tab.LIVE) loading && state is LineupState.Ready else false,
-                            notice = notice,
-                            onSettings = openSettings.takeIf { showsTabs },
-                            onRefresh = when (tab) {
-                                Tab.LIVE -> vm::refresh
-                                Tab.LIBRARY -> libraryVm::refreshHome
-                                Tab.RECORDINGS -> recordingsVm::refresh
-                            },
-                            settingsFocus = settingsFocus,
-                            tabs = TabsModel(tab, libraryShown, capabilities.recordings, openTab).takeIf { showsTabs },
-                            tabFocus = tabFocus,
+                    Route.Library -> {
+                        BackHandler(onBack = tabBack)
+                        LibraryHomeScreen(
+                            state = libraryHome,
+                            actions = LibraryHomeActions(
+                                onOpenItem = { nav = nav.push(Route.LibraryItem(it.id)) },
+                                onPlayItem = { nav = nav.push(Route.Vod(it.id)) },
+                                onOpenLibrary = { nav = nav.push(Route.LibraryGrid(it.id)) },
+                                onRetry = libraryVm::refreshHome,
+                                onSearch = { voice -> nav = nav.push(Route.LibrarySearch(), Arrival(search = voice)) },
+                                menu = CardMenu(
+                                    onPlayFromStart = { nav = nav.push(Route.Vod(it.id, fromStart = true)) },
+                                    onSetWatched = libraryVm::setWatched,
+                                ),
+                            ),
+                            returnedFrom = arrival.returnedFrom,
                         )
-                        when (current) {
-                            // The guide's saveable state (filter, cursor, scroll, focused channel) outlives a trip to the player.
-                            is Screen.Guide -> guideState.SaveableStateProvider("guide") {
-                                // With no server to talk to, Settings is the only thing to do, so it takes focus over Refresh.
-                                val homeFocus = homeFocusFor(state)
-                                LaunchedEffect(homeFocus) {
-                                    if (homeFocus == HomeFocus.SETTINGS) requestFocusWhenAttached(settingsFocus)
-                                }
-                                // Settings arrive a beat after the cached lineup; the guide waits for them so it can open on the last channel.
-                                val s = state
-                                when {
-                                    s is LineupState.Loading || settings == null || !launchDecided -> MessageScreen(stringResource(Res.string.loading), loading = true)
-                                    s is LineupState.Unconfigured -> MessageScreen(
-                                        message = stringResource(Res.string.unconfigured),
-                                        hint = stringResource(Res.string.unconfigured_hint),
-                                    )
-                                    s is LineupState.Failed -> MessageScreen(
-                                        message = stringResource(Res.string.load_failed),
-                                        detail = s.message,
-                                        hint = stringResource(Res.string.load_failed_hint),
-                                        onRetry = vm::refresh,
-                                    )
-                                    s is LineupState.Ready -> GuideOrEmpty(
-                                        lineup = visibleLineup ?: s.lineup,
-                                        favorites = settings?.favorites.orEmpty(),
-                                        favoritesOrder = settings?.favoritesOrder.orEmpty(),
-                                        recentChannels = settings?.recentChannels.orEmpty(),
-                                        lastChannel = settings?.lastChannel,
-                                        lastFilterKey = settings?.guideFilter,
-                                        startAtNow = current.atNow,
-                                        startSearch = current.search,
-                                        returnedFrom = current.returnedFrom,
-                                        onPlay = { guideId, scope -> screen = Screen.Player(guideId, scope) },
-                                        onToggleFavorite = vm::toggleFavorite,
-                                        onFilterChanged = vm::setGuideFilter,
-                                        onLoadGuideWindow = vm::loadGuideWindow,
-                                        previewPlayer = player,
-                                        sessions = sessions,
-                                        captionsEnabled = settings?.captionsEnabled ?: false,
-                                        captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
-                                        autoOpenDelay = settings?.autoOpenDelay ?: AutoOpenDelay.AFTER_10_SECONDS,
-                                        previewSound = settings?.previewSound ?: true,
-                                        recordingMarks = recordingMarks.takeIf { capabilities.recordings },
-                                        onRecord = vm.recordings::toggle,
-                                        onRecordSeries = vm.recordings::toggleSeries,
-                                        headerFocus = tabFocus.takeIf { showsTabs },
-                                    )
-                                }
-                            }
-                            is Screen.Library -> guideState.SaveableStateProvider("library") {
-                                BackHandler(onBack = tabBack)
-                                LibraryHomeScreen(
-                                    state = libraryHome,
-                                    actions = LibraryHomeActions(
-                                        onOpenItem = { screen = Screen.LibraryItem(it.id, parent = Screen.Library()) },
-                                        onPlayItem = { screen = Screen.Vod(it.id, parent = Screen.Library()) },
-                                        onOpenLibrary = { screen = Screen.LibraryGrid(it.id) },
-                                        onRetry = libraryVm::refreshHome,
-                                        onSearch = { voice -> screen = Screen.LibrarySearch(voice) },
-                                        menu = CardMenu(
-                                            onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = Screen.Library()) },
-                                            onSetWatched = libraryVm::setWatched,
-                                        ),
-                                    ),
-                                    returnedFrom = current.returnedFrom,
-                                )
-                            }
-                            Screen.Recordings -> {
-                                val recordings by recordingsVm.state.collectAsStateWithLifecycle()
-                                LaunchedEffect(Unit) { recordingsVm.refresh() }
-                                RecordingsScreen(
-                                    state = recordings,
-                                    skipCommercials = settings?.skipCommercials ?: false,
-                                    onSkipCommercialsChanged = { vm.setSkipCommercials(it) },
-                                    onPlay = { recording, fromStart -> screen = Screen.Recording(recording.id, fromStart) },
-                                    onDelete = recordingsVm::delete,
-                                    onRetry = recordingsVm::refresh,
-                                    onBack = tabBack,
-                                    onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
-                                    onRuleDelete = recordingsVm::deleteRule,
-                                )
-                            }
-                            // The query outlives a trip to an item's page and back.
-                            is Screen.LibrarySearch -> guideState.SaveableStateProvider("library-search:${current.query.orEmpty()}") {
-                                BackHandler { screen = current.parent ?: Screen.Library(returnedFrom = SEARCH_FOCUS_KEY) }
-                                val here = current.copy(voice = false, returnedFrom = null)
-                                LibrarySearchScreen(
-                                    actions = LibrarySearchActions(
-                                        search = libraryVm::search,
-                                        onOpenItem = { screen = Screen.LibraryItem(it.id, parent = here) },
-                                        onPlayItem = { screen = Screen.Vod(it.id, parent = here) },
-                                        menu = CardMenu(
-                                            onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = here) },
-                                            onSetWatched = libraryVm::setWatched,
-                                        ),
-                                    ),
-                                    voice = current.voice,
-                                    returnedFrom = current.returnedFrom,
-                                    initialQuery = current.query,
-                                )
-                            }
-                            is Screen.LibraryGrid -> guideState.SaveableStateProvider("grid-${current.libraryId}") {
-                                LaunchedEffect(current.libraryId) {
-                                    val open = grid
-                                    libraryVm.openGrid(current.libraryId, open?.sort ?: LibrarySort.TITLE, open?.unwatched ?: false, open?.takeIf { it.libraryId == current.libraryId }?.genre)
-                                }
-                                BackHandler { screen = Screen.Library(returnedFrom = libraryFocusKey(current.libraryId)) }
-                                val shown = grid?.takeIf { it.libraryId == current.libraryId }
-                                val here = Screen.LibraryGrid(current.libraryId)
-                                LibraryGridScreen(
-                                    library = (libraryHome as? LibraryHomeState.Ready)?.home?.libraries?.firstOrNull { it.id == current.libraryId },
-                                    grid = shown,
-                                    actions = LibraryGridActions(
-                                        onSort = { libraryVm.openGrid(current.libraryId, it, shown?.unwatched ?: false, shown?.genre) },
-                                        onUnwatched = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, it, shown?.genre) },
-                                        onGenre = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, shown?.unwatched ?: false, it) },
-                                        onOpenItem = { screen = Screen.LibraryItem(it.id, parent = here) },
-                                        onPlayItem = { screen = Screen.Vod(it.id, parent = here) },
-                                        onLoadMore = libraryVm::loadMore,
-                                        menu = CardMenu(
-                                            onPlayFromStart = { screen = Screen.Vod(it.id, fromStart = true, parent = here) },
-                                            onSetWatched = libraryVm::setWatched,
-                                        ),
-                                    ),
-                                    returnedFrom = current.returnedFrom,
-                                )
-                            }
-                        }
                     }
+                    Route.Recordings -> {
+                        val recordings by recordingsVm.state.collectAsStateWithLifecycle()
+                        LaunchedEffect(Unit) { recordingsVm.refresh() }
+                        RecordingsScreen(
+                            state = recordings,
+                            skipCommercials = settings?.skipCommercials ?: false,
+                            onSkipCommercialsChanged = { vm.setSkipCommercials(it) },
+                            onPlay = { recording, fromStart -> nav = nav.push(Route.Recording(recording.id, fromStart)) },
+                            onDelete = recordingsVm::delete,
+                            onRetry = recordingsVm::refresh,
+                            onBack = tabBack,
+                            onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
+                            onRuleDelete = recordingsVm::deleteRule,
+                        )
+                    }
+                    // The query outlives a trip to an item's page and back, in the entry's saved state.
+                    is Route.LibrarySearch -> LibrarySearchScreen(
+                        actions = LibrarySearchActions(
+                            search = libraryVm::search,
+                            onOpenItem = { nav = nav.push(Route.LibraryItem(it.id)) },
+                            onPlayItem = { nav = nav.push(Route.Vod(it.id)) },
+                            menu = CardMenu(
+                                onPlayFromStart = { nav = nav.push(Route.Vod(it.id, fromStart = true)) },
+                                onSetWatched = libraryVm::setWatched,
+                            ),
+                        ),
+                        voice = arrival.search,
+                        returnedFrom = arrival.returnedFrom,
+                        initialQuery = current.query,
+                    )
+                    is Route.LibraryGrid -> {
+                        LaunchedEffect(current.libraryId) {
+                            val open = grid
+                            libraryVm.openGrid(current.libraryId, open?.sort ?: LibrarySort.TITLE, open?.unwatched ?: false, open?.takeIf { it.libraryId == current.libraryId }?.genre)
+                        }
+                        val shown = grid?.takeIf { it.libraryId == current.libraryId }
+                        LibraryGridScreen(
+                            library = (libraryHome as? LibraryHomeState.Ready)?.home?.libraries?.firstOrNull { it.id == current.libraryId },
+                            grid = shown,
+                            actions = LibraryGridActions(
+                                onSort = { libraryVm.openGrid(current.libraryId, it, shown?.unwatched ?: false, shown?.genre) },
+                                onUnwatched = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, it, shown?.genre) },
+                                onGenre = { libraryVm.openGrid(current.libraryId, shown?.sort ?: LibrarySort.TITLE, shown?.unwatched ?: false, it) },
+                                onOpenItem = { nav = nav.push(Route.LibraryItem(it.id)) },
+                                onPlayItem = { nav = nav.push(Route.Vod(it.id)) },
+                                onLoadMore = libraryVm::loadMore,
+                                menu = CardMenu(
+                                    onPlayFromStart = { nav = nav.push(Route.Vod(it.id, fromStart = true)) },
+                                    onSetWatched = libraryVm::setWatched,
+                                ),
+                            ),
+                            returnedFrom = arrival.returnedFrom,
+                        )
+                    }
+                    else -> Unit
                 }
             }
         }
     }
+
+    // One back stack per tab, each with its own saved state, so a tab opens again where it was left. The entries
+    // follow the app's lifecycle rather than their own: the players save their place and free the stream when the
+    // app leaves the foreground, which an entry's own lifecycle would also signal on every Back.
+    val hostLifecycle = remember(lifecycleOwner) {
+        NavEntryDecorator<Route> { entry -> CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) { entry.Content() } }
+    }
+    val entryProvider: (Route) -> NavEntry<Route> = { route -> NavEntry(route, contentKey = route.id) { page(route) } }
+    val entries = Tab.entries.associateWith { tab ->
+        rememberDecoratedNavEntries(nav.stack(tab), listOf(rememberSaveableStateHolderNavEntryDecorator(), hostLifecycle), entryProvider)
+    }
+    // A TV cuts between pages: focus lands at once and nothing slides under the remote. Elsewhere pages cross-fade
+    // on the theme's effects spring.
+    val fade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val cut: AnimatedContentTransitionScope<Scene<Route>>.() -> ContentTransform = {
+        if (tv) ContentTransform(EnterTransition.None, ExitTransition.None, sizeTransform = null)
+        else ContentTransform(fadeIn(fade), fadeOut(fade), sizeTransform = null)
+    }
+
+    CompositionLocalProvider(
+        LocalClockFormat provides (settings?.clockFormat ?: ClockFormat.AUTO),
+        LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
+    ) {
+        TopLevel(
+            tv = tv,
+            tabs = tabs,
+            shown = top.hasTabs || top.isSettings,
+            settingsOpen = top.isSettings,
+            onSettings = openSettings,
+            settingsFocus = settingsFocus,
+        ) {
+            NavDisplay(
+                entries = entries.getValue(Tab.LIVE) + if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),
+                onBack = back,
+                transitionSpec = cut,
+                popTransitionSpec = cut,
+                predictivePopTransitionSpec = { cut() },
+            )
+        }
+    }
 }
+
+/**
+ * A page under the tabs: the header above [content], with the TV's tabs in it. [content] gets whether the header
+ * shows the tabs, and what Back does on a tab's first page: climb to the header's open tab, then open Live.
+ */
+@Composable
+private fun TabPage(
+    tv: Boolean,
+    tabs: TabsModel,
+    tabFocus: FocusRequester,
+    settingsFocus: FocusRequester,
+    focusTabOnReturn: Boolean,
+    onTabFocusRequested: () -> Unit,
+    refreshing: Boolean,
+    notice: String?,
+    onSettings: () -> Unit,
+    onRefresh: () -> Unit,
+    content: @Composable (showsTabs: Boolean, tabBack: () -> Unit) -> Unit,
+) {
+    val showsTabs = tv
+    // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
+    LaunchedEffect(Unit) {
+        if (!focusTabOnReturn) return@LaunchedEffect
+        if (showsTabs) requestFocusWhenAttached(tabFocus)
+        onTabFocusRequested()
+    }
+    var headerFocused by remember { mutableStateOf(false) }
+    val tabBack: () -> Unit = {
+        when (tabBackAction(hasHeader = showsTabs, headerFocused = headerFocused)) {
+            TabBack.FOCUS_HEADER -> tabFocus.requestFocus()
+            TabBack.OPEN_LIVE -> tabs.onTab(Tab.LIVE)
+        }
+    }
+    Column {
+        Header(
+            modifier = Modifier.onFocusChanged { headerFocused = it.hasFocus },
+            refreshing = refreshing,
+            notice = notice,
+            onSettings = onSettings.takeIf { showsTabs },
+            onRefresh = onRefresh,
+            settingsFocus = settingsFocus,
+            tabs = tabs.takeIf { showsTabs },
+            tabFocus = tabFocus,
+        )
+        content(showsTabs, tabBack)
+    }
+}
+
 
 /** What the player shows for a library item: an episode under its show and number, a movie with its year. */
 private fun MediaItem.vodTitle(): VodTitle {
@@ -887,59 +879,73 @@ private fun GuideOrEmpty(
     }
 }
 
-/** The app's top-level destinations; Settings sits apart, as a button on a TV and the last item elsewhere. */
-private enum class Tab { LIVE, LIBRARY, RECORDINGS }
-
 /** Which destination is open, whether Library and Recordings are offered, and what picking one does. */
 private class TabsModel(val selected: Tab, val libraryShown: Boolean, val recordingsShown: Boolean, val onTab: (Tab) -> Unit)
 
 /**
- * Live, Library and Settings around [content]. A TV keeps them in the header, so the guide loses no width and Up
- * from its chips reaches them as it reaches the header's buttons today; [content] gets true to draw them there.
- * Elsewhere Material's navigation suite puts them in a bottom bar on a compact window and a rail on a larger one.
+ * Live, Library, Recordings and Settings around [content]. A TV keeps them in the header, so the guide loses no
+ * width and Up from its chips reaches them as it reaches the header's buttons; [TabPage] draws them there.
+ * Elsewhere Material's navigation suite puts them in a short bar on a compact window and a rail on a larger one,
+ * and slides it away while [shown] is false, over the players and an item's page.
  */
 @Composable
-private fun TopLevel(tv: Boolean, tabs: TabsModel, onSettings: () -> Unit, settingsFocus: FocusRequester, content: @Composable (showsTabs: Boolean) -> Unit) {
+private fun TopLevel(
+    tv: Boolean,
+    tabs: TabsModel,
+    shown: Boolean,
+    settingsOpen: Boolean,
+    onSettings: () -> Unit,
+    settingsFocus: FocusRequester,
+    content: @Composable () -> Unit,
+) {
     if (tv) {
-        content(true)
+        content()
         return
     }
+    val type = NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfoV2())
+    val state = rememberNavigationSuiteScaffoldState(if (shown) NavigationSuiteScaffoldValue.Visible else NavigationSuiteScaffoldValue.Hidden)
+    LaunchedEffect(shown) { if (shown) state.show() else state.hide() }
     NavigationSuiteScaffold(
-        navigationSuiteItems = {
-            item(
-                selected = tabs.selected == Tab.LIVE,
+        navigationItems = {
+            NavigationSuiteItem(
+                selected = !settingsOpen && tabs.selected == Tab.LIVE,
                 onClick = { tabs.onTab(Tab.LIVE) },
                 icon = { Icon(PlayerIcons.LiveTv, contentDescription = null) },
                 label = { Text(stringResource(Res.string.nav_live)) },
+                navigationSuiteType = type,
             )
             if (tabs.libraryShown) {
-                item(
-                    selected = tabs.selected == Tab.LIBRARY,
+                NavigationSuiteItem(
+                    selected = !settingsOpen && tabs.selected == Tab.LIBRARY,
                     onClick = { tabs.onTab(Tab.LIBRARY) },
                     icon = { Icon(PlayerIcons.VideoLibrary, contentDescription = null) },
                     label = { Text(stringResource(Res.string.nav_library)) },
+                    navigationSuiteType = type,
                 )
             }
             if (tabs.recordingsShown) {
-                item(
-                    selected = tabs.selected == Tab.RECORDINGS,
+                NavigationSuiteItem(
+                    selected = !settingsOpen && tabs.selected == Tab.RECORDINGS,
                     onClick = { tabs.onTab(Tab.RECORDINGS) },
                     icon = { Icon(PlayerIcons.Recordings, contentDescription = null) },
                     label = { Text(stringResource(Res.string.recordings_title)) },
+                    navigationSuiteType = type,
                 )
             }
-            item(
-                selected = false,
-                onClick = onSettings,
+            NavigationSuiteItem(
+                selected = settingsOpen,
+                onClick = { if (!settingsOpen) onSettings() },
                 icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
                 label = { Text(stringResource(Res.string.nav_settings)) },
                 modifier = Modifier.focusRequester(settingsFocus),
+                navigationSuiteType = type,
             )
         },
+        navigationSuiteType = type,
         containerColor = MaterialTheme.colorScheme.background,
-    ) {
-        content(false)
-    }
+        state = state,
+        content = content,
+    )
 }
 
 /**

@@ -129,9 +129,15 @@ internal val Tab.root: Route
  * One-shot details for the page just arrived at, which a restore drops. [returnedFrom] is what the page focuses
  * as the viewer comes back to it (an item, a library's chip, the channel the player was left on, which the
  * preview must not reopen by itself until focus moves); [atNow] moves the guide's cursor to the current time (the
- * Guide key from the player); [search] opens the guide's search, or the library's by voice.
+ * Guide key from the player); [search] opens the guide's search, or the library's by voice; [inHeader] keeps
+ * focus on the header's open tab (Back from another tab), so one more Back exits.
  */
-internal data class Arrival(val returnedFrom: String? = null, val atNow: Boolean = false, val search: Boolean = false)
+internal data class Arrival(
+    val returnedFrom: String? = null,
+    val atNow: Boolean = false,
+    val search: Boolean = false,
+    val inHeader: Boolean = false,
+)
 
 /**
  * Where the viewer is: one back stack per tab, each starting at the tab's [root], and the open [tab]. Every move

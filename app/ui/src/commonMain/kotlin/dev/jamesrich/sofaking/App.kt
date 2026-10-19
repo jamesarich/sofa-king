@@ -106,6 +106,12 @@ import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.SofaLoaderLabel
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
+import dev.jamesrich.sofaking.ui.guide.GuideShortcut
+import dev.jamesrich.sofaking.ui.guide.guideShortcut
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.player.CaptionSync
@@ -349,6 +355,13 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         nav = nav.closeSettings().open(picked, if (picked == Tab.LIVE) Arrival(returnedFrom = history.watching) else Arrival())
     }
     val openSettings = { nav = nav.push(Route.Settings) }
+    // Back from another tab's pill: Live opens with focus kept on its pill, so one more Back exits.
+    val backToLive = {
+        focusTabOnReturn = true
+        nav = nav.open(Tab.LIVE, Arrival(returnedFrom = history.watching, inHeader = true))
+    }
+    // The Guide key from the Library or Recordings pages: the guide at Now, on the channel last watched.
+    val guideFromElsewhere = { nav = nav.open(Tab.LIVE, Arrival(returnedFrom = history.watching, atNow = true)) }
 
     // The page for a route, built fresh on each recomposition so it reads the current state; the entries
     // Navigation 3 keeps call through this, never a copy captured when the page was opened.
@@ -574,6 +587,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                 refreshing = if (nav.tab == Tab.LIVE) loading && state is LineupState.Ready else false,
                 notice = notice,
                 onSettings = openSettings,
+                onBackToLive = backToLive,
                 onRefresh = when (nav.tab) {
                     Tab.LIVE -> vm::refresh
                     Tab.LIBRARY -> libraryVm::refreshHome
@@ -625,6 +639,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                 onRecord = vm.recordings::toggle,
                                 onRecordSeries = vm.recordings::toggleSeries,
                                 headerFocus = tabFocus.takeIf { showsTabs },
+                                startInHeader = arrival.inHeader && showsTabs,
                             )
                         }
                     }
@@ -729,13 +744,20 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         TopLevel(
             tv = tv,
             tabs = tabs,
-            shown = top.hasTabs || top.isSettings,
+            shown = !top.playsFullScreen,
             settingsOpen = top.isSettings,
             onSettings = openSettings,
             settingsFocus = settingsFocus,
         ) {
             NavDisplay(
                 entries = entries.getValue(Tab.LIVE) + if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),
+                modifier = Modifier.onPreviewKeyEvent { event ->
+                    // Guide (or Menu) means live TV from any page a viewer browses; the players and Settings keep their keys.
+                    val browsing = nav.tab != Tab.LIVE && !nav.top.playsFullScreen && !nav.top.isSettings
+                    if (!browsing || event.key.guideShortcut() != GuideShortcut.NOW) return@onPreviewKeyEvent false
+                    if (event.type == KeyEventType.KeyDown) guideFromElsewhere()
+                    true
+                },
                 onBack = back,
                 transitionSpec = cut,
                 popTransitionSpec = cut,
@@ -760,6 +782,7 @@ private fun TabPage(
     refreshing: Boolean,
     notice: String?,
     onSettings: () -> Unit,
+    onBackToLive: () -> Unit,
     onRefresh: () -> Unit,
     content: @Composable (showsTabs: Boolean, tabBack: () -> Unit) -> Unit,
 ) {
@@ -774,7 +797,7 @@ private fun TabPage(
     val tabBack: () -> Unit = {
         when (tabBackAction(hasHeader = showsTabs, headerFocused = headerFocused)) {
             TabBack.FOCUS_HEADER -> tabFocus.requestFocus()
-            TabBack.OPEN_LIVE -> tabs.onTab(Tab.LIVE)
+            TabBack.OPEN_LIVE -> onBackToLive()
         }
     }
     Column {
@@ -861,6 +884,7 @@ private fun GuideOrEmpty(
     onRecord: suspend (Programme) -> Boolean,
     onRecordSeries: suspend (Programme) -> Boolean,
     headerFocus: FocusRequester?,
+    startInHeader: Boolean,
 ) {
     if (lineup.channels.isEmpty()) {
         MessageScreen(stringResource(Res.string.no_channels), hint = stringResource(Res.string.no_channels_hint))
@@ -889,6 +913,7 @@ private fun GuideOrEmpty(
             onRecord = onRecord,
             onRecordSeries = onRecordSeries,
             headerFocus = headerFocus,
+            startInHeader = startInHeader,
         )
     }
 }
@@ -900,7 +925,7 @@ private class TabsModel(val selected: Tab, val libraryShown: Boolean, val record
  * Live, Library, Recordings and Settings around [content]. A TV keeps them in the header, so the guide loses no
  * width and Up from its chips reaches them as it reaches the header's buttons; [TabPage] draws them there.
  * Elsewhere Material's navigation suite puts them in a short bar on a compact window and a rail on a larger one,
- * and slides it away while [shown] is false, over the players and an item's page.
+ * and slides it away while [shown] is false, over the full-screen players.
  */
 @Composable
 private fun TopLevel(

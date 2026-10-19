@@ -51,6 +51,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -126,7 +127,9 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = maxHeight * HERO_FRACTION
         Hero(item.backdrop ?: item.poster, Modifier.fillMaxWidth().height(heroHeight))
-        CompositionLocalProvider(LocalBringIntoViewSpec provides ScrollOnlyWhenHidden) {
+        val edge = with(LocalDensity.current) { FOCUS_EDGE.toPx() }
+        val scrollSpec = remember(edge) { ScrollOnlyWhenHidden(edge) }
+        CompositionLocalProvider(LocalBringIntoViewSpec provides scrollSpec) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -156,21 +159,25 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
 }
 
 /**
- * Focus scrolls the page only as far as it takes to show what took focus. A TV's default pivots it a third of the
- * way down, which on arrival pushes the title above Play off the screen.
+ * Focus scrolls the page only as far as it takes to show what took focus [edge] clear of the screen's edges, outside
+ * the overscan. A TV's default pivots it a third of the way down, which on arrival pushes the title above Play off
+ * the screen.
  */
 @OptIn(ExperimentalFoundationApi::class)
-private val ScrollOnlyWhenHidden = object : BringIntoViewSpec {
+private class ScrollOnlyWhenHidden(private val edge: Float) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val trailing = offset + size
+        val leading = offset - edge
+        val trailing = offset + size + edge
         return when {
-            offset >= 0f && trailing <= containerSize -> 0f
-            offset < 0f && trailing > containerSize -> 0f
-            abs(offset) < abs(trailing - containerSize) -> offset
+            leading >= 0f && trailing <= containerSize -> 0f
+            trailing - leading > containerSize -> leading
+            abs(leading) < abs(trailing - containerSize) -> leading
             else -> trailing - containerSize
         }
     }
 }
+
+private val FOCUS_EDGE = 48.dp
 
 /** The seasons in one row; focus coming down from the buttons lands on the season being shown. */
 @Composable

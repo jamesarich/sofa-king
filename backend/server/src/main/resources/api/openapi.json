@@ -94,7 +94,8 @@
         "properties": {
           "id": { "type": "string" }, "channelId": { "type": "string" }, "startsAt": { "type": "string", "format": "date-time" }, "endsAt": { "type": "string", "format": "date-time" },
           "title": { "type": "string" }, "description": { "type": ["string", "null"] }, "subTitle": { "type": ["string", "null"] }, "episode": { "type": ["string", "null"] },
-          "isNew": { "type": "boolean" }, "rating": { "type": ["string", "null"] }, "icon": { "type": ["string", "null"] }
+          "isNew": { "type": "boolean" }, "rating": { "type": ["string", "null"] }, "icon": { "type": ["string", "null"] },
+          "categories": { "type": "array", "items": { "type": "string" } }
         }
       },
       "OpenPlayback": {

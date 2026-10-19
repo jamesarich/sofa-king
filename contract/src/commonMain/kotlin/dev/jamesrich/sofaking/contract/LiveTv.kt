@@ -24,6 +24,8 @@ import kotlinx.serialization.Serializable
     val title: String, val description: String? = null,
     val subTitle: String? = null, val episode: String? = null, val isNew: Boolean = false,
     val rating: String? = null, val icon: String? = null,
+    /** The guide's genres for the program as its source names them, such as `Movies` or `Sports`; older servers send none. */
+    val categories: List<String> = emptyList(),
 )
 @Serializable data class GuideQuery(val channelIds: List<String>, val from: String, val to: String, val revision: String? = null)
 @Serializable data class ChannelGuide(val channelId: String, val status: String = "", val programmes: List<Programme>)

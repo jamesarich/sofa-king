@@ -106,6 +106,7 @@ class CatalogService(
                     Programme(
                         stableId("programme:${entry.id}:$start:$end:${programme.title}"), entry.id, start, end, programme.title, programme.description,
                         programme.subTitle, episodeLabel(programme.episodeNumbers), programme.isNew, programme.rating?.value, programme.icon,
+                        programme.categories.map(String::trim).filter(String::isNotEmpty).distinct(),
                     )
                 }
                 val status = if (entry.guide == null) Wire.GuideStatus.UNASSIGNED else if (rows.isEmpty()) Wire.GuideStatus.EMPTY else Wire.GuideStatus.AVAILABLE

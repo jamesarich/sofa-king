@@ -592,6 +592,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         onSelectSeason = { pickedSeason = it },
                         onRetry = { libraryVm.detail(current.itemId, refresh = true) },
                         onPerson = { screen = Screen.LibrarySearch(query = it, parent = current.copy(returnedFrom = null)) },
+                        onOpenShow = { screen = Screen.LibraryItem(it, parent = current.copy(returnedFrom = null)) },
                     ),
                     returnedFrom = current.returnedFrom,
                 )

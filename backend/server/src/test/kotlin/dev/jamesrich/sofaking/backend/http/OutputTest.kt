@@ -111,7 +111,7 @@ class OutputTest {
                 val xml = client.get("/output/guide.xml?token=$output&days=2").bodyAsText()
                 assertTrue(xml.contains(
                     "<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" channel=\"${hls.id}\"><title>Morning</title>" +
-                        "<sub-title>Pilot &amp; Plans</sub-title><category lang=\"en\">News</category>" +
+                        "<sub-title>Pilot &amp; Plans</sub-title><category>Sports</category>" +
                         "<episode-num system=\"xmltv_ns\">1.4.</episode-num><episode-num system=\"onscreen\">S02E05</episode-num>" +
                         "<new/><rating system=\"VCHIP\"><value>TV-PG</value></rating></programme>",
                 ), xml)
@@ -125,6 +125,7 @@ class OutputTest {
                 assertEquals("S2 E5", programme.episode)
                 assertTrue(programme.isNew)
                 assertEquals("TV-PG", programme.rating)
+                assertEquals(listOf("Sports"), programme.categories)
                 assertNull(programme.icon)
             } finally { served.runtime.close(); served.store.close(); dir.toFile().deleteRecursively() }
         }

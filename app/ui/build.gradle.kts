@@ -97,6 +97,7 @@ kotlin {
                 implementation(libs.compose.material3.adaptive.navigation.suite)
                 implementation(libs.compose.material.icons.core)
                 implementation(libs.navigationevent.compose)
+                implementation(libs.navigation3.ui)
                 implementation(libs.compose.components.resources)
                 implementation(libs.coil.compose)
                 implementation(libs.coil.network.ktor3)

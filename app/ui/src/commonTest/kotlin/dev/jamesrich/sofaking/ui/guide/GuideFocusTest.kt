@@ -56,30 +56,28 @@ class GuideFocusTest {
 
     // guideBackAction
 
-    private fun back(searchOpen: Boolean = false, grid: Boolean = false, chips: Boolean = false, header: Boolean = true, armed: Boolean = false) =
-        guideBackAction(searchOpen = searchOpen, gridFocused = grid, chipsFocused = chips, hasHeader = header, exitArmed = armed)
+    private fun back(searchOpen: Boolean = false, grid: Boolean = false, chips: Boolean = false, header: Boolean = true) =
+        guideBackAction(searchOpen = searchOpen, gridFocused = grid, chipsFocused = chips, hasHeader = header)
 
     @Test
     fun `open search closes before anything else`() {
         assertEquals(GuideBack.CLOSE_SEARCH, back(searchOpen = true, grid = true))
-        assertEquals(GuideBack.CLOSE_SEARCH, back(searchOpen = true, armed = true))
     }
 
     @Test
     fun `Back from the grid climbs to the chips`() {
-        assertEquals(GuideBack.FOCUS_CHIPS, back(grid = true, armed = true))
+        assertEquals(GuideBack.FOCUS_CHIPS, back(grid = true))
     }
 
     @Test
     fun `Back from the chips climbs to the header's tabs when there are some`() {
         assertEquals(GuideBack.FOCUS_HEADER, back(chips = true))
-        assertEquals(GuideBack.ARM_EXIT, back(chips = true, header = false))
+        assertEquals(GuideBack.EXIT, back(chips = true, header = false))
     }
 
     @Test
-    fun `Back from the header asks once and exits on the second press`() {
-        assertEquals(GuideBack.ARM_EXIT, back())
-        assertEquals(GuideBack.EXIT, back(armed = true))
+    fun `Back from the header exits at once`() {
+        assertEquals(GuideBack.EXIT, back())
     }
 
     // selectedChipIndex

@@ -53,10 +53,11 @@ internal class LibrarySearchActions(
 /**
  * Search across every library by title, show or cast: movies and shows as posters, then episodes and videos.
  * [voice] starts the platform's speech input on arrival, falling back to the text field without a recognizer;
- * [returnedFrom] is the item whose page the viewer just left, which takes focus.
+ * [initialQuery] searches for it on arrival, with focus on the first result; [returnedFrom] is the item whose page
+ * the viewer just left, which takes focus.
  */
 @Composable
-internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, returnedFrom: String?) {
+internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, returnedFrom: String?, initialQuery: String? = null) {
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues()
     val query = rememberTextFieldState()
     val field = remember { FocusRequester() }
@@ -81,6 +82,10 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
     LaunchedEffect(Unit) {
         when {
             returnedFrom != null -> requestFocusWhenAttached(returnFocus)
+            !arrived && initialQuery != null -> {
+                query.setTextAndPlaceCursorAtEnd(initialQuery)
+                focusResults = true
+            }
             !arrived && voice && startVoice() -> Unit
             else -> requestFocusWhenAttached(field)
         }

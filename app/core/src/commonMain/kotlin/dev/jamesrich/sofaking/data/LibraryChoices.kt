@@ -77,19 +77,46 @@ fun defaultAudio(detail: MediaItemDetail): MediaTrackInfo? = detail.audio.firstO
 fun trackLabel(track: MediaTrackInfo, number: Int): String {
     val language = track.language?.lowercase()?.let { LANGUAGES[it] ?: it.uppercase() }
     val title = track.title?.takeIf { it.isNotBlank() && !it.equals(language, ignoreCase = true) }
-    val format = track.channels?.let { channels ->
-        val layout = when (channels) {
-            1 -> "Mono"
-            2 -> "Stereo"
-            6 -> "5.1"
-            8 -> "7.1"
-            else -> "$channels ch"
-        }
-        "${track.codec.uppercase()} $layout"
-    }
+    val format = track.channels?.let { "${track.codec.uppercase()} ${channelLayout(it)}" }
     val parts = listOfNotNull(language, title, format)
     return if (parts.isEmpty()) "Track $number" else parts.joinToString(" · ")
 }
+
+private fun channelLayout(channels: Int): String = when (channels) {
+    1 -> "Mono"
+    2 -> "Stereo"
+    6 -> "5.1"
+    8 -> "7.1"
+    else -> "$channels ch"
+}
+
+/**
+ * What an item's page says about its file: the [sound] of the track it starts with, such as "Dolby Digital 5.1",
+ * and the languages of its audio tracks and of its full subtitle tracks, by name, each once.
+ */
+data class FileFacts(val sound: String?, val audioLanguages: List<String>, val subtitleLanguages: List<String>)
+
+fun fileFacts(detail: MediaItemDetail): FileFacts = FileFacts(
+    sound = defaultAudio(detail)?.let { track -> listOfNotNull(codecName(track.codec), track.channels?.let(::channelLayout)).joinToString(" ") },
+    audioLanguages = languageNames(detail.audio),
+    subtitleLanguages = languageNames(detail.subtitles.filterNot { it.forced }),
+)
+
+/** Tags for no language, several or an unknown one, which name nothing worth listing. */
+private val NO_LANGUAGE = setOf("und", "zxx", "mul", "mis")
+
+private fun codecName(codec: String): String = when (codec.lowercase()) {
+    "ac3" -> "Dolby Digital"
+    "eac3" -> "Dolby Digital Plus"
+    "truehd" -> "Dolby TrueHD"
+    "opus" -> "Opus"
+    else -> codec.uppercase()
+}
+
+private fun languageNames(tracks: List<MediaTrackInfo>): List<String> = tracks.mapNotNull { track ->
+    val key = languageKey(track.language)?.takeIf { it !in NO_LANGUAGE } ?: return@mapNotNull null
+    LANGUAGES[key] ?: key.uppercase()
+}.distinct()
 
 /**
  * The audio track an item starts with: one in the language the viewer picked in its show ([choice]), the file's

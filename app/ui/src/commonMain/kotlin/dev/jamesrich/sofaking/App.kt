@@ -181,9 +181,17 @@ private sealed interface Screen {
     /** The Library tab's home. [returnedFrom] is the item whose page the viewer just left, which it focuses. */
     @Serializable
     data class Library(@Transient val returnedFrom: String? = null) : Screen
-    /** Search across the libraries, under the Library tab; [voice] starts it by voice on arrival. */
+    /**
+     * Search across the libraries, under the Library tab; [voice] starts it by voice on arrival, and [query] searches
+     * for a name from an item's page, which Back returns to as [parent].
+     */
     @Serializable
-    data class LibrarySearch(@Transient val voice: Boolean = false, @Transient val returnedFrom: String? = null) : Screen
+    data class LibrarySearch(
+        @Transient val voice: Boolean = false,
+        @Transient val returnedFrom: String? = null,
+        val query: String? = null,
+        val parent: Screen? = null,
+    ) : Screen
     /** One library's grid, under the Library tab. */
     @Serializable
     data class LibraryGrid(val libraryId: String, @Transient val returnedFrom: String? = null) : Screen
@@ -583,6 +591,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         onSetWatched = libraryVm::setWatched,
                         onSelectSeason = { pickedSeason = it },
                         onRetry = { libraryVm.detail(current.itemId, refresh = true) },
+                        onPerson = { screen = Screen.LibrarySearch(query = it, parent = current.copy(returnedFrom = null)) },
                     ),
                     returnedFrom = current.returnedFrom,
                 )
@@ -725,9 +734,9 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                 )
                             }
                             // The query outlives a trip to an item's page and back.
-                            is Screen.LibrarySearch -> guideState.SaveableStateProvider("library-search") {
-                                BackHandler { screen = Screen.Library(returnedFrom = SEARCH_FOCUS_KEY) }
-                                val here = Screen.LibrarySearch()
+                            is Screen.LibrarySearch -> guideState.SaveableStateProvider("library-search:${current.query.orEmpty()}") {
+                                BackHandler { screen = current.parent ?: Screen.Library(returnedFrom = SEARCH_FOCUS_KEY) }
+                                val here = current.copy(voice = false, returnedFrom = null)
                                 LibrarySearchScreen(
                                     actions = LibrarySearchActions(
                                         search = libraryVm::search,
@@ -740,6 +749,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                     ),
                                     voice = current.voice,
                                     returnedFrom = current.returnedFrom,
+                                    initialQuery = current.query,
                                 )
                             }
                             is Screen.LibraryGrid -> guideState.SaveableStateProvider("grid-${current.libraryId}") {

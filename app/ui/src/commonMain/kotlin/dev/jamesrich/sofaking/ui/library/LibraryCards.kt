@@ -23,6 +23,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import dev.jamesrich.sofaking.ui.player.PlayerIcons
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -75,7 +76,8 @@ internal fun PosterCard(
 ) {
     Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ItemCard(item, onClick, onPlay, menu, aspectRatio = 2f / 3f, focusScale = null) {
-            Artwork(item.poster, item.title)
+            // A file without a poster still has a frame from the server, cropped to the poster's shape.
+            Artwork(item.poster ?: item.backdrop, label = null)
         }
         CardLabel(item.title, posterSubtitle(item))
     }
@@ -93,7 +95,7 @@ internal fun WideCard(
 ) {
     Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ItemCard(item, onClick, onPlay, menu, aspectRatio = 16f / 9f, focusScale = WIDE_FOCUS_SCALE) {
-            Artwork(item.backdrop ?: item.poster, item.showTitle ?: item.title)
+            Artwork(item.backdrop ?: item.poster, label = null)
         }
         if (item.kind == ItemKind.EPISODE) {
             CardLabel(item.showTitle ?: item.title, listOfNotNull(item.episodeLabel, item.title.takeIf { item.showTitle != null }).joinToString(" · "))
@@ -187,12 +189,22 @@ private val CardMenuEntry.label: StringResource
         CardMenuEntry.MARK_UNWATCHED -> Res.string.library_mark_unwatched
     }
 
-/** The picture filling its card, or the title in its place while there is none. */
+/**
+ * The picture filling its card. Under it, and alone while it loads or when it fails, [label] stands in its place,
+ * or the library mark when the card's own caption already names the item.
+ */
 @Composable
-internal fun BoxScope.Artwork(url: String?, title: String) {
-    if (url == null) {
+internal fun BoxScope.Artwork(url: String?, label: String?) {
+    if (label == null) {
+        Icon(
+            PlayerIcons.VideoLibrary,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.align(Alignment.Center).size(48.dp),
+        )
+    } else {
         Text(
-            title,
+            label,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -200,9 +212,8 @@ internal fun BoxScope.Artwork(url: String?, title: String) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.align(Alignment.Center).padding(12.dp),
         )
-    } else {
-        AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
     }
+    if (url != null) AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
 }
 
 /** The progress bar along the bottom, the watched tick and a show's unwatched count. */

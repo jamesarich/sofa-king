@@ -31,6 +31,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -174,12 +179,42 @@ private fun Summary(detail: MediaItemDetail, actions: ItemDetailsActions, primar
         Text(item.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         MetaLine(detail)
         detail.tagline?.let { Text(it, style = MaterialTheme.typography.titleMedium, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        item.overview?.let { Text(it, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis) }
+        item.overview?.let { Overview(it) }
         Buttons(detail, actions, primaryFocus)
         if (detail.directors.isNotEmpty()) Credit(stringResource(Res.string.library_directors, detail.directors.joinToString(", ")))
         if (detail.cast.isNotEmpty()) Credit(stringResource(Res.string.library_cast, detail.cast.take(CAST_SHOWN).joinToString(", ")))
     }
 }
+
+/**
+ * The overview, cut at [OVERVIEW_LINES]. A cut one takes focus, so a remote can reach it, and OK shows the rest or
+ * folds it again.
+ */
+@Composable
+private fun Overview(text: String) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var cut by remember { mutableStateOf(false) }
+    val body: @Composable (Modifier) -> Unit = { modifier ->
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = if (expanded) Int.MAX_VALUE else OVERVIEW_LINES,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { if (!expanded) cut = it.hasVisualOverflow },
+            modifier = modifier,
+        )
+    }
+    if (cut || expanded) {
+        Surface(onClick = { expanded = !expanded }, shape = OverviewShape, color = Color.Transparent, modifier = Modifier.tvFocus(OverviewShape, focusedScale = 1f)) {
+            body(Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+        }
+    } else {
+        body(Modifier)
+    }
+}
+
+private const val OVERVIEW_LINES = 4
+private val OverviewShape = RoundedCornerShape(8.dp)
 
 /** Year, length or seasons, rating and the picture's badges on one line. */
 @Composable
@@ -252,7 +287,7 @@ private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit, modifier: Modifi
     ) {
         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(EPISODE_THUMB_WIDTH).aspectRatio(16f / 9f).background(MaterialTheme.colorScheme.surfaceVariant, CardShape)) {
-                Artwork(episode.backdrop ?: episode.poster, episode.episode?.let { "E$it" } ?: episode.title)
+                Artwork(episode.backdrop ?: episode.poster, label = episode.episode?.let { "E$it" } ?: episode.title)
                 val progress = episode.progress
                 if (progress?.watched == true) WatchedTick(Modifier.align(Alignment.TopEnd).padding(6.dp))
                 if (progress != null && progress.inProgress) progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }

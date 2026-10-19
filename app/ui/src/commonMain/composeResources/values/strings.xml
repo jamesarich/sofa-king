@@ -5,7 +5,7 @@
     <string name="load_failed">Couldn't reach the Sofa King server</string>
     <string name="load_failed_hint">Check the server URL and API token in Settings, and that the TV is on the same network as the server.</string>
     <string name="unconfigured">Connect to your Sofa King server</string>
-    <string name="unconfigured_hint">Open Settings and enter the server's address and API token.</string>
+    <string name="unconfigured_hint">Open Settings, enter the server's address and the pairing code from its admin portal, then select Pair.</string>
     <string name="retry">Retry</string>
     <string name="no_listing">No listing</string>
     <string name="listing_loading">Loading listings…</string>

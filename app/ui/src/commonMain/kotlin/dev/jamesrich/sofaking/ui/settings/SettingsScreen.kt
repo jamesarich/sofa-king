@@ -170,7 +170,8 @@ fun SettingsScreen(
                     label = stringResource(Res.string.settings_server_url),
                     stored = settings.serverUrl,
                     onValueChange = { serverUrl = it },
-                    problem = stringResource(Res.string.settings_server_url_invalid).takeIf { validUrl == null },
+                    // An empty field is not yet wrong; it says so once something is typed.
+                    problem = stringResource(Res.string.settings_server_url_invalid).takeIf { serverUrl.isNotBlank() && validUrl == null },
                     focusRequester = serverFocus,
                     imeAction = ImeAction.Next,
                     onAction = { codeFocus.requestFocus(FocusDirection.Enter) },
@@ -178,7 +179,9 @@ fun SettingsScreen(
             }
             // The pairing code is the designed path; the token below it is the fallback.
             item {
+                // The help sits above the field, where the on-screen keyboard does not cover it.
                 Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HelpText(stringResource(Res.string.settings_pairing_help))
                     SettingField(
                         label = stringResource(Res.string.settings_pairing_code),
                         stored = "",
@@ -204,7 +207,6 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
-                    HelpText(stringResource(Res.string.settings_pairing_help))
                 }
             }
             item {

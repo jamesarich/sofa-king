@@ -82,6 +82,19 @@ final class AppModel {
     /// The Recordings tab shows when the server records.
     var recordingsShown: Bool { capabilities?.recordings == true }
 
+    /// The tab a cold start opens instead of Live, as the Compose app decides: where the viewer left off when that
+    /// was Library or Recordings, or Library when Open on start says so. Nothing plays by itself there.
+    var startTab: AppTab? {
+        guard let settings, !settings.serverUrl.isEmpty else { return nil }
+        if settings.startup == .library { return .library }
+        guard settings.startup == .resume else { return nil }
+        switch settings.lastTab {
+        case .library: return .library
+        case .recordings: return .recordings
+        default: return nil
+        }
+    }
+
     var favorites: Set<String> { Set(settings?.favorites.compactMap { $0 as? String } ?? []) }
 
     /// The channels watched most recently, newest first, as the lineup lists them now.
@@ -106,19 +119,32 @@ final class AppModel {
 /// The top-level tabs, in the tvOS tab bar along the top.
 enum AppTab: Hashable {
     case live, library, recordings, settings
+
+    /// The name the settings remember the tab by; Settings is not remembered.
+    var remembered: TopLevelTab? {
+        switch self {
+        case .live: .live
+        case .library: .library
+        case .recordings: .recordings
+        case .settings: nil
+        }
+    }
 }
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
     @State private var tab = AppTab.live
+    /// Whether the start has picked its tab, once the settings are in.
+    @State private var tabRestored = false
 
     var body: some View {
         TabView(selection: $tab) {
             live.tabItem { Label("Live", systemImage: "tv") }.tag(AppTab.live)
-            if model.libraryShown {
+            // A start on Library or Recordings shows the tab before the server says it offers it.
+            if model.libraryShown || tab == .library {
                 LibraryHomeView().tabItem { Label("Library", systemImage: "film.stack") }.tag(AppTab.library)
             }
-            if model.recordingsShown {
+            if model.recordingsShown || tab == .recordings {
                 RecordingsView().tabItem { Label("Recordings", systemImage: "record.circle") }.tag(AppTab.recordings)
             }
             NavigationStack { SettingsView() }.tabItem { Label("Settings", systemImage: "gear") }.tag(AppTab.settings)
@@ -127,11 +153,25 @@ struct ContentView: View {
             // A Top Shelf channel plays from the Live tab.
             if requested != nil { tab = .live }
         }
+        .onChange(of: model.settings == nil, initial: true) { _, missing in
+            guard !missing, !tabRestored else { return }
+            tabRestored = true
+            if let start = model.startTab { tab = start }
+        }
+        .onChange(of: tab) { _, picked in
+            if let remembered = picked.remembered { model.core.setLastTab(tab: remembered) }
+        }
         .onChange(of: model.libraryShown) { _, shown in
             if !shown && tab == .library { tab = .live }
         }
+        .onChange(of: model.libraryHome is LibraryHomeStateUnavailable) { _, gone in
+            if gone && tab == .library { tab = .live }
+        }
         .onChange(of: model.recordingsShown) { _, shown in
             if !shown && tab == .recordings { tab = .live }
+        }
+        .onChange(of: model.recordings is RecordingsStateUnavailable) { _, gone in
+            if gone && tab == .recordings { tab = .live }
         }
         .onOpenURL { url in
             if let guideId = TopShelfChannels.guideId(from: url) {

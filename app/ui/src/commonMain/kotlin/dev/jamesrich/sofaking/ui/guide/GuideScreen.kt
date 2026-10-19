@@ -157,7 +157,9 @@ private data class FocusedCell(val channel: Channel, val cell: GuideCell)
  * player. [returnedFrom] is the channel the full screen was just left on: focus lands on it, a filter hiding it
  * gives way, and the preview's rest timer does not reopen it until focus has moved. [initialChannelId] (the
  * last channel watched) is where a fresh guide starts, [startAtNow] puts the cursor at the current time
- * instead of where it was, and [startSearch] opens search by voice on arrival.
+ * instead of where it was, and [startSearch] opens search by voice on arrival. [startInHeader] leaves focus on the
+ * header's tab, where Back from another tab put it: the guide takes its first focus, and the preview its channel,
+ * only once focus comes down into it.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -193,6 +195,7 @@ fun GuideScreen(
     onRecordSeries: suspend (Programme) -> Boolean = { false },
     /** The header's open tab, which Back from the chips focuses; null when the header has no tabs. */
     headerFocus: FocusRequester? = null,
+    startInHeader: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
@@ -326,6 +329,8 @@ fun GuideScreen(
     // A guide opened for search gives focus to the search instead.
     var initialFocusDone by remember { mutableStateOf(startSearch) }
     var initialFocusAttempt by remember { mutableIntStateOf(0) }
+    // Until focus comes down from the header, where the guide was asked to leave it.
+    var awaitingEntry by remember { mutableStateOf(startInHeader) }
     var returnToSearchChip by remember { mutableStateOf(false) }
 
     // Scrolls the timeline so [minute] is inside the visible strip, leaving a half hour of room on the left.
@@ -353,8 +358,8 @@ fun GuideScreen(
         revealMinute(minute)
     }
 
-    LaunchedEffect(visible.isNotEmpty(), activeFilter, searchOpen, initialFocusAttempt) {
-        if (initialFocusDone || initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) return@LaunchedEffect
+    LaunchedEffect(visible.isNotEmpty(), activeFilter, searchOpen, initialFocusAttempt, awaitingEntry) {
+        if (awaitingEntry || initialFocusDone || initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) return@LaunchedEffect
         if (watchedIsHidden(returnedFrom, visible, lineup.channels)) {
             // Reruns with the full lineup on screen.
             filter = GuideFilter.All
@@ -724,7 +729,7 @@ fun GuideScreen(
 
     // The app header above already carries the top screen margin; 16dp here is spacing, not overscan.
     val profile = LocalLayoutProfile.current
-    Box(modifier.fillMaxSize().onPreviewKeyEvent(onGuideKey).then(onGuidePointer)) {
+    Box(modifier.fillMaxSize().onFocusChanged { if (it.hasFocus) awaitingEntry = false }.onPreviewKeyEvent(onGuideKey).then(onGuidePointer)) {
         Column(modifier = Modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).padding(top = 16.dp)) {
             if (PREVIEW_ENABLED && profile.showsPreviewBand) {
                 PreviewBand(

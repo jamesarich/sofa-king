@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.MaterialTheme
@@ -87,6 +88,9 @@ class SettingsActions(
     val onSettingsPinChanged: (String?) -> Unit = {},
     /** Compares the running [version] with the published snapshot; [again] repeats a check already made. */
     val onCheckForUpdate: (version: String, again: Boolean) -> Unit = { _, _ -> },
+    val onSkipCommercialsChanged: (Boolean) -> Unit = {},
+    /** Loads the lineup and the library home again from the server. */
+    val onReload: () -> Unit = {},
 )
 
 /** The pairing flow as Settings shows it: whether a claim is running, and why the last one failed. */
@@ -106,6 +110,12 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     /** The lineup's channels, for the name of the chosen startup channel. */
     channels: List<Channel> = emptyList(),
+    /** Whether the server has a library, so a start can open it. */
+    libraryOffered: Boolean = false,
+    /** Whether the server records, which shows the Recordings section. */
+    recordingsOffered: Boolean = false,
+    /** True while a reload asked for here is running. */
+    reloading: Boolean = false,
     actions: SettingsActions = SettingsActions(),
     pairing: PairingUi = PairingUi(),
     /** The update check's answer, or null while none has run. */
@@ -127,6 +137,7 @@ fun SettingsScreen(
     var matchFrameRate by remember(settings.playback.matchFrameRate) { mutableStateOf(settings.playback.matchFrameRate) }
     var decoder by remember(settings.playback.decoder) { mutableStateOf(settings.playback.decoder) }
     var buffer by remember(settings.playback.buffer) { mutableStateOf(settings.playback.buffer) }
+    var skipCommercials by remember(settings.skipCommercials) { mutableStateOf(settings.skipCommercials) }
     var pairingCode by remember { mutableStateOf("") }
     val serverFocus = remember { FocusRequester() }
     val tokenFocus = remember { FocusRequester() }
@@ -145,6 +156,7 @@ fun SettingsScreen(
     // shown; otherwise it reads as one line with Change, and focus lands on Back rather than inside a field.
     var changingServer by remember { mutableStateOf(settings.serverUrl.isEmpty()) }
     val serverOpen = changingServer || pairing.failure != null
+    val unconfigured = remember { settings.serverUrl.isEmpty() }
     val backFocus = remember { FocusRequester() }
     val channelsFocus = remember { FocusRequester() }
     val startupFocus = remember { FocusRequester() }
@@ -161,19 +173,17 @@ fun SettingsScreen(
     }
     LaunchedEffect(changingServer) { if (changingServer && settings.serverUrl.isNotEmpty()) requestFocusWhenAttached(serverFocus) }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .screenPadding()
-            .focusRestorer(),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item { ScreenTitle(stringResource(Res.string.settings_title), onBack, backFocus) }
+    // The server block, first on a device with none and after Playback on one that has it.
+    val serverSection: LazyListScope.() -> Unit = {
         item { SectionHeader(stringResource(Res.string.settings_section_server)) }
         if (!serverOpen) {
             item {
                 SettingRow(label = stringResource(Res.string.settings_server_connected, settings.serverUrl)) {
                     SofaButton(onClick = { changingServer = true }) { Text(stringResource(Res.string.settings_server_change)) }
+                    // Stays enabled while it runs, so the D-pad focus never drops.
+                    SofaButton(onClick = { if (!reloading) actions.onReload() }) {
+                        Text(stringResource(if (reloading) Res.string.settings_server_reloading else Res.string.settings_server_reload))
+                    }
                 }
             }
         } else {
@@ -245,17 +255,33 @@ fun SettingsScreen(
                 }
             }
         }
-        item { SectionHeader(stringResource(Res.string.settings_section_startup)) }
+    }
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .screenPadding()
+            .focusRestorer(),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item { ScreenTitle(stringResource(Res.string.settings_title), onBack, backFocus) }
+        // A device with no server starts here; a configured one keeps the server near the end, as it seldom changes.
+        if (unconfigured) serverSection()
+        item { SectionHeader(stringResource(Res.string.settings_section_general)) }
         item {
             ChoiceRow(
                 label = stringResource(Res.string.settings_startup),
-                choices = StartupTarget.entries,
+                help = stringResource(Res.string.settings_startup_help),
+                width = WIDE_CHOICE_WIDTH,
+                // The library is offered on a server that has one, and kept while it is the choice.
+                choices = StartupTarget.entries.filter { it != StartupTarget.LIBRARY || libraryOffered || startup == it },
                 selected = startup,
                 choiceLabel = {
                     stringResource(
                         when (it) {
-                            StartupTarget.LAST_CHANNEL -> Res.string.settings_startup_last
+                            StartupTarget.RESUME -> Res.string.settings_startup_resume
                             StartupTarget.GUIDE -> Res.string.settings_startup_guide
+                            StartupTarget.LIBRARY -> Res.string.settings_startup_library
                             StartupTarget.CHANNEL -> Res.string.settings_startup_channel
                         },
                     )
@@ -275,6 +301,26 @@ fun SettingsScreen(
                     SofaButton(onClick = actions.onChooseStartupChannel, modifier = Modifier.focusRequester(startupFocus)) { Text(stringResource(Res.string.settings_startup_choose)) }
                 }
             }
+        }
+        item {
+            ChoiceRow(
+                label = stringResource(Res.string.settings_time_format),
+                choices = ClockFormat.entries,
+                selected = clockFormat,
+                choiceLabel = {
+                    stringResource(
+                        when (it) {
+                            ClockFormat.AUTO -> Res.string.settings_time_auto
+                            ClockFormat.TWELVE_HOUR -> Res.string.settings_time_12
+                            ClockFormat.TWENTY_FOUR_HOUR -> Res.string.settings_time_24
+                        },
+                    )
+                },
+                onSelect = {
+                    clockFormat = it
+                    actions.onClockFormatChanged(it)
+                },
+            )
         }
         item { SectionHeader(stringResource(Res.string.settings_section_guide)) }
         item {
@@ -310,26 +356,6 @@ fun SettingsScreen(
         }
         item {
             ChoiceRow(
-                label = stringResource(Res.string.settings_time_format),
-                choices = ClockFormat.entries,
-                selected = clockFormat,
-                choiceLabel = {
-                    stringResource(
-                        when (it) {
-                            ClockFormat.AUTO -> Res.string.settings_time_auto
-                            ClockFormat.TWELVE_HOUR -> Res.string.settings_time_12
-                            ClockFormat.TWENTY_FOUR_HOUR -> Res.string.settings_time_24
-                        },
-                    )
-                },
-                onSelect = {
-                    clockFormat = it
-                    actions.onClockFormatChanged(it)
-                },
-            )
-        }
-        item {
-            ChoiceRow(
                 label = stringResource(Res.string.settings_guide_rows),
                 choices = GuideDensity.entries,
                 selected = guideDensity,
@@ -353,6 +379,20 @@ fun SettingsScreen(
                 SofaButton(onClick = actions.onManageChannels, enabled = channels.isNotEmpty(), modifier = Modifier.focusRequester(channelsFocus)) {
                     Text(stringResource(Res.string.settings_channels_open))
                 }
+            }
+        }
+        if (recordingsOffered) {
+            item { SectionHeader(stringResource(Res.string.recordings_title)) }
+            item {
+                ToggleRow(
+                    label = stringResource(Res.string.recordings_skip_commercials),
+                    help = stringResource(Res.string.recordings_skip_commercials_help),
+                    checked = skipCommercials,
+                    onCheckedChange = {
+                        skipCommercials = it
+                        actions.onSkipCommercialsChanged(it)
+                    },
+                )
             }
         }
         item { SectionHeader(stringResource(Res.string.settings_section_captions)) }
@@ -494,6 +534,7 @@ fun SettingsScreen(
                 )
             }
         }
+        if (!unconfigured) serverSection()
         item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
         item { LockSection(locked = settings.settingsLocked, onPinChanged = actions.onSettingsPinChanged) }
         // About: the app, its version and what is loaded, then where the build stands against the published snapshot.

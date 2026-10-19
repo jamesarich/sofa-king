@@ -8,6 +8,7 @@ import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.StartupTarget
+import dev.jamesrich.sofaking.data.TopLevelTab
 import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
@@ -71,6 +72,7 @@ class LineupViewModelTest {
         override suspend fun setKeyLegendShown(count: Int) = settings.update { it.copy(keyLegendShown = count) }
         override suspend fun setStartup(target: StartupTarget, guideId: String?) =
             settings.update { it.copy(startup = target, startupChannel = guideId.takeIf { target == StartupTarget.CHANNEL }) }
+        override suspend fun setLastTab(tab: TopLevelTab) = settings.update { it.copy(lastTab = tab) }
         override suspend fun setClockFormat(format: ClockFormat) = settings.update { it.copy(clockFormat = format) }
         override suspend fun setGuideDensity(density: GuideDensity) = settings.update { it.copy(guideDensity = density) }
         override suspend fun setChannelHidden(guideId: String, hidden: Boolean) =

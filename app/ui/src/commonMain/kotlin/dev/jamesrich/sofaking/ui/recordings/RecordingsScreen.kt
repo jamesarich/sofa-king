@@ -38,7 +38,6 @@ import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
-import dev.jamesrich.sofaking.ui.settings.ToggleRow
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.launch
 import kotlinx.datetime.format.MonthNames
@@ -49,14 +48,12 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * The server's recordings in three groups: running now, recorded, and scheduled. A recorded or running one plays
  * with [onPlay] (resuming where the household stopped unless `fromStart`); [onDelete] stops, cancels or deletes one
- * after a second press confirms it. [skipCommercials] is the setting the player follows. The series rules follow the
+ * after a second press confirms it. The series rules follow the
  * recordings: [onRuleChange] sets whether one takes repeats and how many it keeps, and [onRuleDelete] stops one.
  */
 @Composable
 fun RecordingsScreen(
     state: RecordingsState,
-    skipCommercials: Boolean,
-    onSkipCommercialsChanged: (Boolean) -> Unit,
     onPlay: (recording: DvrRecording, fromStart: Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
     onRetry: () -> Unit,
@@ -70,15 +67,13 @@ fun RecordingsScreen(
         RecordingsState.Unconfigured -> MessageScreen(stringResource(Res.string.unconfigured), hint = stringResource(Res.string.unconfigured_hint))
         RecordingsState.Unavailable -> MessageScreen(stringResource(Res.string.recordings_unavailable))
         is RecordingsState.Failed -> MessageScreen(stringResource(Res.string.load_failed), detail = state.message, onRetry = onRetry)
-        is RecordingsState.Ready -> RecordingList(state, skipCommercials, onSkipCommercialsChanged, onPlay, onDelete, onRuleChange, onRuleDelete)
+        is RecordingsState.Ready -> RecordingList(state, onPlay, onDelete, onRuleChange, onRuleDelete)
     }
 }
 
 @Composable
 private fun RecordingList(
     state: RecordingsState.Ready,
-    skipCommercials: Boolean,
-    onSkipCommercialsChanged: (Boolean) -> Unit,
     onPlay: (DvrRecording, Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
     onRuleChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
@@ -126,15 +121,6 @@ private fun RecordingList(
                 Text(stringResource(Res.string.recordings_series), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
             }
             items(state.rules, key = { "rule-${it.id}" }) { rule -> SeriesRow(rule, onRuleChange, onRuleDelete) }
-        }
-        // A playback preference, so it follows the content rather than taking the page's first focus.
-        item(key = "skip") {
-            ToggleRow(
-                label = stringResource(Res.string.recordings_skip_commercials),
-                checked = skipCommercials,
-                onCheckedChange = onSkipCommercialsChanged,
-                help = stringResource(Res.string.recordings_skip_commercials_help),
-            )
         }
     }
 }

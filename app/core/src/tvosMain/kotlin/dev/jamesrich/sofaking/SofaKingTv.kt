@@ -17,6 +17,7 @@ import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.TopLevelTab
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.TrackChoice
 import dev.jamesrich.sofaking.data.defaultAudio
@@ -226,6 +227,11 @@ class SofaKingTv {
     /** Whether recordings jump over the commercial breaks the server found. */
     fun setSkipCommercials(enabled: Boolean) {
         viewModel.setSkipCommercials(enabled)
+    }
+
+    /** Remembers [tab] as the one the app was last on, which the next start reopens. */
+    fun setLastTab(tab: TopLevelTab) {
+        viewModel.setLastTab(tab)
     }
 
     /** When [recording] aired, in milliseconds since the epoch. */

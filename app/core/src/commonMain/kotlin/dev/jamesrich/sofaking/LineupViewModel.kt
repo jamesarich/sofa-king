@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.StartupTarget
+import dev.jamesrich.sofaking.data.TopLevelTab
 import androidx.datastore.core.DataStore
 import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
@@ -386,6 +387,8 @@ class LineupViewModel(
     fun setPreviewSound(enabled: Boolean) = viewModelScope.launch { store.setPreviewSound(enabled) }
 
     fun setStartup(target: StartupTarget, guideId: String? = null) = viewModelScope.launch { store.setStartup(target, guideId) }
+
+    fun setLastTab(tab: TopLevelTab) = viewModelScope.launch { store.setLastTab(tab) }
 
     fun setClockFormat(format: ClockFormat) = viewModelScope.launch { store.setClockFormat(format) }
 

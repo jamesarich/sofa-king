@@ -46,8 +46,6 @@ class RecordingsScreenTest {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     RecordingsScreen(
                         state = state,
-                        skipCommercials = false,
-                        onSkipCommercialsChanged = { calls += "skip $it" },
                         onPlay = { r, fromStart -> calls += "play ${r.id} $fromStart" },
                         onDelete = { calls += "delete ${it.id}"; true },
                         onRetry = {},

@@ -17,6 +17,7 @@ import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.TopLevelTab
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.TrackChoice
 import dev.jamesrich.sofaking.data.defaultAudio

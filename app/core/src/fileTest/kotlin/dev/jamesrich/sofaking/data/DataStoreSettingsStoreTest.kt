@@ -380,7 +380,8 @@ class DataStoreSettingsStoreTest {
     fun `the settings PIN is stored hashed and removed with null`() = runTest {
         val store = newStore()
         assertFalse(store.settings.first().settingsLocked)
-        store.setSettingsPin(SettingsPin.hash("2580"))
+        // A fixed salt: with a random one the hex digest itself contains "2580" about once in 700 runs.
+        store.setSettingsPin(SettingsPin.hash("2580", salt = "00".repeat(16)))
         val locked = store.settings.first()
         assertTrue(locked.settingsLocked)
         assertTrue(SettingsPin.matches("2580", locked.settingsPin))

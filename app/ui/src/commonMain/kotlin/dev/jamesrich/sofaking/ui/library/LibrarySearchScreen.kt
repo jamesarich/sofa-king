@@ -67,8 +67,9 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
     var searching by remember { mutableStateOf(false) }
     // A spoken query moves focus to the first result once it is in; a typed one leaves it in the field.
     var focusResults by remember { mutableStateOf(false) }
-    // Back from a result's page: the results are searched again, then the result left takes focus.
-    var focusReturn by remember { mutableStateOf(returnedFrom != null) }
+    // Coming back to a search already made (from a result's page, or from Settings): the result to focus once the
+    // results are in, the one left or, when empty, the first.
+    var focusReturn by remember { mutableStateOf<String?>(null) }
     var arrived by rememberSaveable { mutableStateOf(false) }
     val currentSearch by rememberUpdatedState(actions.search)
 
@@ -81,10 +82,12 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
             field.requestFocus()
         }
     }
+    LaunchedEffect(returnedFrom) {
+        if (arrived && query.text.isNotBlank()) focusReturn = returnedFrom.orEmpty()
+    }
     LaunchedEffect(Unit) {
-        if (query.text.isBlank()) focusReturn = false
         when {
-            focusReturn -> Unit
+            arrived && query.text.isNotBlank() -> Unit
             !arrived && initialQuery != null -> {
                 query.setTextAndPlaceCursorAtEnd(initialQuery)
                 focusResults = true
@@ -107,10 +110,11 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
         }
     }
     val sections = remember(results) { searchSections(results.orEmpty()) }
-    LaunchedEffect(sections, searching) {
-        if (focusReturn && !searching && results != null) {
-            focusReturn = false
-            requestFocusWhenAttached(if (results.orEmpty().any { it.id == returnedFrom }) returnFocus else firstResult)
+    LaunchedEffect(sections, searching, focusReturn) {
+        val target = focusReturn
+        if (target != null && !searching && results != null) {
+            focusReturn = null
+            requestFocusWhenAttached(if (results.orEmpty().any { it.id == target }) returnFocus else if (sections.posters.isNotEmpty() || sections.wide.isNotEmpty()) firstResult else field)
             return@LaunchedEffect
         }
         if (!focusResults || searching || results == null) return@LaunchedEffect

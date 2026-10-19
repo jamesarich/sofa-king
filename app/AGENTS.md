@@ -58,7 +58,7 @@ All source is under `dev.jamesrich.sofaking`; tests mirror it in each module's `
 - Items carry the channel id and the descriptor's MIME type; on Android `mediaItemFor` sets them and Media3 never sniffs a session URL.
 - Renew well inside the 45 s preview lease (15 s). Release on channel change, Settings and ON_STOP; reopen on ON_START. Reopen on `replaced` and on a 410 from the relay by re-reading the session, not by retrying the old URL.
 - Session opens run under NonCancellable and a canceled tune releases what it opened. Never leak a session: capacity is small and the oldest preview is evicted.
-- Gate tune preparation on STARTED. Stop on ON_STOP and Settings; retain paused-user intent on return.
+- Gate tune preparation on STARTED. Stop on ON_STOP and Settings; retain paused-user intent on return. These read the app's lifecycle (`appLifecycleOwner`), not a page's: a page's `LocalLifecycleOwner` is its Navigation 3 entry's, which also stops when the page is left.
 - Preserve preview debounce and stream handoff. A zap waits `ZAP_SETTLE_MS` for presses to rest (the first tune does not), then stops, resolves the session, sets the item and prepares.
 - Reconnect failed/ended streams with the existing backoff. Do not add a watchdog that reconnects stalled-but-open streams. A `CHANNEL_NOT_FOUND` session error reloads the lineup and follows the channel by number, then name; never retry a dead id with the backoff.
 - `PlayerScreen` and `VodPlayerScreen` hold the system media session through `LivePlayer.openMediaSession`; there is no background playback service.

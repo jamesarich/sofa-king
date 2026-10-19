@@ -80,6 +80,7 @@ internal class ItemDetailsActions(
     val onSelectSeason: (String) -> Unit,
     val onRetry: () -> Unit,
     val onPerson: (String) -> Unit = {},
+    val onOpenShow: (String) -> Unit = {},
 )
 
 /**
@@ -338,6 +339,10 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
             modifier = if (action == null) Modifier.focusRequester(primaryFocus) else Modifier,
         ) {
             Text(stringResource(if (watched) Res.string.library_mark_unwatched else Res.string.library_mark_watched))
+        }
+        val showId = item.showId?.takeIf { item.kind == ItemKind.EPISODE || item.kind == ItemKind.SEASON }
+        if (showId != null) {
+            SofaButton(onClick = { actions.onOpenShow(showId) }) { Text(stringResource(Res.string.library_go_to_show)) }
         }
     }
 }

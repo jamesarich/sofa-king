@@ -4,6 +4,8 @@
     <string name="settings_save">Save &amp; reload</string>
     <string name="settings_back">Back</string>
     <string name="settings_section_server">Server</string>
+    <string name="settings_server_reload">Reload</string>
+    <string name="settings_server_reloading">Reloading</string>
     <string name="settings_section_captions">Captions</string>
     <string name="settings_server_connected">Connected to %1$s</string>
     <string name="settings_server_change">Change</string>
@@ -23,7 +25,7 @@
     <string name="settings_pairing_failed_unreachable">No Sofa King server answered at that address.</string>
     <string name="settings_caption_timing_less">Show captions later</string>
     <string name="settings_caption_timing_more">Show captions earlier</string>
-    <string name="settings_section_guide">Guide</string>
+    <string name="settings_section_guide">Live TV</string>
     <string name="settings_auto_open">Open focused channel automatically</string>
     <string name="settings_auto_open_off">Off</string>
     <string name="settings_auto_open_10">After 10 seconds</string>
@@ -32,7 +34,7 @@
     <string name="settings_preview_sound">Play preview sound</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_tmdb_notice">Movie and show details and images can come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</string>
-    <string name="settings_section_startup">Startup</string>
+    <string name="settings_section_general">General</string>
     <string name="settings_startup">Open on start</string>
     <string name="settings_startup_resume">Where I left off</string>
     <string name="settings_startup_guide">Guide</string>

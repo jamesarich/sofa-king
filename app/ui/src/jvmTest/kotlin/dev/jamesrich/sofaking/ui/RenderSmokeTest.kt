@@ -203,6 +203,7 @@ class RenderSmokeTest {
                 onBack = {},
                 channelCount = channels.size,
                 libraryOffered = true,
+                recordingsOffered = true,
             )
         }
         assertTrue(image.hasContent())

@@ -352,6 +352,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val settingsFocus = remember { FocusRequester() }
     val tabFocus = remember { FocusRequester() }
     val tabs = TabsModel(nav.tab, libraryShown, recordingsShown) { picked ->
+        // The library's shelves are read again each time its tab is opened, as the recordings are.
+        if (picked == Tab.LIBRARY && nav.tab != Tab.LIBRARY) libraryVm.refreshHome()
         nav = nav.closeSettings().open(picked, if (picked == Tab.LIVE) Arrival(returnedFrom = history.watching) else Arrival())
     }
     val openSettings = { nav = nav.push(Route.Settings) }
@@ -389,6 +391,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         channelCount = lineup?.channels?.size ?: 0,
                         channels = lineup?.channels.orEmpty(),
                         libraryOffered = libraryShown,
+                        recordingsOffered = recordingsShown,
+                        reloading = loading,
                         actions = SettingsActions(
                             onCaptionsChanged = { vm.setCaptionsEnabled(it) },
                             onCaptionAdvanceChanged = { vm.setCaptionAdvanceMs(it) },
@@ -405,6 +409,11 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                             onDecoderChanged = { vm.setDecoder(it) },
                             onBufferChanged = { vm.setBuffer(it) },
                             onCheckForUpdate = { version, again -> vm.checkForUpdate(version, again) },
+                            onSkipCommercialsChanged = { vm.setSkipCommercials(it) },
+                            onReload = {
+                                vm.refresh()
+                                libraryVm.refreshHome()
+                            },
                             onSettingsPinChanged = { pin ->
                                 vm.setSettingsPin(pin)
                                 // The page that set the PIN stays open; the lock takes effect on the next visit.
@@ -588,15 +597,10 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                 notice = notice,
                 onSettings = openSettings,
                 onBackToLive = backToLive,
-                onRefresh = when (nav.tab) {
-                    Tab.LIVE -> vm::refresh
-                    Tab.LIBRARY -> libraryVm::refreshHome
-                    Tab.RECORDINGS -> recordingsVm::refresh
-                },
             ) { showsTabs, tabBack ->
                 when (current) {
                     Route.Guide -> {
-                        // With no server to talk to, Settings is the only thing to do, so it takes focus over Refresh.
+                        // With no server to talk to, Settings is the only thing to do, so it takes focus.
                         val homeFocus = homeFocusFor(state)
                         LaunchedEffect(homeFocus) {
                             if (homeFocus == HomeFocus.SETTINGS) requestFocusWhenAttached(settingsFocus)
@@ -666,8 +670,6 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         LaunchedEffect(Unit) { recordingsVm.refresh() }
                         RecordingsScreen(
                             state = recordings,
-                            skipCommercials = settings?.skipCommercials ?: false,
-                            onSkipCommercialsChanged = { vm.setSkipCommercials(it) },
                             onPlay = { recording, fromStart -> nav = nav.push(Route.Recording(recording.id, fromStart)) },
                             onDelete = recordingsVm::delete,
                             onRetry = recordingsVm::refresh,
@@ -783,7 +785,6 @@ private fun TabPage(
     notice: String?,
     onSettings: () -> Unit,
     onBackToLive: () -> Unit,
-    onRefresh: () -> Unit,
     content: @Composable (showsTabs: Boolean, tabBack: () -> Unit) -> Unit,
 ) {
     val showsTabs = tv
@@ -806,7 +807,6 @@ private fun TabPage(
             refreshing = refreshing,
             notice = notice,
             onSettings = onSettings.takeIf { showsTabs },
-            onRefresh = onRefresh,
             settingsFocus = settingsFocus,
             tabs = tabs.takeIf { showsTabs },
             tabFocus = tabFocus,
@@ -1023,7 +1023,6 @@ private fun Header(
     refreshing: Boolean,
     notice: String?,
     onSettings: (() -> Unit)?,
-    onRefresh: () -> Unit,
     settingsFocus: FocusRequester,
     tabs: TabsModel? = null,
     tabFocus: FocusRequester = remember { FocusRequester() },
@@ -1037,8 +1036,8 @@ private fun Header(
         LogoMark(40.dp)
         Text(stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
         tabs?.let { HeaderTabs(it, tabFocus) }
-        // Status sits right of the name in whatever the buttons leave, so a long notice ellipsizes rather than
-        // squeezing Refresh and Settings.
+        // Status sits right of the tabs in whatever Settings leaves, so a long notice ellipsizes rather than
+        // squeezing the button.
         Row(
             Modifier.weight(1f),
             horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End),
@@ -1065,8 +1064,14 @@ private fun Header(
                 )
             }
         }
-        SofaButton(onClick = onRefresh) { Text(stringResource(Res.string.refresh)) }
-        onSettings?.let { SofaButton(onClick = it, modifier = Modifier.focusRequester(settingsFocus)) { Text(stringResource(Res.string.settings)) } }
+        // Settings is the header's one button; the lineup, library and recordings reload by themselves, and
+        // Settings › Server has Reload.
+        onSettings?.let {
+            SofaButton(onClick = it, modifier = Modifier.focusRequester(settingsFocus)) {
+                Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                Text(stringResource(Res.string.settings))
+            }
+        }
     }
 }
 

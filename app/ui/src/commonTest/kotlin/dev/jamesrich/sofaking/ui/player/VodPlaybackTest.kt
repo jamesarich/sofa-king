@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.data.PlaybackStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.time.Instant
 
 class VodPlaybackTest {
     private fun stream(mode: String, offsetMs: Long = 0) = PlaybackStream(
@@ -90,5 +91,13 @@ class VodPlaybackTest {
         assertEquals("0:00", formatPlayTime(-1))
         assertEquals("4:05", formatPlayTime(245_999))
         assertEquals("1:02:03", formatPlayTime(3_723_000))
+    }
+
+    @Test
+    fun `the end is what is left of the item from now`() {
+        val now = Instant.parse("2026-10-19T20:00:00Z")
+        assertEquals(Instant.parse("2026-10-19T20:52:30Z"), vodEndsAt(now, positionMs = 1_800_000L, durationMs = 4_950_000L))
+        assertEquals(now, vodEndsAt(now, positionMs = 9_000L, durationMs = 5_000L))
+        assertNull(vodEndsAt(now, positionMs = 0, durationMs = null))
     }
 }

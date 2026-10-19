@@ -4,6 +4,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackStream
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Instant
 
 /** What the seekable player shows about what it plays: a library item or a recording. */
 @Immutable
@@ -129,6 +131,10 @@ internal fun formatPlayTime(ms: Long): String {
     val ss = seconds.toString().padStart(2, '0')
     return if (hours > 0) "$hours:${minutes.toString().padStart(2, '0')}:$ss" else "$minutes:$ss"
 }
+
+/** When the item ends if it plays on from [positionMs] at [now]; null while its length is unknown. */
+internal fun vodEndsAt(now: Instant, positionMs: Long, durationMs: Long?): Instant? =
+    durationMs?.takeIf { it > 0 }?.let { now + (it - positionMs).coerceAtLeast(0).milliseconds }
 
 /** How far short of a known end a seek may land. */
 internal const val END_GUARD_MS = 2_000L

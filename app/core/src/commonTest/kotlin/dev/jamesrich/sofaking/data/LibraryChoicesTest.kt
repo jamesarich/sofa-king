@@ -102,4 +102,29 @@ class LibraryChoicesTest {
         assertEquals("Spanish", trackLabel(MediaTrackInfo(3, "subrip", "spa", "Spanish"), 1), "a title repeating the language is dropped")
         assertEquals("Track 2", trackLabel(MediaTrackInfo(3, "subrip"), 2))
     }
+
+    @Test
+    fun `file facts name the starting sound and each language once`() {
+        val detail = MediaItemDetail(
+            item(id = "m", kind = ItemKind.MOVIE),
+            audio = listOf(
+                MediaTrackInfo(1, "aac", "eng", channels = 2),
+                MediaTrackInfo(2, "eac3", "en", channels = 6, default = true),
+                MediaTrackInfo(3, "ac3", "spa", channels = 6),
+                MediaTrackInfo(8, "aac", "zxx", channels = 2),
+            ),
+            subtitles = listOf(
+                MediaTrackInfo(4, "subrip", "eng", forced = true),
+                MediaTrackInfo(5, "subrip", "fre"),
+                MediaTrackInfo(6, "hdmv_pgs_subtitle", "fra"),
+                MediaTrackInfo(7, "subrip", "und"),
+            ),
+        )
+        assertEquals(FileFacts("Dolby Digital Plus 5.1", listOf("English", "Spanish"), listOf("French")), fileFacts(detail))
+    }
+
+    @Test
+    fun `file facts are empty without tracks`() {
+        assertEquals(FileFacts(null, emptyList(), emptyList()), fileFacts(MediaItemDetail(item(id = "s", kind = ItemKind.SHOW))))
+    }
 }

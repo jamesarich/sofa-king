@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,6 +59,7 @@ import dev.jamesrich.sofaking.ui.library.libraryFocusKey
 import dev.jamesrich.sofaking.ui.library.LibrarySearchActions
 import dev.jamesrich.sofaking.ui.library.LibrarySearchScreen
 import dev.jamesrich.sofaking.ui.library.SEARCH_FOCUS_KEY
+import dev.jamesrich.sofaking.ui.library.stillOrBackdrop
 import dev.jamesrich.sofaking.ui.player.PlayerIcons
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import coil3.compose.setSingletonImageLoaderFactory
@@ -179,9 +181,17 @@ private sealed interface Screen {
     /** The Library tab's home. [returnedFrom] is the item whose page the viewer just left, which it focuses. */
     @Serializable
     data class Library(@Transient val returnedFrom: String? = null) : Screen
-    /** Search across the libraries, under the Library tab; [voice] starts it by voice on arrival. */
+    /**
+     * Search across the libraries, under the Library tab; [voice] starts it by voice on arrival, and [query] searches
+     * for a name from an item's page, which Back returns to as [parent].
+     */
     @Serializable
-    data class LibrarySearch(@Transient val voice: Boolean = false, @Transient val returnedFrom: String? = null) : Screen
+    data class LibrarySearch(
+        @Transient val voice: Boolean = false,
+        @Transient val returnedFrom: String? = null,
+        val query: String? = null,
+        val parent: Screen? = null,
+    ) : Screen
     /** One library's grid, under the Library tab. */
     @Serializable
     data class LibraryGrid(val libraryId: String, @Transient val returnedFrom: String? = null) : Screen
@@ -581,6 +591,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         onSetWatched = libraryVm::setWatched,
                         onSelectSeason = { pickedSeason = it },
                         onRetry = { libraryVm.detail(current.itemId, refresh = true) },
+                        onPerson = { screen = Screen.LibrarySearch(query = it, parent = current.copy(returnedFrom = null)) },
                     ),
                     returnedFrom = current.returnedFrom,
                 )
@@ -618,8 +629,16 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         if (showsTabs) requestFocusWhenAttached(tabFocus)
                         focusTabOnReturn = false
                     }
+                    var headerFocused by remember { mutableStateOf(false) }
+                    val tabBack: () -> Unit = {
+                        when (tabBackAction(hasHeader = showsTabs, headerFocused = headerFocused)) {
+                            TabBack.FOCUS_HEADER -> tabFocus.requestFocus()
+                            TabBack.OPEN_LIVE -> openTab(Tab.LIVE)
+                        }
+                    }
                     Column {
                         Header(
+                            modifier = Modifier.onFocusChanged { headerFocused = it.hasFocus },
                             refreshing = if (tab == Tab.LIVE) loading && state is LineupState.Ready else false,
                             notice = notice,
                             onSettings = openSettings.takeIf { showsTabs },
@@ -682,7 +701,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                 }
                             }
                             is Screen.Library -> guideState.SaveableStateProvider("library") {
-                                BackHandler { openTab(Tab.LIVE) }
+                                BackHandler(onBack = tabBack)
                                 LibraryHomeScreen(
                                     state = libraryHome,
                                     actions = LibraryHomeActions(
@@ -709,15 +728,15 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                     onPlay = { recording, fromStart -> screen = Screen.Recording(recording.id, fromStart) },
                                     onDelete = recordingsVm::delete,
                                     onRetry = recordingsVm::refresh,
-                                    onBack = { openTab(Tab.LIVE) },
+                                    onBack = tabBack,
                                     onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
                                     onRuleDelete = recordingsVm::deleteRule,
                                 )
                             }
                             // The query outlives a trip to an item's page and back.
-                            is Screen.LibrarySearch -> guideState.SaveableStateProvider("library-search") {
-                                BackHandler { screen = Screen.Library(returnedFrom = SEARCH_FOCUS_KEY) }
-                                val here = Screen.LibrarySearch()
+                            is Screen.LibrarySearch -> guideState.SaveableStateProvider("library-search:${current.query.orEmpty()}") {
+                                BackHandler { screen = current.parent ?: Screen.Library(returnedFrom = SEARCH_FOCUS_KEY) }
+                                val here = current.copy(voice = false, returnedFrom = null)
                                 LibrarySearchScreen(
                                     actions = LibrarySearchActions(
                                         search = libraryVm::search,
@@ -730,6 +749,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                     ),
                                     voice = current.voice,
                                     returnedFrom = current.returnedFrom,
+                                    initialQuery = current.query,
                                 )
                             }
                             is Screen.LibraryGrid -> guideState.SaveableStateProvider("grid-${current.libraryId}") {
@@ -791,7 +811,7 @@ private fun DvrRecording.vodTitle(): VodTitle {
 private fun MediaItem.upNext(): VodUpNext = VodUpNext(
     title = title,
     subtitle = listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null },
-    artworkUrl = backdrop ?: poster,
+    artworkUrl = stillOrBackdrop(),
 )
 
 /** Back in front: a fresh session for the channel and intent released on stop, at the URL the player holds for it. */
@@ -961,9 +981,10 @@ private fun Header(
     settingsFocus: FocusRequester,
     tabs: TabsModel? = null,
     tabFocus: FocusRequester = remember { FocusRequester() },
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        Modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+        modifier.fillMaxWidth().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

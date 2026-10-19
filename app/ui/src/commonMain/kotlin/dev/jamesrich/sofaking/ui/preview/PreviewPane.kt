@@ -152,7 +152,9 @@ private val DETAIL_IMAGE_HEIGHT = 90.dp
  * [PREVIEW_DEBOUNCE_MS] after focus rests on a different channel; a stream the player already holds (the
  * channel just watched) keeps playing and its session goes back to preview intent. The player belongs to
  * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
- * [muted] follows the guide's rest timers; [failed] is the guide's record that the preview has no picture, set through
+ * [muted] follows the guide's rest timers while [ownsVolume]: the guide stays composed for a frame under the full
+ * screen it hands the player to, and its focus leaving the grid mutes the rest timers, which must not silence the
+ * full screen. [failed] is the guide's record that the preview has no picture, set through
  * [onFailedChanged].
  */
 @Composable
@@ -163,13 +165,14 @@ internal fun PreviewVideo(
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
     muted: Boolean,
+    ownsVolume: Boolean = true,
     failed: Boolean,
     onFailedChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val status by player.status.collectAsStateWithLifecycle()
     val buffering = status.state == PlaybackState.BUFFERING
-    LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
+    LaunchedEffect(muted, ownsVolume) { if (ownsVolume) player.volume = if (muted) 0f else 1f }
     // Bumped when the relay answers 410, so the tune effect reopens the channel at once instead of after the debounce.
     var retune by remember { mutableIntStateOf(0) }
     // The channel whose stream the player holds; until it is the focused one, the card covers the last channel's picture.

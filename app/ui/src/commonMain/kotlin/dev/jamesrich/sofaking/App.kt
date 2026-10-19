@@ -205,12 +205,12 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     LaunchedEffect(nav.tab, libraryShown, recordingsShown) {
         if (nav.tab == Tab.LIBRARY && !libraryShown || nav.tab == Tab.RECORDINGS && !recordingsShown) nav = nav.open(Tab.LIVE)
     }
-    // Leaving Settings lands on the page it was opened from, with focus on the header's open tab, as the Settings
-    // button it left from sits beside it.
-    var focusTabOnReturn by remember { mutableStateOf(false) }
+    // Leaving Settings lands on the page it was opened from, with focus back on the header's Settings button
+    // (the guide waits for focus to come down, as after Back to Live).
+    var headerReturn by remember { mutableStateOf<HeaderReturn?>(null) }
     val leaveSettings = {
-        focusTabOnReturn = true
-        nav = nav.closeSettings()
+        headerReturn = HeaderReturn.SETTINGS
+        nav = nav.closeSettings().let { it.copy(arrival = it.arrival.copy(inHeader = true)) }
     }
     val pairingScope = rememberCoroutineScope()
     // Why the last pairing attempt failed; Settings shows it until the next attempt.
@@ -359,7 +359,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     val openSettings = { nav = nav.push(Route.Settings) }
     // Back from another tab's pill: Live opens with focus kept on its pill, so one more Back exits.
     val backToLive = {
-        focusTabOnReturn = true
+        headerReturn = HeaderReturn.TAB
         nav = nav.open(Tab.LIVE, Arrival(returnedFrom = history.watching, inHeader = true))
     }
     // The Guide key from the Library or Recordings pages: the guide at Now, on the channel last watched.
@@ -591,8 +591,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                 tabs = tabs,
                 tabFocus = tabFocus,
                 settingsFocus = settingsFocus,
-                focusTabOnReturn = focusTabOnReturn,
-                onTabFocusRequested = { focusTabOnReturn = false },
+                headerReturn = headerReturn,
+                onHeaderFocusRequested = { headerReturn = null },
                 refreshing = if (nav.tab == Tab.LIVE) loading && state is LineupState.Ready else false,
                 notice = notice,
                 onSettings = openSettings,
@@ -644,6 +644,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                 onRecordSeries = vm.recordings::toggleSeries,
                                 headerFocus = tabFocus.takeIf { showsTabs },
                                 startInHeader = arrival.inHeader && showsTabs,
+                                shown = nav.top == Route.Guide,
                             )
                         }
                     }
@@ -769,6 +770,9 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     }
 }
 
+/** Which header button takes focus when a tab's page comes back: its tab (after Back to Live) or Settings. */
+private enum class HeaderReturn { TAB, SETTINGS }
+
 /**
  * A page under the tabs: the header above [content], with the TV's tabs in it. [content] gets whether the header
  * shows the tabs, and what Back does on a tab's first page: climb to the header's open tab, then open Live.
@@ -779,8 +783,8 @@ private fun TabPage(
     tabs: TabsModel,
     tabFocus: FocusRequester,
     settingsFocus: FocusRequester,
-    focusTabOnReturn: Boolean,
-    onTabFocusRequested: () -> Unit,
+    headerReturn: HeaderReturn?,
+    onHeaderFocusRequested: () -> Unit,
     refreshing: Boolean,
     notice: String?,
     onSettings: () -> Unit,
@@ -790,9 +794,9 @@ private fun TabPage(
     val showsTabs = tv
     // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
     LaunchedEffect(Unit) {
-        if (!focusTabOnReturn) return@LaunchedEffect
-        if (showsTabs) requestFocusWhenAttached(tabFocus)
-        onTabFocusRequested()
+        val target = headerReturn ?: return@LaunchedEffect
+        if (showsTabs) requestFocusWhenAttached(if (target == HeaderReturn.SETTINGS) settingsFocus else tabFocus)
+        onHeaderFocusRequested()
     }
     var headerFocused by remember { mutableStateOf(false) }
     val tabBack: () -> Unit = {
@@ -885,6 +889,7 @@ private fun GuideOrEmpty(
     onRecordSeries: suspend (Programme) -> Boolean,
     headerFocus: FocusRequester?,
     startInHeader: Boolean,
+    shown: Boolean,
 ) {
     if (lineup.channels.isEmpty()) {
         MessageScreen(stringResource(Res.string.no_channels), hint = stringResource(Res.string.no_channels_hint))
@@ -914,6 +919,7 @@ private fun GuideOrEmpty(
             onRecordSeries = onRecordSeries,
             headerFocus = headerFocus,
             startInHeader = startInHeader,
+            shown = shown,
         )
     }
 }

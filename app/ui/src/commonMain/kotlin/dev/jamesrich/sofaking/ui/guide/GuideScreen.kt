@@ -196,6 +196,8 @@ fun GuideScreen(
     /** The header's open tab, which Back from the chips focuses; null when the header has no tabs. */
     headerFocus: FocusRequester? = null,
     startInHeader: Boolean = false,
+    /** Whether the guide is the page on top; on its way out under the player it leaves the volume alone. */
+    shown: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
@@ -540,7 +542,7 @@ fun GuideScreen(
     // can take focus), from the chips to the header's open tab; a press with nowhere left to climb leaves the
     // activity to finish.
     val backAction = guideBackAction(searchOpen, gridFocused, chipsFocused, hasHeader = headerFocus != null)
-    BackHandler(enabled = backAction != GuideBack.EXIT) {
+    val climbBack: () -> Unit = {
         when (backAction) {
             GuideBack.CLOSE_SEARCH -> closeSearch()
             GuideBack.FOCUS_CHIPS -> scope.launch {
@@ -551,6 +553,10 @@ fun GuideScreen(
             GuideBack.EXIT -> Unit
         }
     }
+    // A remote's Back key climbs in onGuideKey below; this takes the system Back gesture and Escape.
+    BackHandler(enabled = backAction != GuideBack.EXIT, onBack = climbBack)
+    // Whether the Back key-down that the guide took is still held, so only its own key-up climbs.
+    var backHeld by remember { mutableStateOf(false) }
     LaunchedEffect(searchOpen, searchFocusRequest) {
         if (!searchOpen) return@LaunchedEffect
         if (focusResults) {
@@ -676,6 +682,20 @@ fun GuideScreen(
     // Remote shortcuts answered wherever focus is; everything else goes on to the focused node. Every key
     // press restarts the preview's rest timers.
     val onGuideKey: (KeyEvent) -> Boolean = handler@{ event ->
+        // Back climbs here rather than in BackHandler: Compose turns an unhandled Back key-down into a focus exit,
+        // and where focus sits on a node with a focusable parent that exit succeeds and eats the press. The open
+        // details take their own Back.
+        if (event.key == Key.Back && details == null) {
+            if (event.type == KeyEventType.KeyDown && backAction != GuideBack.EXIT) {
+                backHeld = true
+                return@handler true
+            }
+            if (event.type == KeyEventType.KeyUp && backHeld) {
+                backHeld = false
+                climbBack()
+                return@handler true
+            }
+        }
         // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
         val okKey = event.key == Key.DirectionCenter || event.key == Key.Enter
         // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
@@ -744,6 +764,7 @@ fun GuideScreen(
                     captionsEnabled = captionsEnabled,
                     captionStyle = captionStyle,
                     muted = previewMuted,
+                    ownsVolume = shown,
                     failed = previewFailed,
                     onFailedChanged = { previewFailed = it },
                 )
@@ -878,6 +899,7 @@ private fun PreviewBand(
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
     muted: Boolean,
+    ownsVolume: Boolean,
     failed: Boolean,
     onFailedChanged: (Boolean) -> Unit,
 ) {
@@ -906,6 +928,7 @@ private fun PreviewBand(
             captionsEnabled = captionsEnabled,
             captionStyle = captionStyle,
             muted = muted,
+            ownsVolume = ownsVolume,
             failed = failed,
             onFailedChanged = onFailedChanged,
         )

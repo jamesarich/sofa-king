@@ -86,7 +86,7 @@ The Apple TV app lists the channels, favorites first, with the program on now an
 
 ## Settings
 
-Settings opens from the header's Settings button on a TV and from the navigation bar or rail elsewhere, with focus on Back, and Back returns to the tab it was opened from. Switches and choices apply at once. The sections run General, Live TV, Recordings (on a server that records), Captions, Playback (Android), Server, Lock and About. The Server section reads Connected to with the server's address, a Change button and Reload, which loads the lineup and the library again; Change opens the server fields, which apply when you select Save & reload under them, and Cancel closes them. On a device with no server yet, Server is the first section, with its fields open and focus on Server URL.
+Settings opens from the header's Settings button on a TV and from the navigation bar or rail elsewhere, with focus on Back, and Back returns to the tab it was opened from, with focus on the Settings button. Switches and choices apply at once. The sections run General, Live TV, Recordings (on a server that records), Captions, Playback (Android), Server, Lock and About. The Server section reads Connected to with the server's address, a Change button and Reload, which loads the lineup and the library again; Change opens the server fields, which apply when you select Save & reload under them, and Cancel closes them. On a device with no server yet, Server is the first section, with its fields open and focus on Server URL.
 
 | Section | Setting | Default | What it does |
 | --- | --- | --- | --- |

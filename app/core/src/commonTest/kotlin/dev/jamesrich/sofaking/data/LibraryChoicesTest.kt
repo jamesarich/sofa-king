@@ -93,6 +93,8 @@ class LibraryChoicesTest {
         assertEquals(3, initialSubtitle(detail, TrackChoice(subtitles = false))?.index, "off still shows forced dialogue")
         assertEquals(1, initialAudio(detail, TrackChoice("kor"))?.index, "a language the file lacks falls back to the default")
         assertEquals(TrackChoice("eng"), trackChoice(detail, audioIndex = 1, subtitleIndex = null))
+        val withStream = detail.copy(subtitles = listOf(MediaTrackInfo(5, "subrip", "eng")) + detail.subtitles)
+        assertEquals(1000, initialSubtitle(withStream, TrackChoice(subtitles = true, subtitleLanguage = "eng"))?.index, "a subtitle file beats the file's own text stream")
     }
 
     @Test
@@ -101,6 +103,7 @@ class LibraryChoicesTest {
         assertEquals("XYZ", trackLabel(MediaTrackInfo(3, "subrip", "xyz"), 1))
         assertEquals("Spanish", trackLabel(MediaTrackInfo(3, "subrip", "spa", "Spanish"), 1), "a title repeating the language is dropped")
         assertEquals("Track 2", trackLabel(MediaTrackInfo(3, "subrip"), 2))
+        assertEquals("English · SDH · External", trackLabel(MediaTrackInfo(1001, "subrip", "en", "SDH"), 2), "a subtitle file says so")
     }
 
     @Test

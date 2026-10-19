@@ -60,6 +60,12 @@ fun textSubtitles(detail: MediaItemDetail): List<MediaTrackInfo> = detail.subtit
  */
 fun isPictureSubtitle(track: MediaTrackInfo): Boolean = track.codec !in TEXT_SUBTITLE_CODECS
 
+/** Where the server numbers the subtitle files beside a video, such as the ones Bazarr downloads, after the file's own streams. */
+const val SUBTITLE_FILE_BASE = 1000
+
+/** True for a subtitle file beside the video rather than a stream inside it. */
+fun isSubtitleFile(track: MediaTrackInfo): Boolean = track.index >= SUBTITLE_FILE_BASE
+
 /**
  * The subtitles on when an item starts: a forced track, which carries only the dialogue the audio does not, text
  * before pictures (which the server has to draw in), else none.
@@ -72,13 +78,14 @@ fun defaultAudio(detail: MediaItemDetail): MediaTrackInfo? = detail.audio.firstO
 
 /**
  * A track as a picker lists it: its language and its own title, with an audio track's codec and channels, such as
- * "English · Commentary · AC3 5.1". [number] names a track with nothing else to go by.
+ * "English · Commentary · AC3 5.1", and "External" for a subtitle file beside the video. [number] names a track with
+ * nothing else to go by.
  */
 fun trackLabel(track: MediaTrackInfo, number: Int): String {
-    val language = track.language?.lowercase()?.let { LANGUAGES[it] ?: it.uppercase() }
+    val language = languageKey(track.language)?.let { LANGUAGES[it] ?: it.uppercase() }
     val title = track.title?.takeIf { it.isNotBlank() && !it.equals(language, ignoreCase = true) }
     val format = track.channels?.let { "${track.codec.uppercase()} ${channelLayout(it)}" }
-    val parts = listOfNotNull(language, title, format)
+    val parts = listOfNotNull(language, title, format, "External".takeIf { isSubtitleFile(track) })
     return if (parts.isEmpty()) "Track $number" else parts.joinToString(" · ")
 }
 
@@ -130,11 +137,13 @@ fun initialAudio(detail: MediaItemDetail, choice: TrackChoice?): MediaTrackInfo?
 
 /**
  * The subtitles on when an item starts: with subtitles on in the viewer's [choice] for its show, a full track in
- * that language (text before pictures); otherwise as [initialSubtitle] decides.
+ * that language (text before pictures, and a subtitle file before the file's own stream, since one beside the video
+ * was usually fetched to replace it); otherwise as [initialSubtitle] decides.
  */
 fun initialSubtitle(detail: MediaItemDetail, choice: TrackChoice?): MediaTrackInfo? {
     if (choice == null || !choice.subtitles) return initialSubtitle(detail)
-    return detail.subtitles.filter { !it.forced && sameLanguage(it.language, choice.subtitleLanguage) }.minByOrNull { isPictureSubtitle(it) }
+    return detail.subtitles.filter { !it.forced && sameLanguage(it.language, choice.subtitleLanguage) }
+        .minWithOrNull(compareBy<MediaTrackInfo> { isPictureSubtitle(it) }.thenBy { !isSubtitleFile(it) })
         ?: initialSubtitle(detail)
 }
 

@@ -644,6 +644,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                 onRecordSeries = vm.recordings::toggleSeries,
                                 headerFocus = tabFocus.takeIf { showsTabs },
                                 startInHeader = arrival.inHeader && showsTabs,
+                                shown = nav.top == Route.Guide,
                             )
                         }
                     }
@@ -888,6 +889,7 @@ private fun GuideOrEmpty(
     onRecordSeries: suspend (Programme) -> Boolean,
     headerFocus: FocusRequester?,
     startInHeader: Boolean,
+    shown: Boolean,
 ) {
     if (lineup.channels.isEmpty()) {
         MessageScreen(stringResource(Res.string.no_channels), hint = stringResource(Res.string.no_channels_hint))
@@ -917,6 +919,7 @@ private fun GuideOrEmpty(
             onRecordSeries = onRecordSeries,
             headerFocus = headerFocus,
             startInHeader = startInHeader,
+            shown = shown,
         )
     }
 }

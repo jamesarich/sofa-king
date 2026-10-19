@@ -196,6 +196,8 @@ fun GuideScreen(
     /** The header's open tab, which Back from the chips focuses; null when the header has no tabs. */
     headerFocus: FocusRequester? = null,
     startInHeader: Boolean = false,
+    /** Whether the guide is the page on top; on its way out under the player it leaves the volume alone. */
+    shown: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
@@ -762,6 +764,7 @@ fun GuideScreen(
                     captionsEnabled = captionsEnabled,
                     captionStyle = captionStyle,
                     muted = previewMuted,
+                    ownsVolume = shown,
                     failed = previewFailed,
                     onFailedChanged = { previewFailed = it },
                 )
@@ -896,6 +899,7 @@ private fun PreviewBand(
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
     muted: Boolean,
+    ownsVolume: Boolean,
     failed: Boolean,
     onFailedChanged: (Boolean) -> Unit,
 ) {
@@ -924,6 +928,7 @@ private fun PreviewBand(
             captionsEnabled = captionsEnabled,
             captionStyle = captionStyle,
             muted = muted,
+            ownsVolume = ownsVolume,
             failed = failed,
             onFailedChanged = onFailedChanged,
         )

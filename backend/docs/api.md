@@ -81,7 +81,7 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/a
 
 Request 1-200 distinct channels and a positive window of at most 24 hours. Programs overlap when `startsAt < to && endsAt > from`. A disabled or unknown entry, one a client's catalog still lists after the lineup changed, gets a row with status `removed` and no programs instead of failing the query; the client reads the catalog again.
 
-Each program has `id`, `channelId`, `startsAt`, `endsAt`, `title` and `description`, and the metadata its guide source provides: `subTitle` (the episode title), `episode` (a label such as `S2 E5` or `E5`, or the source's on-screen numbering), `isNew` (a first airing), `rating` (such as `TV-14`) and `icon` (an image URL on the source's host). A field the source does not provide is null, or false for `isNew`. Clients should ignore fields they do not know.
+Each program has `id`, `channelId`, `startsAt`, `endsAt`, `title` and `description`, and the metadata its guide source provides: `subTitle` (the episode title), `episode` (a label such as `S2 E5` or `E5`, or the source's on-screen numbering), `isNew` (a first airing), `rating` (such as `TV-14`), `icon` (an image URL on the source's host) and `categories` (the source's genres, such as `Movies` or `Sports`, each once). A field the source does not provide is null, false for `isNew` or empty for `categories`. Clients should ignore fields they do not know.
 
 To page through a consistent guide, pass the returned `revision` in subsequent requests. A changed revision (any guide re-imported, or the lineup changed) returns `409 RESYNC_REQUIRED`; query again without the old revision.
 

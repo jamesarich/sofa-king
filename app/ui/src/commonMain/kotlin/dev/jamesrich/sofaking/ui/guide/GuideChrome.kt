@@ -34,6 +34,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import dev.jamesrich.sofaking.data.ProgramKind
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.TvTextField
@@ -216,4 +217,12 @@ internal fun GuideFilter.label(): String = when (this) {
     GuideFilter.Favorites -> stringResource(Res.string.filter_favorites)
     GuideFilter.Recent -> stringResource(Res.string.filter_recent)
     is GuideFilter.Group -> name
+    is GuideFilter.OnNow -> stringResource(
+        when (kind) {
+            ProgramKind.MOVIE -> Res.string.filter_movies_now
+            ProgramKind.SPORTS -> Res.string.filter_sports_now
+            ProgramKind.KIDS -> Res.string.filter_kids_now
+            ProgramKind.NEWS -> Res.string.filter_news_now
+        },
+    )
 }

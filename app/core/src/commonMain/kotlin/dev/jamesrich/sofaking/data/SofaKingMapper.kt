@@ -50,6 +50,7 @@ internal object SofaKingMapper {
             isNew = dto.isNew,
             rating = dto.rating.nonBlank(),
             icon = dto.icon.nonBlank(),
+            kinds = programKinds(dto.categories),
         )
     }
 

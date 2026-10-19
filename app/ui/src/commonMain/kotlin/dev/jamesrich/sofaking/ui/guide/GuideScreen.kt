@@ -66,6 +66,7 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.orderedFavorites
+import dev.jamesrich.sofaking.data.ProgramKind
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.RecordingMark
@@ -118,7 +119,13 @@ internal sealed interface GuideFilter {
     data object Recent : GuideFilter
     @Serializable
     data class Group(val name: String) : GuideFilter
+    /** The channels showing a [kind] of program now. */
+    @Serializable
+    data class OnNow(val kind: ProgramKind) : GuideFilter
 }
+
+/** How often the kinds of program on now are read again. */
+private const val ON_NOW_REFRESH_SECONDS = 300L
 
 /** How often the initial focus is retried after the row refused it, before the header keeps focus. */
 private const val INITIAL_FOCUS_ATTEMPTS = 3
@@ -217,8 +224,11 @@ fun GuideScreen(
     val tomorrowLabel = stringResource(Res.string.guide_tomorrow)
     val rangeFormat = stringResource(Res.string.guide_range)
 
-    val filters = remember(lineup.channels) { guideFilters(lineup.channels) }
-    val filterCounts = remember(lineup.channels, favorites, recentChannels) { guideFilterCounts(lineup.channels, favorites, recentChannels) }
+    // What is on now is read every few minutes, not every minute, so the chips and their lists hold still while browsing.
+    val onNowSlot = now.epochSeconds / ON_NOW_REFRESH_SECONDS
+    val kindsOnNow = remember(lineup.channels, lineup.guide, onNowSlot) { channelsOnNow(lineup, now) }
+    val filters = remember(lineup.channels, kindsOnNow.keys) { guideFilters(lineup.channels, kindsOnNow.keys) }
+    val filterCounts = remember(lineup.channels, favorites, recentChannels, kindsOnNow) { guideFilterCounts(lineup.channels, favorites, recentChannels, kindsOnNow) }
     var filter by rememberSerializable { mutableStateOf(guideFilterFromKey(initialFilterKey)) }
     val activeFilter = filter.takeIf { it in filters } ?: GuideFilter.All
 
@@ -226,12 +236,13 @@ fun GuideScreen(
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     val query = if (searchOpen) searchState.text.toString() else ""
     val searchNow = now.takeIf { query.isNotBlank() }
-    val byFilter = remember(lineup.channels, favorites, favoritesOrder, recentChannels, activeFilter) {
+    val byFilter = remember(lineup.channels, favorites, favoritesOrder, recentChannels, activeFilter, kindsOnNow) {
         when (val f = activeFilter) {
             GuideFilter.All -> lineup.channels
             GuideFilter.Favorites -> orderedFavorites(lineup.channels, favorites, favoritesOrder)
             GuideFilter.Recent -> recentChannels(lineup.channels, recentChannels)
             is GuideFilter.Group -> lineup.channels.filter { f.name in it.groups }
+            is GuideFilter.OnNow -> kindsOnNow[f.kind].orEmpty()
         }
     }
     // A channel opened from a filter keeps the player's Up and Down inside it; search does not narrow it.

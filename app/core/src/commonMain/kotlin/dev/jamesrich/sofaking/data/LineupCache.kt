@@ -155,6 +155,7 @@ internal class CachedProgramme(
     @ProtoNumber(7) val isNew: Boolean = false,
     @ProtoNumber(8) val rating: String? = null,
     @ProtoNumber(9) val icon: String? = null,
+    @ProtoNumber(10) val kinds: Int = 0,
 ) {
     fun toProgramme(channelId: String) = Programme(
         channelId = channelId,
@@ -167,6 +168,7 @@ internal class CachedProgramme(
         isNew = isNew,
         rating = rating,
         icon = icon,
+        kinds = kindsOf(kinds),
     )
 
     companion object {
@@ -180,6 +182,7 @@ internal class CachedProgramme(
             isNew = programme.isNew,
             rating = programme.rating,
             icon = programme.icon,
+            kinds = programme.kinds.mask(),
         )
     }
 }

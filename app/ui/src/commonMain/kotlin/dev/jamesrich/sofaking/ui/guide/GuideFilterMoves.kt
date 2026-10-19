@@ -1,17 +1,34 @@
 package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Channel
+import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.ProgramKind
+import kotlin.time.Instant
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
 
-/** All, Favorites, Recent, then every group in the order its first channel appears, so the chips follow the numbering. */
-internal fun guideFilters(channels: List<Channel>): List<GuideFilter> =
-    listOf(GuideFilter.All, GuideFilter.Favorites, GuideFilter.Recent) + channels.flatMap { it.groups }.distinct().map { GuideFilter.Group(it) }
+/**
+ * All, Favorites, Recent, a kind of program on now for each kind [onNow] holds, then every group in the order its
+ * first channel appears, so the chips follow the numbering.
+ */
+internal fun guideFilters(channels: List<Channel>, onNow: Set<ProgramKind> = emptySet()): List<GuideFilter> =
+    listOf(GuideFilter.All, GuideFilter.Favorites, GuideFilter.Recent) +
+        ProgramKind.entries.filter { it in onNow }.map { GuideFilter.OnNow(it) } +
+        channels.flatMap { it.groups }.distinct().map { GuideFilter.Group(it) }
 
-/** How many channels each filter lists; a channel filed under several groups counts in each, and Recent counts only channels still in the lineup. */
-internal fun guideFilterCounts(channels: List<Channel>, favorites: Set<String>, recent: List<String>): Map<GuideFilter, Int> = buildMap {
+/**
+ * How many channels each filter lists; a channel filed under several groups counts in each, Recent counts only
+ * channels still in the lineup, and each kind on now counts the channels in [onNow].
+ */
+internal fun guideFilterCounts(
+    channels: List<Channel>,
+    favorites: Set<String>,
+    recent: List<String>,
+    onNow: Map<ProgramKind, List<Channel>> = emptyMap(),
+): Map<GuideFilter, Int> = buildMap {
     put(GuideFilter.All, channels.size)
     put(GuideFilter.Favorites, channels.count { it.guideId in favorites })
     put(GuideFilter.Recent, recentChannels(channels, recent).size)
+    for ((kind, listed) in onNow) put(GuideFilter.OnNow(kind), listed.size)
     for (channel in channels) {
         for (group in channel.groups) {
             val key = GuideFilter.Group(group)
@@ -26,7 +43,18 @@ internal fun recentChannels(channels: List<Channel>, recent: List<String>): List
     return recent.mapNotNull { byId[it] }
 }
 
+/** The channels whose program at [at] is of each kind, in lineup order; a kind with none is left out. */
+internal fun channelsOnNow(lineup: Lineup, at: Instant): Map<ProgramKind, List<Channel>> {
+    val byKind = HashMap<ProgramKind, MutableList<Channel>>()
+    for (channel in lineup.channels) {
+        val kinds = lineup.nowAndNext(channel, at).first?.kinds ?: continue
+        for (kind in kinds) byKind.getOrPut(kind) { ArrayList() } += channel
+    }
+    return byKind
+}
+
 private const val GROUP_KEY = "group:"
+private const val ON_NOW_KEY = "now:"
 
 /** The filter as the settings store keeps it: null for All, so a fresh install reads as before. */
 internal fun GuideFilter.key(): String? = when (this) {
@@ -34,6 +62,7 @@ internal fun GuideFilter.key(): String? = when (this) {
     GuideFilter.Favorites -> "favorites"
     GuideFilter.Recent -> "recent"
     is GuideFilter.Group -> GROUP_KEY + name
+    is GuideFilter.OnNow -> ON_NOW_KEY + kind.name.lowercase()
 }
 
 /** The filter a stored [key] names; anything unknown, including a group no longer in the lineup, reads as All. */
@@ -42,6 +71,7 @@ internal fun guideFilterFromKey(key: String?): GuideFilter = when {
     key == "favorites" -> GuideFilter.Favorites
     key == "recent" -> GuideFilter.Recent
     key.startsWith(GROUP_KEY) && key.length > GROUP_KEY.length -> GuideFilter.Group(key.removePrefix(GROUP_KEY))
+    key.startsWith(ON_NOW_KEY) -> ProgramKind.entries.firstOrNull { it.name.lowercase() == key.removePrefix(ON_NOW_KEY) }?.let { GuideFilter.OnNow(it) } ?: GuideFilter.All
     else -> GuideFilter.All
 }
 

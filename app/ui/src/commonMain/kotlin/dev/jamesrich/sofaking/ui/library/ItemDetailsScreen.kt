@@ -1,7 +1,10 @@
 package dev.jamesrich.sofaking.ui.library
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -22,13 +25,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -40,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -63,6 +71,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import kotlin.math.abs
 import org.jetbrains.compose.resources.stringResource
 
 /** What an item's page does. [onPlay] resumes an item in progress unless [fromStart] is set. */
@@ -95,6 +104,7 @@ internal fun ItemDetailsScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedSeasonId: String?, actions: ItemDetailsActions, returnedFrom: String?) {
     val item = detail.item
@@ -116,6 +126,7 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = maxHeight * HERO_FRACTION
         Hero(item.backdrop ?: item.poster, Modifier.fillMaxWidth().height(heroHeight))
+        CompositionLocalProvider(LocalBringIntoViewSpec provides ScrollOnlyWhenHidden) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -128,17 +139,7 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
         ) {
             item(key = "summary") { Summary(detail, actions, primaryFocus) }
             if (seasons.size > 1) {
-                item(key = "seasons") {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        seasons.forEach { s ->
-                            GuideChip(
-                                selected = s.id == selectedSeasonId,
-                                onClick = { actions.onSelectSeason(s.id) },
-                                label = seasonLabel(s),
-                            )
-                        }
-                    }
-                }
+                item(key = "seasons") { Seasons(seasons, selectedSeasonId, actions.onSelectSeason) }
             }
             if (seasons.isNotEmpty() && season is ItemDetailState.Failed) {
                 item(key = "season-failed") {
@@ -149,6 +150,45 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
                 val modifier = if (episode.id == returnTo) Modifier.focusRequester(episodeFocus) else Modifier
                 EpisodeRow(episode, onClick = { actions.onPlay(episode, false) }, modifier = modifier)
             }
+        }
+        }
+    }
+}
+
+/**
+ * Focus scrolls the page only as far as it takes to show what took focus. A TV's default pivots it a third of the
+ * way down, which on arrival pushes the title above Play off the screen.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+private val ScrollOnlyWhenHidden = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val trailing = offset + size
+        return when {
+            offset >= 0f && trailing <= containerSize -> 0f
+            offset < 0f && trailing > containerSize -> 0f
+            abs(offset) < abs(trailing - containerSize) -> offset
+            else -> trailing - containerSize
+        }
+    }
+}
+
+/** The seasons in one row; focus coming down from the buttons lands on the season being shown. */
+@Composable
+private fun Seasons(seasons: List<MediaItem>, selectedSeasonId: String?, onSelect: (String) -> Unit) {
+    val selected = seasons.indexOfFirst { it.id == selectedSeasonId }.coerceAtLeast(0)
+    val selectedFocus = remember { FocusRequester() }
+    LazyRow(
+        state = rememberLazyListState(initialFirstVisibleItemIndex = selected),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.focusRestorer(selectedFocus),
+    ) {
+        itemsIndexed(seasons, key = { _, season -> season.id }) { index, season ->
+            GuideChip(
+                selected = season.id == selectedSeasonId,
+                onClick = { onSelect(season.id) },
+                label = seasonLabel(season),
+                modifier = if (index == selected) Modifier.focusRequester(selectedFocus) else Modifier,
+            )
         }
     }
 }
@@ -287,7 +327,7 @@ private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit, modifier: Modifi
     ) {
         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(EPISODE_THUMB_WIDTH).aspectRatio(16f / 9f).background(MaterialTheme.colorScheme.surfaceVariant, CardShape)) {
-                Artwork(episode.backdrop ?: episode.poster, label = episode.episode?.let { "E$it" } ?: episode.title)
+                Artwork(episode.stillOrBackdrop(), label = episode.episode?.let { "E$it" } ?: episode.title)
                 val progress = episode.progress
                 if (progress?.watched == true) WatchedTick(Modifier.align(Alignment.TopEnd).padding(6.dp))
                 if (progress != null && progress.inProgress) progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }
@@ -306,6 +346,9 @@ private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit, modifier: Modifi
         }
     }
 }
+
+/** An episode's own still, which the server sends as its poster; its backdrop falls back to the show's. */
+internal fun MediaItem.stillOrBackdrop(): String? = if (kind == ItemKind.EPISODE) poster ?: backdrop else backdrop ?: poster
 
 @Composable
 private fun Credit(text: String) {

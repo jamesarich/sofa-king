@@ -33,6 +33,14 @@ class LibraryNamesTest {
         assertEquals(TitleYear("Home movie", null), titleYear("Home movie [DVD]-GROUP"))
     }
 
+    @Test fun `a collection's order number before the title is dropped`() {
+        assertEquals(TitleYear("Robot Jox", 1990), titleYear("01 - Robot Jox (1990)"))
+        assertEquals(TitleYear("Robot Wars", 1993), titleYear("3 - Robot Wars (1993)"))
+        assertEquals(TitleYear("24 - Redemption", 2008), titleYear("24 - Redemption (2008)"))
+        assertEquals(TitleYear("1917", 2019), titleYear("1917 (2019)"))
+        assertEquals(TitleYear("01", null), titleYear("01"))
+    }
+
     @Test fun `a date-based recording reads its air date and drops the same-day time`() {
         val name = episodeName("Nightly News - 2026-10-17 - Evening Edition (18.30)")
         assertEquals(LocalDate.of(2026, 10, 17), name.aired)

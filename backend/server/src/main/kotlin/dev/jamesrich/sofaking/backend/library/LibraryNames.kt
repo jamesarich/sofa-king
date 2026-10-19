@@ -32,12 +32,16 @@ private val YEAR = Regex("""^(.*?)[\s._]*[(\[](\d{4})[)\]](.*)$""")
 private val BRACKETED = Regex("""\s*[\[{][^\]}]*[\]}]""")
 private val BARE_YEAR = Regex("""^(.+?)[\s._]+((?:19|20)\d{2})(?:[\s._].*)?$""")
 
+/** A collection's place in its order before the title, `01 - ` or `3 - `; a bare two-digit `24 - ` is left alone. */
+private val ORDINAL = Regex("""^(?:0\d{1,2}|\d)\s+-\s+(?=\S)""")
+
 /**
- * The title and year of a movie or show name: `Alien (1979)`, `Alien (1979) [1080p]`, `Alien (1979) {tmdb-348}` and
- * `Alien.1979.1080p.BluRay` all read as Alien, 1979. Dots and underscores become spaces only when the name has no spaces.
+ * The title and year of a movie or show name: `Alien (1979)`, `Alien (1979) [1080p]`, `Alien (1979) {tmdb-348}`,
+ * `01 - Alien (1979)` and `Alien.1979.1080p.BluRay` all read as Alien, 1979. Dots and underscores become spaces only
+ * when the name has no spaces.
  */
 internal fun titleYear(raw: String): TitleYear {
-    val name = if (' ' !in raw) raw.replace('.', ' ').replace('_', ' ') else raw
+    val name = (if (' ' !in raw) raw.replace('.', ' ').replace('_', ' ') else raw).replace(ORDINAL, "")
     YEAR.matchEntire(name)?.let { match ->
         val year = match.groupValues[2].toInt()
         if (year in 1880..2100) return TitleYear(clean(match.groupValues[1]), year)

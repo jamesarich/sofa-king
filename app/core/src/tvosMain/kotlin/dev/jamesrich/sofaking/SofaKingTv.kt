@@ -228,6 +228,11 @@ class SofaKingTv {
         viewModel.setSkipCommercials(enabled)
     }
 
+    /** Remembers [tab] as the one the app was last on, which the next start reopens. */
+    fun setLastTab(tab: TopLevelTab) {
+        viewModel.setLastTab(tab)
+    }
+
     /** When [recording] aired, in milliseconds since the epoch. */
     fun recordingStartMs(recording: DvrRecording): Long = recording.startsAt.toEpochMilliseconds()
 

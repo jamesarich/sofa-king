@@ -58,10 +58,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
@@ -141,7 +141,7 @@ fun VodPlayerScreen(
     var nextSecondsLeft by remember { mutableIntStateOf(UP_NEXT_SECONDS) }
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
     val scope = rememberCoroutineScope()
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycle = appLifecycleOwner.lifecycle
     val currentOnPosition by rememberUpdatedState(onPosition)
     val currentOnStopped by rememberUpdatedState(onStopped)
     val currentOnEnded by rememberUpdatedState(onEnded)
@@ -304,12 +304,12 @@ fun VodPlayerScreen(
     // The app stops the player and releases the session while another app is in front (see App); the screen
     // saves where it was and, back in front, reopens the item there, which the effect above loads and seeks.
     var backgrounded by remember { mutableStateOf(false) }
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP, appLifecycleOwner) {
         if (ended || stream == null) return@LifecycleEventEffect
         backgrounded = true
         currentOnStopped(positionMs, durationMs)
     }
-    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+    LifecycleEventEffect(Lifecycle.Event.ON_START, appLifecycleOwner) {
         if (!backgrounded) return@LifecycleEventEffect
         backgrounded = false
         scope.launch {

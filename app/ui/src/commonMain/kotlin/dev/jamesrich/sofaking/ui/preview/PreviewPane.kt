@@ -31,11 +31,11 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.data.CaptionStyle
@@ -175,7 +175,7 @@ internal fun PreviewVideo(
     // The channel whose stream the player holds; until it is the focused one, the card covers the last channel's picture.
     var showing by remember { mutableStateOf(player.currentChannelId) }
 
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycle = appLifecycleOwner.lifecycle
     LaunchedEffect(player) {
         player.volume = 0f
         // Back from a paused full screen: rejoin the live edge rather than play from where it paused.

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.contract.Wire
 import androidx.compose.animation.AnimatedContent
@@ -42,7 +43,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.withStateAtLeast
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -373,7 +373,7 @@ fun PlayerScreen(
         channels.indexOfFirst { it.guideId == number }.takeIf { it >= 0 }?.let(::zapTo)
     }
 
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycle = appLifecycleOwner.lifecycle
     LaunchedEffect(index, currentChannel?.guideId, lifecycle, recovering) {
         // While a dead id is being followed, nothing tunes until the row for its replacement is known.
         if (recovering != null) return@LaunchedEffect

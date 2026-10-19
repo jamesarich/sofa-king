@@ -14,7 +14,6 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldValue
 import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
 import androidx.navigation3.runtime.NavEntry
-import androidx.navigation3.runtime.NavEntryDecorator
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.Scene
@@ -64,6 +63,7 @@ import dev.jamesrich.sofaking.data.isPictureSubtitle
 import dev.jamesrich.sofaking.data.trackChoice
 import dev.jamesrich.sofaking.data.trackLabel
 import dev.jamesrich.sofaking.ui.BackHandler
+import dev.jamesrich.sofaking.ui.LocalAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.library.CardMenu
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
 import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
@@ -690,15 +690,12 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
         }
     }
 
-    // One back stack per tab, each with its own saved state, so a tab opens again where it was left. The entries
-    // follow the app's lifecycle rather than their own: the players save their place and free the stream when the
-    // app leaves the foreground, which an entry's own lifecycle would also signal on every Back.
-    val hostLifecycle = remember(lifecycleOwner) {
-        NavEntryDecorator<Route> { entry -> CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) { entry.Content() } }
-    }
+    // One back stack per tab, each with its own saved state, so a tab opens again where it was left. Each page
+    // keeps its entry's own lifecycle; the players read the app's (LocalAppLifecycleOwner) to save their place and
+    // free the stream only when the app leaves the foreground, not on every Back.
     val entryProvider: (Route) -> NavEntry<Route> = { route -> NavEntry(route, contentKey = route.id) { page(route) } }
     val entries = Tab.entries.associateWith { tab ->
-        rememberDecoratedNavEntries(nav.stack(tab), listOf(rememberSaveableStateHolderNavEntryDecorator(), hostLifecycle), entryProvider)
+        rememberDecoratedNavEntries(nav.stack(tab), listOf(rememberSaveableStateHolderNavEntryDecorator()), entryProvider)
     }
     // A TV cuts between pages: focus lands at once and nothing slides under the remote. Elsewhere pages cross-fade
     // on the theme's effects spring.
@@ -711,6 +708,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     CompositionLocalProvider(
         LocalClockFormat provides (settings?.clockFormat ?: ClockFormat.AUTO),
         LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
+        LocalAppLifecycleOwner provides lifecycleOwner,
     ) {
         TopLevel(
             tv = tv,

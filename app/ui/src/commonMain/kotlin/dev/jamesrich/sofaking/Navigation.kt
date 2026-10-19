@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.ui.library.libraryFocusKey
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.settings.CHANNELS_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.settings.STARTUP_FOCUS_KEY
+import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
@@ -17,7 +18,7 @@ internal enum class Tab { LIVE, LIBRARY, RECORDINGS }
  * field; one-shot details of an arrival travel beside the stack in [Arrival].
  */
 @Serializable
-internal sealed interface Route {
+internal sealed interface Route : NavKey {
     /** Names the entry: its saved state is kept under it, and a back stack never holds two entries with one id. */
     val id: String
 

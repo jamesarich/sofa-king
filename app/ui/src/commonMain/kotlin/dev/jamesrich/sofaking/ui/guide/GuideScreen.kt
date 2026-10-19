@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.ui.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,7 +58,6 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.resources.*
@@ -654,8 +654,8 @@ fun GuideScreen(
     // Observed from the snapshot, not read in composition, so a focus move still recomposes only the band.
     // Nothing opens while the app is stopped (Home, the speech recognizer, screen off); coming back starts
     // the rest over, muted, so a channel is never found open on return.
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+    val lifecycle = appLifecycleOwner.lifecycle
+    LifecycleEventEffect(Lifecycle.Event.ON_START, appLifecycleOwner) {
         dwell.restart(uptimeMs())
         dwellNonce++
     }

@@ -103,7 +103,7 @@ import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
-import dev.jamesrich.sofaking.ui.SofaLoader
+import dev.jamesrich.sofaking.ui.SofaLoaderLabel
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.label
@@ -1011,14 +1011,7 @@ private fun Header(
                 enter = PopIn,
                 exit = PopOut,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SofaLoader(size = 28.dp)
-                    Text(
-                        stringResource(Res.string.refreshing),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                SofaLoaderLabel(stringResource(Res.string.refreshing))
             }
             // The last text is kept so the notice reads while it fades out.
             var lastNotice by remember { mutableStateOf("") }

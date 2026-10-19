@@ -130,7 +130,8 @@ internal val Tab.root: Route
  * as the viewer comes back to it (an item, a library's chip, the channel the player was left on, which the
  * preview must not reopen by itself until focus moves); [atNow] moves the guide's cursor to the current time (the
  * Guide key from the player); [search] opens the guide's search, or the library's by voice; [inHeader] keeps
- * focus on the header's open tab (Back from another tab), so one more Back exits.
+ * focus in the header (on the open tab after Back from another tab, so one more Back exits; on Settings after
+ * leaving it) until focus comes down into the page.
  */
 internal data class Arrival(
     val returnedFrom: String? = null,

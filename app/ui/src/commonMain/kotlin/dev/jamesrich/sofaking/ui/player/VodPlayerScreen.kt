@@ -74,7 +74,9 @@ import dev.jamesrich.sofaking.ui.KeepScreenOn
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
+import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
@@ -447,6 +449,9 @@ fun VodPlayerScreen(
     }
     val positionText = formatPlayTime(scrubTarget ?: positionMs)
     val durationText = durationMs?.let(::formatPlayTime)
+    val now by rememberMinuteNow()
+    val timeFormat = rememberTimeFormatter()
+    val endsText = vodEndsAt(now, scrubTarget ?: positionMs, durationMs)?.let { stringResource(Res.string.vod_ends_at, timeFormat.format(it)) }
     val positionDescription = if (durationText != null) stringResource(Res.string.vod_position_description, positionText, durationText) else positionText
 
     val density = LocalDensity.current
@@ -513,6 +518,8 @@ fun VodPlayerScreen(
                 )
                 Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = positionDescription }) {
                     Text(positionText, style = MaterialTheme.typography.titleMedium, color = if (scrubTarget != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    Spacer(Modifier.weight(1f))
+                    endsText?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Spacer(Modifier.weight(1f))
                     durationText?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }

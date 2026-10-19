@@ -77,10 +77,6 @@ import dev.jamesrich.sofaking.ui.preview.PreviewDetails
 import dev.jamesrich.sofaking.ui.preview.PreviewDwell
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.player.ChannelNumberBadge
-import dev.jamesrich.sofaking.ui.player.StatusPill
-import dev.jamesrich.sofaking.ui.PopIn
-import dev.jamesrich.sofaking.ui.PopOut
-import androidx.compose.animation.AnimatedVisibility
 import dev.jamesrich.sofaking.ui.player.rememberChannelNumberInput
 import dev.jamesrich.sofaking.ui.player.digitValue
 import dev.jamesrich.sofaking.ui.preview.PreviewVideo
@@ -301,13 +297,6 @@ fun GuideScreen(
     var focused by focusedState
     var gridFocused by remember { mutableStateOf(false) }
     var chipsFocused by remember { mutableStateOf(false) }
-    // A first Back with nowhere left to climb shows the hint; a second one within EXIT_CONFIRM_MS exits.
-    var exitArmed by remember { mutableStateOf(false) }
-    LaunchedEffect(exitArmed) {
-        if (!exitArmed) return@LaunchedEffect
-        delay(EXIT_CONFIRM_MS)
-        exitArmed = false
-    }
     // The preview's rest timers: muted on tune, sound after five seconds, full screen after the chosen delay,
     // restarted by any key. Both run only while a cell holds focus with search closed, so typing never opens a channel.
     // TalkBack reads the grid aloud as focus moves; a channel opening full screen would cut that off.
@@ -543,9 +532,9 @@ fun GuideScreen(
     }
     LaunchedEffect(Unit) { if (startSearch) openVoiceSearch() }
     // From the grid, Back climbs to the selected chip (scrolled into the row first, since only a composed chip
-    // can take focus), from the chips to the header's open tab; a press with nowhere left to climb asks for a
-    // second, and that one leaves the activity to finish.
-    val backAction = guideBackAction(searchOpen, gridFocused, chipsFocused, hasHeader = headerFocus != null, exitArmed = exitArmed)
+    // can take focus), from the chips to the header's open tab; a press with nowhere left to climb leaves the
+    // activity to finish.
+    val backAction = guideBackAction(searchOpen, gridFocused, chipsFocused, hasHeader = headerFocus != null)
     BackHandler(enabled = backAction != GuideBack.EXIT) {
         when (backAction) {
             GuideBack.CLOSE_SEARCH -> closeSearch()
@@ -554,7 +543,6 @@ fun GuideScreen(
                 requestFocusWhenAttached(selectedChip)
             }
             GuideBack.FOCUS_HEADER -> headerFocus?.requestFocus()
-            GuideBack.ARM_EXIT -> exitArmed = true
             GuideBack.EXIT -> Unit
         }
     }
@@ -851,9 +839,6 @@ fun GuideScreen(
             }
         }
         ChannelNumberBadge(numbers)
-        AnimatedVisibility(exitArmed, modifier = Modifier.align(Alignment.BottomCenter).screenPadding().padding(bottom = 24.dp), enter = PopIn, exit = PopOut) {
-            StatusPill(stringResource(Res.string.guide_exit_hint))
-        }
         details?.let { shown ->
             ProgrammeSheet(
                 details = shown,

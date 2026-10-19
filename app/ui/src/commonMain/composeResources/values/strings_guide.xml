@@ -5,7 +5,6 @@
     <string name="guide_search_hint">Channel, number or program</string>
     <string name="guide_search_voice_prompt">Say a channel, number or program</string>
     <string name="guide_search_none">No channels match</string>
-    <string name="guide_exit_hint">Press Back again to exit</string>
     <string name="guide_filter_count">%1$s %2$d</string>
     <string name="guide_favorites_none">No favorites yet. Hold OK on a program, then choose Add to favorites.</string>
     <string name="guide_recent_none">No recent channels yet. Channels you watch show up here.</string>

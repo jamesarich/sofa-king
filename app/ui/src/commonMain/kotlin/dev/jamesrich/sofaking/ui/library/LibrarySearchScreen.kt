@@ -67,6 +67,8 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
     var searching by remember { mutableStateOf(false) }
     // A spoken query moves focus to the first result once it is in; a typed one leaves it in the field.
     var focusResults by remember { mutableStateOf(false) }
+    // Back from a result's page: the results are searched again, then the result left takes focus.
+    var focusReturn by remember { mutableStateOf(returnedFrom != null) }
     var arrived by rememberSaveable { mutableStateOf(false) }
     val currentSearch by rememberUpdatedState(actions.search)
 
@@ -80,8 +82,9 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
         }
     }
     LaunchedEffect(Unit) {
+        if (query.text.isBlank()) focusReturn = false
         when {
-            returnedFrom != null -> requestFocusWhenAttached(returnFocus)
+            focusReturn -> Unit
             !arrived && initialQuery != null -> {
                 query.setTextAndPlaceCursorAtEnd(initialQuery)
                 focusResults = true
@@ -105,6 +108,11 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
     }
     val sections = remember(results) { searchSections(results.orEmpty()) }
     LaunchedEffect(sections, searching) {
+        if (focusReturn && !searching && results != null) {
+            focusReturn = false
+            requestFocusWhenAttached(if (results.orEmpty().any { it.id == returnedFrom }) returnFocus else firstResult)
+            return@LaunchedEffect
+        }
         if (!focusResults || searching || results == null) return@LaunchedEffect
         focusResults = false
         // Nothing matched what was said: the field takes focus so the query can be changed.

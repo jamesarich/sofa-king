@@ -110,6 +110,8 @@ fun SettingsScreen(
     pairing: PairingUi = PairingUi(),
     /** The update check's answer, or null while none has run. */
     update: UpdateState? = null,
+    /** The page behind Settings the viewer just came back from ([CHANNELS_FOCUS_KEY], [STARTUP_FOCUS_KEY]); its button takes focus. */
+    returnedFrom: String? = null,
 ) {
     var captionAdvance by remember(settings.captionAdvanceMs) { mutableIntStateOf(settings.captionAdvanceMs) }
     var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
@@ -144,9 +146,19 @@ fun SettingsScreen(
     var changingServer by remember { mutableStateOf(settings.serverUrl.isEmpty()) }
     val serverOpen = changingServer || pairing.failure != null
     val backFocus = remember { FocusRequester() }
+    val channelsFocus = remember { FocusRequester() }
+    val startupFocus = remember { FocusRequester() }
 
     BackHandler { onBack() }
-    LaunchedEffect(Unit) { requestFocusWhenAttached(if (settings.serverUrl.isEmpty()) serverFocus else backFocus) }
+    LaunchedEffect(Unit) {
+        val returnTo = when (returnedFrom) {
+            CHANNELS_FOCUS_KEY -> channelsFocus
+            STARTUP_FOCUS_KEY -> startupFocus
+            else -> null
+        }
+        if (returnTo != null && requestFocusWhenAttached(returnTo)) return@LaunchedEffect
+        requestFocusWhenAttached(if (settings.serverUrl.isEmpty()) serverFocus else backFocus)
+    }
     LaunchedEffect(changingServer) { if (changingServer && settings.serverUrl.isNotEmpty()) requestFocusWhenAttached(serverFocus) }
 
     LazyColumn(
@@ -260,7 +272,7 @@ fun SettingsScreen(
             item {
                 val chosen = channels.firstOrNull { it.guideId == settings.startupChannel }
                 SettingRow(label = chosen?.label() ?: stringResource(Res.string.settings_startup_channel_none)) {
-                    SofaButton(onClick = actions.onChooseStartupChannel) { Text(stringResource(Res.string.settings_startup_choose)) }
+                    SofaButton(onClick = actions.onChooseStartupChannel, modifier = Modifier.focusRequester(startupFocus)) { Text(stringResource(Res.string.settings_startup_choose)) }
                 }
             }
         }
@@ -338,7 +350,7 @@ fun SettingsScreen(
         item {
             Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(Res.string.settings_channels), style = MaterialTheme.typography.titleSmall)
-                SofaButton(onClick = actions.onManageChannels, enabled = channels.isNotEmpty()) {
+                SofaButton(onClick = actions.onManageChannels, enabled = channels.isNotEmpty(), modifier = Modifier.focusRequester(channelsFocus)) {
                     Text(stringResource(Res.string.settings_channels_open))
                 }
             }
@@ -605,3 +617,7 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
         update is UpdateState.Available && downloadUrl == null -> HelpText(stringResource(Res.string.settings_update_no_package))
     }
 }
+
+/** What Settings' `returnedFrom` holds for the channel manager and the startup channel picker. */
+internal const val CHANNELS_FOCUS_KEY = "channels"
+internal const val STARTUP_FOCUS_KEY = "startup-channel"

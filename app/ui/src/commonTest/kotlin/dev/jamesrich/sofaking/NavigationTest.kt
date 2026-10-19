@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.ui.library.SEARCH_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.library.libraryFocusKey
+import dev.jamesrich.sofaking.ui.settings.CHANNELS_FOCUS_KEY
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -84,5 +85,12 @@ class NavigationTest {
         assertEquals(Tab.RECORDINGS, nav.tab)
         assertEquals(Route.Recordings, nav.top)
         assertNull(nav.arrival.returnedFrom)
+    }
+
+    @Test
+    fun `back from the channel manager focuses its button in Settings`() {
+        val nav = start.push(Route.Settings).push(Route.Channels).pop()
+        assertEquals(Route.Settings, nav.top)
+        assertEquals(CHANNELS_FOCUS_KEY, nav.arrival.returnedFrom)
     }
 }

@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.ui.library.SEARCH_FOCUS_KEY
 import dev.jamesrich.sofaking.ui.library.libraryFocusKey
 import dev.jamesrich.sofaking.ui.player.ZapScope
+import dev.jamesrich.sofaking.ui.settings.CHANNELS_FOCUS_KEY
+import dev.jamesrich.sofaking.ui.settings.STARTUP_FOCUS_KEY
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
@@ -108,6 +110,8 @@ internal sealed interface Route {
             is Vod -> itemId
             is LibraryGrid -> libraryFocusKey(libraryId)
             is LibrarySearch -> SEARCH_FOCUS_KEY
+            Channels -> CHANNELS_FOCUS_KEY
+            StartupChannel -> STARTUP_FOCUS_KEY
             else -> null
         }
 }

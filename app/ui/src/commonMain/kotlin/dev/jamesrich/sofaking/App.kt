@@ -384,6 +384,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                         ),
                         pairing = PairingUi(busy = pairingBusy, failure = pairingFailure, onPair = pair),
                         update = update,
+                        returnedFrom = arrival.returnedFrom,
                     )
                 }
                 Route.Channels -> settings?.let { s ->

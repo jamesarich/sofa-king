@@ -67,8 +67,7 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
     var searching by remember { mutableStateOf(false) }
     // A spoken query moves focus to the first result once it is in; a typed one leaves it in the field.
     var focusResults by remember { mutableStateOf(false) }
-    // Coming back to a search already made (from a result's page, or from Settings): the result to focus once the
-    // results are in, the one left or, when empty, the first.
+    // Back from a result's page: the result to focus once the search has run again.
     var focusReturn by remember { mutableStateOf<String?>(null) }
     var arrived by rememberSaveable { mutableStateOf(false) }
     val currentSearch by rememberUpdatedState(actions.search)
@@ -83,7 +82,7 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
         }
     }
     LaunchedEffect(returnedFrom) {
-        if (arrived && query.text.isNotBlank()) focusReturn = returnedFrom.orEmpty()
+        if (returnedFrom != null && arrived && query.text.isNotBlank()) focusReturn = returnedFrom
     }
     LaunchedEffect(Unit) {
         when {
@@ -112,9 +111,11 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
     val sections = remember(results) { searchSections(results.orEmpty()) }
     LaunchedEffect(sections, searching, focusReturn) {
         val target = focusReturn
-        if (target != null && !searching && results != null) {
-            focusReturn = null
+        if (target != null) {
+            if (searching || results == null) return@LaunchedEffect
+            // Cleared only once the request is done: clearing it restarts this effect, which would cancel the request.
             requestFocusWhenAttached(if (results.orEmpty().any { it.id == target }) returnFocus else if (sections.posters.isNotEmpty() || sections.wide.isNotEmpty()) firstResult else field)
+            focusReturn = null
             return@LaunchedEffect
         }
         if (!focusResults || searching || results == null) return@LaunchedEffect

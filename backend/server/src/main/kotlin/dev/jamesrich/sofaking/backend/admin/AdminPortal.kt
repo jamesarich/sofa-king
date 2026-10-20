@@ -660,7 +660,7 @@ class AdminPortal(
         return mapOf(
             "jobs" to jobs, "merges" to merges, "required" to required, "plex" to plexCount,
             "channels" to merges + required, "sources" to sources, "players" to plexCount, "system" to jobs,
-            "recordings" to (runtime.dvr?.recordings()?.recordings?.count { it.conflict } ?: 0),
+            "recordings" to (runtime.dvr?.let { dvr -> dvr.recordings().recordings.count { it.conflict } + (if (dvr.writable()) 0 else 1) } ?: 0),
         )
     }
 
@@ -818,6 +818,12 @@ class AdminPortal(
             if (refused.isNotEmpty()) add(Attention(
                 Tone.WARN, "The tuners refused ${plural(refused.size, "address", "addresses")}", refused.joinToString { it.address } + ". Allow Plex's address on the Plex page.",
                 "/admin/plex#access", "Plex", "hdhr-refused", "live-tv.md#plex-live-tv",
+            ))
+            val dvr = runtime.dvr
+            if (dvr != null && !dvr.writable()) add(Attention(
+                Tone.BAD, "The server cannot write the recordings folder",
+                "${dvr.root}: every recording fails until the user the container runs as owns it. On the host: sudo chown -R UID:GID ./recordings, with the UID and GID from .env (1000 by default).",
+                "/admin/recordings", "Recordings", "recordings-unwritable", "troubleshooting.md#recordings",
             ))
             if (plex?.lastError != null) add(Attention(Tone.BAD, "Plex sync failed", plex.lastError, "/admin/plex#sync", "Plex", "plex-failed", "troubleshooting.md#plex"))
             if (!plex?.missingDevices.isNullOrEmpty()) add(Attention(

@@ -2,21 +2,49 @@ package dev.jamesrich.sofaking.ui.player
 
 import android.content.Context
 import android.hardware.display.DisplayManager
-import android.media.MediaCodecInfo
-import android.media.MediaCodecList
+import android.media.MediaCodecInfo.CodecProfileLevel
+import android.os.Build
 import android.view.Display
+import androidx.annotation.OptIn
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import dev.jamesrich.sofaking.data.PlaybackProfile
 
 /**
- * Media3's containers with the codecs this device has decoders for, the tallest picture its H.264 or HEVC
- * decoder takes (at most 2160) and HDR when the display shows it and HEVC decodes.
+ * What this device plays, from the decoders Media3 itself chooses among (`MediaCodecUtil`, which leaves out the ones
+ * it knows to be broken) and the display's HDR types.
  */
+@OptIn(UnstableApi::class)
 internal fun media3Profile(context: Context): PlaybackProfile {
-    val decoders = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filterNot { it.isEncoder }
-    fun decoding(mime: String) = decoders.filter { info -> info.supportedTypes.any { it.equals(mime, ignoreCase = true) } }
-    fun decodes(mime: String) = decoding(mime).isNotEmpty()
+    fun decoders(mime: String): List<MediaCodecInfo> = try {
+        MediaCodecUtil.getDecoderInfos(mime, /* secure= */ false, /* tunneling= */ false)
+    } catch (_: MediaCodecUtil.DecoderQueryException) {
+        emptyList()
+    }
+    return playbackProfileOf(
+        decodes = { decoders(it).isNotEmpty() },
+        decoderMaxHeight = listOf(MimeTypes.VIDEO_H264, MimeTypes.VIDEO_H265)
+            .flatMap(::decoders)
+            .mapNotNull { it.capabilities?.videoCapabilities?.supportedHeights?.upper }
+            .maxOrNull(),
+        hevcHdr10 = decoders(MimeTypes.VIDEO_H265).any { info -> info.profileLevels.any { it.profile in HEVC_HDR10_PROFILES } },
+        displayHdrTypes = displayHdrTypes(context),
+    )
+}
 
+/**
+ * Media3's containers with the codecs [decodes] finds a decoder for, the tallest picture the H.264 or HEVC decoders
+ * take (at most 2160) and HDR when an HEVC decoder takes HDR10's profile and the display shows HDR10. A display that
+ * lists only Dolby Vision or HLG does not count, since most HDR files are HDR10.
+ */
+internal fun playbackProfileOf(
+    decodes: (mime: String) -> Boolean,
+    decoderMaxHeight: Int?,
+    hevcHdr10: Boolean,
+    displayHdrTypes: IntArray,
+): PlaybackProfile {
     val video = buildList {
         add("h264")
         if (decodes(MimeTypes.VIDEO_H265)) add("hevc")
@@ -30,23 +58,23 @@ internal fun media3Profile(context: Context): PlaybackProfile {
         if (decodes(MimeTypes.AUDIO_AC3)) add("ac3")
         if (decodes(MimeTypes.AUDIO_E_AC3)) add("eac3")
     }
-    val height = listOf(MimeTypes.VIDEO_H264, MimeTypes.VIDEO_H265)
-        .flatMap { mime -> decoding(mime).mapNotNull { it.maxHeight(mime) } }
-        .maxOrNull()?.coerceAtMost(2160) ?: 1080
-    val display = context.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)
-    @Suppress("DEPRECATION")
-    val hdrDisplay = display?.hdrCapabilities?.supportedHdrTypes?.isNotEmpty() == true
+    val hdr10Display = displayHdrTypes.any { it == Display.HdrCapabilities.HDR_TYPE_HDR10 || it == Display.HdrCapabilities.HDR_TYPE_HDR10_PLUS }
     return PlaybackProfile(
         containers = listOf("mp4", "mkv", "webm", "ts"),
         videoCodecs = video,
         audioCodecs = audio,
-        maxHeight = height,
-        hdr = hdrDisplay && "hevc" in video,
+        maxHeight = decoderMaxHeight?.coerceAtMost(2160) ?: 1080,
+        hdr = hevcHdr10 && hdr10Display,
     )
 }
 
-private fun MediaCodecInfo.maxHeight(mime: String): Int? = try {
-    getCapabilitiesForType(mime).videoCapabilities?.supportedHeights?.upper
-} catch (_: IllegalArgumentException) {
-    null
+private val HEVC_HDR10_PROFILES = setOf(CodecProfileLevel.HEVCProfileMain10HDR10, CodecProfileLevel.HEVCProfileMain10HDR10Plus)
+
+/** The HDR types the default display shows in its current mode; Android 14 reports them per mode. */
+private fun displayHdrTypes(context: Context): IntArray {
+    val display = context.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY) ?: return IntArray(0)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return display.mode.supportedHdrTypes
+    @Suppress("DEPRECATION")
+    val types = display.hdrCapabilities?.supportedHdrTypes
+    return types ?: IntArray(0)
 }

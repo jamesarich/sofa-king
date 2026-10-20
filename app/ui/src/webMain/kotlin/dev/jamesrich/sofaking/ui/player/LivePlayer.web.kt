@@ -26,15 +26,10 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
 import org.jetbrains.compose.resources.stringResource
 import dev.jamesrich.sofaking.data.PlaybackProfile
-import dev.jamesrich.sofaking.data.PlaybackStream
-import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.browser.document
 import kotlinx.browser.window
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import org.khronos.webgl.WebGLFramebuffer
@@ -82,7 +77,7 @@ actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
  * Browsers play HLS natively (Safari, recent Chromium) and have no MPEG-TS demuxer, so a TS-only channel reports
  * an unsupported format.
  */
-internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val appName: String) : LivePlayer {
+internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val appName: String) : StreamLivePlayer() {
     private val video = (document.createElement("video") as HTMLVideoElement).apply {
         setAttribute("playsinline", "")
         // A cross-origin stream's frames can be drawn into WebGL only when fetched with CORS.
@@ -92,8 +87,6 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         style.backgroundColor = "black"
         style.setProperty("object-fit", "contain")
     }
-    private val pauseClock = LivePauseClock()
-    private var stream: PlaybackStream? = null
     private var captionsOn = false
     private var cueTrack: TextTrack? = null
     private val onCueChange = { _: Event -> cueTrack?.let(::publishCues) ?: Unit }
@@ -107,11 +100,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     /** False from a reset until the new stream's first frame is on screen; rebuffering keeps the last frame. */
     private val hasFrame = MutableStateFlow(false)
 
-    private val _status = MutableStateFlow(PlayerStatus())
-    private val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
     private val _cues = MutableStateFlow<List<CaptionCue>>(emptyList())
-    override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
-    override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
     override val cues: StateFlow<List<CaptionCue>> = _cues.asStateFlow()
     /** Browsers expose a stream's audio tracks only behind flags, so the card never offers a choice here. */
     override val audioTracks: StateFlow<List<AudioTrack>> = MutableStateFlow(emptyList<AudioTrack>()).asStateFlow()
@@ -151,9 +140,6 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         }
     }
 
-    override val currentChannelId: String? get() = stream?.channelId
-    override val currentStreamUrl: String? get() = stream?.url
-    override val hasItem: Boolean get() = stream != null
     override val bufferedMs: Long get() = 0L
     override val supportsCaptionLead: Boolean get() = false
     override val hasTextTrack: Boolean get() = video.textTracks.length > 0
@@ -182,15 +168,6 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     /** The element reports only the picture size. */
     override fun streamInfo(): StreamInfo = StreamInfo(width = video.videoWidth.takeIf { it > 0 }, height = video.videoHeight.takeIf { it > 0 })
 
-    override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
-        this.stream = stream
-    }
-
-    override fun replaceStream(stream: PlaybackStream) {
-        stop()
-        this.stream = stream
-    }
-
     override fun prepare() {
         val url = stream?.url ?: return
         _status.update { it.copy(state = PlaybackState.BUFFERING) }
@@ -209,20 +186,6 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         _cues.value = emptyList()
         hasFrame.value = false
         _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
-    }
-
-    override fun play() {
-        val toLive = pauseClock.onPlay(uptimeMs()) && stream?.seekable != true
-        playWhenReady = true
-        if (toLive) {
-            stop()
-            prepare()
-        }
-    }
-
-    override fun pause() {
-        pauseClock.onPause(uptimeMs())
-        playWhenReady = false
     }
 
     /** What current browsers' video elements all play: MP4 and WebM with H.264, VP8 or VP9. */
@@ -247,7 +210,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
 
     override fun seekTo(positionMs: Long) {
         if (!isSeekable) return
-        val target = durationMs?.let { positionMs.coerceIn(0L, it) } ?: positionMs.coerceAtLeast(0L)
+        val target = clampSeek(positionMs, durationMs)
         video.currentTime = target / 1000.0
     }
 

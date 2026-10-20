@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.dvr
 
+import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.contract.RecordingBreak
 import java.nio.file.Files
 import java.nio.file.Path
@@ -33,11 +34,11 @@ class Commercials(
         Files.createDirectories(output)
         val ini = work.resolve("comskip.ini")
         if (!Files.exists(ini)) Files.writeString(ini, INI)
-        var process: Process? = null
         try {
-            process = ProcessBuilder(executable, "--ini=$ini", "--output=$output", "--quiet", file.toString())
-                .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
-            val exit = withTimeout(timeout) { process.onExit().await().exitValue() }
+            // A timeout is a failure of this scan, not a cancellation, so the scan loop goes on to the next.
+            val exit = ProcessBuilder(executable, "--ini=$ini", "--output=$output", "--quiet", file.toString())
+                .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(timeout)
+                ?: throw IllegalStateException("comskip ran past $timeout")
             // Comskip exits 0 when it found breaks and 1 when it found none; anything else is a failure.
             if (exit != 0 && exit != 1) throw IllegalStateException("comskip exited $exit")
             val edl = output.resolve(file.fileName.toString().substringBeforeLast('.') + ".edl")
@@ -46,11 +47,7 @@ class Commercials(
             if (breaks.isNotEmpty()) Files.move(edl, sidecar(file), StandardCopyOption.REPLACE_EXISTING)
             breaks
         } finally {
-            withContext(NonCancellable) {
-                process?.destroy()
-                if (process != null && withTimeoutOrNull(2.seconds) { process.onExit().await() } == null) process.destroyForcibly()
-                output.toFile().deleteRecursively()
-            }
+            output.toFile().deleteRecursively()
         }
     }
 

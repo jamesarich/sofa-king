@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.io.atomicWrite
+import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import io.ktor.client.HttpClient
 import io.ktor.client.request.prepareGet
@@ -12,6 +13,7 @@ import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -73,8 +75,7 @@ class LibraryArtwork(
                         "-map", "0:v:0", "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", partial.toString(),
                     )
                     val made = try {
-                        val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
-                        if (!process.waitFor(FRAME_SECONDS, java.util.concurrent.TimeUnit.SECONDS)) { process.destroyForcibly(); false } else process.exitValue() == 0
+                        ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(FRAME_SECONDS.seconds) == 0
                     } catch (_: java.io.IOException) {
                         false
                     }

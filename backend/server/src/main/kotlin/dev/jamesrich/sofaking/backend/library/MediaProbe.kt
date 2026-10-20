@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.backend.io.runFor
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.time.Duration.Companion.seconds
@@ -59,24 +60,13 @@ class MediaProbe(private val ffprobe: String, private val timeoutSeconds: Int = 
     /** What [file] holds, or null when FFprobe fails, times out or finds no video or audio. */
     suspend fun probe(file: Path): MediaInfo? = withContext(Dispatchers.IO) {
         val output = Files.createTempFile("sofa-ffprobe-", ".json")
-        var process: Process? = null
         try {
             val command = listOf(ffprobe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", "--", file.toString())
-            process = ProcessBuilder(command).redirectOutput(output.toFile()).redirectError(ProcessBuilder.Redirect.DISCARD).start()
-            val owned = process
-            val exited = withTimeoutOrNull(timeoutSeconds.seconds) { owned.onExit().await() } != null
-            if (!exited || owned.exitValue() != 0) null else parseProbe(Files.readString(output))
-        } catch (e: CancellationException) {
-            throw e
+            val exit = ProcessBuilder(command).redirectOutput(output.toFile()).redirectError(ProcessBuilder.Redirect.DISCARD).runFor(timeoutSeconds.seconds)
+            if (exit != 0) null else parseProbe(Files.readString(output))
         } catch (_: java.io.IOException) {
             null
         } finally {
-            process?.let {
-                it.destroy()
-                withContext(NonCancellable) {
-                    if (withTimeoutOrNull(2.seconds) { it.onExit().await() } == null) it.destroyForcibly()
-                }
-            }
             Files.deleteIfExists(output)
         }
     }

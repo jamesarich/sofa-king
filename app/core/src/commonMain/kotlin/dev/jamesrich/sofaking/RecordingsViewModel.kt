@@ -13,6 +13,8 @@ import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.UpdateRecordingDto
 import dev.jamesrich.sofaking.data.UpdateRecordingRuleDto
+import dev.jamesrich.sofaking.data.describe
+import dev.jamesrich.sofaking.data.failedLoad
 import dev.jamesrich.sofaking.data.toModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -24,7 +26,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 sealed interface RecordingsState {
@@ -61,8 +62,7 @@ class RecordingsViewModel(
 
     private var loadJob: Job? = null
 
-    /** When the playing recording's position was last saved, by recording; read and written on the main thread. */
-    private val saved = HashMap<String, TimeMark>()
+    private val positions = PositionSaver(timeSource, saveInterval)
 
     init {
         viewModelScope.launch {
@@ -94,10 +94,8 @@ class RecordingsViewModel(
         }
     }
 
-    private fun failed(e: Exception): RecordingsState {
-        log.w { "recordings failed: ${describe(e)}" }
-        return (_state.value as? RecordingsState.Ready) ?: RecordingsState.Failed(describe(e))
-    }
+    private fun failed(e: Exception): RecordingsState =
+        failedLoad("recordings", e, _state.value as? RecordingsState.Ready, RecordingsState::Failed)
 
     /** [id] as the list has it, or null before the list is in or once it is gone. */
     fun recording(id: String): DvrRecording? = (_state.value as? RecordingsState.Ready)?.recordings?.firstOrNull { it.id == id }
@@ -117,7 +115,7 @@ class RecordingsViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            log.w { "deleting a recording failed: ${describe(e)}" }
+            log.w { "deleting a recording failed: ${e.describe()}" }
             false
         }
         refresh()
@@ -149,7 +147,7 @@ class RecordingsViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            log.w { "$what failed: ${describe(e)}" }
+            log.w { "$what failed: ${e.describe()}" }
             false
         }
         refresh()
@@ -163,25 +161,20 @@ class RecordingsViewModel(
      */
     suspend fun play(recording: DvrRecording, profile: PlaybackProfile, fromStart: Boolean = false): PlaybackStream {
         val start = recording.positionMs.takeIf { !fromStart && recording.inProgress } ?: 0
-        saved.remove(recording.id)
+        positions.reset(recording.id)
         return sessions.playRecording(recording.id, profile, start)
     }
 
     /** The player is at [positionMs] in [recordingId]: remembered for a reopen, and saved every [saveInterval]. */
     fun progress(recordingId: String, positionMs: Long, durationMs: Long?) {
         sessions.reportPosition(positionMs)
-        val last = saved[recordingId]
-        // The first report starts the interval; a few seconds in is not worth a write.
-        if (last != null && last.elapsedNow() < saveInterval) return
-        saved[recordingId] = timeSource.markNow()
-        if (last == null) return
-        save(recordingId, UpdateRecordingDto(positionMs = positionMs.coerceAtLeast(0)), refresh = false)
+        if (positions.due(recordingId)) save(recordingId, UpdateRecordingDto(positionMs = positionMs.coerceAtLeast(0)), refresh = false)
     }
 
     /** Playback of [recordingId] stopped at [positionMs]: saved now, watched near the end, and the list reloads. */
     fun stopped(recordingId: String, positionMs: Long, durationMs: Long?) {
         sessions.reportPosition(positionMs)
-        saved.remove(recordingId)
+        positions.reset(recordingId)
         val watched = durationMs != null && durationMs > 0 && positionMs >= durationMs * WATCHED_AT
         val update = if (watched) UpdateRecordingDto(positionMs = 0, watched = true) else UpdateRecordingDto(positionMs = positionMs.coerceAtLeast(0))
         save(recordingId, update, refresh = true)
@@ -200,14 +193,9 @@ class RecordingsViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                log.w { "saving the recording position failed: ${describe(e)}" }
+                log.w { "saving the recording position failed: ${e.describe()}" }
             }
         }
-    }
-
-    private fun describe(failure: Throwable): String = when (failure) {
-        is SofaKingException -> "${failure.code}: ${failure.message}"
-        else -> failure.message ?: failure.toString()
     }
 
     private companion object {

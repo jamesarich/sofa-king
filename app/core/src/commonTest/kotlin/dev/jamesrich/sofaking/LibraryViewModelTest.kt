@@ -1,29 +1,19 @@
 package dev.jamesrich.sofaking
 
-import androidx.lifecycle.viewModelScope
 import dev.jamesrich.sofaking.data.FAKE_BASE
-import dev.jamesrich.sofaking.data.FakeHttp
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.PlayProgress
 import dev.jamesrich.sofaking.data.PlaybackProfile
-import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.SofaKingApi
-import dev.jamesrich.sofaking.data.apiError
-import dev.jamesrich.sofaking.data.json
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,30 +25,21 @@ import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LibraryViewModelTest {
+    private val fixture = ViewModelFixture()
+
     @AfterTest
-    fun tearDown() = Dispatchers.resetMain()
+    fun tearDown() = fixture.tearDown()
 
     private fun item(id: String, kind: String = "movie", extra: String = "") =
         """{"id":"$id","libraryId":"lib","kind":"$kind","title":"Title $id","addedAt":"2026-10-10T13:00:00Z","poster":"/artwork/$id/poster?v=1"$extra}"""
 
-    private class Server(scope: TestScope, val handler: suspend (String, String, String) -> Pair<Int, String>?) {
-        val http = FakeHttp(scope) { request ->
-            handler(request.method, request.path, request.body)?.let { (status, body) -> json(body, status) } ?: apiError(404, "RESOURCE_NOT_FOUND")
-        }
-        val requests get() = http.requests.map { it.toString() }
-    }
-
-    /** The model on [server]; its sessions are configured as LineupViewModel does for the app. */
-    private suspend fun TestScope.viewModel(server: Server, api: SofaKingApi? = server.http.api()): LibraryViewModel {
-        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        val sessions = PlaybackSessions(backgroundScope)
-        sessions.configure(api)
-        return LibraryViewModel(MutableStateFlow(api), sessions, timeSource = testScheduler.timeSource, saveInterval = 10.seconds)
-    }
+    /** The model on [server], stopped as the test ends. */
+    private suspend fun TestScope.viewModel(server: RouteServer, api: SofaKingApi? = server.http.api()): LibraryViewModel =
+        fixture.started(LibraryViewModel(MutableStateFlow(api), fixture.sessions(this, api), timeSource = testScheduler.timeSource, saveInterval = 10.seconds))
 
     @Test
-    fun `the home maps shelves and libraries and resolves artwork against the server`() = runTest {
-        val server = Server(this) { method, path, _ ->
+    fun `the home maps shelves and libraries and resolves artwork against the server`() = fixture.viewModelTest {
+        val server = RouteServer(this) { method, path, _ ->
             if (method == "GET" && path == "/api/v1/library/home") 200 to """{"shelves":[
                 {"id":"continue","title":"Continue watching","items":[${item("e1", "episode", ""","showTitle":"Show","season":2,"episode":5,"playState":{"positionMs":600000,"durationMs":2400000,"watched":false}""")}]},
                 {"id":"recent","title":"Recently added in Movies","libraryId":"lib","items":[]}],
@@ -75,27 +56,24 @@ class LibraryViewModelTest {
         assertEquals("${FAKE_BASE}artwork/e1/poster?v=1", episode.poster)
         assertEquals(Instant.parse("2026-10-10T13:00:00Z"), episode.addedAt)
         assertEquals(0.25f, episode.progress!!.fraction)
-        assertTrue(episode.progress!!.inProgress)
+        assertTrue(episode.progress.inProgress)
         assertEquals(listOf(LibraryKind.MOVIES, LibraryKind.OTHER), home.libraries.map { it.kind })
-        model.viewModelScope.cancel()
     }
 
     @Test
-    fun `a server without libraries reads as unavailable and none configured as unconfigured`() = runTest {
-        val model = viewModel(Server(this) { _, _, _ -> null })
+    fun `a server without libraries reads as unavailable and none configured as unconfigured`() = fixture.viewModelTest {
+        val model = viewModel(RouteServer(this) { _, _, _ -> null })
         runCurrent()
         assertEquals(LibraryHomeState.Unavailable, model.home.value)
-        model.viewModelScope.cancel()
 
-        val none = viewModel(Server(this) { _, _, _ -> null }, api = null)
+        val none = viewModel(RouteServer(this) { _, _, _ -> null }, api = null)
         runCurrent()
         assertEquals(LibraryHomeState.Unconfigured, none.home.value)
-        none.viewModelScope.cancel()
     }
 
     @Test
-    fun `every Recently added row has its own key`() = runTest {
-        val server = Server(this) { _, path, _ ->
+    fun `every Recently added row has its own key`() = fixture.viewModelTest {
+        val server = RouteServer(this) { _, path, _ ->
             if (path == "/api/v1/library/home") 200 to """{"shelves":[
                 {"id":"continue","title":"Continue watching","items":[${item("e1", "episode")}]},
                 {"id":"recent","title":"Recently added in Movies","libraryId":"movies","items":[${item("m1")}]},
@@ -107,13 +85,12 @@ class LibraryViewModelTest {
 
         val shelves = assertIs<LibraryHomeState.Ready>(model.home.value).home.shelves
         assertEquals(listOf("continue", "recent:movies", "recent:shows"), shelves.map { it.key })
-        model.viewModelScope.cancel()
     }
 
     @Test
-    fun `a home with no library is loaded again until the server adds one`() = runTest {
+    fun `a home with no library is loaded again until the server adds one`() = fixture.viewModelTest {
         var libraries = ""
-        val server = Server(this) { _, path, _ ->
+        val server = RouteServer(this) { _, path, _ ->
             if (path == "/api/v1/library/home") 200 to """{"shelves":[],"libraries":[$libraries]}""" else null
         }
         val model = viewModel(server)
@@ -126,12 +103,11 @@ class LibraryViewModelTest {
 
         advanceTimeBy(30.minutes)
         assertEquals(2, server.requests.count { it.contains("/library/home") }, "a home with a library is not polled")
-        model.viewModelScope.cancel()
     }
 
     @Test
-    fun `the grid pages with the cursor and keeps itself when opened again the same way`() = runTest {
-        val server = Server(this) { _, path, _ ->
+    fun `the grid pages with the cursor and keeps itself when opened again the same way`() = fixture.viewModelTest {
+        val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
                 "/api/v1/libraries/lib/items" -> 200 to """{"items":[${item("m1")},${item("m2")}],"total":3,"next":"c2"}"""
@@ -156,12 +132,11 @@ class LibraryViewModelTest {
         runCurrent()
         assertEquals(2, server.requests.count { it.contains("/items") })
         assertEquals(listOf("m1", "m2"), model.grid.value!!.items.map { it.id }, "a repeated item shows once")
-        model.viewModelScope.cancel()
     }
 
     @Test
-    fun `a genre reloads the grid and keeps the library's genres while it loads`() = runTest {
-        val server = Server(this) { _, path, _ ->
+    fun `a genre reloads the grid and keeps the library's genres while it loads`() = fixture.viewModelTest {
+        val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
                 "/api/v1/libraries/lib/items" -> 200 to """{"items":[${item("m1")}],"total":1,"genres":["Comedy","Drama"]}"""
@@ -183,13 +158,12 @@ class LibraryViewModelTest {
 
         model.openGrid("other")
         assertEquals(emptyList(), model.grid.value!!.genres, "another library starts without them")
-        model.viewModelScope.cancel()
     }
 
     @Test
-    fun `a playing item saves its position every ten seconds and at once when it stops`() = runTest {
+    fun `a playing item saves its position every ten seconds and at once when it stops`() = fixture.viewModelTest {
         val saves = mutableListOf<String>()
-        val server = Server(this) { method, path, body ->
+        val server = RouteServer(this) { method, path, body ->
             when {
                 path == "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
                 method == "PUT" && path == "/api/v1/library/items/m1/play-state" -> {
@@ -217,13 +191,12 @@ class LibraryViewModelTest {
         runCurrent()
         assertEquals("""{"positionMs":14000,"durationMs":60000}""", saves.last())
         assertTrue(server.requests.count { it.startsWith("GET /api/v1/library/home") } >= 2, "the home reloads after a stop")
-        model.viewModelScope.cancel()
     }
 
     @Test
-    fun `play resumes an item in progress unless asked to start over`() = runTest {
+    fun `play resumes an item in progress unless asked to start over`() = fixture.viewModelTest {
         val opens = mutableListOf<String>()
-        val server = Server(this) { method, path, body ->
+        val server = RouteServer(this) { method, path, body ->
             when {
                 path == "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
                 method == "POST" && path == "/api/v1/vod-sessions" -> {
@@ -241,13 +214,12 @@ class LibraryViewModelTest {
         assertEquals(0, model.play(movie, PlaybackProfile(), fromStart = true).startAtMs)
         assertEquals(0, model.play(movie.copy(progress = movie.progress!!.copy(watched = true)), PlaybackProfile()).startAtMs, "a watched item starts over")
         assertEquals(3, opens.size)
-        model.viewModelScope.cancel()
     }
 
     @Test
-    fun `up next is the next episode in the season then the first of the next season`() = runTest {
+    fun `up next is the next episode in the season then the first of the next season`() = fixture.viewModelTest {
         fun episode(id: String, season: String) = item(id, "episode", ""","parentId":"$season","showId":"show"""")
-        val server = Server(this) { _, path, _ ->
+        val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
                 "/api/v1/library/items/s1" -> 200 to """{"item":${item("s1", "season")},"children":[${episode("e1", "s1")},${episode("e2", "s1")}]}"""
@@ -264,6 +236,91 @@ class LibraryViewModelTest {
         assertEquals("e3", model.upNext(mapped("e2", "s1"))?.id, "the last of a season goes on to the next")
         assertEquals(null, model.upNext(mapped("e3", "s2")), "nothing after the show's last episode")
         assertEquals(null, model.upNext(MediaItem("m", "lib", ItemKind.MOVIE, "Movie")), "a movie has no next")
-        model.viewModelScope.cancel()
+    }
+
+    @Test
+    fun `marking an episode watched reloads its pages with its show's grid card and the home`() = fixture.viewModelTest {
+        var watched = false
+        fun episode() = item("e1", "episode", ""","parentId":"s1","showId":"show","playState":{"positionMs":0,"watched":$watched}""")
+        fun show() = item("show", "show", ""","children":1,"unwatched":${if (watched) 0 else 1}""")
+        val server = RouteServer(this) { method, path, body ->
+            when {
+                path == "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                path == "/api/v1/libraries/lib/items" -> 200 to """{"items":[${show()},${item("m1")}],"total":2}"""
+                method == "PUT" && path == "/api/v1/library/items/e1/play-state" -> {
+                    watched = "\"watched\":true" in body
+                    200 to episode()
+                }
+                path == "/api/v1/library/items/e1" -> 200 to """{"item":${episode()}}"""
+                path == "/api/v1/library/items/s1" -> 200 to """{"item":${item("s1", "season", ""","parentId":"show","showId":"show"""")},"children":[${episode()}]}"""
+                path == "/api/v1/library/items/show" -> 200 to """{"item":${show()}}"""
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+        model.openGrid("lib")
+        val season = model.detail("s1")
+        model.detail("e1")
+        model.detail("show")
+        runCurrent()
+        fun gets(id: String) = server.requests.count { it == "GET /api/v1/library/items/$id" }
+        assertEquals(listOf(1, 1, 1), listOf(gets("e1"), gets("s1"), gets("show")))
+
+        model.setWatched(MediaItem("e1", "lib", ItemKind.EPISODE, "Title e1", parentId = "s1", showId = "show"), watched = true)
+        runCurrent()
+
+        assertEquals("""PUT /api/v1/library/items/e1/play-state {"watched":true}""", server.requests.first { it.startsWith("PUT") })
+        assertEquals(listOf(2, 2), listOf(gets("e1"), gets("s1")), "the episode's page and its season's reload")
+        assertEquals(3, gets("show"), "the show's page reloads, and its grid card with it")
+        assertEquals(0, model.grid.value!!.items.first { it.id == "show" }.unwatched)
+        assertTrue(assertIs<ItemDetailState.Ready>(season.value).detail.children.single().progress!!.watched)
+        assertEquals(2, server.requests.count { it == "GET /api/v1/library/home" }, "the home reloads")
+    }
+
+    @Test
+    fun `search trims the query and finds nothing for a blank one or when the server fails`() = fixture.viewModelTest {
+        var fail = false
+        val server = RouteServer(this) { _, path, _ ->
+            when (path) {
+                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                "/api/v1/library/search" -> if (fail) 503 to """{"code":"NOT_READY","message":"NOT_READY","retryable":true}""" else 200 to """{"items":[${item("m1")}],"total":1}"""
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+
+        assertEquals(emptyList(), model.search("   "))
+        assertTrue(server.requests.none { "/library/search" in it }, "a blank query is not sent")
+        assertEquals(listOf("m1"), model.search("  dune ").map { it.id })
+        assertEquals("q=dune", server.http.requests.last().query)
+        fail = true
+        assertEquals(emptyList(), model.search("dune"))
+    }
+
+    @Test
+    fun `a newer load of an item page wins over an older one still on its way`() = fixture.viewModelTest {
+        var loads = 0
+        val server = RouteServer(this) { _, path, _ ->
+            when (path) {
+                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                "/api/v1/library/items/m1" -> {
+                    val title = if (++loads == 1) "Old" else "New"
+                    // The first answer is slow, so it would land after the second.
+                    if (loads == 1) delay(5.seconds)
+                    200 to """{"item":{"id":"m1","libraryId":"lib","kind":"movie","title":"$title"}}"""
+                }
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+
+        val page = model.detail("m1")
+        runCurrent()
+        model.detail("m1", refresh = true)
+        advanceTimeBy(10.seconds)
+        assertEquals("New", assertIs<ItemDetailState.Ready>(page.value).detail.item.title)
     }
 }

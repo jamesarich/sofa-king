@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.data
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runCurrent
@@ -10,6 +11,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class RecordingScheduleTest {
     private val news = Programme("c1", Instant.parse("2026-10-18T18:00:00Z"), Instant.parse("2026-10-18T18:30:00Z"), "Evening News", null)
     private val film = Programme("c1", Instant.parse("2026-10-18T20:00:00Z"), Instant.parse("2026-10-18T22:00:00Z"), "Film", null)

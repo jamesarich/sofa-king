@@ -65,7 +65,7 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
             val upcoming = api.recordings().recordings.filter { it.state == Wire.RecordingState.SCHEDULED || it.state == Wire.RecordingState.RECORDING }
             val rules = api.recordingRules().rules
             _marks.value = RecordingMarks(
-                recordings = upcoming.mapNotNull { r -> parseInstant(r.startsAt)?.let { recordingKey(r.channelId, it) to r.id } }.toMap(),
+                recordings = upcoming.mapNotNull { r -> Instant.parseOrNull(r.startsAt)?.let { recordingKey(r.channelId, it) to r.id } }.toMap(),
                 rules = rules.associate { ruleKey(it.title, it.channelId) to it.id },
             )
         } catch (e: CancellationException) {
@@ -104,8 +104,6 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
         refresh()
         return done
     }
-
-    private fun parseInstant(text: String): Instant? = try { Instant.parse(text) } catch (_: IllegalArgumentException) { null }
 
     private companion object {
         val log = Logger.withTag("SofaKing")

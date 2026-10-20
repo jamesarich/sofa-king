@@ -62,8 +62,8 @@ internal fun RecordingRuleDto.toModel() = SeriesRule(id, title, channelId, newOn
 data class RecordingSpace(val freeBytes: Long, val totalBytes: Long)
 
 internal fun RecordingDto.toModel(): DvrRecording? {
-    val start = parseInstantOrNull(startsAt) ?: return null
-    val end = parseInstantOrNull(endsAt) ?: return null
+    val start = Instant.parseOrNull(startsAt) ?: return null
+    val end = Instant.parseOrNull(endsAt) ?: return null
     return DvrRecording(
         id = id,
         channelId = channelId,
@@ -84,10 +84,4 @@ internal fun RecordingDto.toModel(): DvrRecording? {
         watched = watched,
         breaks = breaks.filter { it.endMs > it.startMs }.sortedBy { it.startMs }.map { CommercialBreak(it.startMs, it.endMs) },
     )
-}
-
-private fun parseInstantOrNull(text: String): Instant? = try {
-    Instant.parse(text)
-} catch (_: IllegalArgumentException) {
-    null
 }

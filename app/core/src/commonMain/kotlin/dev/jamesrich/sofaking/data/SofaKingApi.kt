@@ -24,6 +24,9 @@ import io.ktor.http.isSuccess
 import io.ktor.http.takeFrom
 import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
@@ -44,12 +47,14 @@ internal sealed interface CatalogResult {
 /**
  * The Sofa King server's JSON API under `/api/v1`. Every call carries the bearer [token] unless it is empty;
  * media URLs from a descriptor are resolved against the base and carry no token. Transport failures surface as
- * [IOException] on every platform, whatever the engine throws, so callers retry them the same way.
+ * [IOException] on every platform, whatever the engine throws, so callers retry them the same way. Answers are
+ * decoded on [background], off the caller's main thread.
  */
 class SofaKingApi(
     baseUrl: String,
     token: String,
     http: HttpClient = apiHttpClient,
+    private val background: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private val base: Url = Url(baseUrl.trimEnd('/'))
 
@@ -109,11 +114,6 @@ class SofaKingApi(
         http.put("preferences/" + clientId.encodeURLPathPart()) { json(preferences) }.decode()
     }
 
-    /** The server's libraries; a server without libraries answers 404 (a [SofaKingException]). */
-    internal suspend fun libraries(): List<LibraryDto> = call {
-        http.get("libraries").decode()
-    }
-
     /**
      * One page of [libraryId]'s top-level items in [sort] order (`title`, `added`, `year`, `rating` or `watched`), only
      * those in [genre] when given, from [cursor].
@@ -163,10 +163,6 @@ class SofaKingApi(
 
     internal suspend fun openVod(request: OpenVodPlaybackDto): VodSessionDto = call {
         http.post("vod-sessions") { json(request) }.decode()
-    }
-
-    internal suspend fun vodSession(id: String): VodSessionDto = call {
-        http.get(vodPath(id)).decode()
     }
 
     /** Renews the lease, or with [startMs] restarts a converted stream there under a new epoch. */
@@ -248,8 +244,9 @@ class SofaKingApi(
 
     private suspend inline fun <reified T> HttpResponse.decode(): T {
         checkSuccess()
+        val body = bodyAsText()
         return try {
-            wireJson.decodeFromString(bodyAsText())
+            withContext(background) { wireJson.decodeFromString<T>(body) }
         } catch (e: SerializationException) {
             throw IOException("Unreadable answer from the server", e)
         } catch (e: IllegalArgumentException) {
@@ -261,7 +258,8 @@ class SofaKingApi(
         if (status.isSuccess()) return
         val code = status.value
         val error = try {
-            wireJson.decodeFromString(ApiErrorDto.serializer(), bodyAsText())
+            val body = bodyAsText()
+            withContext(background) { wireJson.decodeFromString(ApiErrorDto.serializer(), body) }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

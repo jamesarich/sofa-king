@@ -36,6 +36,9 @@ import dev.jamesrich.sofaking.ui.theme.tvFocus
 /** The width of a settings control column: a field, a switch row or a choice row, so the page reads as one column. */
 internal val FIELD_WIDTH = 640.dp
 
+/** How far clear of a settings page's edges focus keeps what it lands on, so the rows around it show. */
+internal val SETTINGS_FOCUS_EDGE = 16.dp
+
 /** A choice row with four or more segments. */
 internal val WIDE_CHOICE_WIDTH = 820.dp
 

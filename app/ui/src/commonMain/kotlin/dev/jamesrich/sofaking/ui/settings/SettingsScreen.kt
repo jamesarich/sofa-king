@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -64,6 +63,7 @@ import dev.jamesrich.sofaking.ui.player.captionTimingText
 import dev.jamesrich.sofaking.ui.rememberSystemCaptionSettings
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.supportsCaptionSync
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.updateDownloadUrl
@@ -167,7 +167,6 @@ fun SettingsScreen(
     val backFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val firstFocus = if (showsBackButton()) backFocus else contentFocus
-    val listState = rememberLazyListState()
     val channelsFocus = remember { FocusRequester() }
     val startupFocus = remember { FocusRequester() }
 
@@ -180,8 +179,6 @@ fun SettingsScreen(
         }
         if (returnTo != null && requestFocusWhenAttached(returnTo)) return@LaunchedEffect
         requestFocusWhenAttached(if (settings.serverUrl.isEmpty()) serverFocus else firstFocus)
-        // Bringing the first setting into view may scroll the title off the top; the page opens at its top.
-        if (firstFocus == contentFocus) listState.scrollToItem(0)
     }
     LaunchedEffect(changingServer) { if (changingServer && settings.serverUrl.isNotEmpty()) requestFocusWhenAttached(serverFocus) }
 
@@ -271,6 +268,8 @@ fun SettingsScreen(
         }
     }
 
+    // Focus scrolls only to show what it lands on, so the first setting taking focus keeps the title on screen.
+    ScrollOnlyWhenHidden(SETTINGS_FOCUS_EDGE) {
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -278,7 +277,6 @@ fun SettingsScreen(
             .focusRequester(contentFocus)
             .focusRestorer()
             .focusGroup(),
-        state = listState,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { ScreenTitle(stringResource(Res.string.settings_title), onBack, backFocus) }
@@ -580,6 +578,7 @@ fun SettingsScreen(
                 )
             }
         }
+    }
     }
 }
 

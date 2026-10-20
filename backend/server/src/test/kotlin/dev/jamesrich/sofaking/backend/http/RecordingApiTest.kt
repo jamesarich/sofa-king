@@ -22,8 +22,6 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlin.test.*
 
@@ -197,14 +195,10 @@ class RecordingApiTest {
             assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
             val id = json.decodeFromString<Recording>(created.bodyAsText()).id
             suspend fun current() = json.decodeFromString<Recording>(send(HttpMethod.Get, "/api/v1/recordings/$id").bodyAsText())
-            val partial = withTimeout(30_000) {
-                while (true) {
-                    val running = current()
-                    val file = running.path?.let(recordings::resolve)
-                    if (running.state == Wire.RecordingState.RECORDING && file != null && Files.exists(file) && Files.size(file) > 0) return@withTimeout file
-                    delay(100)
-                }
-                @Suppress("UNREACHABLE_CODE") error("unreachable")
+            val partial = pollFor(30_000, 100) {
+                val running = current()
+                val file = running.path?.let(recordings::resolve)
+                file?.takeIf { running.state == Wire.RecordingState.RECORDING && Files.exists(it) && Files.size(it) > 0 }
             }
 
             assertEquals(HttpStatusCode.NoContent, send(HttpMethod.Delete, "/api/v1/recordings/$id").status)

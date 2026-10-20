@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.HttpTimeout
@@ -15,13 +16,13 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import java.util.concurrent.ConcurrentLinkedQueue
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class PlexSyncTest {
@@ -30,8 +31,11 @@ class PlexSyncTest {
 
     private fun uuid(id: String) = "device://tv.plex.grabbers.hdhomerun/$id"
 
-    /** A Plex server: DVR 10 holds two of our devices and a foreign one, DVR 11 only a foreign one. */
-    private inner class FakePlex {
+    /**
+     * A Plex server: DVR 10 holds two of our devices and a foreign one, DVR 11 only a foreign one. It answers on
+     * [answerOn] when one is given, so a test dispatcher runs the requests in virtual time.
+     */
+    private inner class FakePlex(answerOn: CoroutineDispatcher? = null) {
         val requests = ConcurrentLinkedQueue<HttpRequestData>()
         var dvrs = """{"MediaContainer":{"size":2,"Dvr":[
             {"key":"10","lineup":"lineup://tv.plex.providers.epg.xmltv/guide#Sofa","Device":[
@@ -52,20 +56,23 @@ class PlexSyncTest {
 
         private fun json(body: String) = headersOf(HttpHeaders.ContentType, "application/json")
 
-        val engine = MockEngine { request ->
-            requests += request
-            handler?.invoke(this, request)?.let { return@MockEngine it }
-            val path = request.url.encodedPath
-            when {
-                request.method == HttpMethod.Get && path == "/livetv/dvrs" -> respond(dvrs, headers = json(dvrs))
-                request.method == HttpMethod.Get && path == "/livetv/epg/channelmap" -> {
-                    val body = """{"MediaContainer":{"ChannelMapping":[${channelMaps[request.url.parameters["device"]].orEmpty().joinToString(",")}]}}"""
-                    respond(body, headers = json(body))
+        val engine = MockEngine(MockEngineConfig().apply {
+            dispatcher = answerOn
+            addHandler { request ->
+                requests += request
+                handler?.invoke(this, request)?.let { return@addHandler it }
+                val path = request.url.encodedPath
+                when {
+                    request.method == HttpMethod.Get && path == "/livetv/dvrs" -> respond(dvrs, headers = json(dvrs))
+                    request.method == HttpMethod.Get && path == "/livetv/epg/channelmap" -> {
+                        val body = """{"MediaContainer":{"ChannelMapping":[${channelMaps[request.url.parameters["device"]].orEmpty().joinToString(",")}]}}"""
+                        respond(body, headers = json(body))
+                    }
+                    request.method == HttpMethod.Post && path == "/media/grabbers/devices" -> respond(added, headers = json(added))
+                    else -> respond("", HttpStatusCode.OK)
                 }
-                request.method == HttpMethod.Post && path == "/media/grabbers/devices" -> respond(added, headers = json(added))
-                else -> respond("", HttpStatusCode.OK)
             }
-        }
+        })
 
         fun sync(
             tunerBase: String? = null, debounceMillis: Long = 120_000, initial: PlexStatus? = null, persist: suspend (PlexStatus) -> Unit = {},
@@ -216,19 +223,21 @@ class PlexSyncTest {
         assertEquals(2, partial.devices.size)
     }
 
-    @Test fun `lineup changes are debounced into one sync`() = runBlocking<Unit> {
-        val plex = FakePlex()
+    // The loop and the fake Plex run on the test scheduler, so the debounce passes in virtual time and nothing can
+    // happen between two checks unless the scheduler runs it.
+    @OptIn(ExperimentalCoroutinesApi::class) // the test scheduler's time controls
+    @Test fun `lineup changes are debounced into one sync`() = runTest {
+        val plex = FakePlex(StandardTestDispatcher(testScheduler))
         val sync = plex.sync(debounceMillis = 300)
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        try {
-            sync.start(scope)
-            sync.requestSync("policy"); sync.requestSync("policy"); sync.requestSync("startup")
-            delay(100)
-            assertEquals(0, plex.calls(HttpMethod.Get, "/livetv/dvrs").size, "nothing runs inside the debounce")
-            withTimeout(5000) { while (sync.status().lastSyncAt == null) delay(20) }
-            delay(500)
-            assertEquals(1, plex.calls(HttpMethod.Get, "/livetv/dvrs").size)
-            assertTrue(sync.status().lastCause in setOf("policy", "startup"), "a coalesced request keeps one of its causes")
-        } finally { scope.cancel() }
+        sync.start(backgroundScope)
+        sync.requestSync("policy"); sync.requestSync("policy"); sync.requestSync("startup")
+        advanceTimeBy(299)
+        assertEquals(0, plex.calls(HttpMethod.Get, "/livetv/dvrs").size, "nothing runs inside the debounce")
+        advanceTimeBy(1)
+        runCurrent()
+        assertNotNull(sync.status().lastSyncAt)
+        advanceTimeBy(10 * 300)
+        assertEquals(1, plex.calls(HttpMethod.Get, "/livetv/dvrs").size)
+        assertTrue(sync.status().lastCause in setOf("policy", "startup"), "a coalesced request keeps one of its causes")
     }
 }

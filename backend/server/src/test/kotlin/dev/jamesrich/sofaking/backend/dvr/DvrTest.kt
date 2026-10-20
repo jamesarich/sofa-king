@@ -6,6 +6,8 @@ import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.catalog.MediaFixture
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
+import dev.jamesrich.sofaking.backend.pollFor
+import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.addRecording
 import dev.jamesrich.sofaking.backend.store.recordings
 import dev.jamesrich.sofaking.backend.store.openStore
@@ -18,10 +20,10 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import kotlinx.coroutines.delay
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import org.junit.jupiter.api.Timeout
 import kotlin.test.*
 
 /** The DVR end to end on the live HLS fixture: a rule schedules from the guide, FFmpeg records, the file lands in place. */
@@ -68,13 +70,8 @@ class DvrTest {
                 assertEquals(Wire.RecordingState.SCHEDULED, scheduled.state)
                 assertEquals(rule.id, scheduled.ruleId)
                 assertEquals("Test Show", scheduled.title)
-                val done = withTimeout(60_000) {
-                    while (true) {
-                        val current = dvr.recording(scheduled.id)
-                        if (current.state == Wire.RecordingState.COMPLETED || current.state == Wire.RecordingState.FAILED) return@withTimeout current
-                        delay(200)
-                    }
-                    @Suppress("UNREACHABLE_CODE") error("unreachable")
+                val done = pollFor(60_000, 200) {
+                    dvr.recording(scheduled.id).takeIf { it.state == Wire.RecordingState.COMPLETED || it.state == Wire.RecordingState.FAILED }
                 }
                 assertEquals(Wire.RecordingState.COMPLETED, done.state, done.reason)
                 val path = assertNotNull(done.path)
@@ -88,10 +85,8 @@ class DvrTest {
                 assertEquals(0, runtime.sessions.count())
 
                 // The commercial scan keeps the breaks and the EDL beside the file.
-                val scanned = withTimeout(30_000) {
-                    while (dvr.recording(done.id).commercials == Wire.CommercialScan.SCANNING) delay(100)
-                    dvr.recording(done.id)
-                }
+                pollUntil(30_000, 100) { dvr.recording(done.id).commercials != Wire.CommercialScan.SCANNING }
+                val scanned = dvr.recording(done.id)
                 assertEquals(Wire.CommercialScan.DONE, scanned.commercials)
                 assertEquals(listOf(RecordingBreak(1000, 2500)), scanned.breaks)
                 assertTrue(Files.exists(Commercials.sidecar(file)))
@@ -146,7 +141,9 @@ class DvrTest {
         dir.toFile().deleteRecursively()
     }
 
-    @Test fun `a shutdown mid-window leaves the recording running, and the next start resumes it into the same file`() = runBlocking<Unit> {
+    // A 20-second recording window across a restart, with waits of up to 90 seconds before it fails.
+    @Test @Timeout(2, unit = TimeUnit.MINUTES)
+    fun `a shutdown mid-window leaves the recording running, and the next start resumes it into the same file`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-dvr-resume-")
         val guide = guideServer(emptyList())
         MediaFixture().use { media ->
@@ -156,13 +153,8 @@ class DvrTest {
                 val live = first.lineup.entries().single { it.number == "2" }
                 val start = Instant.now().truncatedTo(ChronoUnit.SECONDS)
                 val id = dvr.schedule(ScheduleRecording(live.id, start.toString(), start.plusSeconds(20).toString(), "Resumed")).id
-                id to withTimeout(30_000) {
-                    while (true) {
-                        val path = first.store.recordings().single().path?.let { dir.resolve("recordings").resolve(it) }
-                        if (path != null && Files.exists(path) && Files.size(path) > 0) return@withTimeout path
-                        delay(100)
-                    }
-                    @Suppress("UNREACHABLE_CODE") error("unreachable")
+                id to pollFor(30_000, 100) {
+                    first.store.recordings().single().path?.let { dir.resolve("recordings").resolve(it) }?.takeIf { Files.exists(it) && Files.size(it) > 0 }
                 }
             } finally {
                 first.close(); first.store.close()
@@ -176,13 +168,8 @@ class DvrTest {
             val second = runtime(dir, media, guide)
             try {
                 val dvr = assertNotNull(second.dvr)
-                val done = withTimeout(60_000) {
-                    while (true) {
-                        val current = dvr.recording(id)
-                        if (current.state == Wire.RecordingState.COMPLETED || current.state == Wire.RecordingState.FAILED) return@withTimeout current
-                        delay(200)
-                    }
-                    @Suppress("UNREACHABLE_CODE") error("unreachable")
+                val done = pollFor(60_000, 200) {
+                    dvr.recording(id).takeIf { it.state == Wire.RecordingState.COMPLETED || it.state == Wire.RecordingState.FAILED }
                 }
                 assertEquals(Wire.RecordingState.COMPLETED, done.state, done.reason)
                 assertTrue(done.bytes > before, "resumed ${done.bytes} bytes over $before")
@@ -274,14 +261,12 @@ class DvrTest {
                             state = Wire.RecordingState.COMPLETED, path = "TV/Old/old.ts", bytes = 1, createdAt = old, updatedAt = old,
                         ))
                         val running = dvr.schedule(ScheduleRecording(live.id, start.minusSeconds(5).toString(), start.plusSeconds(600).toString(), "Long Show"))
-                        withTimeout(30_000) { while (dvr.recording(running.id).state != Wire.RecordingState.RECORDING) delay(100) }
+                        pollUntil(30_000, 100) { dvr.recording(running.id).state == Wire.RecordingState.RECORDING }
                         // Protected, so the cleanup after it stops keeps it for the assertions below.
                         dvr.update(running.id, UpdateRecording(protected = true))
                         free = 100L * 1024 * 1024
-                        val stopped = withTimeout(60_000) {
-                            while (dvr.recording(running.id).state == Wire.RecordingState.RECORDING) delay(200)
-                            dvr.recording(running.id)
-                        }
+                        pollUntil(60_000, 200) { dvr.recording(running.id).state != Wire.RecordingState.RECORDING }
+                        val stopped = dvr.recording(running.id)
                         assertEquals(Dvr.DISK_FULL, stopped.reason)
                         assertFalse(Files.exists(root.resolve("TV/Old/old.ts")), "cleanup deleted the finished recording first")
                         assertEquals(listOf(running.id), dvr.recordings().recordings.map { it.id })

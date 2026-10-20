@@ -12,9 +12,7 @@ import io.ktor.http.*
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlin.test.*
 
@@ -39,7 +37,7 @@ class LogoRoutesTest {
                 val logoPath = "/logos/$key"
                 // The import and the adoption queued a prefetch; the file appears without any request for it.
                 // The test body runs on virtual time, so the wait moves to a dispatcher whose delays are real.
-                withContext(Dispatchers.Default) { withTimeout(10_000) { while (!Files.exists(dir.resolve("logos").resolve(key))) delay(20) } }
+                withContext(Dispatchers.Default) { pollUntil(10_000) { Files.exists(dir.resolve("logos").resolve(key)) } }
                 assertEquals(1, fixture.logoRequests.get())
 
                 val catalogResponse = client.get("/api/v1/channels") { bearerAuth(token) }

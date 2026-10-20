@@ -26,7 +26,10 @@ dependencies {
     implementation(libs.kotlinx.html)
     implementation(libs.zxing.core)
     implementation(libs.logback.classic)
-    testImplementation(kotlin("test-junit"))
+    testImplementation(kotlin("test-junit5"))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.ktor.client.mock)
 }
@@ -38,6 +41,8 @@ abstract class WireFixtures : CommandLineArgumentProvider {
     override fun asArguments() = listOf("-Dsofaking.wireFixtures=${dir.get().asFile.absolutePath}")
 }
 tasks.test {
+    // JUnit Jupiter; src/test/resources/junit-platform.properties sets the default timeout.
+    useJUnitPlatform()
     jvmArgumentProviders += objects.newInstance<WireFixtures>().apply {
         dir.set(rootProject.layout.projectDirectory.dir("../contract/src/jvmTest/resources/wire"))
     }

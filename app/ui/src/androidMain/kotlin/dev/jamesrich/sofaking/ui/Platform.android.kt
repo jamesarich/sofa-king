@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui
 
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.speech.RecognizerIntent
 import android.view.accessibility.AccessibilityManager
@@ -17,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.core.content.getSystemService
 import android.app.UiModeManager
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -28,11 +30,13 @@ import dev.jamesrich.sofaking.data.PublishedBuild
 @Composable
 internal actual fun rememberIsTelevision(): Boolean {
     val context = LocalContext.current
-    return remember(context) {
-        context.getSystemService(UiModeManager::class.java)?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
-            context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-    }
+    return remember(context) { context.isTelevision() }
 }
+
+/** A TV by its UI mode or its leanback feature; the layout and the platform the server is told both ask this. */
+fun Context.isTelevision(): Boolean =
+    getSystemService<UiModeManager>()?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+        packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
 
 /** The system's "Use 24-hour format" setting; read once, as the zone is, so the guide does not reformat under the user. */
 @Composable

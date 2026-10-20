@@ -255,7 +255,11 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
      * The page title and the browser's Media Session: its metadata reaches the OS media controls, and their media
      * keys come back here. Browsers without the API keep the title alone.
      */
-    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
+    private val mediaSessions = NewestMediaSession(::openBrowserSession)
+
+    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = mediaSessions.open(onZapStep)
+
+    private fun openBrowserSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
         setMediaAction("play") { play() }
         setMediaAction("pause") { pause() }
         setMediaAction("nexttrack") { onZapStep(1) }

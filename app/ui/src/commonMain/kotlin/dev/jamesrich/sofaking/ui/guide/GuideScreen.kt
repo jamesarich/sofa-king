@@ -22,7 +22,6 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -163,7 +162,6 @@ private data class FocusedCell(val channel: Channel, val cell: GuideCell)
  * header's tab, where Back from another tab put it: the guide takes its first focus, and the preview its channel,
  * only once focus comes down into it.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GuideScreen(
     lineup: Lineup,

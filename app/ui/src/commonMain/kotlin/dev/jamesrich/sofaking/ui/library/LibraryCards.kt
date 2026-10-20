@@ -2,7 +2,6 @@ package dev.jamesrich.sofaking.ui.library
 
 import dev.jamesrich.sofaking.ui.Artwork
 import dev.jamesrich.sofaking.ui.HeldOkGuard
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -113,7 +112,6 @@ internal class CardMenu(val onPlayFromStart: ((MediaItem) -> Unit)?, val onSetWa
  * The card itself, with [menu] on a held OK. The rest of the press that opened it, its repeats and key-up, is
  * swallowed, so the menu's first entry is not pressed by the same OK.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ItemCard(
     item: MediaItem,

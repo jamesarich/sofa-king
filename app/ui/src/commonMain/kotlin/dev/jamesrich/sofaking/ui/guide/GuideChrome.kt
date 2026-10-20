@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.ui.theme.SofaChip
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.BringIntoViewSpec
@@ -151,7 +150,6 @@ internal fun SearchField(
  * One horizontally scrolled strip; the header and every row share [scrollState] so columns stay aligned. The now
  * line runs behind the strip's content, so it shows between cells and under the time labels but never cuts a title.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun TimelineStrip(
     scrollState: ScrollState,
@@ -171,7 +169,6 @@ internal fun TimelineStrip(
  * focusRow). A TV's default would chase a long cell's far end, and pivot the focused row a third of the way down,
  * leaving a sliver of the row above under the time header.
  */
-@OptIn(ExperimentalFoundationApi::class)
 internal val NoBringIntoView = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
 }

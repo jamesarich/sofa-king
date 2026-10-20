@@ -3,7 +3,6 @@ package dev.jamesrich.sofaking.ui.player
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.foundation.background
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -91,7 +90,6 @@ internal class MiniGuideActions(
  * row reaches the top row. [onChipsFocused] tells the owner when the top row has focus, so Left and Right move
  * along its chips and buttons instead of being swallowed.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun BoxScope.MiniGuide(
     lineup: Lineup,
@@ -197,7 +195,6 @@ internal fun BoxScope.MiniGuide(
  * The focused row sits at the top of the list with the next one peeking below it. A TV's default pivots it a third
  * of the way down, which in a panel little taller than one row leaves a sliver of the row above.
  */
-@OptIn(ExperimentalFoundationApi::class)
 private val FocusedRowOnTop = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset
 }

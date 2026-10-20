@@ -3,7 +3,6 @@ package dev.jamesrich.sofaking.ui.library
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.Artwork
 import dev.jamesrich.sofaking.ui.theme.SofaChip
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.BringIntoViewSpec
@@ -106,7 +105,6 @@ internal fun ItemDetailsScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedSeasonId: String?, actions: ItemDetailsActions, returnedFrom: String?) {
     val item = detail.item
@@ -165,7 +163,6 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
  * the overscan. A TV's default pivots it a third of the way down, which on arrival pushes the title above Play off
  * the screen.
  */
-@OptIn(ExperimentalFoundationApi::class)
 private class ScrollOnlyWhenHidden(private val edge: Float) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val leading = offset - edge

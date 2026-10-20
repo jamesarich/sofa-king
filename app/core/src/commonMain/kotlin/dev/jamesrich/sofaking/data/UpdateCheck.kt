@@ -8,6 +8,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 /** The build GitHub publishes as the rolling `snapshot` prerelease: one per push to `main` that changed the app. */
@@ -48,7 +49,14 @@ class UpdateChecker(
     suspend fun latest(): PublishedBuild? {
         val response = http.get(releaseUrl) { header(HttpHeaders.Accept, "application/vnd.github+json") }
         if (!response.status.isSuccess()) return null
-        val release = runCatching { json.decodeFromString<ReleaseDto>(response.bodyAsText()) }.getOrNull() ?: return null
+        val body = response.bodyAsText()
+        val release = try {
+            json.decodeFromString<ReleaseDto>(body)
+        } catch (_: SerializationException) {
+            return null
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
         val version = release.name.removePrefix("Snapshot").ifEmpty { release.tagName }
         return PublishedBuild(
             version = version,

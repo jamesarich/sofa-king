@@ -34,8 +34,12 @@ import dev.jamesrich.sofaking.data.UpdateChecker
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.SofaKingRepository
+import dev.jamesrich.sofaking.data.describe
+import dev.jamesrich.sofaking.data.logFailures
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -52,6 +56,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
@@ -90,6 +95,10 @@ class LineupViewModel(
     private val client: ClientInfo = ClientInfo(),
     /** Reads the published snapshot for the update check in Settings. */
     private val updateChecker: UpdateChecker = UpdateChecker(),
+    /** Where the guide window and the cache's expiry read the time. */
+    private val clock: Clock = Clock.System,
+    /** Where the lineup is decoded, mapped and merged, off the main thread; the state is set on the main thread. */
+    private val background: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     private val _update = MutableStateFlow<UpdateState?>(null)
 
@@ -187,7 +196,7 @@ class LineupViewModel(
     }
 
     /** One repository per server, so its catalog ETag survives every refresh; rebuilt only when the server changes. */
-    private val serverRepository = connection.server.map { s -> s?.let { it to SofaKingRepository(it.api) } }
+    private val serverRepository = connection.server.map { s -> s?.let { it to SofaKingRepository(it.api, background, clock::now) } }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val liveState: StateFlow<LineupState> = combine(serverRepository, reloads.onStart { emit(null) }) { found, request -> found to request }
@@ -206,7 +215,8 @@ class LineupViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
 
     val state: StateFlow<LineupState> = combine(liveState, extraDays) { live, extra ->
-        if (live !is LineupState.Ready || extra.isEmpty()) live else LineupState.Ready(live.lineup.copy(guide = mergeGuides(live.lineup.guide, extra.values)))
+        if (live !is LineupState.Ready || extra.isEmpty()) live
+        else LineupState.Ready(live.lineup.copy(guide = withContext(background) { mergeGuides(live.lineup.guide, extra.values) }))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
 
     /**
@@ -215,7 +225,7 @@ class LineupViewModel(
      * empty, and the next jump to it asks again.
      */
     fun loadGuideWindow(windowStart: Instant) {
-        val live = GuideWindow.start(Clock.System.now())
+        val live = GuideWindow.start(clock.now())
         if (windowStart <= live) return
         val lineup = (liveState.value as? LineupState.Ready)?.lineup ?: return
         val repository = liveRepository ?: return
@@ -245,7 +255,7 @@ class LineupViewModel(
         val (server, repository) = found
         val key = server.url
         liveRepository = repository
-        val cache = LineupCache(lineupCache, key)
+        val cache = LineupCache(lineupCache, key, background, clock::now)
         // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
         // so the last good lineup shows at once and the network load replaces it below.
         var last: Lineup? = lastGood?.takeIf { it.first == key }?.second
@@ -293,7 +303,7 @@ class LineupViewModel(
                 last = it
                 lastGood = key to it
                 emit(LineupState.Ready(it))
-                val live = GuideWindow.start(Clock.System.now())
+                val live = GuideWindow.start(clock.now())
                 extraDays.update { days -> days.filterKeys { start -> start > live } }
                 // A cache write failure must not fail the load or delay the next refresh.
                 try {
@@ -316,7 +326,7 @@ class LineupViewModel(
                         last = kept
                         emit(LineupState.Ready(kept))
                     }
-                    last == null -> emit(LineupState.Failed(describe(it)))
+                    last == null -> emit(LineupState.Failed(it.describe()))
                 }
             }
             delay(if (result.isSuccess && !lineupMoved) REFRESH_INTERVAL else RETRY_INTERVAL)
@@ -338,108 +348,108 @@ class LineupViewModel(
     }
 
     fun saveServer(url: String, apiToken: String) {
-        viewModelScope.launch { store.setServer(url, apiToken) }
+        save { store.setServer(url, apiToken) }
     }
 
     fun toggleFavorite(guideId: String) {
-        viewModelScope.launch { store.toggleFavorite(guideId) }
+        save { store.toggleFavorite(guideId) }
     }
 
     fun setLastChannel(guideId: String) {
-        viewModelScope.launch { store.setLastChannel(guideId) }
+        save { store.setLastChannel(guideId) }
     }
 
     fun setGuideFilter(key: String?) {
-        viewModelScope.launch { store.setGuideFilter(key) }
+        save { store.setGuideFilter(key) }
     }
 
     fun setCaptionsEnabled(enabled: Boolean) {
-        viewModelScope.launch { store.setCaptionsEnabled(enabled) }
+        save { store.setCaptionsEnabled(enabled) }
     }
 
     fun setCaptionAdvanceMs(ms: Int) {
-        viewModelScope.launch { store.setCaptionAdvanceMs(ms) }
+        save { store.setCaptionAdvanceMs(ms) }
     }
 
     fun setChannelCaptionAdvance(guideId: String, ms: Int) {
-        viewModelScope.launch { store.setChannelCaptionAdvance(guideId, ms) }
+        save { store.setChannelCaptionAdvance(guideId, ms) }
     }
 
     fun setSmoothCaptions(enabled: Boolean) {
-        viewModelScope.launch { store.setSmoothCaptions(enabled) }
+        save { store.setSmoothCaptions(enabled) }
     }
 
     fun setCaptionStyle(style: CaptionStyle) {
-        viewModelScope.launch { store.setCaptionStyle(style) }
+        save { store.setCaptionStyle(style) }
     }
 
     fun setKeyLegendShown(count: Int) {
-        viewModelScope.launch { store.setKeyLegendShown(count) }
+        save { store.setKeyLegendShown(count) }
     }
 
     fun setAutoOpenDelay(delay: AutoOpenDelay) {
-        viewModelScope.launch { store.setAutoOpenDelay(delay) }
+        save { store.setAutoOpenDelay(delay) }
     }
 
     fun setPreviewSound(enabled: Boolean) {
-        viewModelScope.launch { store.setPreviewSound(enabled) }
+        save { store.setPreviewSound(enabled) }
     }
 
     fun setStartup(target: StartupTarget, guideId: String? = null) {
-        viewModelScope.launch { store.setStartup(target, guideId) }
+        save { store.setStartup(target, guideId) }
     }
 
     fun setLastTab(tab: TopLevelTab) {
-        viewModelScope.launch { store.setLastTab(tab) }
+        save { store.setLastTab(tab) }
     }
 
     fun setClockFormat(format: ClockFormat) {
-        viewModelScope.launch { store.setClockFormat(format) }
+        save { store.setClockFormat(format) }
     }
 
     fun setGuideDensity(density: GuideDensity) {
-        viewModelScope.launch { store.setGuideDensity(density) }
+        save { store.setGuideDensity(density) }
     }
 
     fun setChannelHidden(guideId: String, hidden: Boolean) {
-        viewModelScope.launch { store.setChannelHidden(guideId, hidden) }
+        save { store.setChannelHidden(guideId, hidden) }
     }
 
     fun setChannelsHidden(guideIds: Collection<String>, hidden: Boolean) {
-        viewModelScope.launch { store.setChannelsHidden(guideIds, hidden) }
+        save { store.setChannelsHidden(guideIds, hidden) }
     }
 
     fun setZapSkipsHidden(enabled: Boolean) {
-        viewModelScope.launch { store.setZapSkipsHidden(enabled) }
+        save { store.setZapSkipsHidden(enabled) }
     }
 
     fun setSkipCommercials(enabled: Boolean) {
-        viewModelScope.launch { store.setSkipCommercials(enabled) }
+        save { store.setSkipCommercials(enabled) }
     }
 
     /** Keeps the tracks picked in the show [showId] for its next episodes. */
     fun setTrackChoice(showId: String, choice: TrackChoice) {
-        viewModelScope.launch { store.setTrackChoice(showId, choice) }
+        save { store.setTrackChoice(showId, choice) }
     }
 
     fun setFavoritesOrder(order: List<String>) {
-        viewModelScope.launch { store.setFavoritesOrder(order) }
+        save { store.setFavoritesOrder(order) }
     }
 
     fun setMatchFrameRate(enabled: Boolean) {
-        viewModelScope.launch { store.setMatchFrameRate(enabled) }
+        save { store.setMatchFrameRate(enabled) }
     }
 
     fun setDecoder(decoder: DecoderPreference) {
-        viewModelScope.launch { store.setDecoder(decoder) }
+        save { store.setDecoder(decoder) }
     }
 
     fun setChannelDecoder(guideId: String, decoder: DecoderPreference?) {
-        viewModelScope.launch { store.setChannelDecoder(guideId, decoder) }
+        save { store.setChannelDecoder(guideId, decoder) }
     }
 
     fun setBuffer(buffer: BufferPreference) {
-        viewModelScope.launch { store.setBuffer(buffer) }
+        save { store.setBuffer(buffer) }
     }
 
     /**
@@ -464,7 +474,12 @@ class LineupViewModel(
 
     /** Locks Settings behind [pin], stored as its hash, or removes the lock for null. */
     fun setSettingsPin(pin: String?) {
-        viewModelScope.launch { store.setSettingsPin(pin?.let(SettingsPin::hash)) }
+        save { store.setSettingsPin(pin?.let(SettingsPin::hash)) }
+    }
+
+    /** Writes a setting in this ViewModel's scope; a write the store refuses is logged rather than crashing the app. */
+    private fun save(write: suspend () -> Unit) {
+        viewModelScope.launch(logFailures) { write() }
     }
 
     /** [live] plus every day in [extra], per channel in start order without repeats, so a day loaded twice reads once. */
@@ -477,12 +492,6 @@ class LineupViewModel(
             }
         }
         return merged
-    }
-
-    /** The server's own error code when it answered, else the transport's message; never a URL or token. */
-    private fun describe(failure: Throwable): String = when (failure) {
-        is SofaKingException -> "${failure.code}: ${failure.message}"
-        else -> failure.message ?: failure.toString()
     }
 
     private companion object {

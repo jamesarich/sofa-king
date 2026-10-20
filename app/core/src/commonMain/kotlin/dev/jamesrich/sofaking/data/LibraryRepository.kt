@@ -7,8 +7,6 @@ import kotlin.time.Instant
  * logos are, and fetched without the token.
  */
 class LibraryRepository(private val api: SofaKingApi) {
-    suspend fun libraries(): List<MediaLibrary> = api.libraries().map(::library)
-
     suspend fun home(): MediaHome = api.libraryHome().let { dto ->
         MediaHome(
             shelves = dto.shelves.map { MediaShelf(it.id, it.title, it.items.map(::item), it.libraryId) }.filter { it.items.isNotEmpty() },

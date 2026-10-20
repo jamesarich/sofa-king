@@ -4,7 +4,10 @@ import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.okio.OkioSerializer
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromByteArray
@@ -20,10 +23,12 @@ import kotlin.time.Instant
  * The last successfully loaded [Lineup], kept in app-private storage so a cold start can show it before the network answers.
  * [key] identifies the server; a cache written for another key is ignored and left in place. The store is a DataStore
  * of one protobuf [CachedLineup] (a file through [lineupCacheDataStore], or the browser's storage), which replaces the file whole and wipes one it cannot read.
+ * A read builds the lineup on [background].
  */
 class LineupCache(
     private val store: DataStore<CachedLineup?>,
     private val key: String,
+    private val background: CoroutineDispatcher = Dispatchers.Default,
     private val now: () -> Instant = Clock.System::now,
 ) {
     /** The cached lineup without programmes that have already ended, or null if there is none usable. */
@@ -37,7 +42,7 @@ class LineupCache(
         } ?: return null
         if (cached.key != key) return null
         return try {
-            cached.toLineup(now())
+            withContext(background) { cached.toLineup(now()) }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {

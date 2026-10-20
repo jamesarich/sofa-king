@@ -178,14 +178,13 @@ private val TERMINOLOGY = mapOf("fra" to "fre", "deu" to "ger", "zho" to "chi", 
 /** Subtitle codecs the server converts to WebVTT. */
 private val TEXT_SUBTITLE_CODECS = setOf("subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text")
 
-/** English names for the ISO 639-2 codes files carry most. */
+/** English names for the ISO 639-2 codes files carry most, by the bibliographic code [languageKey] answers. */
 private val LANGUAGES = mapOf(
-    "eng" to "English", "spa" to "Spanish", "fre" to "French", "fra" to "French", "ger" to "German", "deu" to "German",
-    "ita" to "Italian", "por" to "Portuguese", "jpn" to "Japanese", "chi" to "Chinese", "zho" to "Chinese",
-    "kor" to "Korean", "rus" to "Russian", "dut" to "Dutch", "nld" to "Dutch", "swe" to "Swedish", "nor" to "Norwegian",
-    "dan" to "Danish", "fin" to "Finnish", "pol" to "Polish", "tur" to "Turkish", "ara" to "Arabic", "hin" to "Hindi",
-    "heb" to "Hebrew", "gre" to "Greek", "ell" to "Greek", "cze" to "Czech", "ces" to "Czech", "hun" to "Hungarian",
-    "tha" to "Thai", "vie" to "Vietnamese", "ukr" to "Ukrainian", "und" to "Unknown",
+    "eng" to "English", "spa" to "Spanish", "fre" to "French", "ger" to "German", "ita" to "Italian", "por" to "Portuguese",
+    "jpn" to "Japanese", "chi" to "Chinese", "kor" to "Korean", "rus" to "Russian", "dut" to "Dutch", "swe" to "Swedish",
+    "nor" to "Norwegian", "dan" to "Danish", "fin" to "Finnish", "pol" to "Polish", "tur" to "Turkish", "ara" to "Arabic",
+    "hin" to "Hindi", "heb" to "Hebrew", "gre" to "Greek", "cze" to "Czech", "hun" to "Hungarian", "tha" to "Thai",
+    "vie" to "Vietnamese", "ukr" to "Ukrainian", "und" to "Unknown",
 )
 
 /** The server's id for the row of items in progress and next episodes. */

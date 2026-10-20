@@ -3,6 +3,8 @@ package dev.jamesrich.sofaking.data
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -197,9 +199,7 @@ class LibraryPlaybackTest {
 
         sessions.reportPosition(42_000)
         fake.vods.clear()
-        withTimeout(5_000) { while (sessions.current.value?.sessionId == "v1" || sessions.current.value == null) delay(10) }
-
-        val reopened = sessions.current.value!!
+        val reopened = withTimeout(5_000) { sessions.current.filterNotNull().first { it.sessionId != "v1" } }
         assertEquals("m1", reopened.itemId)
         assertEquals(42_000, reopened.offsetMs)
     }

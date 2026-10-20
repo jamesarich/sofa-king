@@ -1,11 +1,14 @@
 package dev.jamesrich.sofaking.data
 
 import dev.jamesrich.sofaking.contract.Wire
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -15,10 +18,11 @@ data class GuideLoad(val programmes: Map<String, List<Programme>>, val removed: 
 /**
  * The lineup from a Sofa King server. The catalog is fetched with its ETag, so an unchanged lineup costs one
  * header round trip; the guide is queried in chunks of [GUIDE_CHUNK] channels over the same window the guide
- * grid shows, 24 hours from the half hour that contains [now].
+ * grid shows, 24 hours from the half hour that contains [now]. Both are mapped to the models on [background].
  */
 class SofaKingRepository(
     private val api: SofaKingApi,
+    private val background: CoroutineDispatcher = Dispatchers.Default,
     private val now: () -> Instant = Clock.System::now,
 ) {
     private var etag: String? = null
@@ -27,7 +31,7 @@ class SofaKingRepository(
     /** The catalog alone: small and fast, so the UI can show channels before the guide arrives. */
     suspend fun loadChannels(): List<Channel> {
         return when (val result = api.catalog(etag)) {
-            is CatalogResult.Changed -> SofaKingMapper.channels(result.catalog, api::logoUrl).also {
+            is CatalogResult.Changed -> withContext(background) { SofaKingMapper.channels(result.catalog, api::logoUrl) }.also {
                 channels = it
                 etag = result.etag
             }
@@ -65,13 +69,15 @@ class SofaKingRepository(
                 async { limit.withPermit { api.guide(GuideQueryDto(chunk, from.toString(), to.toString(), revision)) } }
             }.awaitAll()
         }
-        val guide = HashMap<String, List<Programme>>()
-        val removed = HashSet<String>()
-        for (window in listOf(first) + rest) {
-            guide += SofaKingMapper.programmes(window)
-            removed += SofaKingMapper.removed(window)
+        return withContext(background) {
+            val guide = HashMap<String, List<Programme>>()
+            val removed = HashSet<String>()
+            for (window in listOf(first) + rest) {
+                guide += SofaKingMapper.programmes(window)
+                removed += SofaKingMapper.removed(window)
+            }
+            GuideLoad(guide, removed)
         }
-        return GuideLoad(guide, removed)
     }
 
     companion object {

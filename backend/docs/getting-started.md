@@ -7,38 +7,26 @@ Replace `SERVER_HOST` with the host's LAN address and `PLEX_SERVER_IP` with the 
 ## What you need
 
 - A Linux host, `amd64` or `arm64`, with Docker Engine and Docker Compose 2.24 or later.
-- A copy of this repository on the host.
-- JDK 21 to build the image, or nothing more to pull the published one.
-- `jq` and `openssl` for the shell steps.
+- `curl`, `jq` and `openssl` for the shell steps.
 
 ## 1. Start the server
 
-From `backend/`, build the server and start it:
+Make a folder for the server, with its `config` and `recordings` folders, download the Compose file into it and start it:
 
 ```sh
-./gradlew :server:installDist
-mkdir -p deploy/config deploy/recordings
-cd deploy
-docker compose up -d --build
+mkdir -p sofa-king/config sofa-king/recordings
+cd sofa-king
+curl -fsSLO https://raw.githubusercontent.com/jamesarich/sofa-king/main/backend/deploy/compose.yaml
+docker compose up -d
 ```
 
-To skip the build, pull the published image, which needs no login, and tag it with the name `compose.yaml` runs:
-
-```sh
-docker pull ghcr.io/jamesarich/sofa-king:main
-docker tag ghcr.io/jamesarich/sofa-king:main sofa-king-backend:local
-mkdir -p deploy/config deploy/recordings
-cd deploy
-docker compose up -d --no-build
-```
-
-The remaining steps run in `deploy`. Check that the server is up:
+Compose pulls the published image, `ghcr.io/jamesarich/sofa-king:main`, which needs no login. Create both folders before the first start: Docker creates a missing one as root, and the server, which runs as your user, then cannot write to it. The remaining steps run in this folder. Check that the server is up:
 
 ```sh
 curl --fail http://SERVER_HOST:9193/readyz
 ```
 
-It answers `ready`. If the container exits at once instead, `docker compose logs` says why; [troubleshooting](troubleshooting.md#the-container-does-not-start) lists the common causes.
+It answers `ready`. If the container exits at once instead, `docker compose logs` says why; [troubleshooting](troubleshooting.md#the-container-does-not-start) lists the common causes. To build the image from a checkout of this repository instead, see [build](deploy.md#build).
 
 ## 2. Sign in
 

@@ -1,17 +1,72 @@
 #!/usr/bin/env bash
 # Pulls the published image and swaps it in when it differs from the running one. The database is backed up first;
 # when the new container is not healthy in time, the backup and the previous image are put back and that image is
-# not tried again. Run it from a timer, see docs/deploy.md#update-automatically. Every run writes what it did to
-# update-status.json in the config folder, which the admin portal's About page shows, and starts by removing the
-# update-requested file the portal writes, which the path unit watches.
+# not tried again. Every run writes what it did to update-status.json in the config folder, which the admin portal's
+# About page shows, and starts by removing the update-requested file the portal writes, which the path unit watches.
+#
+# Install it from the Compose directory with: sudo ./sofa-king-update.sh install
+# That writes a service, a 15-minute timer and the path unit for that directory and this copy of the script, and
+# starts them; see docs/deploy.md#update-automatically.
 set -euo pipefail
 # Backups hold provider session tokens, so each is readable by its owner alone: the container's user or root.
 umask 077
 
-dir=${SOFA_UPDATE_DIR:?set SOFA_UPDATE_DIR to the directory with compose.yaml}
+# Writes the systemd units that run this script for the Compose directory $1 and starts them. SOFA_UPDATE_UNIT_DIR
+# writes them elsewhere without starting them, for a check.
+install_units() {
+  local dir script units config file found=""
+  dir=$(cd "$1" && pwd)
+  script=$(readlink -f "$0")
+  units=${SOFA_UPDATE_UNIT_DIR:-/etc/systemd/system}
+  config=${SOFA_UPDATE_CONFIG_DIR:-$dir/config}
+  for file in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
+    [ -f "$dir/$file" ] && found=$file
+  done
+  [ -n "$found" ] || { echo "sofa-king-update: $dir holds no compose.yaml; run install from the Compose directory, or name it" >&2; exit 1; }
+  case "$dir:$script:$config" in
+    *[[:space:]%\\]*) echo "sofa-king-update: a systemd unit cannot name a path with a space, % or backslash: $dir" >&2; exit 1 ;;
+  esac
+  if [ -z "${SOFA_UPDATE_UNIT_DIR:-}" ] && [ "$(id -u)" != 0 ]; then
+    echo "sofa-king-update: install writes to $units; run it with sudo" >&2
+    exit 1
+  fi
+  umask 022
+  mkdir -p "$units"
+  {
+    printf '[Unit]\nDescription=Update the Sofa King server from its published image\n'
+    printf 'Wants=network-online.target\nAfter=network-online.target docker.service\nRequires=docker.service\n\n'
+    printf '[Service]\nType=oneshot\n# The directory with compose.yaml, .env and config/.\nEnvironment=SOFA_UPDATE_DIR=%s\n' "$dir"
+    if [ -n "${SOFA_UPDATE_CONFIG_DIR:-}" ]; then printf 'Environment=SOFA_UPDATE_CONFIG_DIR=%s\n' "$config"; fi
+    printf 'ExecStart=%s\n' "$script"
+  } > "$units/sofa-king-update.service"
+  {
+    printf '[Unit]\nDescription=Check for a new Sofa King server image every 15 minutes\n\n'
+    printf '[Timer]\nOnBootSec=5min\nOnUnitActiveSec=15min\nRandomizedDelaySec=60\n\n[Install]\nWantedBy=timers.target\n'
+  } > "$units/sofa-king-update.timer"
+  {
+    printf '[Unit]\nDescription=Update the Sofa King server when its admin portal asks\n\n'
+    printf '[Path]\n# The portal'"'"'s Update now writes this file in the config folder, and the updater removes it.\n'
+    printf 'PathExists=%s/update-requested\nUnit=sofa-king-update.service\n\n[Install]\nWantedBy=paths.target\n' "$config"
+  } > "$units/sofa-king-update.path"
+  echo "sofa-king-update: wrote sofa-king-update.service, .timer and .path to $units for $dir"
+  [ -z "${SOFA_UPDATE_UNIT_DIR:-}" ] || return 0
+  systemctl daemon-reload
+  systemctl enable --now sofa-king-update.timer sofa-king-update.path
+  echo "sofa-king-update: checks every 15 minutes; to check now: sudo systemctl start sofa-king-update"
+}
+
+if [ "${1:-}" = install ]; then
+  install_units "${2:-.}"
+  exit 0
+fi
+
+dir=${SOFA_UPDATE_DIR:?set SOFA_UPDATE_DIR to the directory with compose.yaml, or run: sudo $0 install}
 image=${SOFA_UPDATE_IMAGE:-ghcr.io/jamesarich/sofa-king:main}
 container=${SOFA_UPDATE_CONTAINER:-sofa-king-backend}
-local_tag=${SOFA_UPDATE_LOCAL_TAG:-sofa-king-backend:local}
+# The tag Compose runs, which an update points at the new image: compose.yaml's image (the published one, or
+# SOFA_IMAGE from .env) unless set.
+local_tag=${SOFA_UPDATE_LOCAL_TAG:-$( (cd "$dir" && docker compose config --images 2>/dev/null) | head -n 1 || true)}
+local_tag=${local_tag:-sofa-king-backend:local}
 previous_tag=${SOFA_UPDATE_PREVIOUS_TAG:-sofa-king-backend:previous}
 keep=${SOFA_UPDATE_KEEP_BACKUPS:-5}
 wait_seconds=${SOFA_UPDATE_HEALTH_SECONDS:-180}
@@ -85,6 +140,9 @@ if [ "$candidate" = "$running" ]; then
   exit 0
 fi
 if [ -f "$state/failed-image" ] && [ "$(cat "$state/failed-image")" = "$candidate" ]; then
+  # When Compose runs the pulled tag itself, the pull moved it to the skipped image; point it back at the running
+  # one, so a later docker compose up does not start the skipped image.
+  if [ "$local_tag" = "$image" ] && [ "$running" != none ]; then docker tag "$running" "$local_tag"; fi
   report skipped "$to was not healthy before; waiting for a newer image"
   exit 0
 fi

@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.formatPlayTime
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -533,7 +535,7 @@ fun VodPlayerScreen(
                             ControlIcon(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), ::retry, primary = true)
                         } else {
                             ControlIcon(
-                                if (paused) Icons.Filled.PlayArrow else PlayerIcons.Pause,
+                                if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
                                 stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
                                 ::togglePause,
                                 primary = true,
@@ -541,7 +543,7 @@ fun VodPlayerScreen(
                         }
                         ControlIcon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(Res.string.vod_control_forward), { seekItem(positionMs + 30_000L); showOverlay() })
                         if (tracks.pickable) {
-                            ControlIcon(PlayerIcons.ClosedCaption, stringResource(Res.string.vod_tracks_title), { if (tracksOpen) tracksOpen = false else openTracks() })
+                            ControlIcon(SofaIcons.ClosedCaption, stringResource(Res.string.vod_tracks_title), { if (tracksOpen) tracksOpen = false else openTracks() })
                         }
                     }
                 }

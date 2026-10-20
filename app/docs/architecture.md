@@ -21,9 +21,11 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 
 | Component | Responsibility |
 | --- | --- |
-| `App`, `initSofaKing` | The back stacks shown by Navigation 3, the cold-start decision, the shared player and the session's stop/start lifecycle; the graph starts once per process |
+| `App`, `initSofaKing`, `AppGraph` | The shell: the ViewModels, the back stacks shown by Navigation 3, the shared player and the session's stop/start lifecycle; each page is drawn by its destination (`LiveDestinations`, `LibraryDestinations`, `RecordingsDestinations`, `SettingsDestinations`), which collects the state it shows itself. The graph starts once per process |
+| `AppShellState` | The shell's UI state and moves, unit-tested: the back stacks, the watch history, the cold-start decision (`decideLaunch`), the Settings unlock, the header's focus return and notice, and which tabs the server offers (`tabsOffered`) |
 | `Navigation` | One back stack per tab of `Route`s, the arrival details (what to focus, Now, search) and every move: open, Back, switching tabs, leaving Settings |
-| `LineupViewModel` | Settings flows, lineup state, refresh, cache ownership, the server's capabilities from its bootstrap, and the `PlaybackSessions` and `RecordingSchedule` instances; its store, cache and API factory are constructor arguments |
+| `ServerConnection` | The process-wide link to the server Settings names: the one API client, the server's capabilities from its bootstrap, the one `PlaybackSessions`, the `RecordingSchedule` and the preference sync. Every ViewModel reads the server through it, so none holds another |
+| `LineupViewModel` | Settings flows and writes, lineup state, refresh, cache ownership, pairing (`PairingState`) and the update check; its store, cache and connection are constructor arguments |
 | `RecordingSchedule` | On a server that records: the scheduled recordings and series rules the program details mark, and their Record and Record series toggles |
 | `SofaKingApi` | The server's `/api/v1` JSON requests over Ktor with the bearer token; every engine's transport error surfaces as an `IOException` |
 | `SofaKingRepository`, `SofaKingMapper` | Catalog and guide queries mapped to `Channel` (with its logo and guide status) and `Programme` (with its episode, rating, new flag and image) |
@@ -42,16 +44,16 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 ## Data flow
 
 ```text
-AppStorage → DataStoreSettingsStore → LineupViewModel ← SofaKingRepository ← SofaKingApi (Ktor)
-                                           ↓      ↕
-                                     LineupCache   PlaybackSessions → LivePlayer (/media relay)
-                                           ↓
-                              GuideScreen / PreviewVideo / PlayerScreen
+AppStorage → DataStoreSettingsStore → ServerConnection → SofaKingApi (Ktor), PlaybackSessions, RecordingSchedule
+                     ↓                         ↓
+               LineupViewModel ← SofaKingRepository     LibraryViewModel, RecordingsViewModel
+                ↓          ↓
+          LineupCache    GuideScreen / PreviewVideo / PlayerScreen → PlaybackSessions → LivePlayer (/media relay)
 ```
 
 The cache loads first on startup or server change. The catalog publishes channels before the guide query completes. The catalog is fetched with its ETag, so an unchanged lineup is a header round trip. The guide is queried in chunks of at most 200 channels over 24 hours from the half hour containing the load time, pinning the revision the first chunk returned on the rest, which run four at a time, and restarting without one on `409 RESYNC_REQUIRED`. A channel the guide answers as `removed` left the lineup after the catalog was read: it drops from the lineup and the next load runs after one minute. Mapping applies the [channel rule](usage.md#channels) through `playbackEligible` and `displayNumber`, sorts the channels by number, files each under every non-blank tag (Other when it has none), resolves each logo's server-relative path against the configured server address, and discards programs with invalid timestamps or nonpositive durations. Successful loads update the cache and repeat every three hours. A day the guide jumps to beyond the live window is queried once over the same path (`loadGuideWindow`), merged into the lineup's guide beside the live window, never cached, and dropped once the live window passes it. Failed loads retain the available lineup and retry after one minute. Without a valid server address the lineup state is `Unconfigured`.
 
-Network, decoding and cache work run on the IO dispatcher (the default dispatcher on the web). UI observes StateFlow with lifecycle-aware collection. Canceling a load cancels its HTTP call, including while reading the response body.
+Network, decoding and cache work run on the IO dispatcher (the default dispatcher on the web). State flows one way: ViewModels expose immutable `StateFlow`s, each destination collects the ones it shows with `collectAsStateWithLifecycle`, and user actions go back as ViewModel calls that return nothing. Work that must outlive a screen, such as claiming a pairing code, runs in `viewModelScope` and reports its outcome as state; process-wide work, the server connection's, runs in `AppGraph`'s main-thread scope, started by the first ViewModel. Canceling a load cancels its HTTP call, including while reading the response body.
 
 ## Storage
 

@@ -1,5 +1,8 @@
 package dev.jamesrich.sofaking.ui.library
 
+import dev.jamesrich.sofaking.ui.formatPlayTime
+import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -64,8 +67,6 @@ import dev.jamesrich.sofaking.data.primaryAction
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.MessageScreen
-import dev.jamesrich.sofaking.ui.guide.GuideChip
-import dev.jamesrich.sofaking.ui.player.formatPlayTime
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -192,7 +193,7 @@ private fun Seasons(seasons: List<MediaItem>, selectedSeasonId: String?, onSelec
         modifier = Modifier.focusRestorer(selectedFocus),
     ) {
         itemsIndexed(seasons, key = { _, season -> season.id }) { index, season ->
-            GuideChip(
+            SofaChip(
                 selected = season.id == selectedSeasonId,
                 onClick = { onSelect(season.id) },
                 label = seasonLabel(season),
@@ -315,7 +316,7 @@ private fun Cast(cast: List<String>, onPerson: (String) -> Unit, sides: PaddingV
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(Res.string.library_cast), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(sides))
         LazyRow(contentPadding = sides, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.focusRestorer()) {
-            items(cast, key = { it }) { person -> GuideChip(selected = false, onClick = { onPerson(person) }, label = person) }
+            items(cast, key = { it }) { person -> SofaChip(selected = false, onClick = { onPerson(person) }, label = person) }
         }
     }
 }

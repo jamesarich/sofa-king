@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.library
 
+import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +45,6 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.SofaLoader
-import dev.jamesrich.sofaking.ui.guide.GuideChip
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -156,11 +156,11 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(LibrarySort.entries.size) { i ->
                 val option = LibrarySort.entries[i]
-                GuideChip(selected = option == sort, onClick = { actions.onSort(option) }, label = stringResource(option.label()))
+                SofaChip(selected = option == sort, onClick = { actions.onSort(option) }, label = stringResource(option.label()))
             }
             item {
                 val unwatched = grid?.unwatched == true
-                GuideChip(selected = unwatched, onClick = { actions.onUnwatched(!unwatched) }, label = stringResource(Res.string.library_filter_unwatched))
+                SofaChip(selected = unwatched, onClick = { actions.onUnwatched(!unwatched) }, label = stringResource(Res.string.library_filter_unwatched))
             }
         }
         val genres = grid?.genres.orEmpty()
@@ -168,10 +168,10 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
             val genre = grid?.genre
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
-                    GuideChip(selected = genre == null, onClick = { actions.onGenre(null) }, label = stringResource(Res.string.library_genre_all))
+                    SofaChip(selected = genre == null, onClick = { actions.onGenre(null) }, label = stringResource(Res.string.library_genre_all))
                 }
                 items(genres, key = { it }) { option ->
-                    GuideChip(selected = option.equals(genre, ignoreCase = true), onClick = { actions.onGenre(option) }, label = option)
+                    SofaChip(selected = option.equals(genre, ignoreCase = true), onClick = { actions.onGenre(option) }, label = option)
                 }
             }
         }

@@ -7,7 +7,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -213,11 +212,6 @@ class PlaybackSessions(
     /** Records where the player is in the held item, so a reopen after [release] or a dropped session starts there. */
     fun reportPosition(positionMs: Long) {
         if (_current.value?.itemId != null) itemPositionMs = positionMs.coerceAtLeast(0)
-    }
-
-    /** Releases the held session and ends the renewal loop; the instance is unusable afterwards. */
-    fun close() {
-        scope.launch { release(forget = true) }.invokeOnCompletion { scope.cancel() }
     }
 
     /** The held session as the server has it now, or null once the server has dropped it. */

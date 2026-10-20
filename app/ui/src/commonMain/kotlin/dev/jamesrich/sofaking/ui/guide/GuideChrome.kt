@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
+import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -106,10 +107,10 @@ internal fun FilterChipRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item(key = "now") {
-            GuideChip(selected = false, onClick = onNow, label = stringResource(Res.string.guide_now))
+            SofaChip(selected = false, onClick = onNow, label = stringResource(Res.string.guide_now))
         }
         item(key = "search") {
-            GuideChip(
+            SofaChip(
                 selected = searchOpen,
                 onClick = onSearch,
                 label = stringResource(Res.string.guide_search),
@@ -118,7 +119,7 @@ internal fun FilterChipRow(
         }
         items(filters, key = { it.toString() }) { option ->
             val selected = activeFilter == option
-            GuideChip(
+            SofaChip(
                 selected = selected,
                 onClick = { onSelect(option) },
                 label = stringResource(Res.string.guide_filter_count, option.label(), counts[option] ?: 0),
@@ -126,17 +127,6 @@ internal fun FilterChipRow(
             )
         }
     }
-}
-
-/** A Material 3 filter chip in the guide's label type, with the D-pad focus cue. */
-@Composable
-internal fun GuideChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
-        modifier = modifier.tvFocus(FilterChipDefaults.shape),
-    )
 }
 
 @Composable

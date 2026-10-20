@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
+import dev.jamesrich.sofaking.ui.HeldOkGuard
 import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.ui.BackHandler
 import androidx.compose.foundation.layout.Arrangement

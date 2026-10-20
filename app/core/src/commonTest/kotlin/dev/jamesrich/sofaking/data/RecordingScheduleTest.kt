@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -38,6 +39,22 @@ class RecordingScheduleTest {
     }
 
     @Test
+    fun `one read of both lists serves the Recordings tab and the guide`() = runTest {
+        val http = FakeHttp(this) { seen ->
+            when (seen.path) {
+                "/api/v1/recordings" -> json(recordings)
+                else -> json("""{"rules":[]}""")
+            }
+        }
+        val schedule = RecordingSchedule(backgroundScope, flowOf(http.api()), flowOf(true))
+        runCurrent()
+
+        assertEquals(listOf("r1", "r0"), assertIs<RecordingsState.Ready>(schedule.state.value).recordings.map { it.id })
+        assertTrue(schedule.marks.value.of(news).recording)
+        assertEquals(listOf("GET /api/v1/recordings", "GET /api/v1/recording-rules"), http.requests.map { it.toString() })
+    }
+
+    @Test
     fun `record schedules the programme and a second press cancels it`() = runTest {
         var scheduled = false
         val http = FakeHttp(this) { seen ->
@@ -53,6 +70,7 @@ class RecordingScheduleTest {
 
         assertTrue(schedule.toggle(film))
         assertTrue(schedule.marks.value.of(film).recording)
+        assertEquals(listOf("r9"), assertIs<RecordingsState.Ready>(schedule.state.value).recordings.map { it.id }, "the Recordings tab shows it too")
         assertTrue(schedule.toggle(film))
         assertFalse(schedule.marks.value.of(film).recording)
         assertEquals(
@@ -85,5 +103,18 @@ class RecordingScheduleTest {
         enabled.value = true
         runCurrent()
         assertEquals(listOf("GET /api/v1/recordings", "GET /api/v1/recording-rules"), http.requests.map { it.toString() })
+    }
+
+    @Test
+    fun `the Recordings tab reads a server not yet known to record without marking the guide`() = runTest {
+        val http = FakeHttp(this) { seen -> if (seen.path == "/api/v1/recordings") json(recordings) else json("{}") }
+        val schedule = RecordingSchedule(backgroundScope, flowOf(http.api()), flowOf(false))
+        runCurrent()
+        assertIs<RecordingsState.Loading>(schedule.state.value)
+
+        schedule.refresh()
+
+        assertEquals(2, assertIs<RecordingsState.Ready>(schedule.state.value).recordings.size)
+        assertEquals(RecordingMark(), schedule.marks.value.of(news))
     }
 }

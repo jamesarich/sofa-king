@@ -37,9 +37,12 @@ class ServerConnectionTest {
 
         private val servers = HashMap<String, FakeHttp>()
 
+        /** Every API client the connection built, oldest first. */
+        val built = mutableListOf<SofaKingApi>()
+
         fun api(url: String, token: String): SofaKingApi {
             val name = url.substringAfter("://").substringBefore(".")
-            return servers.getOrPut(name) { http(name) }.api(token, "$url/")
+            return servers.getOrPut(name) { http(name) }.api(token, "$url/").also { built += it }
         }
 
         private fun http(server: String) = FakeHttp(scope) { request ->
@@ -105,6 +108,21 @@ class ServerConnectionTest {
         assertNull(connection.sessions.current.value)
         assertEquals(ServerCapabilities(), connection.capabilities.value, "the new server has not answered")
         assertEquals("b-s1", connection.sessions.tune("c1", PlaybackIntent.WATCH).sessionId)
+        assertEquals(listOf(true, false), servers.built.map { it.closed }, "the old server's client is closed")
+    }
+
+    @Test
+    fun `the server's client closes when the connection's scope ends`() = runTest {
+        val servers = FakeServers(this)
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        connection(servers, scope)
+        runCurrent()
+        assertEquals(listOf(false), servers.built.map { it.closed })
+
+        scope.cancel()
+        runCurrent()
+
+        assertEquals(listOf(true), servers.built.map { it.closed })
     }
 
     @Test

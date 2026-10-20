@@ -21,7 +21,7 @@ import kotlinx.coroutines.plus
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-/** A server address and token the API can be built from, and the one API client built from them. */
+/** A server address and token the API can be built from, and the one API client built from them, which the connection closes. */
 internal data class Server(val url: String, val token: String, val api: SofaKingApi)
 
 /**
@@ -53,9 +53,19 @@ class ServerConnection(
     val api: Flow<SofaKingApi?> = server.map { it?.api }
 
     init {
-        // A new address or token releases the session held on the old server before anything tunes on the new one.
+        // A new address or token releases the session held on the old server before anything tunes on the new one,
+        // then closes the old server's client; the last one closes when the connection's scope ends.
         work.launch {
-            server.collect { sessions.configure(it?.api) }
+            var open: SofaKingApi? = null
+            try {
+                server.collect {
+                    sessions.configure(it?.api)
+                    open?.close()
+                    open = it?.api
+                }
+            } finally {
+                open?.close()
+            }
         }
         if (viewerSync != null) work.launch { viewerSync.run(api) }
     }

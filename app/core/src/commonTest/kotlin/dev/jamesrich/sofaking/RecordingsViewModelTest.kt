@@ -2,12 +2,16 @@ package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.CommercialBreak
 import dev.jamesrich.sofaking.data.PlaybackProfile
+import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.RecordingSchedule
 import dev.jamesrich.sofaking.data.RecordingSpace
 import dev.jamesrich.sofaking.data.RecordingState
+import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.SofaKingApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -18,6 +22,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RecordingsViewModelTest {
@@ -35,9 +40,13 @@ class RecordingsViewModelTest {
         handler(method, path, body) ?: (200 to """{"rules":[]}""").takeIf { method == "GET" && path == "/api/v1/recording-rules" }
     }
 
-    /** The model on [server], stopped as the test ends. */
-    private suspend fun TestScope.viewModel(server: RouteServer, changed: suspend () -> Unit = {}, api: SofaKingApi? = server.http.api()): RecordingsViewModel =
-        fixture.started(RecordingsViewModel(MutableStateFlow(api), fixture.sessions(this, api), changed, timeSource = testScheduler.timeSource, saveInterval = 10.seconds))
+    /** The list on [server], as the connection holds it for a server that records. */
+    private fun TestScope.schedule(server: RouteServer, api: SofaKingApi? = server.http.api()) =
+        RecordingSchedule(backgroundScope, MutableStateFlow(api), flowOf(true))
+
+    /** The model on [schedule], stopped as the test ends. */
+    private suspend fun TestScope.viewModel(server: RouteServer, schedule: RecordingSchedule = schedule(server)): RecordingsViewModel =
+        fixture.started(RecordingsViewModel(schedule, fixture.sessions(this, server.http.api()), timeSource = testScheduler.timeSource, saveInterval = 10.seconds))
 
     private val tv = PlaybackProfile(listOf("mp4"), listOf("h264"), listOf("aac"))
 
@@ -66,9 +75,8 @@ class RecordingsViewModelTest {
     }
 
     @Test
-    fun `series rules load with the list and change in place and stop and tell the guide each time`() = fixture.viewModelTest {
+    fun `series rules load with the list and change in place and stop and the guide follows`() = fixture.viewModelTest {
         var rules = """{"id":"s1","title":"Evening News","channelId":"c1","newOnly":true,"keep":0,"startPaddingSeconds":60,"endPaddingSeconds":120,"priority":0,"createdAt":"2026-10-18T00:00:00Z"}"""
-        var told = 0
         val server = recordingServer { method, path, body ->
             when {
                 method == "GET" && path == "/api/v1/recordings" -> 200 to """{"recordings":[]}"""
@@ -81,8 +89,11 @@ class RecordingsViewModelTest {
                 else -> null
             }
         }
-        val model = viewModel(server, changed = { told++ })
+        val schedule = schedule(server)
+        val model = viewModel(server, schedule)
         runCurrent()
+        val news = Programme("c1", Instant.parse("2026-10-18T18:00:00Z"), Instant.parse("2026-10-18T18:30:00Z"), "Evening News", null)
+        assertTrue(schedule.marks.value.of(news).series)
 
         val rule = assertIs<RecordingsState.Ready>(model.state.value).rules.single()
         assertEquals(SeriesRule("s1", "Evening News", "c1", newOnly = true, keep = 0), rule)
@@ -94,7 +105,7 @@ class RecordingsViewModelTest {
         assertTrue(model.deleteRule(rule))
         runCurrent()
         assertEquals(emptyList(), assertIs<RecordingsState.Ready>(model.state.value).rules)
-        assertEquals(2, told)
+        assertFalse(schedule.marks.value.of(news).series)
     }
 
     @Test
@@ -106,9 +117,8 @@ class RecordingsViewModelTest {
     }
 
     @Test
-    fun `deleting a recording drops it and tells the guide`() = fixture.viewModelTest {
+    fun `deleting a recording drops it`() = fixture.viewModelTest {
         var deleted = false
-        var told = 0
         val server = recordingServer { method, path, _ ->
             when {
                 method == "DELETE" && path == "/api/v1/recordings/r1" -> { deleted = true; 204 to "" }
@@ -116,7 +126,7 @@ class RecordingsViewModelTest {
                 else -> null
             }
         }
-        val model = viewModel(server, changed = { told++ })
+        val model = viewModel(server)
         runCurrent()
 
         val recording = model.recording("r1")!!
@@ -124,7 +134,6 @@ class RecordingsViewModelTest {
         runCurrent()
 
         assertEquals(emptyList(), assertIs<RecordingsState.Ready>(model.state.value).recordings)
-        assertEquals(1, told)
     }
 
     @Test

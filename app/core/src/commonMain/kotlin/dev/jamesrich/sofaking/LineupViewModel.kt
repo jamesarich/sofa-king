@@ -177,7 +177,7 @@ class LineupViewModel(
         val digits = ServerAddress.normalizeCode(code) ?: return PairingFailure.INVALID_CODE
         return try {
             val clientId = store.ensureClientId()
-            val result = connection.newApi(server, "").pair(PairingClaimDto(digits, clientId, client.deviceName, client.platform))
+            val result = connection.newApi(server, "").use { it.pair(PairingClaimDto(digits, clientId, client.deviceName, client.platform)) }
             store.setServer(server, result.apiToken)
             null
         } catch (e: CancellationException) {

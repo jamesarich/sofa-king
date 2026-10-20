@@ -20,26 +20,45 @@ import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.slf4j.LoggerFactory
 
 /** A stored snapshot may carry fields [dev.jamesrich.sofaking.backend.catalog.FeedSnapshot] does not declare. */
 private val snapshotJson = Json { ignoreUnknownKeys = true }
 
 private const val PLEX_STATUS_KEY = "plex_status"
 
+/** A transaction holding its connection longer than this is logged; on one writer, everything behind it waited too. */
+private const val SLOW_TRANSACTION_MS = 500L
+
+private val log = LoggerFactory.getLogger(BackendStore::class.java)
+
 interface IdentityStore {
     suspend fun serverId(): String
     suspend fun ready(): Boolean
 }
 
-/** Serializes short SQLite transactions; never owns network/media work. */
+/** One SQLite connection and the one thread that runs its transactions. */
+internal class DatabaseLane(val name: String) {
+    val executor: ExecutorService = Executors.newSingleThreadExecutor { task -> Thread(task, name) }
+    val dispatcher: ExecutorCoroutineDispatcher = executor.asCoroutineDispatcher()
+}
+
+/**
+ * Serializes short SQLite transactions; never owns network/media work. Writes, and reads that must sit inside a write,
+ * run in order on the writer; [read] runs on a second, read-only connection, so a long write never holds up a read.
+ */
 class BackendStore internal constructor(
     private val database: Database,
-    private val executor: ExecutorService,
-    private val dispatcher: ExecutorCoroutineDispatcher,
+    private val writer: DatabaseLane,
+    private val reader: Database,
+    private val readLane: DatabaseLane,
     private val clock: Clock,
 ) : IdentityStore, AutoCloseable {
     private val closed = AtomicBoolean(false)
     private val policy = HealthPolicy()
+
+    /** Mirror of provider_state; [ProviderStateStorage] replaces entries after each commit, so a tune never reads SQLite for it. */
+    internal val providerStates = AtomicReference<Map<Pair<String, String>, ProviderStateValue>>(emptyMap())
 
     /** Mirror of offering_health; only [writeHealth] replaces it, after the DB commit, so health reads never touch SQLite. */
     private val healthSnapshot = AtomicReference<Map<String, HealthState>>(emptyMap())
@@ -56,6 +75,7 @@ class BackendStore internal constructor(
             val count = OfferingHealth.offeringId.count()
             val latest = OfferingHealth.updatedAt.max()
             healthSeed.set(OfferingHealth.select(count, latest).single().let { "${it[count]}:${it[latest] ?: ""}" })
+            providerStates.set(ProviderStates.selectAll().associate { row -> (row[ProviderStates.providerId] to row[ProviderStates.key]) to row.providerState() })
         }
     }
 
@@ -232,7 +252,32 @@ class BackendStore internal constructor(
     }
 
     internal suspend fun <T> query(block: JdbcTransaction.() -> T): T = databaseWork {
-        transaction(database) { maxAttempts = 1; block() }
+        timed(block) { transaction(database) { maxAttempts = 1; block() } }
+    }
+
+    /** Runs [block] in one transaction, then [publish] on the same thread after the commit, so mirrors change in commit order. */
+    internal suspend fun <T> queryThen(block: JdbcTransaction.() -> T, publish: (T) -> Unit): T = databaseWork {
+        timed(block) { transaction(database) { maxAttempts = 1; block() } }.also(publish)
+    }
+
+    /** Runs [block] on the read-only connection: the last committed state, never waiting behind a write. */
+    internal suspend fun <T> read(block: JdbcTransaction.() -> T): T {
+        check(!closed.get()) { "Store is closed" }
+        return withContext(readLane.dispatcher) {
+            check(!closed.get()) { "Store is closed" }
+            timed(block) { transaction(reader, readOnly = true) { maxAttempts = 1; block() } }
+        }
+    }
+
+    /** Logs a transaction that held its connection for longer than [SLOW_TRANSACTION_MS], named by the file its block is in. */
+    private inline fun <T> timed(block: Any, work: () -> T): T {
+        val started = System.nanoTime()
+        try {
+            return work()
+        } finally {
+            val ms = (System.nanoTime() - started) / 1_000_000
+            if (ms > SLOW_TRANSACTION_MS) log.warn("slow database transaction source={} durationMs={}", block.javaClass.name.substringAfterLast('.').substringBefore('$'), ms)
+        }
     }
 
     /** Runs [block] in one transaction, then publishes the rows it changed; a rolled-back write publishes nothing. */
@@ -248,7 +293,7 @@ class BackendStore internal constructor(
 
     private suspend fun <T> databaseWork(block: () -> T): T {
         check(!closed.get()) { "Store is closed" }
-        return withContext(dispatcher) { check(!closed.get()) { "Store is closed" }; block() }
+        return withContext(writer.dispatcher) { check(!closed.get()) { "Store is closed" }; block() }
     }
 
     /** Lets SQLite refresh the statistics its query planner uses, on the tables that changed enough to need it. */
@@ -258,30 +303,49 @@ class BackendStore internal constructor(
         if (!closed.compareAndSet(false, true)) return
         // SQLite advises PRAGMA optimize before closing a long-lived connection; a failure must not stop the close.
         try {
-            executor.submit { transaction(database) { maxAttempts = 1; exec("PRAGMA optimize") } }.get(10, TimeUnit.SECONDS)
+            writer.executor.submit { transaction(database) { maxAttempts = 1; exec("PRAGMA optimize") } }.get(10, TimeUnit.SECONDS)
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
         } catch (_: Exception) {
             // Closing matters more than the statistics.
         }
-        executor.shutdown()
-        check(executor.awaitTermination(10, TimeUnit.SECONDS)) { "Database work did not stop" }
-        dispatcher.close()
+        // The reader closes first, so the writer's connection is the last and checkpoints the WAL.
+        val readStopped = readLane.stop()
+        closeDatabase(reader)
+        val writeStopped = writer.stop()
         closeDatabase(database)
+        check(readStopped && writeStopped) { "Database work did not stop" }
     }
 }
 
+private fun DatabaseLane.stop(): Boolean {
+    executor.shutdown()
+    val stopped = executor.awaitTermination(10, TimeUnit.SECONDS)
+    dispatcher.close()
+    return stopped
+}
+
 suspend fun openStore(dataDirectory: Path, clock: Clock = Clock.systemUTC()): BackendStore {
-    val executor = Executors.newSingleThreadExecutor { task -> Thread(task, "sofa-sqlite") }
-    val dispatcher = executor.asCoroutineDispatcher()
+    val writer = DatabaseLane("sofa-sqlite")
+    val readLane = DatabaseLane("sofa-sqlite-read")
+    var database: Database? = null
     var store: BackendStore? = null
     try {
-        val database = withContext(dispatcher) { databaseAt(dataDirectory) }
-        store = BackendStore(database, executor, dispatcher, clock)
+        database = withContext(writer.dispatcher) { databaseAt(dataDirectory) }
+        // The writer creates the file and sets WAL before the read-only connection opens it.
+        withContext(writer.dispatcher) { transaction(database) { maxAttempts = 1; exec("SELECT 1") } }
+        val reader = withContext(readLane.dispatcher) { databaseAt(dataDirectory, readOnly = true) }
+        store = BackendStore(database, writer, reader, readLane, clock)
         store.initialize()
         return store
     } catch (failure: Throwable) {
-        if (store != null) store.close() else dispatcher.close()
+        if (store != null) {
+            store.close()
+        } else {
+            readLane.stop()
+            writer.stop()
+            database?.let(::closeDatabase)
+        }
         throw failure
     }
 }

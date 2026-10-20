@@ -56,4 +56,28 @@ class LineupStorageTest {
             }
         } finally { dir.toFile().deleteRecursively() }
     }
+
+    @Test fun `an import shows readers the old guide until it completes, and the next import clears a failed one's rows`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-guide-generation-")
+        try {
+            openStore(dir).use { store ->
+                val old = (0 until 45_000).map { i -> GuideProgramme("c${i % 5}", t.plusSeconds(i * 60L), t.plusSeconds(i * 60L + 60), "Old $i", null) }
+                store.saveGuide("g", t, listOf(GuideChannel("c0", "Zero")), old)
+                assertEquals(45_000, store.guides().getValue("g").programmes, "an import over several transactions keeps every row")
+                // What an import that died after writing part of the next generation leaves behind.
+                store.query {
+                    exec("INSERT INTO guide_channel(guide_id, generation, channel_id, display_name) VALUES ('g', 2, 'c9', 'Partial')")
+                    exec("INSERT INTO guide_programme(guide_id, generation, channel_id, starts_at, ends_at, title) VALUES ('g', 2, 'c0', ${t.epochSecond}, ${t.epochSecond + 60}, 'Partial')")
+                }
+                assertEquals(listOf("Old 0"), store.programmes("g", listOf("c0"), t, t.plusSeconds(60)).getValue("c0").map { it.title }, "rows of an unfinished import stay hidden")
+                assertEquals(listOf("c0"), store.guides().getValue("g").channels.map { it.id })
+                val fresh = listOf(GuideProgramme("c0", t, t.plusSeconds(60), "New", null))
+                store.saveGuide("g", t.plusSeconds(60), listOf(GuideChannel("c0", "Zero")), fresh)
+                assertEquals(listOf("New"), store.programmes("g", listOf("c0"), t, t.plusSeconds(60)).getValue("c0").map { it.title })
+                assertEquals(1, store.guides().getValue("g").programmes)
+                val stored = store.query { exec("SELECT COUNT(*) FROM guide_programme") { it.next(); it.getInt(1) } }
+                assertEquals(1, stored, "the old generation and the failed import's rows are deleted")
+            }
+        } finally { dir.toFile().deleteRecursively() }
+    }
 }

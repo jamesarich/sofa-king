@@ -11,7 +11,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 private val factsJson = Json { ignoreUnknownKeys = true }
 
 /** The stored lookups of [itemIds], by item id. */
-suspend fun BackendStore.libraryMetadata(itemIds: Collection<String>): Map<String, MetadataRecord> = query {
+suspend fun BackendStore.libraryMetadata(itemIds: Collection<String>): Map<String, MetadataRecord> = read {
     itemIds.chunked(500).flatMap { chunk -> LibraryMetadataRows.selectAll().where { LibraryMetadataRows.itemId inList chunk }.map { it.metadata() } }
         .associateBy { it.itemId }
 }

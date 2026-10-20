@@ -38,13 +38,15 @@ SOFA_API_TOKEN=$(jq -r .apiToken config/secrets.json)
 SOFA_ADMIN_TOKEN=$(jq -r .adminToken config/secrets.json)
 ```
 
-Open `http://SERVER_HOST:9193/admin` and sign in with the `adminToken`. The home page starts with two setup steps, choose services and build the lineup, and lists what needs attention.
+Open `http://SERVER_HOST:9193/admin` and sign in with the `adminToken`. The home page starts with the setup steps and lists what needs attention.
 
-## 3. Add three services
+## 3. Choose services and build the lineup
 
-On the home page, choose Choose services. The Sources page lists every [native service](providers.md) as a switch, with the ones that need no option already ticked. For this tutorial, untick everything but Whale TV+, Tubi and Pluto TV, three services that need no account, and choose Save and restart. The confirmation names the three; the server writes `config/sources.json` and restarts, which signs you out, and the page returns to the portal in twenty seconds.
+On the home page, choose Choose services. The Sources page lists every [native service](providers.md) as a switch, with the ones that need no option already ticked. For this tutorial, untick everything but Whale TV+, Tubi and Pluto TV, three services that need no account. Leave Build the starter lineup too ticked, and choose Save and restart.
 
-The same by hand, if you prefer:
+The confirmation names the three services and the starter lineup. The server writes `config/sources.json` and the [starter policy](starter-lineup.md) in `config/policy.json`, which takes every channel of the three services in its priority order, groups them with the shipped category map and numbers each group in its own block. Then it restarts, and the page returns to the portal in twenty seconds, still signed in.
+
+The same by hand, if you prefer, with a smaller policy that takes every channel of the three services, Whale first, and puts whatever nothing else groups in Entertainment:
 
 ```sh
 cat > config/sources.json <<'EOF'
@@ -57,24 +59,6 @@ cat > config/sources.json <<'EOF'
   "guides": []
 }
 EOF
-docker compose restart
-```
-
-After a minute, the portal's Sources page lists each service with its channel count. The same counts come from the API:
-
-```sh
-curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/api/v1/providers
-```
-
-Each native service brings its own guide, so `guides` stays empty.
-
-## 4. Build the lineup
-
-The services list channels, but the server serves none until a [lineup policy](lineup-policy.md) builds the lineup. On the home page, choose Build the lineup and confirm: the server writes the [starter policy](starter-lineup.md), which takes every channel of the three services in its priority order, groups them with the shipped category map and numbers each group in its own block, then restarts.
-
-A smaller policy by hand instead, which takes every channel of the three services, Whale first, and puts whatever nothing else groups in Entertainment:
-
-```sh
 cat > config/policy.json <<'EOF'
 {
   "providers": [{ "id": "whale" }, { "id": "tubi" }, { "id": "pluto" }],
@@ -84,11 +68,17 @@ EOF
 docker compose restart
 ```
 
+Each native service brings its own guide, so `guides` stays empty. After a minute, the portal's Sources page lists each service with its channel count. The same counts come from the API:
+
+```sh
+curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/api/v1/providers
+```
+
 The server builds one station per channel. When two services carry the same channel, the first one listed leads and the other becomes its fallback. A station comes on once one of its sources has played in a probe, so the Channels page fills over the next hour or more.
 
 [Build a starter lineup](starter-lineup.md) describes what the starter policy holds and how to tune it.
 
-## 5. Watch
+## 4. Watch
 
 Plex and M3U players reach the guide and the streams with the output token, `outputToken` in `config/secrets.json`. The portal's Plex page, under Players, shows the playlist and guide URLs with it once you choose Reveal the output token.
 

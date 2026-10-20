@@ -29,8 +29,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
-/** What a setup write answers: the file it wrote and that the server is restarting to read it. */
-@Serializable data class SetupResult(val path: String, val restarting: Boolean)
+/** What a setup write answers: the file it wrote, the starter policy when it wrote one too, and that the server is restarting to read them. */
+@Serializable data class SetupResult(val path: String, val restarting: Boolean, val policyPath: String? = null)
 
 /**
  * Setup from the portal and the admin API: writes the source file and a starter lineup policy, then restarts the
@@ -53,6 +53,9 @@ class SetupService(config: ServerConfig, private val restart: () -> Unit = ::exi
     /** Whether the server started with a lineup policy. */
     val hasPolicy: Boolean = config.policyFile != null
 
+    /** Whether a starter policy may be written: the server runs no policy and there is no policy file yet. */
+    val canWriteStarterPolicy: Boolean get() = !hasPolicy && !Files.exists(policyPath)
+
     /** Whether a restart has been requested and the process is about to end. */
     val isRestarting: Boolean get() = restarting.get()
 
@@ -62,10 +65,14 @@ class SetupService(config: ServerConfig, private val restart: () -> Unit = ::exi
     }
 
     /**
-     * Replaces the source file with [document] and restarts. Fails with 400 INVALID_SOURCES and the reason when the
-     * document would not load at start; nothing is written then.
+     * Replaces the source file with [document] and restarts. With [starterPolicy], also writes the starter policy for
+     * its providers before the one restart, so a first setup is one save; it fails with 409 POLICY_EXISTS when a policy
+     * is configured. Fails with 400 INVALID_SOURCES and the reason when the document would not load at start; nothing
+     * is written then.
      */
-    suspend fun replaceSources(document: SourceDocument): SetupResult = mutex.withLock {
+    suspend fun replaceSources(document: SourceDocument, starterPolicy: Boolean = false): SetupResult = mutex.withLock {
+        if (starterPolicy && !canWriteStarterPolicy) throw ApiFailure(409, "POLICY_EXISTS", "A lineup policy is already configured at $policyPath")
+        if (starterPolicy && document.providers.isEmpty()) throw ApiFailure(409, "NO_SOURCES", "Add providers to build the starter lineup from")
         try { validateSources(document, environment) } catch (e: IllegalArgumentException) {
             throw ApiFailure(400, "INVALID_SOURCES", e.message ?: "The source configuration is not valid")
         } catch (e: kotlinx.serialization.SerializationException) {
@@ -76,8 +83,9 @@ class SetupService(config: ServerConfig, private val restart: () -> Unit = ::exi
             atomicWrite(sourcesPath, sourceBytes(document))
         }
         log.info("setup: wrote the source file providers={} guides={}", document.providers.size, document.guides.size)
+        if (starterPolicy) writeStarter(document.providers)
         requestRestart()
-        SetupResult(sourcesPath.toString(), true)
+        SetupResult(sourcesPath.toString(), true, policyPath.toString().takeIf { starterPolicy })
     }
 
     /**
@@ -85,9 +93,15 @@ class SetupService(config: ServerConfig, private val restart: () -> Unit = ::exi
      * already runs a policy or the file is there, and 409 NO_SOURCES with no providers to build from.
      */
     suspend fun writeStarterPolicy(): SetupResult = mutex.withLock {
-        if (hasPolicy || Files.exists(policyPath)) throw ApiFailure(409, "POLICY_EXISTS", "A lineup policy is already configured at $policyPath")
+        if (!canWriteStarterPolicy) throw ApiFailure(409, "POLICY_EXISTS", "A lineup policy is already configured at $policyPath")
         val providers = document().providers
         if (providers.isEmpty()) throw ApiFailure(409, "NO_SOURCES", "Add providers to the source file first")
+        writeStarter(providers)
+        requestRestart()
+        SetupResult(policyPath.toString(), true)
+    }
+
+    private suspend fun writeStarter(providers: List<FeedConfig>) {
         val policy = StarterPolicy.generate(providers)
         val errors = validatePolicy(policy, providers.mapTo(HashSet()) { it.id })
         check(errors.isEmpty()) { "The starter policy is not valid: $errors" }
@@ -96,8 +110,6 @@ class SetupService(config: ServerConfig, private val restart: () -> Unit = ::exi
             atomicWrite(policyPath, StarterPolicy.bytes(policy))
         }
         log.info("setup: wrote the starter policy entries={}", policy.providers.size)
-        requestRestart()
-        SetupResult(policyPath.toString(), true)
     }
 
     private fun requestRestart() {

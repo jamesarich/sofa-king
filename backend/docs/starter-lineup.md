@@ -2,7 +2,7 @@
 
 A fresh server knows its sources but serves no channels until a [lineup policy](lineup-policy.md) builds them. The starter policy is one station per channel, with every other service that carries the same channel attached as a fallback, the stations sorted into a small set of groups with a block of numbers each.
 
-The portal writes it for you: with sources and no policy, the home page's Build the lineup writes the policy below for the configured services and restarts, and the Sources page's switches write the source file ([setup](admin.md#setup)). This guide is for doing the same by hand, with the aliases the script mines from a running lineup, and for understanding what the policy holds. It takes about ten minutes, most of it waiting for imports.
+The portal writes it for you: the Sources page's services save writes the source file and, while there is no policy, this policy for the services it saves, with one restart; with sources and no policy, the home page's Build the lineup writes it on its own ([setup](admin.md#setup)). This guide is for doing the same by hand, with the aliases the script mines from a running lineup, and for understanding what the policy holds. It takes about ten minutes, most of it waiting for imports.
 
 You need a running server ([getting started](getting-started.md)) and its tokens. Generated tokens are in `secrets.json` in the data directory (`deploy/config` with Docker), as `apiToken` and `adminToken`. The examples run from `backend/` against the Docker port, and use these shell variables:
 

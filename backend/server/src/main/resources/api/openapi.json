@@ -372,7 +372,7 @@
       },
       "StationExplanation": { "type": "object", "description": "The station the policy builds for a key, its pins, and every candidate that names the key or joins it, each taken, skipped or claimed with a reason." },
       "SourceDocument": { "type": "object", "description": "The source file as written: providers and guides as docs/live-tv.md describes them, with ${NAME} references left unexpanded.", "properties": { "providers": { "type": "array", "items": { "type": "object" } }, "guides": { "type": "array", "items": { "type": "object" } } } },
-      "SetupResult": { "type": "object", "description": "A setup write: the file it wrote, and that the server is restarting to read it.", "properties": { "path": { "type": "string" }, "restarting": { "type": "boolean" } }, "required": ["path", "restarting"] },
+      "SetupResult": { "type": "object", "description": "A setup write: the file it wrote, the starter policy when it wrote one too, and that the server is restarting to read them.", "properties": { "path": { "type": "string" }, "restarting": { "type": "boolean" }, "policyPath": { "type": ["string", "null"], "description": "The starter policy file, when the write built one with starterPolicy=true" } }, "required": ["path", "restarting"] },
       "PlexStatus": {
         "type": "object",
         "properties": {
@@ -850,9 +850,10 @@
     "/api/v1/admin/source-file": {
       "get": { "tags": ["Admin"], "summary": "The source file as written", "description": "Providers and guides as the file holds them, ${NAME} references unexpanded; an empty document when the server has no source file.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SourceDocument" } } } } } },
-      "put": { "tags": ["Admin"], "summary": "Replace the source file and restart", "description": "Validates the document the way the start does (400 INVALID_SOURCES with the reason, nothing written), writes it atomically where the server reads it (SOFA_SOURCES, else sources.json in the data directory) and ends the process once the response is sent; the container's restart policy starts it again, and every portal session ends with it.", "security": [{ "adminToken": [] }],
+      "put": { "tags": ["Admin"], "summary": "Replace the source file and restart", "description": "Validates the document the way the start does (400 INVALID_SOURCES with the reason, nothing written), writes it atomically where the server reads it (SOFA_SOURCES, else sources.json in the data directory) and ends the process once the response is sent; the container's restart policy starts it again. With starterPolicy=true it also writes the starter lineup policy for the document's providers before that one restart (409 POLICY_EXISTS when a policy is configured, 409 NO_SOURCES without providers).", "security": [{ "adminToken": [] }],
+        "parameters": [{ "name": "starterPolicy", "in": "query", "required": false, "description": "true also writes the starter policy", "schema": { "type": "boolean" } }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SourceDocument" } } } },
-        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/plex": {
       "get": { "tags": ["Plex"], "summary": "The last Plex sync", "description": "404 PLEX_NOT_CONFIGURED when SOFA_PLEX_URL is unset.", "security": [{ "adminToken": [] }],

@@ -1,48 +1,93 @@
 package dev.jamesrich.sofaking.backend.admin
 
+import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.store.StoredAdminSession
+import dev.jamesrich.sofaking.backend.store.adminSessions
+import dev.jamesrich.sofaking.backend.store.deleteAdminSession
+import dev.jamesrich.sofaking.backend.store.saveAdminSession
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.Base64
+import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
-/** One signed-in browser: [id] travels in the cookie, [csrf] in every form it posts. */
-class AdminSession(val id: String, val csrf: String, val expiresAt: Instant) {
+/** One signed-in browser: [key] is the SHA-256 of the ID its cookie holds, [csrf] goes in every form it posts. */
+class AdminSession(internal val key: String, val csrf: String, val expiresAt: Instant) {
     /** The notice the next page shows once, set by an action before it redirects. */
     internal val flash = java.util.concurrent.atomic.AtomicReference<Flash?>(null)
 }
 
+/** A session [open] just started, and the ID its cookie carries. */
+class OpenedSession(val cookie: String, val session: AdminSession)
+
 /**
- * Portal sessions, held in memory only, so a restart signs everyone out. Each lasts [lifetime] from sign-in; past
- * [limit] the session closest to expiry gives way to the new one.
+ * Portal sessions. Each lasts [lifetime] from sign-in; past [limit] the session closest to expiry gives way to the new
+ * one. With a [store] they are kept in the database too, by the hash of their ID, so a restart (which every setup save
+ * makes) keeps everyone signed in; the database never holds an ID a cookie could be made from.
  */
-class AdminSessions(private val clock: Clock, private val lifetime: Duration = Duration.ofHours(12), private val limit: Int = 32) {
+class AdminSessions(
+    private val clock: Clock,
+    private val store: BackendStore? = null,
+    private val lifetime: Duration = Duration.ofHours(12),
+    private val limit: Int = 32,
+) {
     private val random = SecureRandom()
     private val sessions = ConcurrentHashMap<String, AdminSession>()
+    private val loaded = Mutex()
+    @Volatile private var ready = store == null
 
-    fun open(): AdminSession {
-        val now = clock.instant()
-        sessions.values.removeIf { !it.expiresAt.isAfter(now) }
-        while (sessions.size >= limit) sessions.values.minByOrNull { it.expiresAt }?.let { sessions.remove(it.id) } ?: break
-        val session = AdminSession(token(), token(), now.plus(lifetime))
-        sessions[session.id] = session
-        return session
+    /** Reads the stored sessions once, before the first lookup. */
+    private suspend fun load() {
+        if (ready) return
+        loaded.withLock {
+            if (ready) return
+            for (stored in store!!.adminSessions(clock.instant())) sessions.putIfAbsent(stored.key, AdminSession(stored.key, stored.csrf, stored.expiresAt))
+            ready = true
+        }
     }
 
-    fun find(id: String?): AdminSession? {
-        val session = id?.let { sessions[it] } ?: return null
+    suspend fun open(): OpenedSession {
+        load()
+        val now = clock.instant()
+        for (expired in sessions.values.filter { !it.expiresAt.isAfter(now) }) remove(expired.key)
+        while (sessions.size >= limit) sessions.values.minByOrNull { it.expiresAt }?.let { remove(it.key) } ?: break
+        val id = token()
+        val session = AdminSession(hash(id), token(), now.plus(lifetime))
+        sessions[session.key] = session
+        store?.saveAdminSession(StoredAdminSession(session.key, session.csrf, session.expiresAt))
+        return OpenedSession(id, session)
+    }
+
+    suspend fun find(id: String?): AdminSession? {
+        if (id.isNullOrEmpty()) return null
+        load()
+        val session = sessions[hash(id)] ?: return null
         if (session.expiresAt.isAfter(clock.instant())) return session
-        sessions.remove(session.id)
+        remove(session.key)
         return null
     }
 
-    fun close(id: String) {
-        sessions.remove(id)
+    /** Ends the session whose cookie holds [id]. */
+    suspend fun close(id: String) {
+        load()
+        remove(hash(id))
+    }
+
+    suspend fun close(session: AdminSession) = remove(session.key)
+
+    private suspend fun remove(key: String) {
+        sessions.remove(key)
+        store?.deleteAdminSession(key)
     }
 
     private fun token(): String = ByteArray(32).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
+
+    private fun hash(id: String): String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(id.toByteArray()))
 }
 
 /** Equal strings, compared in time that depends on neither's content nor length. */

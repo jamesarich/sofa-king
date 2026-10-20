@@ -18,7 +18,7 @@ The config folder holds everything the server keeps across restarts:
 | `secrets.json` | The generated API, admin and output tokens |
 | `sources.json`, `policy.json` | The source file and the lineup policy, when they are kept here |
 
-Playback sessions, library playback sessions, admin portal sessions, the live pairing code and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions. A recording running at the restart resumes into the same file.
+Playback sessions, library playback sessions, the live pairing code and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions. A recording running at the restart resumes into the same file.
 
 ## Backups
 

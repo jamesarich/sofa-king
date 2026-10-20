@@ -321,7 +321,7 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
         }
     }
     if (view.confirmStarter) askDialog(chrome, "Build the lineup from every configured service?", "/admin/policy/starter", "/admin#setup", "Build and restart") {
-        p { +"Writes a lineup policy: one station per channel, the first service that carries a channel leading it and the others as fallbacks, the channels grouped and numbered in blocks, each coming on once a source of it has played. Then the server restarts; you sign in again in a few seconds." }
+        p { +"Writes a lineup policy: one station per channel, the first service that carries a channel leading it and the others as fallbacks, the channels grouped and numbered in blocks, each coming on once a source of it has played. Then the server restarts and is back in a few seconds; you stay signed in." }
         p("muted small") { +"The policy is a file you can edit later, and the Channels pages change it for you." }
     }
 }

@@ -9,9 +9,9 @@ import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
 import org.jetbrains.exposed.v1.jdbc.*
 
-suspend fun BackendStore.recordingRules(): List<StoredRule> = query { RecordingRules.selectAll().map { it.rule() }.sortedBy { it.createdAt } }
+suspend fun BackendStore.recordingRules(): List<StoredRule> = read { RecordingRules.selectAll().map { it.rule() }.sortedBy { it.createdAt } }
 
-suspend fun BackendStore.recordingRule(id: String): StoredRule? = query { RecordingRules.selectAll().where { RecordingRules.id eq id }.singleOrNull()?.rule() }
+suspend fun BackendStore.recordingRule(id: String): StoredRule? = read { RecordingRules.selectAll().where { RecordingRules.id eq id }.singleOrNull()?.rule() }
 
 /** Inserts or replaces [rule]. */
 suspend fun BackendStore.saveRecordingRule(rule: StoredRule) = query {
@@ -37,9 +37,9 @@ suspend fun BackendStore.deleteRecordingRule(id: String, scheduledStates: Collec
     deleted
 }
 
-suspend fun BackendStore.recordings(): List<StoredRecording> = query { Recordings.selectAll().map { it.recording() } }
+suspend fun BackendStore.recordings(): List<StoredRecording> = read { Recordings.selectAll().map { it.recording() } }
 
-suspend fun BackendStore.recording(id: String): StoredRecording? = query { Recordings.selectAll().where { Recordings.id eq id }.singleOrNull()?.recording() }
+suspend fun BackendStore.recording(id: String): StoredRecording? = read { Recordings.selectAll().where { Recordings.id eq id }.singleOrNull()?.recording() }
 
 /** Adds [recording] unless one is already stored for the same channel and start; true when it was added. */
 suspend fun BackendStore.addRecording(recording: StoredRecording): Boolean = query {

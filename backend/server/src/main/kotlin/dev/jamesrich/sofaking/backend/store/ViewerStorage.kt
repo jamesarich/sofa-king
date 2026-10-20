@@ -15,12 +15,12 @@ import org.jetbrains.exposed.v1.jdbc.update
 private val viewerJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
 /** Every viewer, most recently seen first. */
-suspend fun BackendStore.viewers(): List<Viewer> = query {
+suspend fun BackendStore.viewers(): List<Viewer> = read {
     Viewers.selectAll().map { it.viewer() }.sortedByDescending { it.lastSeenAt }
 }
 
 /** The viewer [clientId], or null when it never paired or saved preferences. */
-suspend fun BackendStore.viewer(clientId: String): Viewer? = query {
+suspend fun BackendStore.viewer(clientId: String): Viewer? = read {
     Viewers.selectAll().where { Viewers.clientId eq clientId }.singleOrNull()?.viewer()
 }
 

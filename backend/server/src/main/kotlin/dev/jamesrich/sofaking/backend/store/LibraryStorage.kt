@@ -25,11 +25,11 @@ import org.jetbrains.exposed.v1.jdbc.update
 /** A stored document may carry fields this server does not declare. */
 private val libraryJson = Json { ignoreUnknownKeys = true }
 
-suspend fun BackendStore.libraries(): List<LibraryRecord> = query {
+suspend fun BackendStore.libraries(): List<LibraryRecord> = read {
     Libraries.selectAll().mapNotNull { it.library() }.sortedBy { it.name.lowercase() }
 }
 
-suspend fun BackendStore.library(id: String): LibraryRecord? = query {
+suspend fun BackendStore.library(id: String): LibraryRecord? = read {
     Libraries.selectAll().where { Libraries.id eq id }.singleOrNull()?.library()
 }
 
@@ -69,12 +69,12 @@ suspend fun BackendStore.recordLibraryScan(id: String, at: Instant, ok: Boolean,
 }
 
 /** Every item of the library, present or missing. */
-suspend fun BackendStore.libraryItems(libraryId: String): List<LibraryItemRecord> = query {
+suspend fun BackendStore.libraryItems(libraryId: String): List<LibraryItemRecord> = read {
     LibraryItems.selectAll().where { LibraryItems.libraryId eq libraryId }.map { it.item() }
 }
 
 /** Present items by library and kind, for the portal's counts. */
-suspend fun BackendStore.libraryItemCounts(): Map<String, Map<String, Int>> = query {
+suspend fun BackendStore.libraryItemCounts(): Map<String, Map<String, Int>> = read {
     val count = LibraryItems.id.count()
     LibraryItems.select(LibraryItems.libraryId, LibraryItems.kind, count).where { LibraryItems.missingSince.isNull() }
         .groupBy(LibraryItems.libraryId, LibraryItems.kind)
@@ -104,7 +104,7 @@ suspend fun BackendStore.deleteLibraryItems(ids: Collection<String>) = query {
 }
 
 /** Every stored watch state, by item id; the table holds a row only for items someone started or finished. */
-suspend fun BackendStore.playStates(): Map<String, PlayStateRecord> = query {
+suspend fun BackendStore.playStates(): Map<String, PlayStateRecord> = read {
     PlayStates.selectAll().map {
         PlayStateRecord(it[PlayStates.itemId], it[PlayStates.positionMs], it[PlayStates.durationMs], it[PlayStates.watched], it[PlayStates.updatedAt])
     }.associateBy { it.itemId }

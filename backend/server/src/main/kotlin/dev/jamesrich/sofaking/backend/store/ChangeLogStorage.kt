@@ -28,7 +28,7 @@ suspend fun BackendStore.recordPolicyChanges(changes: List<PolicyChange>, at: In
 }
 
 /** The newest [limit] changes, newest first. */
-suspend fun BackendStore.policyChanges(limit: Int): List<PolicyChangeEntry> = query {
+suspend fun BackendStore.policyChanges(limit: Int): List<PolicyChangeEntry> = read {
     PolicyChanges.selectAll().orderBy(PolicyChanges.id to SortOrder.DESC).limit(limit).map {
         PolicyChangeEntry(it[PolicyChanges.id], it[PolicyChanges.appliedAt], changeJson.decodeFromString(it[PolicyChanges.changeJson]))
     }

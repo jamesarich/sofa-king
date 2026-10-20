@@ -29,6 +29,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.*
@@ -172,7 +173,14 @@ private fun ResultRow(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle(title, insets)
-        LazyRow(contentPadding = insets.horizontalOnly(), horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
+        // Up and Down come back to the card last focused in the row; focus requested inside it enters through the
+        // restorer too, so the card it asks for is its fallback.
+        val fallback = when {
+            items.any { it.id == returnedFrom } -> returnFocus
+            firstFocus != null -> firstFocus
+            else -> FocusRequester.Default
+        }
+        LazyRow(Modifier.focusRestorer(fallback), contentPadding = insets.horizontalOnly(), horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
             items(items, key = { it.id }) { item ->
                 val modifier = when {
                     item.id == returnedFrom -> Modifier.focusRequester(returnFocus)

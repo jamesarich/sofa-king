@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.ui
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.Key
 
 /** How many frames a focus request waits for its node by default; a first guide frame on a slow TV needs more. */
 internal const val FOCUS_ATTACH_FRAMES = 10
@@ -47,3 +48,6 @@ internal class HeldOkGuard {
         if (held) swallowing = true
     }
 }
+
+/** The keys that press OK: the remote's centre, Enter and a keypad's Enter, as Compose's own clickable reads them. */
+internal val Key.isOk: Boolean get() = this == Key.DirectionCenter || this == Key.Enter || this == Key.NumPadEnter

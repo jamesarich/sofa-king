@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,6 +61,10 @@ fun RecordingsScreen(
     onBack: () -> Unit,
     onRuleChange: suspend (rule: SeriesRule, newOnly: Boolean, keep: Int) -> Boolean = { _, _, _ -> false },
     onRuleDelete: suspend (SeriesRule) -> Boolean = { false },
+    /** The recording just played, which takes focus again on the way back. */
+    returnedFrom: String? = null,
+    /** Whether the header above has focus; the list scrolls back to the top under it. */
+    headerFocused: Boolean = false,
 ) {
     BackHandler(onBack = onBack)
     when (state) {
@@ -67,7 +72,7 @@ fun RecordingsScreen(
         RecordingsState.Unconfigured -> MessageScreen(stringResource(Res.string.unconfigured), hint = stringResource(Res.string.unconfigured_hint))
         RecordingsState.Unavailable -> MessageScreen(stringResource(Res.string.recordings_unavailable))
         is RecordingsState.Failed -> MessageScreen(stringResource(Res.string.load_failed), detail = state.message, onRetry = onRetry)
-        is RecordingsState.Ready -> RecordingList(state, onPlay, onDelete, onRuleChange, onRuleDelete)
+        is RecordingsState.Ready -> RecordingList(state, onPlay, onDelete, onRuleChange, onRuleDelete, returnedFrom, headerFocused)
     }
 }
 
@@ -78,15 +83,21 @@ private fun RecordingList(
     onDelete: suspend (DvrRecording) -> Boolean,
     onRuleChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
     onRuleDelete: suspend (SeriesRule) -> Boolean,
+    returnedFrom: String?,
+    headerFocused: Boolean,
 ) {
     val time = rememberTimeFormatter()
+    val listState = rememberLazyListState()
+    // Back or Up to the header shows the list from its top, so Down lands on the first recording.
+    LaunchedEffect(headerFocused) { if (headerFocused) listState.animateScrollToItem(0) }
     val groups = remember(state.recordings) { recordingGroups(state.recordings) }
     val firstFocus = remember { FocusRequester() }
-    // The first recording takes focus; with none, focus stays on the header's tab.
+    // The recording just played takes focus, else the first; with none, focus stays on the header's tab.
     LaunchedEffect(groups.isEmpty()) { if (groups.isNotEmpty()) requestFocusWhenAttached(firstFocus) }
     LazyColumn(
         // The app's header sits above, with the tabs, so the list pads the sides and bottom only.
         modifier = Modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+        state = listState,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         if (state.space.totalBytes > 0) {
@@ -107,7 +118,8 @@ private fun RecordingList(
                 }
             }
         }
-        val firstId = groups.firstOrNull()?.second?.firstOrNull()?.id
+        val firstId = returnedFrom?.takeIf { id -> groups.any { (_, recordings) -> recordings.any { it.id == id } } }
+            ?: groups.firstOrNull()?.second?.firstOrNull()?.id
         groups.forEach { (group, recordings) ->
             item(key = "group-${group.name}") {
                 Text(stringResource(group.label), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)

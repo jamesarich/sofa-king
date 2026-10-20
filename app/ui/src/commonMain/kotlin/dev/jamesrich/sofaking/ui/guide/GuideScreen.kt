@@ -72,6 +72,7 @@ import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
@@ -176,7 +177,8 @@ fun GuideScreen(
     startAtNow: Boolean,
     startSearch: Boolean,
     returnedFrom: String?,
-    onPlay: (Channel, ZapScope?) -> Unit,
+    /** Opens [channel] full screen; [unattended] when the preview opened it by itself, with no key pressed. */
+    onPlay: (channel: Channel, scope: ZapScope?, unattended: Boolean) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     /** The viewer chose a filter chip; its key is saved for the next launch. */
     onFilterChanged: (String?) -> Unit,
@@ -254,7 +256,7 @@ fun GuideScreen(
     }
     val currentZapScope by rememberUpdatedState(zapScope)
     val currentOnPlay by rememberUpdatedState(onPlay)
-    val play: (Channel) -> Unit = remember { { channel -> currentOnPlay(channel, currentZapScope) } }
+    val play: (Channel) -> Unit = remember { { channel -> currentOnPlay(channel, currentZapScope, false) } }
     // Search also matches programmes later in the window; those channels get a "Later" line under their row.
     val upcoming = remember(byFilter, lineup.guide, query, searchNow, windowEnd) {
         if (searchNow == null) {
@@ -672,7 +674,7 @@ fun GuideScreen(
                         // The same handoff as OK: the preview session is promoted, nothing reloads. A preview
                         // without a picture is not opened; it would only carry its failure to the full screen.
                         val channel = focused?.channel?.takeIf { it.guideId == dwell.channelId }
-                        if (channel != null && !input.failed && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) play(channel)
+                        if (channel != null && !input.failed && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) currentOnPlay(channel, currentZapScope, true)
                         return@collectLatest
                     }
                     delay(dwell.nextTransitionMs(now) ?: return@collectLatest)
@@ -698,7 +700,7 @@ fun GuideScreen(
             }
         }
         // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
-        val okKey = event.key == Key.DirectionCenter || event.key == Key.Enter
+        val okKey = event.key.isOk
         // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
         if (okKey && event.type == KeyEventType.KeyDown && heldOk.onKeyDown()) return@handler true
         if (okKey && event.type == KeyEventType.KeyUp && heldOk.onKeyUp()) return@handler true

@@ -62,15 +62,16 @@ import kotlinx.coroutines.launch
 /**
  * The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the
  * user is on. [pairing] is a server to pair with from a `sofaking://pair` link the platform received; the app claims
- * it once and calls [onPairingHandled], so a restored activity does not claim it again.
+ * it once and calls [onPairingHandled], so a restored activity does not claim it again. [onReady] runs once the first
+ * page is chosen, which is when Android lets its splash screen go.
  */
 @Composable
-fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
+fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}, onReady: () -> Unit = {}) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
     SofaKingTheme {
         val lastInput = rememberLastInput()
         CompositionLocalProvider(LocalLayoutProfile provides rememberLayoutProfile(), LocalLastInput provides lastInput) {
-            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
+            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled, onReady = onReady) }
         }
     }
 }
@@ -81,7 +82,7 @@ fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
  * LibraryDestinations, RecordingsDestinations, SettingsDestinations), which reads the state it shows itself.
  */
 @Composable
-private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
+private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}, onReady: () -> Unit = {}) {
     val vm = viewModel { appGraph.lineupViewModel() }
     val libraryVm = viewModel { appGraph.libraryViewModel() }
     val recordingsVm = viewModel { appGraph.recordingsViewModel() }
@@ -125,6 +126,8 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
     // never opens a session that the full screen is about to replace.
     val launch = launchTarget(state, settings)
     LaunchedEffect(launch, shell.launchDecided) { shell.decideLaunch(launch) }
+    val currentOnReady by rememberUpdatedState(onReady)
+    LaunchedEffect(shell.launchDecided) { if (shell.launchDecided) currentOnReady() }
     // The open tab is remembered for the next start, once this start has picked its own.
     LaunchedEffect(nav.tab, shell.launchDecided) {
         if (shell.launchDecided && settings?.lastTab != nav.tab.topLevel) vm.setLastTab(nav.tab.topLevel)
@@ -238,11 +241,12 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
                 notice = shell.notice,
                 onSettings = openSettings,
                 onBackToLive = shell::backToLive,
-            ) { showsTabs, tabBack ->
+                focusHeaderIfIdle = (route == Route.Library || route == Route.Recordings) && arrival.returnedFrom == null,
+            ) { showsTabs, tabBack, headerFocused ->
                 when (route) {
                     Route.Guide -> GuideDestination(arrival, shell, vm, player, settingsFocus, headerFocus = tabFocus.takeIf { showsTabs })
-                    Route.Library -> LibraryHomeDestination(arrival, shell, libraryVm, tabBack)
-                    Route.Recordings -> RecordingsDestination(shell, recordingsVm, tabBack)
+                    Route.Library -> LibraryHomeDestination(arrival, shell, libraryVm, tabBack, headerFocused)
+                    Route.Recordings -> RecordingsDestination(arrival, shell, recordingsVm, tabBack, headerFocused)
                     is Route.LibrarySearch -> LibrarySearchDestination(route, arrival, shell, libraryVm)
                     is Route.LibraryGrid -> LibraryGridDestination(route, arrival, shell, libraryVm)
                 }

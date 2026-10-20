@@ -5,4 +5,11 @@
         <item name="android:colorBackground">@color/sofa_plum</item>
         <item name="android:windowNoTitle">true</item>
     </style>
+
+    <!-- The launch theme: the logo on the same plum until MainActivity has chosen its first page (core-splashscreen). -->
+    <style name="Theme.SofaKing.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/sofa_plum</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.SofaKing</item>
+    </style>
 </resources>

@@ -25,6 +25,13 @@ class NavigationTest {
     }
 
     @Test
+    fun `back from a recording focuses it on the recordings page`() {
+        val nav = start.open(Tab.RECORDINGS).push(Route.Recording("r5")).pop()
+        assertEquals(Route.Recordings, nav.top)
+        assertEquals("r5", nav.arrival.returnedFrom)
+    }
+
+    @Test
     fun `back from a grid or search focuses its chip on the library home`() {
         val library = start.open(Tab.LIBRARY)
         assertEquals(libraryFocusKey("tv"), library.push(Route.LibraryGrid("tv")).pop().arrival.returnedFrom)

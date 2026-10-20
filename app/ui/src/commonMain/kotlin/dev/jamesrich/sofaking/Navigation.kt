@@ -27,9 +27,12 @@ internal sealed interface Route : NavKey {
         override val id: String get() = "guide"
     }
 
-    /** A live channel full screen; [scope] is the guide filter it was picked from, which Up and Down stay in. */
+    /**
+     * A live channel full screen; [scope] is the guide filter it was picked from, which Up and Down stay in.
+     * [unattended] marks one the guide opened by itself, which keeps the screen on only once a key is pressed.
+     */
     @Serializable
-    data class Player(val guideId: String, @Transient val scope: ZapScope? = null) : Route {
+    data class Player(val guideId: String, @Transient val scope: ZapScope? = null, @Transient val unattended: Boolean = false) : Route {
         override val id: String get() = "player"
     }
 
@@ -109,6 +112,7 @@ internal sealed interface Route : NavKey {
         get() = when (this) {
             is LibraryItem -> itemId
             is Vod -> itemId
+            is Recording -> recordingId
             is LibraryGrid -> libraryFocusKey(libraryId)
             is LibrarySearch -> SEARCH_FOCUS_KEY
             Channels -> CHANNELS_FOCUS_KEY

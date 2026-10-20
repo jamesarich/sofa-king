@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -66,14 +67,23 @@ internal fun TabPage(
     notice: String?,
     onSettings: () -> Unit,
     onBackToLive: () -> Unit,
-    content: @Composable (showsTabs: Boolean, tabBack: () -> Unit) -> Unit,
+    focusHeaderIfIdle: Boolean,
+    content: @Composable (showsTabs: Boolean, tabBack: () -> Unit, headerFocused: Boolean) -> Unit,
 ) {
     val showsTabs = tv
+    var pageFocused by remember { mutableStateOf(false) }
     // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
     LaunchedEffect(Unit) {
-        val target = headerReturn ?: return@LaunchedEffect
-        if (showsTabs) requestFocusWhenAttached(if (target == HeaderReturn.SETTINGS) settingsFocus else tabFocus)
-        onHeaderFocusRequested()
+        val target = headerReturn
+        if (target != null) {
+            if (showsTabs) requestFocusWhenAttached(if (target == HeaderReturn.SETTINGS) settingsFocus else tabFocus)
+            onHeaderFocusRequested()
+        } else if (focusHeaderIfIdle && showsTabs) {
+            // A page that takes no focus of its own (Library's home, Recordings with nothing recorded) leaves it on
+            // its tab, so something is focused from the start and OK or Down work at once.
+            repeat(IDLE_FOCUS_FRAMES) { withFrameNanos { } }
+            if (!pageFocused) requestFocusWhenAttached(tabFocus)
+        }
     }
     var headerFocused by remember { mutableStateOf(false) }
     val tabBack: () -> Unit = {
@@ -82,7 +92,7 @@ internal fun TabPage(
             TabBack.OPEN_LIVE -> onBackToLive()
         }
     }
-    Column {
+    Column(Modifier.onFocusChanged { pageFocused = it.hasFocus }) {
         Header(
             modifier = Modifier.onFocusChanged { headerFocused = it.hasFocus },
             refreshing = refreshing,
@@ -92,9 +102,12 @@ internal fun TabPage(
             tabs = tabs.takeIf { showsTabs },
             tabFocus = tabFocus,
         )
-        content(showsTabs, tabBack)
+        content(showsTabs, tabBack, headerFocused)
     }
 }
+
+/** Frames a tab page gets to focus something of its own before its tab takes focus. */
+private const val IDLE_FOCUS_FRAMES = 3
 
 
 /** Which destination is open, whether Library and Recordings are offered, and what picking one does. */

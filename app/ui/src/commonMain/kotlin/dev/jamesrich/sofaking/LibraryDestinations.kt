@@ -48,7 +48,7 @@ private fun cardMenu(shell: AppShellState, libraryVm: LibraryViewModel) = CardMe
 
 /** The Library tab's first page: the shelves. [tabBack] climbs to the header, then opens Live. */
 @Composable
-internal fun LibraryHomeDestination(arrival: Arrival, shell: AppShellState, libraryVm: LibraryViewModel, tabBack: () -> Unit) {
+internal fun LibraryHomeDestination(arrival: Arrival, shell: AppShellState, libraryVm: LibraryViewModel, tabBack: () -> Unit, headerFocused: Boolean) {
     val home by libraryVm.home.collectAsStateWithLifecycle()
     BackHandler(onBack = tabBack)
     LibraryHomeScreen(
@@ -62,6 +62,7 @@ internal fun LibraryHomeDestination(arrival: Arrival, shell: AppShellState, libr
             menu = cardMenu(shell, libraryVm),
         ),
         returnedFrom = arrival.returnedFrom,
+        headerFocused = headerFocused,
     )
 }
 

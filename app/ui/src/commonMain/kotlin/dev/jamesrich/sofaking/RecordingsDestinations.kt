@@ -20,7 +20,7 @@ import org.jetbrains.compose.resources.stringResource
 
 /** The Recordings tab: the list, read again each time it opens. [tabBack] climbs to the header, then opens Live. */
 @Composable
-internal fun RecordingsDestination(shell: AppShellState, recordingsVm: RecordingsViewModel, tabBack: () -> Unit) {
+internal fun RecordingsDestination(arrival: Arrival, shell: AppShellState, recordingsVm: RecordingsViewModel, tabBack: () -> Unit, headerFocused: Boolean) {
     val recordings by recordingsVm.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { recordingsVm.refresh() }
     RecordingsScreen(
@@ -31,6 +31,8 @@ internal fun RecordingsDestination(shell: AppShellState, recordingsVm: Recording
         onBack = tabBack,
         onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
         onRuleDelete = recordingsVm::deleteRule,
+        returnedFrom = arrival.returnedFrom,
+        headerFocused = headerFocused,
     )
 }
 

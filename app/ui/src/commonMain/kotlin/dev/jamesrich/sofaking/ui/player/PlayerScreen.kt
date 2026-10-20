@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -46,8 +45,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.withStateAtLeast
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.KeepScreenOn
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.isLongPress
@@ -140,6 +141,8 @@ fun PlayerScreen(
     previousGuideId: String? = null,
     /** The guide filter the channel was picked from; null cycles the whole lineup. */
     zapScope: ZapScope? = null,
+    /** Opened by the guide with no key pressed: the screen may sleep until the first key or tap. */
+    unattended: Boolean = false,
     player: LivePlayer,
     sessions: PlaybackSessions,
     onExit: () -> Unit,
@@ -240,13 +243,16 @@ fun PlayerScreen(
 
     // The system's next/previous/play/pause (MediaSession, media keys) reach the player through this session.
     val zapRelay = remember { ZapRelay() }
-    // Opened and closed by the effect, never during composition; the publishers below all run after it.
+    // An auto-opened full screen lets the screen sleep (ambient mode) until someone presses a key or taps.
+    var attended by remember { mutableStateOf(!unattended) }
+    // Opened and closed by the effect, never during composition; the publishers below all run after it. It is
+    // open only while the app is in front, as the app stops the player behind another app.
     var mediaSession by remember { mutableStateOf<MediaSessionHandle?>(null) }
-    DisposableEffect(player) {
+    LifecycleStartEffect(player, lifecycleOwner = appLifecycleOwner) {
         val session = player.openMediaSession { step -> zapRelay.onStep(step) }
         mediaSession = session
         player.volume = 1f
-        onDispose {
+        onStopOrDispose {
             session.close()
             mediaSession = null
         }
@@ -392,7 +398,7 @@ fun PlayerScreen(
     }
 
     // Moves the session's programme title on with the minute clock when the show changes; the stream is not touched.
-    LaunchedEffect(index, now) {
+    LaunchedEffect(index, now, mediaSession) {
         val channel = currentChannels.getOrNull(index) ?: return@LaunchedEffect
         mediaSession?.publish(nowPlayingFor(channel))
     }
@@ -741,7 +747,7 @@ fun PlayerScreen(
             }
         }
         if (key == Key.Info) return handleInfo(event)
-        if (key == Key.DirectionCenter || key == Key.Enter) {
+        if (key.isOk) {
             if (streamCardOpen) {
                 // The focused track row takes OK; with nothing to pick, OK closes the card on its key-up.
                 if (streamCardOk(audioTracks.isNotEmpty()) == StreamCardKey.CARD) return false
@@ -792,8 +798,16 @@ fun PlayerScreen(
                     }
                 }
             }
-            .onPreviewKeyEvent { event -> handleKeyEvent(event) }
-            .pointerInput(Unit) { detectTapGestures(onTap = { currentHandleTap() }) }
+            .onPreviewKeyEvent { event ->
+                attended = true
+                handleKeyEvent(event)
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = {
+                    attended = true
+                    currentHandleTap()
+                })
+            }
             // A swipe up on a touch screen opens the channel list, the way a second OK does on the remote.
             .pointerInput(Unit) {
                 var dragged = 0f
@@ -806,7 +820,7 @@ fun PlayerScreen(
     ) {
         player.Video(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         Captions(player, captionStyle, captionBottomFraction, Modifier.fillMaxSize())
-        KeepScreenOn(playing)
+        KeepScreenOn(playing && attended)
 
         val channel = currentChannels.getOrNull(index)
         if (channel == null) {

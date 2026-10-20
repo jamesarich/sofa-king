@@ -23,9 +23,11 @@ internal class SetupConfirm(val title: String, val action: String, val lines: Li
 internal class SetupView(
     val services: List<ServiceRow>, val playlists: List<FeedConfig>, val hasSources: Boolean, val path: String,
     val errors: List<String> = emptyList(), val proposed: Parameters? = null, val confirm: SetupConfirm? = null,
+    /** Whether the services save can build the starter lineup too: there is no lineup policy yet. */
+    val canBuildStarter: Boolean = false,
 ) {
     constructor(view: SetupView, errors: List<String> = emptyList(), proposed: Parameters? = null, confirm: SetupConfirm? = null) :
-        this(view.services, view.playlists, view.hasSources, view.path, errors, proposed, confirm)
+        this(view.services, view.playlists, view.hasSources, view.path, errors, proposed, confirm, view.canBuildStarter)
 
     companion object {
         /** The view of [document], the source file as written; with no file, every service that works without options starts checked. */
@@ -36,7 +38,7 @@ internal class SetupView(
                 val configured = native[info.service]?.firstOrNull()
                 ServiceRow(info, configured != null || (fresh && info.startsOn), configured?.options.orEmpty())
             }
-            return SetupView(services, document.providers.filter { !it.native }, setup.hasSources, setup.sourcesPath.toString())
+            return SetupView(services, document.providers.filter { !it.native }, setup.hasSources, setup.sourcesPath.toString(), canBuildStarter = setup.canWriteStarterPolicy)
         }
     }
 }
@@ -46,6 +48,12 @@ internal fun Parameters.setupFields(): Map<String, List<String>> = names().filte
 
 /** The host of [url], or a stand-in, for a page that must not show a path or query. */
 internal fun hostOnly(url: String?): String = url?.trim()?.let { runCatching { java.net.URI(it).host }.getOrNull() } ?: "a URL"
+
+/** The services form's checkbox that builds the starter lineup in the same save. */
+internal const val STARTER_FIELD = "starter"
+
+/** Whether the services form asks for the starter lineup too. */
+internal fun Parameters.wantsStarter(): Boolean = this[STARTER_FIELD] == "on"
 
 /** The form field that switches a service on, and the one that holds one of its options. */
 internal fun serviceField(service: String) = "svc"
@@ -120,7 +128,7 @@ internal fun servicesChanges(document: SourceDocument, next: SourceDocument): Li
 }
 
 private fun FlowContent.restartNote() = p("muted small") {
-    +"Saving writes the source file and restarts the server, which takes a few seconds. Anyone watching loses the stream and can open the channel again, and you sign in again afterwards."
+    +"Saving writes the source file and restarts the server, which takes a few seconds. Anyone watching loses the stream and can open the channel again; you stay signed in."
 }
 
 /** The services as switches, with the options the checked ones take, and one Save. */
@@ -154,6 +162,11 @@ internal fun FlowContent.servicesPanel(chrome: Chrome, view: SetupView) = panel(
                     }
                 }
             }
+        }
+        if (view.canBuildStarter) label("switch") {
+            checkBoxInput(name = STARTER_FIELD) { value = "on"; checked = view.proposed?.wantsStarter() ?: true }
+            span("name") { +"Build the starter lineup too" }
+            span("muted small") { +"One station per channel across these services, grouped and numbered in blocks; channels come on as the server verifies them. Untick to write a lineup policy yourself." }
         }
         restartNote()
         div("actions") { button(type = ButtonType.submit, classes = "primary") { +"Save and restart" } }
@@ -215,7 +228,7 @@ internal fun FlowContent.setupConfirm(chrome: Chrome, confirm: SetupConfirm, bac
     askDialog(chrome, confirm.title, confirm.action, back, "Save and restart") {
         for ((name, values) in confirm.fields) for (value in values) hiddenInput(name = name) { this.value = value }
         if (confirm.lines.isNotEmpty()) ul { for (line in confirm.lines) li { +line } }
-        p { +"The server writes the file and restarts; it is back in a few seconds, and you sign in again. Anyone watching loses the stream until then." }
+        p { +"The server writes the file and restarts; it is back in a few seconds, and you stay signed in. Anyone watching loses the stream until then." }
     }
 
 /** The home page's setup steps, shown while the server has no source file, or no lineup policy and no lineup. */
@@ -225,7 +238,7 @@ internal fun FlowContent.setupCards(chrome: Chrome, setup: SetupService, provide
             b { +"Add your sources" }
             if (setup.hasSources) span("muted") { +" ${plural(providers, "provider")} configured." }
             else {
-                span("muted") { +" Tick the free services you want; no account is needed." }
+                span("muted") { +" Tick the free services you want; no account is needed. Saving builds the lineup too." }
                 div("actions") { a("/admin/providers#services", classes = "btn primary") { +"Choose services" } }
             }
         }
@@ -242,12 +255,12 @@ internal fun FlowContent.setupCards(chrome: Chrome, setup: SetupService, provide
     }
 }
 
-/** The page a setup write answers: the server is going down to read what it wrote. The browser returns to the sign-in page on its own. */
+/** The page a setup write answers: the server is going down to read what it wrote. The browser returns to the portal on its own. */
 internal fun restartingPage(theme: String?, what: String): String = layout("Restarting", null, null, theme, refreshSeconds = 20) {
     div("panel signin") {
         h1("mt-0") { +"Restarting" }
         p { +"$what The server is restarting to read it and is back in a few seconds." }
-        p("muted") { +"This page opens the portal again in 20 seconds; sign in with the admin token. If the server does not come back, its log says why, and the file it wrote is at the path the Sources page showed." }
+        p("muted") { +"This page opens the portal again in 20 seconds, still signed in. If the server does not come back, its log says why, and the file it wrote is at the path the Sources page showed." }
         a("/admin", classes = "btn primary") { +"Open the portal" }
     }
 }

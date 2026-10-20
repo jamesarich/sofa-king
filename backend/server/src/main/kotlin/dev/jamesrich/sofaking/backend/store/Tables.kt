@@ -122,6 +122,13 @@ internal object AttentionIgnores : Table("attention_ignore") {
     val ignoredAt = text("ignored_at")
     override val primaryKey = PrimaryKey(itemKey)
 }
+/** One signed-in portal browser: the SHA-256 of its cookie's session ID, never the ID itself, its CSRF token and its expiry. */
+internal object AdminSessionRows : Table("admin_session") {
+    val key = text("key")
+    val csrf = text("csrf")
+    val expiresAt = text("expires_at")
+    override val primaryKey = PrimaryKey(key)
+}
 internal object RuntimeSettings : Table("runtime_setting") {
     val key = text("key")
     val value = text("value")

@@ -317,7 +317,7 @@ internal fun MAIN.updateConfirm(chrome: Chrome, update: UpdateState) {
     askDialog(chrome, "Update the server now?", "/admin/system/update/request", "/admin/system/about#update", "Update", danger = false) {
         p {
             +"The host's updater backs up the database, pulls "; code { +(update.image ?: "the published image") }; +" and recreates the container. "
-            +"Streams stop for about half a minute while it restarts, and this portal signs you out. If the new image is not healthy within three minutes, the previous image and its database come back."
+            +"Streams stop for about half a minute while it restarts; you stay signed in. If the new image is not healthy within three minutes, the previous image and its database come back."
         }
         if (update.current != false) p("muted") { +"The published image looks like the one running, so this most likely changes nothing." }
     }

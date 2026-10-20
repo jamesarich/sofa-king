@@ -102,7 +102,7 @@ class AdminPortal(
     /** The log events the Events page lists. */
     private val events: EventRing = EventRing.shared,
 ) {
-    val sessions = AdminSessions(clock)
+    val sessions = AdminSessions(clock, runtime.store)
     private val ffmpeg = AtomicReference<String?>()
 
     /**
@@ -184,14 +184,14 @@ class AdminPortal(
                     call.html(signInPage(enabled = true, error = "That token is not the admin token."), HttpStatusCode.Unauthorized)
                     return@post
                 }
-                call.request.cookies[COOKIE]?.let(sessions::close)
-                val session = sessions.open()
+                call.request.cookies[COOKIE]?.let { sessions.close(it) }
+                val opened = sessions.open()
                 val secure = call.request.headers["X-Forwarded-Proto"] == "https" || call.request.local.scheme == "https"
-                call.response.cookies.append(sessionCookie(session.id, maxAge = 12 * 3600, secure = secure))
+                call.response.cookies.append(sessionCookie(opened.cookie, maxAge = 12 * 3600, secure = secure))
                 seeOther(call, "/admin")
             } }
             action("/logout") { session, _ ->
-                sessions.close(session.id)
+                sessions.close(session)
                 call.response.cookies.append(sessionCookie("", maxAge = 0, secure = false))
                 seeOther(call, "/admin")
             }
@@ -265,8 +265,14 @@ class AdminPortal(
                 call.html(providersPage(chrome, view) { providerEntries(chrome, view, null, null) })
             }
             action("/sources/services") { session, form ->
-                setupWrite(call, session, form, "the services") { document ->
-                    applyServicesForm(document, form).map { next -> next to SetupConfirm("Save the services and restart?", "/admin/sources/services", servicesChanges(document, next), form.setupFields()) }
+                val starter = form.wantsStarter() && runtime.setup?.canWriteStarterPolicy == true
+                setupWrite(call, session, form, "the services", starter) { document ->
+                    applyServicesForm(document, form).map { next ->
+                        val lines = servicesChanges(document, next) + listOfNotNull(
+                            "Builds the starter lineup from them: one station per channel, grouped and numbered in blocks".takeIf { starter && next.providers.isNotEmpty() },
+                        )
+                        next to SetupConfirm("Save the services and restart?", "/admin/sources/services", lines, form.setupFields())
+                    }
                 }
             }
             action("/sources/playlist") { session, form ->
@@ -980,7 +986,7 @@ class AdminPortal(
      * asks, and a confirmed one writes, restarts and answers the restarting page.
      */
     private suspend fun setupWrite(
-        call: ApplicationCall, session: AdminSession, form: Parameters, what: String,
+        call: ApplicationCall, session: AdminSession, form: Parameters, what: String, starter: Boolean = false,
         edit: (SourceDocument) -> Result<Pair<SourceDocument, SetupConfirm>>,
     ) {
         val setup = runtime.setup ?: run { seeOther(call, "/admin/providers"); return }
@@ -998,8 +1004,9 @@ class AdminPortal(
             return
         }
         try {
-            val result = setup.replaceSources(next)
-            call.html(restartingPage(theme(call), "Saved $what to ${result.path}."))
+            val result = setup.replaceSources(next, starterPolicy = starter && next.providers.isNotEmpty())
+            val policy = result.policyPath?.let { " and the starter lineup to $it" }.orEmpty()
+            call.html(restartingPage(theme(call), "Saved $what to ${result.path}$policy."))
         } catch (e: ApiFailure) { refuse(e.message, HttpStatusCode.fromValue(e.status)) }
     }
 

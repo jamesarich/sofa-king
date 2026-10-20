@@ -314,6 +314,41 @@ class AdminPortalTest {
         }
     }
 
+    @Test fun `without a policy one services save writes the source file and the starter lineup, with one restart`() = testApplication {
+        var restarts = 0
+        portal(restart = { restarts++ }) {
+            browser.signIn()
+            val page = browser.get("/admin/providers").bodyAsText()
+            assertTrue(Regex("""name="starter"[^>]*value="on"[^>]*checked""").containsMatchIn(page), "the starter lineup is offered, ticked")
+            val csrf = field(page, "csrf")
+            val asked = browser.post("/admin/sources/services", "csrf" to csrf, "svc" to "pluto", "starter" to "on").bodyAsText()
+            assertTrue(asked.contains("Builds the starter lineup from them") && asked.contains("name=\"starter\" value=\"on\""), asked.substringAfter("<div class=\"modal\">").take(800))
+            assertFalse(Files.exists(runtime.setup!!.policyPath), "nothing is written before the confirmation")
+
+            val saved = browser.post("/admin/sources/services", "csrf" to csrf, "svc" to "pluto", "starter" to "on", "confirm" to "yes").bodyAsText()
+            assertTrue(saved.contains("and the starter lineup to ${runtime.setup!!.policyPath}"), saved.take(800))
+            assertEquals(1, restarts)
+            val policy = Json.parseToJsonElement(Files.readString(runtime.setup!!.policyPath)).jsonObject
+            assertEquals(listOf("pluto", "fixture", "alt", "twin", "ts"), policy["providers"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }, "the services lead, the playlists follow")
+            assertFalse(browser.get("/admin/providers").bodyAsText().contains("Build the starter lineup too"), "the policy file is written, so the box is not offered again before the restart")
+        }
+    }
+
+    @Test fun `the source file API builds the starter lineup in the same write when asked`() = testApplication {
+        var restarts = 0
+        portal(restart = { restarts++ }) {
+            val document = """{"providers":[{"id":"pluto","type":"native","service":"pluto"}],"guides":[]}"""
+            val written = client.put("/api/v1/admin/source-file?starterPolicy=true") { bearerAuth(admin); contentType(ContentType.Application.Json); setBody(document) }
+            assertEquals(HttpStatusCode.OK, written.status, written.bodyAsText())
+            val result = Json.parseToJsonElement(written.bodyAsText()).jsonObject
+            assertEquals(runtime.setup!!.policyPath.toString(), result["policyPath"]!!.jsonPrimitive.content)
+            assertEquals(1, restarts)
+            val again = client.put("/api/v1/admin/source-file?starterPolicy=true") { bearerAuth(admin); contentType(ContentType.Application.Json); setBody(document) }
+            assertEquals(HttpStatusCode.Conflict, again.status)
+            assertEquals(HttpStatusCode.BadRequest, client.put("/api/v1/admin/source-file?starterPolicy=yes") { bearerAuth(admin); contentType(ContentType.Application.Json); setBody(document) }.status)
+        }
+    }
+
     @Test fun `the home page offers to build the lineup while there is no policy, and asks before it does`() = testApplication {
         var restarts = 0
         portal(restart = { restarts++ }) {

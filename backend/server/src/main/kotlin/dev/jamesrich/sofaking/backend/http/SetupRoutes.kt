@@ -14,6 +14,9 @@ import io.ktor.server.routing.*
 fun Route.setupRoutes(setup: SetupService?) {
     fun service(): SetupService = setup ?: throw ApiFailure(503, "SETUP_UNAVAILABLE", "Setup is not available on this server")
     get("/source-file") { call.respond(service().document()) }
-    put("/source-file") { call.respond(service().replaceSources(call.body<SourceDocument>())) }
+    put("/source-file") {
+        val starter = call.request.queryParameters["starterPolicy"]?.let { it == "true" || throw ApiFailure(400, "INVALID_REQUEST", "starterPolicy must be true when given") } ?: false
+        call.respond(service().replaceSources(call.body<SourceDocument>(), starterPolicy = starter))
+    }
     post("/policy/starter") { call.respond(HttpStatusCode.Created, service().writeStarterPolicy()) }
 }

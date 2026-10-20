@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.api.GuideStatus
+import dev.jamesrich.sofaking.backend.api.HdhrAccessStatus
 import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.api.PolicyApplyResult
 import dev.jamesrich.sofaking.backend.api.PolicyProvider
@@ -120,6 +121,8 @@ internal class HdhrDevice(val name: String, val address: String, val channels: I
 internal class PlexView(
     val playlist: String, val guide: String, val tokenConfigured: Boolean, val revealed: Boolean, val hdhrEnabled: Boolean,
     val devices: List<HdhrDevice>, val devicesNeeded: Int?, val enabledChannels: Int, val tuners: Int, val status: PlexStatus?,
+    /** Who may use the tuners; null while the emulation is off. */
+    val access: HdhrAccessStatus? = null,
 )
 
 /** A configured provider: its import status, what kind it is, and the policy entries that take its channels, by index. */
@@ -904,6 +907,7 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", c
         }
         p("muted small") { +"Addresses use the host this page was reached by; extra devices listen on their own ports." }
     }
+    view.access?.let { access -> panel("Tuner access", id = "access") { tunerAccess(access, chrome) } }
     panel("Player outputs", id = "outputs") {
         dl("kv") {
             dt { +"Playlist" }; dd { code { +view.playlist } }
@@ -917,7 +921,7 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", c
     }
     panel("Set up Plex", id = "setup") {
         ol {
-            li { +"Set SOFA_HDHR_ALLOW to the Plex server's address and SOFA_HDHR_TUNERS to the streams Plex may open at once, then restart." }
+            li { +"Allow the Plex server's address under Tuner access, or allow it there after Plex first tries the tuner." }
             li {
                 +"In Plex Web, open Settings, Live TV & DVR, Set Up Plex DVR, and enter the device address by hand: "
                 code { +(view.devices.firstOrNull()?.address ?: "SERVER_HOST:PORT") }
@@ -927,5 +931,58 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", c
             li { +"Map the channels; Plex pairs most by name and number. Add each extra device to the same DVR with its own address and the same guide URL." }
             li { +"After a lineup change, run Scan channels for the DVR in Plex, or let Plex sync do it." }
         }
+        p("muted small") { +"Each device takes up to ${view.tuners} streams at once; SOFA_HDHR_TUNERS changes that." }
     }
+}
+
+/** The addresses that may use the tuners, the ones refused lately with an Allow each, and a form to allow one more. */
+private fun DIV.tunerAccess(access: HdhrAccessStatus, chrome: Chrome) {
+    val session = chrome.session
+    if (access.open) p { +"Every address may use the tuners: the server listens on this host only." }
+    else if (access.configured.isEmpty() && access.allowed.isEmpty()) {
+        notice("No address may use the tuners yet. Allow the Plex server's address below, or add the tuner in Plex and allow the address it is refused from.", tone = Tone.WARN)
+    }
+    if (access.refused.isNotEmpty()) {
+        h3 { +"Refused" }
+        div("scroll") {
+            table {
+                caption("sr") { +"Addresses refused since the server started" }
+                thead { tr { col("Address"); col("Last tried"); col("Asked for"); col("Action") } }
+                tbody {
+                    for (client in access.refused) tr {
+                        th { attributes["scope"] = "row"; code { +client.address } }
+                        td { ago(client.lastAt, chrome.now) }
+                        td("mono") { +client.path }
+                        td {
+                            postForm("/admin/plex/allow", session) {
+                                hiddenInput(name = "address") { value = client.address }
+                                button(type = ButtonType.submit, classes = "small") { attributes["aria-label"] = "Allow ${client.address}"; +"Allow" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (access.allowed.isNotEmpty() || access.configured.isNotEmpty()) {
+        h3 { +"Allowed" }
+        ul {
+            for (entry in access.configured) li { code { +entry }; +" "; span("muted small") { +"from SOFA_HDHR_ALLOW" } }
+            for (entry in access.allowed) li {
+                code { +entry }; +" "
+                postForm("/admin/plex/disallow", session) {
+                    hiddenInput(name = "address") { value = entry }
+                    button(type = ButtonType.submit, classes = "small quiet") { attributes["aria-label"] = "Remove $entry"; +"Remove" }
+                }
+            }
+        }
+    }
+    postForm("/admin/plex/allow", session, classes = "stack mt-12") {
+        div("field") {
+            label { htmlFor = "hdhr-address"; +"Allow an address" }
+            textInput(name = "address") { id = "hdhr-address"; required = true; maxLength = "64"; placeholder = "10.0.0.20 or 10.0.0.0/24" }
+        }
+        div { button(type = ButtonType.submit) { +"Allow" } }
+    }
+    p("muted small") { +"The tuners take no token, so only these addresses reach them. A change applies at once; Plex in Docker on a bridge network asks from its container address." }
 }

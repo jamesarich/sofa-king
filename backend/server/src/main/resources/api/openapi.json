@@ -13,7 +13,7 @@
     { "name": "Sources", "description": "Provider and source health. Bearer: the API token." },
     { "name": "Outputs", "description": "The M3U playlist, XMLTV guide and player streams. Token: the output token as ?token= or a bearer, or the API bearer." },
     { "name": "Logos", "description": "Cached channel logos, public." },
-    { "name": "HDHomeRun", "description": "What Plex reads from an HDHomeRun tuner. No token; clients are admitted by address (SOFA_HDHR_ALLOW)." },
+    { "name": "HDHomeRun", "description": "What Plex reads from an HDHomeRun tuner. No token; clients are admitted by address (SOFA_HDHR_ALLOW and the addresses allowed at run time)." },
     { "name": "Admin", "description": "The server, its sessions, candidates, guides and the lineup. Bearer: the admin token, or the API token when none is set." },
     { "name": "Policy", "description": "The lineup policy and its runs. Bearer: the admin token." },
     { "name": "Plex", "description": "Plex Live TV sync. Bearer: the admin token." },
@@ -381,6 +381,19 @@
           "devices": { "type": "array", "items": { "type": "object", "properties": { "deviceId": { "type": "string" }, "device": { "type": "integer" }, "plexKey": { "type": "string" }, "dvr": { "type": "string" }, "mapped": { "type": "integer" }, "added": { "type": "boolean" } } } },
           "missingDevices": { "type": "array", "items": { "type": "string" } }, "findings": { "type": "array", "items": { "type": "string" } }
         }
+      },
+      "HdhrAccessStatus": {
+        "type": "object", "description": "Who may reach the HDHomeRun emulation. open is true when every address is admitted (a loopback bind with no address configured or allowed).",
+        "properties": {
+          "enabled": { "type": "boolean" }, "open": { "type": "boolean" },
+          "configured": { "type": "array", "description": "From SOFA_HDHR_ALLOW", "items": { "type": "string" } },
+          "allowed": { "type": "array", "description": "Allowed from the portal or this API, kept in the database", "items": { "type": "string" } },
+          "refused": { "type": "array", "description": "Up to 10 addresses refused since the start that are still refused, newest first", "items": { "type": "object", "properties": { "address": { "type": "string" }, "lastAt": { "type": "string" }, "path": { "type": "string" } }, "required": ["address", "lastAt", "path"] } }
+        },
+        "required": ["enabled", "open", "configured", "allowed"]
+      },
+      "UpdateHdhrAccess": {
+        "type": "object", "properties": { "allowed": { "type": "array", "maxItems": 64, "items": { "type": "string", "description": "An IP literal or CIDR block" } } }, "required": ["allowed"]
       },
       "Discover": {
         "type": "object",
@@ -862,6 +875,13 @@
     "/api/v1/admin/plex/sync": {
       "post": { "tags": ["Plex"], "summary": "Sync Plex now", "description": "A failure is reported in lastError, not as an error response.", "security": [{ "adminToken": [] }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlexStatus" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/hdhr/access": {
+      "get": { "tags": ["HDHomeRun"], "summary": "Who may use the tuners", "description": "The addresses from SOFA_HDHR_ALLOW, the ones allowed at run time, and the addresses refused lately.", "security": [{ "adminToken": [] }],
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HdhrAccessStatus" } } } } } },
+      "put": { "tags": ["HDHomeRun"], "summary": "Replace the addresses allowed at run time", "description": "Applies at once with no restart and is kept in the database. SOFA_HDHR_ALLOW still applies beside it. 400 INVALID_REQUEST names an entry that is not an IP literal or CIDR block; nothing changes then.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateHdhrAccess" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HdhrAccessStatus" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/viewers": {
       "get": { "tags": ["Admin"], "summary": "Every client that paired or saved preferences", "description": "Most recently seen first.", "security": [{ "adminToken": [] }],

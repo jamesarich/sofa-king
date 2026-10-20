@@ -216,7 +216,7 @@ fun Application.backendModule(
                 call.respond(source)
             }
             post("/api/v1/guide/query") { call.respond(runtime.catalog.guide(call.appBody<GuideQuery>())) }
-            adminRoutes(runtime, clock, config?.revision ?: "unknown")
+            adminRoutes(runtime, clock, config?.revision ?: "unknown", hdhr.enabled)
             viewerRoutes(runtime, clock, apiToken)
             runtime.dvr?.let { recordingRoutes(it) }
             post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.appBody<OpenPlayback>(), call.request.origin.remoteAddress)) }

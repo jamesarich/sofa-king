@@ -63,7 +63,7 @@ http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN
 http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN
 ```
 
-The HDHomeRun routes admit only the addresses in `SOFA_HDHR_ALLOW`, so list every client that uses them. [Third-party players](docs/live-tv.md#third-party-players) and [Plex Live TV](docs/live-tv.md#plex-live-tv) have the details.
+The HDHomeRun routes admit only the addresses allowed on the portal's Plex page or in `SOFA_HDHR_ALLOW`; the page lists the addresses it refused, with Allow. [Third-party players](docs/live-tv.md#third-party-players) and [Plex Live TV](docs/live-tv.md#plex-live-tv) have the details.
 
 ## Quick start
 

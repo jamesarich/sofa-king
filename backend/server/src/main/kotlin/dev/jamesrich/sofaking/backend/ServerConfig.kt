@@ -27,7 +27,7 @@ data class HdhrConfig(
     /** Eight hex digits; null derives one from the server identity. */
     val deviceId: String? = null,
     val friendlyName: String = "Sofa King",
-    /** Client IPs or CIDR blocks; empty admits every address that reaches the port, so it is refused off loopback. */
+    /** Client IPs or CIDR blocks from `SOFA_HDHR_ALLOW`; the portal adds more at run time ([dev.jamesrich.sofaking.backend.http.HdhrAccess]). */
     val allow: List<String> = emptyList(),
     /**
      * Further listening ports, each one more device carrying its share of the lineup: by a stable hash of the entry
@@ -197,7 +197,7 @@ data class ServerConfig(
             )
         }
 
-        private fun isLoopback(host: String) = host in setOf("127.0.0.1", "localhost", "::1")
+        internal fun isLoopback(host: String) = host in setOf("127.0.0.1", "localhost", "::1")
 
         /** [requireToken] false leaves a non-loopback bind without `SOFA_API_TOKEN` to [load], which generates one. */
         fun fromEnvironment(environment: Map<String, String>, requireToken: Boolean = true): ServerConfig {
@@ -246,7 +246,6 @@ data class ServerConfig(
             require(friendlyName.isNotBlank() && friendlyName.length <= 64 && friendlyName.none { it < ' ' }) { "SOFA_HDHR_NAME must be 1 to 64 printable characters" }
             val allow = environment["SOFA_HDHR_ALLOW"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
             AddressAllowList(allow)
-            require(!hdhrEnabled || loopbackBind || allow.isNotEmpty()) { "Non-loopback binding with SOFA_HDHR_ENABLED requires SOFA_HDHR_ALLOW" }
             val extraPorts = environment["SOFA_HDHR_EXTRA_PORTS"].orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }.map { it.toIntOrNull() ?: 0 }
             require(extraPorts.all { it in 1..65535 } && extraPorts.distinct().size == extraPorts.size && port !in extraPorts && extraPorts.size <= 7) {
                 "SOFA_HDHR_EXTRA_PORTS must list up to 7 distinct ports other than SOFA_PORT"

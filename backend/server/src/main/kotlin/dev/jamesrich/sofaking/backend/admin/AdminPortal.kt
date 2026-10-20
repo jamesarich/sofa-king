@@ -449,6 +449,24 @@ class AdminPortal(
                 }
             }
             action("/plex/reveal") { session, _ -> call.html(plexPage(chrome(call, session), plexView(call, reveal = true))) }
+            action("/plex/allow") { session, form ->
+                val address = form["address"].orEmpty().trim()
+                val flash = when {
+                    address.isEmpty() -> Flash("Enter an IP address or CIDR block.", Tone.BAD)
+                    else -> try {
+                        runtime.hdhrAccess.allow(address)
+                        Flash("Allowed $address. It can use the tuners now.")
+                    } catch (e: IllegalArgumentException) { Flash("Not allowed: ${e.message}", Tone.BAD) }
+                }
+                session.flash.set(flash)
+                seeOther(call, "/admin/plex#access")
+            }
+            action("/plex/disallow") { session, form ->
+                val address = form["address"].orEmpty().trim()
+                runtime.hdhrAccess.remove(address)
+                session.flash.set(Flash("Removed $address. It can no longer use the tuners."))
+                seeOther(call, "/admin/plex#access")
+            }
             get("/settings") {
                 val limit = call.request.queryParameters["changes"]?.toIntOrNull()?.coerceIn(1, 1000) ?: 50
                 val advanced = call.request.queryParameters["advanced"] == "1" || call.request.queryParameters.contains("changes")
@@ -625,7 +643,8 @@ class AdminPortal(
         val merges = applied?.result?.suggestedAliases?.size ?: 0
         val required = applied?.stations?.count { it.required && !it.enabled } ?: 0
         val sources = runtime.feeds.providers().count { it.errorCode != null } + runtime.guides.statuses().count { it.errorCode != null }
-        val plexCount = (if (plex?.lastError != null) 1 else 0) + (plex?.missingDevices?.size ?: 0)
+        val refused = if (hdhr.enabled) runtime.hdhrAccess.refusals().size else 0
+        val plexCount = (if (plex?.lastError != null) 1 else 0) + (plex?.missingDevices?.size ?: 0) + refused
         return mapOf(
             "jobs" to jobs, "merges" to merges, "required" to required, "plex" to plexCount,
             "channels" to merges + required, "sources" to sources, "players" to plexCount, "system" to jobs,
@@ -782,6 +801,11 @@ class AdminPortal(
                 if (badGuides.size == 1) "Guide ${badGuides[0].id} ${failingFor(badGuides[0].lastSuccessAt, now) ?: "failed its last import"}" else "${badGuides.size} guides failed their last import",
                 badGuides.joinToString { "${it.id} (${it.errorCode}${failingFor(it.lastSuccessAt, now)?.let { f -> ", $f" } ?: ""})" },
                 "/admin/providers#guides", "Sources", "guides-failed", "troubleshooting.md#guide",
+            ))
+            val refused = if (hdhr.enabled) runtime.hdhrAccess.refusals() else emptyList()
+            if (refused.isNotEmpty()) add(Attention(
+                Tone.WARN, "The tuners refused ${plural(refused.size, "address", "addresses")}", refused.joinToString { it.address } + ". Allow Plex's address on the Plex page.",
+                "/admin/plex#access", "Plex", "hdhr-refused", "live-tv.md#plex-live-tv",
             ))
             if (plex?.lastError != null) add(Attention(Tone.BAD, "Plex sync failed", plex.lastError, "/admin/plex#sync", "Plex", "plex-failed", "troubleshooting.md#plex"))
             if (!plex?.missingDevices.isNullOrEmpty()) add(Attention(
@@ -1073,6 +1097,7 @@ class AdminPortal(
             enabledChannels = enabled.size,
             tuners = hdhr.tuners,
             status = plexStatus?.status(),
+            access = if (hdhr.enabled) runtime.hdhrAccess.status(true) else null,
         )
     }
 

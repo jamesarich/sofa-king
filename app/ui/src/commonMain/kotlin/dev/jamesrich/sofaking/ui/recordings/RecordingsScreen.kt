@@ -28,14 +28,15 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.jamesrich.sofaking.RecordingsState
 import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.RecordingState
+import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.TimeFormatter
+import dev.jamesrich.sofaking.ui.formatBytes
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
@@ -341,22 +342,4 @@ private fun confirmLabel(state: RecordingState) = when (state) {
     RecordingState.RECORDING -> Res.string.recordings_confirm_stop
     RecordingState.SCHEDULED -> Res.string.recordings_confirm_cancel
     else -> Res.string.recordings_confirm_delete
-}
-
-/** A size in the largest unit that keeps it at 1 or more, with one decimal under 10: "740 MB", "2.4 GB". */
-internal fun formatBytes(bytes: Long): String {
-    val units = listOf("B", "KB", "MB", "GB", "TB")
-    var value = bytes.coerceAtLeast(0).toDouble()
-    var unit = 0
-    while (value >= 1000 && unit < units.lastIndex) {
-        value /= 1000
-        unit++
-    }
-    val text = if (value < 10 && unit > 0) {
-        val tenths = kotlin.math.round(value * 10).toLong()
-        if (tenths % 10 == 0L) "${tenths / 10}" else "${tenths / 10}.${tenths % 10}"
-    } else {
-        kotlin.math.round(value).toLong().toString()
-    }
-    return "$text ${units[unit]}"
 }

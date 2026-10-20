@@ -122,7 +122,7 @@ class PlaybackSessions(
         } else if (held != null) {
             releaseHeld(api, held)
         }
-        open(api, channelId, intent)
+        open(api, Live(channelId, intent))
     }
 
     /** Changes the held session's intent in place; nothing happens when the session is not [channelId]'s or already [intent]. */
@@ -178,20 +178,7 @@ class PlaybackSessions(
         val api = api ?: throw IOException("No server configured")
         _current.value?.let { releaseHeld(api, it) }
         itemPositionMs = startMs.coerceAtLeast(0)
-        val opened = withContext(NonCancellable) {
-            withTimeoutOrNull(openTimeout) { api.openVod(request.dto(itemPositionMs)) }
-                ?: throw SessionTimeoutException("session open timed out")
-        }
-        try {
-            currentCoroutineContext().ensureActive()
-        } catch (e: CancellationException) {
-            withContext(NonCancellable) { runCatching { withTimeout(RELEASE_TIMEOUT_MS) { api.releaseVod(opened.id) } } }
-            throw e
-        }
-        val stream = publishItem(api, opened, request, itemPositionMs)
-        renewal?.cancel()
-        renewal = scope.launch { renewItemLoop(api, opened.id, request) }
-        stream
+        open(api, Item(request, itemPositionMs))
     }
 
     /**
@@ -224,58 +211,41 @@ class PlaybackSessions(
         null
     }
 
-    private suspend fun open(api: SofaKingApi, channelId: String, intent: PlaybackIntent): PlaybackStream {
-        // Opened whole: a zap that cancels this mid-request still learns which session it must release.
-        // A timeout is an IOException, not a cancellation: the caller backs off and retries instead of dying silently.
+    /**
+     * Opens a session of [kind] and holds it, renewing it until it is no longer held. It is opened whole: a caller
+     * canceled mid-request still learns which session it must release, and releases it. A timeout is an
+     * [IOException], not a cancellation, so the caller backs off and retries instead of dying silently.
+     */
+    private suspend fun open(api: SofaKingApi, kind: Kind): PlaybackStream {
         val opened = withContext(NonCancellable) {
-            withTimeoutOrNull(openTimeout) { api.openSession(channelId, intent.wire, newIdempotencyKey()) }
-                ?: throw SessionTimeoutException("session open timed out")
+            withTimeoutOrNull(openTimeout) { kind.open(api) } ?: throw SessionTimeoutException("session open timed out")
         }
         try {
             currentCoroutineContext().ensureActive()
         } catch (e: CancellationException) {
-            withContext(NonCancellable) { runCatching { withTimeout(RELEASE_TIMEOUT_MS) { api.releaseSession(opened.id) } } }
+            withContext(NonCancellable) { runCatching { withTimeout(RELEASE_TIMEOUT_MS) { kind.release(api, opened.sessionId) } } }
             throw e
         }
-        val stream = publish(opened, intent)
+        return hold(api, opened, kind)
+    }
+
+    /** Publishes [stream], a new session of [kind], and renews it from now on in place of whatever was renewed. */
+    private fun hold(api: SofaKingApi, stream: PlaybackStream, kind: Kind): PlaybackStream {
+        if (kind is Item) items[stream.sessionId] = kind.request
+        _current.value = stream
         renewal?.cancel()
-        renewal = scope.launch { renewLoop(api, opened.id) }
+        renewal = scope.launch { renewLoop(api, stream.sessionId, kind) }
         return stream
     }
 
     private fun publish(session: PlaybackSessionDto, intent: PlaybackIntent): PlaybackStream {
         val api = api ?: throw IOException("No server configured")
-        val stream = PlaybackStream(
-            channelId = session.channelId,
-            sessionId = session.id,
-            url = api.mediaUrl(session.descriptor),
-            mimeType = mediaMimeType(session.descriptor),
-            epoch = session.descriptor.epoch,
-            intent = PlaybackIntent.fromWire(session.intent) ?: intent,
-            providerId = session.providerId,
-        )
-        _current.value = stream
-        return stream
+        return liveStream(api, session, intent).also { _current.value = it }
     }
 
     private fun publishItem(api: SofaKingApi, session: VodSessionDto, request: ItemRequest, startAtMs: Long): PlaybackStream {
-        val stream = PlaybackStream(
-            channelId = "",
-            sessionId = session.id,
-            url = api.mediaUrl(session.descriptor),
-            mimeType = mediaMimeType(session.descriptor),
-            epoch = session.descriptor.epoch,
-            intent = PlaybackIntent.WATCH,
-            seekable = true,
-            itemId = request.itemId,
-            mode = session.mode,
-            offsetMs = session.startMs,
-            startAtMs = startAtMs,
-            itemDurationMs = session.durationMs,
-        )
         items[session.id] = request
-        _current.value = stream
-        return stream
+        return itemStream(api, session, request.itemId, startAtMs).also { _current.value = it }
     }
 
     /** What each item session was opened with, so a reopen asks for the same; only the held one is kept. */
@@ -295,59 +265,21 @@ class PlaybackSessions(
     }
 
     /**
-     * Renews [sessionId] until it is no longer held. A renewal that comes back with a new epoch publishes the
-     * replacement; one the server has dropped (evicted at capacity, or expired while unreachable) opens a new
-     * session for the same channel. Transport failures wait for the next tick, inside the lease.
+     * Renews [sessionId], a session of [kind], until it is no longer held. A renewal that comes back with a new epoch
+     * publishes the replacement; one the server has dropped (evicted at capacity, expired while unreachable, or lost
+     * in a server restart) opens a new one in its place: the same channel, or the item where the player last was.
+     * Transport failures wait for the next tick, inside the lease.
      */
-    private suspend fun renewLoop(api: SofaKingApi, sessionId: String) {
+    private suspend fun renewLoop(api: SofaKingApi, sessionId: String, kind: Kind) {
         while (true) {
             delay(renewInterval)
             val held = _current.value?.takeIf { it.sessionId == sessionId } ?: return
             try {
-                val renewed = api.updateSession(sessionId, null)
+                val renewed = kind.renew(api, held)
                 mutex.withLock {
                     if (_current.value?.sessionId != sessionId) return
-                    val stream = publish(renewed, held.intent)
-                    if (stream.url != held.url) _replaced.tryEmit(stream)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: SofaKingException) {
-                if (e.status != 410) continue
-                mutex.withLock {
-                    if (_current.value?.sessionId != sessionId) return
-                    _current.value = null
-                    // A reopen that fails leaves no session; the player's own failure path tunes again with backoff.
-                    val reopened = try {
-                        withTimeoutOrNull(openTimeout) { api.openSession(held.channelId, held.intent.wire, newIdempotencyKey()) }
-                            ?: throw SessionTimeoutException("session reopen timed out")
-                    } catch (_: IOException) {
-                        return
-                    }
-                    _replaced.tryEmit(publish(reopened, held.intent))
-                    renewal = scope.launch { renewLoop(api, reopened.id) }
-                }
-                return
-            } catch (_: IOException) {
-                continue
-            }
-        }
-    }
-
-    /**
-     * Renews the item session [sessionId] until it is no longer held. One the server has dropped (expired while
-     * the device was unreachable, or the server restarted) opens a new session where the player last was.
-     */
-    private suspend fun renewItemLoop(api: SofaKingApi, sessionId: String, request: ItemRequest) {
-        while (true) {
-            delay(renewInterval)
-            val held = _current.value?.takeIf { it.sessionId == sessionId } ?: return
-            try {
-                val renewed = api.updateVod(sessionId, null)
-                mutex.withLock {
-                    if (_current.value?.sessionId != sessionId) return
-                    val stream = publishItem(api, renewed, request, held.startAtMs)
-                    if (stream.url != held.url) _replaced.tryEmit(stream)
+                    _current.value = renewed
+                    if (renewed.url != held.url) _replaced.tryEmit(renewed)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -357,20 +289,54 @@ class PlaybackSessions(
                     if (_current.value?.sessionId != sessionId) return
                     _current.value = null
                     items.remove(sessionId)
-                    val start = itemPositionMs
+                    val again = kind.reopening(held, itemPositionMs)
+                    // A reopen that fails leaves no session; the player's own failure path tunes again with backoff.
                     val reopened = try {
-                        withTimeoutOrNull(openTimeout) { api.openVod(request.dto(start)) } ?: throw SessionTimeoutException("session reopen timed out")
+                        withTimeoutOrNull(openTimeout) { again.open(api) } ?: throw SessionTimeoutException("session reopen timed out")
                     } catch (_: IOException) {
                         return
                     }
-                    _replaced.tryEmit(publishItem(api, reopened, request, start))
-                    renewal = scope.launch { renewItemLoop(api, reopened.id, request) }
+                    _replaced.tryEmit(hold(api, reopened, again))
                 }
                 return
             } catch (_: IOException) {
                 continue
             }
         }
+    }
+
+    /** What a session plays, and how the server opens, renews and releases it: a live channel's or a library item's. */
+    private sealed interface Kind {
+        /** Opens a new session, as the stream it gives. */
+        suspend fun open(api: SofaKingApi): PlaybackStream
+
+        /** Renews the lease on [held], as the stream the server has for it now. */
+        suspend fun renew(api: SofaKingApi, held: PlaybackStream): PlaybackStream
+
+        suspend fun release(api: SofaKingApi, sessionId: String)
+
+        /** What opens in place of [held] once the server dropped it, the player last at [positionMs] in an item. */
+        fun reopening(held: PlaybackStream, positionMs: Long): Kind
+    }
+
+    private inner class Live(private val channelId: String, private val intent: PlaybackIntent) : Kind {
+        override suspend fun open(api: SofaKingApi) = liveStream(api, api.openSession(channelId, intent.wire, newIdempotencyKey()), intent)
+
+        override suspend fun renew(api: SofaKingApi, held: PlaybackStream) = liveStream(api, api.updateSession(held.sessionId, null), held.intent)
+
+        override suspend fun release(api: SofaKingApi, sessionId: String) = api.releaseSession(sessionId)
+
+        override fun reopening(held: PlaybackStream, positionMs: Long): Kind = Live(held.channelId, held.intent)
+    }
+
+    private class Item(val request: ItemRequest, private val startMs: Long) : Kind {
+        override suspend fun open(api: SofaKingApi) = itemStream(api, api.openVod(request.dto(startMs)), request.itemId, startMs)
+
+        override suspend fun renew(api: SofaKingApi, held: PlaybackStream) = itemStream(api, api.updateVod(held.sessionId, null), request.itemId, held.startAtMs)
+
+        override suspend fun release(api: SofaKingApi, sessionId: String) = api.releaseVod(sessionId)
+
+        override fun reopening(held: PlaybackStream, positionMs: Long): Kind = Item(request, positionMs)
     }
 
     /** A library item or a [recording] as it was asked for: the same item, profile and tracks reopen it. */
@@ -401,3 +367,28 @@ class PlaybackSessions(
         const val RELEASE_TIMEOUT_MS = 8_000L
     }
 }
+
+private fun liveStream(api: SofaKingApi, session: PlaybackSessionDto, intent: PlaybackIntent) = PlaybackStream(
+    channelId = session.channelId,
+    sessionId = session.id,
+    url = api.mediaUrl(session.descriptor),
+    mimeType = mediaMimeType(session.descriptor),
+    epoch = session.descriptor.epoch,
+    intent = PlaybackIntent.fromWire(session.intent) ?: intent,
+    providerId = session.providerId,
+)
+
+private fun itemStream(api: SofaKingApi, session: VodSessionDto, itemId: String, startAtMs: Long) = PlaybackStream(
+    channelId = "",
+    sessionId = session.id,
+    url = api.mediaUrl(session.descriptor),
+    mimeType = mediaMimeType(session.descriptor),
+    epoch = session.descriptor.epoch,
+    intent = PlaybackIntent.WATCH,
+    seekable = true,
+    itemId = itemId,
+    mode = session.mode,
+    offsetMs = session.startMs,
+    startAtMs = startAtMs,
+    itemDurationMs = session.durationMs,
+)

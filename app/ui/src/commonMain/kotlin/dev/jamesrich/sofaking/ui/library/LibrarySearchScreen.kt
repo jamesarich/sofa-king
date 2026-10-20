@@ -191,11 +191,7 @@ private fun ResultRow(
                     item === items.first() && firstFocus != null -> Modifier.focusRequester(firstFocus)
                     else -> Modifier
                 }
-                val play = if (item.kind.playable) ({ actions.onPlayItem(item) }) else null
-                when (style) {
-                    CardStyle.POSTER -> PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
-                    CardStyle.WIDE -> WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
-                }
+                LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, modifier)
             }
         }
     }

@@ -57,14 +57,17 @@ internal object LineupOfferings : Table("lineup_offering") {
 internal object GuideImports : Table("guide_import") {
     val guideId = text("guide_id")
     val importedAt = text("imported_at")
+    /** The generation of the guide's channel and programme rows that readers see; an import writes the next one beside it. */
+    val generation = long("generation").default(0)
     override val primaryKey = PrimaryKey(guideId)
 }
 internal object GuideChannels : Table("guide_channel") {
     val guideId = text("guide_id")
+    val generation = long("generation").default(0)
     val channelId = text("channel_id")
     val displayName = text("display_name")
     val icon = text("icon").nullable()
-    override val primaryKey = PrimaryKey(guideId, channelId)
+    override val primaryKey = PrimaryKey(guideId, generation, channelId)
 }
 internal object LogoCacheRows : Table("logo_cache") {
     val key = text("key")
@@ -94,6 +97,7 @@ internal object ProviderStates : Table("provider_state") {
 }
 internal object GuideProgrammes : Table("guide_programme") {
     val guideId = text("guide_id")
+    val generation = long("generation").default(0)
     val channelId = text("channel_id")
     val startsAt = long("starts_at")
     val endsAt = long("ends_at")
@@ -101,7 +105,7 @@ internal object GuideProgrammes : Table("guide_programme") {
     val description = text("description").nullable()
     /** The programme's metadata beyond title and description as compact JSON; null when the source gave none. */
     val detailsJson = text("details_json").nullable()
-    override val primaryKey = PrimaryKey(guideId, channelId, startsAt, endsAt, title)
+    override val primaryKey = PrimaryKey(guideId, generation, channelId, startsAt, endsAt, title)
 }
 /** One row per station key a lineup policy run remembers: availability and the pins' last offerings, as JSON. */
 internal object StationAvailabilityRows : Table("station_availability") {

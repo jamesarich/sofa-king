@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.data
 
-import io.ktor.client.HttpClient
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
@@ -26,6 +26,7 @@ import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import kotlinx.serialization.SerializationException
@@ -48,25 +49,31 @@ internal sealed interface CatalogResult {
  * The Sofa King server's JSON API under `/api/v1`. Every call carries the bearer [token] unless it is empty;
  * media URLs from a descriptor are resolved against the base and carry no token. Transport failures surface as
  * [IOException] on every platform, whatever the engine throws, so callers retry them the same way. Answers are
- * decoded on [background], off the caller's main thread.
+ * decoded on [background], off the caller's main thread. It holds its own client on [engine], the app's one pool
+ * unless a test passes another; [close] it once its server is no longer used, which leaves the pool open.
  */
 class SofaKingApi(
     baseUrl: String,
     token: String,
-    http: HttpClient = apiHttpClient,
+    engine: HttpClientEngine = sharedHttpEngine,
     private val background: CoroutineDispatcher = Dispatchers.Default,
-) {
+) : AutoCloseable {
     private val base: Url = Url(baseUrl.trimEnd('/'))
 
-    // Shares the pool's engine; the base path ends in a slash so relative endpoints resolve under it. JSON stays
-    // with wireJson by hand: Ktor's ContentNegotiation converter pulls OpenAPI schema, YAML and a kotlinx-datetime
-    // compatibility build into every target for two lines of encoding.
-    private val http = http.config {
+    // The base path ends in a slash so relative endpoints resolve under it. JSON stays with wireJson by hand: Ktor's
+    // ContentNegotiation converter pulls OpenAPI schema, YAML and a kotlinx-datetime compatibility build into every
+    // target for two lines of encoding.
+    private val http = httpClient(engine) {
         defaultRequest {
             url("$base/api/v1/")
             if (token.isNotEmpty()) bearerAuth(token)
         }
     }
+
+    override fun close() = http.close()
+
+    /** True once [close]d. */
+    internal val closed: Boolean get() = !http.isActive
 
     internal suspend fun catalog(etag: String?): CatalogResult = call {
         val response = http.get("channels") {

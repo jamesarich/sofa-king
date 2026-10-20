@@ -2,6 +2,8 @@ package dev.jamesrich.sofaking.data
 
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -28,6 +30,7 @@ class LibraryPlaybackTest {
         val vods = linkedMapOf<String, Vod>()
         var mode = "remux"
         var nextId = 1
+        var openDelayMs = 0L
 
         val http = FakeHttp(scope) { request ->
             val vodId = request.path.removePrefix("/api/v1/vod-sessions/").takeIf { request.path.startsWith("/api/v1/vod-sessions/") }
@@ -39,6 +42,7 @@ class LibraryPlaybackTest {
                     val recordingId = body["recordingId"]?.jsonPrimitive?.contentOrNull
                     val vod = Vod("v${nextId++}", body["itemId"]?.jsonPrimitive?.content.orEmpty(), mode, if (mode == "direct") 0 else start, recordingId = recordingId)
                     vods[vod.id] = vod
+                    delay(openDelayMs)
                     json(vod.body(), status = 201)
                 }
                 vodId != null && request.method == "PATCH" -> vods[vodId]?.let { vod ->
@@ -202,5 +206,19 @@ class LibraryPlaybackTest {
         val reopened = withTimeout(5_000) { sessions.current.filterNotNull().first { it.sessionId != "v1" } }
         assertEquals("m1", reopened.itemId)
         assertEquals(42_000, reopened.offsetMs)
+    }
+
+    @Test
+    fun `an item play canceled while the server answers releases the session it opened`() = runTest {
+        val (fake, sessions) = fixture()
+        fake.openDelayMs = 400
+        val playing = backgroundScope.async { sessions.play("m1", tv) }
+        withTimeout(5_000) { while (fake.requests.none { it.startsWith("POST /api/v1/vod-sessions") }) delay(10) }
+
+        playing.cancelAndJoin()
+
+        withTimeout(5_000) { while ("DELETE /api/v1/vod-sessions/v1" !in fake.requests) delay(10) }
+        assertNull(sessions.current.value)
+        assertTrue(fake.vods.isEmpty())
     }
 }

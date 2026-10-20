@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.MediaHome
 import dev.jamesrich.sofaking.data.MediaLibrary
+import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import kotlin.test.Test
 import kotlin.test.assertEquals

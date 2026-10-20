@@ -73,7 +73,7 @@ internal class LibraryGridActions(
 @Composable
 internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actions: LibraryGridActions, returnedFrom: String? = null) {
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues()
-    val wide = library?.kind == LibraryKind.VIDEOS
+    val style = if (library?.kind == LibraryKind.VIDEOS) CardStyle.WIDE else CardStyle.POSTER
     val state = rememberLazyGridState()
     val direction = LocalLayoutDirection.current
     val focus = remember { FocusRequester() }
@@ -97,7 +97,7 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
         }
     }
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(if (wide) WIDE_WIDTH else POSTER_WIDTH),
+        columns = GridCells.Adaptive(if (style == CardStyle.WIDE) WIDE_WIDTH else POSTER_WIDTH),
         state = state,
         contentPadding = PaddingValues(
             start = insets.calculateStartPadding(direction),
@@ -115,12 +115,7 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
         val items = grid?.items.orEmpty()
         items(items, key = { it.id }) { item ->
             val modifier = if (item.id == focusId) Modifier.focusRequester(focus) else Modifier
-            val play = if (item.kind.playable) ({ actions.onPlayItem(item) }) else null
-            if (wide) {
-                WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
-            } else {
-                PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
-            }
+            LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, modifier)
         }
         val g = grid
         if (g != null && (g.loading || g.error != null || items.isEmpty())) {

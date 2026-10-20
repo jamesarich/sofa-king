@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
@@ -25,7 +27,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -130,8 +131,8 @@ fun SettingsScreen(
     var captionAdvance by remember(settings.captionAdvanceMs) { mutableIntStateOf(settings.captionAdvanceMs) }
     var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
     var captionStyle by remember(settings.captionStyle) { mutableStateOf(settings.captionStyle) }
-    var serverUrl by remember(settings.serverUrl) { mutableStateOf(settings.serverUrl) }
-    var apiToken by remember(settings.apiToken) { mutableStateOf(settings.apiToken) }
+    val serverUrl = rememberStoredFieldState(settings.serverUrl)
+    val apiToken = rememberStoredFieldState(settings.apiToken)
     var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
     var autoOpen by remember(settings.autoOpenDelay) { mutableStateOf(settings.autoOpenDelay) }
     var previewSound by remember(settings.previewSound) { mutableStateOf(settings.previewSound) }
@@ -142,17 +143,17 @@ fun SettingsScreen(
     var decoder by remember(settings.playback.decoder) { mutableStateOf(settings.playback.decoder) }
     var buffer by remember(settings.playback.buffer) { mutableStateOf(settings.playback.buffer) }
     var skipCommercials by remember(settings.skipCommercials) { mutableStateOf(settings.skipCommercials) }
-    var pairingCode by remember { mutableStateOf("") }
+    val pairingCode = rememberTextFieldState()
     val serverFocus = remember { FocusRequester() }
     val tokenFocus = remember { FocusRequester() }
     val codeFocus = remember { FocusRequester() }
     // Save only takes an address the server's API paths can be appended to and a token a header can carry;
     // the fields say what is missing. It stays off until either differs from what is stored.
-    val validUrl = ServerAddress.normalizeUrl(serverUrl)
-    val validToken = ServerAddress.normalizeToken(apiToken)
+    val validUrl = ServerAddress.normalizeUrl(serverUrl.text.toString())
+    val validToken = ServerAddress.normalizeToken(apiToken.text.toString())
     val canSave = canSaveServer(settings, validUrl, validToken)
     val save = { if (canSave && validUrl != null && validToken != null) onSave(validUrl, validToken) }
-    val validCode = ServerAddress.normalizeCode(pairingCode)
+    val validCode = ServerAddress.normalizeCode(pairingCode.text.toString())
     val canPair = canPairServer(validUrl, validCode, pairing.busy)
     val pair = { if (canPair && validUrl != null && validCode != null) pairing.onPair(validUrl, validCode) }
 
@@ -197,10 +198,9 @@ fun SettingsScreen(
             item {
                 SettingField(
                     label = stringResource(Res.string.settings_server_url),
-                    stored = settings.serverUrl,
-                    onValueChange = { serverUrl = it },
+                    state = serverUrl,
                     // An empty field is not yet wrong; it says so once something is typed.
-                    problem = stringResource(Res.string.settings_server_url_invalid).takeIf { serverUrl.isNotBlank() && validUrl == null },
+                    problem = stringResource(Res.string.settings_server_url_invalid).takeIf { serverUrl.text.isNotBlank() && validUrl == null },
                     focusRequester = serverFocus,
                     imeAction = ImeAction.Next,
                     onAction = { codeFocus.requestFocus(FocusDirection.Enter) },
@@ -213,9 +213,8 @@ fun SettingsScreen(
                     HelpText(stringResource(Res.string.settings_pairing_help))
                     SettingField(
                         label = stringResource(Res.string.settings_pairing_code),
-                        stored = "",
-                        onValueChange = { pairingCode = it },
-                        problem = stringResource(Res.string.settings_pairing_code_invalid).takeIf { pairingCode.isNotEmpty() && validCode == null },
+                        state = pairingCode,
+                        problem = stringResource(Res.string.settings_pairing_code_invalid).takeIf { pairingCode.text.isNotEmpty() && validCode == null },
                         focusRequester = codeFocus,
                         imeAction = ImeAction.Done,
                         onAction = pair,
@@ -242,8 +241,7 @@ fun SettingsScreen(
                 Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingField(
                         label = stringResource(Res.string.settings_api_token),
-                        stored = settings.apiToken,
-                        onValueChange = { apiToken = it },
+                        state = apiToken,
                         problem = stringResource(Res.string.settings_api_token_invalid).takeIf { validToken == null },
                         focusRequester = tokenFocus,
                         imeAction = ImeAction.Done,
@@ -254,7 +252,12 @@ fun SettingsScreen(
                     Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         SofaButton(onClick = save, enabled = canSave) { Text(stringResource(Res.string.settings_save)) }
                         if (settings.serverUrl.isNotEmpty()) {
-                            SofaButton(onClick = { changingServer = false; serverUrl = settings.serverUrl; apiToken = settings.apiToken }) {
+                            SofaButton(onClick = {
+                                changingServer = false
+                                serverUrl.setTextAndPlaceCursorAtEnd(settings.serverUrl)
+                                apiToken.setTextAndPlaceCursorAtEnd(settings.apiToken)
+                                pairingCode.clearText()
+                            }) {
                                 Text(stringResource(Res.string.settings_server_cancel))
                             }
                         }
@@ -582,27 +585,29 @@ internal fun canSaveServer(stored: AppSettings, url: String?, token: String?): B
 /** Pair is on for a valid address and a six-digit code while no claim is running. */
 internal fun canPairServer(url: String?, code: String?, busy: Boolean): Boolean = url != null && code != null && !busy
 
+/**
+ * The one state of a field's text, starting at the saved [stored] value; only a change to that value replaces what
+ * is typed. The screen reads and resets the field through it.
+ */
+@Composable
+private fun rememberStoredFieldState(stored: String): TextFieldState {
+    val state = rememberTextFieldState(stored)
+    LaunchedEffect(stored) {
+        if (state.text.toString() != stored) state.setTextAndPlaceCursorAtEnd(stored)
+    }
+    return state
+}
+
 @Composable
 private fun SettingField(
     label: String,
-    stored: String,
-    onValueChange: (String) -> Unit,
+    state: TextFieldState,
     problem: String?,
     focusRequester: FocusRequester,
     imeAction: ImeAction,
     onAction: () -> Unit,
     maskUnfocused: ((String) -> String)? = null,
 ) {
-    // The field owns what is typed; only a change to the saved [stored] value replaces it, so an echo of
-    // earlier keystrokes can never overwrite newer ones.
-    val state = rememberTextFieldState(stored)
-    LaunchedEffect(stored) {
-        if (state.text.toString() != stored) state.setTextAndPlaceCursorAtEnd(stored)
-    }
-    LaunchedEffect(state) {
-        snapshotFlow { state.text.toString() }.collect(onValueChange)
-    }
-
     Column(Modifier.width(FIELD_WIDTH)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         TvTextField(

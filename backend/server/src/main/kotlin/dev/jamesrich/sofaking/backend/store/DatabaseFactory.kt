@@ -17,14 +17,23 @@ import org.sqlite.javax.SQLiteConnectionPoolDataSource
 
 private val sources = ConcurrentHashMap<Database, PinnedConnectionSource>()
 
-internal fun databaseAt(directory: Path): Database {
+/**
+ * Opens the database file in [directory]. With [readOnly] the connection can only read: WAL lets it read the last
+ * committed state while the writer's connection is inside a transaction, so it is opened after the writer, which
+ * owns the journal mode and the other persistent settings.
+ */
+internal fun databaseAt(directory: Path, readOnly: Boolean = false): Database {
     Files.createDirectories(directory)
     val config = SQLiteConfig().apply {
-        enforceForeignKeys(true)
         setBusyTimeout(5000)
-        setJournalMode(SQLiteConfig.JournalMode.WAL)
-        setSynchronous(SQLiteConfig.SynchronousMode.NORMAL)
-        setJournalSizeLimit(64 * 1024 * 1024)
+        if (readOnly) {
+            setReadOnly(true)
+        } else {
+            enforceForeignKeys(true)
+            setJournalMode(SQLiteConfig.JournalMode.WAL)
+            setSynchronous(SQLiteConfig.SynchronousMode.NORMAL)
+            setJournalSizeLimit(64 * 1024 * 1024)
+        }
     }
     val source = PinnedConnectionSource(
         SQLiteConnectionPoolDataSource(config).apply { url = "jdbc:sqlite:${directory.toAbsolutePath().resolve("backend.sqlite")}" },
@@ -41,7 +50,7 @@ internal fun closeDatabase(database: Database) {
 /**
  * Keeps one physical SQLite connection for the database's life and hands out sqlite-jdbc's pooled handles to it:
  * the close Exposed sends after each transaction returns the handle, and the physical connection, with its pragmas,
- * stays open. Every transaction already runs on the store's one thread, so a larger pool would buy nothing, while
+ * stays open. Every transaction on a connection runs on that connection's one thread, so a larger pool would buy nothing, while
  * opening a connection per transaction re-applies the pragmas and checkpoints the WAL each time the last one closes.
  * A handle that reports a connection error drops the physical connection, so the next transaction reopens it.
  */

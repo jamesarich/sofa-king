@@ -6,6 +6,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
 class TimeFormatterTest {
@@ -46,5 +48,13 @@ class TimeFormatterTest {
         assertEquals("Mon", chicago.day(Instant.parse("2026-10-13T03:00:00Z")))
         assertTrue(chicago.sameDay(Instant.parse("2026-10-13T03:00:00Z"), Instant.parse("2026-10-12T15:00:00Z")))
         assertFalse(chicago.sameDay(Instant.parse("2026-10-13T06:00:00Z"), Instant.parse("2026-10-12T15:00:00Z")))
+    }
+
+    @Test
+    fun `durations read as hours and minutes`() {
+        assertEquals("45 min", 45.minutes.hoursAndMinutes())
+        assertEquals("1 h", 60.minutes.hoursAndMinutes())
+        assertEquals("2 h 5 min", (2.hours + 5.minutes).hoursAndMinutes())
+        assertEquals("0 min", 0.minutes.hoursAndMinutes())
     }
 }

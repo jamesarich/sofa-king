@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
+import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.ui.settings.SettingsLock
 

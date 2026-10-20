@@ -10,6 +10,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
 
 class LibraryChoicesTest {
     private fun item(id: String, kind: ItemKind, progress: PlayProgress? = null, parentId: String? = null, unwatched: Int = 0, season: Int? = null, episode: Int? = null) =
@@ -32,10 +34,10 @@ class LibraryChoicesTest {
 
     @Test
     fun `running times round to the minute`() {
-        assertEquals(1 to 48, runtimeParts(6_480_000))
-        assertEquals(0 to 45, runtimeParts(2_699_000))
-        assertNull(runtimeParts(20_000))
-        assertNull(runtimeParts(null))
+        assertEquals(1.hours + 48.minutes, runtime(6_480_000))
+        assertEquals(45.minutes, runtime(2_699_000))
+        assertNull(runtime(20_000))
+        assertNull(runtime(null))
     }
 
     @Test

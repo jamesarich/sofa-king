@@ -251,4 +251,46 @@ class BackendStoreTest {
             assertTrue("guide_programme" in analyzed, "$analyzed")
         }
     }
+
+    @Test fun `a read answers while a long write holds the writer`() = runBlocking<Unit> {
+        openStore(directory()).use { store ->
+            store.saveLineup(emptyList(), t)
+            val readDone = java.util.concurrent.CountDownLatch(1)
+            val write = async(Dispatchers.Default) { store.query { readDone.await(10, java.util.concurrent.TimeUnit.SECONDS) } }
+            withTimeout(5_000) { assertEquals(emptyList(), store.lineup()) }
+            readDone.countDown()
+            assertTrue(write.await(), "the write was still open when the read answered")
+        }
+    }
+
+    @Test fun `provider state reads from memory, follows each write and survives a reopen`() = runBlocking<Unit> {
+        val dir = directory()
+        openStore(dir).use { store ->
+            store.saveProviderState("p", "device", "one", null, t)
+            store.saveProviderState("p", "token", "secret", t.plusSeconds(60), t)
+            store.saveProviderState("p", "device", "two", null, t.plusSeconds(1))
+            store.deleteProviderState("p", "token")
+            assertEquals(ProviderStateValue("two", null, t.plusSeconds(1)), store.providerState("p", "device"))
+            assertNull(store.providerState("p", "token"))
+        }
+        openStore(dir).use { store ->
+            assertEquals(ProviderStateValue("two", null, t.plusSeconds(1)), store.providerState("p", "device"))
+            assertNull(store.providerState("p", "token"))
+        }
+    }
+
+    @Test fun `a transaction that holds its connection past half a second is logged by its source file`() = runBlocking<Unit> {
+        val logger = org.slf4j.LoggerFactory.getLogger(BackendStore::class.java) as ch.qos.logback.classic.Logger
+        val seen = ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>().apply { start() }
+        logger.addAppender(seen)
+        try {
+            openStore(directory()).use { store ->
+                store.query { Thread.sleep(600) }
+                store.query { }
+            }
+            val slow = seen.list.filter { it.formattedMessage.startsWith("slow database transaction") }
+            assertEquals(1, slow.size, seen.list.map { it.formattedMessage }.toString())
+            assertTrue(slow.single().formattedMessage.contains("source=BackendStoreTest"), slow.single().formattedMessage)
+        } finally { logger.detachAppender(seen) }
+    }
 }

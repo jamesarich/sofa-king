@@ -68,6 +68,9 @@ class Dvr(
         jobs.register(CULL_JOB, "Recording cleanup", SCHEDULE_EVERY) { if (::scope.isInitialized) scope.launch { cull("now") } }
     }
 
+    /** Whether the server can write the recordings folder, made when it is missing; false means every recording fails. */
+    fun writable(): Boolean = runCatching { Files.createDirectories(root); Files.isWritable(root) }.getOrDefault(false)
+
     /** Runs the scheduler on guide imports, rule changes and every [SCHEDULE_EVERY], and starts and ends recordings every [TICK]. */
     fun start(scope: CoroutineScope): List<Job> {
         this.scope = scope

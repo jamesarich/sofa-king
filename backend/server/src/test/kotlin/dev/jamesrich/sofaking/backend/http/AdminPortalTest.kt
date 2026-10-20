@@ -288,6 +288,18 @@ class AdminPortalTest {
         }
     }
 
+    @Test fun `the home page says when the server cannot write the recordings folder`() = testApplication {
+        portal {
+            browser.signIn()
+            assertFalse(browser.get("/admin").bodyAsText().contains("cannot write the recordings folder"))
+            val root = runtime.dvr!!.root
+            root.toFile().deleteRecursively()
+            Files.writeString(root, "a file where the folder should be")
+            val home = browser.get("/admin").bodyAsText()
+            assertTrue(home.contains("The server cannot write the recordings folder") && home.contains("sudo chown -R UID:GID ./recordings"))
+        }
+    }
+
     @Test fun `the overview lists what needs attention and links to the fix`() = testApplication {
         portal(basePolicy, guides = { listOf(it.brokenGuide) }) {
             runtime.policy!!.apply("test")

@@ -56,8 +56,8 @@ class BaselineProfileGenerator {
     }
 
     /**
-     * A cold start up to the first page: the last channel full screen, or the guide. The splash screen stays up until
-     * the app has chosen that page, so wait for the page's own test tag, which MainActivity exposes as a resource id.
+     * A cold start up to the first page: the last channel full screen, or the guide. The loader shows until the app has
+     * chosen that page, so wait for the page's own test tag, which MainActivity exposes as a resource id.
      */
     private fun MacrobenchmarkScope.launch() {
         pressHome()

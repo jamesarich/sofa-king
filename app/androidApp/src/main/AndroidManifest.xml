@@ -28,7 +28,6 @@
 
         <activity
             android:name=".MainActivity"
-            android:theme="@style/Theme.SofaKing.Starting"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">

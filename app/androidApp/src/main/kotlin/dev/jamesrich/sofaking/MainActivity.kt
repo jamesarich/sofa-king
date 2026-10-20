@@ -4,14 +4,12 @@ import android.app.Application
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
@@ -34,15 +32,7 @@ class MainActivity : ComponentActivity() {
     /** A `sofaking://pair` link this activity was opened with, until the app has claimed it. */
     private val pairing = mutableStateOf<PairingRequest?>(null)
 
-    /** Set once the app has chosen its first page, so the splash screen gives way to it and not to a loading frame. */
-    @Volatile
-    private var ready = false
-
     override fun onCreate(savedInstanceState: Bundle?) {
-        // The splash screen stays until the first page is chosen (the last channel, a tab or the guide), at most
-        // SPLASH_MAX_MS, after which the loading page shows while a slow server answers.
-        val splashSince = SystemClock.uptimeMillis()
-        installSplashScreen().setKeepOnScreenCondition { !ready && SystemClock.uptimeMillis() - splashSince < SPLASH_MAX_MS }
         super.onCreate(savedInstanceState)
         WindowCompat.enableEdgeToEdge(window)
         // The app is always dark, so the bars keep light icons whatever the system theme.
@@ -58,7 +48,6 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.semantics { testTagsAsResourceId = true },
                 pairing = pairing.value,
                 onPairingHandled = { pairing.value = null },
-                onReady = { ready = true },
             )
         }
     }
@@ -72,5 +61,3 @@ class MainActivity : ComponentActivity() {
         if (intent?.action == Intent.ACTION_VIEW) pairing.value = intent.dataString?.let(::parsePairingLink)
     }
 }
-
-private const val SPLASH_MAX_MS = 2_000L

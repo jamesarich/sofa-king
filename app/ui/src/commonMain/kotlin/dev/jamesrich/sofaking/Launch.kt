@@ -4,9 +4,9 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.data.TopLevelTab
 
-/** Where a cold start lands once the lineup and settings are known. */
+/** Where a cold start lands once the settings, and for Live the lineup, are known. */
 internal sealed interface LaunchTarget {
-    /** Still loading, or settings not read yet: show the loader and decide later. */
+    /** Settings not read yet, or Live waiting on the lineup: show the loader and decide later. */
     data object Undecided : LaunchTarget
     data object Guide : LaunchTarget
     data class Player(val guideId: String) : LaunchTarget
@@ -18,28 +18,24 @@ internal sealed interface LaunchTarget {
  * The startup setting decides: where the viewer left off reopens the tab the app was last on, which on Live is the
  * last watched channel full screen; the library opens the Library tab; a chosen channel opens full screen. A first
  * run, a channel the lineup lost, a startup of the guide, an unconfigured or unreachable server all open the guide.
- * Loading with nothing to show stays undecided.
+ * Library and Recordings need no channels, so they open while the lineup still loads; Live waits for it.
  */
-internal fun launchTarget(state: LineupState, settings: AppSettings?): LaunchTarget = when {
-    settings == null || state is LineupState.Loading -> LaunchTarget.Undecided
-    state is LineupState.Ready -> {
-        val tab = when (settings.startup) {
-            StartupTarget.RESUME -> settings.lastTab.tab
-            StartupTarget.LIBRARY -> Tab.LIBRARY
-            StartupTarget.GUIDE, StartupTarget.CHANNEL -> Tab.LIVE
-        }
-        val wanted = when (settings.startup) {
-            StartupTarget.RESUME -> settings.lastChannel
-            StartupTarget.CHANNEL -> settings.startupChannel
-            StartupTarget.GUIDE, StartupTarget.LIBRARY -> null
-        }
-        when {
-            tab != Tab.LIVE -> LaunchTarget.OpenTab(tab)
-            wanted != null && state.lineup.channels.any { it.guideId == wanted } -> LaunchTarget.Player(wanted)
-            else -> LaunchTarget.Guide
-        }
+internal fun launchTarget(state: LineupState, settings: AppSettings?): LaunchTarget {
+    if (settings == null) return LaunchTarget.Undecided
+    if (state is LineupState.Unconfigured || state is LineupState.Failed) return LaunchTarget.Guide
+    val tab = when (settings.startup) {
+        StartupTarget.RESUME -> settings.lastTab.tab
+        StartupTarget.LIBRARY -> Tab.LIBRARY
+        StartupTarget.GUIDE, StartupTarget.CHANNEL -> Tab.LIVE
     }
-    else -> LaunchTarget.Guide
+    if (tab != Tab.LIVE) return LaunchTarget.OpenTab(tab)
+    if (state !is LineupState.Ready) return LaunchTarget.Undecided
+    val wanted = when (settings.startup) {
+        StartupTarget.RESUME -> settings.lastChannel
+        StartupTarget.CHANNEL -> settings.startupChannel
+        StartupTarget.GUIDE, StartupTarget.LIBRARY -> null
+    }
+    return if (wanted != null && state.lineup.channels.any { it.guideId == wanted }) LaunchTarget.Player(wanted) else LaunchTarget.Guide
 }
 
 /** The settings' name for a tab, and back. */

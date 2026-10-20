@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -166,6 +167,7 @@ fun SettingsScreen(
     val backFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val firstFocus = if (showsBackButton()) backFocus else contentFocus
+    val listState = rememberLazyListState()
     val channelsFocus = remember { FocusRequester() }
     val startupFocus = remember { FocusRequester() }
 
@@ -178,6 +180,8 @@ fun SettingsScreen(
         }
         if (returnTo != null && requestFocusWhenAttached(returnTo)) return@LaunchedEffect
         requestFocusWhenAttached(if (settings.serverUrl.isEmpty()) serverFocus else firstFocus)
+        // Bringing the first setting into view may scroll the title off the top; the page opens at its top.
+        if (firstFocus == contentFocus) listState.scrollToItem(0)
     }
     LaunchedEffect(changingServer) { if (changingServer && settings.serverUrl.isNotEmpty()) requestFocusWhenAttached(serverFocus) }
 
@@ -274,6 +278,7 @@ fun SettingsScreen(
             .focusRequester(contentFocus)
             .focusRestorer()
             .focusGroup(),
+        state = listState,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { ScreenTitle(stringResource(Res.string.settings_title), onBack, backFocus) }

@@ -138,3 +138,7 @@ internal const val EDGE_MARGIN_MS = 4_000L
 
 /** Two position readings further apart than this are a seek, not playback, so a break they span is not skipped. */
 internal const val SKIP_WINDOW_MS = 3_000L
+
+/** Where a seek to [positionMs] lands in a seekable item: never before its start, nor past [durationMs] when known. */
+internal fun clampSeek(positionMs: Long, durationMs: Long?): Long =
+    durationMs?.let { positionMs.coerceIn(0L, it) } ?: positionMs.coerceAtLeast(0L)

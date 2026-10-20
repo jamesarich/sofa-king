@@ -75,6 +75,7 @@ A failed stream shows a headline, a line saying the player reconnects automatica
 | --- | --- |
 | `VLC_NOT_INSTALLED` on a desktop | The desktop app plays through libVLC. Install VLC 3 (`sudo apt install vlc` on Ubuntu or Debian; a `.deb` installed with `apt install` brings it along), then restart the app. |
 | An MPEG-TS channel does not play on iOS | AVPlayer plays HLS channels only. Watch MPEG-TS channels on Android or a desktop. |
+| The screen dims or locks while a channel plays, on a Linux desktop or in a browser | A Linux desktop follows its own idle settings, since the app keeps the display awake only on Windows and macOS. A browser keeps it awake only on a page served over HTTPS, and only in browsers with the Screen Wake Lock API. |
 | No sound when the web app opens a channel | The browser blocks sound until you interact with the page. Press any key or click, and the sound comes on. |
 | No captions, in Chrome | Chrome's built-in HLS player exposes no caption tracks. Safari exposes the stream's CEA-608 captions. |
 | No info bar or channel list over full-screen video, in a browser | The browser has no WebGL2, or the server sends no CORS headers on media for the page's origin. Serve the web app one of the ways [getting started](getting-started.md#web) describes. Escape still returns to the guide. |

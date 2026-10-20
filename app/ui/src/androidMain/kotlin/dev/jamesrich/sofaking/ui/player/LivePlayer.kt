@@ -216,7 +216,7 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
 
     override fun seekTo(positionMs: Long) {
         if (!isSeekable) return
-        exo.seekTo(durationMs?.let { positionMs.coerceIn(0L, it) } ?: positionMs.coerceAtLeast(0L))
+        exo.seekTo(clampSeek(positionMs, durationMs))
     }
 
     private val mediaSessions = NewestMediaSession(::openSystemSession)
@@ -228,14 +228,22 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
      * a sofaking://pair link opened from another app in split screen starts a second one beside the first.
      */
     private fun openSystemSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
-        val forwarding = LivePlayerWrapper(this, onZapStep)
+        val forwarding = sessionPlayer
+        forwarding.onZapStep = onZapStep
         val session = MediaSession.Builder(context, forwarding).setId("player-${sessionIds.incrementAndGet()}").build()
         return object : MediaSessionHandle {
             override fun publish(nowPlaying: NowPlaying) = forwarding.publishNowPlaying(nowPlaying.toMetadata())
 
-            override fun close() = session.release()
+            override fun close() {
+                session.release()
+                forwarding.onZapStep = {}
+                forwarding.publishNowPlaying(MediaMetadata.EMPTY)
+            }
         }
     }
+
+    /** Made for the first session; it listens to [exo] until the player is released, so later sessions reuse it. */
+    private val sessionPlayer by lazy { LivePlayerWrapper(this) }
 
     /** Live video through media3-ui-compose: `ContentFrame` sizes a SurfaceView to the picture and shows [shutter] after each reset. */
     @Composable

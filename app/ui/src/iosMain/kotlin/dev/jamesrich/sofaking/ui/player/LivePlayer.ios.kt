@@ -11,18 +11,13 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.UIKitView
 import dev.jamesrich.sofaking.data.PlaybackProfile
-import dev.jamesrich.sofaking.data.PlaybackStream
-import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import platform.AVFAudio.*
@@ -109,12 +104,10 @@ actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
  * until it settles: playing with a frame on screen, paused, idle, failed or ended.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer {
+internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLivePlayer() {
     private val av = AVPlayer()
     private val playerLayer = AVPlayerLayer.playerLayerWithPlayer(av).apply { videoGravity = AVLayerVideoGravityResizeAspect }
     private val scope = MainScope()
-    private val pauseClock = LivePauseClock()
-    private var stream: PlaybackStream? = null
     private var captionsOn = false
     private var ended = false
     private var reportedFailure: AVPlayerItem? = null
@@ -124,10 +117,6 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     private var legibleGroup: AVMediaSelectionGroup? = null
     private val hasFrame = MutableStateFlow(false)
 
-    private val _status = MutableStateFlow(PlayerStatus())
-    private val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
-    override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
-    override val errors: SharedFlow<PlayerError> = _errors.asSharedFlow()
     override val cues: StateFlow<List<CaptionCue>> = MutableStateFlow(emptyList<CaptionCue>()).asStateFlow()
     private val _audioTracks = MutableStateFlow<List<AudioTrack>>(emptyList())
     override val audioTracks: StateFlow<List<AudioTrack>> = _audioTracks.asStateFlow()
@@ -154,9 +143,6 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         }
     }
 
-    override val currentChannelId: String? get() = stream?.channelId
-    override val currentStreamUrl: String? get() = stream?.url
-    override val hasItem: Boolean get() = stream != null
     override val bufferedMs: Long get() = 0L
     override val supportsCaptionLead: Boolean get() = false
     override val hasTextTrack: Boolean
@@ -225,15 +211,6 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         _audioTracks.value = if (options.size > 1) options.mapIndexed { index, option -> AudioTrack(index.toString(), option.displayName, option == selected) } else emptyList()
     }
 
-    override fun setStream(stream: PlaybackStream, nowPlaying: NowPlaying?) {
-        this.stream = stream
-    }
-
-    override fun replaceStream(stream: PlaybackStream) {
-        stop()
-        this.stream = stream
-    }
-
     override fun prepare() {
         val url = stream?.url?.let(NSURL::URLWithString) ?: return
         ended = false
@@ -246,22 +223,6 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         av.pause()
         av.replaceCurrentItemWithPlayerItem(null)
         refresh()
-    }
-
-    override fun play() {
-        val toLive = pauseClock.onPlay(uptimeMs()) && stream?.seekable != true
-        playWhenReady = true
-        // A relayed live playlist carries no program dates to seek by, and its window has moved on: rejoining the
-        // edge is reopening the stream, as on the desktop and the web.
-        if (toLive) {
-            stop()
-            prepare()
-        }
-    }
-
-    override fun pause() {
-        pauseClock.onPause(uptimeMs())
-        playWhenReady = false
     }
 
     /**
@@ -294,7 +255,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
 
     override fun seekTo(positionMs: Long) {
         if (!isSeekable) return
-        val target = durationMs?.let { positionMs.coerceIn(0L, it) } ?: positionMs.coerceAtLeast(0L)
+        val target = clampSeek(positionMs, durationMs)
         av.seekToTime(CMTimeMakeWithSeconds(target / 1000.0, 600))
     }
 

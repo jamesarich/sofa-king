@@ -668,11 +668,13 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
         },
         style = MaterialTheme.typography.bodyMedium,
     )
+    // Above the buttons, since a TV scrolls only as far as the focused button and text below it stays off screen.
+    if (install != null && install != InstallState.Idle) HelpText(installText(install))
     Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         if (update is UpdateState.Available) {
             if (installer != null && update.latest.apkUrl != null) {
-                val busy = install is InstallState.Downloading || install == InstallState.Installing
-                SofaButton(onClick = { installer.install(update.latest) }, enabled = !busy) {
+                // Stays enabled while busy, since a disabled button drops focus to another row; install ignores the press.
+                SofaButton(onClick = { installer.install(update.latest) }) {
                     Text(stringResource(Res.string.settings_update_install))
                 }
             } else if (downloadUrl != null) {
@@ -684,7 +686,6 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
         SofaButton(onClick = onCheckAgain, enabled = update != UpdateState.Checking) { Text(stringResource(Res.string.settings_update_check)) }
     }
     when {
-        install != null && install != InstallState.Idle -> HelpText(installText(install))
         address != null -> HelpText(stringResource(Res.string.settings_update_address, address!!))
         update is UpdateState.Available && downloadUrl == null -> HelpText(stringResource(Res.string.settings_update_no_package))
     }

@@ -125,7 +125,10 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
                 installedVersionCode = installed?.let(PackageInfoCompat::getLongVersionCode) ?: 0,
                 sameKey = sameKey,
             )
-            if (failure != null) return InstallState.Failed(failure)
+            if (failure != null) {
+                log.w { "update not installed: $failure" }
+                return InstallState.Failed(failure)
+            }
             // Before the commit, since the receiver can hear back before it returns.
             _state.value = InstallState.Installing
             commit(file)

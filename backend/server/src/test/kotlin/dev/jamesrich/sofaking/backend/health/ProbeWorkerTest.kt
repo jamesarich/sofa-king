@@ -3,9 +3,11 @@ package dev.jamesrich.sofaking.backend.health
 import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.contract.OpenPlayback
 import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.remuxCommand
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -265,18 +267,21 @@ class ProbeWorkerTest {
             }
             HttpClient(CIO).use { http -> openStore(dir.resolve("db")).use { store ->
                 val feeds = FeedService(emptyList(), store, http, MutableClock())
-                val worker = ProbeWorker(feeds, store, MutableClock(), ffmpeg.toString())
-                val offering = Offering("o", "c", "p", "http://example.test/live.m3u8", "hls")
-                assertNull(worker.decode(offering, emptyMap(), recheck = true))
-                assertEquals(FailureClass.OFFERING, worker.decode(offering, emptyMap(), recheck = false), "a full decode still needs its frames")
+                val relay = LoopbackRelay(http, UpstreamPolicy())
+                try {
+                    val worker = ProbeWorker(feeds, store, MutableClock(), ffmpeg.toString(), relay = relay)
+                    val offering = Offering("o", "c", "p", "http://example.test/live.m3u8", "hls")
+                    assertNull(worker.decode(offering, emptyMap(), recheck = true))
+                    assertEquals(FailureClass.OFFERING, worker.decode(offering, emptyMap(), recheck = false), "a full decode still needs its frames")
+                } finally { relay.close() }
             } }
         } finally { dir.toFile().deleteRecursively() }
     }
 
     @Test fun `a healthy recheck copies the video instead of decoding it, and both qualify real media`() = runBlocking<Unit> {
-        val offering = Offering("o", "c", "p", "http://example.test/live.m3u8", "hls")
-        val decodeArgs = decodeCommand("ffmpeg", offering, emptyMap(), 30, copy = false)
-        val copyArgs = decodeCommand("ffmpeg", offering, emptyMap(), 30, copy = true)
+        val source = FfmpegSource("http://127.0.0.1:9/relay/lease/root.m3u8", "credential")
+        val decodeArgs = decodeCommand("ffmpeg", source, "hls", 30, copy = false)
+        val copyArgs = decodeCommand("ffmpeg", source, "hls", 30, copy = true)
         assertFalse("-c" in decodeArgs)
         assertEquals(decodeArgs.size + 2, copyArgs.size)
         assertEquals(listOf("-map", "0:v:0", "-c", "copy"), copyArgs.subList(copyArgs.indexOf("-map"), copyArgs.indexOf("-map") + 4))
@@ -284,29 +289,35 @@ class ProbeWorkerTest {
         val dir = Files.createTempDirectory("sofa-probe-copy-")
         try { MediaFixture().use { media -> HttpClient(CIO).use { http -> openStore(dir).use { store ->
             val feeds = FeedService(emptyList(), store, http, MutableClock())
-            val worker = ProbeWorker(feeds, store, MutableClock(), "ffmpeg", config = ProbeConfig(decodeSeconds = 4, deadlineSeconds = 30))
-            val vod = Offering("vod", "c", "media", "${media.base}/vod.m3u8", "hls")
-            assertNull(worker.decode(vod, emptyMap(), recheck = false))
-            assertNull(worker.decode(vod, emptyMap(), recheck = true))
-            assertEquals(FailureClass.OFFERING, worker.decode(vod.copy(url = "${media.base}/missing.m3u8"), emptyMap(), recheck = true))
+            val relay = LoopbackRelay(http, UpstreamPolicy(allowLoopback = true))
+            try {
+                val worker = ProbeWorker(feeds, store, MutableClock(), "ffmpeg", config = ProbeConfig(decodeSeconds = 4, deadlineSeconds = 30), relay = relay)
+                val vod = Offering("vod", "c", "media", "${media.base}/vod.m3u8", "hls")
+                assertNull(worker.decode(vod, emptyMap(), recheck = false))
+                assertNull(worker.decode(vod, emptyMap(), recheck = true))
+                assertEquals(FailureClass.OFFERING, worker.decode(vod.copy(url = "${media.base}/missing.m3u8"), emptyMap(), recheck = true))
+            } finally { relay.close() }
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 
     @Test fun `FFmpeg opens only the whitelisted protocols for probes and remuxes`() {
-        val offering = Offering("o", "c", "p", "http://example.test/live.m3u8", "hls")
-        for (command in listOf(decodeCommand("ffmpeg", offering, emptyMap(), 30, copy = false), remuxCommand("ffmpeg", offering.url, emptyMap()))) {
+        val source = FfmpegSource("http://127.0.0.1:9/relay/lease/root.m3u8", "credential")
+        for (command in listOf(decodeCommand("ffmpeg", source, "hls", 30, copy = false), remuxCommand("ffmpeg", source))) {
             val at = command.indexOf("-protocol_whitelist")
             assertTrue(at in 1 until command.indexOf("-i"), "an input option: $command")
-            assertEquals("http,https,tcp,tls,crypto", command[at + 1])
+            assertEquals("http,tcp,crypto", command[at + 1])
         }
         MediaFixture().use { media ->
+            var output = ""
             fun exit(url: String): Int {
-                val process = ProcessBuilder(decodeCommand("ffmpeg", Offering("o", "c", "media", url, "mpegts"), emptyMap(), 1, copy = true))
-                    .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+                val process = ProcessBuilder(decodeCommand("ffmpeg", FfmpegSource(url, "credential"), "mpegts", 1, copy = true)).redirectErrorStream(true).start()
+                output = process.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
                 assertTrue(process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS), "FFmpeg finished")
                 return process.exitValue()
             }
             assertEquals(0, exit("${media.base}/seg0.ts"), "HTTP is allowed")
+            assertNotEquals(0, exit("https://${media.base.removePrefix("http://")}/seg0.ts"), "HTTPS is not: only the loopback relay is read")
+            assertTrue("not on whitelist" in output, output)
             assertNotEquals(0, exit("concat:${media.base}/seg0.ts|${media.base}/seg1.ts"), "concat is not")
             val local = Files.createTempFile("sofa-probe-local-", ".ts")
             try {

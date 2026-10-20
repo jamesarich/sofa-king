@@ -63,8 +63,8 @@ class OutputStreamTest {
                     }
                     assertEquals(188 * 6, packets.size)
                     for (packet in 0 until 6) assertEquals(0x47.toByte(), packets[packet * 188])
-                    withTimeout(20_000) { while (stack.runtime.sessions.count() > 0) delay(50) }
-                    withTimeout(20_000) { while (fixture.tsClosed.get() < 1) delay(50) }
+                    pollUntil(20_000, 50) { stack.runtime.sessions.count() == 0 }
+                    pollUntil(20_000, 50) { fixture.tsClosed.get() >= 1 }
                     assertEquals(0, stack.runtime.relay.shared.active())
                 }
             }
@@ -92,7 +92,7 @@ class OutputStreamTest {
                             assertEquals("CAPACITY_EXHAUSTED", Json.decodeFromString<ApiError>(refused.bodyAsText()).code)
                         }
                     }
-                    withTimeout(20_000) { while (stack.runtime.sessions.count() > 0) delay(50) }
+                    pollUntil(20_000, 50) { stack.runtime.sessions.count() == 0 }
                     assertEquals(HttpStatusCode.Found, http.get("${stack.server.base}/output/stream/${hls.id}.m3u8?token=$output").status)
                 }
             }

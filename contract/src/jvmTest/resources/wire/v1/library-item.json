@@ -1,0 +1,34 @@
+{
+    "id": "730f2a41-f9e0-3820-af38-9f3ef2b5c2ef",
+    "libraryId": "ae0d738d-8e7a-4e45-8080-0ddc96c8a3d3",
+    "kind": "episode",
+    "title": "Pilot",
+    "parentId": "d4b3a39b-bf7e-3abf-a6da-589b360078dd",
+    "showId": "f8275693-6c73-357b-8a52-d578d4c52284",
+    "showTitle": "Show",
+    "year": 2020,
+    "season": 1,
+    "episode": 1,
+    "episodeEnd": 2,
+    "aired": "2020-01-05",
+    "overview": "Where it starts.",
+    "durationMs": 2000,
+    "poster": "/artwork/730f2a41-f9e0-3820-af38-9f3ef2b5c2ef/poster?v=95c22217e693",
+    "backdrop": "/artwork/f8275693-6c73-357b-8a52-d578d4c52284/backdrop?v=43f1e4cf95a6",
+    "addedAt": "2026-10-10T13:00:00Z",
+    "genres": [
+        "Drama"
+    ],
+    "contentRating": "TV-14",
+    "rating": 8.1,
+    "videoHeight": 180,
+    "hdr": true,
+    "children": 0,
+    "unwatched": 0,
+    "playState": {
+        "positionMs": 600000,
+        "durationMs": 2640000,
+        "watched": false,
+        "updatedAt": "2026-10-10T13:00:00Z"
+    }
+}

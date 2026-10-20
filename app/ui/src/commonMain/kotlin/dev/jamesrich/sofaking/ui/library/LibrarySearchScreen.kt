@@ -104,9 +104,13 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
                 return@collectLatest
             }
             delay(SEARCH_DEBOUNCE_MS)
+            // A newer query cancels this one mid-request; the loader must still come down.
             searching = true
-            results = currentSearch(text)
-            searching = false
+            try {
+                results = currentSearch(text)
+            } finally {
+                searching = false
+            }
         }
     }
     val sections = remember(results) { searchSections(results.orEmpty()) }
@@ -187,11 +191,7 @@ private fun ResultRow(
                     item === items.first() && firstFocus != null -> Modifier.focusRequester(firstFocus)
                     else -> Modifier
                 }
-                val play = if (item.kind.playable) ({ actions.onPlayItem(item) }) else null
-                when (style) {
-                    CardStyle.POSTER -> PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
-                    CardStyle.WIDE -> WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
-                }
+                LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, modifier)
             }
         }
     }

@@ -89,8 +89,8 @@ internal class VodScrub {
         val step = when {
             repeatCount >= FAST_REPEATS -> 300_000L
             repeatCount >= MEDIUM_REPEATS -> 60_000L
-            direction < 0 -> 10_000L
-            else -> 30_000L
+            direction < 0 -> BACK_STEP_MS
+            else -> FORWARD_STEP_MS
         }
         val from = targetMs ?: positionMs
         val moved = from + direction * step
@@ -117,6 +117,10 @@ internal class VodScrub {
 
     companion object {
         const val SCRUB_SETTLE_MS = 700L
+
+        /** One press back or forward, also the touch controls' and the media keys' steps. */
+        const val BACK_STEP_MS = 10_000L
+        const val FORWARD_STEP_MS = 30_000L
         private const val MEDIUM_REPEATS = 8
         private const val FAST_REPEATS = 24
     }
@@ -134,3 +138,7 @@ internal const val EDGE_MARGIN_MS = 4_000L
 
 /** Two position readings further apart than this are a seek, not playback, so a break they span is not skipped. */
 internal const val SKIP_WINDOW_MS = 3_000L
+
+/** Where a seek to [positionMs] lands in a seekable item: never before its start, nor past [durationMs] when known. */
+internal fun clampSeek(positionMs: Long, durationMs: Long?): Long =
+    durationMs?.let { positionMs.coerceIn(0L, it) } ?: positionMs.coerceAtLeast(0L)

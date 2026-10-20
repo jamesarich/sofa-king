@@ -83,6 +83,22 @@ jobs:
           shellcheck deploy/*.sh
           python3 -I -m unittest discover -s scripts -p 'test_*.py'
 
+      # Both start the installed distribution in a temporary directory and talk to it only over loopback: smoke.py checks
+      # the HTTP routes, the migrations and SIGTERM across a restart; live-smoke.py serves fixture feeds and guides it
+      # generates with FFmpeg and decodes video through the relay, the player output and the HDHomeRun remux. An empty
+      # SOFA_UPDATE_IMAGE turns off the update check, so the server reaches no registry either.
+      - name: Smoke test the distribution
+        timeout-minutes: 3
+        env:
+          SOFA_UPDATE_IMAGE: ""
+        run: python3 scripts/smoke.py
+
+      - name: Smoke test live TV against local fixtures
+        timeout-minutes: 5
+        env:
+          SOFA_UPDATE_IMAGE: ""
+        run: python3 scripts/live-smoke.py
+
       - if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -163,6 +179,40 @@ jobs:
           provenance: ${{ env.PUBLISH == 'true' && 'mode=max' || 'false' }}
           cache-from: type=gha,scope=backend-${{ matrix.arch }}
           cache-to: ${{ env.PUBLISH == 'true' && format('type=gha,scope=backend-{0},mode=min', matrix.arch) || '' }}
+
+      # The same build again from the builder's cache, loaded into the runner's Docker, so the image runs before main is
+      # tagged. HDHomeRun stays off because the container's 0.0.0.0 bind would need SOFA_HDHR_ALLOW.
+      - name: Load the image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          platforms: linux/${{ matrix.arch }}
+          build-args: |
+            REVISION=${{ steps.names.outputs.revision }}
+            VERSION=${{ steps.names.outputs.version }}
+          load: true
+          tags: sofa-king:check
+          provenance: false
+          cache-from: type=gha,scope=backend-${{ matrix.arch }}
+
+      - name: Start the image and check its health
+        timeout-minutes: 3
+        run: |
+          docker run --detach --name sofa-king --publish 127.0.0.1:8080:8080 --env SOFA_HDHR_ENABLED=false sofa-king:check
+          until curl -fs http://127.0.0.1:8080/readyz > /dev/null; do
+            test "$(docker inspect --format '{{.State.Running}}' sofa-king)" = true
+            sleep 1
+          done
+          test "$(curl -fsS http://127.0.0.1:8080/healthz)" = ok
+          # The image's own health check, run inside the container.
+          docker exec sofa-king sh -c 'curl -fsS "http://127.0.0.1:${SOFA_PORT}/readyz"'
+          docker stop --timeout 15 sofa-king
+          code="$(docker inspect --format '{{.State.ExitCode}}' sofa-king)"
+          test "$code" = 0 || test "$code" = 143
+
+      - if: failure()
+        name: Show the container log
+        run: docker logs sofa-king || true
 
       - if: env.PUBLISH == 'true'
         name: Record the digest

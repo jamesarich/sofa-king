@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import dev.jamesrich.sofaking.backend.api.ActiveSession
+import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.api.GuideStatus
@@ -25,11 +26,8 @@ internal const val DOCS_BASE = "https://github.com/jamesarich/sofa-king/blob/mai
  * kind of item, and [fingerprint] its text, so an ignored item comes back when what it says changes.
  */
 internal class Attention(val tone: Tone, val title: String, val detail: String?, val href: String, val action: String, val key: String, val doc: String? = null) {
-    val fingerprint: String = sha256Hex("$title\n${detail.orEmpty()}").take(16)
+    val fingerprint: String = hash("$title\n${detail.orEmpty()}").take(16)
 }
-
-internal fun sha256Hex(text: String): String =
-    java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(text.toByteArray()))
 
 /** Enabled stations by the state of their guide. */
 internal class GuideCoverage(val available: Int, val stale: Int, val empty: Int, val unassigned: Int) {

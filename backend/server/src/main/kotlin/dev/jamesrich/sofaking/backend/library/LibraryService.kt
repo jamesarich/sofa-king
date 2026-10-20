@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -142,6 +143,8 @@ class LibraryService(
             if (plan.save.isNotEmpty()) store.saveLibraryItems(plan.save)
             if (plan.missing.isNotEmpty()) store.markLibraryItemsMissing(plan.missing, now)
             if (plan.delete.isNotEmpty()) store.deleteLibraryItems(plan.delete)
+            // Clients see the files now; the TMDB pass below can take minutes on a new library.
+            if (plan.save.isNotEmpty() || plan.missing.isNotEmpty() || plan.delete.isNotEmpty()) revision.incrementAndGet()
             val looked = if (plan.result.unavailable) null else metadata?.refresh(library, store.libraryItems(library.id))
             val note = listOfNotNull(plan.result.note, looked?.note).joinToString("; ")
             store.recordLibraryScan(library.id, now, !plan.result.unavailable, note)
@@ -160,10 +163,13 @@ class LibraryService(
             while (isActive) {
                 trigger.receive()
                 val wanted = pending.toList().also { pending.removeAll(it.toSet()) }
-                val ids = if (ALL in wanted) store.libraries().map { it.id } else wanted
+                val ids = try { if (ALL in wanted) store.libraries().map { it.id } else wanted } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                    log.warn("library scan failed class={}", e.javaClass.simpleName)
+                    emptyList()
+                }
                 for (id in ids) {
                     try { scan(id) } catch (e: CancellationException) { throw e } catch (e: Exception) {
-                        log.warn("library scan failed library={} class={}", id, e.javaClass.simpleName)
+                        log.warn("library scan failed library={} class={} message=\"{}\"", id, e.javaClass.simpleName, redactedMessage(e))
                     }
                 }
             }

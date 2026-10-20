@@ -33,7 +33,7 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
             ?: run { context.invalidate(SCHEDULE); listed().firstOrNull { it.channel.id == channelId }?.template }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         val now = context.clock.instant()
-        val url = Macros.fill(template, MACROS + mapOf("DEVICE_ID" to context.deviceId(), "NONCE" to now.epochSecond.toString(), "UA" to USER_AGENT))
+        val url = Macros.fill(template, MACROS + mapOf("DEVICE_ID" to context.deviceId(), "NONCE" to now.epochSecond.toString(), "UA" to BROWSER_USER_AGENT))
         return ResolvedStream(url, STREAM_HEADERS, now.plus(URL_LIFETIME))
     }
 
@@ -51,8 +51,8 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
                 val template = channel.str("mediaStaticUrl") ?: continue
                 if (result.containsKey(id)) continue
                 val programmes = channel["programs"].array.mapNotNull { programme ->
-                    val start = programme.str("startDateTime")?.let(::instant) ?: return@mapNotNull null
-                    val end = programme.str("endDateTime")?.let(::instant) ?: return@mapNotNull null
+                    val start = programme.str("startDateTime")?.let(::instantOrNull) ?: return@mapNotNull null
+                    val end = programme.str("endDateTime")?.let(::instantOrNull) ?: return@mapNotNull null
                     val title = programme.str("programTitle") ?: return@mapNotNull null
                     if (end <= start) null else GuideProgramme(id, start, end, title, programme.str("description"))
                 }
@@ -66,14 +66,12 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
         return result.values.toList()
     }
 
-    private fun instant(value: String): Instant? = try { Instant.parse(value) } catch (_: Exception) { null }
 
     companion object {
         private const val API_BASE = "https://api.lgchannels.com/api/v1.0"
         private const val SCHEDULE = "schedulelist"
         private val URL_LIFETIME = Duration.ofHours(1)
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        private val STREAM_HEADERS = mapOf("User-Agent" to USER_AGENT, "Origin" to "https://lgchannels.com", "Referer" to "https://lgchannels.com/")
+        private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Origin" to "https://lgchannels.com", "Referer" to "https://lgchannels.com/")
         private val API_HEADERS = STREAM_HEADERS + mapOf(
             "Accept" to "application/json, text/plain, */*", "x-device-country" to "US", "x-device-language" to "en", "x-device-type" to "WEB",
         )

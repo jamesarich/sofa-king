@@ -46,7 +46,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_PLEX_TOKEN` | Unset | The Plex server's `X-Plex-Token`, at least 8 characters without spaces, control characters or DEL. A secret: it is sent only as a request header and never logged |
 | `SOFA_PLEX_SYNC_MINUTES` | `60` | Minutes between Plex syncs when the lineup does not change, 5 to 1440. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
 | `SOFA_PLEX_TUNER_BASE` | Unset | Scheme and host Plex reaches this server's tuners on, as `http(s)://HOST` with no port, path, query or credentials, for example `http://192.168.1.20`. When set, a sync adds devices Plex lacks |
-| `SOFA_LOG_LEVEL` | `info` | Log level for every logger: `trace`, `debug`, `info`, `warn`, `error` or `off`. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
+| `SOFA_LOG_LEVEL` | `info` | Log level on stderr: `trace`, `debug`, `info`, `warn`, `error` or `off`; the Events page keeps INFO and above whatever it is. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
 | `SOFA_LOG_FORMAT` | `text` | `text` for one line per event, or `json` for one JSON object per line with the level, logger, message and request id. Logs go to stderr. See [logs](operations.md#logs) |
 | `SOFA_CORS_ORIGINS` | Unset | Comma-separated browser origins, such as `https://tv.example.com,http://192.168.1.20:8080`, that may call the API from a page on another origin, for example the Sofa King web app served elsewhere. Each is `scheme://host[:port]` with no path; `*` is not accepted. Unset sends no CORS headers, so only pages on the server's own origin can use the API from a browser. Tokens still authorize every call; cookies never cross origins |
 | `SOFA_REVISION` | `unknown`; the image sets it | The commit the server was built from, reported by `GET /api/v1/admin/status` and the admin portal footer. The image sets it from its `REVISION` build argument |
@@ -218,13 +218,13 @@ The extra ports must differ from `SOFA_PORT`. They are opened only when `SOFA_HD
 
 Credentials are sent only to the configured request origin. Cross-origin CDN requests receive only `User-Agent`, `Accept`, `Accept-Language`, `Origin` and `Referer`. Authorization, cookies and custom headers are removed. Redirects are limited to five. HTTPS redirects cannot downgrade to HTTP, and sources configured with HTTPS also reject HTTP media resources.
 
-Providers that need secret headers on a different CDN origin are unsupported. A provider with any other header is never probed, because FFmpeg cannot scope headers by origin ([probing](lineup-policy.md#probing)).
+Providers that need secret headers on a different CDN origin are unsupported. A provider with any other header is never probed ([probing](lineup-policy.md#probing)).
 
 ## Upstream addresses
 
 Playlist, guide, probe and media requests go only to `http`/`https` URLs without user info. Loopback (`127.0.0.0/8`, `::1`, `localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), unspecified (`0.0.0.0`, `::`) and multicast literals are refused, including as redirect targets. Private LAN addresses (RFC 1918) are allowed. Hostnames are not resolved before the request. A refused media address answers `502 UPSTREAM_REJECTED`, a refused playlist or guide address fails that import, and a refused probe target counts as evidence against the source. `SOFA_ALLOW_LOOPBACK_UPSTREAMS=true` permits loopback for local fixtures.
 
-FFmpeg reads sources itself for probes and for the Plex remux. It is started with `-protocol_whitelist http,https,tcp,tls,crypto`, so a playlist that names `file:`, `concat:` or another protocol fails instead of reading files on the server.
+FFmpeg reads sources for probes, recordings and the Plex remux through the server's own relay on `127.0.0.1`, which fetches every redirect, variant, segment and key under these rules, so a refused hop fails the read. It is started with `-protocol_whitelist http,tcp,crypto`, so a playlist that names `https:`, `file:`, `concat:` or another protocol fails instead of reaching another host or reading files on the server.
 
 ## Troubleshooting
 

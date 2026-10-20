@@ -1,0 +1,15 @@
+{
+    "rules": [
+        {
+            "id": "e402fd90-7b35-4c7b-8875-c94f9717b455",
+            "title": "Evening News",
+            "channelId": "fb98844b-c39a-486e-9684-e70c7df97504",
+            "newOnly": true,
+            "keep": 5,
+            "startPaddingSeconds": 60,
+            "endPaddingSeconds": 120,
+            "priority": 0,
+            "createdAt": "2026-10-20T02:18:44.245471233Z"
+        }
+    ]
+}

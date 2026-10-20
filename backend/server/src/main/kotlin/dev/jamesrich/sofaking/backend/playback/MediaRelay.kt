@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
+import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import dev.jamesrich.sofaking.backend.upstream.inflateHead
 import dev.jamesrich.sofaking.backend.upstream.isGzip
 import dev.jamesrich.sofaking.backend.upstream.readHead
@@ -45,11 +46,10 @@ class MediaRelay(
     scope: CoroutineScope,
     fanout: FanoutConfig = FanoutConfig(),
 ) {
-    private val permits = Semaphore(32)
+    /** Upstream requests in flight across the server, players' and FFmpeg's through [LoopbackRelay] alike. */
+    internal val permits = Semaphore(32)
 
     private companion object {
-        /** A gzip-encoded resource is buffered to be inflated; keys are bytes, anything near this is not a key. */
-        const val ENCODED_LIMIT = 8 * 1024 * 1024
         val DIRECTIVE_VALUE = Regex("[A-Za-z0-9_,]{1,32}")
     }
     internal val shared = SharedStreams(scope, fanout)
@@ -152,64 +152,89 @@ class MediaRelay(
         stream: ResolvedStream,
     ) {
         // The root token maps to the offering's own URL, which for a native source is the resolved one; children are absolute already.
-        val url = if (resource.url == resource.offering.url) stream.url else resource.url
+        val root = resource.url == resource.offering.url
+        val url = if (root) stream.url else resource.url
         permits.withPermit {
-            http.withUpstreamResponse(
-                withDeliveryDirectives(url, call),
-                stream.url,
-                stream.headers,
-                range = call.request.headers[HttpHeaders.Range],
-                unbounded = true,
-                policy = feeds.upstream,
-            ) { response ->
-                if (response.status.value !in MEDIA_STATUSES) {
-                    throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true)
+            relayResource(
+                http, feeds.upstream, call, withDeliveryDirectives(url, call), stream,
+                path = { sessions.resourcePath(id, epoch, it) },
+                sent = { resource.bytes.addAndGet(it) },
+                sniffed = { protocol -> if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts") },
+            )
+        }
+    }
+}
+
+/** A gzip-encoded resource is buffered to be inflated; keys are bytes, anything near this is not a key. */
+private const val ENCODED_LIMIT = 8 * 1024 * 1024
+
+/**
+ * Answers [call] with one upstream resource, for a player's session or an FFmpeg lease alike. [url] is fetched with
+ * [stream]'s headers, scoped to its origin, under [policy], following redirects by hand and checking every hop; the
+ * call's `Range` goes along. A manifest comes back rewritten so every URI it names maps through [path] to this
+ * server, a gzip-encoded small resource inflated, and anything else streamed as the upstream sent it. [sniffed] sees
+ * the protocol of the body's head before anything is answered, [sent] each count of bytes answered, and [refused]
+ * an upstream status other than 200 or 206.
+ */
+internal suspend fun relayResource(
+    http: HttpClient,
+    policy: UpstreamPolicy,
+    call: ApplicationCall,
+    url: String,
+    stream: ResolvedStream,
+    path: suspend (String) -> String,
+    sent: (Long) -> Unit = {},
+    refused: (Int) -> Nothing = { throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true) },
+    sniffed: suspend (String?) -> Unit = {},
+) {
+    http.withUpstreamResponse(
+        url,
+        stream.url,
+        stream.headers,
+        range = call.request.headers[HttpHeaders.Range],
+        unbounded = true,
+        policy = policy,
+    ) { response ->
+        if (response.status.value !in MEDIA_STATUSES) refused(response.status.value)
+        val body = response.bodyAsChannel()
+        val head = body.readHead(2048)
+        // Some origins gzip a manifest whatever the request asked for; the signature is in the inflated bytes.
+        val protocol = sniffProtocol(inflateHead(head))
+        sniffed(protocol)
+        val type = response.headers[HttpHeaders.ContentType].orEmpty().substringBefore(';')
+        val manifest =
+            protocol == "hls" ||
+                (protocol == null && (URI(response.request.url.toString()).path.endsWith(".m3u8", true) || type.contains("mpegurl", true)))
+        call.response.header(HttpHeaders.CacheControl, "no-store")
+        if (manifest) {
+            val raw = head + body.readBuffer(2_097_153L - head.size).readByteArray()
+            if (raw.size > 2_097_152) throw ApiFailure(502, "INVALID_MANIFEST", "Manifest too large")
+            val bytes = if (isGzip(raw)) inflateHead(raw, 2_097_152) else raw
+            val rewritten = HlsRewriter.rewrite(bytes.toString(Charsets.UTF_8), URI(response.request.url.toString()), path)
+            sent(rewritten.length.toLong())
+            call.respondText(rewritten, ContentType.parse("application/vnd.apple.mpegurl"))
+        } else {
+            val contentType =
+                try {
+                    ContentType.parse(type.ifBlank { "video/mp2t" })
+                } catch (_: Exception) {
+                    ContentType.Application.OctetStream
                 }
-                val body = response.bodyAsChannel()
-                val head = body.readHead(2048)
-                // Some origins gzip a manifest whatever the request asked for; the signature is in the inflated bytes.
-                val sniffed = sniffProtocol(inflateHead(head))
-                if (resource.url == resource.offering.url && sniffed == "mpegts") protocolMismatch(id, epoch, job, "mpegts")
-                val type = response.headers[HttpHeaders.ContentType].orEmpty().substringBefore(';')
-                val manifest =
-                    sniffed == "hls" ||
-                        (sniffed == null && (URI(response.request.url.toString()).path.endsWith(".m3u8", true) || type.contains("mpegurl", true)))
-                call.response.header(HttpHeaders.CacheControl, "no-store")
-                if (manifest) {
-                    val raw = head + body.readBuffer(2_097_153L - head.size).readByteArray()
-                    if (raw.size > 2_097_152) throw ApiFailure(502, "INVALID_MANIFEST", "Manifest too large")
-                    val bytes = if (isGzip(raw)) inflateHead(raw, 2_097_152) else raw
-                    val rewritten =
-                        HlsRewriter.rewrite(
-                            bytes.toString(Charsets.UTF_8),
-                            URI(response.request.url.toString()),
-                        ) { url -> sessions.resourcePath(id, epoch, url) }
-                    resource.bytes.addAndGet(rewritten.length.toLong())
-                    call.respondText(rewritten, ContentType.parse("application/vnd.apple.mpegurl"))
-                } else {
-                    val contentType =
-                        try {
-                            ContentType.parse(type.ifBlank { "video/mp2t" })
-                        } catch (_: Exception) {
-                            ContentType.Application.OctetStream
-                        }
-                    // A CDN may gzip a key or a small resource on its own; the player gets the bytes it would decrypt with.
-                    val encoded = response.headers[HttpHeaders.ContentEncoding]?.contains("gzip", true) == true || (isGzip(head) && !type.startsWith("video/", true))
-                    if (encoded) {
-                        val raw = head + body.readBuffer(ENCODED_LIMIT + 1L - head.size).readByteArray()
-                        if (raw.size > ENCODED_LIMIT) throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Encoded resource too large", true)
-                        val plain = if (isGzip(raw)) inflateHead(raw, ENCODED_LIMIT * 8) else raw
-                        resource.bytes.addAndGet(plain.size.toLong())
-                        call.respondBytes(plain, contentType)
-                    } else {
-                        response.headers[HttpHeaders.ContentRange]?.let { call.response.header(HttpHeaders.ContentRange, it) }
-                        response.headers[HttpHeaders.AcceptRanges]?.let { call.response.header(HttpHeaders.AcceptRanges, it) }
-                        call.respondBytesWriter(contentType = contentType, status = response.status) {
-                            writeFully(head)
-                            resource.bytes.addAndGet(head.size.toLong())
-                            resource.bytes.addAndGet(body.copyTo(this))
-                        }
-                    }
+            // A CDN may gzip a key or a small resource on its own; the reader gets the bytes it would decrypt with.
+            val encoded = response.headers[HttpHeaders.ContentEncoding]?.contains("gzip", true) == true || (isGzip(head) && !type.startsWith("video/", true))
+            if (encoded) {
+                val raw = head + body.readBuffer(ENCODED_LIMIT + 1L - head.size).readByteArray()
+                if (raw.size > ENCODED_LIMIT) throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Encoded resource too large", true)
+                val plain = if (isGzip(raw)) inflateHead(raw, ENCODED_LIMIT * 8) else raw
+                sent(plain.size.toLong())
+                call.respondBytes(plain, contentType)
+            } else {
+                response.headers[HttpHeaders.ContentRange]?.let { call.response.header(HttpHeaders.ContentRange, it) }
+                response.headers[HttpHeaders.AcceptRanges]?.let { call.response.header(HttpHeaders.AcceptRanges, it) }
+                call.respondBytesWriter(contentType = contentType, status = response.status) {
+                    writeFully(head)
+                    sent(head.size.toLong())
+                    sent(body.copyTo(this))
                 }
             }
         }

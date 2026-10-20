@@ -41,7 +41,7 @@ flowchart LR
     lineup --> portal["Admin portal /admin"]
 ```
 
-Every playback path ends in a session. `SessionManager` picks the entry's first eligible source, and `FeedService.playable` resolves a native `svc://` source to its stream URL. `MediaRelay` serves HLS and shared MPEG-TS, and `TsRemux` turns HLS into MPEG-TS for Plex. This is how Plex tunes a channel:
+Every playback path ends in a session. `SessionManager` picks the entry's first eligible source, and `FeedService.playable` resolves a native `svc://` source to its stream URL. `MediaRelay` serves HLS and shared MPEG-TS, and `TsRemux` turns HLS into MPEG-TS for Plex, reading it through `LoopbackRelay`. This is how Plex tunes a channel:
 
 ```mermaid
 sequenceDiagram
@@ -50,6 +50,7 @@ sequenceDiagram
     participant Sessions as SessionManager
     participant Feeds as FeedService
     participant Remux as TsRemux (FFmpeg)
+    participant Relay as LoopbackRelay
     participant Upstream
     Plex->>Route: GET /auto/v{number}
     Route->>Route: check SOFA_HDHR_ALLOW and a free tuner
@@ -64,13 +65,14 @@ sequenceDiagram
         Upstream-->>Plex: MPEG-TS packets
     else HLS source
         Route->>Remux: ffmpeg -c copy -f mpegts
-        Remux->>Upstream: playlists and segments
+        Remux->>Relay: playlists, segments and keys on 127.0.0.1
+        Relay->>Upstream: each hop, through the address policy
         Remux-->>Plex: MPEG-TS
     end
     Note over Plex,Sessions: When the source stops being eligible, the session ends.<br/>Plex tunes again and gets the next eligible source.
 ```
 
-Provider imports publish complete snapshots, and an invalid import keeps the previous snapshot. An import whose channels and sources equal the stored ones writes and publishes nothing and triggers no run, except the first success after a start. Guide imports replace one guide's rows atomically. They keep programs only for channels the lineup maps onto that guide and, with a policy, the guide candidates of stations whose guide has nothing ahead; the channel index is kept whole. Immutable in-memory indexes serve catalog requests, and guide programs are read from SQLite by guide, channel and window. SQLite uses WAL, foreign keys, bounded blocking transactions, and versioned atomic migrations whose versions may have gaps.
+Provider imports publish complete snapshots, and an invalid import keeps the previous snapshot. An import whose channels and sources equal the stored ones writes and publishes nothing and triggers no run, except the first success after a start. Guide imports replace one guide's rows as a new generation: the rows go in over several short transactions beside the current ones, one small transaction makes them current, and the old generation is then deleted in steps, so readers see the old guide or the new one and other writes interleave with a large import. They keep programs only for channels the lineup maps onto that guide and, with a policy, the guide candidates of stations whose guide has nothing ahead; the channel index is kept whole. Immutable in-memory indexes serve catalog requests, and guide programs are read from SQLite by guide, channel and window. SQLite uses WAL, foreign keys, bounded blocking transactions, and versioned atomic migrations whose versions may have gaps. Writes run in order on one connection and its thread; reads that need nothing from a write run on a second, read-only connection, which sees the last commit, so a long write never holds up a guide or library read. A transaction that holds its connection for over 500 ms is logged as `slow database transaction` with the file it came from. Source health and native provider state are kept in memory and written through, so tuning reads neither.
 
 A source's protocol is the one detected in its stream body, by the probe's HTTP tier or by a media fetch. It is stored per source ID and applied over every published snapshot. Until a detection exists, the import's protocol applies: the entry's `stream-type`, else the provider's `defaultProtocol`, else the path extension.
 
@@ -136,7 +138,7 @@ A fetch goes through `withUpstreamResponse` with the [upstream address policy](l
 
 `HdhrRoutes` renders the discovery, lineup and status documents from the lineup on each request. The device ID is configured or derived from the server identity, so it survives restarts. Each extra port is one more device, with a `DeviceID` derived from the first device's and a UPnP `UDN` derived from the server identity, each with the device's position. `/auto/v{number}` opens an external session per request, never shared, counted against `SOFA_HDHR_TUNERS` separately from the session cap. An MPEG-TS source reuses `MediaRelay`.
 
-An HLS source goes to `TsRemux`, which runs one FFmpeg per response reading the source URL directly. The address policy is checked first, and provider headers go along only when they are portable. The command is `ffmpeg -hide_banner -loglevel warning -nostdin -rw_timeout 15000000 -protocol_whitelist http,https,tcp,tls,crypto [-headers ...] -i URL -sn -dn -c copy -f mpegts -mpegts_flags +resend_headers -flush_packets 1 pipe:1`. Its own stream selection takes one video stream (the highest resolution) and one audio stream (the most channels), so the other variants are not downloaded, and `-sn -dn` drop subtitle and data tracks, which have no reliable MPEG-TS mapping. The handler copies the pipe into the response. The request's job is attached to the session so it counts as in flight. A watchdog coroutine kills the process when the response is canceled, because a blocked pipe read does not notice cancellation. The process is always destroyed and waited for before the handler returns, and `LiveRuntime.close` kills every remux. The allow-list (`AddressAllowList`) matches IP literals and CIDR blocks against the connection's remote address, and compares IPv4-mapped IPv6 addresses as IPv4.
+An HLS source goes to `TsRemux`, which runs one FFmpeg per response reading the source through the [loopback relay](#ffmpegs-reads). The address policy is checked first. The command is `ffmpeg -hide_banner -loglevel warning -nostdin -rw_timeout 15000000 -protocol_whitelist http,tcp,crypto -headers 'X-Sofa-Relay: CREDENTIAL' -i RELAY_URL -sn -dn -c copy -f mpegts -mpegts_flags +resend_headers -flush_packets 1 pipe:1`. Its own stream selection takes one video stream (the highest resolution) and one audio stream (the most channels), so the other variants are not downloaded, and `-sn -dn` drop subtitle and data tracks, which have no reliable MPEG-TS mapping. The handler copies the pipe into the response. The request's job is attached to the session so it counts as in flight. A watchdog coroutine kills the process when the response is canceled, because a blocked pipe read does not notice cancellation. The process is always destroyed and waited for before the handler returns, and `LiveRuntime.close` kills every remux. The allow-list (`AddressAllowList`) matches IP literals and CIDR blocks against the connection's remote address, and compares IPv4-mapped IPv6 addresses as IPv4.
 
 ## Live MPEG-TS relay
 
@@ -144,13 +146,19 @@ Sessions playing the same MPEG-TS source share one upstream connection. The rela
 
 When the upstream ends or fails, the relay reconnects with backoff from 0.5 to 8 seconds, for a 30-second grace period measured from the last received packet. Throughout any gap of more than a second it writes MPEG-TS null packets (PID 0x1FFF) to every session about once per second, so an 8-second player read timeout never fires. Sessions end only when the grace period expires. The upstream socket has a 15-second inactivity timeout, which counts as a failure and starts the grace period. An upstream with no sessions closes after two seconds.
 
+## FFmpeg's reads
+
+`LoopbackRelay` is the relay FFmpeg reads every source through: the HDHomeRun remux, the recorder and the probes' decode tier. It listens on `127.0.0.1` on a port the system picks, started with the first FFmpeg run, apart from the public server, so its one route, `/relay/{lease}/{token}`, is no part of the API and nothing off the machine reaches it. Each FFmpeg run holds a lease: a random lease ID, a token for the source URL and a random 256-bit credential, which FFmpeg sends as the `X-Sofa-Relay` header (its HLS demuxer passes `-headers` on to every playlist, segment and key request). An unknown lease or a wrong credential answers `401`, and the lease ends when its FFmpeg does. The credential is only in FFmpeg's arguments, which are never logged.
+
+A lease's requests are served by the code that serves a session's media requests: the resource is fetched under the [address policy](live-tv.md#upstream-addresses) with redirects followed and checked by hand and the provider headers scoped to their origin, a playlist is rewritten so its URIs become the lease's paths, and the bytes are streamed back. The requests share the relay's cap of 32 upstream connections. An upstream status other than `200` or `206` reaches FFmpeg as that status, so the probe's failure classes read it as they would from the upstream, and a refused hop answers `422`. FFmpeg is started with `-protocol_whitelist http,tcp,crypto` and without `http_proxy` in its environment, so it reaches nothing but the relay. Each request costs one loopback hop and one pass of its bytes through the server, the same as a player's request to `MediaRelay`.
+
 ## Media libraries
 
 `LibraryService` keeps the libraries in SQLite (`library`, `library_item`, `play_state`) and runs one scan at a time on its loop. `LibraryScanner` walks a library's folder without following links, skipping hidden and extras folders, and builds movies, shows with their seasons and episodes, or videos from the [file names](libraries.md#lay-out-the-folders), `.nfo` sidecars and local artwork. FFprobe reads new or changed files, two at a time, with a 30-second limit each. Item ids are name-based UUIDs of the library id and the relative path. A missing file is marked and deleted after seven days; an absent or emptied folder changes nothing, since that is what an unmounted disk looks like.
 
 ## Recordings
 
-`dvr/Dvr` keeps the series rules and recordings in SQLite and runs two loops. The scheduler (`DvrPlanner`) reads the guide's airings of the rules' titles after every guide import, rule change and every 30 minutes, adds the ones no recording holds yet by channel and start or by episode, and drops rule airings the guide no longer has. The recorder loop looks every five seconds for recordings whose padded window has opened and starts a `Recorder` for each. A `Recorder` opens an external playback session for the channel, which a request job holds busy, resolves the session's source, and appends FFmpeg's stream-copied MPEG-TS to the file until the window closes; a source that ends is reopened through a new session, so failover follows source health. `RecordingLayout` names the file, which is written under `.inprogress/` and moved into place at the end. After each recording and with every scheduler pass, `Dvr.cull` deletes what the rules' keep counts, the keep days and the free-space floor no longer keep. `Commercials` runs Comskip on each finished recording, one at a time, and keeps the breaks and an EDL beside the file. See [recordings](recordings.md).
+`dvr/Dvr` keeps the series rules and recordings in SQLite and runs two loops. The scheduler (`DvrPlanner`) reads the guide's airings of the rules' titles after every guide import, rule change and every 30 minutes, adds the ones no recording holds yet by channel and start or by episode, and drops rule airings the guide no longer has. The recorder loop looks every five seconds for recordings whose padded window has opened and starts a `Recorder` for each. A `Recorder` opens an external playback session for the channel, which a request job holds busy, resolves the session's source, and appends its MPEG-TS to the file until the window closes: an MPEG-TS source's shared connection as it is, anything else stream-copied by FFmpeg through the [loopback relay](#ffmpegs-reads); a source that ends is reopened through a new session, so failover follows source health. `RecordingLayout` names the file, which is written under `.inprogress/` and moved into place at the end. After each recording and with every scheduler pass, `Dvr.cull` deletes what the rules' keep counts, the keep days and the free-space floor no longer keep. `Commercials` runs Comskip on each finished recording, one at a time, and keeps the breaks and an EDL beside the file. See [recordings](recordings.md).
 
 ## Supported scope
 

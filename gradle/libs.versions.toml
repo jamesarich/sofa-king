@@ -4,7 +4,7 @@
 # The one version of Sofa King: the app on every platform (About row, Android versionName, the desktop packages, the
 # Swift hosts' MARKETING_VERSION), the contract and the server's jars.
 sofaking = "0.1.0"
-agp = "9.5.0-alpha09"
+agp = "9.5.0-alpha10"
 kotlin = "2.5.0-Beta1"
 compose-multiplatform = "1.13.0-alpha02"
 # Compose bundles an older Hot Reload plugin that still calls a Gradle API removed in Gradle 10; this one is clean.
@@ -43,6 +43,8 @@ exposed = "1.6.0"
 sqlite = "3.53.4.0"
 logback = "1.6.5"
 zxing = "3.5.4"
+# The server's tests: JUnit Jupiter and the launcher Gradle runs it with.
+junit = "6.1.3"
 
 [libraries]
 # Shared
@@ -77,6 +79,7 @@ coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.r
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
+compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "compose-multiplatform" }
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-multiplatform" }
 compose-material3-adaptive = { module = "org.jetbrains.compose.material3.adaptive:adaptive", version.ref = "compose-material3-adaptive" }
 compose-material3-adaptive-navigation-suite = { module = "org.jetbrains.compose.material3:material3-adaptive-navigation-suite", version.ref = "compose-multiplatform" }
@@ -121,6 +124,8 @@ sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 kotlinx-html = { module = "org.jetbrains.kotlinx:kotlinx-html-jvm", version.ref = "kotlinx-html" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit" }
 
 # build-logic compiles against these; each build applies them through its plugins block.
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }

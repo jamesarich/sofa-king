@@ -16,16 +16,6 @@ android {
             providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
     }
 
-    buildFeatures {
-        compose = true
-    }
-
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true
-        }
-    }
-
     buildTypes {
         release {
             // Debug builds compose an 8 s first guide frame on a Chromecast; R8 + non-debuggable is the TV build.
@@ -37,12 +27,9 @@ android {
     }
 }
 
-// In AGP 9.5 with Compose enabled, GenerateComposePreviewRunfilesTask requires unit tests to be enabled
-// for all variants so that Android XML resources can be packaged for Layoutlib.
-androidComponents {
-    beforeVariants { variantBuilder ->
-        variantBuilder.hostTests[com.android.build.api.variant.HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
-    }
+baselineProfile {
+    // R8 lays out the first dex file from the startup profile; without this the startup profile only feeds ART.
+    dexLayoutOptimization = true
 }
 
 dependencies {

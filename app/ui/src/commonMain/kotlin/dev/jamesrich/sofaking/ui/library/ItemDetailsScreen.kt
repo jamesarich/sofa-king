@@ -1,9 +1,10 @@
 package dev.jamesrich.sofaking.ui.library
 
 import dev.jamesrich.sofaking.ui.formatPlayTime
+import dev.jamesrich.sofaking.ui.hoursAndMinutes
+import dev.jamesrich.sofaking.ui.oneDecimal
 import dev.jamesrich.sofaking.ui.Artwork
 import dev.jamesrich.sofaking.ui.theme.SofaChip
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.BringIntoViewSpec
@@ -106,7 +107,6 @@ internal fun ItemDetailsScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedSeasonId: String?, actions: ItemDetailsActions, returnedFrom: String?) {
     val item = detail.item
@@ -165,7 +165,6 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
  * the overscan. A TV's default pivots it a third of the way down, which on arrival pushes the title above Play off
  * the screen.
  */
-@OptIn(ExperimentalFoundationApi::class)
 private class ScrollOnlyWhenHidden(private val edge: Float) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val leading = offset - edge
@@ -276,7 +275,7 @@ private fun MetaLine(detail: MediaItemDetail) {
         when {
             seasons > 0 -> add(stringResource(Res.string.library_seasons, seasons))
             item.kind == ItemKind.SEASON -> add(stringResource(Res.string.library_episodes, detail.children.size))
-            else -> runtimeText(item.durationMs)?.let(::add)
+            else -> runtime(item.durationMs)?.let { add(it.hoursAndMinutes()) }
         }
         item.rating?.let { add(stringResource(Res.string.library_rating, oneDecimal(it))) }
         if (item.genres.isNotEmpty()) add(item.genres.take(3).joinToString(", "))
@@ -384,7 +383,7 @@ private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit, modifier: Modifi
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val line = listOfNotNull(runtimeText(episode.durationMs), episode.aired).joinToString(DETAIL_SEPARATOR)
+                val line = listOfNotNull(runtime(episode.durationMs)?.hoursAndMinutes(), episode.aired).joinToString(DETAIL_SEPARATOR)
                 if (line.isNotEmpty()) Text(line, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 episode.overview?.let { Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
@@ -419,23 +418,12 @@ private fun seasonLabel(season: MediaItem): String = when (val number = season.s
     else -> stringResource(Res.string.library_season, number)
 }
 
-@Composable
-private fun runtimeText(durationMs: Long?): String? {
-    val (hours, minutes) = runtimeParts(durationMs) ?: return null
-    return if (hours > 0) stringResource(Res.string.library_hours_minutes, hours, minutes) else stringResource(Res.string.library_minutes, minutes)
-}
-
 /** The picture's size as the badge the live info bar would show; null below HD or when unknown. */
 internal fun pictureBadge(height: Int?): String? = when {
     height == null -> null
     height >= 2000 -> "4K"
     height >= 720 -> "HD"
     else -> null
-}
-
-private fun oneDecimal(value: Double): String {
-    val tenths = kotlin.math.round(value * 10).toInt()
-    return "${tenths / 10}.${tenths % 10}"
 }
 
 private const val HDR = "HDR"

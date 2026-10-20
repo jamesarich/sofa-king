@@ -2,10 +2,14 @@ package dev.jamesrich.sofaking.backend.health
 
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.Offering
+import dev.jamesrich.sofaking.backend.io.runFor
+import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.store.BackendStore
+import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.ffmpegBase
+import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
 import dev.jamesrich.sofaking.backend.upstream.probeHeadersSafe
 import io.ktor.client.HttpClient
 import java.nio.file.Files
@@ -59,6 +63,8 @@ class ProbeWorker(
      * ranks before health status (lower first). Offerings it leaves out are never probed. Null without a policy.
      */
     private val targets: (() -> Map<String, Int>)? = null,
+    /** The relay the decode tier's FFmpeg reads sources through; without one, the decode tier fails as [FailureClass.LOCAL]. */
+    private val relay: LoopbackRelay? = null,
     private val qualifier: (suspend (Offering, Map<String, String>) -> FailureClass?)? = null,
 ) {
     private val log = LoggerFactory.getLogger(ProbeWorker::class.java)
@@ -237,23 +243,26 @@ class ProbeWorker(
     /**
      * Decode tier: reconnects across upstream EOF so a hiccuping source still delivers its 30 seconds. A [recheck] of
      * a healthy source copies the video packets instead of decoding them: it proves the stream still delivers at a
-     * fraction of the CPU, and a source that fails it is fully decoded again once it is no longer healthy.
+     * fraction of the CPU, and a source that fails it is fully decoded again once it is no longer healthy. FFmpeg
+     * reads [offering] through [relay], which sends [headers] and checks every hop.
      */
     internal suspend fun decode(
         offering: Offering,
         headers: Map<String, String>,
         recheck: Boolean = false,
-    ): FailureClass? =
+    ): FailureClass? {
+        val relay = relay ?: return FailureClass.LOCAL
+        return relay.reading(ResolvedStream(offering.url, headers), offering.protocol) { source -> decode(source, offering.protocol, recheck) }
+    }
+
+    private suspend fun decode(source: FfmpegSource, protocol: String, recheck: Boolean): FailureClass? =
         withContext(Dispatchers.IO) {
             val output = Files.createTempFile("sofa-probe-", ".progress")
             val errors = Files.createTempFile("sofa-probe-", ".errors")
-            var process: Process? = null
             try {
-                val command = decodeCommand(ffmpeg, offering, headers, config.decodeSeconds, recheck)
-                process = ProcessBuilder(command).redirectOutput(output.toFile()).redirectError(errors.toFile()).start()
-                val owned = process
-                val exited = withTimeoutOrNull(config.deadlineSeconds.seconds) { owned.onExit().await() } != null
-                if (!exited) {
+                val command = decodeCommand(ffmpeg, source, protocol, config.decodeSeconds, recheck)
+                val exit = ffmpegProcess(command).redirectOutput(output.toFile()).redirectError(errors.toFile()).runFor(config.deadlineSeconds.seconds)
+                if (exit == null) {
                     FailureClass.PROVIDER
                 } else {
                     val progress = Files.readString(output)
@@ -261,26 +270,15 @@ class ProbeWorker(
                     val micros = OUT_TIME_LINE.findAll(progress).lastOrNull()?.groupValues?.get(1)?.toLongOrNull() ?: 0
                     // FFmpeg 6 reports no frame count when copying, so a recheck stands on the output time alone.
                     val enoughFrames = recheck || frames >= config.decodeSeconds
-                    if (owned.exitValue() == 0 && enoughFrames && micros >= (config.decodeSeconds - 1) * 1_000_000L) {
+                    if (exit == 0 && enoughFrames && micros >= (config.decodeSeconds - 1) * 1_000_000L) {
                         null
                     } else {
                         classify(Files.newInputStream(errors).use { it.readNBytes(8192).toString(Charsets.UTF_8) })
                     }
                 }
-            } catch (e: CancellationException) {
-                throw e
             } catch (_: java.io.IOException) {
                 FailureClass.LOCAL
             } finally {
-                process?.let {
-                    it.destroy()
-                    withContext(NonCancellable) {
-                        if (withTimeoutOrNull(2.seconds) { it.onExit().await() } == null) {
-                            it.destroyForcibly()
-                            withTimeoutOrNull(2.seconds) { it.onExit().await() }
-                        }
-                    }
-                }
                 Files.deleteIfExists(output)
                 Files.deleteIfExists(errors)
             }
@@ -303,14 +301,14 @@ private val LOCAL_ERROR =
 private val FRAME_LINE = Regex("(?m)^frame=(\\d+)$")
 private val OUT_TIME_LINE = Regex("(?m)^out_time_us=(\\d+)$")
 
-/** The FFmpeg command that reads [seconds] of [offering]'s first video stream, decoding it or, with [copy], copying it. */
-internal fun decodeCommand(ffmpeg: String, offering: Offering, headers: Map<String, String>, seconds: Int, copy: Boolean): List<String> {
-    val command = ffmpegBase(ffmpeg, "error", headers)
+/** The FFmpeg command that reads [seconds] of [source]'s first video stream, decoding it or, with [copy], copying it. */
+internal fun decodeCommand(ffmpeg: String, source: FfmpegSource, protocol: String, seconds: Int, copy: Boolean): List<String> {
+    val command = ffmpegBase(ffmpeg, "error", source)
     // The HLS demuxer handles segment boundaries itself; reconnect-at-EOF there loops on the first segment.
-    if (offering.protocol == "mpegts") {
+    if (protocol == "mpegts") {
         command += listOf("-reconnect", "1", "-reconnect_at_eof", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5")
     }
-    command += listOf("-i", offering.url, "-t", seconds.toString(), "-map", "0:v:0")
+    command += listOf("-i", source.url, "-t", seconds.toString(), "-map", "0:v:0")
     if (copy) command += listOf("-c", "copy")
     command += listOf("-an", "-progress", "pipe:1", "-f", "null", "-")
     return command

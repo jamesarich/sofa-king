@@ -63,7 +63,7 @@ class HdhrStreamTest {
                     assertEquals(188 * 25, packets.size)
                     for (packet in 0 until 25) assertEquals(0x47.toByte(), packets[packet * 188], "sync byte of packet $packet")
                     assertTrue(media.liveRequests.get() >= 1)
-                    withTimeout(15_000) { while (stack.runtime.remux.active() > 0 || stack.runtime.sessions.count() > 0 || ffmpegChildren() > 0) delay(50) }
+                    pollUntil(15_000, 50) { stack.runtime.remux.active() == 0 && stack.runtime.sessions.count() == 0 && ffmpegChildren() == 0 }
                 }
             }
         }
@@ -78,7 +78,7 @@ class HdhrStreamTest {
                     val response = withTimeout(60_000) { http.get("${stack.server.base}/auto/v3") }
                     assertEquals(HttpStatusCode.OK, response.status)
                     assertEquals(0, response.bodyAsBytes().size)
-                    withTimeout(15_000) { while (stack.runtime.remux.active() > 0 || stack.runtime.sessions.count() > 0 || ffmpegChildren() > 0) delay(50) }
+                    pollUntil(15_000, 50) { stack.runtime.remux.active() == 0 && stack.runtime.sessions.count() == 0 && ffmpegChildren() == 0 }
                     // The tuner is free again for a channel that works.
                     val head = withTimeout(60_000) {
                         http.prepareGet("${stack.server.base}/auto/v2").execute { it.bodyAsChannel().readHead(188 * 3) }
@@ -105,7 +105,7 @@ class HdhrStreamTest {
                                 assertEquals("805 All Tuners In Use", refused.headers["X-HDHomeRun-Error"])
                             }
                         }
-                        withTimeout(15_000) { while (stack.runtime.remux.active() > 0 || stack.runtime.sessions.count() > 0) delay(50) }
+                        pollUntil(15_000, 50) { stack.runtime.remux.active() == 0 && stack.runtime.sessions.count() == 0 }
                         // With the tuner free again, a TS source streams through the fan-out.
                         val head = withTimeout(20_000) {
                             http.prepareGet("${stack.server.base}/auto/v6").execute { response ->
@@ -114,7 +114,7 @@ class HdhrStreamTest {
                             }
                         }
                         for (packet in 0 until 3) assertEquals(0x47.toByte(), head[packet * 188])
-                        withTimeout(15_000) { while (stack.runtime.sessions.count() > 0) delay(50) }
+                        pollUntil(15_000, 50) { stack.runtime.sessions.count() == 0 }
                     }
                 }
             }

@@ -15,7 +15,9 @@ import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.Subtitles
+import dev.jamesrich.sofaking.data.describe
 import dev.jamesrich.sofaking.data.episodeAfter
+import dev.jamesrich.sofaking.data.failedLoad
 import dev.jamesrich.sofaking.data.seasonAfter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -29,7 +31,6 @@ import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 sealed interface LibraryHomeState {
@@ -92,16 +93,20 @@ class LibraryViewModel(
     val grid: StateFlow<LibraryGrid?> = _grid.asStateFlow()
 
     private val details = HashMap<String, MutableStateFlow<ItemDetailState>>()
+
+    /** The load of each item page, so a newer one cancels the one before it; read and written on the main thread. */
+    private val detailJobs = HashMap<String, Job>()
     private var homeJob: Job? = null
     private var gridJob: Job? = null
 
-    /** When the playing item's position was last saved, by item; read and written on the main thread. */
-    private val saved = HashMap<String, TimeMark>()
+    private val positions = PositionSaver(timeSource, saveInterval)
 
     init {
         viewModelScope.launch {
             apis.collect { api ->
                 repository = api?.let(newRepository)
+                detailJobs.values.forEach { it.cancel() }
+                detailJobs.clear()
                 details.clear()
                 _grid.value = null
                 gridJob?.cancel()
@@ -139,10 +144,8 @@ class LibraryViewModel(
         }
     }
 
-    private fun failed(e: Exception): LibraryHomeState {
-        log.w { "library home failed: ${describe(e)}" }
-        return (_home.value as? LibraryHomeState.Ready) ?: LibraryHomeState.Failed(describe(e))
-    }
+    private fun failed(e: Exception): LibraryHomeState =
+        failedLoad("library home", e, _home.value as? LibraryHomeState.Ready, LibraryHomeState::Failed)
 
     /**
      * Shows [libraryId] in [sort] order, only what is not watched when [unwatched] is set and only [genre] when given.
@@ -182,8 +185,8 @@ class LibraryViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                log.w { "library page failed: ${describe(e)}" }
-                _grid.update { it?.copy(loading = false, error = describe(e)) }
+                log.w { "library page failed: ${e.describe()}" }
+                _grid.update { it?.copy(loading = false, error = e.describe()) }
             }
         }
     }
@@ -197,15 +200,16 @@ class LibraryViewModel(
 
     private fun loadDetail(id: String, state: MutableStateFlow<ItemDetailState>) {
         val repository = repository ?: return
-        viewModelScope.launch {
+        detailJobs[id]?.cancel()
+        detailJobs[id] = viewModelScope.launch {
             try {
                 state.value = ItemDetailState.Ready(repository.detail(id))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                log.w { "library item failed: ${describe(e)}" }
+                log.w { "library item failed: ${e.describe()}" }
                 // A page on screen stays when a refresh fails.
-                if (state.value !is ItemDetailState.Ready) state.value = ItemDetailState.Failed(describe(e))
+                if (state.value !is ItemDetailState.Ready) state.value = ItemDetailState.Failed(e.describe())
             }
         }
     }
@@ -219,7 +223,7 @@ class LibraryViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            log.w { "library search failed: ${describe(e)}" }
+            log.w { "library search failed: ${e.describe()}" }
             emptyList()
         }
     }
@@ -233,7 +237,7 @@ class LibraryViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                log.w { "mark watched failed: ${describe(e)}" }
+                log.w { "mark watched failed: ${e.describe()}" }
             }
         }
     }
@@ -244,7 +248,7 @@ class LibraryViewModel(
      */
     suspend fun play(item: MediaItem, profile: PlaybackProfile, fromStart: Boolean = false, audioIndex: Int? = null, subtitleIndex: Int? = null): PlaybackStream {
         val start = item.progress?.takeIf { !fromStart && it.inProgress }?.positionMs ?: 0
-        saved.remove(item.id)
+        positions.reset(item.id)
         return sessions.play(item.id, profile, start, audioIndex, subtitleIndex)
     }
 
@@ -265,7 +269,7 @@ class LibraryViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            log.w { "up next failed: ${describe(e)}" }
+            log.w { "up next failed: ${e.describe()}" }
             null
         }
     }
@@ -286,7 +290,7 @@ class LibraryViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            log.w { "subtitles failed: ${describe(e)}" }
+            log.w { "subtitles failed: ${e.describe()}" }
             null
         }
     }
@@ -297,18 +301,13 @@ class LibraryViewModel(
      */
     fun progress(itemId: String, positionMs: Long, durationMs: Long?) {
         sessions.reportPosition(positionMs)
-        val last = saved[itemId]
-        // The first report starts the interval; a few seconds in is not worth a write.
-        if (last != null && last.elapsedNow() < saveInterval) return
-        saved[itemId] = timeSource.markNow()
-        if (last == null) return
-        save(itemId, positionMs, durationMs, refresh = false)
+        if (positions.due(itemId)) save(itemId, positionMs, durationMs, refresh = false)
     }
 
     /** Playback of [itemId] stopped at [positionMs]: saved now, and the home and the item's pages reload. */
     fun stopped(itemId: String, positionMs: Long, durationMs: Long?) {
         sessions.reportPosition(positionMs)
-        saved.remove(itemId)
+        positions.reset(itemId)
         save(itemId, positionMs, durationMs, refresh = true)
     }
 
@@ -321,7 +320,7 @@ class LibraryViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                log.w { "saving the position failed: ${describe(e)}" }
+                log.w { "saving the position failed: ${e.describe()}" }
             }
         }
     }
@@ -346,11 +345,6 @@ class LibraryViewModel(
             } catch (_: Exception) {
             }
         }
-    }
-
-    private fun describe(failure: Throwable): String = when (failure) {
-        is SofaKingException -> "${failure.code}: ${failure.message}"
-        else -> failure.message ?: failure.toString()
     }
 
     private companion object {

@@ -40,6 +40,7 @@ import dev.jamesrich.sofaking.ui.player.InfoBar
 import dev.jamesrich.sofaking.ui.player.InfoOverlay
 import dev.jamesrich.sofaking.ui.player.MiniGuide
 import dev.jamesrich.sofaking.ui.player.MiniGuideActions
+import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
 import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
@@ -306,6 +307,22 @@ class RenderSmokeTest {
         }
         // An align() inside AnimatedVisibility's content once left the bar at the top of the screen.
         assertTrue(image.firstContentRow() > image.height / 3)
+    }
+
+    @Test
+    fun `the full-screen player renders its info bar`() {
+        val image = render("player") {
+            PlayerScreen(
+                lineup = lineup,
+                startIndex = 1,
+                player = UnavailableLivePlayer(CaptionSync(), "TEST"),
+                sessions = PlaybackSessions(),
+                onExit = {},
+                onChannelChanged = {},
+                captionsEnabled = true,
+            )
+        }
+        assertTrue(image.hasContent())
     }
 
     private val movies = MediaLibrary("movies", "Movies", LibraryKind.MOVIES, itemCount = 42)

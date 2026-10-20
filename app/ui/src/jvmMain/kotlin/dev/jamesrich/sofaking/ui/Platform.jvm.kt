@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
@@ -21,9 +22,14 @@ internal actual fun rememberSystem24HourClock(): Boolean = remember {
 @Composable
 internal actual fun rememberScreenReaderActive(): Boolean = false
 
-/** Desktops keep the display awake during video playback through the OS's own media heuristics. */
+/** Holds the display awake while [on] on Windows and macOS; see [displayWake]. */
 @Composable
-internal actual fun KeepScreenOn(on: Boolean) = Unit
+internal actual fun KeepScreenOn(on: Boolean) {
+    DisposableEffect(on) {
+        val hold = if (on) displayWake?.hold() else null
+        onDispose { hold?.close() }
+    }
+}
 
 /** No speech recognizer on the JVM; the guide opens its text field. */
 @Composable

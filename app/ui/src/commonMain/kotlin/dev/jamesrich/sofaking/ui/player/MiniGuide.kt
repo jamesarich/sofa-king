@@ -1,9 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.ui.theme.SofaChip
-import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.foundation.background
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -56,15 +54,14 @@ import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrimDense
 import kotlin.time.Instant
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import dev.jamesrich.sofaking.ui.panelEdgeMargin
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.theme.tvFocus
+import androidx.compose.material3.ripple
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 /**
  * The current channel's actions at the end of the channel list's top row, so a remote with only a D-pad, OK and
@@ -91,7 +88,6 @@ internal class MiniGuideActions(
  * row reaches the top row. [onChipsFocused] tells the owner when the top row has focus, so Left and Right move
  * along its chips and buttons instead of being swallowed.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun BoxScope.MiniGuide(
     lineup: Lineup,
@@ -197,7 +193,6 @@ internal fun BoxScope.MiniGuide(
  * The focused row sits at the top of the list with the next one peeking below it. A TV's default pivots it a third
  * of the way down, which in a panel little taller than one row leaves a sliver of the row above.
  */
-@OptIn(ExperimentalFoundationApi::class)
 private val FocusedRowOnTop = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset
 }
@@ -205,7 +200,6 @@ private val FocusedRowOnTop = object : BringIntoViewSpec {
 /** The action buttons, chip-high; each does what its remote key does, and the icons show the captions and favorite state. */
 @Composable
 private fun MiniGuideActionRow(actions: MiniGuideActions) {
-    val captionsState = stringResource(if (actions.captionsOn) Res.string.captions_on else Res.string.captions_off)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         actions.favorite?.let { favorite ->
             ControlIcon(
@@ -215,34 +209,16 @@ private fun MiniGuideActionRow(actions: MiniGuideActions) {
                 size = ACTION_SIZE,
             )
         }
-        ControlIcon(
-            if (actions.captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
-            stringResource(Res.string.player_control_captions),
-            actions.onCaptions,
-            size = ACTION_SIZE,
-            modifier = Modifier.semantics { stateDescription = captionsState },
-        )
-        if (actions.failed) {
-            ControlIcon(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), actions.onRetry, size = ACTION_SIZE)
-        } else {
-            ControlIcon(
-                if (actions.paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
-                stringResource(if (actions.paused) Res.string.player_control_play else Res.string.player_control_pause),
-                actions.onPlayPause,
-                size = ACTION_SIZE,
-            )
-        }
-        ControlIcon(
-            if (actions.hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info,
-            stringResource(Res.string.player_control_stream),
-            actions.onStreamInfo,
-            size = ACTION_SIZE,
-        )
+        CaptionsControl(actions.captionsOn, actions.onCaptions, size = ACTION_SIZE)
+        PlayPauseControl(actions.paused, actions.failed, actions.onPlayPause, actions.onRetry, size = ACTION_SIZE)
+        StreamInfoControl(actions.hasAudioChoice, actions.onStreamInfo, size = ACTION_SIZE)
     }
 }
 
 /** The action buttons sit a little taller than the 32 dp chips beside them, with room for a 24 dp icon. */
 private val ACTION_SIZE = 36.dp
+
+private val RowShape = RoundedCornerShape(8.dp)
 
 @Composable
 private fun MiniGuideRowItem(
@@ -255,7 +231,8 @@ private fun MiniGuideRowItem(
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
-    var focused by remember { mutableStateOf(false) }
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
     val channel = row.channel
     // The focused row is primary with on-primary text, the same focus the guide grid uses.
     val colors = MaterialTheme.colorScheme
@@ -264,10 +241,10 @@ private fun MiniGuideRowItem(
     Row(
         modifier
             .fillMaxWidth()
-            .background(if (focused) colors.primary else Color.Transparent, RoundedCornerShape(8.dp))
-            .onFocusChanged { focused = it.isFocused }
+            .tvFocus(RowShape, focusedScale = 1f)
+            .background(if (focused) colors.primary else Color.Transparent, RowShape)
             // The row playing now reads as selected; OK on any row tunes it.
-            .selectable(selected = current, role = Role.Button, onClick = onClick)
+            .selectable(selected = current, interactionSource = interactions, indication = ripple(), role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

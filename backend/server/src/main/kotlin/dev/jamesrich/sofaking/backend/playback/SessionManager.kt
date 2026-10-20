@@ -19,6 +19,8 @@ private val INTENTS = setOf(Wire.Intent.PREVIEW, Wire.Intent.WATCH)
 /** [external] sessions belong to players that never renew: the lease runs from their last media request. */
 internal class LiveSession(
     val id: String, val request: OpenPlayback, var offering: Offering, var expires: Instant, val external: Boolean = false,
+    /** Whether a second external player may join it; a recording's session ends with its attempt, so it is never shared. */
+    val shareable: Boolean = external,
     /** When the session opened, for the portal's Watching now. */
     val startedAt: Instant = expires,
     /** The address of the player that opened it, or of its last media request. */
@@ -34,9 +36,7 @@ internal class LiveSession(
     val requests = mutableSetOf<Job>()
     fun resource(url: String, suffix: String? = null): String {
         resources.tokenFor(url)?.let { return it }
-        val extension = java.net.URI(url).path.substringAfterLast('.', "").lowercase()
-        val chosen = suffix ?: if (extension in RESOURCE_SUFFIXES) extension else "ts"
-        return "${UUID.randomUUID()}.$chosen".also { resources.put(it, url, pinned = chosen == "m3u8" || url == offering.url) }
+        return resourceToken(url, suffix).also { resources.put(it, url, pinned = it.endsWith(".m3u8") || url == offering.url) }
     }
     /** The root token's suffix and MIME follow the offering's protocol, never the upstream path. */
     fun descriptor(): PlaybackSession {
@@ -46,6 +46,11 @@ internal class LiveSession(
             if (hls) "application/vnd.apple.mpegurl" else "video/mp2t", "/media/sessions/$id/$epoch/$token", epoch), offering.providerId)
     }
     fun cancel(except: Job? = null) { requests.filter { it != except }.forEach { it.cancel() }; requests.retainAll { it == except } }
+}
+/** A new opaque token for [url]: random, with [suffix] or the URL's own media extension, else `ts`. */
+internal fun resourceToken(url: String, suffix: String? = null): String {
+    val extension = java.net.URI(url).path.substringAfterLast('.', "").lowercase()
+    return "${UUID.randomUUID()}.${suffix ?: if (extension in RESOURCE_SUFFIXES) extension else "ts"}"
 }
 /** O(1) in both directions. Pinned entries (root and playlists) never leave; the rest is a bounded LRU of segments and keys. */
 internal class ResourceMap(private val segmentLimit: Int = 4096) {
@@ -98,20 +103,20 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         while (keys.size > 4096) keys.remove(keys.keys.first())
         session.descriptor()
     }
-    /** A watch session for a player that sends no API calls; it lives while media requests keep arriving. */
-    suspend fun openExternal(channelId: String, client: String? = null): PlaybackSession = mutex.withLock {
+    /** A watch session for a player that sends no API calls; it lives while media requests keep arriving. [shareable] false keeps [externalFor] from handing it to another player. */
+    suspend fun openExternal(channelId: String, client: String? = null, shareable: Boolean = true): PlaybackSession = mutex.withLock {
         reap()
         makeRoom()
         val id = UUID.randomUUID().toString()
         val now = clock.instant()
-        val session = LiveSession(id, OpenPlayback(channelId, Wire.Intent.WATCH, "external:$id"), select(channelId), now.plus(EXTERNAL_IDLE), external = true, startedAt = now, client = client)
+        val session = LiveSession(id, OpenPlayback(channelId, Wire.Intent.WATCH, "external:$id"), select(channelId), now.plus(EXTERNAL_IDLE), external = true, shareable = shareable, startedAt = now, client = client)
         sessions[id] = session
         session.descriptor()
     }
     /** An external HLS session already playing [channelId]; a second player shares it. A TS root replaces its reader, so it is never shared. */
     suspend fun externalFor(channelId: String): PlaybackSession? = mutex.withLock {
         reap()
-        sessions.values.firstOrNull { it.external && it.request.channelId == channelId && it.offering.protocol == "hls" }
+        sessions.values.firstOrNull { it.shareable && it.request.channelId == channelId && it.offering.protocol == "hls" }
             ?.also { it.expires = clock.instant().plus(EXTERNAL_IDLE) }?.descriptor()
     }
     /** Registers a request that reads the source outside the relay, so the session lives as long as [job] does. */

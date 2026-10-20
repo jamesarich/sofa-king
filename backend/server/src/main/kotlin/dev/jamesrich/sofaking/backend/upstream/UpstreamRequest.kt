@@ -23,7 +23,11 @@ data class UpstreamPolicy(val allowLoopback: Boolean = false) {
         if (target.scheme !in setOf("http", "https") || target.host == null || target.userInfo != null) {
             throw UpstreamRejectedException("Unsupported upstream address")
         }
-        val host = target.host.trim('[', ']').lowercase()
+        val host = target.host.trim('[', ']').lowercase().removeSuffix(".")
+        // The C resolver FFmpeg uses reads 0x7f000001, 0177.0.0.1 and 2130706433 as 127.0.0.1; only a plain dotted quad is a literal here.
+        if (!host.contains(':') && host.split('.').all { NUMERIC_PART.matches(it) } && !DOTTED_QUAD.matches(host)) {
+            throw UpstreamRejectedException("Unsupported upstream address")
+        }
         val loopbackName = host == "localhost" || host.endsWith(".localhost")
         val literal = if (host.all { it.isDigit() || it == '.' } || host.contains(':')) runCatching { InetAddress.getByName(host) }.getOrNull() else null
         if (literal != null) {
@@ -34,6 +38,9 @@ data class UpstreamPolicy(val allowLoopback: Boolean = false) {
         }
     }
 }
+
+private val NUMERIC_PART = Regex("0x[0-9a-f]*|[0-9]+")
+private val DOTTED_QUAD = Regex("((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])")
 
 /** The client must disable automatic redirects. Credentials are scoped to the configured origin. */
 internal suspend fun <T> HttpClient.withUpstreamResponse(

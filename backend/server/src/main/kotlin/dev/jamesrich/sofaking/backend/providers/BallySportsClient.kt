@@ -30,7 +30,7 @@ class BallySportsClient(private val context: ProviderContext) : ProviderClient {
         val url = page().channels.firstOrNull { it.first.id == channelId }?.second
             ?: run { context.invalidate(PAGE); page().channels.firstOrNull { it.first.id == channelId }?.second }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
-        return ResolvedStream(url, mapOf("User-Agent" to USER_AGENT))
+        return ResolvedStream(url, mapOf("User-Agent" to BROWSER_USER_AGENT))
     }
 
     private suspend fun page(): Page = context.cached(PAGE, Duration.ofMinutes(10)) { fetchPage() }
@@ -47,21 +47,19 @@ class BallySportsClient(private val context: ProviderContext) : ProviderClient {
         }.distinctBy { it.first.id }
         val programmes = epgData.mapNotNull { event ->
             val channelId = event.str("channelUuid") ?: return@mapNotNull null
-            val start = event.str("since")?.let(::instant) ?: return@mapNotNull null
-            val end = event.str("till")?.let(::instant) ?: return@mapNotNull null
+            val start = event.str("since")?.let(::instantOrNull) ?: return@mapNotNull null
+            val end = event.str("till")?.let(::instantOrNull) ?: return@mapNotNull null
             val title = event.str("title") ?: return@mapNotNull null
             if (end <= start) null else GuideProgramme(channelId, start, end, title, event.str("comment"))
         }
         return Page(channels, programmes)
     }
 
-    private fun instant(value: String): Instant? = try { Instant.parse(value) } catch (_: Exception) { null }
 
     companion object {
         private const val PAGE_URL = "https://www.ballysports.com/channels/milb"
         private const val PAGE = "page"
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
-        private val HEADERS = mapOf("User-Agent" to USER_AGENT, "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language" to "en-US,en;q=0.9")
+        private val HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language" to "en-US,en;q=0.9")
         private val CDN = Regex("""https://[a-z0-9]+\.channels\.ballys\.tv/.+""")
         private val PUSH = Regex("""self\.__next_f\.push\((\[.*?])\)""", RegexOption.DOT_MATCHES_ALL)
         private val DATE = Regex("\"\\\$D([^\"]+)\"")

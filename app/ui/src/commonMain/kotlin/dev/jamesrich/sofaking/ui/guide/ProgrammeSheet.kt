@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -63,6 +62,7 @@ import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
@@ -85,7 +85,6 @@ private val SHEET_TEXT_MAX_HEIGHT = 360.dp
  * programme is set (null on a server that does not record): a side panel over the guide on a TV, where a window of
  * its own would not take D-pad focus, and a Material bottom sheet elsewhere. Back and Close dismiss it.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ProgrammeSheet(
     details: ProgrammeDetails,

@@ -11,10 +11,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 
 private val idPattern = Regex("[a-zA-Z0-9_-]{1,64}")
+private val headerName = Regex("[A-Za-z0-9-]+")
+private val optionKey = Regex("[A-Za-z0-9_-]{1,64}")
+private val reservedHeaders = setOf("host", "content-length", "connection", "transfer-encoding")
 
 private fun validateHeaders(headers: Map<String, String>) {
-    require(headers.all { (key, value) -> key.matches(Regex("[A-Za-z0-9-]+")) && value.none { it == '\r' || it == '\n' } })
-    require(headers.keys.none { it.lowercase() in setOf("host", "content-length", "connection", "transfer-encoding") })
+    require(headers.all { (key, value) -> key.matches(headerName) && value.none { it == '\r' || it == '\n' } })
+    require(headers.keys.none { it.lowercase() in reservedHeaders })
 }
 
 /**
@@ -47,7 +50,7 @@ private fun validateHeaders(headers: Map<String, String>) {
         if (native) {
             require(service != null && service in NativeServices.names) { "Unknown native service; known: ${NativeServices.names.sorted()}" }
             require(playlistUrl == null) { "A native provider takes no playlistUrl" }
-            require(options.all { (key, value) -> key.matches(Regex("[A-Za-z0-9_-]{1,64}")) && value.length <= 256 }) { "Invalid provider options" }
+            require(options.all { (key, value) -> key.matches(optionKey) && value.length <= 256 }) { "Invalid provider options" }
         } else {
             require(service == null && options.isEmpty()) { "service and options apply to native providers" }
             httpUri(requireNotNull(playlistUrl) { "A playlistUrl is required" })

@@ -10,7 +10,11 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
+import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.*
 
 class LibraryApiTest {
@@ -112,5 +116,63 @@ class LibraryApiTest {
             assertEquals(HttpStatusCode.OK, played(all.items[1]).status)
             assertEquals(listOf("Bravo", "Charlie", "Alpha"), page("sort=watched").items.map { it.title })
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `an episode with every fact a scan reads keeps every field of the library item and library list fixtures`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-library-full-")
+        val show = Files.createDirectories(dir.resolve("media/tv/Show (2020)"))
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte())
+        Files.write(show.resolve("poster.jpg"), jpeg)
+        Files.write(show.resolve("fanart.jpg"), jpeg)
+        val episode = show.resolve("Season 01/Show - S01E01-E02 - Pilot.mkv")
+        hdrClip(episode)
+        Files.write(episode.resolveSibling("Show - S01E01-E02 - Pilot-thumb.jpg"), jpeg)
+        Files.writeString(episode.resolveSibling("Show - S01E01-E02 - Pilot.nfo"), """
+            <episodedetails><title>Pilot</title><season>1</season><episode>1</episode><aired>2020-01-05</aired>
+            <plot>Where it starts.</plot><runtime>44</runtime><genre>Drama</genre><mpaa>TV-14</mpaa><rating>8.1</rating></episodedetails>
+        """.trimIndent())
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null)
+        val store = openStore(dir)
+        val clock = MutableClock()
+        val runtime = LiveRuntime.create(store, config, clock, probes = false)
+        try {
+            val libraries = runtime.libraries!!
+            val library = libraries.create("TV", LibraryKind.SHOWS, dir.resolve("media/tv").toString())
+            libraries.scan(library.id)
+            val catalog = libraries.catalog
+            val season = catalog.item(catalog.items(library.id, null, false, null, 10).items.single().id).children.single()
+            val pilot = catalog.item(season.id).children.single()
+            application { backendModule(store, clock, runtime, token, config = config) }
+
+            val put = client.put("/api/v1/library/items/${pilot.id}/play-state") {
+                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"positionMs":600000,"durationMs":2640000}""")
+            }
+            assertEquals(HttpStatusCode.OK, put.status, put.bodyAsText())
+            val itemBody = put.bodyAsText()
+            val item = json.decodeFromString<LibraryItem>(itemBody)
+            assertEquals(Triple(1, 1, 2), Triple(item.season, item.episode, item.episodeEnd))
+            assertEquals(180, item.videoHeight)
+            assertTrue(item.hdr, "FFprobe read the PQ transfer")
+            assertEquals(600000, item.playState?.positionMs)
+            val nulls = Json.parseToJsonElement(itemBody).jsonObject.filterValues { it is JsonNull }.keys
+            assertTrue(nulls.isEmpty(), "the item still has nulls: $nulls")
+            assertKeepsWireFixture("v1/library-item.json", itemBody)
+
+            val librariesBody = client.get("/api/v1/libraries") { bearerAuth(token) }.bodyAsText()
+            assertEquals(listOf(Library(library.id, "TV", "shows", 1)), json.decodeFromString<List<Library>>(librariesBody))
+            assertKeepsWireFixture("v1/libraries.json", librariesBody)
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
+
+    /** A two-second Matroska clip whose video is tagged as HDR10 (PQ transfer, BT.2020). */
+    private fun hdrClip(file: Path) {
+        Files.createDirectories(file.parent)
+        val process = ProcessBuilder(
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15",
+            "-t", "2", "-pix_fmt", "yuv420p", "-c:v", "mpeg2video", "-color_trc", "smpte2084", "-color_primaries", "bt2020", "-colorspace", "bt2020nc",
+            file.toString(),
+        ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
+        check(process.waitFor(60, TimeUnit.SECONDS) && process.exitValue() == 0) { "FFmpeg could not write the clip" }
     }
 }

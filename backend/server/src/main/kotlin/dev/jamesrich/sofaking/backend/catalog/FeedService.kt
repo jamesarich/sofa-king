@@ -16,6 +16,7 @@ import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.readBuffer
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -82,7 +83,10 @@ class FeedService(
     private val log = LoggerFactory.getLogger(FeedService::class.java)
     private val published = AtomicReference(Published(emptyList()))
     private val statuses = AtomicReference<List<ProviderStatus>>(configs.map { ProviderStatus(it.id) })
+    /** Guards publishing a snapshot or a protocol; an import fetches and parses outside it. */
     private val mutex = Mutex()
+    /** One import at a time per provider. */
+    private val importLocks = ConcurrentHashMap<String, Mutex>()
     private val triggers = configs.associate { it.id to Trigger<Unit>(Trigger.CONFLATED) }
 
     init {
@@ -164,7 +168,7 @@ class FeedService(
     }
 
     suspend fun refresh(config: FeedConfig) =
-        mutex.withLock { jobs.record("import:${config.id}") {
+        importLocks.computeIfAbsent(config.id) { Mutex() }.withLock { jobs.record("import:${config.id}") {
             val started = clock.instant()
             try {
                 val parsed = if (config.native) {
@@ -175,27 +179,31 @@ class FeedService(
                 }
                 val (channels, offerings) = parsed
                 require(channels.isNotEmpty() || config.allowEmpty) { "Empty playlist requires explicit allowEmpty" }
-                val previous = published.get().feeds.find { it.providerId == config.id }
-                val retainedChannels = (channels + previous?.channels.orEmpty()).distinctBy { it.id }
-                // An import that changes nothing rewrites nothing and wakes nothing downstream.
-                val unchanged = previous != null && previous.channels.toSet() == retainedChannels.toSet() && previous.offerings.toSet() == offerings.toSet()
                 val succeededAt = clock.instant().toString()
                 val firstSinceStart = statuses.get().firstOrNull { it.id == config.id }?.lastSuccessAt == null
-                val snapshot = if (unchanged) previous else FeedSnapshot(config.id, retainedChannels, offerings, importedAt = succeededAt)
-                if (!unchanged) {
-                    store.saveSnapshot(snapshot)
-                    val current = published.get()
-                    published.set(
-                        Published(
-                            (current.feeds.filterNot { it.providerId == config.id } + snapshot).sortedBy { item ->
-                                configs.indexOfFirst { it.id == item.providerId }
-                            },
-                            current.protocols,
-                        ),
-                    )
+                // Only publishing takes the shared lock, so a slow provider holds up neither another's import nor a protocol record.
+                val unchanged = mutex.withLock {
+                    val previous = published.get().feeds.find { it.providerId == config.id }
+                    val retainedChannels = (channels + previous?.channels.orEmpty()).distinctBy { it.id }
+                    // An import that changes nothing rewrites nothing and wakes nothing downstream.
+                    val unchanged = previous != null && previous.channels.toSet() == retainedChannels.toSet() && previous.offerings.toSet() == offerings.toSet()
+                    if (!unchanged) {
+                        val snapshot = FeedSnapshot(config.id, retainedChannels, offerings, importedAt = succeededAt)
+                        store.saveSnapshot(snapshot)
+                        val current = published.get()
+                        published.set(
+                            Published(
+                                (current.feeds.filterNot { it.providerId == config.id } + snapshot).sortedBy { item ->
+                                    configs.indexOfFirst { it.id == item.providerId }
+                                },
+                                current.protocols,
+                            ),
+                        )
+                    }
+                    unchanged
                 }
-                statuses.set(
-                    statuses.get().map {
+                statuses.updateAndGet { all ->
+                    all.map {
                         if (it.id == config.id) {
                             ProviderStatus(
                                 config.id,
@@ -209,8 +217,8 @@ class FeedService(
                         } else {
                             it
                         }
-                    },
-                )
+                    }
+                }
                 val durationMs = Duration.between(started, clock.instant()).toMillis()
                 log.info(
                     "import provider={} channels={} sources={} skipped={} unchanged={} durationMs={}",
@@ -224,9 +232,12 @@ class FeedService(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // Exception messages can carry signed URLs and credentials; log the class only.
-                statuses.set(statuses.get().map { if (it.id == config.id) it.copy(errorCode = "IMPORT_FAILED") else it })
-                log.warn("import provider={} failed class={} durationMs={}", config.id, e.javaClass.simpleName, Duration.between(started, clock.instant()).toMillis())
+                statuses.updateAndGet { all -> all.map { if (it.id == config.id) it.copy(errorCode = "IMPORT_FAILED") else it } }
+                // The message, with its URLs redacted, tells an auth or rate limit from an outage.
+                log.warn(
+                    "import provider={} failed class={} transient={} message=\"{}\" durationMs={}",
+                    config.id, e.javaClass.simpleName, (e as? ProviderFailure)?.transient ?: true, redactedMessage(e), Duration.between(started, clock.instant()).toMillis(),
+                )
                 JobOutcome(false, "IMPORT_FAILED (${e.javaClass.simpleName})")
             }
         } }
@@ -299,4 +310,8 @@ class FeedService(
         }
 }
 
-fun hash(value: String): String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.toByteArray()))
+/** The SHA-256 of [value]'s UTF-8 bytes, hex. */
+fun hash(value: String): String = hash(value.toByteArray())
+
+/** The SHA-256 of [bytes], hex. */
+fun hash(bytes: ByteArray): String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))

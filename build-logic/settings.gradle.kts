@@ -15,7 +15,6 @@ dependencyResolutionManagement {
 }
 
 apply(from = "../gradle/repositories.settings.gradle.kts")
-apply(from = "../gradle/build-cache.settings.gradle.kts")
 
 rootProject.name = "build-logic"
 include(":kotlin", ":android")

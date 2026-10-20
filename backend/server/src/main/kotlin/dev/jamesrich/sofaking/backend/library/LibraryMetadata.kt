@@ -8,6 +8,9 @@ import java.time.Duration
 import java.time.Instant
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import org.slf4j.LoggerFactory
+
+private val log = LoggerFactory.getLogger(LibraryMetadata::class.java)
 
 /** How long a match stays before it is fetched again; TMDB's terms allow caching for up to six months. */
 private val MATCHED_FOR: Duration = Duration.ofDays(30)
@@ -64,7 +67,7 @@ class LibraryMetadata internal constructor(
                     records += MetadataRecord(item.id, movie?.id, now.toString(), movie?.facts(region))
                     if (movie != null) matched++ else unmatched++
                 } else {
-                    val id = if (fresh) row!!.tmdbId else hint ?: pickShow(client.searchShows(item.title, item.year).also { pause() }, item)
+                    val id = if (fresh) row.tmdbId else hint ?: pickShow(client.searchShows(item.title, item.year).also { pause() }, item)
                     val show = if (fresh) null else id?.let { client.show(it).also { pause() } }
                     if (!fresh) records += MetadataRecord(item.id, show?.id, now.toString(), show?.facts(region))
                     if (id != null) {
@@ -76,6 +79,7 @@ class LibraryMetadata internal constructor(
                 store.saveLibraryMetadata(records)
             } catch (e: TmdbFailure) {
                 if (e.code == "TMDB_AUTH" || e.code == "TMDB_RATE_LIMITED") return MetadataResult(fetched, matched, unmatched, failed, e.code)
+                log.info("tmdb lookup failed item={} code={}", item.id, e.code)
                 failed++
             }
         }

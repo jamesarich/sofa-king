@@ -65,12 +65,12 @@ import kotlinx.coroutines.launch
  * it once and calls [onPairingHandled], so a restored activity does not claim it again.
  */
 @Composable
-fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
+fun App(modifier: Modifier = Modifier, pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
     SofaKingTheme {
         val lastInput = rememberLastInput()
         CompositionLocalProvider(LocalLayoutProfile provides rememberLayoutProfile(), LocalLastInput provides lastInput) {
-            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
+            Surface(modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
         }
     }
 }

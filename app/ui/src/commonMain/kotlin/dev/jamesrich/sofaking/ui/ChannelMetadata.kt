@@ -30,19 +30,27 @@ private val BadgeShape = RoundedCornerShape(4.dp)
 /** The episode label and title, for example "S2 E5  The Pilot", or null when the guide has neither. */
 internal fun Programme.episodeLine(): String? = listOfNotNull(episode, subTitle).joinToString("  ").ifEmpty { null }
 
+/** Why a stretch of a channel shows no programme, with the text it reads as. */
+internal enum class NoListing(val label: StringResource) {
+    NO_GUIDE(Res.string.no_guide),
+    OUT_OF_DATE(Res.string.guide_out_of_date),
+    LOADING(Res.string.listing_loading),
+    NONE(Res.string.no_listing),
+}
+
 /**
  * What to show in place of a programme: why the channel has none, as far as the server says, or that its programmes
  * are still on the way while [guideLoading].
  */
-internal fun Channel.noListingRes(guideLoading: Boolean): StringResource = when (guideStatus) {
-    GuideStatus.UNASSIGNED -> Res.string.no_guide
-    GuideStatus.STALE -> Res.string.guide_out_of_date
-    GuideStatus.EMPTY, GuideStatus.AVAILABLE -> if (guideLoading) Res.string.listing_loading else Res.string.no_listing
+internal fun Channel.noListing(guideLoading: Boolean): NoListing = when (guideStatus) {
+    GuideStatus.UNASSIGNED -> NoListing.NO_GUIDE
+    GuideStatus.STALE -> NoListing.OUT_OF_DATE
+    GuideStatus.EMPTY, GuideStatus.AVAILABLE -> if (guideLoading) NoListing.LOADING else NoListing.NONE
 }
 
-/** The text of [noListingRes]. */
+/** The text of [noListing]. */
 @Composable
-internal fun Channel.noListingText(guideLoading: Boolean): String = stringResource(noListingRes(guideLoading))
+internal fun Channel.noListingText(guideLoading: Boolean): String = stringResource(noListing(guideLoading).label)
 
 /** Between the parts of a programme's detail line, such as its time range and episode. */
 internal const val DETAIL_SEPARATOR = "  ·  "

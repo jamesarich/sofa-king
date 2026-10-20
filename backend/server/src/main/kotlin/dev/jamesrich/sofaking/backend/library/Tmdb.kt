@@ -116,7 +116,7 @@ internal class TmdbClient(private val http: HttpClient, private val config: Tmdb
             HttpStatusCode.TooManyRequests -> throw TmdbFailure("TMDB_RATE_LIMITED")
             else -> throw TmdbFailure("TMDB_HTTP_${response.status.value}")
         }
-        return try { tmdbJson.decodeFromString(response.bodyAsText()) } catch (_: Exception) { throw TmdbFailure("TMDB_BAD_RESPONSE") }
+        return try { tmdbJson.decodeFromString(response.bodyAsText()) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { throw TmdbFailure("TMDB_BAD_RESPONSE") }
     }
 }
 

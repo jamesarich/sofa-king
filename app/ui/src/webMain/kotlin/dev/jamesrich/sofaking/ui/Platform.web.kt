@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
@@ -14,7 +15,6 @@ internal actual fun rememberIsTelevision(): Boolean = false
 @Composable
 internal actual fun rememberSystem24HourClock(): Boolean = remember { !localeUsesTwelveHourClock() }
 
-@OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
 private fun localeUsesTwelveHourClock(): Boolean =
     js("(function () { try { var o = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return o.hour12 === true || o.hourCycle === 'h12' || o.hourCycle === 'h11'; } catch (e) { return true; } })()")
 
@@ -22,9 +22,14 @@ private fun localeUsesTwelveHourClock(): Boolean =
 @Composable
 internal actual fun rememberScreenReaderActive(): Boolean = false
 
-/** Browsers keep the display awake while a video element plays. */
+/** Holds a screen wake lock while [on]; see [screenWake]. */
 @Composable
-internal actual fun KeepScreenOn(on: Boolean) = Unit
+internal actual fun KeepScreenOn(on: Boolean) {
+    DisposableEffect(on) {
+        val hold = if (on) screenWake.hold() else null
+        onDispose { hold?.close() }
+    }
+}
 
 /** The guide opens its text field; the Web Speech API is not wired in. */
 @Composable

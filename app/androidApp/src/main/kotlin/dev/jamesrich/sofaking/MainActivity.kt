@@ -1,27 +1,28 @@
 package dev.jamesrich.sofaking
 
 import android.app.Application
-import android.app.UiModeManager
 import android.content.Intent
-import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.view.WindowCompat
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.data.parsePairingLink
+import dev.jamesrich.sofaking.ui.isTelevision
 
 /** Starts the shared graph once per process, over the files directory the app has always used. */
 class SofaKingApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        val television = (getSystemService(UI_MODE_SERVICE) as UiModeManager).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
-        val client = ClientInfo(platform = if (television) "android-tv" else "android", deviceName = Build.MODEL)
+        val client = ClientInfo(platform = if (isTelevision()) "android-tv" else "android", deviceName = Build.MODEL)
         initSofaKing(AppStorage.inDirectory(filesDir.absolutePath, client))
     }
 }
@@ -41,7 +42,14 @@ class MainActivity : ComponentActivity() {
         }
         // A restored activity keeps its intent, but the claim it carried was made the first time.
         if (savedInstanceState == null) takePairing(intent)
-        setContent { App(pairing = pairing.value, onPairingHandled = { pairing.value = null }) }
+        setContent {
+            App(
+                // Test tags become resource ids, so the Baseline Profile generator can wait for the guide or player.
+                modifier = Modifier.semantics { testTagsAsResourceId = true },
+                pairing = pairing.value,
+                onPairingHandled = { pairing.value = null },
+            )
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

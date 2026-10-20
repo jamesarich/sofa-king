@@ -55,7 +55,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
-import org.junit.Assume.assumeTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.slf4j.LoggerFactory
 
 /**
@@ -223,7 +223,7 @@ class LoopbackRelayTest {
     @Test fun `a redirect, a variant, a segment or a key at a refused address fails instead of being fetched`() = runBlocking<Unit> {
         // The upstream must look like any LAN or public host, so loopback stays refused; the trap listens on loopback.
         val outside = outsideAddress()
-        assumeTrue("this machine has no address but loopback", outside != null)
+        assumeTrue(outside != null, "this machine has no address but loopback")
         val dir = Files.createTempDirectory("sofa-loopback-refused-")
         try { MediaFixture().use { media -> Trap(media).use { trap ->
             val targets = mapOf("trap" to trap.base, "metadata" to "http://169.254.169.254")

@@ -13,7 +13,6 @@ import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlin.test.*
@@ -78,7 +77,7 @@ class RelayTest {
                 }
                 assertEquals(1, fixture.tsConnections.get())
                 for (session in opened) client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
-                withTimeout(20_000) { while (fixture.tsClosed.get() < 1) kotlinx.coroutines.delay(50) }
+                pollUntil(20_000, 50) { fixture.tsClosed.get() >= 1 }
                 assertEquals(0, runtime.relay.shared.active())
             } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
         }
@@ -238,7 +237,7 @@ class RelayTest {
                 assertEquals("STREAM_CHANGED", Json.decodeFromString<ApiError>(mismatch.bodyAsText()).code)
                 assertEquals(mapOf(offering.id to "hls"), store.offeringProtocols())
                 // The relay releases the shared upstream after the 410 is sent, so the count settles just after the response.
-                withTimeout(10_000) { while (runtime.relay.shared.active() != 0) delay(20) }
+                pollUntil(10_000) { runtime.relay.shared.active() == 0 }
                 val corrected = Json.decodeFromString<PlaybackSession>(client.get("/api/v1/playback-sessions/${opened.id}") { bearerAuth(token) }.bodyAsText())
                 assertEquals(2, corrected.descriptor.epoch); assertEquals("hls", corrected.descriptor.protocol); assertTrue(corrected.descriptor.url.endsWith(".m3u8"))
                 val playlist = client.get(corrected.descriptor.url)

@@ -16,8 +16,6 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.*
 import kotlin.test.*
 
@@ -339,7 +337,7 @@ class PolicyLoopTest {
             val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 10, probes = false)
             try {
                 runtime.feeds.refresh(fixture.feed)
-                withTimeout(10_000) { while (runtime.lineup.entries().isEmpty()) delay(20) }
+                pollUntil(10_000) { runtime.lineup.entries().isNotEmpty() }
                 assertEquals(listOf(stationId("station")), runtime.lineup.entries().map { it.id })
                 assertEquals("policy", runtime.lineup.entries().single().createdBy)
             } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }

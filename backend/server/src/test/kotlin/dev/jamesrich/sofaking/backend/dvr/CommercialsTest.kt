@@ -6,7 +6,7 @@ import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermissions
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.runBlocking
-import org.junit.Assume.assumeTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import kotlin.test.*
 
 class CommercialsTest {
@@ -64,7 +64,7 @@ class CommercialsTest {
 
     /** Real Comskip on a programme, three 30-second ads between black frames, and the programme again; skipped without Comskip. */
     @Test fun `Comskip finds the ad block in a generated recording`() = runBlocking<Unit> {
-        assumeTrue("comskip is not installed", runCatching { ProcessBuilder("comskip", "--help").redirectErrorStream(true).start().waitFor() }.isSuccess)
+        assumeTrue(runCatching { ProcessBuilder("comskip", "--help").redirectErrorStream(true).start().waitFor() }.isSuccess, "comskip is not installed")
         val dir = Files.createTempDirectory("sofa-comskip-real-")
         try {
             fun ffmpeg(vararg args: String) = assertEquals(0, ProcessBuilder(listOf("ffmpeg", "-loglevel", "error", "-y") + args).inheritIO().start().waitFor())

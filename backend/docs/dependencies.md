@@ -13,6 +13,8 @@ The wrapper's version is in [the Gradle wrapper settings](../gradle/wrapper/grad
 
 The image's programs come from its Ubuntu 24.04 (noble) base as distribution packages, at the versions its archive holds: FFmpeg 6.1, Comskip, `sqlite3`, `curl`, `tini`, and the VA-API drivers (Mesa, and on amd64 Intel's media driver and Quick Sync runtime). Renovate updates the base image by digest, which brings their security updates.
 
+The tests run on JUnit 6 (JUnit Jupiter and its platform launcher, the catalog's `junit`) through `kotlin-test-junit5`, which follows the Kotlin version, with `kotlinx-coroutines-test` for virtual time.
+
 The server targets JVM 21. The [contract](../../contract/README.md) it shares with the app compiles to JVM 17 bytecode for the server and Android, and to every other target the app builds; it pins the same Kotlin and kotlinx.serialization versions as the server.
 
 ## Vendored htmx

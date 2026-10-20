@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.catalog
 
+import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.store.openStore
@@ -82,7 +83,7 @@ class GuideServiceTest {
             try {
                 stack.guides.start(scope)
                 val other = stack.lineup.create(CreateLineupEntry(number = "9", name = "Other", guide = GuideMapping("gz", "other")))
-                withTimeout(10_000) { while (stack.guides.statuses().single().programmes < 2) delay(50) }
+                pollUntil(10_000, 50) { stack.guides.statuses().single().programmes >= 2 }
                 val window = stack.catalog.guide(GuideQuery(listOf(other.id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single()
                 assertEquals("Elsewhere", window.programmes.single().title)
                 assertEquals("available", stack.catalog.catalog().channels.single { it.id == other.id }.guideStatus)

@@ -23,8 +23,6 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import java.util.concurrent.ConcurrentLinkedQueue
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlin.test.*
 
@@ -91,22 +89,26 @@ class PlexSyncApiTest {
         }
     }
 
-    private suspend fun until(condition: () -> Boolean) = withTimeout(10_000) { while (!condition()) delay(20) }
-
     @Test fun `an apply that changes the lineup syncs Plex after the debounce, and the status and findings report it`() = testApplication {
         FakePlex().use { plex ->
             withRuntime(plex) { runtime ->
                 val sync = runtime.plex!!
-                until { sync.status().lastCause == "startup" }
+                pollUntil(10_000) { sync.status().lastCause == "startup" }
                 assertEquals(1, plex.syncs())
 
                 val applied = json.decodeFromString<PolicyApplyResult>(client.post("/api/v1/admin/policy/apply") { bearerAuth(admin) }.bodyAsText())
                 assertTrue(applied.changed)
-                until { plex.syncs() == 2 && sync.status().lastCause == "policy" }
+                // Idle: the policy sync has finished and the loop waits for the next request.
+                pollUntil(10_000) { plex.syncs() == 2 && sync.status().lastCause == "policy" && runtime.jobs.snapshot().none { it.id == "plex" && it.running } }
 
+                // A sync request of its own after the apply: had the apply asked for one, the loop would already be in that
+                // sync's debounce, swallow this request and sync with the cause "policy".
                 assertFalse(json.decodeFromString<PolicyApplyResult>(client.post("/api/v1/admin/policy/apply") { bearerAuth(admin) }.bodyAsText()).changed)
-                delay(600)
-                assertEquals(2, plex.syncs(), "an apply that changed nothing does not sync")
+                val beforeSentinel = sync.status()
+                sync.requestSync("now")
+                pollUntil(10_000) { sync.status() !== beforeSentinel }
+                assertEquals("now", sync.status().lastCause, "an apply that changed nothing does not sync")
+                assertEquals(3, plex.syncs())
 
                 val second = hdhrDeviceId(HdhrConfig(deviceId = "ABCDEF01"), runtime.store.serverId(), 1)
                 val status = json.decodeFromString<PlexStatus>(client.get("/api/v1/admin/plex") { bearerAuth(admin) }.bodyAsText())
@@ -119,12 +121,12 @@ class PlexSyncApiTest {
                 assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/admin/plex") { bearerAuth(token) }.status)
                 val now = json.decodeFromString<PlexStatus>(client.post("/api/v1/admin/plex/sync") { bearerAuth(admin) }.bodyAsText())
                 assertEquals("api", now.lastCause)
-                assertEquals(3, plex.syncs())
+                assertEquals(4, plex.syncs())
 
                 val put = plex.seen.first { it.method == "PUT" }
                 assertTrue(put.uri.startsWith("/media/grabbers/devices/20/channelmap?"))
                 assertTrue(plex.seen.all { it.token == plexToken && plexToken !in it.uri })
-                assertEquals(3, plex.seen.count { it.uri == "/livetv/dvrs/10/reloadGuide" })
+                assertEquals(4, plex.seen.count { it.uri == "/livetv/dvrs/10/reloadGuide" })
             }
         }
     }

@@ -170,7 +170,12 @@ fun Application.backendModule(
             val isAdmin = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/")
             val expected = if (isAdmin && adminToken != null) adminToken else apiToken
             // A pairing claim carries no token yet; the code it presents is checked by its route.
-            if ((path == "/api" || path.startsWith("/api/")) && expected != null && path != PAIR_PATH) {
+            val isApi = path == "/api" || path.startsWith("/api/")
+            if (isApi && expected == null && !call.request.fromThisMachine()) {
+                // Without a token the API is open, so only this machine may use it: no other site's page, no rebound name, no proxy.
+                call.respond(HttpStatusCode.Forbidden, ApiError("LOOPBACK_ONLY", "Without a token the API answers only this machine", false))
+                finish()
+            } else if (isApi && expected != null && path != PAIR_PATH) {
                 val presented = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ").orEmpty()
                 if (!sameSecret(presented, expected)) {
                     call.authFailed()
@@ -233,15 +238,37 @@ fun Application.backendModule(
 }
 /**
  * The path routing matches: empty segments dropped, each segment percent-decoded. Null when a segment is undecodable,
- * decodes to a dot segment, or decodes to something containing '/', which routing would otherwise see as a path split.
+ * decodes to a dot segment, or decodes to something containing '/', which routing would otherwise see as a path split,
+ * or a control character, which would forge lines in the access log.
  */
 internal fun routedPath(raw: String): String? {
     val segments = raw.split('/').filter { it.isNotEmpty() }.map { segment -> runCatching { segment.decodeURLPart() }.getOrNull() ?: return null }
-    if (segments.any { it == "." || it == ".." || it.contains('/') }) return null
+    if (segments.any { it == "." || it == ".." || it.contains('/') || it.any(Char::isISOControl) }) return null
     return segments.joinToString("/", prefix = "/")
 }
 
 internal val RoutedPathKey = AttributeKey<String>("RoutedPath")
+
+/**
+ * Whether a request reached the tokenless API from this machine itself: a loopback `Host`, so a rebound DNS name is
+ * refused; no proxy's forwarding header; and no `Origin` but a loopback one, so another site's page cannot send it.
+ */
+internal fun ApplicationRequest.fromThisMachine(): Boolean {
+    // The Host header's name, or the local address when a client sent none; browsers always send one.
+    val host = headers[HttpHeaders.Host]?.let { if (it.startsWith("[")) it.substringBefore(']') else it.substringBefore(':') } ?: local.serverHost
+    if (!isLoopbackName(host)) return false
+    if (FORWARDING_HEADERS.any { headers[it] != null }) return false
+    val origin = headers[HttpHeaders.Origin] ?: return true
+    return runCatching { java.net.URI(origin).host }.getOrNull()?.let(::isLoopbackName) == true
+}
+
+private val FORWARDING_HEADERS = listOf(HttpHeaders.Forwarded, HttpHeaders.XForwardedFor, HttpHeaders.XForwardedHost, "X-Real-IP")
+private val LOOPBACK_V4 = Regex("127(\\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}")
+
+internal fun isLoopbackName(raw: String): Boolean {
+    val host = raw.trim('[', ']').lowercase().removeSuffix(".")
+    return host == "localhost" || host.endsWith(".localhost") || host == "::1" || LOOPBACK_V4.matches(host)
+}
 
 /** The path routing resolves for this call, computed once at setup; null when [routedPath] refused the raw path. */
 internal val ApplicationCall.routedPath: String? get() = attributes.getOrNull(RoutedPathKey)

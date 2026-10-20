@@ -156,8 +156,6 @@ Runs follow every provider import, guide import and health change, after ten qui
 
 With a policy, the probe worker runs whatever the providers' `probe` flags say, and probes only the sources the last apply's stations reference; a source no station references is never probed. It takes them in three tiers, `SOFA_PROBE_PARALLELISM` at a time. First comes the first source of each unverified station, then those stations' other sources. Then comes every other referenced source in the usual order: suspect and quarantined first, then unverified, then healthy rechecks. A station the policy turns off is never in the first two tiers. Without a policy, only providers with `probe` set are probed.
 
-A source whose provider configures `headers` other than `User-Agent`, `Accept`, `Accept-Language`, `Origin` and `Referer` is never probed, so with `requireVerified` a station whose only sources come from such a provider stays off.
-
 ## Required stations
 
 `"required": true` keeps a station in the lineup whatever happens to its sources:

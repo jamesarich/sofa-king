@@ -11,9 +11,7 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class UpstreamRequestTest {
     @Test fun `redirects strip secrets while retaining CDN playback headers`() =
@@ -106,10 +104,4 @@ class UpstreamRequestTest {
                 assertFailsWith<UpstreamRejectedException> { http.withUpstreamResponse("http://provider.test/live", "http://provider.test/live", emptyMap()) { it.bodyAsText() } }
             }
         }
-
-    @Test fun `direct probes only accept portable headers`() {
-        assertTrue(probeHeadersSafe(mapOf("User-Agent" to "Sofa")))
-        assertFalse(probeHeadersSafe(mapOf("Authorization" to "secret")))
-        assertFalse(probeHeadersSafe(mapOf("X-Provider-Token" to "secret")))
-    }
 }

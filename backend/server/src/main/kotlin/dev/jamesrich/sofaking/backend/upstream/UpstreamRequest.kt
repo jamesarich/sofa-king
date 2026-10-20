@@ -126,8 +126,6 @@ internal suspend fun <T> followRedirects(start: URI, max: Int = 5, reject: (Redi
     }
 }
 
-internal fun probeHeadersSafe(headers: Map<String, String>): Boolean = headers.keys.all { it.lowercase() in portableHeaders }
-
 private val portableHeaders = setOf("user-agent", "accept", "accept-language", "origin", "referer")
 
 internal fun sameOrigin(

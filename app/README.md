@@ -47,7 +47,7 @@ adb connect TV_IP:DEBUG_PORT
 adb install -r sofa-king-snapshot.apk
 ```
 
-Open Sofa King, select Settings, enter the server's address, for example `http://SERVER_HOST:9193`, and its API token, then select Save & reload. [Getting started](docs/getting-started.md) covers pairing the TV, the desktop, web and iOS apps, and checking the server first.
+Open Sofa King, select Settings, enter the server's address, for example `SERVER_HOST` (the app fills in `http://` and port 9193), and its API token, then select Save & reload. [Getting started](docs/getting-started.md) covers pairing the TV, the desktop, web and iOS apps, and checking the server first.
 
 To build from source, see [development](docs/development.md#build-and-test).
 

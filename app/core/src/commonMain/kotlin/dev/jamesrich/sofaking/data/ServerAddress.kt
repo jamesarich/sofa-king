@@ -10,12 +10,23 @@ object ServerAddress {
     private val hostPattern = Regex("^(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)$")
     private const val ILLEGAL = " \"<>\\^`{|}"
 
+    /** The port the server's Compose file publishes, added to an address typed without a scheme or a port. */
+    const val DEFAULT_PORT = 9193
+
     /**
      * [raw] trimmed and without a trailing slash, or null unless it is an absolute http or https URL with a
-     * host and nothing else, which is what the server's `/api/v1` and `/media` paths are appended to.
+     * host and nothing else, which is what the server's `/api/v1` and `/media` paths are appended to. A bare
+     * address, `192.168.1.10` or `sofa.lan:8080` as the admin portal shows it, gets `http://`, and [DEFAULT_PORT]
+     * when it has no port.
      */
     fun normalizeUrl(raw: String): String? {
-        val trimmed = raw.trim().trimEnd('/')
+        val typed = raw.trim().trimEnd('/')
+        if (typed.isEmpty()) return null
+        // Read before the slashes are trimmed, so `http://` alone stays a scheme without a host.
+        val bare = "://" !in raw
+        // An IPv6 literal needs its brackets before a port can follow it.
+        if (bare && !typed.startsWith('[') && typed.count { it == ':' } > 1) return null
+        val trimmed = if (!bare) typed else "http://$typed" + if (hasPort(typed)) "" else ":$DEFAULT_PORT"
         if (trimmed.any { it.isISOControl() || it in ILLEGAL }) return null
         // Nothing after the host and port: the trailing slash is gone, so any slash left is a path (or an empty host).
         if ('/' in trimmed.substringAfter("://", "")) return null
@@ -29,6 +40,9 @@ object ServerAddress {
         if (url.specifiedPort !in 0..65535) return null
         return trimmed
     }
+
+    /** Whether a bare address names a port: after the bracket of an IPv6 literal, or after any colon otherwise. */
+    private fun hasPort(bare: String): Boolean = if (bare.startsWith('[')) "]:" in bare else ':' in bare
 
     /**
      * [raw] trimmed, or null when it could not travel in an `Authorization` header: a token is printable ASCII

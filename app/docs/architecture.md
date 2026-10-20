@@ -36,7 +36,7 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 | `DataStoreSettingsStore`, `AppStorage` | Server address, API token, client id, favorites, last and recent channels, hidden channels, the last guide filter, caption, preview and playback settings, and the Settings PIN's hash |
 | `GuideScreen` | Grid, time window, filtering and D-pad navigation |
 | `PreviewVideo` | Muted preview on the shared player through a preview session |
-| `PlayerScreen` | Full-screen playback, remote commands and the system media session |
+| `PlayerScreen`, `PlayerState` | Full-screen playback, remote commands and the system media session; `PlayerState` holds the channel ring, the panels, the failure and captions state and the key handling, unit-tested |
 | `VodPlayerScreen` | Full-screen playback of a library item or a recording: seeking, the seek bar with commercial breaks, saving the position |
 | `LibraryHomeScreen`, `LibraryGridScreen`, `ItemDetailsScreen` | The Library tab's rows, one library's poster grid with sort and filter chips, and an item's page with its seasons and episodes |
 | `LivePlayer` | The playback contract each platform implements |

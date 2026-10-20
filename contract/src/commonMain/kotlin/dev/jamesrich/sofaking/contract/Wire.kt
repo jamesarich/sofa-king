@@ -79,6 +79,14 @@ object Wire {
         const val RECENT = "recent"
     }
 
+    /** How a server advertises itself on the LAN over mDNS (DNS-SD): this service type, the API's port, and a TXT record. */
+    object Discovery {
+        const val SERVICE_TYPE = "_sofaking._tcp"
+
+        /** The TXT key holding the server's product version, such as `0.1.0-dev.330`. */
+        const val TXT_VERSION = "version"
+    }
+
     /** A pairing code is this many decimal digits. */
     const val PAIRING_CODE_LENGTH = 6
 

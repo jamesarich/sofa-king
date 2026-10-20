@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.ServerConnection
+import dev.jamesrich.sofaking.data.ServerDiscovery
 import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.ViewerSync
 import kotlinx.coroutines.CoroutineScope
@@ -13,7 +14,7 @@ import kotlinx.coroutines.SupervisorJob
  * The app's objects over a platform's [storage]: one settings store per file and one connection to the server it
  * names, shared by every ViewModel. They live as long as the process; the ViewModels, per screen host, read through them.
  */
-internal class AppGraph(private val storage: AppStorage) {
+internal class AppGraph(private val storage: AppStorage, private val discovery: ServerDiscovery) {
     private val settings: SettingsStore = DataStoreSettingsStore(storage.settings)
 
     /**
@@ -28,7 +29,7 @@ internal class AppGraph(private val storage: AppStorage) {
         )
     }
 
-    fun lineupViewModel(): LineupViewModel = LineupViewModel(store = settings, lineupCache = storage.lineupCache, connection = connection, client = storage.client)
+    fun lineupViewModel(): LineupViewModel = LineupViewModel(store = settings, lineupCache = storage.lineupCache, connection = connection, client = storage.client, discovery = discovery)
 
     fun libraryViewModel(): LibraryViewModel = LibraryViewModel(connection.api, connection.sessions)
 
@@ -44,9 +45,10 @@ internal val appGraph: AppGraph
 
 /**
  * Starts the app's object graph over [storage]; each platform's entry point calls it once per process, before
- * the first [App], because DataStore allows one instance per file and composition can be recreated.
+ * the first [App], because DataStore allows one instance per file and composition can be recreated. [discovery]
+ * finds servers on the network for Settings, where the platform can browse.
  */
-fun initSofaKing(storage: AppStorage) {
+fun initSofaKing(storage: AppStorage, discovery: ServerDiscovery = ServerDiscovery.None) {
     check(graph == null) { "initSofaKing runs once per process" }
-    graph = AppGraph(storage)
+    graph = AppGraph(storage, discovery)
 }

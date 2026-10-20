@@ -38,7 +38,7 @@ SOFA_API_TOKEN=$(jq -r .apiToken config/secrets.json)
 SOFA_ADMIN_TOKEN=$(jq -r .adminToken config/secrets.json)
 ```
 
-Open `http://SERVER_HOST:9193/admin` and sign in with the `adminToken`. The home page starts with the setup steps and lists what needs attention.
+Open `http://SERVER_HOST:9193/admin`, or `http://sofa-king.local:9193/admin` on a computer that resolves `.local` names, and sign in with the `adminToken`. The home page starts with the setup steps and lists what needs attention.
 
 ## 3. Choose services and build the lineup
 

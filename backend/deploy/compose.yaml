@@ -27,16 +27,16 @@ services:
       options:
         max-size: 10m
         max-file: "3"
-    ports:
-      - "9193:8080"
-      # One more HDHomeRun device per port listed in SOFA_HDHR_EXTRA_PORTS, see docs/live-tv.md#several-devices-for-a-large-lineup.
-      # - "8081:8081"
-      # - "8082:8082"
+    # The host's network: the server listens on port 9193 of the host's own addresses, apps on the LAN find it over
+    # mDNS, and the HDHomeRun tuners see each client's own address. SOFA_HDHR_EXTRA_PORTS listens on more host ports
+    # the same way. Docker Desktop needs host networking turned on in its settings; see docs/deploy.md#host-networking.
+    network_mode: host
     # Every variable in .env reaches the server, so ${NAME} references in sources.json resolve from it.
     env_file:
       - path: .env
         required: false
     environment:
+      SOFA_PORT: ${SOFA_PORT:-9193}
       # Recordings go in their own folder, so they can live on a bigger disk than ./config; see docs/deploy.md#the-recordings-folder.
       SOFA_RECORDINGS_DIR: /recordings
       # Media libraries are added from this folder: uncomment the /media mount below. See docs/deploy.md#the-media-folder.

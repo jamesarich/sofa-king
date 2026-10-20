@@ -16,6 +16,7 @@ import dev.jamesrich.sofaking.ItemDetailState
 import dev.jamesrich.sofaking.LibraryGrid
 import dev.jamesrich.sofaking.LibraryHomeState
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.DiscoveredServer
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibraryKind
 import dev.jamesrich.sofaking.data.LibrarySort
@@ -53,6 +54,7 @@ import dev.jamesrich.sofaking.ui.settings.SettingsScreen
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.skia.EncodedImageFormat
 import org.jetbrains.skia.Image
@@ -214,6 +216,15 @@ class RenderSmokeTest {
     fun `settings with no server renders the open server fields`() {
         val image = render("settings-unconfigured") {
             SettingsScreen(settings = AppSettings(), onSave = { _, _ -> }, onBack = {}, channelCount = 0)
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
+    fun `settings with no server lists the servers found on the network`() {
+        val found = listOf(DiscoveredServer("Sofa King", "http://192.0.2.10:9193"), DiscoveredServer("Sofa King (2)", "http://192.0.2.11:9193"))
+        val image = render("settings-discovered") {
+            SettingsScreen(settings = AppSettings(), onSave = { _, _ -> }, onBack = {}, channelCount = 0, discoveredServers = flowOf(found))
         }
         assertTrue(image.hasContent())
     }

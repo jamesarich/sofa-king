@@ -4,12 +4,13 @@ This page is the configuration reference for the server: every environment varia
 
 ## Server settings
 
-Set these environment variables before starting the server. Relative paths resolve from the server's working directory. Configuration changes require a restart. The [Docker image](deploy.md) sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/config`. `deploy/compose.yaml` publishes container port 8080 as host port 9193.
+Set these environment variables before starting the server. Relative paths resolve from the server's working directory. Configuration changes require a restart. The [Docker image](deploy.md) sets `SOFA_HOST=0.0.0.0`, `SOFA_PORT=8080` and `SOFA_DATA_DIR=/config`. `deploy/compose.yaml` runs it on the [host's network](deploy.md#host-networking) and sets `SOFA_PORT=9193`.
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `SOFA_HOST` | `127.0.0.1` | Listen address |
-| `SOFA_PORT` | `8080` | Listen port, 1-65535 |
+| `SOFA_PORT` | `8080`; `9193` in `deploy/compose.yaml` | Listen port, 1-65535 |
+| `SOFA_MDNS` | `true` off loopback, `false` on loopback | Advertise the server on the LAN over mDNS, so the Sofa King app finds it without an address, as [discovery](api.md#discovery) describes. The advertisement goes out on every interface that is up and carries multicast, except loopback, container, VPN and virtual-machine networks |
 | `SOFA_DATA_DIR` | `data` | Directory for the database, the logo cache and `secrets.json`, and where `sources.json` and `policy.json` are looked for |
 | `SOFA_RECORDINGS_DIR` | `SOFA_DATA_DIR/recordings`; `/recordings` in `deploy/compose.yaml` | Folder the [recordings](recordings.md) are kept in, laid out as [the recordings folder](deploy.md#the-recordings-folder) describes. |
 | `SOFA_SOURCES` | `SOFA_DATA_DIR/sources.json` when it exists | Path to the source configuration JSON file; with neither, the server starts with no providers or guides |
@@ -169,7 +170,7 @@ Players that accept a single URL can open a stream URL directly, without the pla
 
 Plex Live TV & DVR takes an HDHomeRun tuner and an XMLTV guide. The server emulates the tuner at the root of its port ([API detail](api.md#hdhomerun-emulation)). The guide is the [player output](#third-party-players) XMLTV, so Plex needs the output token for the guide URL and no token for the tuner.
 
-The tuner routes carry no token, so the server admits them by the client's address: only the addresses allowed on the portal's Plex page, under Tuner access, or listed in `SOFA_HDHR_ALLOW`. Until one is allowed, the tuners refuse everyone, and the Plex page and the home page list the addresses refused since the start, each with Allow. That is the easy way to find the address the server sees: behind Docker on Linux, a published port keeps the client address with the default iptables setup, but where Docker's userland proxy handles the port, or Plex runs in a container on a bridge network, the server sees a Docker address instead. Keep the port on the LAN. Set `SOFA_HDHR_ENABLED=false` when Plex is not used.
+The tuner routes carry no token, so the server admits them by the client's address: only the addresses allowed on the portal's Plex page, under Tuner access, or listed in `SOFA_HDHR_ALLOW`. Until one is allowed, the tuners refuse everyone, and the Plex page and the home page list the addresses refused since the start, each with Allow. That is the easy way to find the address the server sees. With `deploy/compose.yaml`, on the host's network, it is Plex's own address. On a Docker bridge network, where Docker's userland proxy handles a published port, or where Plex runs in a container on a bridge network, the server sees a Docker address instead. Keep the port on the LAN. Set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 
 The steps use the Docker port, 9193. Outside Docker the port is `SOFA_PORT`, 8080 by default.
 
@@ -203,13 +204,13 @@ The token is the Plex server's `X-Plex-Token`, and anyone holding it administers
 - The lineup is split by a stable hash of each entry's ID, so a channel stays on its device when other channels change. Changing the number of ports reassigns channels across the devices.
 - With a [lineup policy](lineup-policy.md#hdhomerun-devices), devices hold consecutive ranges instead: the first `SOFA_HDHR_DEVICE_SIZE` enabled channels in number order on the first device, the next on the second. Channels beyond the last device's range stay on it, and the server logs that more ports are needed.
 - Each device has its own `SOFA_HDHR_TUNERS` tuners. All devices share `SOFA_MAX_SESSIONS`, so the total number of concurrent streams is still capped by it.
-- Publish every extra port in `deploy/compose.yaml`, then restart after changing the list.
+- With `deploy/compose.yaml` each port opens on the host itself; on a bridge network, publish every extra port. Restart after changing the list.
 - Add each device to the same DVR, with `SERVER_HOST:PORT` for its port and the same XMLTV guide URL.
 
 For two extra devices:
 
 ```text
-SOFA_HDHR_EXTRA_PORTS=8081,8082
+SOFA_HDHR_EXTRA_PORTS=9194,9195
 ```
 
 The extra ports must differ from `SOFA_PORT`. They are opened only when `SOFA_HDHR_ENABLED` is `true`.

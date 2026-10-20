@@ -71,6 +71,7 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
         SettingGroup("Server", listOf(
             s("SOFA_HOST", config.host, "127.0.0.1"),
             s("SOFA_PORT", config.port, 8080),
+            s("SOFA_MDNS", config.mdns, !ServerConfig.isLoopback(config.host)),
             s("SOFA_DATA_DIR", config.dataDirectory, java.nio.file.Path.of("data")),
             s("SOFA_RECORDINGS_DIR", config.recordingsDirectory, config.dataDirectory.resolve("recordings")),
             s("SOFA_SOURCES", config.sourcesFile, null, found("SOFA_SOURCES")),

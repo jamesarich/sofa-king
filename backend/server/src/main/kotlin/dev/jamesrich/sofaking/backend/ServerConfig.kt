@@ -111,6 +111,8 @@ data class ServerConfig(
     val recordingsKeepDays: Int = 0,
     /** `SOFA_COMSKIP`: the Comskip executable that finds commercial breaks in recordings; null when set to `none`. */
     val comskip: String? = "comskip",
+    /** `SOFA_MDNS`: advertise the server on the LAN over mDNS, so apps find it; on by default off loopback. */
+    val mdns: Boolean = false,
 ) {
     companion object {
         /** The image the host's updater installs, and the one the update check asks the registry about. */
@@ -302,6 +304,7 @@ data class ServerConfig(
                 recordingsFreeGib = freeGib,
                 recordingsKeepDays = keepDays,
                 comskip = comskip.takeUnless { it == "none" },
+                mdns = flag(environment, "SOFA_MDNS", !isLoopback(host)),
             )
         }
 

@@ -25,6 +25,7 @@ dependencies {
     implementation(libs.sqlite.jdbc)
     implementation(libs.kotlinx.html)
     implementation(libs.zxing.core)
+    implementation(libs.jmdns)
     implementation(libs.logback.classic)
     testImplementation(kotlin("test-junit5"))
     testImplementation(libs.junit.jupiter)

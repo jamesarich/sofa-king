@@ -4,15 +4,24 @@ The image runs the server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jr
 
 ## Start
 
-[Getting started](getting-started.md) builds the image from `backend/`, starts it, signs in and walks to a playing channel. To read the admin token alone, run `jq -r .adminToken config/secrets.json` in `deploy`. For the channels, copy [`sources.example.json`](../deploy/sources.example.json) to `config/sources.json` and edit it as [configure the sources](starter-lineup.md#1-configure-the-sources) describes; to build the lineup, put a [lineup policy](lineup-policy.md) in `config/policy.json` too.
+The server needs one folder on the host, the Compose directory, holding [`compose.yaml`](../deploy/compose.yaml), its `config` and `recordings` folders and, when you change a setting, `.env`. No copy of this repository and no build is needed: Compose runs the [published image](#the-published-image).
 
-The server runs without `deploy/.env`. Copy [`.env.example`](../deploy/.env.example) to `deploy/.env` to change any [server setting](live-tv.md#server-settings); every variable in it reaches the server, so `${NAME}` references in `sources.json` resolve from it. Restart after a change with `docker compose up -d`.
+```sh
+mkdir -p sofa-king/config sofa-king/recordings
+cd sofa-king
+curl -fsSLO https://raw.githubusercontent.com/jamesarich/sofa-king/main/backend/deploy/compose.yaml
+docker compose up -d
+```
+
+[Getting started](getting-started.md) goes on from there to sign in and play a channel. To read the admin token alone, run `jq -r .adminToken config/secrets.json` in the Compose directory. The portal's Sources page writes the source file and the starter lineup; to write them by hand instead, copy [`sources.example.json`](../deploy/sources.example.json) to `config/sources.json` and edit it as [configure the sources](starter-lineup.md#1-configure-the-sources) describes, and put a [lineup policy](lineup-policy.md) in `config/policy.json`.
+
+The server runs without `.env`. Download [`.env.example`](../deploy/.env.example) as `.env` to change any [server setting](live-tv.md#server-settings); every variable in it reaches the server, so `${NAME}` references in `sources.json` resolve from it. Restart after a change with `docker compose up -d`.
 
 The HDHomeRun emulation for Plex stays off until `.env` sets `SOFA_HDHR_ENABLED=true` and names the Plex server in `SOFA_HDHR_ALLOW`, as [Plex Live TV](live-tv.md#plex-live-tv) describes.
 
 ## The config folder
 
-`deploy/config` is mounted at `/config`, the server's `SOFA_DATA_DIR`:
+`config` in the Compose directory is mounted at `/config`, the server's `SOFA_DATA_DIR`:
 
 | Path | Written by | Contents |
 | --- | --- | --- |
@@ -27,7 +36,7 @@ The log names the sources and policy files the server picked, and why, at every 
 
 ## The recordings folder
 
-`deploy/recordings` is mounted at `/recordings`, the server's `SOFA_RECORDINGS_DIR`. Create it next to `config` before the first start, since Docker creates a missing folder as root and the server then cannot write to it. To keep recordings on another disk, change the left side of the mount, for example `/mnt/disk/recordings:/recordings`, and give the folder to the user the container runs as. Without the mount and the variable, recordings go in `config/recordings`.
+`recordings` in the Compose directory is mounted at `/recordings`, the server's `SOFA_RECORDINGS_DIR`. Create it next to `config` before the first start, since Docker creates a missing folder as root and the server then cannot write to it. To keep recordings on another disk, change the left side of the mount, for example `/mnt/disk/recordings:/recordings`, and give the folder to the user the container runs as. Without the mount and the variable, recordings go in `config/recordings`.
 
 Recordings are MPEG-TS files, stream-copied from the source, in the layout Plex, Jellyfin, Emby and Kodi scan without help, so a media server can use the folder as its TV and movie libraries:
 
@@ -45,7 +54,7 @@ A second recording with the same name gets its start time, as in `Show - 2026-10
 
 ## Run as your own user
 
-Compose runs the container as `1000:1000`, the first user on most Linux hosts, so a `config` folder you created is writable by the server and its files stay yours. When `id -u` or `id -g` prints something else, set them in `deploy/.env`:
+Compose runs the container as `1000:1000`, the first user on most Linux hosts, so a `config` folder you created is writable by the server and its files stay yours. When `id -u` or `id -g` prints something else, set them in `.env`:
 
 ```sh
 printf 'UID=%s\nGID=%s\n' "$(id -u)" "$(id -g)" >> .env
@@ -170,22 +179,26 @@ A [Homepage](https://gethomepage.dev/configs/docker/) instance with access to th
 | --- | --- |
 | `Dockerfile` | Image definition; copies `server/build/install/server` to `/opt/sofa`, third-party jars first |
 | `.dockerignore` | Admits only the installed distribution into the build context |
-| `deploy/compose.yaml` | Service, port mapping, the config folder, [container limits](#container-limits) |
-| `deploy/.env.example` | Optional settings; copy to `deploy/.env` |
-| `deploy/sources.example.json` | Source template; copy to `deploy/config/sources.json` |
-| `deploy/sofa-king-update.sh`, `deploy/systemd/` | Keeps a host on the published image, see [update automatically](#update-automatically) |
+| `deploy/compose.yaml` | Service, the published image, port mapping, the config folder, [container limits](#container-limits) |
+| `deploy/compose.build.yaml` | Builds the image from a checkout instead, see [build](#build) |
+| `deploy/.env.example` | Optional settings; copy to `.env` beside `compose.yaml` |
+| `deploy/sources.example.json` | Source template; copy to `config/sources.json` |
+| `deploy/sofa-king-update.sh` | Keeps a host on the published image and installs its own systemd units, see [update automatically](#update-automatically) |
 | `.github/workflows/backend.yml` (at the repository root) | Tests pull requests and pushes to `main`, and publishes the image for `main`, as [contributing](../../CONTRIBUTING.md#ci) describes |
 
 `deploy/.env`, `deploy/config/` and `deploy/recordings/` are ignored by Git.
 
 ## Build
 
-The server is built on the host and copied into the image, so the image build needs only the base image and Ubuntu packages. The third-party jars get their own layer below the server's, so a rebuild after a code change reuses every layer but the top one. From `backend/`:
+To run your own build instead of the published image, build it from a checkout of this repository. The server is built on the host and copied into the image, so the image build needs only the base image and Ubuntu packages. The third-party jars get their own layer below the server's, so a rebuild after a code change reuses every layer but the top one. `deploy/compose.build.yaml` adds the build to `compose.yaml` and names the result `sofa-king-backend:local`. From `backend/`:
 
 ```sh
 ./gradlew :server:installDist
-REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml build
+cd deploy
+REVISION=$(git rev-parse --short HEAD) docker compose -f compose.yaml -f compose.build.yaml up -d --build
 ```
+
+Later commands in `deploy` that recreate the container take both files, or set `SOFA_IMAGE=sofa-king-backend:local` in `.env`, which makes plain `docker compose up -d` run the local build.
 
 `REVISION` stamps the image's `org.opencontainers.image.revision` label and sets `SOFA_REVISION`, which [`/api/v1/admin/status`](api.md#server-status) and the admin portal footer report; `VERSION` stamps `org.opencontainers.image.version`, which the workflow reads from the catalog's `sofaking` version. The build works without either. The build targets the platform of the Docker host that runs it, `linux/amd64` or `linux/arm64`. To build for another platform, for example an amd64 host from an Apple Silicon machine, set `DOCKER_DEFAULT_PLATFORM=linux/amd64`. `docker compose up -d` does not rebuild an existing image, so pass `--build` after a new `installDist`.
 
@@ -199,7 +212,7 @@ The Compose file runs the container with a read-only root filesystem; the server
 
 ## Verify
 
-From `backend/deploy`:
+From the Compose directory:
 
 ```sh
 curl --fail http://SERVER_HOST:9193/readyz
@@ -218,15 +231,14 @@ Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rol
 
 For `main`, the [Backend workflow](../../CONTRIBUTING.md#ci) builds the image for `linux/amd64` and `linux/arm64` from the tested distribution and pushes it to GitHub Container Registry as `ghcr.io/jamesarich/sofa-king:main`, with a `sha-<commit>` tag beside it. A commit whose tests fail publishes nothing.
 
-The package is public, so pulling it needs no login. To run the published image instead of a local build, tag it as the image `compose.yaml` names and start without building, from `backend/`:
+The package is public, so pulling it needs no login, and `compose.yaml` runs it unless `.env` sets `SOFA_IMAGE`. Docker pulls the variant for the host, so the same tag serves `amd64` and `arm64` hosts. To update by hand, from the Compose directory:
 
 ```sh
-docker pull ghcr.io/jamesarich/sofa-king:main
-docker tag ghcr.io/jamesarich/sofa-king:main sofa-king-backend:local
-cd deploy && docker compose up -d --no-build
+docker compose pull
+docker compose up -d
 ```
 
-Docker pulls the variant for the host, so the same tag serves `amd64` and `arm64` hosts.
+Take a backup first, as [upgrade and rollback](operations.md#upgrade-and-rollback) describes; the [updater](#update-automatically) does the backup and the rollback for you. Image watchers such as Watchtower, Diun or What's Up Docker see the tag like any other.
 
 ### Inspect the published image
 
@@ -244,44 +256,43 @@ Compare the commit in the provenance with the `org.opencontainers.image.revision
 `deploy/sofa-king-update.sh` keeps a host on the [published image](#the-published-image). When the published image differs from the running one, it:
 
 1. Backs up the database with the running container's `sqlite3` to `backups/` in the config folder. The container writes the copy as its own user, readable by that user alone. When that fails, as with an image that has no `sqlite3`, the host's Python 3 writes the copy to `backups/` in the Compose directory instead, readable by root alone. Each folder keeps the newest five. It finds the database through the container's `SOFA_DATA_DIR` and the mount that holds it. The backups hold provider session tokens.
-2. Tags the running image `sofa-king-backend:previous` and the new one `sofa-king-backend:local`.
+2. Tags the running image `sofa-king-backend:previous` and points the image `compose.yaml` runs at the new one.
 3. Recreates the container and waits up to three minutes for it to report healthy.
-4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` in the Compose directory so later runs skip it until a newer one is published.
+4. If it does not, stops it, restores the backup and the previous image, and records the image in `backups/failed-image` in the Compose directory so later runs skip it until a newer one is published. A skipped image never stays behind the tag Compose runs, so a later `docker compose up -d` starts the image that was running.
 
 Every run, including one that finds nothing new, writes `update-status.json` to the config folder: when it checked, the image, the running and candidate revisions, the outcome (`up-to-date`, `updated`, `rolled-back`, `skipped` or `failed`) and one line saying why. The admin portal's [About page](admin.md#update) shows it, so the portal says when the host last checked and what it did. The file is owned by the config folder's owner and holds no secret.
 
-It needs Python 3 on the host only for the fallback backup. To install it, add the script, the timer and the path unit:
+It needs Python 3 on the host only for the fallback backup. To install it, download it into the Compose directory and run its `install` there as root:
 
 ```sh
-sudo install -m 755 deploy/sofa-king-update.sh /srv/sofa-king-backend/
-sudo install -m 644 deploy/systemd/sofa-king-update.service deploy/systemd/sofa-king-update.timer deploy/systemd/sofa-king-update.path /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now sofa-king-update.timer sofa-king-update.path
+curl -fsSLO https://raw.githubusercontent.com/jamesarich/sofa-king/main/backend/deploy/sofa-king-update.sh
+chmod 755 sofa-king-update.sh
+sudo ./sofa-king-update.sh install
 ```
 
-Set `SOFA_UPDATE_DIR` in the service to the Compose directory if it is not `/srv/sofa-king-backend`, and the `PathExists` line of the path unit to `update-requested` in that directory's `config` folder. The timer checks every 15 minutes; `sudo systemctl start sofa-king-update` checks now, and `journalctl -u sofa-king-update` shows what each run did. The path unit starts the same service when the portal's Update now writes `config/update-requested`, so an update asked for in the portal starts within seconds; the script removes the file as it starts. Other settings come from the environment: `SOFA_UPDATE_IMAGE`, `SOFA_UPDATE_CONFIG_DIR` (the folder with the status and request files, `config` under the Compose directory), `SOFA_UPDATE_CONTAINER` (`sofa-king-backend`), `SOFA_UPDATE_LOCAL_TAG` and `SOFA_UPDATE_PREVIOUS_TAG` (`sofa-king-backend:local` and `sofa-king-backend:previous`), `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer and the path unit to keep it. The updater installs new images, not new copies of itself, so run the `install` lines again when `deploy/sofa-king-update.sh` or the units change.
+`install` writes `sofa-king-update.service`, `sofa-king-update.timer` and `sofa-king-update.path` to `/etc/systemd/system` for that directory and that copy of the script, then enables and starts the timer and the path unit. `sudo ./sofa-king-update.sh install /srv/sofa-king` installs for another Compose directory. The script stays where it is, so keep it there; the paths may not hold a space, `%` or a backslash. The timer checks every 15 minutes; `sudo systemctl start sofa-king-update` checks now, and `journalctl -u sofa-king-update` shows what each run did. The path unit starts the same service when the portal's Update now writes `config/update-requested`, so an update asked for in the portal starts within seconds; the script removes the file as it starts.
+
+Other settings come from the environment: `SOFA_UPDATE_IMAGE` (the image to pull, `ghcr.io/jamesarich/sofa-king:main`), `SOFA_UPDATE_CONFIG_DIR` (the folder with the status and request files, `config` under the Compose directory; set it when running `install` too), `SOFA_UPDATE_CONTAINER` (`sofa-king-backend`), `SOFA_UPDATE_LOCAL_TAG` (the image `compose.yaml` runs, read with `docker compose config --images`) and `SOFA_UPDATE_PREVIOUS_TAG` (`sofa-king-backend:previous`), `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer and the path unit to keep it. The updater installs new images, not new copies of itself, so download it again and run `install` again to take a newer script.
 
 The server checks the registry itself too, as [update](admin.md#update) describes: it reads the revision the `main` tag's index carries and compares it with its own, so the portal says whether an update is available before the updater runs. `SOFA_UPDATE_IMAGE` in `.env` names another image for that check, or set it empty to turn it off.
 
-## Deploy to a host without a JDK
+## Deploy your build to a host without a JDK
 
-Run `installDist` on a workstation and let the host's Docker build the image over SSH. Only the distribution (about 50 MB) crosses the network, and the host reuses its cached layers. From `backend/` on the workstation:
+Run `installDist` on a workstation and let the host's Docker build the image over SSH. Only the distribution (about 50 MB) crosses the network, and the host reuses its cached layers. The host's `.env` sets `SOFA_IMAGE=sofa-king-backend:local`, so its `compose.yaml` runs the build. From `backend/` on the workstation:
 
 ```sh
 ./gradlew :server:installDist
-DOCKER_HOST=ssh://HOST REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml build
-ssh HOST 'cd /srv/sofa-king-backend && docker compose up -d --no-build'
+DOCKER_HOST=ssh://HOST REVISION=$(git rev-parse --short HEAD) docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml build
+ssh HOST 'cd /srv/sofa-king && docker compose up -d'
 ```
 
-The host directory holds `compose.yaml`, `.env` and `config/`. To move a finished image instead, about 800 MB before compression, save it on the workstation and load it on the host:
+To move a finished image instead, about 800 MB before compression, save it on the workstation and load it on the host:
 
 ```sh
 docker save sofa-king-backend:local | gzip > sofa-king-backend.tar.gz
-scp sofa-king-backend.tar.gz deploy/compose.yaml HOST:/srv/sofa-king-backend/
-ssh HOST 'cd /srv/sofa-king-backend && gunzip -c sofa-king-backend.tar.gz | docker load && docker compose up -d --no-build'
+scp sofa-king-backend.tar.gz HOST:/srv/sofa-king/
+ssh HOST 'cd /srv/sofa-king && gunzip -c sofa-king-backend.tar.gz | docker load && docker compose up -d'
 ```
-
-`--no-build` runs the image already on the host; there is no repository checkout there for the `build` section to point at.
 
 ## Move from a /data volume
 
@@ -301,7 +312,7 @@ Then:
 
 1. Replace `compose.yaml` with `deploy/compose.yaml`. To keep the address clients already use, change its port line to `"8080:8080"`; otherwise point the Sofa King app, players and Plex at port 9193.
 2. In `.env`, delete any `SOFA_SOURCES` or `SOFA_POLICY` line, set `UID` and `GID` when `id -u` and `id -g` are not 1000, and keep `SOFA_HDHR_ENABLED=true` when Plex uses the tuner. Tokens set in `.env` keep working.
-3. Install the updater with the `install` lines in [update automatically](#update-automatically), and delete `backups/failed-image` from the Compose directory if a run recorded the new image there.
+3. Install the updater as [update automatically](#update-automatically) describes, and delete `backups/failed-image` from the Compose directory if a run recorded the new image there.
 4. Start with `docker compose up -d`. The log names `/config/sources.json` and `/config/policy.json`, and `/api/v1/channels` lists the same lineup.
 5. Start the timer again with `sudo systemctl start sofa-king-update.timer`. Once the server has run well for a while, delete the old volume with `docker volume rm sofa-king-backend_sofa-data`.
 

@@ -2,13 +2,9 @@ name: sofa-king-backend
 
 services:
   sofa-king-backend:
-    image: sofa-king-backend:local
-    build:
-      context: ..
-      dockerfile: Dockerfile
-      args:
-        REVISION: ${REVISION:-unknown}
-        VERSION: ${VERSION:-unknown}
+    # The published image for linux/amd64 and linux/arm64. SOFA_IMAGE in .env runs another, such as a local build;
+    # compose.build.yaml builds one from a checkout. See docs/deploy.md#build.
+    image: ${SOFA_IMAGE:-ghcr.io/jamesarich/sofa-king:main}
     container_name: sofa-king-backend
     restart: unless-stopped
     # Runs as the owner of ./config. 1000:1000 is the first user on most Linux hosts; otherwise set UID and GID
@@ -50,7 +46,7 @@ services:
     volumes:
       # The database, the logo cache, the generated tokens, and sources.json and policy.json when you add them.
       - ./config:/config
-      # Create it before the first start (mkdir recordings), or point it at a bigger disk: /mnt/disk/recordings:/recordings.
+      # Create it before the first start (mkdir config recordings), or point it at a bigger disk: /mnt/disk/recordings:/recordings.
       - ./recordings:/recordings
       # Your movies and shows, read only: the server never writes to them.
       # - /mnt/disk/media:/media:ro

@@ -1,0 +1,12 @@
+# Builds the image from this checkout instead of pulling the published one. After ./gradlew :server:installDist in
+# backend/, from deploy/: docker compose -f compose.yaml -f compose.build.yaml up -d --build
+# See docs/deploy.md#build.
+services:
+  sofa-king-backend:
+    image: sofa-king-backend:local
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        REVISION: ${REVISION:-unknown}
+        VERSION: ${VERSION:-unknown}

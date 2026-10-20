@@ -67,7 +67,16 @@ The HDHomeRun routes admit only the addresses in `SOFA_HDHR_ALLOW`, so list ever
 
 ## Quick start
 
-You need Docker and JDK 21, or access to the published image. [Getting started](docs/getting-started.md) builds and starts the server from `backend/`, signs in to the admin portal and walks to a playing channel. [Deploy with Docker](docs/deploy.md) covers the config folder, secrets, reverse proxies, the web app, the published image and automatic updates. To run without Docker, see [development](docs/development.md#run-without-docker).
+You need Docker with Compose 2.24 or later on a Linux host, `amd64` or `arm64`. No checkout and no build: Compose runs the published image.
+
+```sh
+mkdir -p sofa-king/config sofa-king/recordings
+cd sofa-king
+curl -fsSLO https://raw.githubusercontent.com/jamesarich/sofa-king/main/backend/deploy/compose.yaml
+docker compose up -d
+```
+
+Then open `http://SERVER_HOST:9193/admin`. [Getting started](docs/getting-started.md) signs in to the admin portal and walks to a playing channel. [Deploy with Docker](docs/deploy.md) covers the config folder, secrets, reverse proxies, the web app, your own build and automatic updates. To run without Docker, see [development](docs/development.md#run-without-docker).
 
 ## Documentation
 

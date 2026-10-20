@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 17 asks for it before the app reaches the server, or finds it, on the local network. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Settings > About installs a newer snapshot when the viewer asks; the system confirms the first install. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Lets Android 14 and later skip that confirmation for an app that installed itself, as Android 12 and 13 do. -->

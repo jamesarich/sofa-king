@@ -15,6 +15,7 @@ import androidx.datastore.core.DataStore
 import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.ClientInfo
+import dev.jamesrich.sofaking.data.DiscoveredServer
 import dev.jamesrich.sofaking.data.PairingClaimDto
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.Lineup
@@ -27,6 +28,7 @@ import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.Server
 import dev.jamesrich.sofaking.data.ServerConnection
+import dev.jamesrich.sofaking.data.ServerDiscovery
 import dev.jamesrich.sofaking.data.SettingsPin
 import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.TrackChoice
@@ -86,6 +88,9 @@ enum class PairingOutcome { PAIRED, FAILED }
  */
 data class PairingState(val busy: Boolean = false, val failure: PairingFailure? = null, val outcome: PairingOutcome? = null)
 
+/** How long browsing outlives Settings closing its server fields, so a quick reopen keeps what was found. */
+private const val DISCOVERY_LINGER_MS = 5_000L
+
 /** The lineup and the settings for every screen, over the app's one [connection] to the server Settings names. */
 class LineupViewModel(
     private val store: SettingsStore,
@@ -99,6 +104,8 @@ class LineupViewModel(
     private val clock: Clock = Clock.System,
     /** Where the lineup is decoded, mapped and merged, off the main thread; the state is set on the main thread. */
     private val background: CoroutineDispatcher = Dispatchers.Default,
+    /** Finds servers on the network for Settings. */
+    discovery: ServerDiscovery = ServerDiscovery.None,
 ) : ViewModel() {
     private val _update = MutableStateFlow<UpdateState?>(null)
 
@@ -107,6 +114,10 @@ class LineupViewModel(
 
     val settings: StateFlow<AppSettings?> = store.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** The servers advertising themselves on the network; it browses only while collected, as Settings' server fields are. */
+    val discoveredServers: StateFlow<List<DiscoveredServer>> = discovery.servers()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(DISCOVERY_LINGER_MS), emptyList())
 
     /** The one playback session the app holds; screens tune through it and the host releases it when stopped. */
     val sessions: PlaybackSessions get() = connection.sessions

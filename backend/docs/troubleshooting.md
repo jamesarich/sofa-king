@@ -8,7 +8,8 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 
 | Symptom | Check |
 | --- | --- |
-| `docker compose up` says `port is already allocated` or `address already in use` | Another service holds port 9193. Change the host side of the port line in `compose.yaml`, for example `"9194:8080"`, and use that port everywhere these pages say 9193. With [Plex sync](live-tv.md#keep-plex-in-step) adding devices, set `SOFA_HDHR_PUBLIC_PORTS` to the new port too. |
+| The log says `Address already in use`, or `docker compose up` says `port is already allocated` | Another service holds port 9193, or a port in `SOFA_HDHR_EXTRA_PORTS`. Set `SOFA_PORT` in `.env` to a free port, for example `SOFA_PORT=9200`, and use it everywhere these pages say 9193. |
+| On Docker Desktop for macOS or Windows the container runs but nothing answers on port 9193 | Host networking is turned off in Docker Desktop's settings, so the container is on the network of Docker's own virtual machine. Turn it on, or run on a [bridge network](deploy.md#host-networking). |
 | `docker pull` or the updater says `denied` or `unauthorized` | The image name is wrong, or Docker is logged in to `ghcr.io` as an account the registry refuses; the package itself is public and needs no login. Check `SOFA_UPDATE_IMAGE`, or `docker logout ghcr.io` and pull again. |
 | The log says `/config is not writable by the user the server runs as` | `config` belongs to another user. Set `UID` and `GID` in `.env` to its owner, or `chown` it to them. Docker creates a missing bind-mount folder as root, so create it before the first start. See [run as your own user](deploy.md#run-as-your-own-user). |
 | The log says `Not an IP address or CIDR block` | `SOFA_HDHR_ALLOW`, or an address entered on the Plex page, holds a placeholder or a hostname. List IP addresses or CIDR blocks. |
@@ -59,6 +60,13 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 | A player gets `401` on the playlist URL | The `token` query differs from the output token; copy the URL again from the portal's Plex page. The API token opens `/output/*` only as a bearer header. |
 | A player plays a channel as the wrong type after a probe | The stream suffix follows the stored protocol. Refresh the playlist in the player. |
 | A channel shows no logo | `curl -i http://SERVER_HOST:9193/logos/KEY` with the key from the playlist. `404` means the logo source was refused or failed: a loopback or link-local address, a non-image content type, a body over 2 MiB, or an error. The log has `logo fetch failed key=KEY` with the reason, and the source is tried again an hour later. `GET /api/v1/admin/lineup/ENTRY_ID` shows the logo's source URL. |
+
+## Finding the server
+
+| Symptom | Check |
+| --- | --- |
+| The Sofa King app does not list the server | The app finds servers on its own network over mDNS. The log says `mdns: advertising` at the start with the addresses it uses; `no LAN address to advertise on` means none qualified. Discovery does not cross subnets or VLANs, does not leave a Docker bridge network, and stops at a firewall that drops UDP port 5353; `SOFA_MDNS=false` turns it off. Enter the address in the app instead, `SERVER_HOST:9193`. |
+| `http://sofa-king.local:9193` does not open | The server answers that name over mDNS, with a number added when another device already holds it; the log's `mdns: advertising` line follows the start. Computers that do not resolve `.local` names, and networks that block mDNS, need the address. |
 
 ## Plex
 

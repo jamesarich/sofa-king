@@ -77,6 +77,7 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.jmdns)
         }
         jvmTest.dependencies {
             implementation(libs.mockwebserver)

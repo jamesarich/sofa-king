@@ -42,6 +42,13 @@ class ServerConfigTest {
         assertEquals(emptyList(), ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_ALLOW" to "")).hdhr.allow)
         ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "::1"))
     }
+    @Test fun `mDNS advertises off loopback unless SOFA_MDNS turns it off`() {
+        val token = "x".repeat(32)
+        assertFalse(ServerConfig.fromEnvironment(emptyMap()).mdns)
+        assertTrue(ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token)).mdns)
+        assertFalse(ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token, "SOFA_MDNS" to "false")).mdns)
+        assertTrue(ServerConfig.fromEnvironment(mapOf("SOFA_MDNS" to "true")).mdns)
+    }
     @Test fun `Plex sync is off unless URL and token are set together, and the token never prints`() {
         assertNull(ServerConfig.fromEnvironment(emptyMap()).plex)
         val token = "plexTOKEN-123"

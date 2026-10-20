@@ -162,7 +162,7 @@ A lease's requests are served by the code that serves a session's media requests
 
 ## Supported scope
 
-The server supports configured HTTP(S) playlists and guides, native provider clients, the lineup policy, JSON control and admin requests, and the admin portal. It supports HLS and MPEG-TS passthrough, M3U and XMLTV output with per-channel stream URLs for third-party players, and cached lineup logos served from this server. It supports HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification. It records channels into MPEG-TS files and plays recordings and library items as they are or as HLS that FFmpeg copies or converts. Timeshift and transcoding of live channels, shared HLS upstreams, SSDP discovery and events are not implemented. HLS variable substitution and content steering are unsupported.
+The server supports configured HTTP(S) playlists and guides, native provider clients, the lineup policy, JSON control and admin requests, and the admin portal. It supports HLS and MPEG-TS passthrough, M3U and XMLTV output with per-channel stream URLs for third-party players, and cached lineup logos served from this server. It supports HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification. It records channels into MPEG-TS files and plays recordings and library items as they are or as HLS that FFmpeg copies or converts. It advertises itself over mDNS for the app. Timeshift and transcoding of live channels, shared HLS upstreams, SSDP and HDHomeRun discovery, and events are not implemented. HLS variable substitution and content steering are unsupported.
 
 ## Operations
 

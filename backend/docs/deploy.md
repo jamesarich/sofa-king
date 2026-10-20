@@ -1,6 +1,6 @@
 # Deploy with Docker
 
-The image runs the server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jre-noble`, pinned by digest) with Ubuntu's FFmpeg, curl and sqlite3, for `linux/amd64` and `linux/arm64`. Everything the server keeps lives in one folder, `/config`. It runs as any non-root user that owns that folder, listens on container port 8080, and reports healthy once `/readyz` answers. The Compose file needs Docker Compose 2.24 or later.
+The image runs the server on Eclipse Temurin 21 (`eclipse-temurin:21.0.12.1_1-jre-noble`, pinned by digest) with Ubuntu's FFmpeg, curl and sqlite3, for `linux/amd64` and `linux/arm64`. Everything the server keeps lives in one folder, `/config`. It runs as any non-root user that owns that folder, listens on port 8080 unless `SOFA_PORT` says otherwise, and reports healthy once `/readyz` answers. The Compose file needs Docker Compose 2.24 or later.
 
 ## Start
 
@@ -18,6 +18,26 @@ docker compose up -d
 The server runs without `.env`. Download [`.env.example`](../deploy/.env.example) as `.env` to change any [server setting](live-tv.md#server-settings); every variable in it reaches the server, so `${NAME}` references in `sources.json` resolve from it. Restart after a change with `docker compose up -d`.
 
 The HDHomeRun emulation for Plex is on, and admits no address until you allow the Plex server's on the portal's Plex page, as [Plex Live TV](live-tv.md#plex-live-tv) describes.
+
+## Host networking
+
+`compose.yaml` runs the container on the host's network (`network_mode: host`) with `SOFA_PORT=9193`, so the server answers on port 9193 of every address the host has. That lets two things work that a Docker bridge network stops:
+
+- The server [advertises itself over mDNS](api.md#discovery), so the Sofa King app finds it on the LAN. Multicast does not leave a bridge network.
+- The HDHomeRun tuners see each client's own address, which is the one to allow for Plex.
+
+When another service holds port 9193, the log says `Address already in use`; set `SOFA_PORT` in `.env` to a free port and use it wherever these pages say 9193. On Docker Desktop for macOS or Windows, turn on host networking in its settings first.
+
+To stay on a bridge network instead, replace the `network_mode: host` line with a port mapping and turn the advertisement off, since it cannot reach the LAN from there. Clients then need the address, and the tuners see Docker's address for some clients:
+
+```yaml
+    ports:
+      - "9193:9193"
+```
+
+```sh
+printf 'SOFA_MDNS=false\n' >> .env
+```
 
 ## The config folder
 
@@ -103,7 +123,7 @@ tv.example.com {
 }
 ```
 
-[Traefik](https://doc.traefik.io/traefik/routing/providers/docker/) does the same, with labels on the service and the container on Traefik's network:
+[Traefik](https://doc.traefik.io/traefik/routing/providers/docker/) does the same, with labels on the service. The container is on the host's network, so Traefik reaches it on the host's port 9193:
 
 ```yaml
     labels:
@@ -111,10 +131,10 @@ tv.example.com {
       traefik.http.routers.sofa-king.rule: Host(`tv.example.com`)
       traefik.http.routers.sofa-king.entrypoints: websecure
       traefik.http.routers.sofa-king.tls.certresolver: letsencrypt
-      traefik.http.services.sofa-king.loadbalancer.server.port: "8080"
+      traefik.http.services.sofa-king.loadbalancer.server.port: "9193"
 ```
 
-Point Plex's HDHomeRun tuner at the published port, not the proxy: the tuners admit clients by address, and behind a proxy every request comes from the proxy. Keep the proxy on your LAN or VPN, as [security](security.md#intended-deployment) describes.
+Point Plex's HDHomeRun tuner at port 9193, not the proxy: the tuners admit clients by address, and behind a proxy every request comes from the proxy. Keep the proxy on your LAN or VPN, as [security](security.md#intended-deployment) describes.
 
 ## Serve the web app
 
@@ -223,7 +243,7 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/a
 
 `/readyz` answers `ready`, and the health status becomes `healthy` after the 30-second start period. Each provider shows `lastSuccessAt` with its channel and source counts, and sources move from `UNVERIFIED` to `HEALTHY` as probes qualify them. A request without the token answers `401 AUTH_REQUIRED`. When `SOFA_API_TOKEN` is set in `.env`, use that value instead of the stored one.
 
-`/api/v1/channels` stays empty until a lineup policy, or the admin API, builds the lineup. With the output token, `outputToken` in `config/secrets.json` unless `SOFA_OUTPUT_TOKEN` sets it, `http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN` is the playlist [M3U and XMLTV players](live-tv.md#third-party-players) load; its stream URLs carry the address the request used. For Plex, `curl --fail http://SERVER_HOST:9193/discover.json` from the Plex host shows the tuner that [Plex](live-tv.md#plex-live-tv) is pointed at. When `SOFA_PLEX_TUNER_BASE` lets a sync add devices, set `SOFA_HDHR_PUBLIC_PORTS=9193` so Plex is given the published port.
+`/api/v1/channels` stays empty until a lineup policy, or the admin API, builds the lineup. With the output token, `outputToken` in `config/secrets.json` unless `SOFA_OUTPUT_TOKEN` sets it, `http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN` is the playlist [M3U and XMLTV players](live-tv.md#third-party-players) load; its stream URLs carry the address the request used. For Plex, `curl --fail http://SERVER_HOST:9193/discover.json` from the Plex host shows the tuner that [Plex](live-tv.md#plex-live-tv) is pointed at.
 
 Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rollback).
 
@@ -310,7 +330,7 @@ sudo chown -R "$(id -u):$(id -g)" config
 
 Then:
 
-1. Replace `compose.yaml` with `deploy/compose.yaml`. To keep the address clients already use, change its port line to `"8080:8080"`; otherwise point the Sofa King app, players and Plex at port 9193.
+1. Replace `compose.yaml` with `deploy/compose.yaml`. To keep the address clients already use, set `SOFA_PORT=8080` in `.env`; otherwise point the Sofa King app, players and Plex at port 9193.
 2. In `.env`, delete any `SOFA_SOURCES` or `SOFA_POLICY` line and set `UID` and `GID` when `id -u` and `id -g` are not 1000. Tokens set in `.env` keep working.
 3. Install the updater as [update automatically](#update-automatically) describes, and delete `backups/failed-image` from the Compose directory if a run recorded the new image there.
 4. Start with `docker compose up -d`. The log names `/config/sources.json` and `/config/policy.json`, and `/api/v1/channels` lists the same lineup.

@@ -34,6 +34,7 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 | `RecordingsViewModel` | The Recordings tab: the connection's `RecordingSchedule`, playing a recording through `PlaybackSessions.playRecording` and saving where playback stopped |
 | `LibraryViewModel`, `LibraryRepository` | The library home's shelves, one library's paged grid, item pages, search, marking watched, playing an item and saving where playback stopped |
 | `LineupCache` | Last complete lineup, keyed by server address, in a DataStore file or the browser's localStorage |
+| `ServerDiscovery`, `DiscoveredServers` | The servers advertising `_sofaking._tcp` over mDNS, for Settings: `NsdServerDiscovery` (Android's `NsdManager`) and `JmdnsServerDiscovery` (JmDNS on desktops); the Apple TV app browses with its own `ServerBrowser` (Network framework) |
 | `DataStoreSettingsStore`, `AppStorage` | Server address, API token, client id, favorites, last and recent channels, hidden channels, the last guide filter, caption, preview and playback settings, and the Settings PIN's hash |
 | `GuideScreen`, `GuideState` | Grid, time window, filtering and D-pad navigation; `GuideState` holds the guide's UI state, its moves and its key handling, unit-tested |
 | `PreviewVideo` | Muted preview on the shared player through a preview session |

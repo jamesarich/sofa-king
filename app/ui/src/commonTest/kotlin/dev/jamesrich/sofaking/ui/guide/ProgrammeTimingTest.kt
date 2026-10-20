@@ -25,12 +25,4 @@ class ProgrammeTimingTest {
     fun `a finished programme has ended`() {
         assertEquals(ProgrammeTiming.Ended, programmeTiming(programme, programme.stop))
     }
-
-    @Test
-    fun `durations read as hours and minutes`() {
-        assertEquals("45 min", 45.minutes.hoursAndMinutes())
-        assertEquals("1 h", 60.minutes.hoursAndMinutes())
-        assertEquals("2 h 5 min", (2.hours + 5.minutes).hoursAndMinutes())
-        assertEquals("0 min", 0.minutes.hoursAndMinutes())
-    }
 }

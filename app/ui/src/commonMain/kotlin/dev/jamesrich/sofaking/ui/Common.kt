@@ -80,7 +80,5 @@ fun MessageScreen(
     }
 }
 
-internal fun Double.formatNumber(): String = if (this % 1.0 == 0.0) toLong().toString() else toString()
-
 /** "<number>  <name>", as every list and overlay shows a channel. */
 internal fun Channel.label(): String = "${number.formatNumber()}  $name"

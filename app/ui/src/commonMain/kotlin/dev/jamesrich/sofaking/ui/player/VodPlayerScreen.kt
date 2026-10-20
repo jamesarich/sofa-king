@@ -22,8 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -527,16 +525,7 @@ fun VodPlayerScreen(
                 if (pointerDriven) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
                         ControlIcon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(Res.string.vod_control_back), { seekItem(positionMs - VodScrub.BACK_STEP_MS); showOverlay() })
-                        if (failure != null) {
-                            ControlIcon(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), ::retry, primary = true)
-                        } else {
-                            ControlIcon(
-                                if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
-                                stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
-                                ::togglePause,
-                                primary = true,
-                            )
-                        }
+                        PlayPauseControl(paused, failed = failure != null, onPlayPause = ::togglePause, onRetry = ::retry, primary = true)
                         ControlIcon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(Res.string.vod_control_forward), { seekItem(positionMs + VodScrub.FORWARD_STEP_MS); showOverlay() })
                         if (tracks.pickable) {
                             ControlIcon(SofaIcons.ClosedCaption, stringResource(Res.string.vod_tracks_title), { if (tracksOpen) tracksOpen = false else openTracks() })

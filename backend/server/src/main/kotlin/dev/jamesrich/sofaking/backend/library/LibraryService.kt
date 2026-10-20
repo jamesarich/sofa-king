@@ -160,7 +160,10 @@ class LibraryService(
             while (isActive) {
                 trigger.receive()
                 val wanted = pending.toList().also { pending.removeAll(it.toSet()) }
-                val ids = if (ALL in wanted) store.libraries().map { it.id } else wanted
+                val ids = try { if (ALL in wanted) store.libraries().map { it.id } else wanted } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                    log.warn("library scan failed class={}", e.javaClass.simpleName)
+                    emptyList()
+                }
                 for (id in ids) {
                     try { scan(id) } catch (e: CancellationException) { throw e } catch (e: Exception) {
                         log.warn("library scan failed library={} class={}", id, e.javaClass.simpleName)

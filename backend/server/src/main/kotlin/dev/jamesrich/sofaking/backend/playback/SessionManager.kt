@@ -19,6 +19,8 @@ private val INTENTS = setOf(Wire.Intent.PREVIEW, Wire.Intent.WATCH)
 /** [external] sessions belong to players that never renew: the lease runs from their last media request. */
 internal class LiveSession(
     val id: String, val request: OpenPlayback, var offering: Offering, var expires: Instant, val external: Boolean = false,
+    /** Whether a second external player may join it; a recording's session ends with its attempt, so it is never shared. */
+    val shareable: Boolean = external,
     /** When the session opened, for the portal's Watching now. */
     val startedAt: Instant = expires,
     /** The address of the player that opened it, or of its last media request. */
@@ -98,20 +100,20 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         while (keys.size > 4096) keys.remove(keys.keys.first())
         session.descriptor()
     }
-    /** A watch session for a player that sends no API calls; it lives while media requests keep arriving. */
-    suspend fun openExternal(channelId: String, client: String? = null): PlaybackSession = mutex.withLock {
+    /** A watch session for a player that sends no API calls; it lives while media requests keep arriving. [shareable] false keeps [externalFor] from handing it to another player. */
+    suspend fun openExternal(channelId: String, client: String? = null, shareable: Boolean = true): PlaybackSession = mutex.withLock {
         reap()
         makeRoom()
         val id = UUID.randomUUID().toString()
         val now = clock.instant()
-        val session = LiveSession(id, OpenPlayback(channelId, Wire.Intent.WATCH, "external:$id"), select(channelId), now.plus(EXTERNAL_IDLE), external = true, startedAt = now, client = client)
+        val session = LiveSession(id, OpenPlayback(channelId, Wire.Intent.WATCH, "external:$id"), select(channelId), now.plus(EXTERNAL_IDLE), external = true, shareable = shareable, startedAt = now, client = client)
         sessions[id] = session
         session.descriptor()
     }
     /** An external HLS session already playing [channelId]; a second player shares it. A TS root replaces its reader, so it is never shared. */
     suspend fun externalFor(channelId: String): PlaybackSession? = mutex.withLock {
         reap()
-        sessions.values.firstOrNull { it.external && it.request.channelId == channelId && it.offering.protocol == "hls" }
+        sessions.values.firstOrNull { it.shareable && it.request.channelId == channelId && it.offering.protocol == "hls" }
             ?.also { it.expires = clock.instant().plus(EXTERNAL_IDLE) }?.descriptor()
     }
     /** Registers a request that reads the source outside the relay, so the session lives as long as [job] does. */

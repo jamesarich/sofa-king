@@ -85,7 +85,9 @@ class Dvr(
             },
             scope.launch(CoroutineName("dvr-commercials")) {
                 // A scan a restart interrupted runs again.
-                store.recordings().filter { it.commercials == Wire.CommercialScan.SCANNING }.forEach { scans.trySend(it.id) }
+                try { store.recordings().filter { it.commercials == Wire.CommercialScan.SCANNING }.forEach { scans.trySend(it.id) } } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                    log.warn("interrupted commercial scans not resumed class={}", e.javaClass.simpleName)
+                }
                 for (id in scans) {
                     try { scan(id) } catch (e: CancellationException) { throw e } catch (e: Exception) {
                         log.warn("commercial scan failed id={} class={}", id, e.javaClass.simpleName)
@@ -315,7 +317,8 @@ class Dvr(
                 log.info("recording started id={} channel={} title=\"{}\"", current.id, current.channelId, current.title)
                 take = recorder.record(current.channelId, root.resolve(current.path!!), current.recordUntil)
             } finally {
-                withContext(NonCancellable) { finish(current, take) }
+                // A shutdown cancels the whole scope: the row stays RECORDING in its in-progress file, and the next start resumes it.
+                if (this@Dvr.scope.isActive) withContext(NonCancellable) { finish(current, take) }
             }
         }
         running[recording.id] = job
@@ -327,7 +330,8 @@ class Dvr(
     private suspend fun finish(recording: StoredRecording, take: RecordedTake?) = mutex.withLock {
         val now = clock.instant()
         val stopReason = stopReasons.remove(recording.id)
-        val latest = store.recording(recording.id) ?: return@withLock
+        // A tick and a delete can both reach an orphan; the first to finish it wins.
+        val latest = store.recording(recording.id)?.takeIf { it.state == Wire.RecordingState.RECORDING || it.state == Wire.RecordingState.SCHEDULED } ?: return@withLock
         val partial = latest.path?.let { root.resolve(it) }
         val bytes = withContext(Dispatchers.IO) { partial?.takeIf(Files::exists)?.let(Files::size) ?: 0L }
         if (partial == null || bytes == 0L) {

@@ -144,6 +144,54 @@ class DvrTest {
         dir.toFile().deleteRecursively()
     }
 
+    @Test fun `a shutdown mid-window leaves the recording running, and the next start resumes it into the same file`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-dvr-resume-")
+        val guide = guideServer(emptyList())
+        MediaFixture().use { media ->
+            val first = runtime(dir, media, guide)
+            val (id, partial) = try {
+                val dvr = assertNotNull(first.dvr)
+                val live = first.lineup.entries().single { it.number == "2" }
+                val start = Instant.now().truncatedTo(ChronoUnit.SECONDS)
+                val id = dvr.schedule(ScheduleRecording(live.id, start.toString(), start.plusSeconds(20).toString(), "Resumed")).id
+                id to withTimeout(30_000) {
+                    while (true) {
+                        val path = first.store.recordings().single().path?.let { dir.resolve("recordings").resolve(it) }
+                        if (path != null && Files.exists(path) && Files.size(path) > 0) return@withTimeout path
+                        delay(100)
+                    }
+                    @Suppress("UNREACHABLE_CODE") error("unreachable")
+                }
+            } finally {
+                first.close(); first.store.close()
+            }
+            val before = openStore(dir).use { store ->
+                val stopped = store.recordings().single()
+                assertEquals(Wire.RecordingState.RECORDING, stopped.state)
+                assertEquals(partial, dir.resolve("recordings").resolve(assertNotNull(stopped.path)))
+                Files.size(partial)
+            }
+            val second = runtime(dir, media, guide)
+            try {
+                val dvr = assertNotNull(second.dvr)
+                val done = withTimeout(60_000) {
+                    while (true) {
+                        val current = dvr.recording(id)
+                        if (current.state == Wire.RecordingState.COMPLETED || current.state == Wire.RecordingState.FAILED) return@withTimeout current
+                        delay(200)
+                    }
+                    @Suppress("UNREACHABLE_CODE") error("unreachable")
+                }
+                assertEquals(Wire.RecordingState.COMPLETED, done.state, done.reason)
+                assertTrue(done.bytes > before, "resumed ${done.bytes} bytes over $before")
+                assertFalse(Files.exists(partial))
+            } finally {
+                second.close(); second.store.close(); guide.stop(0)
+            }
+        }
+        dir.toFile().deleteRecursively()
+    }
+
     @Test fun `a manual recording takes a time window on a channel without a guide`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-dvr-manual-")
         val guide = guideServer(emptyList())

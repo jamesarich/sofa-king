@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.data
 
-import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
@@ -14,7 +13,7 @@ import kotlin.test.assertTrue
 
 class SofaKingApiTest {
     /** For URL resolution, which sends nothing. */
-    private val offline = HttpClient(MockEngine { error("no request expected") })
+    private val offline = MockEngine { error("no request expected") }
 
     @Test
     fun `the catalog request carries the bearer token and decodes the channels`() = runTest {

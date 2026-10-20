@@ -12,10 +12,10 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
-import dev.jamesrich.sofaking.RecordingsState
 import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.RecordingSpace
 import dev.jamesrich.sofaking.data.RecordingState
+import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals

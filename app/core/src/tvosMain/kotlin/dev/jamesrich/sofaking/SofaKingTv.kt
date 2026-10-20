@@ -14,6 +14,7 @@ import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.ServerCapabilities
 import dev.jamesrich.sofaking.data.ServerConnection
@@ -82,8 +83,8 @@ class SofaKingTv {
     /** The media libraries, playing through the same session as the channels. */
     val library = LibraryViewModel(connection.api, connection.sessions)
 
-    /** The server's recordings, playing through the same session; a delete refreshes the guide's record marks. */
-    val recordings = RecordingsViewModel(connection.api, connection.sessions, changed = connection.recordings::refresh)
+    /** The server's recordings, the same list the guide's record marks come from, playing through the same session. */
+    val recordings = RecordingsViewModel(connection.recordings, connection.sessions)
 
     fun watchState(onChange: (LineupState) -> Unit): Watch = watch(viewModel.state, onChange)
 
@@ -217,11 +218,11 @@ class SofaKingTv {
 
     /** Records [programme], or cancels its recording; false when the server refused or could not be reached. */
     @Throws(Exception::class)
-    suspend fun toggleRecording(programme: Programme): Boolean = viewModel.recordings.toggle(programme).also { recordings.refresh() }
+    suspend fun toggleRecording(programme: Programme): Boolean = viewModel.recordings.toggle(programme)
 
     /** Records every airing of [programme]'s title on its channel, or stops the series rule that takes it. */
     @Throws(Exception::class)
-    suspend fun toggleSeries(programme: Programme): Boolean = viewModel.recordings.toggleSeries(programme).also { recordings.refresh() }
+    suspend fun toggleSeries(programme: Programme): Boolean = viewModel.recordings.toggleSeries(programme)
 
     /** Sets whether [rule] takes new episodes only and how many recordings it keeps (0 for all). */
     @Throws(Exception::class)

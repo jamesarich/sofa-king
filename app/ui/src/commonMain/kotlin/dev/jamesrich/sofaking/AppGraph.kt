@@ -32,8 +32,8 @@ internal class AppGraph(private val storage: AppStorage) {
 
     fun libraryViewModel(): LibraryViewModel = LibraryViewModel(connection.api, connection.sessions)
 
-    /** A deleted recording refreshes the guide's record marks. */
-    fun recordingsViewModel(): RecordingsViewModel = RecordingsViewModel(connection.api, connection.sessions, changed = connection.recordings::refresh)
+    /** The Recordings tab reads the same list as the guide's record marks, from the connection. */
+    fun recordingsViewModel(): RecordingsViewModel = RecordingsViewModel(connection.recordings, connection.sessions)
 }
 
 private var graph: AppGraph? = null

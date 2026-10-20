@@ -64,10 +64,16 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
                 DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS,
             )
             .setTsSubtitleFormats(captionFormats())
-        ExoPlayer.Builder(context, CaptionSyncRenderersFactory(context, captionSync).setMediaCodecSelector(tuning.codecSelector))
+        // A decoder that fails to start hands over to the next one the selector lists.
+        val renderers = CaptionSyncRenderersFactory(context, captionSync)
+            .setMediaCodecSelector(tuning.codecSelector)
+            .setEnableDecoderFallback(true)
+        ExoPlayer.Builder(context, renderers)
             .setLoadControl(CaptionSyncLoadControl(captionSync, tuning))
             // The audible player yields to Assistant and other apps the way the MediaSession promises; see [volume].
             .setAudioAttributes(MEDIA_AUDIO, true)
+            // Unplugged headphones pause the stream rather than move it to the speaker.
+            .setHandleAudioBecomingNoisy(true)
             .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))
             .build()
             .apply {

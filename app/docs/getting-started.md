@@ -37,7 +37,7 @@ adb connect TV_IP:DEBUG_PORT
 adb install -r sofa-king-snapshot.apk
 ```
 
-Sofa King appears with the TV's apps. Phones and tablets take the same APK.
+Sofa King appears with the TV's apps. Phones and tablets take the same APK. Later snapshots install from Settings → About → Install update, with no adb, as [the update check](usage.md#update-check) describes.
 
 ### Desktop
 

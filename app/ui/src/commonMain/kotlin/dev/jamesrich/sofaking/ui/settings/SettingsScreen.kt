@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.BuildInfo
 import dev.jamesrich.sofaking.PairingFailure
 import dev.jamesrich.sofaking.data.AppSettings
@@ -50,6 +51,8 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.GuideDensity
+import dev.jamesrich.sofaking.data.InstallFailure
+import dev.jamesrich.sofaking.data.InstallState
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.StartupTarget
 import dev.jamesrich.sofaking.data.UpdateState
@@ -66,6 +69,7 @@ import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.supportsCaptionSync
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
+import dev.jamesrich.sofaking.ui.rememberUpdateInstaller
 import dev.jamesrich.sofaking.ui.updateDownloadUrl
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import org.jetbrains.compose.resources.pluralStringResource
@@ -637,13 +641,16 @@ private fun versionSuffix(): String? {
 }
 
 /**
- * The update check's state as one line, with Check again, and Get the update when a newer snapshot is published:
- * it opens the platform's package or the release page; where neither can open, the address is shown to type.
+ * The update check's state as one line, with Check again, and a way to the newer snapshot when one is published:
+ * Install update where the app installs it itself (Android), otherwise Get the update, which opens the platform's
+ * package or the release page; where neither can open, the address is shown to type.
  */
 @Composable
 private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     var address by remember { mutableStateOf<String?>(null) }
+    val installer = rememberUpdateInstaller()
+    val install = installer?.let { it.state.collectAsStateWithLifecycle().value }
     val latest = when (update) {
         is UpdateState.Available -> update.latest
         is UpdateState.UpToDate -> update.latest
@@ -663,7 +670,12 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
     )
     Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         if (update is UpdateState.Available) {
-            if (downloadUrl != null) {
+            if (installer != null && update.latest.apkUrl != null) {
+                val busy = install is InstallState.Downloading || install == InstallState.Installing
+                SofaButton(onClick = { installer.install(update.latest) }, enabled = !busy) {
+                    Text(stringResource(Res.string.settings_update_install))
+                }
+            } else if (downloadUrl != null) {
                 SofaButton(onClick = { runCatching { uriHandler.openUri(downloadUrl) }.onFailure { address = downloadUrl } }) {
                     Text(stringResource(Res.string.settings_update_get))
                 }
@@ -672,8 +684,27 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
         SofaButton(onClick = onCheckAgain, enabled = update != UpdateState.Checking) { Text(stringResource(Res.string.settings_update_check)) }
     }
     when {
+        install != null && install != InstallState.Idle -> HelpText(installText(install))
         address != null -> HelpText(stringResource(Res.string.settings_update_address, address!!))
         update is UpdateState.Available && downloadUrl == null -> HelpText(stringResource(Res.string.settings_update_no_package))
+    }
+}
+
+/** What an in-app install is doing, or why it stopped. */
+@Composable
+private fun installText(install: InstallState): String = when (install) {
+    InstallState.Idle -> ""
+    is InstallState.Downloading -> install.percent?.let { stringResource(Res.string.settings_update_downloading_percent, "$it%") }
+        ?: stringResource(Res.string.settings_update_downloading)
+    InstallState.Installing -> stringResource(Res.string.settings_update_installing)
+    is InstallState.Failed -> when (install.failure) {
+        InstallFailure.DOWNLOAD -> stringResource(Res.string.settings_update_failed_download)
+        InstallFailure.CHECKSUM -> stringResource(Res.string.settings_update_failed_checksum)
+        InstallFailure.NOT_THIS_APP -> stringResource(Res.string.settings_update_failed_package)
+        InstallFailure.DIFFERENT_KEY -> stringResource(Res.string.settings_update_failed_key)
+        InstallFailure.NOT_NEWER -> stringResource(Res.string.settings_update_failed_version)
+        InstallFailure.INSTALLER -> install.detail?.let { stringResource(Res.string.settings_update_failed_installer, it) }
+            ?: stringResource(Res.string.settings_update_failed_installer_silent)
     }
 }
 

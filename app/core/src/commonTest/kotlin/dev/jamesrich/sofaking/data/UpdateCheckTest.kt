@@ -10,7 +10,7 @@ import kotlin.test.assertNull
 
 class UpdateCheckTest {
     private val release = """{"name":"Snapshot-dev.140+abc1234","tag_name":"snapshot","html_url":"https://github.com/jamesarich/sofa-king/releases/tag/snapshot",
-        "assets":[{"name":"sofa-king-snapshot-linux-amd64.deb","browser_download_url":"https://x/deb"},{"name":"sofa-king-snapshot.apk","browser_download_url":"https://x/apk"}],"extra":1}"""
+        "assets":[{"name":"sofa-king-snapshot-linux-amd64.deb","browser_download_url":"https://x/deb"},{"name":"sofa-king-snapshot.apk","browser_download_url":"https://x/apk","digest":"sha256:51646D44cec723416a4c1485f4d5349462dd8d5d936f3fecaf791b2f59b82a37"}],"extra":1}"""
 
     @Test
     fun `the run number comes from the dev suffix`() {
@@ -27,8 +27,17 @@ class UpdateCheckTest {
         assertEquals("-dev.140+abc1234", latest.version)
         assertEquals(140, latest.run)
         assertEquals("https://x/apk", latest.apkUrl)
+        assertEquals("51646d44cec723416a4c1485f4d5349462dd8d5d936f3fecaf791b2f59b82a37", latest.apkSha256)
         assertEquals("https://github.com/jamesarich/sofa-king/releases/tag/snapshot", latest.pageUrl)
         assertEquals("GET /release", http.requests.single().toString())
+    }
+
+    @Test
+    fun `only a sha256 digest of the right length is kept`() {
+        assertNull(UpdateChecker.sha256Hex("sha512:" + "a".repeat(64)))
+        assertNull(UpdateChecker.sha256Hex("a".repeat(64)))
+        assertNull(UpdateChecker.sha256Hex("sha256:abc"))
+        assertEquals("ab".repeat(32), UpdateChecker.sha256Hex("sha256:" + "AB".repeat(32)))
     }
 
     @Test

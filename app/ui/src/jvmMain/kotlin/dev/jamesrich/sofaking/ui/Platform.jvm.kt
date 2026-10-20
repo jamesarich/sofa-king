@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.ui.player.LivePlayer
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
 import dev.jamesrich.sofaking.data.PublishedBuild
+import dev.jamesrich.sofaking.data.UpdateInstaller
 
 /** A desktop window, sized and placed by its user. */
 @Composable
@@ -52,3 +53,6 @@ internal actual val supportsCaptionSync: Boolean = false
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
 
 internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = latest.pageUrl
+
+@Composable
+internal actual fun rememberUpdateInstaller(): UpdateInstaller? = null

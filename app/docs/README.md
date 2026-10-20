@@ -19,8 +19,8 @@
 
 | Page | What it covers |
 | --- | --- |
-| [Development](development.md) | Build and test, running each platform, the TV checklist, CI and snapshot builds |
-| [Dependencies](dependencies.md) | Pinned versions, locking and how to change versions |
+| [Development](development.md) | Build and test, running each platform, the TV checklist and probing a TV over `adb`, CI and snapshot builds |
+| [Dependencies](dependencies.md) | Pinned versions and how to change them |
 
 The app's [README](../README.md) introduces it. The repository's [CONTRIBUTING](../../CONTRIBUTING.md) covers the conventions the app shares with the server, and its [SECURITY](../../SECURITY.md) how to report a vulnerability. The [server's documentation](../../backend/docs/README.md) covers the lineup, sources and the API the app reads.
 

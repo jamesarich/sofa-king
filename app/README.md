@@ -15,12 +15,12 @@ The Sofa King app is a live TV app for the channels of your own [Sofa King serve
 
 - A program guide covering 24 hours, a day at a time up to a week ahead, with category, favorite and recent filters, program details, search and voice search
 - Muted previews that open full screen after 10 seconds, 30 seconds or never ([using Sofa King](docs/usage.md#guide))
-- Favorites, and the last watched channel restored on launch
+- Favorites, and a start where you left off: the last channel full screen, or the Library or Recordings tab
 - A full-screen player with channel up and down, number entry, the previous channel, a channel list with Recent, Favorites and filter chips, and a stream card with audio tracks and stream details
 - Closed captions, with per-channel timing on Android and a style setting where the app draws them ([captions](docs/usage.md#captions))
 - A saved lineup that shows at once while the app refreshes from the server
 - Record a program or a series from its details, and a Recordings tab that plays recordings as they grow, resumes them and can skip the commercial breaks the server found ([recordings](docs/usage.md#recordings))
-- A Library tab with Continue watching, recent additions, poster grids and item pages for movies and shows, a seekable player with audio and subtitle choices, and Up next for the following episode ([library](docs/usage.md#library))
+- A Library tab with search, Continue watching, recent additions, poster grids and item pages for movies and shows, a seekable player with audio and subtitle choices, and Up next for the following episode ([library](docs/usage.md#library))
 - Reconnection with backoff when a stream fails, and the channel followed by number, then name, when the server's lineup drops its id
 
 ## Platforms

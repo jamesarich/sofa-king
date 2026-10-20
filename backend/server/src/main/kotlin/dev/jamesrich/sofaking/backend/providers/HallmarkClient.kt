@@ -35,8 +35,8 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
             val contentId = catalog[channel.identifier]?.first ?: throw ProviderFailure("Hallmark catalog does not list ${channel.identifier}")
             val url = "$apiBase/channels/$contentId/schedule?from=${TIMESTAMP.format(from)}&until=${TIMESTAMP.format(from.plus(GUIDE_HORIZON))}&locale=en"
             for (item in context.http.get(url, HEADERS).require("Hallmark schedule").json()["data"].array) {
-                val start = item["schedule"].str("startsAt")?.let(::instant) ?: continue
-                val end = item["schedule"].str("endsAt")?.let(::instant) ?: continue
+                val start = item["schedule"].str("startsAt")?.let(::instantOrNull) ?: continue
+                val end = item["schedule"].str("endsAt")?.let(::instantOrNull) ?: continue
                 val title = item["display"]["epg"].str("title") ?: item.str("title") ?: continue
                 if (end <= start) continue
                 programmes += GuideProgramme(channel.id, start, end, title, item.str("description") ?: item["display"]["epg"].str("description"))
@@ -62,7 +62,6 @@ class HallmarkClient(private val context: ProviderContext) : ProviderClient {
         result
     }
 
-    private fun instant(value: String): Instant? = try { Instant.parse(value) } catch (_: Exception) { null }
 
     companion object {
         private const val API_BASE = "https://www.hallmarkplus.com/api/core/catalog"

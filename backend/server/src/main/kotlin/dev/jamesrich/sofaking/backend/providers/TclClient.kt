@@ -78,8 +78,8 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
                 val logo = (channel.str("logo_color") ?: channel.str("logo_white"))?.let { if (it.startsWith("/")) "$IMAGE_BASE$it" else it }
                 channels[id] = Listed(ProviderChannel(id, name, null, httpOrNull(logo), group, listOf("us")), template, channel.str("source"))
                 for (programme in channel["programs"].array) {
-                    val from = programme.str("start")?.let(::instant) ?: continue
-                    val until = programme.str("end")?.let(::instant) ?: continue
+                    val from = programme.str("start")?.let(::instantOrNull) ?: continue
+                    val until = programme.str("end")?.let(::instantOrNull) ?: continue
                     val title = programme.str("title") ?: continue
                     if (until > from) programmes.putIfAbsent(id to from, GuideProgramme(id, from, until, title))
                 }
@@ -89,7 +89,6 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
         return Snapshot(channels.values.toList(), programmes.values.toList())
     }
 
-    private fun instant(value: String): Instant? = try { Instant.parse(value) } catch (_: Exception) { null }
 
     companion object {
         private const val API_BASE = "https://gateway-prod.ideonow.com"
@@ -98,8 +97,7 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
         private val GUIDE_HORIZON = Duration.ofHours(12)
         private val URL_LIFETIME = Duration.ofHours(1)
         private val CURATED = setOf("TCL TOP 15", "Featured", "Bingeable", "TV Favorites")
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
-        private val STREAM_HEADERS = mapOf("User-Agent" to USER_AGENT, "Origin" to "https://tcltv.plus", "Referer" to "https://tcltv.plus/")
+        private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Origin" to "https://tcltv.plus", "Referer" to "https://tcltv.plus/")
         private val HEADERS = STREAM_HEADERS + ("Accept" to "application/json, text/plain, */*")
     }
 }

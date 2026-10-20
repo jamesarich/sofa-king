@@ -4,7 +4,6 @@ import dev.jamesrich.sofaking.backend.api.*
 import dev.jamesrich.sofaking.contract.*
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.HexFormat
 import java.util.UUID
 import kotlinx.serialization.json.Json
 
@@ -26,8 +25,7 @@ internal const val POLICY_LIMIT = 4 * 1_048_576
 internal fun parsePolicy(bytes: ByteArray): LineupPolicy = policyJson.decodeFromString<LineupPolicy>(bytes.toString(Charsets.UTF_8))
 
 /** The SHA-256 of the file bytes, hex. */
-internal fun policyRevision(bytes: ByteArray): String =
-    HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes))
+internal fun policyRevision(bytes: ByteArray): String = hash(bytes)
 
 /** Reads [path] and fails with every validation error at once. */
 fun loadPolicy(path: Path, providerIds: Set<String>): LoadedPolicy {

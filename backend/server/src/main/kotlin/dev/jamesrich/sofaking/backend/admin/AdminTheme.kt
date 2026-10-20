@@ -1,9 +1,8 @@
 package dev.jamesrich.sofaking.backend.admin
 
-import java.security.MessageDigest
+import dev.jamesrich.sofaking.backend.catalog.hash
 import java.time.Duration
 import java.time.Instant
-import java.util.HexFormat
 import kotlinx.html.*
 import kotlinx.html.stream.createHTML
 
@@ -38,7 +37,7 @@ internal enum class Tone(val css: String) { OK("ok"), WARN("warn"), BAD("bad"), 
 /** The stylesheet's path, public like the icon, and the href pages link, versioned by the sheet's content so the day-long cache never pairs an old sheet with a new page. */
 internal const val STYLESHEET_PATH = "/admin/static/admin.css"
 private val STYLESHEET_HREF: String = STYLESHEET_PATH + "?v=" + Chrome::class.java.classLoader.getResourceAsStream("admin/admin.css")!!.use { sheet ->
-    HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(sheet.readAllBytes()), 0, 8)
+    hash(sheet.readAllBytes()).take(16)
 }
 
 /** The crown-on-a-sofa mark of the TV app's banner, drawn inline so it needs no image request. */

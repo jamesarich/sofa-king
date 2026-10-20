@@ -44,6 +44,7 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -81,6 +82,17 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
      */
     private val commands = Executors.newSingleThreadExecutor { task -> Thread(task, "libvlc-commands").apply { isDaemon = true } }
 
+    /**
+     * Counts the streams [prepare] opens and [stop] ends. A queued stop runs late, and the old stream's callbacks keep
+     * coming until it does; they count only while [opened], set by the command that opens a stream, is the latest.
+     */
+    private val generation = AtomicInteger()
+
+    @Volatile
+    private var opened = -1
+
+    private val isCurrent: Boolean get() = opened == generation.get()
+
     private val _status = MutableStateFlow(PlayerStatus())
     private val _errors = MutableSharedFlow<PlayerError>(extraBufferCapacity = 8)
     override val status: StateFlow<PlayerStatus> = _status.asStateFlow()
@@ -90,6 +102,8 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     override val audioTracks: StateFlow<List<AudioTrack>> = _audioTracks.asStateFlow()
 
     private var stream: PlaybackStream? = null
+
+    @Volatile
     private var captionsOn = false
 
     /**
@@ -120,7 +134,8 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
     override var volume: Float = 1f
         set(value) {
             field = value
-            vlc.audio().setVolume((value * 100).roundToInt())
+            val percent = (value * 100).roundToInt()
+            commands.execute { vlc.audio().setVolume(percent) }
         }
 
     override var playWhenReady: Boolean
@@ -132,7 +147,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
 
     override fun setCaptionsEnabled(enabled: Boolean) {
         captionsOn = enabled
-        applyCaptions()
+        commands.execute { applyCaptions() }
     }
 
     override fun selectAudioTrack(id: String) {
@@ -160,6 +175,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
 
     /** The audio tracks libVLC lists, without its "Disable" entry; on the command thread, since the list is read from libVLC. */
     private fun readAudioTracks() {
+        if (!isCurrent) return
         val current = vlc.audio().track()
         val tracks = vlc.audio().trackDescriptions().filter { it.id() >= 0 }
         _audioTracks.value = if (tracks.size > 1) tracks.map { AudioTrack(it.id().toString(), it.description(), it.id() == current) } else emptyList()
@@ -178,10 +194,15 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
         val url = stream?.url ?: return
         _status.update { it.copy(state = PlaybackState.BUFFERING) }
         val start = playWhenReady
-        commands.execute { if (start) vlc.media().play(url) else vlc.media().startPaused(url) }
+        val opening = generation.incrementAndGet()
+        commands.execute {
+            opened = opening
+            if (start) vlc.media().play(url) else vlc.media().startPaused(url)
+        }
     }
 
     override fun stop() {
+        generation.incrementAndGet()
         commands.execute { vlc.controls().stop() }
         hasFrame = false
         _audioTracks.value = emptyList()
@@ -263,7 +284,9 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
         commands.shutdown()
     }
 
+    /** On the command thread, as it sets libVLC's track; the stream's playing event applies it to each new stream. */
     private fun applyCaptions() {
+        if (!isCurrent) return
         val subs = vlc.subpictures()
         if (!captionsOn) {
             subs.setTrack(-1)
@@ -300,6 +323,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
             displayWidth: Int,
             displayHeight: Int,
         ) {
+            if (!isCurrent) return
             // Only libVLC's thread writes the back bitmap and the canvas never reads it, so the copy needs no lock.
             val target = synchronized(frameLock) { back } ?: return
             val info = target.imageInfo
@@ -324,11 +348,15 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
         }
     }
 
+    /** libVLC calls these on its own threads, which must not call back into it; libVLC calls go to [commands]. */
     private inner class Events : MediaPlayerEventAdapter() {
         override fun playing(mediaPlayer: MediaPlayer) {
+            if (!isCurrent) return
             _status.update { it.copy(state = PlaybackState.READY, isPlaying = true) }
-            applyCaptions()
-            commands.execute { readAudioTracks() }
+            commands.execute {
+                applyCaptions()
+                readAudioTracks()
+            }
         }
 
         override fun elementaryStreamAdded(mediaPlayer: MediaPlayer, type: TrackType, id: Int) {
@@ -340,11 +368,13 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
         }
 
         override fun paused(mediaPlayer: MediaPlayer) {
+            if (!isCurrent) return
             _status.update { it.copy(state = PlaybackState.READY, isPlaying = false) }
         }
 
         /** libVLC reports its cache filling throughout playback; only a cache short of full before playing is buffering. */
         override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) {
+            if (!isCurrent) return
             _status.update {
                 when {
                     newCache >= 100f -> it.copy(state = PlaybackState.READY)
@@ -355,10 +385,12 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : LivePlayer
         }
 
         override fun finished(mediaPlayer: MediaPlayer) {
+            if (!isCurrent) return
             _status.update { it.copy(state = PlaybackState.ENDED, isPlaying = false) }
         }
 
         override fun error(mediaPlayer: MediaPlayer) {
+            if (!isCurrent) return
             _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
             _errors.tryEmit(PlayerError(PlayerErrorCodes.NETWORK_CONNECTION_FAILED))
         }

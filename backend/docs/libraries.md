@@ -73,15 +73,19 @@ Copied HEVC is written as fragmented MP4 tagged `hvc1`, which every player takes
 
 ## Hardware transcoding
 
-A file the player cannot take is converted to H.264 with libx264 on the CPU. A GPU encoder takes most of that work off it: set `SOFA_HWACCEL` to `vaapi` (Intel or AMD), `qsv` (Intel Quick Sync) or `nvenc` (NVIDIA), and give the container the GPU. Decoding, scaling and tone mapping stay on the CPU, so any file still converts. On start the server encodes one test frame; when that fails it logs `vod encoder unavailable` and converts in software.
+A file the player cannot take is converted to H.264 with libx264 on the CPU. A GPU encoder takes most of that work off it: give the container the GPU, and `SOFA_HWACCEL=auto`, which `deploy/compose.yaml` sets, finds the encoder. At start it tries NVENC when an NVIDIA device is there, then VA-API and Quick Sync when the render node is, encodes one test frame with each and keeps the first that works, logging `vod encoder ready accel=vaapi (auto)` or, with none, `no GPU encoder works`. `SOFA_HWACCEL` can also name one encoder, `vaapi` (Intel or AMD), `qsv` (Intel Quick Sync) or `nvenc` (NVIDIA); when its test frame fails the server logs `vod encoder unavailable`. Either way a failure converts in software, and decoding, scaling and tone mapping stay on the CPU, so any file still converts.
 
-For `vaapi` and `qsv`, pass the render node and the host group that owns it (`stat -c %g /dev/dri/renderD128` prints its id) in `compose.yaml`; `SOFA_HWACCEL_DEVICE` picks another node:
+For an Intel or AMD GPU, store the id of the host group that owns the render node in `.env`, then uncomment the `devices` and `group_add` lines in `compose.yaml`; `SOFA_HWACCEL_DEVICE` picks another node:
+
+```sh
+printf 'RENDER_GID=%s\n' "$(stat -c %g /dev/dri/renderD128)" >> .env
+```
 
 ```yaml
     devices:
       - /dev/dri:/dev/dri
     group_add:
-      - "RENDER_GID"
+      - "${RENDER_GID:?set RENDER_GID in .env}"
 ```
 
 The image carries Mesa's VA-API driver for AMD and, on amd64, Intel's media driver and Quick Sync runtime. For `nvenc`, install the NVIDIA Container Toolkit on the host and give the service the GPU:

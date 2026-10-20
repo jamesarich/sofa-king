@@ -126,7 +126,7 @@ Messages are `key=value` text that name providers, guides, sources and entries b
 - `remux ended exit=` with FFmpeg's last lines, URLs removed, when an HDHomeRun remux exits with an error
 - rejected tokens: `auth failed route=ROUTE remote=ADDRESS`, at most 30 lines a minute
 - recordings: `recording schedule`, `recording started`, `recording attempt failed`, `recording finished`, `recording failed` or `recording missed`, `recording culled` with its reason, and `commercial scan` with the breaks found or why it failed
-- media libraries and their playback: `library scan failed`, `artwork fetch failed`, `vod session started` with its mode, and at start `vod encoder ready` or `vod encoder unavailable` for `SOFA_HWACCEL`
+- media libraries and their playback: `library scan failed`, `artwork fetch failed`, `vod session started` with its mode, and at start `vod encoder ready`, `vod encoder unavailable` or, with `SOFA_HWACCEL=auto`, `no GPU encoder works` for `SOFA_HWACCEL`
 
 A request that fails with a closed channel, broken pipe or connection reset, as when a player switches channels mid-body, logs at debug with the exception class. Other request failures log at error. Stream URLs, guide URLs, tokens and provider exception messages are never logged; a guide or logo failure message is logged only after URL redaction.
 

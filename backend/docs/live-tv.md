@@ -25,7 +25,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_MEDIA_DIR` | `SOFA_DATA_DIR/media`; `/media` in `deploy/compose.yaml` | The folder [media libraries](libraries.md) are added from. The server only reads it; mount it read only |
 | `SOFA_TMDB_TOKEN` | Unset | A [TMDB](https://www.themoviedb.org/settings/api) API read access token or v3 API key, at least 32 characters. With it, library scans [look up details and artwork](libraries.md#details-from-tmdb) for movies and shows. Unset, the server uses the token the portal's Library page saved in `secrets.json`, if any |
 | `SOFA_MAX_TRANSCODES` | `2` | Library files FFmpeg converts or remuxes at once for [library playback](api.md#play-library-files), 1-8. Direct play is not counted |
-| `SOFA_HWACCEL` | `none` | The GPU encoder library files are converted with: `vaapi` (Intel or AMD), `qsv` (Intel Quick Sync) or `nvenc` (NVIDIA); `none` converts in software with libx264. See [hardware transcoding](libraries.md#hardware-transcoding) |
+| `SOFA_HWACCEL` | `none`; `auto` in `deploy/compose.yaml` | The GPU encoder library files are converted with: `auto` (the first of NVENC, VA-API and Quick Sync that encodes a test frame at start, else software), `vaapi` (Intel or AMD), `qsv` (Intel Quick Sync) or `nvenc` (NVIDIA); `none` converts in software with libx264. See [hardware transcoding](libraries.md#hardware-transcoding) |
 | `SOFA_HWACCEL_DEVICE` | `/dev/dri/renderD128` | The render node `vaapi` and `qsv` open |
 | `SOFA_TMDB_LANGUAGE` | `en-US` | The language TMDB answers in, such as `de` or `pt-BR`; its region picks the content rating |
 | `SOFA_PROBE_PARALLELISM` | `6` | Concurrent source probes, 1-32 |

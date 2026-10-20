@@ -41,6 +41,8 @@ services:
       SOFA_RECORDINGS_DIR: /recordings
       # Media libraries are added from this folder: uncomment the /media mount below. See docs/deploy.md#the-media-folder.
       SOFA_MEDIA_DIR: /media
+      # Library conversions use the first GPU encoder that works once the GPU lines below are uncommented, else the CPU.
+      SOFA_HWACCEL: ${SOFA_HWACCEL:-auto}
     volumes:
       # The database, the logo cache, the generated tokens, and sources.json and policy.json when you add them.
       - ./config:/config
@@ -48,11 +50,12 @@ services:
       - ./recordings:/recordings
       # Your movies and shows, read only: the server never writes to them.
       # - /mnt/disk/media:/media:ro
-    # A GPU for converting library files with SOFA_HWACCEL=vaapi or qsv; see docs/libraries.md#hardware-transcoding.
+    # An Intel or AMD GPU for converting library files; see docs/libraries.md#hardware-transcoding. Uncomment these and
+    # store the render group's id first: printf 'RENDER_GID=%s\n' "$(stat -c %g /dev/dri/renderD128)" >> .env
     # devices:
     #   - /dev/dri:/dev/dri
     # group_add:
-    #   - "RENDER_GID"
+    #   - "${RENDER_GID:?set RENDER_GID in .env}"
     extra_hosts:
       # Lets sources.json reach a playlist or guide served by this Docker host as http://host.docker.internal:PORT/...
       - "host.docker.internal:host-gateway"

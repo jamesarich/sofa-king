@@ -4,7 +4,6 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.SourceDocument
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.*
 
@@ -15,6 +14,6 @@ import io.ktor.server.routing.*
 fun Route.setupRoutes(setup: SetupService?) {
     fun service(): SetupService = setup ?: throw ApiFailure(503, "SETUP_UNAVAILABLE", "Setup is not available on this server")
     get("/source-file") { call.respond(service().document()) }
-    put("/source-file") { call.respond(service().replaceSources(call.receive<SourceDocument>())) }
+    put("/source-file") { call.respond(service().replaceSources(call.body<SourceDocument>())) }
     post("/policy/starter") { call.respond(HttpStatusCode.Created, service().writeStarterPolicy()) }
 }

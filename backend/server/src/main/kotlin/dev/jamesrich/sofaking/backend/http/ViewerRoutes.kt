@@ -40,13 +40,13 @@ internal fun Route.viewerRoutes(runtime: LiveRuntime, clock: Clock, apiToken: St
     rateLimit(PAIR_LIMIT) {
         post(PAIR_PATH) {
             val claim = call.appBody<PairingClaim>()
+            // Checked before the claim, so a bad client id cannot spend a good code.
+            val clientId = claim.clientId.takeIf { it.isNotEmpty() }?.let(::validClientId)
             if (!runtime.pairing.claim(claim.code)) {
                 call.authFailed()
                 throw ApiFailure(403, Wire.ErrorCode.PAIRING_INVALID, "That pairing code is not valid; show a new one in the admin portal")
             }
-            if (claim.clientId.isNotEmpty()) {
-                runtime.store.touchViewer(validClientId(claim.clientId), label(claim.name), label(claim.platform), clock.instant())
-            }
+            if (clientId != null) runtime.store.touchViewer(clientId, label(claim.name), label(claim.platform), clock.instant())
             call.respond(PairingResult(apiToken.orEmpty(), runtime.store.serverId()))
         }
     }

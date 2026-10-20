@@ -43,6 +43,17 @@ internal const val LIBRARY_SCAN_JOB = "library-scan"
 /** A folder a library may be added from: [root] is where the operator mounted media, [label] how the portal names it. */
 data class MediaRoot(val label: String, val root: Path)
 
+/** A folder whose name says what it holds, offered as a library to add with one click. */
+data class LibrarySuggestion(val name: String, val kind: LibraryKind, val path: Path)
+
+/** What a folder named so holds, by its name in lower case with separators as spaces. */
+private val SUGGESTED_KINDS = mapOf(
+    "movies" to LibraryKind.MOVIES, "movie" to LibraryKind.MOVIES, "films" to LibraryKind.MOVIES, "film" to LibraryKind.MOVIES,
+    "tv" to LibraryKind.SHOWS, "tv shows" to LibraryKind.SHOWS, "shows" to LibraryKind.SHOWS, "series" to LibraryKind.SHOWS,
+    "tv series" to LibraryKind.SHOWS, "television" to LibraryKind.SHOWS,
+    "videos" to LibraryKind.VIDEOS, "home videos" to LibraryKind.VIDEOS, "music videos" to LibraryKind.VIDEOS,
+)
+
 /**
  * The media libraries: adding, renaming and removing them, and scanning their folders. A library's folder must sit
  * inside one of [roots]; the server only reads it. Scans run one at a time on the scan loop, every [every] for all
@@ -89,6 +100,21 @@ class LibraryService(
     suspend fun folderChoices(): List<Path> {
         val used = store.libraries().mapTo(HashSet()) { it.path }
         return roots.flatMap { root -> folders(root.root, 2) }.filter { it.toString() !in used }
+    }
+
+    /**
+     * The unused folders right under a root whose names say what they hold, such as `Movies` or `TV Shows`, named after
+     * the folder; one under the recordings folder carries the root's label too, as `TV (Recordings)`.
+     */
+    suspend fun suggestions(): List<LibrarySuggestion> {
+        val parents = roots.associateBy { it.root.normalize() }
+        return folderChoices().mapNotNull { folder ->
+            val root = parents[folder.parent] ?: return@mapNotNull null
+            val name = folder.fileName.toString()
+            val key = name.lowercase().replace(Regex("[_.\\-]+"), " ").replace(Regex("\\s+"), " ").trim()
+            val kind = SUGGESTED_KINDS[key] ?: return@mapNotNull null
+            LibrarySuggestion(if (root == roots.first()) name else "$name (${root.label})", kind, folder)
+        }
     }
 
     private fun folders(root: Path, depth: Int): List<Path> {

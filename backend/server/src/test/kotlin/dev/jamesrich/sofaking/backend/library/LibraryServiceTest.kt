@@ -107,6 +107,22 @@ class LibraryServiceTest {
         assertEquals(false, s.service.library(library.id).scanOk)
     }
 
+    @Test fun `folders right under the media directory named for what they hold are suggested until a library takes them`() = runBlocking {
+        val s = setup()
+        val movies = Files.createDirectories(s.root.resolve("Movies"))
+        val shows = Files.createDirectories(s.root.resolve("TV_Shows"))
+        Files.createDirectories(s.root.resolve("Films/Movies"))
+        Files.createDirectories(s.root.resolve("Music"))
+        val suggested = s.service.suggestions()
+        assertEquals(
+            listOf(LibrarySuggestion("Films", LibraryKind.MOVIES, s.root.resolve("Films")), LibrarySuggestion("Movies", LibraryKind.MOVIES, movies), LibrarySuggestion("TV_Shows", LibraryKind.SHOWS, shows)),
+            suggested.map { it.copy(path = it.path.normalize()) },
+            "only names that say what a folder holds, and only one level down",
+        )
+        s.service.create("Movies", LibraryKind.MOVIES, movies.toString())
+        assertEquals(listOf("Films", "TV_Shows"), s.service.suggestions().map { it.name })
+    }
+
     @Test fun `a library folder must sit inside the media directory and be unused`() = runBlocking {
         val s = setup()
         val outside = Files.createTempDirectory("sofa-outside-")

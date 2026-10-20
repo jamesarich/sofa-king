@@ -4,7 +4,7 @@ A media library is a folder of movies, TV shows or other videos that the server 
 
 ## Mount the media folder
 
-`SOFA_MEDIA_DIR` defaults to `media` inside `SOFA_DATA_DIR`. In Docker, mount your media read only and point `SOFA_MEDIA_DIR` at it:
+`SOFA_MEDIA_DIR` defaults to `media` inside `SOFA_DATA_DIR`; `deploy/compose.yaml` sets it to `/media`. In Docker, mount your media read only at `/media`, as the commented line in the Compose file shows:
 
 ```yaml
     environment:
@@ -14,7 +14,7 @@ A media library is a folder of movies, TV shows or other videos that the server 
       - /srv/media:/media:ro
 ```
 
-Put each library in its own folder inside it, for example `/media/movies`, `/media/tv` and `/media/videos`. If you already keep a `data/media` tree for other tools, mount that folder at `/media`. The server must be able to read every file: with `user: "UID:GID"`, that user needs read access to the files and to list each folder.
+Put each library in its own folder inside it, for example `/media/Movies`, `/media/TV` and `/media/Videos`. The Library page offers a folder right under the media folder, or under the recordings folder, whose name says what it holds (`Movies` or `Films`, `TV`, `TV Shows`, `Shows` or `Series`, `Videos` or `Home Videos`) as a library one click away. If you already keep a `data/media` tree for other tools, mount that folder at `/media`. The server must be able to read every file: with `user: "UID:GID"`, that user needs read access to the files and to list each folder.
 
 A library's folder must sit inside `SOFA_MEDIA_DIR`, or inside the DVR's `SOFA_RECORDINGS_DIR`: a TV shows library on its `TV` folder and a Movies library on its `Movies` folder put recordings in the Library tab beside the rest, with posters and TMDB details. A recording being made is in the hidden `.inprogress` folder, which scans skip, so it joins the library at the next scan after it ends; a recording's watch progress in the Library tab is separate from the one in the Recordings tab. Links are not followed during a scan, and a library folder that is itself a link must point inside the folder it is under.
 

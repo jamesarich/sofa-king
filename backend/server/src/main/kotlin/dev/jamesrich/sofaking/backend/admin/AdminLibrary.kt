@@ -3,6 +3,7 @@ package dev.jamesrich.sofaking.backend.admin
 import dev.jamesrich.sofaking.backend.library.ItemKind
 import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
+import dev.jamesrich.sofaking.backend.library.LibrarySuggestion
 import dev.jamesrich.sofaking.backend.library.TMDB_NOTICE
 import kotlinx.html.*
 
@@ -27,6 +28,8 @@ internal class LibraryView(
     val tmdbSettable: Boolean = false,
     /** Why the last token was not saved. */
     val tmdbError: String? = null,
+    /** Folders whose names say what they hold, each one click from a library. */
+    val suggestions: List<LibrarySuggestion> = emptyList(),
 )
 
 /** What a library holds, in words: "120 movies", "14 shows, 612 episodes". */
@@ -133,6 +136,21 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
                 a("https://github.com/jamesarich/sofa-king/blob/main/backend/docs/libraries.md") { +"How to lay out the folders" }
             }
             return@panel
+        }
+        if (view.suggestions.isNotEmpty()) {
+            p("mt-0") { +"These folders say what they hold:" }
+            ul {
+                for (suggestion in view.suggestions) li {
+                    code { +suggestion.path.toString() }; +" "
+                    postForm("/admin/library", chrome.session) {
+                        hiddenInput(name = "name") { value = suggestion.name }
+                        hiddenInput(name = "kind") { value = suggestion.kind.wire }
+                        hiddenInput(name = "path") { value = suggestion.path.toString() }
+                        button(type = ButtonType.submit, classes = "small") { +"Add as ${suggestion.kind.label}" }
+                    }
+                }
+            }
+            p("muted small") { +"Or choose any folder below." }
         }
         form(action = "/admin/library", method = FormMethod.post, classes = "stack") {
             hiddenInput(name = "csrf") { value = chrome.session.csrf }

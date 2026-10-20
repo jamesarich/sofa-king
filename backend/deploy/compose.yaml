@@ -39,8 +39,8 @@ services:
     environment:
       # Recordings go in their own folder, so they can live on a bigger disk than ./config; see docs/deploy.md#the-recordings-folder.
       SOFA_RECORDINGS_DIR: /recordings
-      # Media libraries are added from this folder; uncomment it with the /media mount below. See docs/deploy.md#the-media-folder.
-      # SOFA_MEDIA_DIR: /media
+      # Media libraries are added from this folder: uncomment the /media mount below. See docs/deploy.md#the-media-folder.
+      SOFA_MEDIA_DIR: /media
     volumes:
       # The database, the logo cache, the generated tokens, and sources.json and policy.json when you add them.
       - ./config:/config

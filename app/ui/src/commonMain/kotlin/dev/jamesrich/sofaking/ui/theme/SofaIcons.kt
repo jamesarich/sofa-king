@@ -1,4 +1,4 @@
-package dev.jamesrich.sofaking.ui.player
+package dev.jamesrich.sofaking.ui.theme
 
 import androidx.compose.material.icons.materialPath
 import androidx.compose.ui.graphics.Color
@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
  * extended set is a dependency the Kotlin/JS production build cannot shrink in a reasonable time: minifying it took
  * the web distribution from one minute to over twenty, so the icons the player and the app's tabs need live here instead.
  */
-internal object PlayerIcons {
+internal object SofaIcons {
     val Audiotrack: ImageVector by lazy {
         materialIcon(name = "Filled.Audiotrack") {
             materialPath {

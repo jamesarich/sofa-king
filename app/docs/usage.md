@@ -51,7 +51,7 @@ Channels come from the server's lineup. The app lists a channel when the server 
 | Fast Forward / Rewind | A day ahead / back | |
 | Guide / Menu | Jump to Now (on a Library or Recordings page, open the guide at Now) | Open the guide at Now |
 | Search | Search by voice | Open guide search by voice |
-| Back | Close search; move from the grid to the selected filter chip; exit from the chips or header | Close the channel list or the stream card, or return to the guide |
+| Back | Close search; move from the grid to the selected filter chip, then to the header's open tab; exit from the header | Close the channel list or the stream card, or return to the guide |
 
 On a desktop or in a browser, the arrow keys move like the D-pad, Enter or the keypad's Enter is OK (hold it for a long press), Escape is Back, Page Up and Page Down move a page, the digit keys enter a channel number and C toggles captions. Touch and a mouse select directly. In the full-screen player, a tap or click shows the info bar with a row of icon buttons under it for the guide, channel down, pause or play (retry while the stream has failed), channel up, the channel list, captions and the stream card; another tap hides it, a tap with the channel list or the stream card open closes it, and a swipe up on a touch screen opens the channel list.
 
@@ -126,6 +126,6 @@ Forgot the PIN, on the lock page, takes the server's API token instead: the admi
 
 ### Channel manager
 
-Manage channels, under Guide, lists the favorites in the order the guide's Favorites filter and the player's channel list show them; the arrows beside a favorite move it. Channels not yet placed follow by number. Below, the lineup's groups (the guide's chips) each have a switch and a count of how many of their channels are shown: switched off, every channel of the group leaves the guide and the channel list on this device only, so the server and other devices keep it; switched on, they all return. The arrow beside a group opens its channels as switches of their own, so one channel can be hidden or shown by itself; a channel filed under two groups appears under both and follows the last switch that touched it. Skip hidden channels with Channel Up and Down takes them out of zapping too; a hidden channel entered by number still plays, with the full lineup around it.
+Manage channels, under Live TV, lists the favorites in the order the guide's Favorites filter and the player's channel list show them; the arrows beside a favorite move it. Channels not yet placed follow by number. Below, the lineup's groups (the guide's chips) each have a switch and a count of how many of their channels are shown: switched off, every channel of the group leaves the guide and the channel list on this device only, so the server and other devices keep it; switched on, they all return. The arrow beside a group opens its channels as switches of their own, so one channel can be hidden or shown by itself; a channel filed under two groups appears under both and follows the last switch that touched it. Skip hidden channels with Channel Up and Down takes them out of zapping too; a hidden channel entered by number still plays, with the full lineup around it.
 
 [Troubleshooting](troubleshooting.md) covers connection errors, empty guides and streams that do not play.

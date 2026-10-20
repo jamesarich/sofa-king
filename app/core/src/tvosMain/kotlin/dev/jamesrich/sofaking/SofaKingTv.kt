@@ -16,10 +16,12 @@ import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.SeriesRule
 import dev.jamesrich.sofaking.data.ServerCapabilities
+import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.data.TopLevelTab
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.TrackChoice
+import dev.jamesrich.sofaking.data.ViewerSync
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
 import dev.jamesrich.sofaking.data.initialSubtitle
@@ -70,13 +72,18 @@ class SofaKingTv {
     )
     private val scope: CoroutineScope = MainScope()
 
-    val viewModel = LineupViewModel(store = DataStoreSettingsStore(storage.settings), lineupCache = storage.lineupCache, client = storage.client)
+    private val store = DataStoreSettingsStore(storage.settings)
+
+    /** The server Settings names, its one playback session and the guide's record marks, for every ViewModel below. */
+    private val connection = ServerConnection(store.settings, scope, viewerSync = ViewerSync(store, storage.client))
+
+    val viewModel = LineupViewModel(store = store, lineupCache = storage.lineupCache, connection = connection, client = storage.client)
 
     /** The media libraries, playing through the same session as the channels. */
-    val library = LibraryViewModel(viewModel.api, viewModel.sessions)
+    val library = LibraryViewModel(connection.api, connection.sessions)
 
     /** The server's recordings, playing through the same session; a delete refreshes the guide's record marks. */
-    val recordings = RecordingsViewModel(viewModel.api, viewModel.sessions, changed = viewModel.recordings::refresh)
+    val recordings = RecordingsViewModel(connection.api, connection.sessions, changed = connection.recordings::refresh)
 
     fun watchState(onChange: (LineupState) -> Unit): Watch = watch(viewModel.state, onChange)
 
@@ -244,7 +251,7 @@ class SofaKingTv {
     fun recordingSummary(recording: DvrRecording): String? = recording.description
 
     /** Claims a pairing [code] at [url] and saves the server it opens; null on success, else why it failed. */
-    suspend fun pair(url: String, code: String): PairingFailure? = viewModel.pair(url, code)
+    suspend fun pair(url: String, code: String): PairingFailure? = viewModel.pairAndWait(url, code)
 
     fun saveServer(url: String, apiToken: String) {
         viewModel.saveServer(url, apiToken)

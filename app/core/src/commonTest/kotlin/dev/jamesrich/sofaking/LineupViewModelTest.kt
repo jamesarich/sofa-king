@@ -19,6 +19,7 @@ import dev.jamesrich.sofaking.data.LineupCache
 import dev.jamesrich.sofaking.data.MemoryDataStore
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.ServerCapabilities
+import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.TrackChoice
 import dev.jamesrich.sofaking.data.apiError
@@ -154,9 +155,12 @@ class LineupViewModelTest {
         return LineupViewModel(
             store = settings,
             lineupCache = cacheStore,
-            sessions = PlaybackSessions(scope = backgroundScope),
-            newApi = { url, token -> server.http.api(token, "$url/") },
-            viewerSync = null,
+            connection = ServerConnection(
+                settings = settings.settings,
+                scope = backgroundScope,
+                sessions = PlaybackSessions(scope = backgroundScope),
+                newApi = { url, token -> server.http.api(token, "$url/") },
+            ),
         ).also { viewModel = it }
     }
 
@@ -324,16 +328,36 @@ class LineupViewModelTest {
         val viewModel = start(server)
         assertEquals(LineupState.Unconfigured, viewModel.state.first { it != LineupState.Loading })
 
-        assertEquals(PairingFailure.INVALID_CODE, viewModel.pair("http://sofa.test", "111 111"))
+        assertEquals(PairingFailure.INVALID_CODE, viewModel.pairAndWait("http://sofa.test", "111 111"))
         assertEquals("", settings.settings.value.serverUrl)
-        assertEquals(PairingFailure.INVALID_CODE, viewModel.pair("http://sofa.test", "12"), "a malformed code is not even sent")
+        assertEquals(PairingFailure.INVALID_CODE, viewModel.pairAndWait("http://sofa.test", "12"), "a malformed code is not even sent")
         assertEquals(1, server.http.requests.count { it.path == "/api/v1/pair" })
 
-        assertNull(viewModel.pair("http://sofa.test/", "654 321"))
+        assertNull(viewModel.pairAndWait("http://sofa.test/", "654 321"))
         assertEquals("http://sofa.test", settings.settings.value.serverUrl)
         assertEquals("issued-token", settings.settings.value.apiToken)
         assertTrue(server.http.requests.last { it.path == "/api/v1/pair" }.body.contains(""""clientId":"test-client""""))
         assertIs<LineupState.Ready>(viewModel.state.first { it is LineupState.Ready })
         assertEquals("Bearer issued-token", server.http.requests.last { it.path == "/api/v1/channels" }.headers["Authorization"])
+    }
+
+    @Test
+    fun `pairing reports its outcome as state until the screen has acted on it`() = viewModelTest {
+        val server = FakeServer(this)
+        settings.settings.value = AppSettings()
+        val viewModel = start(server)
+        assertEquals(LineupState.Unconfigured, viewModel.state.first { it != LineupState.Loading })
+
+        viewModel.pair("http://sofa.test", "111 111")
+        assertTrue(viewModel.pairing.value.busy)
+        viewModel.pair("http://sofa.test", "654 321")
+        assertEquals(PairingState(failure = PairingFailure.INVALID_CODE, outcome = PairingOutcome.FAILED), viewModel.pairing.first { !it.busy })
+        assertEquals(1, server.http.requests.count { it.path == "/api/v1/pair" }, "a second code while one is claimed is ignored")
+        viewModel.pairingHandled()
+        assertEquals(PairingState(failure = PairingFailure.INVALID_CODE), viewModel.pairing.value)
+
+        viewModel.pair("http://sofa.test", "654 321")
+        assertEquals(PairingState(outcome = PairingOutcome.PAIRED), viewModel.pairing.first { !it.busy })
+        assertEquals("issued-token", settings.settings.value.apiToken)
     }
 }

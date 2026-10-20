@@ -28,7 +28,7 @@ They share these files at the root:
 
 Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): summary`, in the imperative mood, for example `fix(player): back off on the lineup reload` or `feat(providers): resolve the guide id for a channel`. The scope names the area:
 
-- App: `guide`, `player`, `preview`, `captions`, `settings`, `data`, `web`, `ios`, `tvos`, `desktop`.
+- App: `app` (the shell, navigation and the tabs), `guide`, `player`, `preview`, `captions`, `settings`, `library`, `data`, `web`, `ios`, `tvos`, `desktop`.
 - Server: the package or area, such as `providers`, `policy`, `hdhr`, `logos`, `playback`, `admin`, `server` or `backend`.
 - Anywhere: `build` and `ci` for the builds and workflows, `deps` for Renovate's dependency updates, and `docs` for documentation-only changes.
 

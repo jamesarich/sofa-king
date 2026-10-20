@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
@@ -396,13 +397,13 @@ internal fun TouchControls(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
-        ControlIcon(PlayerIcons.GridView, stringResource(Res.string.player_control_guide), onGuide)
+        ControlIcon(SofaIcons.GridView, stringResource(Res.string.player_control_guide), onGuide)
         ControlIcon(Icons.Filled.KeyboardArrowDown, stringResource(Res.string.player_control_channel_down), onChannelDown)
         if (failed) {
             ControlIcon(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), onRetry, primary = true)
         } else {
             ControlIcon(
-                if (paused) Icons.Filled.PlayArrow else PlayerIcons.Pause,
+                if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
                 stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
                 onPlayPause,
                 primary = true,
@@ -411,12 +412,12 @@ internal fun TouchControls(
         ControlIcon(Icons.Filled.KeyboardArrowUp, stringResource(Res.string.player_control_channel_up), onChannelUp)
         ControlIcon(Icons.AutoMirrored.Filled.List, stringResource(Res.string.player_control_channels), onChannelList)
         ControlIcon(
-            if (captionsOn) PlayerIcons.ClosedCaption else PlayerIcons.ClosedCaptionOff,
+            if (captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
             stringResource(Res.string.player_control_captions),
             onCaptions,
             modifier = Modifier.semantics { stateDescription = captionsState },
         )
-        ControlIcon(if (hasAudioChoice) PlayerIcons.Audiotrack else Icons.Filled.Info, stringResource(Res.string.player_control_stream), onStreamInfo)
+        ControlIcon(if (hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info, stringResource(Res.string.player_control_stream), onStreamInfo)
     }
 }
 

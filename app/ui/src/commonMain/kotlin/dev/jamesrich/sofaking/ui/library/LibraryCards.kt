@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.ui.library
 
+import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.HeldOkGuard
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -23,7 +25,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import dev.jamesrich.sofaking.ui.player.PlayerIcons
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -51,7 +52,6 @@ import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.*
-import dev.jamesrich.sofaking.ui.guide.HeldOkGuard
 import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
@@ -189,33 +189,6 @@ private val CardMenuEntry.label: StringResource
         CardMenuEntry.MARK_WATCHED -> Res.string.library_mark_watched
         CardMenuEntry.MARK_UNWATCHED -> Res.string.library_mark_unwatched
     }
-
-/**
- * The picture filling its card. Under it, and alone while it loads or when it fails, [label] stands in its place,
- * or the library mark when the card's own caption already names the item.
- */
-@Composable
-internal fun BoxScope.Artwork(url: String?, label: String?) {
-    if (label == null) {
-        Icon(
-            PlayerIcons.VideoLibrary,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.align(Alignment.Center).size(48.dp),
-        )
-    } else {
-        Text(
-            label,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.Center).padding(12.dp),
-        )
-    }
-    if (url != null) AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-}
 
 /** The progress bar along the bottom, the watched tick and a show's unwatched count. */
 @Composable

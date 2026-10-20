@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.theme.SofaChip
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusGroup
@@ -47,7 +49,6 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.formatNumber
-import dev.jamesrich.sofaking.ui.guide.GuideChip
 import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -144,7 +145,7 @@ internal fun BoxScope.MiniGuide(
                 ) {
                     items(filters.size, key = { filters[it].name }) { position ->
                         val option = filters[position]
-                        GuideChip(
+                        SofaChip(
                             selected = filter == option,
                             onClick = { filter = option },
                             label = when (option) {
@@ -215,7 +216,7 @@ private fun MiniGuideActionRow(actions: MiniGuideActions) {
             )
         }
         ControlIcon(
-            if (actions.captionsOn) PlayerIcons.ClosedCaption else PlayerIcons.ClosedCaptionOff,
+            if (actions.captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
             stringResource(Res.string.player_control_captions),
             actions.onCaptions,
             size = ACTION_SIZE,
@@ -225,14 +226,14 @@ private fun MiniGuideActionRow(actions: MiniGuideActions) {
             ControlIcon(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), actions.onRetry, size = ACTION_SIZE)
         } else {
             ControlIcon(
-                if (actions.paused) Icons.Filled.PlayArrow else PlayerIcons.Pause,
+                if (actions.paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
                 stringResource(if (actions.paused) Res.string.player_control_play else Res.string.player_control_pause),
                 actions.onPlayPause,
                 size = ACTION_SIZE,
             )
         }
         ControlIcon(
-            if (actions.hasAudioChoice) PlayerIcons.Audiotrack else Icons.Filled.Info,
+            if (actions.hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info,
             stringResource(Res.string.player_control_stream),
             actions.onStreamInfo,
             size = ACTION_SIZE,

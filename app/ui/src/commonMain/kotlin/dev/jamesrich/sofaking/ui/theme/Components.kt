@@ -7,7 +7,10 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,5 +72,16 @@ fun SofaButton(
         ),
         interactionSource = interactions,
         content = content,
+    )
+}
+
+/** A Material 3 filter chip in the label type, with the D-pad focus cue: the guide's filters and the library's choices. */
+@Composable
+internal fun SofaChip(selected: Boolean, onClick: () -> Unit, label: String, modifier: Modifier = Modifier) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, style = MaterialTheme.typography.labelLarge) },
+        modifier = modifier.tvFocus(FilterChipDefaults.shape),
     )
 }

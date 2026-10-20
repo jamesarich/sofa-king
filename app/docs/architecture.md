@@ -6,7 +6,7 @@ Sofa King is a Kotlin Multiplatform project. One Compose Multiplatform UI on Mat
 
 | Module | What it holds | Targets |
 | --- | --- | --- |
-| `core` | Models, the server API, repository, playback sessions, lineup cache, settings store and `LineupViewModel`. No Compose. | Android, JVM, iOS, macOS, tvOS, watchOS, Linux, js, wasmJs |
+| `core` | Models, the server API and the server connection, repository, playback sessions, lineup cache, settings store and the ViewModels (`LineupViewModel`, `LibraryViewModel`, `RecordingsViewModel`). No Compose. | Android, JVM, iOS, macOS, tvOS, watchOS, Linux, js, wasmJs |
 | `ui` | Every screen, the app shell, the guide and player logic, the app graph, and the desktop, web and iOS entry points | Android, JVM, iOS, js, wasmJs |
 | `androidApp` | The Android application: manifest, launcher and TV banner, `SofaKingApplication` and `MainActivity` | Android |
 | `baselineprofile` | The Baseline Profile generator for `androidApp`, which [development](development.md#baseline-profile) runs on a device | Android |
@@ -21,14 +21,16 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 
 | Component | Responsibility |
 | --- | --- |
-| `App`, `initSofaKing` | The back stacks shown by Navigation 3, the cold-start decision, the shared player and the session's stop/start lifecycle; the graph starts once per process |
+| `App`, `initSofaKing`, `AppGraph` | The shell: the ViewModels, the back stacks shown by Navigation 3, the shared player and the session's stop/start lifecycle; each page is drawn by its destination (`LiveDestinations`, `LibraryDestinations`, `RecordingsDestinations`, `SettingsDestinations`), which collects the state it shows itself. The graph starts once per process |
+| `AppShellState` | The shell's UI state and moves, unit-tested: the back stacks, the watch history, the cold-start decision (`decideLaunch`), the Settings unlock, the header's focus return and notice, and which tabs the server offers (`tabsOffered`) |
 | `Navigation` | One back stack per tab of `Route`s, the arrival details (what to focus, Now, search) and every move: open, Back, switching tabs, leaving Settings |
-| `LineupViewModel` | Settings flows, lineup state, refresh, cache ownership, the server's capabilities from its bootstrap, and the `PlaybackSessions` and `RecordingSchedule` instances; its store, cache and API factory are constructor arguments |
+| `ServerConnection` | The process-wide link to the server Settings names: the one API client, the server's capabilities from its bootstrap, the one `PlaybackSessions`, the `RecordingSchedule` and the preference sync. Every ViewModel reads the server through it, so none holds another |
+| `LineupViewModel` | Settings flows and writes, lineup state, refresh, cache ownership, pairing (`PairingState`) and the update check; its store, cache and connection are constructor arguments |
 | `RecordingSchedule` | On a server that records: the scheduled recordings and series rules the program details mark, and their Record and Record series toggles |
 | `SofaKingApi` | The server's `/api/v1` JSON requests over Ktor with the bearer token; every engine's transport error surfaces as an `IOException` |
 | `SofaKingRepository`, `SofaKingMapper` | Catalog and guide queries mapped to `Channel` (with its logo and guide status) and `Programme` (with its episode, rating, new flag and image) |
 | `PlaybackSessions` | The one playback session, a live channel's or a library item's: open, promote, renew, restart, release, reopen, replaced streams |
-| `RecordingsViewModel` | The Recordings tab's list, deleting a recording, playing one through `PlaybackSessions.playRecording` and saving where playback stopped |
+| `RecordingsViewModel` | The Recordings tab's list and series rules, deleting a recording, playing one through `PlaybackSessions.playRecording` and saving where playback stopped |
 | `LibraryViewModel`, `LibraryRepository` | The library home's shelves, one library's paged grid, item pages, search, marking watched, playing an item and saving where playback stopped |
 | `LineupCache` | Last complete lineup, keyed by server address, in a DataStore file or the browser's localStorage |
 | `DataStoreSettingsStore`, `AppStorage` | Server address, API token, client id, favorites, last and recent channels, hidden channels, the last guide filter, caption, preview and playback settings, and the Settings PIN's hash |
@@ -42,16 +44,16 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 ## Data flow
 
 ```text
-AppStorage → DataStoreSettingsStore → LineupViewModel ← SofaKingRepository ← SofaKingApi (Ktor)
-                                           ↓      ↕
-                                     LineupCache   PlaybackSessions → LivePlayer (/media relay)
-                                           ↓
-                              GuideScreen / PreviewVideo / PlayerScreen
+AppStorage → DataStoreSettingsStore → ServerConnection → SofaKingApi (Ktor), PlaybackSessions, RecordingSchedule
+                     ↓                         ↓
+               LineupViewModel ← SofaKingRepository     LibraryViewModel, RecordingsViewModel
+                ↓          ↓
+          LineupCache    GuideScreen / PreviewVideo / PlayerScreen → PlaybackSessions → LivePlayer (/media relay)
 ```
 
 The cache loads first on startup or server change: its channels publish as soon as the file is read, marked `guideLoading`, and its programmes follow once decoded on the default dispatcher, which takes seconds for a full guide on a TV. The catalog publishes channels before the guide query completes. The catalog is fetched with its ETag, so an unchanged lineup is a header round trip. The guide is queried in chunks of at most 200 channels over 24 hours from the half hour containing the load time, pinning the revision the first chunk returned on the rest, which run four at a time, and restarting without one on `409 RESYNC_REQUIRED`. A channel the guide answers as `removed` left the lineup after the catalog was read: it drops from the lineup and the next load runs after one minute. Mapping applies the [channel rule](usage.md#channels) through `playbackEligible` and `displayNumber`, sorts the channels by number, files each under every non-blank tag (Other when it has none), resolves each logo's server-relative path against the configured server address, and discards programs with invalid timestamps or nonpositive durations. Successful loads update the cache and repeat every three hours. A day the guide jumps to beyond the live window is queried once over the same path (`loadGuideWindow`), merged into the lineup's guide beside the live window, never cached, and dropped once the live window passes it. Failed loads retain the available lineup and retry after one minute. Without a valid server address the lineup state is `Unconfigured`.
 
-Network, decoding and cache work run on the IO dispatcher (the default dispatcher on the web). UI observes StateFlow with lifecycle-aware collection. Canceling a load cancels its HTTP call, including while reading the response body.
+Network, decoding and cache work run on the IO dispatcher (the default dispatcher on the web). State flows one way: ViewModels expose immutable `StateFlow`s, each destination collects the ones it shows with `collectAsStateWithLifecycle`, and user actions go back as ViewModel calls: setters return nothing, and a short action whose result matters only while its screen is up, such as Record, Delete, a library search or opening a stream, is a `suspend` call the screen awaits. Work that must outlive a screen, such as claiming a pairing code, runs in `viewModelScope` and reports its outcome as state; process-wide work, the server connection's, runs in `AppGraph`'s main-thread scope, started by the first ViewModel. Canceling a load cancels its HTTP call, including while reading the response body.
 
 ## Storage
 
@@ -121,4 +123,4 @@ On Android the TS extractor declares CEA-608/708 tracks for MPEG-TS sources; HLS
 
 ## Server interface
 
-The app uses the [Sofa King server](../../backend/README.md) API through the request and response types in [`contract/`](../../contract/README.md), which the server compiles against too: `GET /api/v1/channels` with `If-None-Match`, `POST /api/v1/guide/query`, `POST`, `GET`, `PATCH` and `DELETE` on `/api/v1/playback-sessions`, `POST /api/v1/pair` to claim a pairing code, `GET` and `PUT` on `/api/v1/preferences/{clientId}`, through which `ViewerSync` keeps the hidden channels, favorites and recent channels in step with the server's copy, the library reads under `/api/v1/libraries` and `/api/v1/library`, and `POST`, `PATCH` and `DELETE` on `/api/v1/vod-sessions`. API requests carry `Authorization: Bearer TOKEN` when a token is set, which a pairing claim has not; media requests under `/media/sessions` and `/media/vod`, and artwork under `/artwork`, carry none. Descriptor URLs are relative and resolved against the server address. The token is stored with the other settings and is never logged or printed.
+The app uses the [Sofa King server](../../backend/README.md) API through the request and response types in [`contract/`](../../contract/README.md), which the server compiles against too: `GET /api/v1/bootstrap` for the server's capabilities, `GET /api/v1/channels` with `If-None-Match`, `POST /api/v1/guide/query`, `POST`, `GET`, `PATCH` and `DELETE` on `/api/v1/playback-sessions`, `POST /api/v1/pair` to claim a pairing code, `GET` and `PUT` on `/api/v1/preferences/{clientId}`, through which `ViewerSync` keeps the hidden channels, favorites and recent channels in step with the server's copy, the library reads under `/api/v1/libraries` and `/api/v1/library`, `POST`, `PATCH` and `DELETE` on `/api/v1/vod-sessions`, which play recordings too, and `GET`, `POST`, `PATCH` and `DELETE` on `/api/v1/recordings` and `/api/v1/recording-rules`. API requests carry `Authorization: Bearer TOKEN` when a token is set, which a pairing claim has not; media requests under `/media/sessions` and `/media/vod`, and artwork under `/artwork`, carry none. Descriptor URLs are relative and resolved against the server address. The token is stored with the other settings and is never logged or printed.

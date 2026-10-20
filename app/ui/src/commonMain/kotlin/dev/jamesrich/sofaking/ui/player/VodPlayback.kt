@@ -122,16 +122,6 @@ internal class VodScrub {
     }
 }
 
-/** A time in the item as `M:SS` or `H:MM:SS`. */
-internal fun formatPlayTime(ms: Long): String {
-    val total = (ms.coerceAtLeast(0) / 1000)
-    val hours = total / 3600
-    val minutes = (total % 3600) / 60
-    val seconds = total % 60
-    val ss = seconds.toString().padStart(2, '0')
-    return if (hours > 0) "$hours:${minutes.toString().padStart(2, '0')}:$ss" else "$minutes:$ss"
-}
-
 /** When the item ends if it plays on from [positionMs] at [now]; null while its length is unknown. */
 internal fun vodEndsAt(now: Instant, positionMs: Long, durationMs: Long?): Instant? =
     durationMs?.takeIf { it > 0 }?.let { now + (it - positionMs).coerceAtLeast(0).milliseconds }

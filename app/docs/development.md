@@ -73,13 +73,36 @@ The tests cannot see focus, the remote's keys or a real decoder. Check these on 
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):
 
-- [ ] The tab bar shows Live, Library (only for a server with libraries) and Settings; a Top Shelf channel opens on Live from any tab.
+- [ ] The tab bar shows Live, Library (only for a server with libraries), Recordings (only for a server that records) and Settings; a Top Shelf channel opens on Live from any tab. Leave the app from Library and start it again: it opens on Library.
 - [ ] In the Library, a card opens its page, play/pause on the remote plays a movie or episode straight from its card, and a library's grid sorts, filters and loads more as it scrolls.
 - [ ] A show's page opens on the season with the next episode; selecting an episode plays it, resuming where it stopped, and its context menu starts it over or marks it watched.
 - [ ] The library player resumes where the item stopped, scrubs in the transport bar, returns to the page at the end, and after Home and back picks up where it was.
 - [ ] Holding the touch surface on a channel opens its program details, and Watch plays it.
 - [ ] The player's transport bar menu toggles the favorite and switches channels from Recent, Favorites and All channels.
 - [ ] After watching a few channels, the Top Shelf shows them newest first, and selecting one opens the app on it; the app and the extension must be signed with the `group.dev.jamesrich.sofaking` app group for the list to reach the extension.
+
+### Over adb
+
+Focus, keys and playback can be probed from a computer connected to the TV with `adb`:
+
+- Send remote keys with `adb shell input keyevent`, by name: `KEYCODE_DPAD_DOWN`, `KEYCODE_DPAD_CENTER`, `KEYCODE_BACK`, `KEYCODE_GUIDE`.
+- Find what has focus in `adb shell uiautomator dump` (the node with `focused="true"`), or with Google's `android` command-line tool, `android layout --flat`, which prints the screen's nodes as JSON with their `FOCUSED` state and center coordinates.
+- Read the app's log with `adb logcat -s SofaKing`; the CLI has no logcat command.
+- `adb exec-out screencap -p` captures the interface, but on some TVs the video is black in it, so judge playback from the log and the media session's playback state in `adb shell dumpsys media_session`, and sound from `adb shell dumpsys audio`.
+
+`android layout` installs a helper app, `com.android.cli.interact.instrumentation`, and leaves it running, which kills `uiautomator dump`. Stop it before using `uiautomator` again:
+
+```sh
+adb shell am force-stop com.android.cli.interact.instrumentation
+```
+
+On an emulator image with Play Protect, the helper's install waits for verification and `android layout` hangs with no timeout. Turn off the verification of `adb` installs first:
+
+```sh
+adb shell settings put global verifier_verify_adb_installs 0
+```
+
+The CLI's `android docs search` and `android docs fetch` answer from the Android developer documentation, including its TV pages. Its `input key` takes only numeric key codes, so `adb shell input keyevent` stays the way to send keys.
 
 ## Baseline Profile
 

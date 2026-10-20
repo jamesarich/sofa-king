@@ -43,6 +43,7 @@ class ServerAddressTest {
     fun `other schemes and a scheme without a host are rejected`() {
         assertNull(ServerAddress.normalizeUrl("ftp://host"))
         assertNull(ServerAddress.normalizeUrl("http://"))
+        assertNull(ServerAddress.normalizeUrl("https:///"))
         assertNull(ServerAddress.normalizeUrl("http:///api"))
     }
 

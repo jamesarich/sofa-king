@@ -22,9 +22,11 @@ object ServerAddress {
     fun normalizeUrl(raw: String): String? {
         val typed = raw.trim().trimEnd('/')
         if (typed.isEmpty()) return null
+        // Read before the slashes are trimmed, so `http://` alone stays a scheme without a host.
+        val bare = "://" !in raw
         // An IPv6 literal needs its brackets before a port can follow it.
-        if ("://" !in typed && !typed.startsWith('[') && typed.count { it == ':' } > 1) return null
-        val trimmed = if ("://" in typed) typed else "http://$typed" + if (hasPort(typed)) "" else ":$DEFAULT_PORT"
+        if (bare && !typed.startsWith('[') && typed.count { it == ':' } > 1) return null
+        val trimmed = if (!bare) typed else "http://$typed" + if (hasPort(typed)) "" else ":$DEFAULT_PORT"
         if (trimmed.any { it.isISOControl() || it in ILLEGAL }) return null
         // Nothing after the host and port: the trailing slash is gone, so any slash left is a path (or an empty host).
         if ('/' in trimmed.substringAfter("://", "")) return null

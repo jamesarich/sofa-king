@@ -160,7 +160,7 @@ class BackendStore internal constructor(
         writeHealth { changed ->
             val key = "feed:${snapshot.providerId}"
             Metadata.upsert { it[Metadata.key] = key; it[value] = encoded }
-            OfferingHealth.batchInsert(snapshot.offerings, ignore = true) { offering ->
+            OfferingHealth.batchInsert(snapshot.offerings, ignore = true, shouldReturnGeneratedValues = false) { offering ->
                 this[OfferingHealth.offeringId] = offering.id
                 this[OfferingHealth.stateJson] = initial
                 this[OfferingHealth.updatedAt] = snapshot.importedAt

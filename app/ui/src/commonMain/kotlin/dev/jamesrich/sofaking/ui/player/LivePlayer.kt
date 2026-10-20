@@ -90,6 +90,31 @@ interface MediaSessionHandle : AutoCloseable {
 }
 
 /**
+ * A player's one system media session, held by the newest [open]. Two pages can hold it for a moment (Up next
+ * replaces the page while the pages cross-fade), so opening closes the older handle's session first, and that
+ * handle's publish and close then do nothing. Called on the main thread, as the screens' lifecycle effects run.
+ */
+internal class NewestMediaSession(private val openSession: (onZapStep: (Int) -> Unit) -> MediaSessionHandle) {
+    private var newest: MediaSessionHandle? = null
+
+    fun open(onZapStep: (Int) -> Unit): MediaSessionHandle {
+        newest?.close()
+        val session = openSession(onZapStep)
+        return object : MediaSessionHandle {
+            override fun publish(nowPlaying: NowPlaying) {
+                if (newest === this) session.publish(nowPlaying)
+            }
+
+            override fun close() {
+                if (newest !== this) return
+                newest = null
+                session.close()
+            }
+        }.also { newest = it }
+    }
+}
+
+/**
  * The app's one live player, shared by the guide preview and the full screen so OK on the previewed channel
  * continues its stream. Each platform plays the server's HLS or MPEG-TS with its own engine: Media3 on Android,
  * libVLC on desktops, AVPlayer on iOS, a video element on the web. Items are tagged with their channel id and

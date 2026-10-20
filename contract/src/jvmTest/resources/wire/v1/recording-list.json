@@ -1,0 +1,42 @@
+{
+    "recordings": [
+        {
+            "id": "kept",
+            "channelId": "197acdc3-6d6e-42ec-948e-ae3db4a4e83f",
+            "channelName": "Live",
+            "title": "Evening News",
+            "episodeTitle": "Late Edition",
+            "description": "The day's headlines.",
+            "season": 3,
+            "episode": 12,
+            "movie": false,
+            "year": 2026,
+            "image": "/logos/news",
+            "startsAt": "2026-10-19T02:19:10Z",
+            "endsAt": "2026-10-19T02:49:10Z",
+            "startPaddingSeconds": 60,
+            "endPaddingSeconds": 120,
+            "state": "completed",
+            "reason": "STOPPED",
+            "ruleId": "813058e9-8c6d-4966-b3a3-1e9a3ece54d0",
+            "path": "TV/Evening News/Season 03/Evening News - S03E12 - Late Edition.ts",
+            "bytes": 18800,
+            "protected": true,
+            "conflict": false,
+            "positionMs": 60000,
+            "watched": true,
+            "commercials": "done",
+            "breaks": [
+                {
+                    "startMs": 1000,
+                    "endMs": 2500
+                }
+            ]
+        }
+    ],
+    "storage": {
+        "freeBytes": 107374182400,
+        "totalBytes": 536870912000,
+        "usedBytes": 18800
+    }
+}

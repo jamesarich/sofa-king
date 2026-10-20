@@ -22,7 +22,7 @@ Then build and test:
 ./gradlew :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
 ```
 
-Unit tests cover the API client, catalog and guide mapping, the server connection's bootstrap backoff and server changes, the playback session lifecycle, cache, settings, captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against Ktor's `MockEngine` in common code on every target, and against MockWebServer on the JVM where a real socket matters, so no server is needed. `RenderSmokeTest` draws the guide, settings, the settings lock page, the player's info bar and its channel list headless at TV size and writes them to `ui/build/screenshots`.
+Unit tests cover the API client, catalog and guide mapping, the server connection's bootstrap backoff and server changes, the playback session lifecycle, cache, settings, captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against Ktor's `MockEngine` in common code on every target, and against MockWebServer on the JVM where a real socket matters, so no server is needed. Screen tests in `ui`'s `jvmTest` drive the composables with Compose's ui-test (`runSkikoComposeUiTest`), pressing keys and finding nodes by semantics on a virtual clock. `RenderSmokeTest` draws the guide, settings, the settings lock page, the player's info bar and its channel list headless at TV size and writes them to `ui/build/screenshots`.
 
 ## Code
 

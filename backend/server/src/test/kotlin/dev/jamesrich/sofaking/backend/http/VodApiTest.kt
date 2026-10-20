@@ -113,6 +113,8 @@ class VodApiTest {
             runtime.vod!!.expire()
             assertEquals(HttpStatusCode.Gone, client.get("/api/v1/vod-sessions/${converted.id}") { bearerAuth(token) }.status)
             assertFalse(Files.exists(dir.resolve("transcode/${converted.id}")), "its files are deleted")
+            val transcoding = ProcessHandle.current().children().filter { child -> child.info().arguments().orElse(emptyArray()).any { it.startsWith(dir.toString()) } }.count()
+            assertEquals(0, transcoding, "no FFmpeg outlives its session")
             assertEquals(HttpStatusCode.NotFound, client.post("/api/v1/vod-sessions") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"itemId":"nope"}""")
             }.status)

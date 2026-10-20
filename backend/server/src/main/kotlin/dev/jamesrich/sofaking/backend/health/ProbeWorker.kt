@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.health
 
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.Offering
+import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.store.BackendStore
@@ -247,13 +248,10 @@ class ProbeWorker(
         withContext(Dispatchers.IO) {
             val output = Files.createTempFile("sofa-probe-", ".progress")
             val errors = Files.createTempFile("sofa-probe-", ".errors")
-            var process: Process? = null
             try {
                 val command = decodeCommand(ffmpeg, offering, headers, config.decodeSeconds, recheck)
-                process = ProcessBuilder(command).redirectOutput(output.toFile()).redirectError(errors.toFile()).start()
-                val owned = process
-                val exited = withTimeoutOrNull(config.deadlineSeconds.seconds) { owned.onExit().await() } != null
-                if (!exited) {
+                val exit = ProcessBuilder(command).redirectOutput(output.toFile()).redirectError(errors.toFile()).runFor(config.deadlineSeconds.seconds)
+                if (exit == null) {
                     FailureClass.PROVIDER
                 } else {
                     val progress = Files.readString(output)
@@ -261,26 +259,15 @@ class ProbeWorker(
                     val micros = OUT_TIME_LINE.findAll(progress).lastOrNull()?.groupValues?.get(1)?.toLongOrNull() ?: 0
                     // FFmpeg 6 reports no frame count when copying, so a recheck stands on the output time alone.
                     val enoughFrames = recheck || frames >= config.decodeSeconds
-                    if (owned.exitValue() == 0 && enoughFrames && micros >= (config.decodeSeconds - 1) * 1_000_000L) {
+                    if (exit == 0 && enoughFrames && micros >= (config.decodeSeconds - 1) * 1_000_000L) {
                         null
                     } else {
                         classify(Files.newInputStream(errors).use { it.readNBytes(8192).toString(Charsets.UTF_8) })
                     }
                 }
-            } catch (e: CancellationException) {
-                throw e
             } catch (_: java.io.IOException) {
                 FailureClass.LOCAL
             } finally {
-                process?.let {
-                    it.destroy()
-                    withContext(NonCancellable) {
-                        if (withTimeoutOrNull(2.seconds) { it.onExit().await() } == null) {
-                            it.destroyForcibly()
-                            withTimeoutOrNull(2.seconds) { it.onExit().await() }
-                        }
-                    }
-                }
                 Files.deleteIfExists(output)
                 Files.deleteIfExists(errors)
             }

@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -149,7 +153,7 @@ private fun GroupRow(group: ChannelGroup, expanded: Boolean, onShownChange: (Boo
             onCheckedChange = onShownChange,
         )
         SofaButton(onClick = { onExpandedChange(!expanded) }, modifier = Modifier.semantics { contentDescription = toggleLabel }) {
-            Text(if (expanded) "▲" else "▼")
+            Icon(if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, null)
         }
     }
 }
@@ -167,8 +171,8 @@ private fun FavoriteOrderRow(channel: Channel, canMoveUp: Boolean, canMoveDown: 
     ) {
         ChannelLogo(channel, 64.dp, 40.dp)
         Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-        SofaButton(onClick = { onMove(-1) }, enabled = canMoveUp, modifier = Modifier.semantics { contentDescription = upLabel }) { Text("▲") }
-        SofaButton(onClick = { onMove(1) }, enabled = canMoveDown, modifier = Modifier.semantics { contentDescription = downLabel }) { Text("▼") }
+        SofaButton(onClick = { onMove(-1) }, enabled = canMoveUp, modifier = Modifier.semantics { contentDescription = upLabel }) { Icon(Icons.Filled.KeyboardArrowUp, null) }
+        SofaButton(onClick = { onMove(1) }, enabled = canMoveDown, modifier = Modifier.semantics { contentDescription = downLabel }) { Icon(Icons.Filled.KeyboardArrowDown, null) }
     }
 }
 

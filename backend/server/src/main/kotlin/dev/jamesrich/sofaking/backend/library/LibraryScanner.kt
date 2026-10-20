@@ -24,7 +24,7 @@ private const val MAX_DEPTH = 10
 /** One video file found under a library folder; [relative] uses `/` on every platform. */
 internal data class FoundFile(val relative: String, val size: Long, val modifiedAt: String)
 
-/** What a scan decided: rows to write whole, ids newly missing, ids gone long enough to delete. */
+/** What a scan decided: rows new or changed since the last scan to write whole, ids newly missing, ids gone long enough to delete. */
 class ScanPlan(val save: List<LibraryItemRecord>, val missing: List<String>, val delete: List<String>, val result: ScanResult)
 
 /** The stable id of the item [key] in library [libraryId]: the same on every scan and every server. */
@@ -86,7 +86,8 @@ class LibraryScanner(
         val gone = existing.filter { it.id !in seen }
         val missing = gone.filter { it.missingSince == null }.map { it.id }
         val delete = gone.filter { old -> old.missingSince?.let { Duration.between(Instant.parse(it), now) >= missingGrace } == true }.map { it.id }
-        return ScanPlan(saved, missing, delete, ScanResult(added.get(), updated.get(), missing.count { byId[it]?.path != null }, delete.size, files.size))
+        // An unchanged row is not rewritten, so a rescan of a big library is not one long write on the database's only thread.
+        return ScanPlan(saved.filter { it != byId[it.id] }, missing, delete, ScanResult(added.get(), updated.get(), missing.count { byId[it]?.path != null }, delete.size, files.size))
     }
 
     /** Every video under [root] with its size and change time, or null when [root] is not a readable folder. */

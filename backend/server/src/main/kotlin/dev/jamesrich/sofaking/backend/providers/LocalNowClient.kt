@@ -112,8 +112,7 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
         private val NEXT_DATA = Regex("""<script id="__NEXT_DATA__"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
         private val RUNTIME_LIFETIME = Duration.ofHours(12)
         private val URL_LIFETIME = Duration.ofHours(1)
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
-        private val STREAM_HEADERS = mapOf("User-Agent" to USER_AGENT, "Origin" to "https://localnow.com", "Referer" to "https://localnow.com/")
+        private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Origin" to "https://localnow.com", "Referer" to "https://localnow.com/")
         private val PAGE_HEADERS = STREAM_HEADERS + ("Accept" to "text/html,application/xhtml+xml,*/*;q=0.8")
     }
 }

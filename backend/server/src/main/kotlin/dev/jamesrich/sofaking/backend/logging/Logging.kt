@@ -10,6 +10,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.ConsoleAppender
 import ch.qos.logback.core.OutputStreamAppender
 import ch.qos.logback.core.encoder.Encoder
+import ch.qos.logback.core.filter.Filter
+import ch.qos.logback.core.spi.FilterReply
 import ch.qos.logback.core.spi.ContextAwareBase
 import java.io.OutputStream
 
@@ -53,24 +55,40 @@ fun configureLogging(context: LoggerContext, settings: LogSettings, stream: Outp
     encoder.context = context
     encoder.start()
     // A console appender leaves System.err open when the context stops; a plain stream appender would close it.
+    val level = Level.toLevel(settings.level, Level.INFO)
+    val threshold = Threshold(level).apply { this.context = context; start() }
+    context.putObject(THRESHOLD, threshold)
     val appender = (if (stream == null) ConsoleAppender<ILoggingEvent>().apply { target = "System.err" } else OutputStreamAppender<ILoggingEvent>().apply { outputStream = stream }).apply {
         this.context = context
         name = settings.format
         this.encoder = encoder
+        addFilter(threshold)
         start()
     }
     context.getLogger(Logger.ROOT_LOGGER_NAME).apply {
-        level = Level.toLevel(settings.level, Level.INFO)
+        // The level filters stderr; the root stays at INFO or finer, so the portal's Events page, which reads the same
+        // lines from memory, keeps INFO and above whatever the level.
+        this.level = rootLevel(level)
         addAppender(appender)
-        // The portal's Events page reads the same lines from memory, INFO and above whatever the level.
         if (ring != null) addAppender(RingAppender(ring).apply { this.context = context; name = "ring"; start() })
     }
 }
 
-/** Sets the root logger's level to [level] (one of [LogSettings.LEVELS]) on the running logback context. */
+private const val THRESHOLD = "sofa.logThreshold"
+
+private fun rootLevel(level: Level): Level = if (level.isGreaterOrEqual(Level.INFO)) Level.INFO else level
+
+/** Passes the events at [level] and above to stderr; the level the operator sets changes it at run time. */
+private class Threshold(@Volatile var level: Level) : Filter<ILoggingEvent>() {
+    override fun decide(event: ILoggingEvent): FilterReply = if (event.level.isGreaterOrEqual(level)) FilterReply.NEUTRAL else FilterReply.DENY
+}
+
+/** Sets the stderr level to [level] (one of [LogSettings.LEVELS]) on the running logback context. */
 fun applyLogLevel(level: String) {
     val context = org.slf4j.LoggerFactory.getILoggerFactory() as? LoggerContext ?: return
-    context.getLogger(Logger.ROOT_LOGGER_NAME).level = Level.toLevel(level, Level.INFO)
+    val parsed = Level.toLevel(level, Level.INFO)
+    (context.getObject(THRESHOLD) as? Threshold)?.level = parsed
+    context.getLogger(Logger.ROOT_LOGGER_NAME).level = rootLevel(parsed)
 }
 
 /**

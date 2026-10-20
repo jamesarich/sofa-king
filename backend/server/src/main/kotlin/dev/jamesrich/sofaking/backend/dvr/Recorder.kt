@@ -4,6 +4,8 @@ import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
+import dev.jamesrich.sofaking.backend.io.startOwned
+import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.TsFanout
 import dev.jamesrich.sofaking.backend.playback.UpstreamProtocolException
@@ -79,7 +81,7 @@ class Recorder internal constructor(
      * attempt and the next one reopens, never the whole recording.
      */
     private suspend fun attempt(channelId: String, file: Path, until: Instant): String? {
-        val session = sessions.openExternal(channelId, CLIENT)
+        val session = sessions.openExternal(channelId, CLIENT, shareable = false)
         try {
             return try {
                 coroutineScope {
@@ -104,10 +106,7 @@ class Recorder internal constructor(
         if (shared != null && offering.protocol == "mpegts") copyShared(shared, offering, stream, file, until, sessions.bytesOf(sessionId))?.let { return it.ifEmpty { null } }
         val command = remuxCommand(ffmpeg, stream.url, stream.headers.takeIf(::probeHeadersSafe).orEmpty())
         val bytes = sessions.bytesOf(sessionId)
-        val (errors, process) = withContext(Dispatchers.IO) {
-            val errors = Files.createTempFile("sofa-record-", ".log")
-            errors to ProcessBuilder(command).redirectError(errors.toFile()).start()
-        }
+        val process = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
         var written = 0L
         try {
             coroutineScope {
@@ -131,11 +130,7 @@ class Recorder internal constructor(
                 deadline.cancel()
             }
         } finally {
-            withContext(NonCancellable + Dispatchers.IO) {
-                process.destroy()
-                if (withTimeoutOrNull(2.seconds) { process.onExit().await() } == null) process.destroyForcibly()
-                Files.deleteIfExists(errors)
-            }
+            process.terminate()
         }
         return if (written == 0L) "NO_MEDIA" else null
     }

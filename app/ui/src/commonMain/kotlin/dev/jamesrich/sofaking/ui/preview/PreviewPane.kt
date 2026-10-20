@@ -56,7 +56,6 @@ import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
-import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlin.time.Instant
@@ -256,7 +255,7 @@ internal fun PreviewVideo(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 SofaLoader(size = 16.dp)
-                Text(stringResource(Res.string.tuning), style = MaterialTheme.typography.labelLarge, color = SofaDusk)
+                Text(stringResource(Res.string.tuning), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onBackground)
             }
         }
     }

@@ -92,8 +92,7 @@ class RokuClient(private val context: ProviderContext) : ProviderClient {
         private val SESSION_LIFETIME = Duration.ofMinutes(55)
         private val PLAY_ID_LIFETIME = Duration.ofHours(6)
         private val URL_LIFETIME = Duration.ofHours(5)
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
-        private val STREAM_HEADERS = mapOf("User-Agent" to USER_AGENT)
+        private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT)
         private val PAGE_HEADERS = STREAM_HEADERS + ("Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
         private val MIRROR_HEADERS = mapOf("User-Agent" to "okhttp/4.12.0")
     }

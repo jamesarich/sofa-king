@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.io.atomicWrite
+import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.logos.LogoCache
 import io.ktor.client.HttpClient
 import io.ktor.client.request.prepareGet
@@ -12,6 +13,7 @@ import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -27,6 +29,7 @@ private const val FRAME_SECONDS = 30L
 
 /** A TMDB image path as its API returns one: a slash, then letters, digits, `_` or `-`, and an image extension. */
 private val TMDB_IMAGE_PATH = Regex("""/[A-Za-z0-9_-]{1,128}\.(jpg|jpeg|png|webp)""")
+private val TMDB_IMAGE_SIZE = Regex("w[0-9]{2,4}|original")
 
 /** An image ready to serve: the file and its type. */
 class Artwork(val file: Path, val contentType: String)
@@ -73,8 +76,7 @@ class LibraryArtwork(
                         "-map", "0:v:0", "-frames:v", "1", "-vf", "scale=640:-2", "-q:v", "4", partial.toString(),
                     )
                     val made = try {
-                        val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
-                        if (!process.waitFor(FRAME_SECONDS, java.util.concurrent.TimeUnit.SECONDS)) { process.destroyForcibly(); false } else process.exitValue() == 0
+                        ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(FRAME_SECONDS.seconds) == 0
                     } catch (_: java.io.IOException) {
                         false
                     }
@@ -100,7 +102,7 @@ class LibraryArtwork(
     }
 
     private suspend fun tmdb(source: ArtSource.Tmdb): Artwork? {
-        if (http == null || !TMDB_IMAGE_PATH.matches(source.path) || !source.size.matches(Regex("w[0-9]{2,4}|original"))) return null
+        if (http == null || !TMDB_IMAGE_PATH.matches(source.path) || !source.size.matches(TMDB_IMAGE_SIZE)) return null
         val type = typeOf(source.path) ?: return null
         val key = hash("${source.size}${source.path}")
         val file = directory.resolve(key)

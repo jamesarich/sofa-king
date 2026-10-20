@@ -4,6 +4,12 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 
 /**
  * The fixtures under `wire/` are real server responses, frozen per API version; the server's tests check that it
@@ -32,6 +38,41 @@ class WireFixturesTest {
         val vod = client.decodeFromString<VodSession>(fixture("v1/vod-session.json"))
         assertEquals(Wire.VodMode.REMUX, vod.mode)
         assertEquals(2000, vod.startMs)
+        val recordings = client.decodeFromString<RecordingList>(fixture("v1/recording-list.json"))
+        assertEquals(listOf(RecordingBreak(1000, 2500)), recordings.recordings.single().breaks)
+        assertEquals(Wire.RecordingState.COMPLETED, recordings.recordings.single().state)
+        assertEquals(5, client.decodeFromString<RecordingRuleList>(fixture("v1/recording-rule-list.json")).rules.single().keep)
+        assertEquals(Wire.LibraryKind.SHOWS, client.decodeFromString<List<Library>>(fixture("v1/libraries.json")).single().kind)
+        val item = client.decodeFromString<LibraryItem>(fixture("v1/library-item.json"))
+        assertEquals(2, item.episodeEnd)
+        assertEquals(600000, item.playState?.positionMs)
+    }
+
+    /**
+     * The full fixtures hold a value in every field, so the server's check types each one rather than only finding it
+     * present; they decode with no unknown field. A field added later is absent from them, which the rules allow.
+     */
+    @Test
+    fun `the full recording, rule and library item fixtures hold no nulls and no unknown fields`() {
+        val strict = Json { explicitNulls = false }
+        fun nulls(element: JsonElement): Set<String> = (element as JsonObject).filterValues { it is JsonNull }.keys
+
+        val recordings = Json.parseToJsonElement(fixture("v1/recording-list.json")).jsonObject
+        strict.decodeFromJsonElement<RecordingList>(recordings)
+        val recording = recordings["recordings"]!!.jsonArray.single()
+        assertEquals(emptySet(), nulls(recording))
+        assertEquals(emptySet(), nulls(recording.jsonObject["breaks"]!!.jsonArray.single()))
+        assertEquals(emptySet(), nulls(recordings["storage"]!!))
+
+        val rules = Json.parseToJsonElement(fixture("v1/recording-rule-list.json"))
+        strict.decodeFromJsonElement<RecordingRuleList>(rules)
+        assertEquals(emptySet(), nulls(rules.jsonObject["rules"]!!.jsonArray.single()))
+
+        val item = Json.parseToJsonElement(fixture("v1/library-item.json"))
+        strict.decodeFromJsonElement<LibraryItem>(item)
+        assertEquals(emptySet(), nulls(item))
+        assertEquals(emptySet(), nulls(item.jsonObject["playState"]!!))
+        strict.decodeFromJsonElement<List<Library>>(Json.parseToJsonElement(fixture("v1/libraries.json")))
     }
 
     @Test

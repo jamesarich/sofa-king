@@ -15,8 +15,7 @@ suspend fun BackendStore.recordingRule(id: String): StoredRule? = query { Record
 
 /** Inserts or replaces [rule]. */
 suspend fun BackendStore.saveRecordingRule(rule: StoredRule) = query {
-    RecordingRules.deleteWhere { RecordingRules.id eq rule.id }
-    RecordingRules.insert {
+    RecordingRules.upsert {
         it[id] = rule.id
         it[title] = rule.title
         it[channelId] = rule.channelId

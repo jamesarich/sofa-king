@@ -11,6 +11,9 @@ import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
 import org.jetbrains.compose.resources.stringResource
 import java.io.File
+import java.net.InetAddress
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 import androidx.compose.runtime.LaunchedEffect
 import java.awt.Dimension
 
@@ -32,7 +35,19 @@ fun main() {
 
 /** This computer's name, for the server's Devices page; the user name when the OS has none. */
 private fun hostName(): String =
-    runCatching { java.net.InetAddress.getLocalHost().hostName }.getOrNull()?.takeIf { it.isNotBlank() } ?: System.getProperty("user.name").orEmpty()
+    sequenceOf("COMPUTERNAME", "HOSTNAME").firstNotNullOfOrNull { System.getenv(it)?.takeIf(String::isNotBlank) }
+        ?: resolvedHostName()
+        ?: System.getProperty("user.name").orEmpty()
+
+/**
+ * The name the resolver gives this computer, looked up on another thread and given up after [HOST_LOOKUP_MS]: on
+ * macOS, where no variable names the computer, the lookup can stall for seconds before the window opens.
+ */
+private fun resolvedHostName(): String? = runCatching {
+    CompletableFuture.supplyAsync { InetAddress.getLocalHost().hostName }.get(HOST_LOOKUP_MS, TimeUnit.MILLISECONDS)
+}.getOrNull()?.takeIf { it.isNotBlank() }
+
+private const val HOST_LOOKUP_MS = 300L
 
 /** The OS's per-user application data directory: Application Support on macOS, APPDATA on Windows, XDG elsewhere. */
 private fun desktopDataDirectory(): File {

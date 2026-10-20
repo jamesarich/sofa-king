@@ -4,7 +4,7 @@ The API uses JSON under `/api/v1`. All timestamps are UTC instants. The examples
 
 ## Tokens
 
-Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin` take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. On a loopback server with no token, leave the header out. A missing or wrong token answers `401 AUTH_REQUIRED`.
+Send `Authorization: Bearer $SOFA_API_TOKEN` on every `/api/v1` request. Routes under `/api/v1/admin` take `Authorization: Bearer $SOFA_ADMIN_TOKEN` instead when an admin token is configured. On a loopback server with no token, leave the header out; it then answers only requests from the same machine. A missing or wrong token answers `401 AUTH_REQUIRED`.
 
 These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id}/{role}`, `POST /api/v1/pair` (a [pairing code](#pair-a-client) stands in for the token) and the session media URLs under `/media/sessions/` and `/media/vod/`, which work until the session ends or its epoch changes. The HDHomeRun routes take none either and admit clients by address. `/output/*` takes the output token, and the admin portal its own session after the sign-in page. A browser page on another origin can call the API when `SOFA_CORS_ORIGINS` lists its origin. The whole model is in [security](security.md#credentials-and-the-routes-they-open).
 
@@ -406,7 +406,7 @@ Errors contain `code`, `message` and `retryable`:
 | --- | --- |
 | 400 | `INVALID_REQUEST` (a malformed body or path), `INVALID_QUERY` (a guide query or `days` out of range), `INVALID_POLICY` (a policy write that fails validation, with every error in `message`), `INVALID_SOURCES` (a source file write that fails validation) |
 | 401 | `AUTH_REQUIRED` |
-| 403 | `PAIRING_INVALID` (a wrong, spent or expired pairing code) |
+| 403 | `PAIRING_INVALID` (a wrong, spent or expired pairing code), `LOOPBACK_ONLY` (a server with no API token answers only requests from its own machine, see [security](security.md)) |
 | 404 | `CHANNEL_NOT_FOUND`, `SOURCE_NOT_FOUND`, `LINEUP_ENTRY_NOT_FOUND`, `GUIDE_NOT_FOUND`, `PROVIDER_NOT_FOUND`, `RESOURCE_NOT_FOUND` (an unknown route, logo or media resource), `POLICY_NOT_CONFIGURED`, `PLEX_NOT_CONFIGURED`, `VIEWER_NOT_FOUND`, `PROGRAMME_NOT_FOUND`, `RECORDING_NOT_FOUND`, `RULE_NOT_FOUND`, `RECORDING_MISSING` (a recording whose file is gone), `LIBRARY_NOT_FOUND`, `LIBRARIES_NOT_AVAILABLE`, `ITEM_NOT_FOUND`, `ITEM_MISSING` (a library item whose file is gone) |
 | 409 | `RESYNC_REQUIRED`, `IDEMPOTENCY_CONFLICT`, `LINEUP_ENTRY_EXISTS`, `POLICY_CHANGED` (a stale `If-Match` or a policy file changed on disk), `STATION_CONFLICT` (a merge of two stations that both have overrides), `POLICY_EXISTS`, `NO_SOURCES` (a starter policy over an existing policy or no providers), `PROGRAMME_ENDED`, `RECORDING_NOT_READY` (nothing written yet; retryable), `LIBRARY_EXISTS` |
 | 410 | `SESSION_EXPIRED`, `STREAM_CHANGED`, `POLICY_MANAGED` |

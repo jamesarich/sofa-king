@@ -66,9 +66,35 @@ class AuthPathTest {
         val store = openStore(dir)
         try {
             application { backendModule(store, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), apiToken = apiToken, adminToken = adminToken) }
-            for (path in listOf("/api/v1/%2e%2e/channels", "/api/v1/./channels", "/api/v1/%2e/channels", "/api/v1/%2Fchannels", "/api/v1/%2F%2Fchannels")) {
+            for (path in listOf("/api/v1/%2e%2e/channels", "/api/v1/./channels", "/api/v1/%2e/channels", "/api/v1/%2Fchannels", "/api/v1/%2F%2Fchannels", "/api/v1/x%0A2026-10-20%20WARN%20forged", "/api/v1/x%00y")) {
                 assertEquals(HttpStatusCode.BadRequest, raw(path, apiToken).status, "$path")
                 assertEquals(HttpStatusCode.BadRequest, raw(path).status, "no token: $path")
+            }
+        } finally { store.close(); dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `without a token the API answers only this machine, not another site's page, a rebound name or a proxy`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-auth-open-")
+        val store = openStore(dir)
+        try {
+            application {
+                backendModule(store, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), apiToken = null, adminToken = null)
+                routing { post("/api/v1/admin/policy/starter") { call.respondText("written") } }
+            }
+            suspend fun starter(vararg headers: Pair<String, String>) = client.post("/api/v1/admin/policy/starter") { headers.forEach { (name, value) -> header(name, value) } }
+            assertEquals("written", starter().bodyAsText())
+            assertEquals("written", starter(HttpHeaders.Host to "127.0.0.1:8080").bodyAsText())
+            assertEquals("written", starter(HttpHeaders.Host to "[::1]:8080", HttpHeaders.Origin to "http://localhost:8081").bodyAsText())
+            for (refused in listOf(
+                arrayOf(HttpHeaders.Origin to "https://attacker.test"),
+                arrayOf(HttpHeaders.Origin to "null"),
+                arrayOf(HttpHeaders.Host to "rebound.attacker.test:8080"),
+                arrayOf(HttpHeaders.XForwardedFor to "203.0.113.9"),
+                arrayOf(HttpHeaders.Forwarded to "for=203.0.113.9"),
+            )) {
+                val response = starter(*refused)
+                assertEquals(HttpStatusCode.Forbidden, response.status, refused.joinToString())
+                assertTrue("LOOPBACK_ONLY" in response.bodyAsText())
             }
         } finally { store.close(); dir.toFile().deleteRecursively() }
     }

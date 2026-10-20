@@ -1,9 +1,7 @@
 package dev.jamesrich.sofaking
 
 import android.app.Application
-import android.app.UiModeManager
 import android.content.Intent
-import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
@@ -17,13 +15,13 @@ import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.data.parsePairingLink
+import dev.jamesrich.sofaking.ui.isTelevision
 
 /** Starts the shared graph once per process, over the files directory the app has always used. */
 class SofaKingApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        val television = (getSystemService(UI_MODE_SERVICE) as UiModeManager).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
-        val client = ClientInfo(platform = if (television) "android-tv" else "android", deviceName = Build.MODEL)
+        val client = ClientInfo(platform = if (isTelevision()) "android-tv" else "android", deviceName = Build.MODEL)
         initSofaKing(AppStorage.inDirectory(filesDir.absolutePath, client))
     }
 }

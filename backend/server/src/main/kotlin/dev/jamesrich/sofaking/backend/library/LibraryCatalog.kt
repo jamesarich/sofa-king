@@ -21,6 +21,7 @@ import dev.jamesrich.sofaking.contract.Wire
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -94,8 +95,14 @@ internal class Snapshot(
         .thenByDescending { view -> newestFile(view) }
         .thenBy { it.record.sortTitle }
 
-    private fun newestFile(view: View): Instant? =
-        (episodes[view.record.id] ?: listOf(view)).mapNotNull { it.record.modifiedAt?.let { at -> runCatching { Instant.parse(at) }.getOrNull() } }.maxOrNull()
+    private val newestFiles = HashMap<String, Instant?>()
+
+    /** Read once per snapshot, as the sort asks for it many times per item. */
+    private fun newestFile(view: View): Instant? = synchronized(newestFiles) {
+        newestFiles.getOrPut(view.record.id) {
+            (episodes[view.record.id] ?: listOf(view)).mapNotNull { it.record.modifiedAt?.let { at -> runCatching { Instant.parse(at) }.getOrNull() } }.maxOrNull()
+        }
+    }
 }
 
 /**
@@ -109,6 +116,9 @@ class LibraryCatalog internal constructor(
     private val revision: () -> Long,
 ) {
     @Volatile private var snapshot: Snapshot? = null
+    /** The watch state, read again only after a library change or one of this catalog's own writes, so browsing reads no table. */
+    @Volatile private var states: Pair<Pair<Long, Long>, Map<String, PlayStateRecord>>? = null
+    private val stateWrites = AtomicLong()
     private val building = Mutex()
     private val writing = Mutex()
 
@@ -120,6 +130,13 @@ class LibraryCatalog internal constructor(
         }
     }
 
+    private suspend fun playStates(): Map<String, PlayStateRecord> {
+        // Taken before the read, so a write while it runs leaves this copy stale for the next caller to replace.
+        val wanted = revision() to stateWrites.get()
+        states?.takeIf { it.first == wanted }?.let { return it.second }
+        return store.playStates().also { states = wanted to it }
+    }
+
     suspend fun libraries(): List<Library> {
         val snapshot = snapshot()
         return snapshot.libraries.map { Library(it.id, it.name, it.kind.wire, snapshot.tops[it.id].orEmpty().size) }
@@ -127,7 +144,7 @@ class LibraryCatalog internal constructor(
 
     suspend fun home(): LibraryHome {
         val snapshot = snapshot()
-        val states = store.playStates()
+        val states = playStates()
         val shelves = ArrayList<LibraryShelf>()
         val continuing = continueWatching(snapshot, states)
         if (continuing.isNotEmpty()) shelves += LibraryShelf(Wire.ShelfId.CONTINUE, "Continue watching", continuing.map { it.out(snapshot, states) })
@@ -146,7 +163,7 @@ class LibraryCatalog internal constructor(
     suspend fun items(libraryId: String, sort: String?, unwatched: Boolean, cursor: String?, limit: Int, genre: String? = null): LibraryPage {
         val snapshot = snapshot()
         if (snapshot.libraries.none { it.id == libraryId }) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
-        val states = store.playStates()
+        val states = playStates()
         val byTitle = compareBy<View>({ it.item.title.let(::sortTitle) }, { it.item.year })
         val order = when (sort ?: "title") {
             "title" -> byTitle
@@ -154,11 +171,14 @@ class LibraryCatalog internal constructor(
             "year" -> compareByDescending<View, Int?>(nullsFirst()) { it.item.year }.then(byTitle)
             "rating" -> compareByDescending<View, Double?>(nullsFirst()) { it.item.rating }.then(byTitle)
             // A show was watched when any of its episodes was; what was never watched follows by title.
-            "watched" -> compareBy<View, Instant?>(nullsLast(reverseOrder())) { view ->
-                (snapshot.episodes[view.record.id]?.map { it.record.id } ?: listOf(view.record.id))
-                    .mapNotNull { id -> states[id]?.updatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } }
-                    .maxOrNull()
-            }.then(byTitle)
+            "watched" -> {
+                val lastWatched = snapshot.tops[libraryId].orEmpty().associate { view ->
+                    view.record.id to (snapshot.episodes[view.record.id]?.map { it.record.id } ?: listOf(view.record.id))
+                        .mapNotNull { id -> states[id]?.updatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() } }
+                        .maxOrNull()
+                }
+                compareBy<View, Instant?>(nullsLast(reverseOrder())) { lastWatched[it.record.id] }.then(byTitle)
+            }
             else -> throw ApiFailure(400, "INVALID_REQUEST", "sort is title, added, year, rating or watched")
         }
         val tops = snapshot.tops[libraryId].orEmpty()
@@ -178,7 +198,7 @@ class LibraryCatalog internal constructor(
     suspend fun item(id: String): LibraryItemDetail {
         val snapshot = snapshot()
         val view = snapshot.views[id] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
-        val states = store.playStates()
+        val states = playStates()
         val media = view.record.media
         // Subtitle files beside the video, read now so a file added since the scan shows.
         val sidecars = snapshot.fileOf(view)?.let { withContext(Dispatchers.IO) { sidecarSubtitles(it) } }.orEmpty()
@@ -199,7 +219,7 @@ class LibraryCatalog internal constructor(
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) throw ApiFailure(400, "INVALID_REQUEST", "q is required")
         val snapshot = snapshot()
-        val states = store.playStates()
+        val states = playStates()
         val matches = snapshot.views.values.filter { needle in it.item.title.lowercase() }
         val (tops, rest) = matches.partition { it.record.parentId == null }
         val credited = snapshot.views.values.filter { view ->
@@ -217,29 +237,34 @@ class LibraryCatalog internal constructor(
     suspend fun updatePlayState(id: String, update: UpdatePlayState): LibraryItem = writing.withLock {
         val snapshot = snapshot()
         val view = snapshot.views[id] ?: throw ApiFailure(404, "ITEM_NOT_FOUND", "No such item")
-        val states = store.playStates()
+        val states = playStates()
         val now = clock.instant().toString()
         val folder = view.record.kind == ItemKind.SHOW || view.record.kind == ItemKind.SEASON
         if (update.positionMs < 0 || (update.durationMs ?: 0) < 0) throw ApiFailure(400, "INVALID_REQUEST", "Positions are not negative")
-        if (folder) {
-            val watched = update.watched ?: throw ApiFailure(400, "INVALID_REQUEST", "A show or season takes watched only")
-            val episodes = if (view.record.kind == ItemKind.SHOW) snapshot.episodes[id].orEmpty() else snapshot.children[id].orEmpty()
-            if (watched) store.savePlayStates(episodes.map { PlayStateRecord(it.record.id, 0, it.record.durationMs, true, now) })
-            else store.savePlayStates(emptyList(), episodes.map { it.record.id })
-        } else {
-            val old = states[id]
-            val duration = update.durationMs ?: view.record.durationMs ?: old?.durationMs
-            val share = if (duration != null && duration > 0) update.positionMs.toDouble() / duration else null
-            val (position, watched) = when {
-                update.watched != null -> 0L to update.watched!!
-                share != null && share >= WATCHED_AT -> 0L to true
-                share != null && share < STARTED_AT -> 0L to (old?.watched ?: false)
-                else -> update.positionMs to (old?.watched ?: false)
+        // Counted even when a write fails partway, so the next read is never served the copy from before it.
+        try {
+            if (folder) {
+                val watched = update.watched ?: throw ApiFailure(400, "INVALID_REQUEST", "A show or season takes watched only")
+                val episodes = if (view.record.kind == ItemKind.SHOW) snapshot.episodes[id].orEmpty() else snapshot.children[id].orEmpty()
+                if (watched) store.savePlayStates(episodes.map { PlayStateRecord(it.record.id, 0, it.record.durationMs, true, now) })
+                else store.savePlayStates(emptyList(), episodes.map { it.record.id })
+            } else {
+                val old = states[id]
+                val duration = update.durationMs ?: view.record.durationMs ?: old?.durationMs
+                val share = if (duration != null && duration > 0) update.positionMs.toDouble() / duration else null
+                val (position, watched) = when {
+                    update.watched != null -> 0L to update.watched!!
+                    share != null && share >= WATCHED_AT -> 0L to true
+                    share != null && share < STARTED_AT -> 0L to (old?.watched ?: false)
+                    else -> update.positionMs to (old?.watched ?: false)
+                }
+                if (position == 0L && !watched) store.savePlayStates(emptyList(), listOf(id))
+                else store.savePlayStates(listOf(PlayStateRecord(id, position, duration, watched, now)))
             }
-            if (position == 0L && !watched) store.savePlayStates(emptyList(), listOf(id))
-            else store.savePlayStates(listOf(PlayStateRecord(id, position, duration, watched, now)))
+        } finally {
+            stateWrites.incrementAndGet()
         }
-        view.out(snapshot, store.playStates())
+        view.out(snapshot, playStates())
     }
 
     private suspend fun build(revision: Long): Snapshot {

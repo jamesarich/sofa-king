@@ -52,4 +52,19 @@ class LoggingTest {
         assertEquals("0123abcd", line["mdc"]?.jsonObject?.get("requestId")?.jsonPrimitive?.content)
         assertNull(line["arguments"], "arguments are not repeated: $line")
     }
+    @Test fun `a quieter level filters stderr while the Events page keeps INFO`() {
+        val ring = EventRing()
+        val out = ByteArrayOutputStream()
+        val context = LoggerContext().apply { mdcAdapter = MDC.getMDCAdapter() }
+        try {
+            configureLogging(context, LogSettings("warn", "text"), out, ring)
+            val log = context.getLogger("dev.jamesrich.sofaking.backend.Test")
+            log.info("kept for the page")
+            log.warn("on both")
+        } finally { context.stop() }
+        val text = out.toString(Charsets.UTF_8)
+        assertFalse("kept for the page" in text, text)
+        assertTrue("on both" in text, text)
+        assertEquals(listOf("on both", "kept for the page"), ring.snapshot().map { it.message })
+    }
 }

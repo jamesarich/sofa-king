@@ -85,7 +85,10 @@ internal class TsFanout(
     @Volatile var reconnects = 0
         private set
 
+    /** Starts reading the source; the first [addReader] must follow within the linger, or the stream stops as if its last reader left. */
     fun start() {
+        // Only the registry, under its lock, has this stream yet, so nothing races the linger set here.
+        linger = scope.launch(CoroutineName("ts-linger")) { delay(config.lingerMillis); stop(null) }
         producer = scope.launch(CoroutineName("ts-fanout")) { produce() }
         keepalive =
             scope.launch(CoroutineName("ts-keepalive")) {

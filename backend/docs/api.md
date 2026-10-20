@@ -224,7 +224,7 @@ The admin API (`/api/v1/admin/lineup`, `/api/v1/admin/candidates`) keeps the sou
 
 ## HDHomeRun emulation
 
-With `SOFA_HDHR_ENABLED` the root serves what a Plex server reads from an HDHomeRun tuner. The server binary enables it by default; `deploy/compose.yaml` disables it unless `deploy/.env` sets `SOFA_HDHR_ENABLED=true`. Nothing here takes a token, because Plex sends none; `SOFA_HDHR_ALLOW` (client IPs or CIDR blocks) answers everyone else `403`. Absolute URLs derive from the request's `Host` header like the player outputs.
+The root serves what a Plex server reads from an HDHomeRun tuner, unless `SOFA_HDHR_ENABLED=false`. Nothing here takes a token, because Plex sends none. Only the addresses in `SOFA_HDHR_ALLOW` and those allowed at run time on the portal's Plex page or through the [admin API](#admin-api) (client IPs or CIDR blocks) get in; everyone else gets `403`, and the server keeps the last ten refused addresses so the portal can offer to allow them. With neither list, a loopback bind admits every address and any other bind admits none. Absolute URLs derive from the request's `Host` header like the player outputs.
 
 | Path | Body |
 | --- | --- |
@@ -269,6 +269,8 @@ JSON only, under `/api/v1/admin`. With `SOFA_ADMIN_TOKEN` set, send that token; 
 | GET | `/api/v1/admin/stations/{key}` | One station key: the station the policy builds, its pins, and every candidate that names the key or joins it, each `taken`, `skipped` or `claimed` with a `reason` |
 | GET | `/api/v1/admin/plex` | The last [Plex sync](live-tv.md#keep-plex-in-step): `syncMinutes`, `lastSyncAt`, `lastCause` (`startup`, `policy`, `interval` or `api`), `lastError`, `dvrs` whose guide it reloaded, `devices` (`deviceId`, `device`, `plexKey`, `dvr`, `mapped`, `added`), `missingDevices` and `findings`. It survives a restart; before any sync, `lastSyncAt` is null. 404 `PLEX_NOT_CONFIGURED` when `SOFA_PLEX_URL` is unset |
 | POST | `/api/v1/admin/plex/sync` | Sync Plex now; returns the same status. A failure is reported in `lastError`, not as an error response |
+| GET | `/api/v1/admin/hdhr/access` | Who may use the tuners: `enabled`, `open` (every address is admitted), `configured` (from `SOFA_HDHR_ALLOW`), `allowed` (from the portal or this API) and `refused`, up to ten addresses refused since the start that are still refused, newest first, each with `address`, `lastAt` and the `path` it asked for |
+| PUT | `/api/v1/admin/hdhr/access` | `{"allowed": ["PLEX_SERVER_IP"]}` replaces the addresses allowed at run time, at most 64 IP literals or CIDR blocks, and returns the same status. It applies at once, without a restart, and is kept in the database; `SOFA_HDHR_ALLOW` still applies beside it. 400 `INVALID_REQUEST` names an entry that does not parse, and nothing changes |
 | GET | `/api/v1/admin/viewers` | Every client that paired or saved preferences, most recently seen first: `clientId`, `name`, `platform`, `firstSeenAt`, `lastSeenAt` and `preferences` (null until the client saves some) |
 | DELETE | `/api/v1/admin/viewers/{clientId}` | Forget a client and its preferences; returns 204. The client keeps working and reappears on its next save |
 | POST | `/api/v1/admin/pairing-codes` | Issue a [pairing code](#pair-a-client): `{"code", "expiresAt"}`, 201. It replaces the live code |
@@ -361,6 +363,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET, POST | `/admin/providers`, `/admin/providers/edit` | Provider entries and their edits |
 | GET, POST | `/admin/groups`, `/admin/groups/edit` | Groups and their edits |
 | GET, POST | `/admin/plex`, `/admin/plex/reveal` | Plex and the device addresses; reveal the output token |
+| POST | `/admin/plex/allow`, `/admin/plex/disallow` | Allow an address onto the tuners, or remove one the portal allowed |
 | GET | `/admin/viewers` | The devices that paired or saved preferences, and the live pairing code with its QR code |
 | POST | `/admin/viewers/pair`, `/admin/viewers/cancel` | Issue a pairing code (replacing the live one); cancel it |
 | POST | `/admin/viewers/{clientId}/forget` | Forget a device and its preferences |

@@ -12,6 +12,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.plugins.origin
+import io.ktor.server.request.path
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
@@ -71,15 +72,14 @@ internal fun deviceShare(enabled: List<LineupEntryRecord>, device: Int, config: 
 
 /**
  * The HDHomeRun a Plex server expects at the root: discovery and lineup JSON, the UPnP description, and one
- * MPEG-TS stream per channel number. Plex sends no credentials, so the only gate is the address allow-list.
+ * MPEG-TS stream per channel number. Plex sends no credentials, so the only gate is [access], the client's address.
  */
-fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentityStore) {
-    val allow = AddressAllowList(config.allow)
+fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentityStore, access: HdhrAccess = runtime.hdhrAccess) {
     val tuners = Array(config.devices) { AtomicInteger() }
     val log = org.slf4j.LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.http.Hdhr")
 
     suspend fun guard(call: ApplicationCall): Boolean {
-        if (allow.allows(call.request.origin.remoteAddress)) return true
+        if (access.admits(call.request.origin.remoteAddress, call.request.path())) return true
         call.respondText("Forbidden", status = HttpStatusCode.Forbidden)
         return false
     }

@@ -53,7 +53,7 @@ sequenceDiagram
     participant Relay as LoopbackRelay
     participant Upstream
     Plex->>Route: GET /auto/v{number}
-    Route->>Route: check SOFA_HDHR_ALLOW and a free tuner
+    Route->>Route: check the allowed addresses and a free tuner
     Route->>Sessions: open an external session for the entry
     Sessions->>Sessions: first eligible source: healthy, then unverified, then suspect
     Note over Sessions: Quarantined, disabled and withdrawn sources are skipped,<br/>so a failing source fails over to the next, from any provider

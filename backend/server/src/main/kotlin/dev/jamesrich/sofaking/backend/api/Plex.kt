@@ -24,3 +24,21 @@ import kotlinx.serialization.Serializable
     val mapped: Int,
     val added: Boolean = false,
 )
+
+/**
+ * Who may reach the HDHomeRun emulation: [configured] from `SOFA_HDHR_ALLOW`, [allowed] from the portal, and the
+ * addresses it refused since the start that are still refused, newest first. [open] is true when every address is admitted.
+ */
+@Serializable data class HdhrAccessStatus(
+    val enabled: Boolean,
+    val open: Boolean,
+    val configured: List<String>,
+    val allowed: List<String>,
+    val refused: List<HdhrRefusedClient> = emptyList(),
+)
+
+/** A client the emulation refused: its address, when it last asked and the path it asked for. */
+@Serializable data class HdhrRefusedClient(val address: String, val lastAt: String, val path: String)
+
+/** The addresses the portal allows, IP literals or CIDR blocks; they replace the saved list. */
+@Serializable data class UpdateHdhrAccess(val allowed: List<String>)

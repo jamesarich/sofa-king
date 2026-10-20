@@ -84,14 +84,9 @@ Plex and M3U players reach the guide and the streams with the output token, `out
 
 ### Plex
 
-Turn on the HDHomeRun emulation for your Plex server, then apply it:
+The server emulates an HDHomeRun tuner, which admits no address until you allow one. On the portal's Plex page, under Tuner access, allow the Plex server's address. If you do not know the address the server sees, add the tuner in Plex first: the Plex page then lists the address it refused, with Allow.
 
-```sh
-printf 'SOFA_HDHR_ENABLED=true\nSOFA_HDHR_ALLOW=PLEX_SERVER_IP\n' >> .env
-docker compose up -d
-```
-
-Then add the tuner at `SERVER_HOST:9193` and the guide at `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` in Plex, with the output token, as steps 2 to 5 of [Plex Live TV](live-tv.md#plex-live-tv) describe. [Keep Plex in step](live-tv.md#keep-plex-in-step) lets the server update Plex's channel maps itself.
+Add the tuner at `SERVER_HOST:9193` and the guide at `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` in Plex, with the output token, as steps 2 to 5 of [Plex Live TV](live-tv.md#plex-live-tv) describe. [Keep Plex in step](live-tv.md#keep-plex-in-step) lets the server update Plex's channel maps itself.
 
 ### The Sofa King app
 

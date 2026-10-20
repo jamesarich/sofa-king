@@ -181,7 +181,7 @@ jobs:
           cache-to: ${{ env.PUBLISH == 'true' && format('type=gha,scope=backend-{0},mode=min', matrix.arch) || '' }}
 
       # The same build again from the builder's cache, loaded into the runner's Docker, so the image runs before main is
-      # tagged. HDHomeRun stays off because the container's 0.0.0.0 bind would need SOFA_HDHR_ALLOW.
+      # tagged.
       - name: Load the image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -198,12 +198,14 @@ jobs:
       - name: Start the image and check its health
         timeout-minutes: 3
         run: |
-          docker run --detach --name sofa-king --publish 127.0.0.1:8080:8080 --env SOFA_HDHR_ENABLED=false sofa-king:check
+          docker run --detach --name sofa-king --publish 127.0.0.1:8080:8080 sofa-king:check
           until curl -fs http://127.0.0.1:8080/readyz > /dev/null; do
             test "$(docker inspect --format '{{.State.Running}}' sofa-king)" = true
             sleep 1
           done
           test "$(curl -fsS http://127.0.0.1:8080/healthz)" = ok
+          # The tuners are on and admit nobody until an address is allowed.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/discover.json)" = 403
           # The image's own health check, run inside the container.
           docker exec sofa-king sh -c 'curl -fsS "http://127.0.0.1:${SOFA_PORT}/readyz"'
           docker stop --timeout 15 sofa-king

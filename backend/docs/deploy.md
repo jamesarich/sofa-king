@@ -17,7 +17,7 @@ docker compose up -d
 
 The server runs without `.env`. Download [`.env.example`](../deploy/.env.example) as `.env` to change any [server setting](live-tv.md#server-settings); every variable in it reaches the server, so `${NAME}` references in `sources.json` resolve from it. Restart after a change with `docker compose up -d`.
 
-The HDHomeRun emulation for Plex stays off until `.env` sets `SOFA_HDHR_ENABLED=true` and names the Plex server in `SOFA_HDHR_ALLOW`, as [Plex Live TV](live-tv.md#plex-live-tv) describes.
+The HDHomeRun emulation for Plex is on, and admits no address until you allow the Plex server's on the portal's Plex page, as [Plex Live TV](live-tv.md#plex-live-tv) describes.
 
 ## The config folder
 
@@ -114,7 +114,7 @@ tv.example.com {
       traefik.http.services.sofa-king.loadbalancer.server.port: "8080"
 ```
 
-Point Plex's HDHomeRun tuner at the published port, not the proxy: `SOFA_HDHR_ALLOW` admits clients by address, and behind a proxy every request comes from the proxy. Keep the proxy on your LAN or VPN, as [security](security.md#intended-deployment) describes.
+Point Plex's HDHomeRun tuner at the published port, not the proxy: the tuners admit clients by address, and behind a proxy every request comes from the proxy. Keep the proxy on your LAN or VPN, as [security](security.md#intended-deployment) describes.
 
 ## Serve the web app
 
@@ -311,7 +311,7 @@ sudo chown -R "$(id -u):$(id -g)" config
 Then:
 
 1. Replace `compose.yaml` with `deploy/compose.yaml`. To keep the address clients already use, change its port line to `"8080:8080"`; otherwise point the Sofa King app, players and Plex at port 9193.
-2. In `.env`, delete any `SOFA_SOURCES` or `SOFA_POLICY` line, set `UID` and `GID` when `id -u` and `id -g` are not 1000, and keep `SOFA_HDHR_ENABLED=true` when Plex uses the tuner. Tokens set in `.env` keep working.
+2. In `.env`, delete any `SOFA_SOURCES` or `SOFA_POLICY` line and set `UID` and `GID` when `id -u` and `id -g` are not 1000. Tokens set in `.env` keep working.
 3. Install the updater as [update automatically](#update-automatically) describes, and delete `backups/failed-image` from the Compose directory if a run recorded the new image there.
 4. Start with `docker compose up -d`. The log names `/config/sources.json` and `/config/policy.json`, and `/api/v1/channels` lists the same lineup.
 5. Start the timer again with `sudo systemctl start sofa-king-update.timer`. Once the server has run well for a while, delete the old volume with `docker volume rm sofa-king-backend_sofa-data`.

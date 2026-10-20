@@ -7,6 +7,7 @@ import dev.jamesrich.sofaking.backend.dvr.Recorder
 import dev.jamesrich.sofaking.backend.dvr.Retention
 import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
+import dev.jamesrich.sofaking.backend.http.HdhrAccess
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.*
@@ -88,6 +89,8 @@ class LiveRuntime(
     val dvr: Dvr? = null,
     /** The loopback relay the remux, the recorder and the probes' FFmpeg read sources through. */
     val loopback: LoopbackRelay = LoopbackRelay(http, feeds.upstream, relay.permits),
+    /** Who may reach the HDHomeRun emulation; the default admits everyone, as a loopback bind with no allow-list does. */
+    val hdhrAccess: HdhrAccess = HdhrAccess(emptyList(), openWhenEmpty = true, store, Clock.systemUTC()),
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -203,6 +206,7 @@ class LiveRuntime(
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, relay, TsRemux(config.ffmpeg, loopback), logos, http, scope,
                     policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart), libraries, vod, dvr, loopback,
+                    HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() },
                 )
                 dvr.start(scope)
                 dvr.requestSchedule("startup")

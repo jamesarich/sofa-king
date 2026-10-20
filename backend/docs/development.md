@@ -37,7 +37,7 @@ You need JDK 21 and FFmpeg. Run the commands from `backend/`:
    server/build/install/server/bin/server
    ```
 
-   On loopback the API needs no token. To serve other machines, set `SOFA_HOST=0.0.0.0`, and either `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` or `SOFA_HDHR_ENABLED=false`: on a LAN bind the server refuses to start without one of them. The first start then generates an API token and an admin token and keeps them in `data/secrets.json`. No token is logged. `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` set your own values instead, of at least 32 characters. The routes each token opens are in [security](security.md#credentials-and-the-routes-they-open).
+   On loopback the API needs no token. To serve other machines, set `SOFA_HOST=0.0.0.0`; the HDHomeRun routes then admit no address until the portal's Plex page or `SOFA_HDHR_ALLOW` allows one. The first start then generates an API token, an admin token and an output token and keeps them in `data/secrets.json`. No token is logged. `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` set your own values instead, of at least 32 characters. The routes each token opens are in [security](security.md#credentials-and-the-routes-they-open).
 
 4. Check the imports. On a LAN bind, `/api/v1/admin/*` takes only the admin token and refuses the API token. The first two lines read both tokens from `data/secrets.json`. On loopback with no tokens, skip them and leave out the headers:
 

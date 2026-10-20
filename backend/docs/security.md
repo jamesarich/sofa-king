@@ -16,7 +16,7 @@ The server is designed for a private network. It has no accounts, no per-user ac
 | Pairing code | `POST /api/v1/pair` body, no bearer | Issued from the portal's Devices page, six digits, valid 10 minutes, one at a time, spent on the first match and voided after five wrong guesses. A match answers with the API token |
 | Output token (`SOFA_OUTPUT_TOKEN`) | `?token=` query or bearer | `/output/*`: the playlist, the guide and the stream URLs |
 | None | | `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id}/{role}`, the admin sign-in page (`GET /admin` and `POST /admin/login`), the portal icon `/admin/static/icon.svg` and its stylesheet `/admin/static/admin.css` |
-| None; client address allow-list | | The HDHomeRun routes (`/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/auto/v{number}`). `SOFA_HDHR_ALLOW` admits the listed addresses and answers everyone else `403` |
+| None; client address allow-list | | The HDHomeRun routes (`/discover.json`, `/lineup.json`, `/lineup_status.json`, `/lineup.post`, `/device.xml`, `/auto/v{number}`). Only the addresses in `SOFA_HDHR_ALLOW` and those an admin allowed on the portal's Plex page get in; everyone else gets `403` |
 | Session URL | | `/media/sessions/{id}/{epoch}/{token}`. `{token}` is random per resource, and the URL stops working when the session ends or its epoch changes |
 | Library playback URL | | `/media/vod/{id}/{epoch}/{secret}/{name}`. `{secret}` is random per session, and the URL serves only that session's file or HLS output until the session ends or its epoch changes |
 
@@ -24,7 +24,7 @@ Notes on the table:
 
 - On a non-loopback bind, an API or admin token that the environment leaves unset is generated: 32 random bytes from the JVM's `SecureRandom`, as 64 hex characters. Both are kept in `secrets.json` in the data directory, created with mode `600`, replaced by an atomic rename and reused on later starts. A token set in the environment, or read from the file its `_FILE` variable names, always wins and is never written there.
 - No token is ever logged. The start that generates the admin token logs the path of `secrets.json` and the command that reads it. A signed-in admin can reveal the API token on the portal's Settings page and the output token on its Plex page, each through a `POST` with the session's CSRF token.
-- On a non-loopback bind with the HDHomeRun emulation enabled, the server refuses to start until `SOFA_HDHR_ALLOW` is set. Set it, or set `SOFA_HDHR_ENABLED=false`. On loopback, an unset allow-list admits every address that reaches the port.
+- On a non-loopback bind, the HDHomeRun routes admit no address until one is allowed, on the portal's Plex page or in `SOFA_HDHR_ALLOW`. The server keeps the last ten refused addresses in memory, for the portal to offer. On loopback, with neither list, every address that reaches the port is admitted.
 - On a loopback bind, a token that is not configured leaves its routes open. With no API token, every `/api/` route is open to this machine only: a request whose `Host` is not a loopback name or address, whose `Origin` is another site, or that carries a proxy's `Forwarded`, `X-Forwarded-For`, `X-Forwarded-Host` or `X-Real-IP` header answers `403 LOOPBACK_ONLY`, so a web page cannot drive the API and a reverse proxy cannot expose it. With neither output nor API token, `/output/*` is open. This is for local development.
 - Tokens are compared in constant time. The API token is never accepted in a query string.
 - A token in a URL lands in player configuration, screenshots and proxy logs. That is why the output token is separate from the API token and opens nothing but `/output/*`.
@@ -56,7 +56,7 @@ Details are in [live TV: upstream addresses and provider headers](live-tv.md#pro
 - Let the server generate the API and admin tokens, or set them to values of at least 32 characters from `openssl rand -hex 32`. Prefer the `_FILE` variables with Docker secrets over plain values in `.env`.
 - The output token is generated at the first start like the others. Rotate it when a playlist URL has been shared further than you meant, as [operations](operations.md#rotating-tokens) describes.
 - Mount the media folder read only (`:ro`), as [media libraries](libraries.md#mount-the-media-folder) shows; the server never writes to it. Pass `SOFA_TMDB_TOKEN` through `SOFA_TMDB_TOKEN_FILE` like the other tokens.
-- Set `SOFA_HDHR_ALLOW` to the address of the Plex server, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
+- Allow only the Plex server's address onto the tuners, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 - Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens, and the source file can hold playlist URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
 - With [automatic updates](deploy.md#update-automatically), the updater's database backups hold the same session tokens as the database. Those in the config folder are readable by the container's user alone, and the fallback backups in the Compose directory by root alone.
 - [Inspect the published image's provenance and SBOM](deploy.md#inspect-the-published-image) before you run it.

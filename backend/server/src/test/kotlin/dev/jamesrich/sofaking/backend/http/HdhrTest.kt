@@ -12,6 +12,7 @@ import io.ktor.http.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.*
 import kotlin.test.*
@@ -95,8 +96,8 @@ class HdhrTest {
             application {
                 routing {
                     route("/open") { hdhrRoutes(runtime, HdhrConfig(), store) }
-                    route("/lan") { hdhrRoutes(runtime, HdhrConfig(allow = listOf("10.0.0.0/8")), store) }
-                    route("/loop") { hdhrRoutes(runtime, HdhrConfig(allow = listOf("127.0.0.1", "::1")), store) }
+                    route("/lan") { hdhrRoutes(runtime, HdhrConfig(), store, HdhrAccess(listOf("10.0.0.0/8"), false, store, MutableClock())) }
+                    route("/loop") { hdhrRoutes(runtime, HdhrConfig(), store, HdhrAccess(listOf("127.0.0.1", "::1"), false, store, MutableClock())) }
                 }
                 backendModule(store, MutableClock(), runtime, token, hdhr = HdhrConfig(enabled = false))
             }
@@ -109,6 +110,62 @@ class HdhrTest {
             assertEquals(HttpStatusCode.OK, client.get("/loop/discover.json").status)
             assertEquals(HttpStatusCode.NotFound, client.get("/discover.json").status)
             assertEquals(HttpStatusCode.NotFound, client.get("/lineup.json").status)
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `a closed bind refuses and remembers the address, and a portal allow admits it at once and survives a restart`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-hdhr-access-")
+        val store = openStore(dir)
+        try {
+            val clock = MutableClock()
+            val access = HdhrAccess(emptyList(), openWhenEmpty = false, store, clock)
+            access.load()
+            assertFalse(access.open)
+            assertFalse(access.admits("192.168.1.20", "/discover.json"))
+            clock.now = clock.now.plusSeconds(5)
+            assertFalse(access.admits("172.17.0.3", "/lineup.json"))
+            assertEquals(listOf("172.17.0.3", "192.168.1.20"), access.refusals().map { it.address }, "newest first")
+            assertEquals("/lineup.json", access.refusals().first().path)
+
+            access.allow("172.17.0.0/16")
+            assertTrue(access.admits("172.17.0.3", "/discover.json"))
+            assertEquals(listOf("192.168.1.20"), access.refusals().map { it.address }, "an allowed address leaves the refused list")
+            assertFailsWith<IllegalArgumentException> { access.allow("plex.lan") }
+            assertEquals(listOf("172.17.0.0/16"), access.allowed, "a bad entry changes nothing")
+
+            val restarted = HdhrAccess(listOf("192.168.1.20"), openWhenEmpty = false, store, clock)
+            restarted.load()
+            assertEquals(listOf("172.17.0.0/16"), restarted.allowed)
+            assertTrue(restarted.admits("192.168.1.20", "/discover.json") && restarted.admits("172.17.9.9", "/discover.json"))
+            restarted.remove("172.17.0.0/16")
+            assertFalse(restarted.admits("172.17.0.3", "/discover.json"))
+            assertTrue(restarted.admits("192.168.1.20", "/discover.json"), "SOFA_HDHR_ALLOW stays")
+
+            val loopback = HdhrAccess(emptyList(), openWhenEmpty = true, store, clock)
+            assertTrue(loopback.open && loopback.admits("192.168.1.20", "/discover.json"))
+        } finally { store.close(); dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `the admin API lists who may use the tuners and replaces the portal's list`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-hdhr-access-api-")
+        val store = openStore(dir)
+        val sources = dir.resolve("sources.json"); Files.writeString(sources, "[]")
+        val runtime = LiveRuntime.create(store, ServerConfig("0.0.0.0", 8080, dir, sources, token), MutableClock(), probes = false)
+        try {
+            application { backendModule(store, MutableClock(), runtime, token) }
+            assertEquals(HttpStatusCode.Forbidden, client.get("/discover.json").status, "a LAN bind with no address admits nobody")
+            val before = Json.decodeFromString<HdhrAccessStatus>(client.get("/api/v1/admin/hdhr/access") { bearerAuth(token) }.bodyAsText())
+            assertFalse(before.open)
+            assertEquals(listOf("/discover.json"), before.refused.map { it.path })
+            val bad = client.put("/api/v1/admin/hdhr/access") { bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"allowed":["plex.lan"]}""") }
+            assertEquals(HttpStatusCode.BadRequest, bad.status)
+            val saved = client.put("/api/v1/admin/hdhr/access") { bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"allowed":["127.0.0.1"]}""") }
+            assertEquals(HttpStatusCode.OK, saved.status)
+            val after = Json.decodeFromString<HdhrAccessStatus>(saved.bodyAsText())
+            assertEquals(listOf("127.0.0.1"), after.allowed)
+            assertEquals(emptyList(), after.refused)
+            assertEquals(HttpStatusCode.OK, client.get("/discover.json").status)
+            assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/admin/hdhr/access").status)
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
     }
 

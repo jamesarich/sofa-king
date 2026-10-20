@@ -37,8 +37,6 @@ services:
       - path: .env
         required: false
     environment:
-      # The HDHomeRun emulation for Plex stays off until .env sets SOFA_HDHR_ENABLED=true with SOFA_HDHR_ALLOW.
-      SOFA_HDHR_ENABLED: ${SOFA_HDHR_ENABLED:-false}
       # Recordings go in their own folder, so they can live on a bigger disk than ./config; see docs/deploy.md#the-recordings-folder.
       SOFA_RECORDINGS_DIR: /recordings
       # Media libraries are added from this folder; uncomment it with the /media mount below. See docs/deploy.md#the-media-folder.

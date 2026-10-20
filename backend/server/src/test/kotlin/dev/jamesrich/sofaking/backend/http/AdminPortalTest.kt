@@ -250,6 +250,32 @@ class AdminPortalTest {
         }
     }
 
+    @Test fun `the Plex page allows and removes tuner addresses, and lists the ones refused`() = testApplication {
+        portal {
+            browser.signIn()
+            val open = browser.get("/admin/plex").bodyAsText()
+            assertTrue(open.contains("Every address may use the tuners"), "a loopback bind with no address is open")
+            val csrf = field(open, "csrf")
+
+            assertEquals(HttpStatusCode.SeeOther, browser.post("/admin/plex/allow", "csrf" to csrf, "address" to "10.0.0.0/8").status)
+            val closed = browser.get("/admin/plex").bodyAsText()
+            assertTrue(closed.contains("Allowed 10.0.0.0/8") && closed.contains("Remove 10.0.0.0/8"))
+            assertEquals(HttpStatusCode.Forbidden, client.get("/discover.json").status)
+            assertTrue(browser.get("/admin/plex").bodyAsText().contains("Addresses refused since the server started"))
+            assertTrue(browser.get("/admin").bodyAsText().contains("The tuners refused 1 address"))
+
+            browser.post("/admin/plex/allow", "csrf" to csrf, "address" to "plex.lan")
+            assertTrue(browser.get("/admin/plex").bodyAsText().contains("Not allowed: Not an IP address or CIDR block: plex.lan"))
+            assertEquals(listOf("10.0.0.0/8"), runtime.hdhrAccess.allowed)
+
+            browser.post("/admin/plex/allow", "csrf" to csrf, "address" to "127.0.0.1")
+            assertEquals(HttpStatusCode.OK, client.get("/discover.json").status)
+            assertEquals(HttpStatusCode.Forbidden, browser.post("/admin/plex/disallow", "csrf" to csrf.reversed(), "address" to "10.0.0.0/8").status)
+            browser.post("/admin/plex/disallow", "csrf" to csrf, "address" to "10.0.0.0/8")
+            assertEquals(listOf("127.0.0.1"), runtime.hdhrAccess.allowed)
+        }
+    }
+
     @Test fun `the overview lists what needs attention and links to the fix`() = testApplication {
         portal(basePolicy, guides = { listOf(it.brokenGuide) }) {
             runtime.policy!!.apply("test")

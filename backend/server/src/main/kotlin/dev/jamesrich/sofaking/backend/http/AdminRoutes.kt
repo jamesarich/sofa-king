@@ -17,7 +17,7 @@ import java.time.Instant
  * The admin API under `/api/v1/admin`: the server status, feed candidates, guide channels and the household lineup.
  * JSON only. [revision] is the commit the status reports.
  */
-fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "unknown") {
+fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "unknown", hdhrEnabled: Boolean = true) {
     val store = runtime.store
     suspend fun entryInfo(entry: LineupEntryRecord): LineupEntry {
         val states = store.allHealth()
@@ -89,6 +89,7 @@ fun Route.adminRoutes(runtime: LiveRuntime, clock: Clock, revision: String = "un
         }
         policyRoutes(runtime.policy)
         plexRoutes(runtime.plex)
+        hdhrAccessRoutes(runtime.hdhrAccess, hdhrEnabled)
         setupRoutes(runtime.setup)
         viewerAdminRoutes(runtime)
         libraryAdminRoutes(runtime.libraries)

@@ -31,13 +31,12 @@ class ServerConfigTest {
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_API_TOKEN" to "short")) }
         assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_MAX_SESSIONS" to "100")) }
     }
-    @Test fun `non-loopback binding with HDHomeRun enabled requires an allow-list`() {
+    @Test fun `a non-loopback bind starts with HDHomeRun on and no allow-list, which then admits nobody`() {
         val token = "x".repeat(32)
-        val message = assertFailsWith<IllegalArgumentException> { ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token)) }.message
-        assertEquals("Non-loopback binding with SOFA_HDHR_ENABLED requires SOFA_HDHR_ALLOW", message)
-        assertEquals("Non-loopback binding with SOFA_HDHR_ENABLED requires SOFA_HDHR_ALLOW", assertFailsWith<IllegalArgumentException> {
-            ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token, "SOFA_HDHR_ALLOW" to " "))
-        }.message)
+        val closed = ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token))
+        assertTrue(closed.hdhr.enabled)
+        assertEquals(emptyList(), closed.hdhr.allow)
+        assertEquals(emptyList(), ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token, "SOFA_HDHR_ALLOW" to " ")).hdhr.allow)
         assertFalse(ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token, "SOFA_HDHR_ENABLED" to "false")).hdhr.enabled)
         assertEquals(listOf("192.168.1.10"), ServerConfig.fromEnvironment(mapOf("SOFA_HOST" to "0.0.0.0", "SOFA_API_TOKEN" to token, "SOFA_HDHR_ALLOW" to "192.168.1.10")).hdhr.allow)
         assertEquals(emptyList(), ServerConfig.fromEnvironment(mapOf("SOFA_HDHR_ALLOW" to "")).hdhr.allow)

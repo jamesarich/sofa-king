@@ -273,7 +273,11 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         av.seekToTime(CMTimeMakeWithSeconds(target / 1000.0, 600))
     }
 
-    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
+    private val mediaSessions = NewestMediaSession(::openNowPlaying)
+
+    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = mediaSessions.open(onZapStep)
+
+    private fun openNowPlaying(onZapStep: (Int) -> Unit): MediaSessionHandle {
         val commands = MPRemoteCommandCenter.sharedCommandCenter()
         val next = commands.nextTrackCommand.addTargetWithHandler { _ ->
             onZapStep(1)

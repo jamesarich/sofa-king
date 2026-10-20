@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.atomic.AtomicInteger
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
@@ -212,9 +213,17 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
         exo.seekTo(durationMs?.let { positionMs.coerceIn(0L, it) } ?: positionMs.coerceAtLeast(0L))
     }
 
-    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
+    private val mediaSessions = NewestMediaSession(::openSystemSession)
+
+    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = mediaSessions.open(onZapStep)
+
+    /**
+     * Media3 refuses a second session under an id the process already holds, and each activity has its own player:
+     * a sofaking://pair link opened from another app in split screen starts a second one beside the first.
+     */
+    private fun openSystemSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
         val forwarding = LivePlayerWrapper(this, onZapStep)
-        val session = MediaSession.Builder(context, forwarding).build()
+        val session = MediaSession.Builder(context, forwarding).setId("player-${sessionIds.incrementAndGet()}").build()
         return object : MediaSessionHandle {
             override fun publish(nowPlaying: NowPlaying) = forwarding.publishNowPlaying(nowPlaying.toMetadata())
 
@@ -246,6 +255,9 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
         else -> PlaybackState.IDLE
     }
 }
+
+/** Numbers the process's media sessions, as each needs its own id. */
+private val sessionIds = AtomicInteger()
 
 /** Film and TV sound, so the system treats the stream as media with speech and music, not as an unknown sound. */
 private val MEDIA_AUDIO: AudioAttributes = AudioAttributes.Builder()

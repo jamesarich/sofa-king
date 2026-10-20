@@ -1,11 +1,14 @@
 # Sofa King app
 
-The Sofa King app is a live TV app for the channels of your own [Sofa King server](../backend/README.md), and plays that server's recordings and media libraries too. It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide, recordings, the libraries and the streams come from that server; the app includes no channel subscription.
+The Sofa King app is the front of a home media center: live TV with a program guide, recordings and your own movies and shows, all from your own [Sofa King server](../backend/README.md). It is built for Android TV and Google TV, and the same app runs on Android phones, Linux, macOS and Windows desktops, iOS and the web. Channels, the guide, recordings, the libraries and the streams come from that server; the app includes no subscription.
+
+Three tabs, one remote, Sofa King simple: **Live** for the guide and the channels, **Library** for the movies and shows, and **Recordings** for what the server recorded, each of the last two shown when the server keeps it.
 
 ## Why
 
 - **Made for a remote.** Every screen works with the five-way D-pad, Back, and the Guide, Menu, Search, channel and digit keys. A keyboard, touch or a mouse work too.
 - **Previews that become the show.** The focused channel plays muted in the guide, its sound comes on after 5 seconds, and it opens full screen after 10 on the same stream, with no second tune.
+- **Everything else you watch, in the same app.** The Library tab resumes a movie or episode where you stopped and offers Up next, and the Recordings tab plays a recording while it still records and can skip its commercial breaks. Every file plays on every platform, since the server converts what a player cannot take.
 - **Back where you left off.** A cold start opens the last channel you watched, or the Library or Recordings tab if you left from there, and Back from the player lands on that channel in the guide with your filter and scroll intact.
 - **Light on the server.** The app holds one playback session at a time, renews it while you watch and releases it when you leave, so a small server's few slots go further.
 - **Live captions that keep up.** CEA-608 and CEA-708 captions, with timing you can set per channel to line delayed live captions up with the speech.

@@ -1,18 +1,28 @@
 # Sofa King server
 
-The Sofa King server is a self-hosted live TV server for a home network. It builds one channel lineup from free streaming services, M3U playlists and XMLTV guides, and serves it to Plex as an HDHomeRun tuner, to M3U and XMLTV players, and to the Sofa King app on TVs, phones, desktops, iOS, Apple TV and the web. It also records programs from the guide and serves your own movies and shows to the app.
+The Sofa King server is the heart of a self-hosted media center for a home network, and it is Sofa King busy. It keeps three things in one container:
+
+- **Live TV.** One channel lineup built from free streaming services, broadcasters' free news feeds, HDHomeRun tuners, M3U playlists and XMLTV guides, served to the Sofa King app, to Plex as an HDHomeRun tuner, and to M3U and XMLTV players.
+- **Recordings.** A DVR that records programs, time windows and series from the guide, finds their commercial breaks and keeps them in the folder layout media servers scan.
+- **Media libraries.** Your own movies, shows and other videos from a read-only folder, with details and artwork, watch progress, and playback converted on the fly for a device that cannot take the file.
+
+The [Sofa King app](../app/README.md) plays all three on TVs, phones, desktops, iOS, Apple TV and the web.
 
 ## Why
 
-- **One container does the whole job.** Native clients for 17 free streaming (FAST) services, the free news feeds of a dozen broadcasters and HDHomeRun tuners sit beside an HDHomeRun emulation for Plex, so no separate playlist tool or tuner proxy is needed.
+- **One container does the whole job.** Native clients for 17 free streaming (FAST) services, the free news feeds of a dozen broadcasters and HDHomeRun tuners share one container with an HDHomeRun emulation for Plex, a DVR and a library server, so there is no separate playlist tool, tuner proxy or recorder to run.
 - **The service clients run on your server.** Hosted FAST playlists have been taken down after DMCA notices. Here the server talks to the services itself; only Samsung TV Plus and The Roku Channel take their channel lists from a published mirror.
 - **One station per channel.** The same channel from several services becomes one station with the others as fallbacks. Channels whose names only roughly match are merged when their schedules agree, and kept apart otherwise.
 - **Numbers stay put.** Every number the server assigns is written back to the lineup policy file, so a channel keeps its number through rebuilds and on a new server.
 - **Failing sources step aside.** FFmpeg [probes sources](docs/source-health.md) on a schedule, quarantines the ones that fail, and playback fails over to the next source, from any service.
 - **Plex stays in step.** The server saves Plex's channel maps itself and can add the tuners Plex is missing. With extra ports (`SOFA_HDHR_EXTRA_PORTS`), a large lineup spreads over several tuner devices, 250 channels each under a lineup policy, the size Plex can save.
-- **Easy to run.** An admin portal works from a phone browser, with or without JavaScript. A host can update itself from the published image, with a database backup and a rollback when the new image is unhealthy.
+- **Recordings any media server reads.** Files are named the way Plex, Jellyfin, Emby and Kodi scan them, Comskip marks the commercial breaks, and cleanup keeps the folder within its keep counts, age and free space.
+- **Libraries that play on anything.** A file a device can take plays as it is; anything else is copied or converted to HLS by FFmpeg as it plays, on the CPU or a GPU, with HDR tone-mapped for an SDR screen.
+- **Sofa King easy to run.** An admin portal works from a phone browser, with or without JavaScript. A host can update itself from the published image, with a database backup and a rollback when the new image is unhealthy.
 
 ## Features
+
+Live TV:
 
 - Native clients for 17 free streaming services, broadcasters' own free news feeds and HDHomeRun tuners, with their guides ([providers](docs/providers.md))
 - M3U playlists and XMLTV guides, plain or gzip
@@ -21,10 +31,16 @@ The Sofa King server is a self-hosted live TV server for a home network. It buil
 - [Source health](docs/source-health.md) probes, quarantine and automatic failover between sources
 - HLS and MPEG-TS relayed through the server, and an MPEG-TS remux for Plex
 - M3U and XMLTV outputs for players, and an HDHomeRun emulation for Plex Live TV
+- A logo cache, so every client loads logos from this server
+
+Recordings and media libraries:
+
 - [Recordings](docs/recordings.md) of one program, a time window or a whole series, in the folder layout Plex, Jellyfin, Emby and Kodi scan, with cleanup by keep count, age and free space, and commercial breaks found by Comskip
 - [Media libraries](docs/libraries.md): movies, shows and other videos from a read-only folder, scanned with their `.nfo` files and artwork, with details from TMDB when a token is set, and household watch progress
 - Library files and recordings played as they are, or copied or converted to HLS by FFmpeg for a player that cannot take the file, on the CPU or a GPU
-- A logo cache, so every client loads logos from this server
+
+Running it:
+
 - A JSON API whose live TV, recording and library types the app shares ([API](docs/api.md))
 - An [admin portal](docs/admin.md) at `/admin` that shows what needs attention, sets up the sources and a starter lineup, edits channels, merges, groups and provider priority, manages recordings and series rules, adds media libraries, pairs devices with a code, and asks the host's updater for a new image
 - A Docker image for `linux/amd64` and `linux/arm64`, with an SBOM and build provenance
@@ -60,7 +76,7 @@ The [documentation index](docs/README.md) lists every page. The most used are:
 - [Getting started](docs/getting-started.md)
 - [Deploy with Docker](docs/deploy.md)
 - [Build a starter lineup](docs/starter-lineup.md)
-- [Live TV: configuration, lineup and sources](docs/live-tv.md)
+- [Server configuration and live TV](docs/live-tv.md)
 - [Recordings](docs/recordings.md)
 - [Media libraries](docs/libraries.md)
 - [Troubleshooting and FAQ](docs/troubleshooting.md)

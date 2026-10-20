@@ -56,7 +56,7 @@ internal fun RecordingDestination(route: Route.Recording, shell: AppShellState, 
             autoSkipBreaks = settings?.skipCommercials ?: false,
         )
         recordings is RecordingsState.Ready || recordings is RecordingsState.Failed -> LaunchedEffect(Unit) { shell.back() }
-        else -> MessageScreen(stringResource(Res.string.loading), loading = true)
+        else -> MessageScreen(stringResource(Res.string.recordings_loading), loading = true)
     }
 }
 

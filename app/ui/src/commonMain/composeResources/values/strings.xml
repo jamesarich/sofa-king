@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">Sofa King</string>
-    <string name="tagline">Live TV, Sofa King good.</string>
+    <string name="tagline">Everything you watch, Sofa King good.</string>
     <string name="loading">Sofa King close, loading channels…</string>
     <string name="load_failed">Couldn't reach the Sofa King server</string>
     <string name="load_failed_hint">Check the server URL and API token in Settings, and that the TV is on the same network as the server.</string>

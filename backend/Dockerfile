@@ -55,8 +55,8 @@ ENTRYPOINT ["/usr/bin/tini", "--", "/opt/sofa/bin/server"]
 # package to the repository through the source label; the workflow passes VERSION from the catalog's `sofaking` version.
 ARG REVISION=unknown
 ARG VERSION=unknown
-LABEL org.opencontainers.image.title="Sofa King backend" \
-      org.opencontainers.image.description="Live TV server: imports free streaming services and playlists into one lineup, relays the streams and emulates an HDHomeRun for Plex" \
+LABEL org.opencontainers.image.title="Sofa King server" \
+      org.opencontainers.image.description="Self-hosted media center server: live TV from free streaming services, tuners and playlists in one lineup, a DVR with commercial detection, and movie and TV libraries converted on the fly; also an HDHomeRun tuner for Plex" \
       org.opencontainers.image.url="https://github.com/jamesarich/sofa-king" \
       org.opencontainers.image.documentation="https://github.com/jamesarich/sofa-king/blob/main/backend/docs/deploy.md" \
       org.opencontainers.image.source="https://github.com/jamesarich/sofa-king" \

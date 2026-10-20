@@ -65,8 +65,8 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
             .setTsSubtitleFormats(captionFormats())
         ExoPlayer.Builder(context, CaptionSyncRenderersFactory(context, captionSync).setMediaCodecSelector(tuning.codecSelector))
             .setLoadControl(CaptionSyncLoadControl(captionSync, tuning))
-            // The audible player yields to Assistant and other apps the way the MediaSession promises.
-            .setAudioAttributes(AudioAttributes.DEFAULT, true)
+            // The audible player yields to Assistant and other apps the way the MediaSession promises; see [volume].
+            .setAudioAttributes(MEDIA_AUDIO, true)
             .setMediaSourceFactory(DefaultMediaSourceFactory(context, extractors))
             .build()
             .apply {
@@ -135,11 +135,22 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     override val hasTextTrack: Boolean
         get() = exo.currentTracks.groups.any { it.type == C.TRACK_TYPE_TEXT }
 
+    /**
+     * Audio focus follows the volume: the muted guide preview holds none, so music or another app keeps playing
+     * under it, and the player asks for focus when it becomes audible.
+     */
     override var volume: Float
         get() = exo.volume
         set(value) {
             exo.volume = value
+            val audible = value > 0f
+            if (audible != handlesAudioFocus) {
+                handlesAudioFocus = audible
+                exo.setAudioAttributes(MEDIA_AUDIO, audible)
+            }
         }
+
+    private var handlesAudioFocus = true
 
     override var playWhenReady: Boolean
         get() = exo.playWhenReady
@@ -235,6 +246,12 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
         else -> PlaybackState.IDLE
     }
 }
+
+/** Film and TV sound, so the system treats the stream as media with speech and music, not as an unknown sound. */
+private val MEDIA_AUDIO: AudioAttributes = AudioAttributes.Builder()
+    .setUsage(C.USAGE_MEDIA)
+    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+    .build()
 
 /**
  * The item for a session [stream], tagged with its channel. The MIME type comes from the server's

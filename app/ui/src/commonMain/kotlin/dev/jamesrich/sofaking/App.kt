@@ -38,6 +38,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -162,21 +163,27 @@ import dev.jamesrich.sofaking.ui.trackLastInput
 /** The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the user is on. */
 /**
  * The whole app. [pairing] is a server to pair with from a `sofaking://pair` link the platform received; the app
- * claims it once and calls [onPairingHandled], so a restored activity does not claim it again.
+ * claims it once and calls [onPairingHandled], so a restored activity does not claim it again. [onReady] runs once
+ * the first page is chosen, which is when Android lets its splash screen go.
  */
 @Composable
-fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
+fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}, onReady: () -> Unit = {}) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
     SofaKingTheme {
         val lastInput = rememberLastInput()
         CompositionLocalProvider(LocalLayoutProfile provides rememberLayoutProfile(), LocalLastInput provides lastInput) {
-            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
+            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled, onReady = onReady) }
         }
     }
 }
 
 @Composable
-private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewModel() }, pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
+private fun SofaKingApp(
+    vm: LineupViewModel = viewModel { appGraph.lineupViewModel() },
+    pairing: PairingRequest? = null,
+    onPairingHandled: () -> Unit = {},
+    onReady: () -> Unit = {},
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
@@ -252,6 +259,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
     // for Last; both outlive the player's own composition and a configuration change.
     var history by rememberSerializable { mutableStateOf(WatchHistory()) }
     val launch = launchTarget(state, settings)
+    val currentOnReady by rememberUpdatedState(onReady)
+    LaunchedEffect(launchDecided) { if (launchDecided) currentOnReady() }
     LaunchedEffect(launch, launchDecided) {
         if (launchDecided || launch == LaunchTarget.Undecided) return@LaunchedEffect
         launchDecided = true
@@ -462,6 +471,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                     startIndex = start,
                     previousGuideId = previousGuideId,
                     zapScope = current.scope,
+                    unattended = current.unattended,
                     player = player,
                     sessions = sessions,
                     onExit = back,
@@ -597,7 +607,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                 notice = notice,
                 onSettings = openSettings,
                 onBackToLive = backToLive,
-            ) { showsTabs, tabBack ->
+                focusHeaderIfIdle = (current == Route.Library || current == Route.Recordings) && arrival.returnedFrom == null,
+            ) { showsTabs, tabBack, headerFocused ->
                 when (current) {
                     Route.Guide -> {
                         // With no server to talk to, Settings is the only thing to do, so it takes focus.
@@ -629,7 +640,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                 startAtNow = arrival.atNow,
                                 startSearch = arrival.search,
                                 returnedFrom = arrival.returnedFrom,
-                                onPlay = { guideId, scope -> nav = nav.push(Route.Player(guideId, scope)) },
+                                onPlay = { guideId, scope, unattended -> nav = nav.push(Route.Player(guideId, scope, unattended)) },
                                 onToggleFavorite = vm::toggleFavorite,
                                 onFilterChanged = vm::setGuideFilter,
                                 onLoadGuideWindow = vm::loadGuideWindow,
@@ -664,6 +675,7 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                                 ),
                             ),
                             returnedFrom = arrival.returnedFrom,
+                            headerFocused = headerFocused,
                         )
                     }
                     Route.Recordings -> {
@@ -677,6 +689,8 @@ private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewMod
                             onBack = tabBack,
                             onRuleChange = { rule, newOnly, keep -> recordingsVm.updateRule(rule, newOnly, keep) },
                             onRuleDelete = recordingsVm::deleteRule,
+                            returnedFrom = arrival.returnedFrom,
+                            headerFocused = headerFocused,
                         )
                     }
                     // The query outlives a trip to an item's page and back, in the entry's saved state.
@@ -789,14 +803,23 @@ private fun TabPage(
     notice: String?,
     onSettings: () -> Unit,
     onBackToLive: () -> Unit,
-    content: @Composable (showsTabs: Boolean, tabBack: () -> Unit) -> Unit,
+    focusHeaderIfIdle: Boolean,
+    content: @Composable (showsTabs: Boolean, tabBack: () -> Unit, headerFocused: Boolean) -> Unit,
 ) {
     val showsTabs = tv
+    var pageFocused by remember { mutableStateOf(false) }
     // Keyed on nothing, so clearing the flag does not cancel the request; it runs on each return here.
     LaunchedEffect(Unit) {
-        val target = headerReturn ?: return@LaunchedEffect
-        if (showsTabs) requestFocusWhenAttached(if (target == HeaderReturn.SETTINGS) settingsFocus else tabFocus)
-        onHeaderFocusRequested()
+        val target = headerReturn
+        if (target != null) {
+            if (showsTabs) requestFocusWhenAttached(if (target == HeaderReturn.SETTINGS) settingsFocus else tabFocus)
+            onHeaderFocusRequested()
+        } else if (focusHeaderIfIdle && showsTabs) {
+            // A page that takes no focus of its own (Library's home, Recordings with nothing recorded) leaves it on
+            // its tab, so something is focused from the start and OK or Down work at once.
+            repeat(IDLE_FOCUS_FRAMES) { withFrameNanos { } }
+            if (!pageFocused) requestFocusWhenAttached(tabFocus)
+        }
     }
     var headerFocused by remember { mutableStateOf(false) }
     val tabBack: () -> Unit = {
@@ -805,7 +828,7 @@ private fun TabPage(
             TabBack.OPEN_LIVE -> onBackToLive()
         }
     }
-    Column {
+    Column(Modifier.onFocusChanged { pageFocused = it.hasFocus }) {
         Header(
             modifier = Modifier.onFocusChanged { headerFocused = it.hasFocus },
             refreshing = refreshing,
@@ -815,9 +838,12 @@ private fun TabPage(
             tabs = tabs.takeIf { showsTabs },
             tabFocus = tabFocus,
         )
-        content(showsTabs, tabBack)
+        content(showsTabs, tabBack, headerFocused)
     }
 }
+
+/** Frames a tab page gets to focus something of its own before its tab takes focus. */
+private const val IDLE_FOCUS_FRAMES = 3
 
 
 /** What the player shows for a library item: an episode under its show and number, a movie with its year. */
@@ -874,7 +900,7 @@ private fun GuideOrEmpty(
     startAtNow: Boolean,
     startSearch: Boolean,
     returnedFrom: String?,
-    onPlay: (String, ZapScope?) -> Unit,
+    onPlay: (guideId: String, scope: ZapScope?, unattended: Boolean) -> Unit,
     onToggleFavorite: (String) -> Unit,
     onFilterChanged: (String?) -> Unit,
     onLoadGuideWindow: (Instant) -> Unit,
@@ -904,7 +930,7 @@ private fun GuideOrEmpty(
             startAtNow = startAtNow,
             startSearch = startSearch,
             returnedFrom = returnedFrom,
-            onPlay = { channel, scope -> onPlay(channel.guideId, scope) },
+            onPlay = { channel, scope, unattended -> onPlay(channel.guideId, scope, unattended) },
             onToggleFavorite = { onToggleFavorite(it.guideId) },
             onFilterChanged = onFilterChanged,
             onLoadGuideWindow = onLoadGuideWindow,

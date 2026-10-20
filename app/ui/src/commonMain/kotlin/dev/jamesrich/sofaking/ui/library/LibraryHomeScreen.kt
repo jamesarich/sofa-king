@@ -64,6 +64,8 @@ internal fun LibraryHomeScreen(
     state: LibraryHomeState,
     actions: LibraryHomeActions,
     returnedFrom: String? = null,
+    /** Whether the header above has focus; the shelves scroll back to the top under it. */
+    headerFocused: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     when (state) {
@@ -80,20 +82,30 @@ internal fun LibraryHomeScreen(
             if (home.shelves.isEmpty() && home.libraries.isEmpty()) {
                 MessageScreen(stringResource(Res.string.library_empty), hint = stringResource(Res.string.library_empty_hint))
             } else {
-                Shelves(home.shelves, home.libraries, actions, returnedFrom, modifier)
+                Shelves(home.shelves, home.libraries, actions, returnedFrom, headerFocused, modifier)
             }
         }
     }
 }
 
 @Composable
-private fun Shelves(shelves: List<MediaShelf>, libraries: List<MediaLibrary>, actions: LibraryHomeActions, returnedFrom: String?, modifier: Modifier) {
+private fun Shelves(
+    shelves: List<MediaShelf>,
+    libraries: List<MediaLibrary>,
+    actions: LibraryHomeActions,
+    returnedFrom: String?,
+    headerFocused: Boolean,
+    modifier: Modifier,
+) {
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues()
     val returnFocus = remember { FocusRequester() }
     val searchFocus = remember { FocusRequester() }
     LaunchedEffect(returnedFrom) {
         if (returnedFrom != null) requestFocusWhenAttached(returnFocus)
     }
+    val listState = rememberLazyListState()
+    // Back or Up to the header shows the page from its top, so Down lands on the first row.
+    LaunchedEffect(headerFocused) { if (headerFocused) listState.animateScrollToItem(0) }
     // The item returned to may sit in several rows; the first takes the requester.
     val returnShelf = returnedFrom?.let { id -> shelves.firstOrNull { shelf -> shelf.items.any { it.id == id } }?.key }
     LazyColumn(
@@ -106,7 +118,7 @@ private fun Shelves(shelves: List<MediaShelf>, libraries: List<MediaLibrary>, ac
                 false
             }
         },
-        state = rememberLazyListState(),
+        state = listState,
         contentPadding = PaddingValues(top = 8.dp, bottom = insets.calculateBottomPadding() + 16.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
@@ -145,7 +157,10 @@ private fun Shelf(shelf: MediaShelf, actions: LibraryHomeActions, insets: Paddin
     val style = cardStyleFor(shelf)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle(shelf.title, insets)
+        // Up and Down come back to the card last focused in the shelf; focus requested inside it enters through
+        // the restorer too, so the card returned to is its fallback.
         LazyRow(
+            modifier = Modifier.focusRestorer(if (focusItem != null) focusRequester else FocusRequester.Default),
             contentPadding = insets.horizontalOnly(),
             horizontalArrangement = Arrangement.spacedBy(CARD_GAP),
         ) {

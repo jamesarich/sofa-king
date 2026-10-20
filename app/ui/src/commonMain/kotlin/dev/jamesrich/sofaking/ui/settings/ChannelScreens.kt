@@ -39,6 +39,9 @@ import dev.jamesrich.sofaking.data.orderedFavorites
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.ChannelLogo
+import dev.jamesrich.sofaking.ui.InputKind
+import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
@@ -73,11 +76,13 @@ fun ChannelManagerScreen(
     // The groups opened to their channels; a visit starts with all of them closed, so the list is short.
     val expanded = remember { mutableStateListOf<String>() }
     val backFocus = remember { FocusRequester() }
+    val contentFocus = remember { FocusRequester() }
+    val firstFocus = if (showsBackButton()) backFocus else contentFocus
     BackHandler { onBack() }
-    LaunchedEffect(Unit) { requestFocusWhenAttached(backFocus) }
+    LaunchedEffect(Unit) { requestFocusWhenAttached(firstFocus) }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().screenPadding().focusRestorer(),
+        modifier = modifier.fillMaxSize().screenPadding().focusRequester(contentFocus).focusRestorer().focusGroup(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { ScreenTitle(stringResource(Res.string.channels_title), onBack, backFocus) }
@@ -177,15 +182,18 @@ fun ChannelPickerScreen(
     modifier: Modifier = Modifier,
 ) {
     val backFocus = remember { FocusRequester() }
+    val contentFocus = remember { FocusRequester() }
     val selectedFocus = remember { FocusRequester() }
+    val firstFocus = if (showsBackButton()) backFocus else contentFocus
     BackHandler { onBack() }
-    // The chosen channel takes focus when there is one, else Back, so the list opens where the user left it.
+    // The chosen channel takes focus when there is one, else Back (or the first channel where Back isn't drawn), so
+    // the list opens where the user left it.
     LaunchedEffect(Unit) {
-        if (selected == null || channels.none { it.guideId == selected } || !requestFocusWhenAttached(selectedFocus)) requestFocusWhenAttached(backFocus)
+        if (selected == null || channels.none { it.guideId == selected } || !requestFocusWhenAttached(selectedFocus)) requestFocusWhenAttached(firstFocus)
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().screenPadding().focusRestorer(),
+        modifier = modifier.fillMaxSize().screenPadding().focusRequester(contentFocus).focusRestorer().focusGroup(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { ScreenTitle(stringResource(Res.string.settings_startup), onBack, backFocus) }
@@ -201,15 +209,27 @@ fun ChannelPickerScreen(
     }
 }
 
-/** The logo, the page's title and its Back button; [backFocus] is the requester a page that opens on Back attaches to it. */
+/**
+ * The logo, the page's title and, where [showsBackButton], its Back button; [backFocus] is the requester a page that
+ * opens on Back attaches to it.
+ */
 @Composable
 internal fun ScreenTitle(title: String, onBack: () -> Unit, backFocus: FocusRequester? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         LogoMark(40.dp)
         Text(title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-        SofaButton(onClick = onBack, modifier = if (backFocus == null) Modifier else Modifier.focusRequester(backFocus)) { Text(stringResource(Res.string.settings_back)) }
+        if (showsBackButton()) {
+            SofaButton(onClick = onBack, modifier = if (backFocus == null) Modifier else Modifier.focusRequester(backFocus)) { Text(stringResource(Res.string.settings_back)) }
+        }
     }
 }
+
+/**
+ * Whether a page draws its own Back button: everywhere but a TV driven by its remote, whose Back key is the way back
+ * (the TV design guidelines: "Don't display a back button"); a TV shows it again once a mouse or finger is used.
+ */
+@Composable
+internal fun showsBackButton(): Boolean = !LocalLayoutProfile.current.tv || LocalLastInput.current.kind == InputKind.POINTER
 
 /** A channel as one focusable list row: logo, number and name, tinted while selected. */
 @Composable

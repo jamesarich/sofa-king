@@ -330,7 +330,7 @@ class AdminPortalTest {
             assertEquals(1, restarts)
             val policy = Json.parseToJsonElement(Files.readString(runtime.setup!!.policyPath)).jsonObject
             assertEquals(listOf("pluto", "fixture", "alt", "twin", "ts"), policy["providers"]!!.jsonArray.map { it.jsonObject["id"]!!.jsonPrimitive.content }, "the services lead, the playlists follow")
-            assertTrue(browser.get("/admin/providers").bodyAsText().contains("Build the starter lineup too"), "this process still runs without a policy until the restart")
+            assertFalse(browser.get("/admin/providers").bodyAsText().contains("Build the starter lineup too"), "the policy file is written, so the box is not offered again before the restart")
         }
     }
 

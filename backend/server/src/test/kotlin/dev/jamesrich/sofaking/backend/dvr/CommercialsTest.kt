@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.contract.RecordingBreak
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.PosixFilePermissions
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.runBlocking
 import org.junit.Assume.assumeTrue
 import kotlin.test.*
@@ -44,6 +45,20 @@ class CommercialsTest {
             assertFailsWith<IllegalStateException> { Commercials(fakeComskip(dir, "", exit = 7).toString(), dir.resolve("work")).detect(recording) }
             assertFailsWith<java.io.IOException> { Commercials(dir.resolve("missing").toString(), dir.resolve("work")).detect(recording) }
             assertEquals(listOf("comskip.ini"), Files.list(dir.resolve("work")).use { files -> files.map { it.fileName.toString() }.toList() }, "no working folder is left")
+        } finally { dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `a run past the timeout fails that scan rather than cancelling its caller, and leaves no process`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-comskip-slow-")
+        try {
+            val recording = dir.resolve("Show - S01E01.ts").also { Files.write(it, byteArrayOf(0x47)) }
+            val script = dir.resolve("slow.sh")
+            Files.writeString(script, "#!/bin/sh\nexec sleep 30\n")
+            Files.setPosixFilePermissions(script, PosixFilePermissions.fromString("rwx------"))
+            val failure = assertFails { Commercials(script.toString(), dir.resolve("work"), timeout = 300.milliseconds).detect(recording) }
+            assertIs<IllegalStateException>(failure)
+            assertFalse(failure is kotlinx.coroutines.CancellationException, "a timeout must not read as a cancellation: $failure")
+            assertEquals(0, ProcessHandle.current().children().filter { it.info().command().orElse("").endsWith("sleep") }.count())
         } finally { dir.toFile().deleteRecursively() }
     }
 

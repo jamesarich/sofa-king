@@ -53,6 +53,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalFocusManager
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
@@ -152,6 +153,9 @@ private data class DwellInput(val channelId: String?, val nonce: Int, val failed
 
 /** The cell most recently focused in the grid, shown by the preview pane. */
 private data class FocusedCell(val channel: Channel, val cell: GuideCell)
+
+/** The guide's test tag; Android exposes it as a resource id for the Baseline Profile generator. */
+const val GUIDE_TEST_TAG = "guide"
 
 /**
  * The guide grid. Filter, search, time cursor, scroll and the focused channel are saveable across a trip to the
@@ -750,7 +754,7 @@ fun GuideScreen(
 
     // The app header above already carries the top screen margin; 16dp here is spacing, not overscan.
     val profile = LocalLayoutProfile.current
-    Box(modifier.fillMaxSize().onFocusChanged { if (it.hasFocus) awaitingEntry = false }.onPreviewKeyEvent(onGuideKey).then(onGuidePointer)) {
+    Box(modifier.fillMaxSize().testTag(GUIDE_TEST_TAG).onFocusChanged { if (it.hasFocus) awaitingEntry = false }.onPreviewKeyEvent(onGuideKey).then(onGuidePointer)) {
         Column(modifier = Modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).padding(top = 16.dp)) {
             if (PREVIEW_ENABLED && profile.showsPreviewBand) {
                 PreviewBand(

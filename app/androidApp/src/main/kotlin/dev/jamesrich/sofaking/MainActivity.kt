@@ -8,6 +8,9 @@ import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import dev.jamesrich.sofaking.data.AppStorage
@@ -49,7 +52,15 @@ class MainActivity : ComponentActivity() {
         }
         // A restored activity keeps its intent, but the claim it carried was made the first time.
         if (savedInstanceState == null) takePairing(intent)
-        setContent { App(pairing = pairing.value, onPairingHandled = { pairing.value = null }, onReady = { ready = true }) }
+        setContent {
+            App(
+                // Test tags become resource ids, so the Baseline Profile generator can wait for the guide or player.
+                modifier = Modifier.semantics { testTagsAsResourceId = true },
+                pairing = pairing.value,
+                onPairingHandled = { pairing.value = null },
+                onReady = { ready = true },
+            )
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

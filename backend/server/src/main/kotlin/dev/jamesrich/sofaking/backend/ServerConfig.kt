@@ -122,8 +122,8 @@ data class ServerConfig(
         /**
          * The configuration the server starts with: [fromEnvironment] after reading `NAME_FILE` secrets, then the source
          * and policy files found in the data directory when their variables are unset, and, on a non-loopback bind, the
-         * API and admin tokens the environment leaves unset from [SecretsFile], generated on first use. [log] gets one
-         * line per decision and never a token.
+         * API, admin and output tokens the environment leaves unset from [SecretsFile], generated on first use. [log]
+         * gets one line per decision and never a token.
          */
         fun load(
             environment: Map<String, String>,
@@ -155,9 +155,14 @@ data class ServerConfig(
             val policy = pick("SOFA_POLICY", base.policyFile, "policy.json", "lineup policy")
             var apiToken = base.apiToken
             var adminToken = base.adminToken
+            var outputToken = base.outputs.token
             var secretsFile: Path? = null
             val allOrigins = origins.toMutableMap()
-            val missing = buildList { if (apiToken == null) add("apiToken"); if (adminToken == null) add("adminToken") }
+            val missing = buildList {
+                if (apiToken == null) add("apiToken")
+                if (adminToken == null) add("adminToken")
+                if (outputToken == null) add("outputToken")
+            }
             if (!isLoopback(base.host) && missing.isNotEmpty()) {
                 val file = SecretsFile(directory.resolve(SecretsFile.NAME))
                 val (values, generated) = file.resolve(missing)
@@ -179,10 +184,16 @@ data class ServerConfig(
                         )
                     } else log("secrets: SOFA_ADMIN_TOKEN from ${file.path}")
                 }
+                values["outputToken"]?.let { token ->
+                    outputToken = token
+                    allOrigins["SOFA_OUTPUT_TOKEN"] = SecretOrigin.GENERATED
+                    if ("outputToken" in generated) log("secrets: generated SOFA_OUTPUT_TOKEN and stored it in ${file.path}; the portal's Plex page shows the player URLs with it")
+                    else log("secrets: SOFA_OUTPUT_TOKEN from ${file.path}")
+                }
             }
             return base.copy(
                 sourcesFile = sources, policyFile = policy, apiToken = apiToken, adminToken = adminToken,
-                secretOrigins = allOrigins, secretsFile = secretsFile, foundInDataDirectory = found,
+                outputs = base.outputs.copy(token = outputToken), secretOrigins = allOrigins, secretsFile = secretsFile, foundInDataDirectory = found,
             )
         }
 

@@ -15,7 +15,7 @@ The config folder holds everything the server keeps across restarts:
 | `dvr/` | Comskip's working files while it scans a recording |
 | `recordings/` | The recordings, when `SOFA_RECORDINGS_DIR` is unset. Compose mounts its own `deploy/recordings` folder instead, as [the recordings folder](deploy.md#the-recordings-folder) describes |
 | `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand. The updater's fallback backups and its `failed-image` record are in `backups/` in the Compose directory instead |
-| `secrets.json` | The generated API and admin tokens |
+| `secrets.json` | The generated API, admin and output tokens |
 | `sources.json`, `policy.json` | The source file and the lineup policy, when they are kept here |
 
 Playback sessions, library playback sessions, admin portal sessions, the live pairing code and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions. A recording running at the restart resumes into the same file.
@@ -156,13 +156,13 @@ The [native providers](providers.md) call each service's public endpoints. A ser
 
 ## Rotating tokens
 
-Tokens come from the environment (`deploy/.env` for Docker), from the file a `_FILE` variable names, or, for the API and admin tokens, from `secrets.json` in the config folder. Each change takes effect after a restart, and any client holding the old value gets `401` until it is updated.
+Tokens come from the environment (`deploy/.env` for Docker), from the file a `_FILE` variable names, or, for a token none of those sets, from `secrets.json` in the config folder. Each change takes effect after a restart, and any client holding the old value gets `401` until it is updated.
 
 | Token | Rotate by | Update |
 | --- | --- | --- |
 | API token (`SOFA_API_TOKEN`) | Set a new value from `openssl rand -hex 32` and restart. When it is generated, delete `apiToken` from `secrets.json` and restart, and a new one is generated | Every API client, including the Sofa King app |
 | Admin token (`SOFA_ADMIN_TOKEN`) | Same, with `adminToken`; read the new value from `secrets.json` | Whatever calls `/api/v1/admin`, and the admin portal sign-in |
-| Output token (`SOFA_OUTPUT_TOKEN`) | Set a new value from `openssl rand -hex 16` and restart | Each player's playlist and guide URL, and the Plex guide URL |
+| Output token (`SOFA_OUTPUT_TOKEN`) | Set a new value from `openssl rand -hex 16` and restart. When it is generated, delete `outputToken` from `secrets.json` and restart, and a new one is generated | Each player's playlist and guide URL, and the Plex guide URL |
 
 The output token goes in URLs, so changing it means editing every player and Plex. Logo URLs carry no token and need no change. Native provider session tokens are renewed by the server, so nothing is needed for those.
 

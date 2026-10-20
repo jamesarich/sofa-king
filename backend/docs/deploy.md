@@ -28,7 +28,7 @@ The HDHomeRun emulation for Plex stays off until `.env` sets `SOFA_HDHR_ENABLED=
 | `backend.sqlite` (with `-wal` and `-shm` while running) | Server | The lineup, guides, source health, provider session tokens and the server identity |
 | `logos/` | Server | Cached lineup logos, at most 2 MiB each; a logo the lineup does not name is deleted |
 | `backups/` | The updater and you | Database backups, readable by their owner alone; see [backups](operations.md#backups) |
-| `secrets.json` | Server | The generated API and admin tokens, readable by the owner alone |
+| `secrets.json` | Server | The generated API, admin and output tokens, readable by the owner alone |
 | `sources.json` | You | The [source file](live-tv.md#source-settings), used when `SOFA_SOURCES` is unset |
 | `policy.json` | You and the server | The [lineup policy](lineup-policy.md), used when `SOFA_POLICY` is unset; the server writes numbers and edits back into it |
 
@@ -64,7 +64,7 @@ The image runs under any `user: "UID:GID"`. The process writes only `/config`, `
 
 ## Secrets
 
-Left unset, `SOFA_API_TOKEN` and `SOFA_ADMIN_TOKEN` are generated on the first start and kept in `config/secrets.json`. A token set in the environment always wins over the stored one. To choose a token yourself, set it in `.env`, or keep it in a file and name the file with the `_FILE` variant: `SOFA_API_TOKEN_FILE`, `SOFA_ADMIN_TOKEN_FILE`, `SOFA_OUTPUT_TOKEN_FILE` and `SOFA_PLEX_TOKEN_FILE`. The server reads the file at start and drops a trailing line break. Setting both a variable and its `_FILE` variant, or naming a file it cannot read, stops the start.
+Left unset, `SOFA_API_TOKEN`, `SOFA_ADMIN_TOKEN` and `SOFA_OUTPUT_TOKEN` are generated on the first start and kept in `config/secrets.json`. A token set in the environment always wins over the stored one. To choose a token yourself, set it in `.env`, or keep it in a file and name the file with the `_FILE` variant: `SOFA_API_TOKEN_FILE`, `SOFA_ADMIN_TOKEN_FILE`, `SOFA_OUTPUT_TOKEN_FILE` and `SOFA_PLEX_TOKEN_FILE`. The server reads the file at start and drops a trailing line break. Setting both a variable and its `_FILE` variant, or naming a file it cannot read, stops the start.
 
 With [Compose secrets](https://docs.docker.com/compose/how-tos/use-secrets/):
 
@@ -223,7 +223,7 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" http://SERVER_HOST:9193/a
 
 `/readyz` answers `ready`, and the health status becomes `healthy` after the 30-second start period. Each provider shows `lastSuccessAt` with its channel and source counts, and sources move from `UNVERIFIED` to `HEALTHY` as probes qualify them. A request without the token answers `401 AUTH_REQUIRED`. When `SOFA_API_TOKEN` is set in `.env`, use that value instead of the stored one.
 
-`/api/v1/channels` stays empty until a lineup policy, or the admin API, builds the lineup. With `SOFA_OUTPUT_TOKEN` set, `http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN` is the playlist [M3U and XMLTV players](live-tv.md#third-party-players) load; its stream URLs carry the address the request used. For Plex, `curl --fail http://SERVER_HOST:9193/discover.json` from the Plex host shows the tuner that [Plex](live-tv.md#plex-live-tv) is pointed at. When `SOFA_PLEX_TUNER_BASE` lets a sync add devices, set `SOFA_HDHR_PUBLIC_PORTS=9193` so Plex is given the published port.
+`/api/v1/channels` stays empty until a lineup policy, or the admin API, builds the lineup. With the output token, `outputToken` in `config/secrets.json` unless `SOFA_OUTPUT_TOKEN` sets it, `http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN` is the playlist [M3U and XMLTV players](live-tv.md#third-party-players) load; its stream URLs carry the address the request used. For Plex, `curl --fail http://SERVER_HOST:9193/discover.json` from the Plex host shows the tuner that [Plex](live-tv.md#plex-live-tv) is pointed at. When `SOFA_PLEX_TUNER_BASE` lets a sync add devices, set `SOFA_HDHR_PUBLIC_PORTS=9193` so Plex is given the published port.
 
 Upgrades and rollbacks are covered in [operations](operations.md#upgrade-and-rollback).
 

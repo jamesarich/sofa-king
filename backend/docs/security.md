@@ -54,7 +54,7 @@ Details are in [live TV: upstream addresses and provider headers](live-tv.md#pro
 ## Hardening checklist
 
 - Let the server generate the API and admin tokens, or set them to values of at least 32 characters from `openssl rand -hex 32`. Prefer the `_FILE` variables with Docker secrets over plain values in `.env`.
-- Set `SOFA_OUTPUT_TOKEN` when players or Plex use the outputs, from `openssl rand -hex 16`.
+- The output token is generated at the first start like the others. Rotate it when a playlist URL has been shared further than you meant, as [operations](operations.md#rotating-tokens) describes.
 - Mount the media folder read only (`:ro`), as [media libraries](libraries.md#mount-the-media-folder) shows; the server never writes to it. Pass `SOFA_TMDB_TOKEN` through `SOFA_TMDB_TOKEN_FILE` like the other tokens.
 - Set `SOFA_HDHR_ALLOW` to the address of the Plex server, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 - Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens, and the source file can hold playlist URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.

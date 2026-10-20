@@ -188,7 +188,7 @@ A rule has a `title`, an optional `channelId`, `newOnly`, `keep` (0 keeps all), 
 
 ## Player outputs
 
-`/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer. The API token is accepted as a bearer only, never in a query. Without `SOFA_OUTPUT_TOKEN` the routes answer `401 AUTH_REQUIRED` to anything but the API bearer, and with neither token configured (a loopback development server) they are open. [Security](security.md#credentials-and-the-routes-they-open) explains why the output token is separate, and [operations](operations.md#rotating-tokens) how to rotate it.
+`/output/*` serves the lineup to players that only speak HTTP, such as M3U and XMLTV players. They send no headers, so these routes take `SOFA_OUTPUT_TOKEN` as `?token=` in the URL, or as a bearer. The API token is accepted as a bearer only, never in a query. A non-loopback server always has an output token, generated at the first start unless `SOFA_OUTPUT_TOKEN` sets one. On loopback without one, the routes answer `401 AUTH_REQUIRED` to anything but the API bearer, and with neither token configured (a loopback development server) they are open. [Security](security.md#credentials-and-the-routes-they-open) explains why the output token is separate, and [operations](operations.md#rotating-tokens) how to rotate it.
 
 `GET /output/playlist.m3u` lists the enabled lineup in order, `audio/x-mpegurl`:
 

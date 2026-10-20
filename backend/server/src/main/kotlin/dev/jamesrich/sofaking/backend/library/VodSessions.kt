@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.contract.ClientProfile
@@ -198,7 +199,7 @@ class VodSessions(
         return extracting.withLock {
             withContext(Dispatchers.IO) {
                 val stamp = "${Files.getLastModifiedTime(file).toMillis()}-${Files.size(file)}"
-                val name = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest("$itemId/$index/$stamp".toByteArray())).take(32)
+                val name = hash("$itemId/$index/$stamp").take(32)
                 val out = dir.resolve("$name.vtt")
                 if (!Files.isRegularFile(out)) {
                     Files.createDirectories(dir)

@@ -67,7 +67,7 @@ class LibraryMetadata internal constructor(
                     records += MetadataRecord(item.id, movie?.id, now.toString(), movie?.facts(region))
                     if (movie != null) matched++ else unmatched++
                 } else {
-                    val id = if (fresh) row!!.tmdbId else hint ?: pickShow(client.searchShows(item.title, item.year).also { pause() }, item)
+                    val id = if (fresh) row.tmdbId else hint ?: pickShow(client.searchShows(item.title, item.year).also { pause() }, item)
                     val show = if (fresh) null else id?.let { client.show(it).also { pause() } }
                     if (!fresh) records += MetadataRecord(item.id, show?.id, now.toString(), show?.facts(region))
                     if (id != null) {

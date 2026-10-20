@@ -26,7 +26,7 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
         for (channel in channels.filter { it.channel.id in wanted }) {
             val rows = context.http.get("$siteBase/api/schedule/marathons/${channel.marathonId}", HEADERS).require("Adult Swim schedule").json()["data"].array
             for (row in rows) {
-                val start = row.str("startTime")?.let(::instant) ?: row["time"].long?.let(Instant::ofEpochMilli) ?: continue
+                val start = row.str("startTime")?.let(::instantOrNull) ?: row["time"].long?.let(Instant::ofEpochMilli) ?: continue
                 val seconds = row["duration"].double ?: continue
                 if (seconds <= 0) continue
                 val episode = row.str("name") ?: row.str("episodeName")
@@ -46,7 +46,7 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
             ?: run { context.invalidate(STREAMS); listed().firstOrNull { it.channel.id == channelId } }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         val url = context.cached("asset:${listed.videoId}", Duration.ofHours(6)) { asset(listed.videoId) }
-        return ResolvedStream(url, mapOf("User-Agent" to USER_AGENT), context.clock.instant().plus(Duration.ofHours(6)))
+        return ResolvedStream(url, mapOf("User-Agent" to BROWSER_USER_AGENT), context.clock.instant().plus(Duration.ofHours(6)))
     }
 
     private suspend fun listed(): List<Listed> = context.cached(STREAMS, Duration.ofMinutes(10)) { fetchStreams() }
@@ -80,13 +80,11 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
         return urls.firstOrNull { it.contains("/live/") } ?: urls.firstOrNull() ?: throw ProviderFailure("Adult Swim video has no HLS asset", transient = false)
     }
 
-    private fun instant(value: String): Instant? = try { Instant.parse(value) } catch (_: Exception) { null }
 
     companion object {
         private const val SITE_BASE = "https://www.adultswim.com"
         private const val STREAMS = "streams"
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
-        private val HEADERS = mapOf("User-Agent" to USER_AGENT, "Accept" to "application/json, text/plain, */*", "Origin" to SITE_BASE, "Referer" to "$SITE_BASE/streams/")
+        private val HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Accept" to "application/json, text/plain, */*", "Origin" to SITE_BASE, "Referer" to "$SITE_BASE/streams/")
         private val NEXT_DATA = Regex("""<script id="__NEXT_DATA__"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
 
         internal fun nextData(html: String): kotlinx.serialization.json.JsonElement {

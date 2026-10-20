@@ -41,8 +41,8 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
             for (row in data) {
                 val id = row.str("channelId") ?: continue
                 for (item in row["timelines"].array) {
-                    val from = item.str("start")?.let(::instant) ?: continue
-                    val until = item.str("stop")?.let(::instant) ?: continue
+                    val from = item.str("start")?.let(::instantOrNull) ?: continue
+                    val until = item.str("stop")?.let(::instantOrNull) ?: continue
                     val title = item.str("title") ?: continue
                     if (until > from) programmes += programme(id, from, until, title, item["episode"])
                 }
@@ -128,7 +128,6 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
 
     private fun headers(session: Session) = STREAM_HEADERS + mapOf("Accept" to "application/json", "Authorization" to "Bearer ${session.token}")
 
-    private fun instant(value: String): Instant? = try { Instant.parse(value) } catch (_: Exception) { null }
 
     companion object {
         private const val BOOT_URL = "https://boot.pluto.tv/v4/start"

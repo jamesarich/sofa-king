@@ -62,8 +62,8 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
             if (playable(row) == null || channels.any { it.id == id }) continue
             channels += ProviderChannel(id, name, null, httpOrNull(row["images"]["thumbnail"][0].string), groups[id], listOf("us"))
             for (programme in row["programs"].array) {
-                val start = programme.str("start_time")?.let(::instant) ?: continue
-                val end = programme.str("end_time")?.let(::instant) ?: continue
+                val start = programme.str("start_time")?.let(::instantOrNull) ?: continue
+                val end = programme.str("end_time")?.let(::instantOrNull) ?: continue
                 val title = programme.str("title") ?: continue
                 if (end > start) programmes += GuideProgramme(id, start, end, title, programme.str("description"))
             }
@@ -107,7 +107,6 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
         throw ProviderFailure("Tubi linear containers are cut off")
     }
 
-    private fun instant(value: String): Instant? = try { Instant.parse(value) } catch (_: Exception) { null }
 
     companion object {
         private const val PAGE_URL = "https://tubitv.com/live"
@@ -117,9 +116,8 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
         private const val BATCH = 50
         private val URL_LIFETIME = Duration.ofHours(1)
         private val CURATED = setOf("favorite_linear_channels", "recommended_linear_channels", "featured_channels", "recently_added_channels")
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
-        private val STREAM_HEADERS = mapOf("User-Agent" to USER_AGENT, "Origin" to "https://tubitv.com", "Referer" to "https://tubitv.com/")
+        private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Origin" to "https://tubitv.com", "Referer" to "https://tubitv.com/")
         private val HEADERS = STREAM_HEADERS + ("Accept" to "application/json")
-        private val PAGE_HEADERS = mapOf("User-Agent" to USER_AGENT, "Accept" to "text/html,application/xhtml+xml,*/*;q=0.8")
+        private val PAGE_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Accept" to "text/html,application/xhtml+xml,*/*;q=0.8")
     }
 }

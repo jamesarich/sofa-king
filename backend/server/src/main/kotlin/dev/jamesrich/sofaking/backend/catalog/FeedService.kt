@@ -310,4 +310,8 @@ class FeedService(
         }
 }
 
-fun hash(value: String): String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.toByteArray()))
+/** The SHA-256 of [value]'s UTF-8 bytes, hex. */
+fun hash(value: String): String = hash(value.toByteArray())
+
+/** The SHA-256 of [bytes], hex. */
+fun hash(bytes: ByteArray): String = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))

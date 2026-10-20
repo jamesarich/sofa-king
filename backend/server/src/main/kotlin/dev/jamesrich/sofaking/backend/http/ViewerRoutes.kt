@@ -82,7 +82,9 @@ internal fun Route.viewerAdminRoutes(runtime: LiveRuntime) {
 internal fun validClientId(raw: String): String =
     raw.takeIf { CLIENT_ID.matches(it) } ?: throw ApiFailure(400, "INVALID_REQUEST", "clientId must be 1 to 64 letters, digits, dots, dashes or underscores")
 
-private fun label(raw: String): String = raw.trim().replace(Regex("\\s+"), " ").take(MAX_LABEL)
+private val whitespace = Regex("\\s+")
+
+private fun label(raw: String): String = raw.trim().replace(whitespace, " ").take(MAX_LABEL)
 
 private fun ids(list: List<String>, field: String): List<String> {
     if (list.size > MAX_LIST) throw ApiFailure(400, "INVALID_REQUEST", "$field lists more than $MAX_LIST channels")

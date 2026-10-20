@@ -30,7 +30,7 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
             ?: run { context.invalidate(CATALOG); listed().firstOrNull { it.channel.id == channelId }?.template }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         val now = context.clock.instant()
-        val url = Macros.fill(template, MACROS + mapOf("DEVICE_ID" to context.deviceId(), "CB" to now.epochSecond.toString(), "UA" to USER_AGENT))
+        val url = Macros.fill(template, MACROS + mapOf("DEVICE_ID" to context.deviceId(), "CB" to now.epochSecond.toString(), "UA" to BROWSER_USER_AGENT))
         return ResolvedStream(url, HEADERS, now.plus(URL_LIFETIME))
     }
 
@@ -46,8 +46,8 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
             val template = row.str("url") ?: continue
             if (result.containsKey(id)) continue
             val programmes = row["epg"]["entries"].array.mapNotNull { entry ->
-                val start = entry.str("start")?.let(::instant) ?: return@mapNotNull null
-                val end = entry.str("stop")?.let(::instant) ?: return@mapNotNull null
+                val start = entry.str("start")?.let(::instantOrNull) ?: return@mapNotNull null
+                val end = entry.str("stop")?.let(::instantOrNull) ?: return@mapNotNull null
                 val title = entry.str("title") ?: return@mapNotNull null
                 if (end <= start) null else GuideProgramme(id, start, end, title, entry.str("description"))
             }
@@ -57,14 +57,12 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
         return result.values.toList()
     }
 
-    private fun instant(value: String): Instant? = try { Instant.parse(value) } catch (_: Exception) { null }
 
     companion object {
         private const val CATALOG_URL = "https://epg.unreel.me/v2/sites/freelivesports/live-channels/public/081f73704b56aaceb6b459804761ec54?__site=freelivesports&__source=web"
         private const val CATALOG = "catalog"
         private val URL_LIFETIME = Duration.ofHours(1)
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        private val HEADERS = mapOf("User-Agent" to USER_AGENT, "Referer" to "https://www.freelivesports.tv/", "Origin" to "https://www.freelivesports.tv")
+        private val HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Referer" to "https://www.freelivesports.tv/", "Origin" to "https://www.freelivesports.tv")
         private val MACROS = mapOf("DEVICE_MODEL" to "web", "REF" to "https://www.freelivesports.tv/", "LAT" to "0", "GDPR" to "0")
     }
 }

@@ -90,8 +90,7 @@ class StirrClient(private val context: ProviderContext) : ProviderClient {
         private const val CHANNELS = "channels"
         private val SPACES = Regex("""\s+""")
         private val URL_LIFETIME = Duration.ofHours(1)
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
-        private val STREAM_HEADERS = mapOf("User-Agent" to USER_AGENT, "Origin" to "https://stirr.com", "Referer" to "https://stirr.com/")
+        private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Origin" to "https://stirr.com", "Referer" to "https://stirr.com/")
         private val HEADERS = STREAM_HEADERS + ("Accept" to "application/json, text/plain, */*")
     }
 }

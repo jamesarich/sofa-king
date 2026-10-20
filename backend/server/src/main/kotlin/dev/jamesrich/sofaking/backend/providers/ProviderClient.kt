@@ -110,3 +110,9 @@ internal fun usRating(value: String?): ProgrammeRating? {
     val upper = rating.uppercase()
     return ProgrammeRating(rating, if (upper in vchip) "VCHIP" else if (upper in mpaa) "MPAA" else null)
 }
+
+/** The desktop Chrome the services' own web players are written for. */
+internal const val BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
+
+/** An ISO-8601 instant, or null for anything else. */
+internal fun instantOrNull(value: String): Instant? = try { Instant.parse(value) } catch (_: Exception) { null }

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.library
 
+import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -39,7 +40,6 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
-import dev.jamesrich.sofaking.ui.guide.GuideChip
 import org.jetbrains.compose.resources.stringResource
 
 /** What the library home's cards do. OK opens an item's page; the remote's Play key plays an item that plays. */
@@ -133,11 +133,11 @@ private fun Shelves(
             ) {
                 item(key = SEARCH_FOCUS_KEY) {
                     val focus = (if (returnedFrom == SEARCH_FOCUS_KEY) Modifier.focusRequester(returnFocus) else Modifier).focusRequester(searchFocus)
-                    GuideChip(selected = false, onClick = { actions.onSearch(false) }, label = stringResource(Res.string.library_search), modifier = focus)
+                    SofaChip(selected = false, onClick = { actions.onSearch(false) }, label = stringResource(Res.string.library_search), modifier = focus)
                 }
                 items(libraries, key = { it.id }) { library ->
                     val focus = if (returnedFrom == libraryFocusKey(library.id)) Modifier.focusRequester(returnFocus) else Modifier
-                    GuideChip(
+                    SofaChip(
                         selected = false,
                         onClick = { actions.onOpenLibrary(library) },
                         label = stringResource(Res.string.library_library_chip, library.name, library.itemCount),

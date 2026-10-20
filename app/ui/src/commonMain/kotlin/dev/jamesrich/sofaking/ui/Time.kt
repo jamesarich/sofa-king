@@ -79,3 +79,13 @@ private val placeholder = Regex("%(\\d+)\\$[sd]")
  */
 internal fun formatTemplate(template: String, vararg args: Any): String =
     placeholder.replace(template) { match -> args.getOrNull(match.groupValues[1].toInt() - 1)?.toString() ?: match.value }
+
+/** A time in the item as `M:SS` or `H:MM:SS`. */
+internal fun formatPlayTime(ms: Long): String {
+    val total = (ms.coerceAtLeast(0) / 1000)
+    val hours = total / 3600
+    val minutes = (total % 3600) / 60
+    val seconds = total % 60
+    val ss = seconds.toString().padStart(2, '0')
+    return if (hours > 0) "$hours:${minutes.toString().padStart(2, '0')}:$ss" else "$minutes:$ss"
+}

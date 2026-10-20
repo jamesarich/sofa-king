@@ -17,7 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import dev.jamesrich.sofaking.ui.guide.voiceQuery
 import android.app.UiModeManager
 import android.content.pm.PackageManager
 import android.content.res.Configuration

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.library
 
+import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,7 +46,6 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.SofaLoader
-import dev.jamesrich.sofaking.ui.guide.GuideChip
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -160,11 +160,11 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
             items(LibrarySort.entries.size) { i ->
                 val option = LibrarySort.entries[i]
                 val focus = if (option == sort) Modifier.focusRequester(selectedSort) else Modifier
-                GuideChip(selected = option == sort, onClick = { actions.onSort(option) }, label = stringResource(option.label()), modifier = focus)
+                SofaChip(selected = option == sort, onClick = { actions.onSort(option) }, label = stringResource(option.label()), modifier = focus)
             }
             item {
                 val unwatched = grid?.unwatched == true
-                GuideChip(selected = unwatched, onClick = { actions.onUnwatched(!unwatched) }, label = stringResource(Res.string.library_filter_unwatched))
+                SofaChip(selected = unwatched, onClick = { actions.onUnwatched(!unwatched) }, label = stringResource(Res.string.library_filter_unwatched))
             }
         }
         val genres = grid?.genres.orEmpty()
@@ -175,12 +175,12 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
             LazyRow(Modifier.focusRestorer(selectedGenre), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
                     val focus = if (!genreShown) Modifier.focusRequester(selectedGenre) else Modifier
-                    GuideChip(selected = genre == null, onClick = { actions.onGenre(null) }, label = stringResource(Res.string.library_genre_all), modifier = focus)
+                    SofaChip(selected = genre == null, onClick = { actions.onGenre(null) }, label = stringResource(Res.string.library_genre_all), modifier = focus)
                 }
                 items(genres, key = { it }) { option ->
                     val selected = option.equals(genre, ignoreCase = true)
                     val focus = if (selected) Modifier.focusRequester(selectedGenre) else Modifier
-                    GuideChip(selected = selected, onClick = { actions.onGenre(option) }, label = option, modifier = focus)
+                    SofaChip(selected = selected, onClick = { actions.onGenre(option) }, label = option, modifier = focus)
                 }
             }
         }

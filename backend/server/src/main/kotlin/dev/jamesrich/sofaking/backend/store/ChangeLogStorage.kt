@@ -13,7 +13,7 @@ private val changeJson = Json { encodeDefaults = true; ignoreUnknownKeys = true 
 suspend fun BackendStore.recordPolicyChanges(changes: List<PolicyChange>, at: Instant, keep: Int = 10_000) {
     if (changes.isEmpty()) return
     query {
-        PolicyChanges.batchInsert(changes) { change ->
+        PolicyChanges.batchInsert(changes, shouldReturnGeneratedValues = false) { change ->
             this[PolicyChanges.appliedAt] = at.toString()
             this[PolicyChanges.entryId] = change.entryId
             this[PolicyChanges.changeJson] = changeJson.encodeToString(change)

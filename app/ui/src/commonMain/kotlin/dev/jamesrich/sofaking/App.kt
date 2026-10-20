@@ -66,12 +66,17 @@ import kotlinx.coroutines.launch
  * page is chosen, which is when Android lets its splash screen go.
  */
 @Composable
-fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}, onReady: () -> Unit = {}) {
+fun App(
+    modifier: Modifier = Modifier,
+    pairing: PairingRequest? = null,
+    onPairingHandled: () -> Unit = {},
+    onReady: () -> Unit = {},
+) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
     SofaKingTheme {
         val lastInput = rememberLastInput()
         CompositionLocalProvider(LocalLayoutProfile provides rememberLayoutProfile(), LocalLastInput provides lastInput) {
-            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled, onReady = onReady) }
+            Surface(modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled, onReady = onReady) }
         }
     }
 }

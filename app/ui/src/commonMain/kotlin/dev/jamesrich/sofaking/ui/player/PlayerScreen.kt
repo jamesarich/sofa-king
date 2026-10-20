@@ -37,6 +37,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -129,6 +130,9 @@ private class TuneJob {
 private class ZapRelay {
     var onStep: (Int) -> Unit = {}
 }
+
+/** The full-screen player's test tag; Android exposes it as a resource id for the Baseline Profile generator. */
+const val PLAYER_TEST_TAG = "player"
 
 @Composable
 fun PlayerScreen(
@@ -781,6 +785,7 @@ fun PlayerScreen(
     Box(
         Modifier
             .fillMaxSize()
+            .testTag(PLAYER_TEST_TAG)
             .background(SofaScrim)
             .focusRequester(focus)
             .focusable()

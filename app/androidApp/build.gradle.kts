@@ -27,6 +27,11 @@ android {
     }
 }
 
+baselineProfile {
+    // R8 lays out the first dex file from the startup profile; without this the startup profile only feeds ART.
+    dexLayoutOptimization = true
+}
+
 dependencies {
     implementation(project(":ui"))
     implementation(libs.androidx.activity.compose)

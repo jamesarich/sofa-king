@@ -8,6 +8,7 @@ import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.regex.Pattern
 
 /**
  * Records the classes and methods a cold start, the guide and a channel change run, for ahead-of-time compilation.
@@ -29,6 +30,11 @@ class BaselineProfileGenerator {
     @Test
     fun guideAndZap() = rule.collect(packageName = PACKAGE) {
         launch()
+        // A cold start reopens the last channel full screen; Back leaves it for the guide.
+        if (device.hasObject(By.res(PLAYER))) {
+            device.pressBack()
+            check(device.wait(Until.hasObject(By.res(GUIDE)), TIMEOUT_MS)) { "The guide did not open" }
+        }
 
         // Scroll the guide down a page of channels and back, then along the timeline.
         repeat(GUIDE_STEPS) { device.pressDPadDown(); device.waitForIdle() }
@@ -49,16 +55,24 @@ class BaselineProfileGenerator {
         device.waitForIdle()
     }
 
-    /** A cold start up to the first screen: the last channel full screen, or the guide. */
+    /**
+     * A cold start up to the first page: the last channel full screen, or the guide. The splash screen stays up until
+     * the app has chosen that page, so wait for the page's own test tag, which MainActivity exposes as a resource id.
+     */
     private fun MacrobenchmarkScope.launch() {
         pressHome()
         startActivityAndWait()
-        device.wait(Until.hasObject(By.pkg(PACKAGE).depth(0)), TIMEOUT_MS)
+        check(device.wait(Until.hasObject(By.res(FIRST_PAGE)), TIMEOUT_MS)) { "Neither the guide nor the player opened" }
         device.waitForIdle()
     }
 
     private companion object {
         const val PACKAGE = "dev.jamesrich.sofaking"
+
+        // PLAYER_TEST_TAG and GUIDE_TEST_TAG in the ui module.
+        const val PLAYER = "player"
+        const val GUIDE = "guide"
+        val FIRST_PAGE: Pattern = Pattern.compile("$PLAYER|$GUIDE")
         const val TIMEOUT_MS = 30_000L
         const val PLAYBACK_MS = 5_000L
         const val GUIDE_STEPS = 12

@@ -204,9 +204,13 @@ internal fun failureReasonRes(code: String): StringResource = when {
 internal fun failureHintRes(code: String): StringResource =
     if (SOURCE_UNAVAILABLE in code) Res.string.no_working_source_hint else Res.string.cant_play_retry
 
-/** [retryInSeconds] counts down to the next automatic reconnect; 0 while it runs, null while none is scheduled. */
+/**
+ * [retryInSeconds] counts down to the next automatic reconnect; 0 while it runs, null while none is scheduled. A
+ * lambda, so the countdown recomposes only this card.
+ */
 @Composable
-internal fun BoxScope.FailureCard(code: String, retryInSeconds: Int? = null) {
+internal fun BoxScope.FailureCard(code: String, retryInSeconds: () -> Int? = { null }) {
+    val retryIn = retryInSeconds()
     Column(
         Modifier
             .align(Alignment.Center)
@@ -217,9 +221,9 @@ internal fun BoxScope.FailureCard(code: String, retryInSeconds: Int? = null) {
     ) {
         Text(stringResource(failureReasonRes(code)), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
         Text(stringResource(failureHintRes(code)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-        if (retryInSeconds != null) {
+        if (retryIn != null) {
             Text(
-                if (retryInSeconds > 0) stringResource(Res.string.player_retry_in, retryInSeconds) else stringResource(Res.string.player_retry_now),
+                if (retryIn > 0) stringResource(Res.string.player_retry_in, retryIn) else stringResource(Res.string.player_retry_now),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -535,7 +539,12 @@ internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, mod
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(if (selected) "●" else "○", style = MaterialTheme.typography.bodyMedium, color = if (focused) colors.onPrimary else colors.primary)
+        Icon(
+            if (selected) SofaIcons.Recordings else SofaIcons.RadioButtonUnchecked,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = if (focused) colors.onPrimary else colors.primary,
+        )
         Text(label, style = MaterialTheme.typography.bodyMedium, color = if (focused) colors.onPrimary else colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

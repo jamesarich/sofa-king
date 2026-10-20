@@ -154,8 +154,11 @@ private fun SeriesRow(
         busy = true
         failed = false
         scope.launch {
-            failed = !action()
-            busy = false
+            try {
+                failed = !action()
+            } finally {
+                busy = false
+            }
         }
     }
     Column(Modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -254,17 +257,22 @@ private fun RecordingRow(
             SofaButton(
                 modifier = deleteModifier,
                 onClick = {
-                    if (busy) {
-                        Unit
-                    } else if (!confirming) {
-                        confirming = true
-                        failed = false
-                    } else {
-                        confirming = false
-                        busy = true
-                        scope.launch {
-                            failed = !onDelete(recording)
-                            busy = false
+                    when {
+                        busy -> {}
+                        !confirming -> {
+                            confirming = true
+                            failed = false
+                        }
+                        else -> {
+                            confirming = false
+                            busy = true
+                            scope.launch {
+                                try {
+                                    failed = !onDelete(recording)
+                                } finally {
+                                    busy = false
+                                }
+                            }
                         }
                     }
                 },

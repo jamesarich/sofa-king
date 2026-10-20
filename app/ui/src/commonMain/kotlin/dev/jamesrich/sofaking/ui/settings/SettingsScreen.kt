@@ -12,6 +12,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +33,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalUriHandler
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -459,7 +463,7 @@ fun SettingsScreen(
                         },
                         enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE_MS.first,
                         modifier = Modifier.focusRequester(lessFocus).semantics { contentDescription = lessLabel },
-                    ) { Text("−") }
+                    ) { Icon(SofaIcons.Remove, null) }
                     Text(captionTimingText(captionAdvance), style = MaterialTheme.typography.bodyLarge)
                     SofaButton(
                         onClick = {
@@ -469,7 +473,7 @@ fun SettingsScreen(
                         },
                         enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE_MS.last,
                         modifier = Modifier.focusRequester(moreFocus).semantics { contentDescription = moreLabel },
-                    ) { Text("+") }
+                    ) { Icon(Icons.Filled.Add, null) }
                 }
             }
             item { HelpText(stringResource(Res.string.caption_timing_help)) }

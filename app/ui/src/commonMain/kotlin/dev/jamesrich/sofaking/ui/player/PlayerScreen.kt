@@ -67,7 +67,6 @@ import dev.jamesrich.sofaking.ui.RiseIn
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
-import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -100,8 +99,6 @@ internal const val CHANNEL_NOT_FOUND = Wire.ErrorCode.CHANNEL_NOT_FOUND
 private const val LINEUP_SYNC_MS = 2_000L
 private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 private val log = Logger.withTag("SofaKing")
-
-/** Digit-entry miss; compared by identity so a repeated miss restarts its timer. */
 
 /**
  * Caption toggle feedback; compared by identity so a repeated press restarts its timer. While [timingMs] is set,
@@ -483,14 +480,14 @@ fun PlayerScreen(
                 index = currentLineupChannels.indexOfFirst { it.guideId == channel.guideId }.coerceAtLeast(0)
             }
             var attempt = current.attempt
-            var lineup = reloadLineup()
-            while (lineup == null) {
+            var reloaded = reloadLineup()
+            while (reloaded == null) {
                 // Unreachable or timed out: the reload, not the dead id, is what backs off and tries again.
                 delay(reconnectDelayMs(attempt++))
                 lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
-                lineup = reloadLineup()
+                reloaded = reloadLineup()
             }
-            withTimeoutOrNull(LINEUP_SYNC_MS) { snapshotFlow { currentChannels }.first { it == lineup.channels } }
+            withTimeoutOrNull(LINEUP_SYNC_MS) { snapshotFlow { currentChannels }.first { it == reloaded.channels } }
             val target = resolveReplacement(currentChannels, channel)
             if (target == null) {
                 onChannelGone(channel)
@@ -721,7 +718,6 @@ fun PlayerScreen(
     }
     val currentHandleTap by rememberUpdatedState(::handleTap)
     val currentOpenMiniGuide by rememberUpdatedState(::openMiniGuide)
-    val swipeUpPx = with(LocalDensity.current) { SWIPE_UP_DP.dp.toPx() }
 
     /** A touch control's action, after which the info bar stays up for another while and the surface keeps focus. */
     fun control(action: () -> Unit): () -> Unit = {
@@ -813,7 +809,7 @@ fun PlayerScreen(
                 var dragged = 0f
                 detectVerticalDragGestures(
                     onDragStart = { dragged = 0f },
-                    onDragEnd = { if (dragged < -swipeUpPx) currentOpenMiniGuide() },
+                    onDragEnd = { if (dragged < -SWIPE_UP_DP.dp.toPx()) currentOpenMiniGuide() },
                     onVerticalDrag = { _, dy -> dragged += dy },
                 )
             },
@@ -824,7 +820,7 @@ fun PlayerScreen(
 
         val channel = currentChannels.getOrNull(index)
         if (channel == null) {
-            Text(stringResource(Res.string.no_channels), style = MaterialTheme.typography.titleLarge, color = SofaDusk, modifier = Modifier.align(Alignment.Center))
+            Text(stringResource(Res.string.no_channels), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.align(Alignment.Center))
         } else {
             val popIn = PopIn
             val popOut = PopOut
@@ -850,7 +846,7 @@ fun PlayerScreen(
                     if (toast != null) CaptionToastPill(toast.outcome, toast.timingMs)
                 }
             }
-            failure?.let { FailureCard(it.code, retryIn) }
+            failure?.let { FailureCard(it.code) { retryIn } }
             ChannelNumberBadge(numbers)
             AnimatedVisibility(streamCardOpen, enter = PopIn, exit = ExitTransition.None) {
                 Box(Modifier.fillMaxSize()) {

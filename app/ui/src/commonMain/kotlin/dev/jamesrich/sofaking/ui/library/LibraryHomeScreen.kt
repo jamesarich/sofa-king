@@ -166,11 +166,7 @@ private fun Shelf(shelf: MediaShelf, actions: LibraryHomeActions, insets: Paddin
         ) {
             items(shelf.items, key = { it.id }) { item ->
                 val focus = if (item.id == focusItem) Modifier.focusRequester(focusRequester) else Modifier
-                val play = if (item.kind.playable) ({ actions.onPlayItem(item) }) else null
-                when (style) {
-                    CardStyle.POSTER -> PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = focus, menu = actions.menu)
-                    CardStyle.WIDE -> WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = focus, menu = actions.menu)
-                }
+                LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, focus)
             }
         }
     }

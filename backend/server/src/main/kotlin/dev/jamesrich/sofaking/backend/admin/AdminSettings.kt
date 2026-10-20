@@ -59,6 +59,7 @@ internal fun effectiveSettings(config: ServerConfig): List<SettingGroup> {
             SecretOrigin.GENERATED -> "Generated and stored in ${config.secretsFile ?: SecretsFile.NAME}. "
             SecretOrigin.FILE -> "Read from the file ${name}_FILE names. "
             SecretOrigin.ENVIRONMENT -> "Set in the environment. "
+            SecretOrigin.SAVED -> "Saved from the portal in ${config.secretsFile ?: config.dataDirectory.resolve(SecretsFile.NAME)}. "
             null -> ""
         }
         return Setting(name, if (value == null) UNSET else if (origin == SecretOrigin.GENERATED) GENERATED else SET, value == null, from + note)

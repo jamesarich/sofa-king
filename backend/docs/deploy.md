@@ -28,7 +28,7 @@ The HDHomeRun emulation for Plex is on, and admits no address until you allow th
 | `backend.sqlite` (with `-wal` and `-shm` while running) | Server | The lineup, guides, source health, provider session tokens and the server identity |
 | `logos/` | Server | Cached lineup logos, at most 2 MiB each; a logo the lineup does not name is deleted |
 | `backups/` | The updater and you | Database backups, readable by their owner alone; see [backups](operations.md#backups) |
-| `secrets.json` | Server | The generated API, admin and output tokens, readable by the owner alone |
+| `secrets.json` | Server | The generated API, admin and output tokens and the TMDB token the portal saved, readable by the owner alone |
 | `sources.json` | You | The [source file](live-tv.md#source-settings), used when `SOFA_SOURCES` is unset |
 | `policy.json` | You and the server | The [lineup policy](lineup-policy.md), used when `SOFA_POLICY` is unset; the server writes numbers and edits back into it |
 

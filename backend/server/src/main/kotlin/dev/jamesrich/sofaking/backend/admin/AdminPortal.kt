@@ -420,6 +420,15 @@ class AdminPortal(
                     call.html(libraryPage(chrome(call, session), libraryView(listOf(e.message), proposed)), HttpStatusCode.BadRequest)
                 }
             }
+            action("/library/tmdb") { session, form ->
+                val setup = runtime.setup ?: run { seeOther(call, "/admin/library#tmdb"); return@action }
+                try {
+                    setup.saveTmdbToken(form["token"].orEmpty())
+                    call.html(restartingPage(theme(call), "Saved the TMDB token to ${setup.secretsPath}. The libraries scan again once the server is back and fill in details and artwork."))
+                } catch (e: ApiFailure) {
+                    call.html(libraryPage(chrome(call, session), libraryView(tmdbError = e.message)), HttpStatusCode.fromValue(e.status))
+                }
+            }
             action("/library/{id}/scan") { session, _ ->
                 val id = call.parameters["id"]!!
                 val library = runtime.store.library(id)
@@ -575,11 +584,14 @@ class AdminPortal(
 
     private fun libraries(): LibraryService = runtime.libraries ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Resource not found")
 
-    private suspend fun libraryView(errors: List<String> = emptyList(), proposed: Map<String, String>? = null, removing: LibraryRecord? = null): LibraryView {
+    private suspend fun libraryView(
+        errors: List<String> = emptyList(), proposed: Map<String, String>? = null, removing: LibraryRecord? = null, tmdbError: String? = null,
+    ): LibraryView {
         val service = libraries()
         return LibraryView(
             service.libraries(), service.counts(), service.roots.map { it.root.toString() }, service.folderChoices().map { it.toString() },
             runtime.jobs.snapshot().any { it.id == LIBRARY_SCAN_JOB && it.running }, errors, proposed, removing, service.metadata?.enabled == true,
+            tmdbSettable = runtime.setup?.tmdbFromEnvironment == false, tmdbError = tmdbError,
         )
     }
 

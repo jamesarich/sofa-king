@@ -156,4 +156,48 @@ class SetupServiceTest {
         assertNull(groups.groupOf("no such category"))
         assertTrue(groups.map.keys.all { it == it.trim().lowercase() })
     }
+
+    @Test fun `a TMDB token TMDB takes is stored in secrets json and restarts, and one it refuses changes nothing`() = runTest {
+        val dir = Files.createTempDirectory("sofa-setup-tmdb-")
+        try {
+            var restarts = 0
+            val good = "t".repeat(40)
+            val checked = mutableListOf<String>()
+            val setup = SetupService(config(dir), restart = { restarts++ }, checkTmdb = { tmdb ->
+                checked += tmdb.token
+                if (tmdb.token != good) throw dev.jamesrich.sofaking.backend.library.TmdbFailure("TMDB_AUTH")
+            })
+            assertFalse(setup.tmdbFromEnvironment)
+            assertEquals("INVALID_REQUEST", assertFailsWith<ApiFailure> { setup.saveTmdbToken("too short") }.code)
+            assertEquals(emptyList(), checked, "a value that cannot be a token is never sent to TMDB")
+            assertEquals("TMDB_REJECTED", assertFailsWith<ApiFailure> { setup.saveTmdbToken("u".repeat(40)) }.code)
+            assertFalse(Files.exists(dir.resolve("secrets.json")))
+            assertEquals(0, restarts)
+
+            val result = setup.saveTmdbToken("  $good\n")
+            assertEquals(dir.resolve("secrets.json").toString(), result.path)
+            assertEquals(1, restarts)
+            assertEquals(good, dev.jamesrich.sofaking.backend.SecretsFile(dir.resolve("secrets.json")).stored("tmdbToken"))
+
+            val loaded = ServerConfig.load(mapOf("SOFA_DATA_DIR" to dir.toString()), {})
+            assertEquals(good, loaded.tmdb?.token, "the next start reads the saved token")
+            assertEquals(dev.jamesrich.sofaking.backend.SecretOrigin.SAVED, loaded.secretOrigins["SOFA_TMDB_TOKEN"])
+            val fromEnvironment = ServerConfig.load(mapOf("SOFA_DATA_DIR" to dir.toString(), "SOFA_TMDB_TOKEN" to "e".repeat(40)), {})
+            assertEquals("e".repeat(40), fromEnvironment.tmdb?.token, "the environment wins")
+            val locked = SetupService(fromEnvironment, restart = { restarts++ })
+            assertTrue(locked.tmdbFromEnvironment)
+            assertEquals("TMDB_FROM_ENVIRONMENT", assertFailsWith<ApiFailure> { locked.saveTmdbToken(good) }.code)
+        } finally { dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `TMDB that cannot be asked is a retryable failure, not a refusal`() = runTest {
+        val dir = Files.createTempDirectory("sofa-setup-tmdb-down-")
+        try {
+            val setup = SetupService(config(dir), restart = {}, checkTmdb = { throw dev.jamesrich.sofaking.backend.library.TmdbFailure("TMDB_UNREACHABLE (ConnectException)") })
+            val failure = assertFailsWith<ApiFailure> { setup.saveTmdbToken("t".repeat(40)) }
+            assertEquals(502, failure.status)
+            assertEquals("TMDB_UNREACHABLE", failure.code)
+            assertFalse(Files.exists(dir.resolve("secrets.json")))
+        } finally { dir.toFile().deleteRecursively() }
+    }
 }

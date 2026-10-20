@@ -40,7 +40,7 @@ Notes on the table:
 
 ## Outbound requests
 
-The server makes requests to the playlist, guide, logo and stream hosts that you configure, and, with `SOFA_TMDB_TOKEN` set, to `api.themoviedb.org` and `image.tmdb.org` for library details and artwork. The upstream address policy applies to all of them:
+The server makes requests to the playlist, guide, logo and stream hosts that you configure, and, with a TMDB token, to `api.themoviedb.org` and `image.tmdb.org` for library details and artwork. The upstream address policy applies to all of them:
 
 - Only `http` and `https` URLs without user information are fetched.
 - Loopback, link-local, unspecified and multicast addresses are refused, including as redirect targets the server follows, and so are numeric hosts other than a plain dotted quad (`0x7f000001`, `0177.0.0.1`, `127.1`), which the system resolver reads as addresses. Private LAN addresses are allowed, because LAN restream proxies are a common setup. This covers FFmpeg's reads too: the server fetches every redirect and every variant, segment and key URL a playlist names for FFmpeg, and a refused hop fails that read.
@@ -57,7 +57,7 @@ Details are in [live TV: upstream addresses and provider headers](live-tv.md#pro
 - The output token is generated at the first start like the others. Rotate it when a playlist URL has been shared further than you meant, as [operations](operations.md#rotating-tokens) describes.
 - Mount the media folder read only (`:ro`), as [media libraries](libraries.md#mount-the-media-folder) shows; the server never writes to it. Pass `SOFA_TMDB_TOKEN` through `SOFA_TMDB_TOKEN_FILE` like the other tokens.
 - Allow only the Plex server's address onto the tuners, or set `SOFA_HDHR_ENABLED=false` when Plex is not used.
-- Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens, and the source file can hold playlist URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
+- Keep the data directory (`deploy/config` with Docker) private to the user the server runs as. The database holds native provider session tokens, `secrets.json` holds the generated tokens and the TMDB token the portal saved, and the source file can hold playlist URLs with credentials. `deploy/.env` and `deploy/config/` are ignored by Git.
 - With [automatic updates](deploy.md#update-automatically), the updater's database backups hold the same session tokens as the database. Those in the config folder are readable by the container's user alone, and the fallback backups in the Compose directory by root alone.
 - [Inspect the published image's provenance and SBOM](deploy.md#inspect-the-published-image) before you run it.
 - Use HTTPS, through a reverse proxy, for any token that crosses a network you do not control.

@@ -28,6 +28,8 @@ private val tmdbJson = Json { ignoreUnknownKeys = true; explicitNulls = false; c
 
 @Serializable internal data class TmdbPage<T>(val results: List<T> = emptyList())
 
+@Serializable internal data class TmdbAuthentication(val success: Boolean = false)
+
 @Serializable internal data class TmdbMovieResult(
     val id: Int, val title: String = "", @SerialName("original_title") val originalTitle: String = "",
     @SerialName("release_date") val releaseDate: String? = null, val popularity: Double = 0.0,
@@ -93,6 +95,9 @@ internal class TmdbClient(private val http: HttpClient, private val config: Tmdb
     suspend fun movie(id: Int): TmdbMovie = get("/movie/$id", "append_to_response" to "credits,release_dates")
 
     suspend fun show(id: Int): TmdbShow = get("/tv/$id", "append_to_response" to "credits,content_ratings")
+
+    /** Asks TMDB whether it takes the token: fails with `TMDB_AUTH` when it refuses it. */
+    suspend fun check() { get<TmdbAuthentication>("/authentication") }
 
     /** Null when TMDB has no such season. */
     suspend fun season(showId: Int, season: Int): TmdbSeason? = try { get("/tv/$showId/season/$season") } catch (e: TmdbFailure) {

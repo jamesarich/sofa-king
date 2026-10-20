@@ -31,3 +31,6 @@ import kotlinx.serialization.Serializable
 
 /** `GET /api/v1/admin/libraries/folders`: the folders a new library can use. */
 @Serializable data class LibraryFolders(val roots: List<String>, val folders: List<String>)
+
+/** A TMDB API read access token or v3 API key for the libraries' details and artwork. */
+@Serializable data class SaveTmdbToken(val token: String)

@@ -205,7 +205,7 @@ class LiveRuntime(
                 vod.start()
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, relay, TsRemux(config.ffmpeg, loopback), logos, http, scope,
-                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart), libraries, vod, dvr, loopback,
+                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart, checkTmdb = { TmdbClient(http, it).check() }), libraries, vod, dvr, loopback,
                     HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() },
                 )
                 dvr.start(scope)

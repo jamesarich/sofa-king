@@ -181,4 +181,18 @@ class MigrationsTest {
             }
         } finally { closeDatabase(db); dir.toFile().deleteRecursively() }
     }
+
+    @Test fun `every db migration file is listed in Migrations, in version order`() {
+        // Tests run in the server's project directory; the files are the sources, not what the last build copied.
+        val folder = java.nio.file.Path.of("src/main/resources/db")
+        assertTrue(Files.isDirectory(folder), "no migrations folder at ${folder.toAbsolutePath()}")
+        val files = Files.list(folder).use { paths -> paths.map { it.fileName.toString() }.filter { it.startsWith("V") && it.endsWith(".sql") }.toList() }
+        val named = Regex("""V(\d+)__\w+\.sql""")
+        assertEquals(emptyList(), files.filterNot(named::matches), "migration files not named Vnnn__name.sql")
+        val onDisk = files.sortedBy { named.matchEntire(it)!!.groupValues[1].toInt() }
+        assertEquals(onDisk.size, onDisk.map { named.matchEntire(it)!!.groupValues[1].toInt() }.distinct().size, "two files share a version: $onDisk")
+        val listed = foundationMigrations()
+        assertEquals(onDisk.map { named.matchEntire(it)!!.groupValues[1].toInt() }, listed.map { it.version }, "Migrations.kt lists other versions than the files: $onDisk")
+        for ((file, migration) in onDisk.zip(listed)) assertEquals(Files.readString(folder.resolve(file)), migration.sql, "$file is not the migration listed as version ${migration.version}")
+    }
 }

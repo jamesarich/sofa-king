@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpServer
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.catalog.MediaFixture
+import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.store.addRecording
 import dev.jamesrich.sofaking.backend.store.recordings
@@ -338,5 +339,87 @@ class DvrTest {
             }
         }
         dir.toFile().deleteRecursively()
+    }
+
+    private class Ticking(val dvr: Dvr, val store: dev.jamesrich.sofaking.backend.store.BackendStore, val clock: MutableClock, val root: Path)
+
+    /**
+     * A DVR on its own store and an injected clock, never started: each [Dvr.tick] is the test's, as after a restart.
+     * The runtime only lends it a lineup, guides and a recorder; its own DVR runs on another store.
+     */
+    private fun ticking(block: suspend Ticking.() -> Unit) = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-dvr-tick-")
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), updateImage = null, comskip = null)
+        val runtime = LiveRuntime.create(openStore(dir), config, Clock.systemUTC(), probes = false)
+        val clock = MutableClock()
+        val store = openStore(dir.resolve("own"), clock)
+        val root = dir.resolve("own/recordings")
+        try {
+            val dvr = Dvr(store, runtime.lineup, runtime.guides, Recorder("ffmpeg", runtime.sessions, runtime.feeds, clock), root, clock, { 4 }, zone = ZoneOffset.UTC)
+            Ticking(dvr, store, clock, root).block()
+        } finally {
+            store.close(); runtime.close(); runtime.store.close(); dir.toFile().deleteRecursively()
+        }
+    }
+
+    private fun stored(id: String, start: Instant, state: String, path: String? = null) = StoredRecording(
+        id, null, "c", "Channel C", start, start.plusSeconds(1800), java.time.Duration.ofSeconds(60), java.time.Duration.ofSeconds(120), "News",
+        state = state, path = path, createdAt = start, updatedAt = start,
+    )
+
+    @Test fun `a scheduled recording whose window passed while the server was off fails as MISSED on the first tick`() = ticking {
+        val start = clock.now.plusSeconds(3600)
+        store.addRecording(stored("missed", start, Wire.RecordingState.SCHEDULED))
+        store.addRecording(stored("later", start.plus(java.time.Duration.ofDays(1)), Wire.RecordingState.SCHEDULED))
+        dvr.tick()
+        assertEquals(Wire.RecordingState.SCHEDULED, dvr.recording("missed").state, "its window has not opened yet")
+
+        // The server is off from before the window opens until after it closes.
+        clock.now = start.plusSeconds(1800 + 120)
+        dvr.tick()
+        val missed = dvr.recording("missed")
+        assertEquals(Wire.RecordingState.FAILED, missed.state)
+        assertEquals("MISSED", missed.reason)
+        assertNull(missed.path)
+        assertEquals(Wire.RecordingState.SCHEDULED, dvr.recording("later").state)
+    }
+
+    @Test fun `a recording a restart left running past its window is finished from what it wrote`() = ticking {
+        val start = clock.now.minusSeconds(7200)
+        val name = RecordingTitle("News")
+        val final = RecordingLayout.path(name, start, ZoneOffset.UTC) { false }
+        val partial = RecordingLayout.inProgress(final)
+        Files.createDirectories(root.resolve(partial).parent)
+        Files.write(root.resolve(partial), ByteArray(188 * 10) { if (it % 188 == 0) 0x47 else 0 })
+        store.addRecording(stored("orphan", start, Wire.RecordingState.RECORDING, partial.toString()))
+
+        dvr.tick()
+        val done = dvr.recording("orphan")
+        assertEquals(Wire.RecordingState.COMPLETED, done.state)
+        assertNull(done.reason, "the window ran to its end")
+        assertEquals(final.toString(), done.path)
+        assertEquals(188L * 10, done.bytes)
+        assertEquals(188L * 10, Files.size(root.resolve(final)))
+        assertFalse(Files.exists(root.resolve(RecordingLayout.IN_PROGRESS)), "the in-progress folder is pruned")
+    }
+
+    @Test fun `a recording that wrote nothing fails as NO_MEDIA and leaves no file behind`() = ticking {
+        val start = clock.now.minusSeconds(7200)
+        val empty = RecordingLayout.inProgress(RecordingLayout.path(RecordingTitle("News"), start, ZoneOffset.UTC) { false })
+        Files.createDirectories(root.resolve(empty).parent)
+        Files.createFile(root.resolve(empty))
+        store.addRecording(stored("empty", start, Wire.RecordingState.RECORDING, empty.toString()))
+        store.addRecording(stored("pathless", start.plusSeconds(60), Wire.RecordingState.RECORDING))
+
+        dvr.tick()
+        for (id in listOf("empty", "pathless")) {
+            val failed = dvr.recording(id)
+            assertEquals(Wire.RecordingState.FAILED, failed.state, id)
+            assertEquals("NO_MEDIA", failed.reason, id)
+            assertNull(failed.path, id)
+            assertEquals(0, failed.bytes, id)
+        }
+        assertFalse(Files.exists(root.resolve(empty)))
     }
 }

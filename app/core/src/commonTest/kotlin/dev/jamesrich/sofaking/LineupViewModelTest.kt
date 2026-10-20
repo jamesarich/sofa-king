@@ -229,7 +229,8 @@ class LineupViewModelTest {
         val server = FakeServer(this)
         val viewModel = start(server)
 
-        assertEquals(cached, viewModel.state.first { it is LineupState.Ready }.lineup)
+        // The channels show first, while the cached programmes decode.
+        assertEquals(cached.channels, viewModel.state.first { it is LineupState.Ready }.lineup.channels)
         val fresh = viewModel.state.first { it is LineupState.Ready && it.lineup.channels.first().guideId == "c1" }.lineup
         assertEquals(listOf("c1", "c2"), fresh.channels.map { it.guideId })
     }

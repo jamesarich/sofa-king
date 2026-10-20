@@ -59,6 +59,13 @@ class LaunchTest {
     }
 
     @Test
+    fun `Library and Recordings open while the lineup still loads`() {
+        assertEquals(LaunchTarget.OpenTab(Tab.LIBRARY), launchTarget(LineupState.Loading, AppSettings(lastTab = TopLevelTab.LIBRARY)))
+        assertEquals(LaunchTarget.OpenTab(Tab.RECORDINGS), launchTarget(LineupState.Loading, AppSettings(lastTab = TopLevelTab.RECORDINGS)))
+        assertEquals(LaunchTarget.OpenTab(Tab.LIBRARY), launchTarget(LineupState.Loading, AppSettings(startup = StartupTarget.LIBRARY)))
+    }
+
+    @Test
     fun `a startup of the library opens the Library tab whatever was watched`() {
         assertEquals(LaunchTarget.OpenTab(Tab.LIBRARY), launchTarget(ready, AppSettings(lastChannel = "2", startup = StartupTarget.LIBRARY)))
     }

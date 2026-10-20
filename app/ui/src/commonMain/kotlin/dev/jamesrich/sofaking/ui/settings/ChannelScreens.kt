@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -78,11 +79,17 @@ fun ChannelManagerScreen(
     val backFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val firstFocus = if (showsBackButton()) backFocus else contentFocus
+    val listState = rememberLazyListState()
     BackHandler { onBack() }
-    LaunchedEffect(Unit) { requestFocusWhenAttached(firstFocus) }
+    LaunchedEffect(Unit) {
+        requestFocusWhenAttached(firstFocus)
+        // Bringing the first row into view may scroll the title off the top; the page opens at its top.
+        if (firstFocus == contentFocus) listState.scrollToItem(0)
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize().screenPadding().focusRequester(contentFocus).focusRestorer().focusGroup(),
+        state = listState,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { ScreenTitle(stringResource(Res.string.channels_title), onBack, backFocus) }

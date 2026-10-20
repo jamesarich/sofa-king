@@ -163,27 +163,21 @@ import dev.jamesrich.sofaking.ui.trackLastInput
 /** The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the user is on. */
 /**
  * The whole app. [pairing] is a server to pair with from a `sofaking://pair` link the platform received; the app
- * claims it once and calls [onPairingHandled], so a restored activity does not claim it again. [onReady] runs once
- * the first page is chosen, which is when Android lets its splash screen go.
+ * claims it once and calls [onPairingHandled], so a restored activity does not claim it again.
  */
 @Composable
-fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}, onReady: () -> Unit = {}) {
+fun App(pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
     SofaKingTheme {
         val lastInput = rememberLastInput()
         CompositionLocalProvider(LocalLayoutProfile provides rememberLayoutProfile(), LocalLastInput provides lastInput) {
-            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled, onReady = onReady) }
+            Surface(Modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
         }
     }
 }
 
 @Composable
-private fun SofaKingApp(
-    vm: LineupViewModel = viewModel { appGraph.lineupViewModel() },
-    pairing: PairingRequest? = null,
-    onPairingHandled: () -> Unit = {},
-    onReady: () -> Unit = {},
-) {
+private fun SofaKingApp(vm: LineupViewModel = viewModel { appGraph.lineupViewModel() }, pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
@@ -259,8 +253,6 @@ private fun SofaKingApp(
     // for Last; both outlive the player's own composition and a configuration change.
     var history by rememberSerializable { mutableStateOf(WatchHistory()) }
     val launch = launchTarget(state, settings)
-    val currentOnReady by rememberUpdatedState(onReady)
-    LaunchedEffect(launchDecided) { if (launchDecided) currentOnReady() }
     LaunchedEffect(launch, launchDecided) {
         if (launchDecided || launch == LaunchTarget.Undecided) return@LaunchedEffect
         launchDecided = true

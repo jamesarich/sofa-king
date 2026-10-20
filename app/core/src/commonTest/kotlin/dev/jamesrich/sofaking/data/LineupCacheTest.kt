@@ -134,6 +134,36 @@ class LineupCacheTest {
     }
 
     @Test
+    fun `the channels open before the programmes are decoded`() = runTest {
+        val guide = mapOf("1" to listOf(programme("1", "2026-10-09T09:00:00Z", "2026-10-09T11:00:00Z", "Morning")))
+        cache().write(Lineup(listOf(channelOne), guide))
+
+        val opened = assertNotNull(cache().open())
+        assertEquals(listOf(channelOne), opened.channels)
+        assertEquals(guide, opened.guide())
+    }
+
+    @Test
+    fun `a file from before the programmes were nested still reads`() = runTest {
+        val programme = CachedProgramme(Instant.parse("2026-10-09T09:00:00Z").epochSeconds, Instant.parse("2026-10-09T11:00:00Z").epochSeconds, "Morning")
+        store.updateData {
+            CachedLineup(KEY, channels = listOf(CachedChannel("1", 1.0, "One", null, listOf("News"), "AVAILABLE")), guide = listOf(CachedGuide("1", listOf(programme))))
+        }
+
+        val lineup = assertNotNull(cache().read())
+        assertEquals(listOf("Morning"), lineup.guide["1"]?.map { it.title })
+    }
+
+    @Test
+    fun `programmes that do not decode read as null and clear the cache`() = runTest {
+        store.updateData { CachedLineup(KEY, channels = listOf(CachedChannel("1", 1.0, "One", null, listOf("News"), "AVAILABLE")), guideBytes = byteArrayOf(10, 99)) }
+
+        val opened = assertNotNull(cache().open())
+        assertNull(opened.guide())
+        assertNull(store.value)
+    }
+
+    @Test
     fun `a cache written for another server is ignored and kept`() = runTest {
         cache(key = "http://a:9193").write(Lineup(listOf(channelOne), emptyMap()))
 

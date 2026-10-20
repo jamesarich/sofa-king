@@ -46,7 +46,7 @@ Both Swift hosts take their version from the catalog's `sofaking` through `tools
 
 The tests cannot see focus, the remote's keys or a real decoder. Check these on a real Android TV or Google TV device before a change that touches playback, focus or the remote:
 
-- [ ] Cold start holds the splash screen until the last watched channel opens (no Loading page), and Back shows the guide focused on it. Leave the app from the Library tab and start it again: it opens on Library with nothing playing.
+- [ ] Cold start opens the last watched channel, and Back shows the guide focused on it. Leave the app from the Library tab and start it again: it opens on Library with nothing playing.
 - [ ] The Guide, Menu and Search keys work (the launcher may claim Guide on some devices), and voice search finds a channel.
 - [ ] D-pad focus moves through the guide without losing its place, including rapid focus changes over the preview, and the stream carries over between preview, player and guide.
 - [ ] Focus is visible on every button, chip, switch and field, including the Recent chip and a Later today line under a search result.

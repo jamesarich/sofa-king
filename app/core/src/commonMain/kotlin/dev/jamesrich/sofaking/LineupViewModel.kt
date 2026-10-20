@@ -271,15 +271,19 @@ class LineupViewModel(
         liveRepository = repository
         val cache = LineupCache(lineupCache, key)
         // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
-        // so the last good lineup shows at once and the network load replaces it below.
+        // so the last good lineup shows at once and the network load replaces it below. Its channels come first,
+        // so a channel or a tab opens while the programmes decode, which takes seconds on a TV.
         var last: Lineup? = lastGood?.takeIf { it.first == key }?.second
         if (last == null) {
             val cacheStarted = TimeSource.Monotonic.markNow()
-            cache.read()?.let { cached ->
-                log.i { "cache: ${cached.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}" }
-                last = cached
-                lastGood = key to cached
-                emit(LineupState.Ready(cached))
+            cache.open()?.let { cached ->
+                log.i { "cache: ${cached.channels.size} channels in ${cacheStarted.elapsedNow()}" }
+                emit(LineupState.Ready(Lineup(cached.channels, emptyMap(), guideLoading = true)))
+                val full = Lineup(cached.channels, cached.guide().orEmpty())
+                log.i { "cache: ${full.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}" }
+                last = full
+                lastGood = key to full
+                emit(LineupState.Ready(full))
             }
         }
         while (true) {

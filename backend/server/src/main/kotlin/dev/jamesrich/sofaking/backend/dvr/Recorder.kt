@@ -6,13 +6,15 @@ import dev.jamesrich.sofaking.backend.catalog.Offering
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.startOwned
 import dev.jamesrich.sofaking.backend.io.terminate
+import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.TsFanout
 import dev.jamesrich.sofaking.backend.playback.UpstreamProtocolException
 import dev.jamesrich.sofaking.backend.playback.remuxCommand
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
-import dev.jamesrich.sofaking.backend.upstream.probeHeadersSafe
+import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
+import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
 import java.io.FileOutputStream
 import java.net.URI
 import java.nio.file.Files
@@ -20,6 +22,7 @@ import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -41,14 +44,17 @@ data class RecordedTake(val bytes: Long, val lastFailure: String?)
 /**
  * Records one channel into one file until a deadline. Each attempt opens an external playback session, the way the
  * HDHomeRun route does, so the recording holds a slot and is never evicted as idle; the session picks the channel's
- * healthiest source. FFmpeg stream-copies that source to MPEG-TS and the bytes are appended to the file, so a source
- * that drops mid-recording is reopened, on the next source if this one went bad, and the file carries on.
+ * healthiest source. FFmpeg stream-copies that source, read through [relay], to MPEG-TS and the bytes are appended to
+ * the file, so a source that drops mid-recording is reopened, on the next source if this one went bad, and the file
+ * carries on.
  */
 class Recorder internal constructor(
     private val ffmpeg: String,
     private val sessions: SessionManager,
     private val feeds: FeedService,
     private val clock: Clock,
+    /** The relay FFmpeg reads the source through. */
+    private val relay: LoopbackRelay,
     /** How long to wait before reopening a source that ended or could not be opened. */
     private val retryDelay: Duration = Duration.ofSeconds(5),
     /** Joins an MPEG-TS source's one shared upstream connection, the one players of it read; null records every source through FFmpeg. */
@@ -104,9 +110,13 @@ class Recorder internal constructor(
         val stream = feeds.playable(offering)
         feeds.upstream.check(URI(stream.url))
         if (shared != null && offering.protocol == "mpegts") copyShared(shared, offering, stream, file, until, sessions.bytesOf(sessionId))?.let { return it.ifEmpty { null } }
-        val command = remuxCommand(ffmpeg, stream.url, stream.headers.takeIf(::probeHeadersSafe).orEmpty())
         val bytes = sessions.bytesOf(sessionId)
-        val process = ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
+        return relay.reading(stream, offering.protocol) { source -> remux(source, file, until, bytes) }
+    }
+
+    /** FFmpeg's stream copy of [source] appended to [file] until [until]; "NO_MEDIA" when it wrote nothing. */
+    private suspend fun remux(source: FfmpegSource, file: Path, until: Instant, bytes: AtomicLong): String? {
+        val process = ffmpegProcess(remuxCommand(ffmpeg, source)).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
         var written = 0L
         try {
             coroutineScope {
@@ -146,7 +156,7 @@ class Recorder internal constructor(
         stream: ResolvedStream,
         file: Path,
         until: Instant,
-        bytes: java.util.concurrent.atomic.AtomicLong,
+        bytes: AtomicLong,
     ): String? {
         val reader = join(offering, stream)
         try {

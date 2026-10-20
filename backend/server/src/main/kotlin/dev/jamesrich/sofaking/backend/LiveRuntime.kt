@@ -86,12 +86,15 @@ class LiveRuntime(
     val vod: VodSessions? = null,
     /** The DVR; null when the runtime was built without a config. */
     val dvr: Dvr? = null,
+    /** The loopback relay the remux, the recorder and the probes' FFmpeg read sources through. */
+    val loopback: LoopbackRelay = LoopbackRelay(http, feeds.upstream, relay.permits),
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
         sessions.close()
         vod?.close()
         remux.close()
+        loopback.close()
         http.close()
     }
     companion object {
@@ -161,6 +164,8 @@ class LiveRuntime(
                 policyService?.requestRun("startup")
                 plex?.start(scope)
                 plex?.requestSync("startup")
+                val relay = MediaRelay(http, feeds, sessions, scope)
+                val loopback = LoopbackRelay(http, policy, relay.permits)
                 // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.
                 val service = policyService
                 val worker = if (probes && (service != null || sources.providers.any { it.probe })) {
@@ -173,12 +178,11 @@ class LiveRuntime(
                     val targets = service?.let { { it.probeTargets() } }
                     ProbeWorker(
                         feeds, store, clock, config.ffmpeg, http, probeConfig, onObserved = { id -> sessions.healthChanged(id) },
-                        onHealthChanged = { service?.requestRun("health") }, targets = targets,
+                        onHealthChanged = { service?.requestRun("health") }, targets = targets, relay = loopback,
                     )
                 } else null
-                val relay = MediaRelay(http, feeds, sessions, scope)
                 val dvr = Dvr(
-                    store, lineup, guides, Recorder(config.ffmpeg, sessions, feeds, clock, shared = relay::joinShared), config.recordingsDirectory, clock, { settings.current.maxSessions },
+                    store, lineup, guides, Recorder(config.ffmpeg, sessions, feeds, clock, loopback, shared = relay::joinShared), config.recordingsDirectory, clock, { settings.current.maxSessions },
                     { java.time.Duration.ofDays(settings.current.guideDays.toLong()) },
                     retention = { settings.current.let { Retention(it.recordingsFreeGib, it.recordingsKeepDays) } },
                     commercials = config.comskip?.let { Commercials(it, config.dataDirectory.resolve("dvr")) }, jobs = jobs,
@@ -197,8 +201,8 @@ class LiveRuntime(
                 )
                 vod.start()
                 val runtime = LiveRuntime(
-                    store, feeds, guides, lineup, catalog, sessions, relay, TsRemux(config.ffmpeg), logos, http, scope,
-                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart), libraries, vod, dvr,
+                    store, feeds, guides, lineup, catalog, sessions, relay, TsRemux(config.ffmpeg, loopback), logos, http, scope,
+                    policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart), libraries, vod, dvr, loopback,
                 )
                 dvr.start(scope)
                 dvr.requestSchedule("startup")

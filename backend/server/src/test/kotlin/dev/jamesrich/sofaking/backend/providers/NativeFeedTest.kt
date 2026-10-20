@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.backendModule
 import dev.jamesrich.sofaking.backend.logos.LogoCache
+import dev.jamesrich.sofaking.backend.playback.LoopbackRelay
 import dev.jamesrich.sofaking.backend.playback.MediaRelay
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.playback.TsRemux
@@ -74,7 +75,7 @@ class NativeFeedTest {
         logos.initialize()
         val sessions = SessionManager(catalog, store, clock, 4)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        return LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux("ffmpeg"), logos, http, scope)
+        return LiveRuntime(store, feeds, guides, lineup, catalog, sessions, MediaRelay(http, feeds, sessions, scope), TsRemux("ffmpeg", LoopbackRelay(http, policy)), logos, http, scope)
     }
 
     @Test fun `a native provider imports as svc offerings that the relay resolves with the service headers`() = testApplication {

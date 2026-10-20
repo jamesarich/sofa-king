@@ -36,9 +36,7 @@ internal class LiveSession(
     val requests = mutableSetOf<Job>()
     fun resource(url: String, suffix: String? = null): String {
         resources.tokenFor(url)?.let { return it }
-        val extension = java.net.URI(url).path.substringAfterLast('.', "").lowercase()
-        val chosen = suffix ?: if (extension in RESOURCE_SUFFIXES) extension else "ts"
-        return "${UUID.randomUUID()}.$chosen".also { resources.put(it, url, pinned = chosen == "m3u8" || url == offering.url) }
+        return resourceToken(url, suffix).also { resources.put(it, url, pinned = it.endsWith(".m3u8") || url == offering.url) }
     }
     /** The root token's suffix and MIME follow the offering's protocol, never the upstream path. */
     fun descriptor(): PlaybackSession {
@@ -48,6 +46,11 @@ internal class LiveSession(
             if (hls) "application/vnd.apple.mpegurl" else "video/mp2t", "/media/sessions/$id/$epoch/$token", epoch), offering.providerId)
     }
     fun cancel(except: Job? = null) { requests.filter { it != except }.forEach { it.cancel() }; requests.retainAll { it == except } }
+}
+/** A new opaque token for [url]: random, with [suffix] or the URL's own media extension, else `ts`. */
+internal fun resourceToken(url: String, suffix: String? = null): String {
+    val extension = java.net.URI(url).path.substringAfterLast('.', "").lowercase()
+    return "${UUID.randomUUID()}.${suffix ?: if (extension in RESOURCE_SUFFIXES) extension else "ts"}"
 }
 /** O(1) in both directions. Pinned entries (root and playlists) never leave; the rest is a bounded LRU of segments and keys. */
 internal class ResourceMap(private val segmentLimit: Int = 4096) {

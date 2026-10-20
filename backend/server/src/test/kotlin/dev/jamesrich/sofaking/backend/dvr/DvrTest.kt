@@ -260,7 +260,7 @@ class DvrTest {
                 // Its own store, so the runtime's DVR never sees, and records, the same recording.
                 val store = openStore(dir.resolve("own"))
                 val dvr = Dvr(
-                    store, runtime.lineup, runtime.guides, Recorder("ffmpeg", runtime.sessions, runtime.feeds, Clock.systemUTC()), root, Clock.systemUTC(),
+                    store, runtime.lineup, runtime.guides, Recorder("ffmpeg", runtime.sessions, runtime.feeds, Clock.systemUTC(), runtime.loopback), root, Clock.systemUTC(),
                     { 4 }, retention = { Retention(freeGib = 5) }, freeSpace = { free },
                 )
                 kotlinx.coroutines.coroutineScope {
@@ -308,7 +308,7 @@ class DvrTest {
                 // A disk of 12 GiB where each recording's one-byte file stands for 1 GiB.
                 fun free() = 12 * gib - Files.walk(root).use { files -> files.filter(Files::isRegularFile).count() } * gib
                 val dvr = Dvr(
-                    runtime.store, runtime.lineup, runtime.guides, Recorder("ffmpeg", runtime.sessions, runtime.feeds, Clock.systemUTC()), root, Clock.systemUTC(),
+                    runtime.store, runtime.lineup, runtime.guides, Recorder("ffmpeg", runtime.sessions, runtime.feeds, Clock.systemUTC(), runtime.loopback), root, Clock.systemUTC(),
                     { 4 }, retention = { Retention(freeGib = 5, keepDays = 30) }, freeSpace = { free() },
                 )
                 val rule = dvr.createRule(CreateRecordingRule("News", keep = 2))
@@ -356,7 +356,7 @@ class DvrTest {
         val store = openStore(dir.resolve("own"), clock)
         val root = dir.resolve("own/recordings")
         try {
-            val dvr = Dvr(store, runtime.lineup, runtime.guides, Recorder("ffmpeg", runtime.sessions, runtime.feeds, clock), root, clock, { 4 }, zone = ZoneOffset.UTC)
+            val dvr = Dvr(store, runtime.lineup, runtime.guides, Recorder("ffmpeg", runtime.sessions, runtime.feeds, clock, runtime.loopback), root, clock, { 4 }, zone = ZoneOffset.UTC)
             Ticking(dvr, store, clock, root).block()
         } finally {
             store.close(); runtime.close(); runtime.store.close(); dir.toFile().deleteRecursively()

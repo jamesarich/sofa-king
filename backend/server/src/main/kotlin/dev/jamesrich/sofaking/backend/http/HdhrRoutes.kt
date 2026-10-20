@@ -8,7 +8,6 @@ import dev.jamesrich.sofaking.backend.catalog.hash
 import dev.jamesrich.sofaking.backend.catalog.stableId
 import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.store.IdentityStore
-import dev.jamesrich.sofaking.backend.upstream.probeHeadersSafe
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -160,7 +159,7 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
         }
         try {
             serveExternal(call, runtime, entry.id, shareHls = false) { session ->
-                // FFmpeg reads the source itself, so this request, not media traffic, is what holds the session.
+                // FFmpeg reads the source through the loopback relay, not the session, so this request is what holds the session.
                 runtime.sessions.attach(session.id, coroutineContext.job)
                 val offering = runtime.sessions.offeringOf(session.id)
                 val stream = try {
@@ -170,7 +169,7 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
                 }
                 runtime.feeds.upstream.check(URI(stream.url))
                 val bytes = runtime.sessions.bytesOf(session.id)
-                runtime.remux.stream(call, stream.url, stream.headers.takeIf(::probeHeadersSafe).orEmpty()) { bytes.addAndGet(it.toLong()) }
+                runtime.remux.stream(call, stream) { bytes.addAndGet(it.toLong()) }
                 false
             }
         } catch (e: ApiFailure) {

@@ -3,7 +3,10 @@ package dev.jamesrich.sofaking.backend.playback
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.startOwned
 import dev.jamesrich.sofaking.backend.io.terminate
+import dev.jamesrich.sofaking.backend.providers.ResolvedStream
+import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.ffmpegBase
+import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.server.application.ApplicationCall
@@ -28,22 +31,26 @@ import org.slf4j.LoggerFactory
 
 /**
  * FFmpeg remuxing one HLS source into MPEG-TS for a client that only takes TS (Plex through the HDHomeRun
- * emulation). Streams are copied, never transcoded, so CEA-608 captions ride through inside the video. The
- * process lives exactly as long as the response: a hang-up kills it and reaps it.
+ * emulation). Streams are copied, never transcoded, so CEA-608 captions ride through inside the video. FFmpeg reads
+ * the source through [relay], which checks every hop. The process lives exactly as long as the response: a hang-up
+ * kills it and reaps it.
  */
-class TsRemux(private val ffmpeg: String) {
+class TsRemux(private val ffmpeg: String, private val relay: LoopbackRelay) {
     private val log = LoggerFactory.getLogger(TsRemux::class.java)
     private val processes = ConcurrentHashMap.newKeySet<Process>()
 
     fun active(): Int = processes.size
 
-    /** Streams [url] remuxed to `video/mp2t` into [call]; returns when the client hangs up or FFmpeg exits. [sent] is told each chunk's size as it goes to the player. */
-    suspend fun stream(call: ApplicationCall, url: String, headers: Map<String, String>, sent: (Int) -> Unit = {}) {
-        val command = remuxCommand(ffmpeg, url, headers)
+    /** Streams [stream] remuxed to `video/mp2t` into [call]; returns when the client hangs up or FFmpeg exits. [sent] is told each chunk's size as it goes to the player. */
+    suspend fun stream(call: ApplicationCall, stream: ResolvedStream, sent: (Int) -> Unit = {}) =
+        relay.reading(stream, "hls") { source -> stream(call, source, sent) }
+
+    private suspend fun stream(call: ApplicationCall, source: FfmpegSource, sent: (Int) -> Unit) {
+        val command = remuxCommand(ffmpeg, source)
         // Creating the log file and forking FFmpeg block, so they run on IO; a cancel there must not drop either.
         val errors = withContext(NonCancellable + Dispatchers.IO) { Files.createTempFile("sofa-remux-", ".log") }
         val process = try {
-            ProcessBuilder(command).redirectError(errors.toFile()).startOwned()
+            ffmpegProcess(command).redirectError(errors.toFile()).startOwned()
         } catch (e: java.io.IOException) {
             withContext(NonCancellable + Dispatchers.IO) { Files.deleteIfExists(errors) }
             throw e
@@ -97,11 +104,11 @@ class TsRemux(private val ffmpeg: String) {
         redactedMessage(runCatching { Files.readAllLines(errors) }.getOrDefault(emptyList()).takeLast(3).joinToString(" | "))
 }
 
-/** The FFmpeg command that stream-copies [url] to MPEG-TS on its stdout. */
-internal fun remuxCommand(ffmpeg: String, url: String, headers: Map<String, String>): List<String> {
-    val command = ffmpegBase(ffmpeg, "warning", headers)
+/** The FFmpeg command that stream-copies [source] to MPEG-TS on its stdout. */
+internal fun remuxCommand(ffmpeg: String, source: FfmpegSource): List<String> {
+    val command = ffmpegBase(ffmpeg, "warning", source)
     // FFmpeg's own selection takes one video (highest resolution) and one audio (most channels) and skips the
     // other variants' downloads; subtitles and data have no reliable MPEG-TS mapping and are left out.
-    command += listOf("-i", url, "-sn", "-dn", "-c", "copy", "-f", "mpegts", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "pipe:1")
+    command += listOf("-i", source.url, "-sn", "-dn", "-c", "copy", "-f", "mpegts", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "pipe:1")
     return command
 }

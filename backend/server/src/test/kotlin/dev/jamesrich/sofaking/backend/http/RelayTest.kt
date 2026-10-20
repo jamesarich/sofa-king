@@ -99,7 +99,7 @@ class RelayTest {
                     bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "viewer")))
                 }.bodyAsText())
                 val recorder = dev.jamesrich.sofaking.backend.dvr.Recorder(
-                    "ffmpeg", runtime.sessions, runtime.feeds, java.time.Clock.systemUTC(), shared = runtime.relay::joinShared,
+                    "ffmpeg", runtime.sessions, runtime.feeds, java.time.Clock.systemUTC(), runtime.loopback, shared = runtime.relay::joinShared,
                 )
                 val file = dir.resolve("recording.ts")
                 val (head, take) = withTimeout(30_000) {

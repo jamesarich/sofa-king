@@ -218,13 +218,13 @@ The extra ports must differ from `SOFA_PORT`. They are opened only when `SOFA_HD
 
 Credentials are sent only to the configured request origin. Cross-origin CDN requests receive only `User-Agent`, `Accept`, `Accept-Language`, `Origin` and `Referer`. Authorization, cookies and custom headers are removed. Redirects are limited to five. HTTPS redirects cannot downgrade to HTTP, and sources configured with HTTPS also reject HTTP media resources.
 
-Providers that need secret headers on a different CDN origin are unsupported. A provider with any other header is never probed, because FFmpeg cannot scope headers by origin ([probing](lineup-policy.md#probing)).
+Providers that need secret headers on a different CDN origin are unsupported. A provider with any other header is never probed ([probing](lineup-policy.md#probing)).
 
 ## Upstream addresses
 
 Playlist, guide, probe and media requests go only to `http`/`https` URLs without user info. Loopback (`127.0.0.0/8`, `::1`, `localhost`), link-local (`169.254.0.0/16`, `fe80::/10`), unspecified (`0.0.0.0`, `::`) and multicast literals are refused, including as redirect targets. Private LAN addresses (RFC 1918) are allowed. Hostnames are not resolved before the request. A refused media address answers `502 UPSTREAM_REJECTED`, a refused playlist or guide address fails that import, and a refused probe target counts as evidence against the source. `SOFA_ALLOW_LOOPBACK_UPSTREAMS=true` permits loopback for local fixtures.
 
-FFmpeg reads sources itself for probes and for the Plex remux. It is started with `-protocol_whitelist http,https,tcp,tls,crypto`, so a playlist that names `file:`, `concat:` or another protocol fails instead of reading files on the server.
+FFmpeg reads sources for probes, recordings and the Plex remux through the server's own relay on `127.0.0.1`, which fetches every redirect, variant, segment and key under these rules, so a refused hop fails the read. It is started with `-protocol_whitelist http,tcp,crypto`, so a playlist that names `https:`, `file:`, `concat:` or another protocol fails instead of reaching another host or reading files on the server.
 
 ## Troubleshooting
 

@@ -11,7 +11,7 @@
     <string name="settings_server_change">Change</string>
     <string name="settings_server_cancel">Cancel</string>
     <string name="settings_server_url">Server URL</string>
-    <string name="settings_server_url_invalid">Enter the full address with its port, for example http://192.168.1.10:9193</string>
+    <string name="settings_server_url_invalid">Enter the server's address, for example 192.168.1.10 or http://192.168.1.10:9193</string>
     <string name="settings_api_token">API token</string>
     <string name="settings_api_token_invalid">Enter the token as letters, digits and punctuation with no spaces.</string>
     <string name="settings_api_token_help">Instead of a code: the value of SOFA_API_TOKEN on the server, or empty if it runs without one.</string>

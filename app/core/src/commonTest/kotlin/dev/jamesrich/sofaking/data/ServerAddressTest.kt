@@ -21,11 +21,22 @@ class ServerAddressTest {
     }
 
     @Test
-    fun `a bare host or an empty field is rejected`() {
-        assertNull(ServerAddress.normalizeUrl("192.168.1.3:9193"))
-        assertNull(ServerAddress.normalizeUrl("sofa.lan"))
+    fun `a bare address gets http and the default port when it has none`() {
+        assertEquals("http://192.168.1.10:9193", ServerAddress.normalizeUrl("192.168.1.10"))
+        assertEquals("http://192.168.1.10:8080", ServerAddress.normalizeUrl(" 192.168.1.10:8080/ "))
+        assertEquals("http://sofa.lan:9193", ServerAddress.normalizeUrl("sofa.lan"))
+        assertEquals("http://[fd00::1]:9193", ServerAddress.normalizeUrl("[fd00::1]"))
+        assertEquals("http://[fd00::1]:8080", ServerAddress.normalizeUrl("[fd00::1]:8080"))
+        assertEquals("https://tv.example.org", ServerAddress.normalizeUrl("https://tv.example.org"), "a typed scheme keeps its own port")
+    }
+
+    @Test
+    fun `an empty field or a bare address that is not one is rejected`() {
         assertNull(ServerAddress.normalizeUrl(""))
         assertNull(ServerAddress.normalizeUrl("   "))
+        assertNull(ServerAddress.normalizeUrl("fd00::1"))
+        assertNull(ServerAddress.normalizeUrl("sofa.lan/api"))
+        assertNull(ServerAddress.normalizeUrl("my server"))
     }
 
     @Test

@@ -16,6 +16,14 @@ android {
             providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
     }
 
+    // AGP's Compose Preview tasks fail to register without this and the unit tests androidComponents enables below.
+    // Android Studio's sync registers every task, so dropping either one breaks the sync.
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
+
     buildTypes {
         release {
             // Debug builds compose an 8 s first guide frame on a Chromecast; R8 + non-debuggable is the TV build.
@@ -24,6 +32,13 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
             signingConfig = signingConfigs.getByName("debug")
         }
+    }
+}
+
+// Compose Preview needs unit tests on every variant; see testOptions above.
+androidComponents {
+    beforeVariants { variantBuilder ->
+        variantBuilder.hostTests[com.android.build.api.variant.HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
     }
 }
 

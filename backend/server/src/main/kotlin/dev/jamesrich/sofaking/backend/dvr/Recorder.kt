@@ -79,7 +79,7 @@ class Recorder internal constructor(
      * attempt and the next one reopens, never the whole recording.
      */
     private suspend fun attempt(channelId: String, file: Path, until: Instant): String? {
-        val session = sessions.openExternal(channelId, CLIENT)
+        val session = sessions.openExternal(channelId, CLIENT, shareable = false)
         try {
             return try {
                 coroutineScope {

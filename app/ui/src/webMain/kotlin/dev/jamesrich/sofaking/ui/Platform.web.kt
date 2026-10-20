@@ -14,7 +14,6 @@ internal actual fun rememberIsTelevision(): Boolean = false
 @Composable
 internal actual fun rememberSystem24HourClock(): Boolean = remember { !localeUsesTwelveHourClock() }
 
-@OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
 private fun localeUsesTwelveHourClock(): Boolean =
     js("(function () { try { var o = new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions(); return o.hour12 === true || o.hourCycle === 'h12' || o.hourCycle === 'h11'; } catch (e) { return true; } })()")
 

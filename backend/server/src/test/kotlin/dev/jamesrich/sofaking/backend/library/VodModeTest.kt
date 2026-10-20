@@ -136,6 +136,24 @@ class VodModeTest {
         assertFalse(ran, "software needs no check")
     }
 
+    @Test fun `auto takes the first GPU encoder that encodes, and software when none does`() = runTest {
+        val tried = mutableListOf<String>()
+        fun encoderOf(command: List<String>) = command[command.indexOf("-c:v") + 1]
+        val devices = setOf(VideoEncoder.NVIDIA_DEVICE, VideoEncoder.DEFAULT_DEVICE)
+        val picked = VideoEncoder(HardwareAccel.AUTO).verified("ffmpeg", exists = { it in devices }) { command ->
+            tried += encoderOf(command); encoderOf(command) == "h264_vaapi"
+        }
+        assertEquals(HardwareAccel.VAAPI, picked.accel)
+        assertEquals(listOf("h264_nvenc", "h264_vaapi"), tried, "NVENC first, then VA-API, stopping at the first that works")
+
+        tried.clear()
+        assertEquals(HardwareAccel.NONE, VideoEncoder(HardwareAccel.AUTO).verified("ffmpeg", exists = { false }) { tried += encoderOf(it); true }.accel)
+        assertEquals(emptyList(), tried, "no device, no FFmpeg run")
+        assertEquals(HardwareAccel.NONE, VideoEncoder(HardwareAccel.AUTO).verified("ffmpeg", exists = { it == VideoEncoder.DEFAULT_DEVICE }) { false }.accel)
+        assertEquals("libx264", VideoEncoder(HardwareAccel.AUTO).codecArgs(4)[1], "unverified, auto encodes in software")
+        assertEquals(HardwareAccel.AUTO, HardwareAccel.parse("auto"))
+    }
+
     @Test fun `SOFA_HWACCEL takes the encoder names`() {
         assertEquals(HardwareAccel.NONE, HardwareAccel.parse(null))
         assertEquals(HardwareAccel.NONE, HardwareAccel.parse(" "))

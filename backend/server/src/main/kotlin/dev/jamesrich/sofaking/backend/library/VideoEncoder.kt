@@ -8,9 +8,13 @@ import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger(VideoEncoder::class.java)
 
-/** The GPU encoder `SOFA_HWACCEL` names for converting library files, or [NONE] for libx264 in software. */
+/**
+ * The GPU encoder `SOFA_HWACCEL` names for converting library files, [NONE] for libx264 in software, or [AUTO] for
+ * the first GPU encoder that works, found at start.
+ */
 enum class HardwareAccel(val setting: String) {
     NONE("none"),
+    AUTO("auto"),
     VAAPI("vaapi"),
     QSV("qsv"),
     NVENC("nvenc");
@@ -32,6 +36,7 @@ enum class HardwareAccel(val setting: String) {
 class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: String = DEFAULT_DEVICE) {
     /** Options that go before the input: the GPU device the encoder opens. */
     fun inputArgs(): List<String> = when (accel) {
+        // AUTO stands for software until [verified] picks an encoder.
         HardwareAccel.VAAPI -> listOf("-vaapi_device", device)
         HardwareAccel.QSV -> listOf("-qsv_device", device)
         else -> emptyList()
@@ -64,7 +69,7 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
     /** The encoder and its key frames, after [outputArgs]' filter or [overlayGraph]. */
     fun codecArgs(keyFrameSeconds: Int): List<String> {
         val encoder = when (accel) {
-            HardwareAccel.NONE -> listOf("-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-maxrate", "10M", "-bufsize", "20M")
+            HardwareAccel.NONE, HardwareAccel.AUTO -> listOf("-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-maxrate", "10M", "-bufsize", "20M")
             HardwareAccel.VAAPI -> listOf("-c:v", "h264_vaapi", "-b:v", "8M", "-maxrate", "10M", "-bufsize", "20M")
             HardwareAccel.QSV -> listOf("-c:v", "h264_qsv", "-preset", "veryfast", "-global_quality", "23", "-forced_idr", "1")
             HardwareAccel.NVENC -> listOf("-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0", "-maxrate", "10M", "-bufsize", "20M", "-forced-idr", "1")
@@ -76,7 +81,7 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
     private fun sizeAndFormat(): List<String> = buildList {
         add("scale=-2:'min(1080,ih)'")
         when (accel) {
-            HardwareAccel.NONE, HardwareAccel.NVENC -> add("format=yuv420p")
+            HardwareAccel.NONE, HardwareAccel.AUTO, HardwareAccel.NVENC -> add("format=yuv420p")
             HardwareAccel.QSV -> add("format=nv12")
             HardwareAccel.VAAPI -> addAll(listOf("format=nv12", "hwupload"))
         }
@@ -84,14 +89,30 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
 
     /**
      * This encoder when [ffmpeg] can encode a frame with it, else software, so a missing driver or device costs speed
-     * rather than playback. Software needs no check.
+     * rather than playback. Software needs no check. [HardwareAccel.AUTO] tries NVENC when an NVIDIA device is there,
+     * then VA-API and Quick Sync when [device] is, and takes the first that encodes; [exists] tells whether a device
+     * file is there.
      */
-    suspend fun verified(ffmpeg: String, run: (List<String>) -> Boolean = ::succeeds): VideoEncoder {
+    suspend fun verified(
+        ffmpeg: String, exists: (String) -> Boolean = { java.io.File(it).exists() }, run: (List<String>) -> Boolean = ::succeeds,
+    ): VideoEncoder {
         if (accel == HardwareAccel.NONE) return this
-        val command = listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error") + inputArgs() +
-            listOf("-f", "lavfi", "-i", "color=black:s=320x240:d=1", "-frames:v", "1") + outputArgs(hdr = false, keyFrameSeconds = 4) + listOf("-f", "null", "-")
-        val works = withContext(Dispatchers.IO) { run(command) }
-        if (works) {
+        if (accel == HardwareAccel.AUTO) {
+            val candidates = buildList {
+                if (exists(NVIDIA_DEVICE)) add(HardwareAccel.NVENC)
+                if (exists(device)) { add(HardwareAccel.VAAPI); add(HardwareAccel.QSV) }
+            }
+            for (candidate in candidates) {
+                val encoder = VideoEncoder(candidate, device)
+                if (withContext(Dispatchers.IO) { run(encoder.testCommand(ffmpeg)) }) {
+                    log.info("vod encoder ready accel={} (auto)", candidate.setting)
+                    return encoder
+                }
+            }
+            log.info("vod encoder: no GPU encoder works (tried {}); converting in software", candidates.joinToString { it.setting }.ifEmpty { "none" })
+            return VideoEncoder(HardwareAccel.NONE, device)
+        }
+        if (withContext(Dispatchers.IO) { run(testCommand(ffmpeg)) }) {
             log.info("vod encoder ready accel={}", accel.setting)
             return this
         }
@@ -99,9 +120,17 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
         return VideoEncoder(HardwareAccel.NONE, device)
     }
 
+    /** One black frame through this encoder into nothing: whether the driver, the device and FFmpeg's build work. */
+    private fun testCommand(ffmpeg: String): List<String> =
+        listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error") + inputArgs() +
+            listOf("-f", "lavfi", "-i", "color=black:s=320x240:d=1", "-frames:v", "1") + outputArgs(hdr = false, keyFrameSeconds = 4) + listOf("-f", "null", "-")
+
     companion object {
         /** The first render node, where Intel and AMD GPUs show up in a container. */
         const val DEFAULT_DEVICE = "/dev/dri/renderD128"
+
+        /** The control device the NVIDIA container runtime passes in with a GPU. */
+        const val NVIDIA_DEVICE = "/dev/nvidiactl"
 
         /** HDR10 or HLG to SDR BT.709 with zimg and the Hable curve, as most media servers do. */
         private const val TONE_MAP = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"

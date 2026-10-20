@@ -83,14 +83,14 @@ On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app re
 
 ### Over adb
 
-Focus, keys and playback can be probed from a computer connected to the TV with `adb`, which helps when reproducing a checklist item; it does not replace the remote.
+Focus, keys and playback can be probed from a computer connected to the TV with `adb`:
 
 - Send remote keys with `adb shell input keyevent`, by name: `KEYCODE_DPAD_DOWN`, `KEYCODE_DPAD_CENTER`, `KEYCODE_BACK`, `KEYCODE_GUIDE`.
 - Find what has focus in `adb shell uiautomator dump` (the node with `focused="true"`), or with Google's `android` command-line tool, `android layout --flat`, which prints the screen's nodes as JSON with their `FOCUSED` state and center coordinates.
 - Read the app's log with `adb logcat -s SofaKing`; the CLI has no logcat command.
 - `adb exec-out screencap -p` captures the interface, but on some TVs the video is black in it, so judge playback from the log and the media session's playback state in `adb shell dumpsys media_session`, and sound from `adb shell dumpsys audio`.
 
-`android layout` installs a helper app, `com.android.cli.interact.instrumentation`, and leaves it running, and while it runs `uiautomator dump` is killed. Stop it before using `uiautomator` again:
+`android layout` installs a helper app, `com.android.cli.interact.instrumentation`, and leaves it running, which kills `uiautomator dump`. Stop it before using `uiautomator` again:
 
 ```sh
 adb shell am force-stop com.android.cli.interact.instrumentation

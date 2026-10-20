@@ -21,7 +21,7 @@ They share these files at the root:
 - `gradle/libs.versions.toml`, the one version catalog, so a Kotlin or kotlinx.serialization bump moves every build at once.
 - `gradle/repositories.settings.gradle.kts` and `gradle/build-cache.settings.gradle.kts`, the repositories and the remote build cache every build's settings apply.
 - `build-logic/`, the convention plugins: `sofaking.kotlin` (the JDK 21 toolchain and the web toolchain repositories) and `sofaking.android` (the SDK levels).
-- `settings.gradle.kts`, which includes all three builds for one IDE import only; CI never builds from the root.
+- `settings.gradle.kts`, which includes all three builds for one IDE import only, with the `gradle.properties` and the `.run/` configurations that import uses; CI never builds from the root. The app's [development](app/docs/development.md#android-studio) page covers opening it in Android Studio.
 - [`renovate.json`](renovate.json), which proposes the dependency, wrapper, base image and workflow action updates of every build.
 
 ## Commits

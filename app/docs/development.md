@@ -1,6 +1,6 @@
 # Development
 
-The [contributing guide](../../CONTRIBUTING.md) covers the commit and pull request conventions and CI. This page covers the app's build, its tests, its code conventions, running each platform, the checks on a TV and snapshot builds.
+The [contributing guide](../../CONTRIBUTING.md) covers the commit and pull request conventions and CI. This page covers the app's build, its tests, Android Studio, its code conventions, running each platform, the checks on a TV and snapshot builds.
 
 ## Build and test
 
@@ -23,6 +23,16 @@ Then build and test:
 ```
 
 Unit tests cover the API client, catalog and guide mapping, the server connection's bootstrap backoff and server changes, the playback session lifecycle, cache, settings, the Apple TV's settings storage and its move out of Caches (`tvosTest`, which only macOS runs), captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against Ktor's `MockEngine` in common code on every target, and against MockWebServer on the JVM where a real socket matters, so no server is needed. Screen tests in `ui`'s `jvmTest` drive the composables with Compose's ui-test (`runSkikoComposeUiTest`), pressing keys and finding nodes by semantics on a virtual clock. `RenderSmokeTest` draws the guide, settings, the settings lock page, the player's info bar and its channel list headless at TV size and writes them to `ui/build/screenshots`.
+
+## Android Studio
+
+Open the repository root, not `app/`. The root `settings.gradle.kts` imports the app, the server and the contract as one composite build named `sofa-king-monorepo`, and the root `gradle.properties` holds the Gradle settings the IDE's sync uses. Use an Android Studio release that supports the catalog's `agp` version, with its bundled Kotlin Multiplatform plugin enabled, and the SDK in `app/local.properties` as above.
+
+- **Gradle JDK.** The Gradle daemon runs on JDK 21, which `gradle/gradle-daemon-jvm.properties` asks for; Gradle downloads one if the machine has none. If Settings → Build, Execution, Deployment → Build Tools → Gradle offers a Gradle JDK, pick a JDK 21 (Studio's own `jbr-21` will do).
+- **Run.** After the first sync, Studio adds an `androidApp` configuration; run it on a TV, a phone or an emulator. The `.run/` folder adds **Desktop**, which runs `:ui:run`, and **Web**, which runs `:ui:wasmJsBrowserDevelopmentRun`. iOS and Apple TV run from Xcode, as the next section says.
+- **Previews.** Compose previews in `androidApp` need its unit tests enabled with Android resources; `androidApp/build.gradle.kts` keeps both, and the sync fails without them.
+
+When a sync fails, read the error in the Build window's Sync tab; Studio's `idea.log` keeps only "Unknown cause". Most sync failures also show from the command line, because a sync registers every task, so run `./gradlew tasks --all` from the repository root. `org.gradle.tooling.parallel` stays off in every `gradle.properties`: with it on, the Kotlin Multiplatform import realized tasks on several threads at once, and Gradle failed the sync with a `ConcurrentModificationException` while creating `:app:ui:jvmTest`. If the Project view lists modules with a `~1` suffix, Studio still holds modules from an older import; choose File → Invalidate Caches, restart and sync again.
 
 ## Code
 

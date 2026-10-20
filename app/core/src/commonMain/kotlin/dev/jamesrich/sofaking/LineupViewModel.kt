@@ -10,12 +10,12 @@ import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.StartupTarget
+import dev.jamesrich.sofaking.data.TopLevelTab
 import androidx.datastore.core.DataStore
 import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.PairingClaimDto
-import dev.jamesrich.sofaking.data.ViewerSync
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
@@ -25,35 +25,38 @@ import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.RecordingSchedule
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.ServerCapabilities
+import dev.jamesrich.sofaking.data.Server
+import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.SettingsPin
 import dev.jamesrich.sofaking.data.SettingsStore
 import dev.jamesrich.sofaking.data.TrackChoice
 import dev.jamesrich.sofaking.data.UpdateChecker
 import dev.jamesrich.sofaking.data.UpdateState
-import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.SofaKingRepository
+import dev.jamesrich.sofaking.data.describe
+import dev.jamesrich.sofaking.data.logFailures
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
@@ -74,25 +77,28 @@ sealed interface LineupState {
 /** Why a pairing code was not accepted: the code itself, a server too old to pair, or no server at that address. */
 enum class PairingFailure { INVALID_CODE, OLDER_SERVER, UNREACHABLE }
 
-/** A server address and token the API can be built from, and the one API client built from them. */
-private data class Server(val url: String, val token: String, val api: SofaKingApi)
+/** How a pairing attempt ended. */
+enum class PairingOutcome { PAIRED, FAILED }
 
 /**
- * The lineup, the settings and the one playback session, for every screen. [newApi] builds the API client for a
- * server address and token; tests swap it for one aimed at a fake server.
+ * Pairing as the screens show it: [busy] while a code is being claimed; [failure], why the last attempt failed, which
+ * Settings shows until the next one; and [outcome], the last attempt's end until the screen that asked has acted on it.
  */
+data class PairingState(val busy: Boolean = false, val failure: PairingFailure? = null, val outcome: PairingOutcome? = null)
+
+/** The lineup and the settings for every screen, over the app's one [connection] to the server Settings names. */
 class LineupViewModel(
     private val store: SettingsStore,
     private val lineupCache: DataStore<CachedLineup?>,
-    /** The one playback session the app holds; screens tune through it and the host releases it when stopped. */
-    val sessions: PlaybackSessions = PlaybackSessions(),
-    private val newApi: (url: String, token: String) -> SofaKingApi = ::SofaKingApi,
-    /** How this device names itself when it pairs and when it saves its preferences on the server. */
+    private val connection: ServerConnection,
+    /** How this device names itself when it pairs. */
     private val client: ClientInfo = ClientInfo(),
-    /** Keeps the synced preferences in step with the server; null leaves them on this device only. */
-    private val viewerSync: ViewerSync? = ViewerSync(store, client),
     /** Reads the published snapshot for the update check in Settings. */
     private val updateChecker: UpdateChecker = UpdateChecker(),
+    /** Where the guide window and the cache's expiry read the time. */
+    private val clock: Clock = Clock.System,
+    /** Where the lineup is decoded, mapped and merged, off the main thread; the state is set on the main thread. */
+    private val background: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     private val _update = MutableStateFlow<UpdateState?>(null)
 
@@ -101,6 +107,15 @@ class LineupViewModel(
 
     val settings: StateFlow<AppSettings?> = store.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** The one playback session the app holds; screens tune through it and the host releases it when stopped. */
+    val sessions: PlaybackSessions get() = connection.sessions
+
+    /** What the server offers beyond live TV, from its bootstrap. */
+    val capabilities: StateFlow<ServerCapabilities> get() = connection.capabilities
+
+    /** Recording from the guide, on a server that records. */
+    val recordings: RecordingSchedule get() = connection.recordings
 
     /** Each reload request; one from [reloadLineup] carries the deferred its caller waits on. */
     private val reloads = MutableSharedFlow<CompletableDeferred<Lineup?>?>(extraBufferCapacity = 1)
@@ -125,92 +140,63 @@ class LineupViewModel(
     /** The repository of the lineup on screen, for an extra day's query; set by [load]. */
     private var liveRepository: SofaKingRepository? = null
 
-    /** The server as Settings has it, with one API client for the sessions and the repository, or null while the address is not a usable URL. */
-    private val server = settings.filterNotNull()
-        .map { s -> ServerAddress.normalizeUrl(s.serverUrl)?.let { it to s.apiToken } }
-        .distinctUntilChanged()
-        .map { found -> found?.let { (url, token) -> Server(url, token, newApi(url, token)) } }
-        .shareIn(viewModelScope, SharingStarted.Eagerly, replay = 1)
+    private val _pairing = MutableStateFlow(PairingState())
 
-    /** The API client for the server Settings names, or null while there is none; the library screens read through it. */
-    val api: Flow<SofaKingApi?> = server.map { it?.api }
-
-    init {
-        // A new address or token releases the session held on the old server before anything tunes on the new one.
-        viewModelScope.launch {
-            server.collect { sessions.configure(it?.api) }
-        }
-        if (viewerSync != null) viewModelScope.launch { viewerSync.run(server.map { it?.api }) }
-    }
-
-    /** What the server offers beyond live TV, from its bootstrap: nothing until it answers, or on a server too old to say. */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val capabilities: StateFlow<ServerCapabilities> = server
-        .transformLatest { found ->
-            emit(ServerCapabilities())
-            if (found != null) emit(readCapabilities(found.api))
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, ServerCapabilities())
-
-    /** Recording from the guide, on a server that records. */
-    val recordings = RecordingSchedule(viewModelScope, server.map { it?.api }, capabilities.map { it.recordings })
-
-    /** Asks until the server answers, backing off to every five minutes; a server without the route offers nothing. */
-    private suspend fun readCapabilities(api: SofaKingApi): ServerCapabilities {
-        var wait = 5.seconds
-        while (true) {
-            try {
-                return api.bootstrap().capabilities.let { ServerCapabilities(recordings = it.recordings, library = it.library) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: SofaKingException) {
-                if (e.status == 404) return ServerCapabilities()
-                log.w { "bootstrap refused: ${e.code}" }
-            } catch (e: Exception) {
-                log.w { "bootstrap failed: ${e.message}" }
-            }
-            delay(wait)
-            wait = (wait * 2).coerceAtMost(5.minutes)
-        }
-    }
-
-    private val _pairing = MutableStateFlow(false)
-
-    /** True while a pairing code is being claimed. */
-    val pairing: StateFlow<Boolean> = _pairing.asStateFlow()
+    /** Where pairing stands: claiming a code, and how the last attempt went. */
+    val pairing: StateFlow<PairingState> = _pairing.asStateFlow()
 
     /**
      * Claims the pairing [code] at [url] and, when the server accepts it, saves the address and the token it hands
-     * out. Returns null on success, else why it failed; nothing is saved then.
+     * out; nothing is saved when it fails. The claim runs in this ViewModel's scope, so leaving the screen or a
+     * configuration change does not cut it off between the server's answer and the save, and [pairing] carries the
+     * outcome. A second call while one is claimed is ignored.
      */
-    suspend fun pair(url: String, code: String): PairingFailure? {
+    fun pair(url: String, code: String) {
+        if (_pairing.value.busy) return
+        _pairing.value = PairingState(busy = true)
+        viewModelScope.launch { claim(url, code) }
+    }
+
+    /** [pair] for a host that awaits the answer, as the Apple TV app does: null once paired, else why it failed. */
+    suspend fun pairAndWait(url: String, code: String): PairingFailure? = viewModelScope.async { claim(url, code) }.await()
+
+    /** The screen that asked has acted on [PairingState.outcome]; the failure stays for Settings to show. */
+    fun pairingHandled() {
+        _pairing.update { it.copy(outcome = null) }
+    }
+
+    private suspend fun claim(url: String, code: String): PairingFailure? {
+        _pairing.value = PairingState(busy = true)
+        val failure = claimCode(url, code)
+        _pairing.value = PairingState(failure = failure, outcome = if (failure == null) PairingOutcome.PAIRED else PairingOutcome.FAILED)
+        return failure
+    }
+
+    private suspend fun claimCode(url: String, code: String): PairingFailure? {
         val server = ServerAddress.normalizeUrl(url) ?: return PairingFailure.INVALID_CODE
         val digits = ServerAddress.normalizeCode(code) ?: return PairingFailure.INVALID_CODE
-        _pairing.value = true
-        try {
+        return try {
             val clientId = store.ensureClientId()
-            val result = newApi(server, "").pair(PairingClaimDto(digits, clientId, client.deviceName, client.platform))
+            val result = connection.newApi(server, "").pair(PairingClaimDto(digits, clientId, client.deviceName, client.platform))
             store.setServer(server, result.apiToken)
-            return null
+            null
         } catch (e: CancellationException) {
             throw e
         } catch (e: SofaKingException) {
             log.w { "pairing refused: ${e.code}" }
-            return when {
+            when {
                 e.code == Wire.ErrorCode.PAIRING_INVALID -> PairingFailure.INVALID_CODE
                 e.status == 404 || e.status == 401 -> PairingFailure.OLDER_SERVER
                 else -> PairingFailure.UNREACHABLE
             }
         } catch (e: Exception) {
             log.w { "pairing failed: ${e.message}" }
-            return PairingFailure.UNREACHABLE
-        } finally {
-            _pairing.value = false
+            PairingFailure.UNREACHABLE
         }
     }
 
     /** One repository per server, so its catalog ETag survives every refresh; rebuilt only when the server changes. */
-    private val serverRepository = server.map { s -> s?.let { it to SofaKingRepository(it.api) } }
+    private val serverRepository = connection.server.map { s -> s?.let { it to SofaKingRepository(it.api, background, clock::now) } }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val liveState: StateFlow<LineupState> = combine(serverRepository, reloads.onStart { emit(null) }) { found, request -> found to request }
@@ -229,7 +215,8 @@ class LineupViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
 
     val state: StateFlow<LineupState> = combine(liveState, extraDays) { live, extra ->
-        if (live !is LineupState.Ready || extra.isEmpty()) live else LineupState.Ready(live.lineup.copy(guide = mergeGuides(live.lineup.guide, extra.values)))
+        if (live !is LineupState.Ready || extra.isEmpty()) live
+        else LineupState.Ready(live.lineup.copy(guide = withContext(background) { mergeGuides(live.lineup.guide, extra.values) }))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
 
     /**
@@ -238,7 +225,7 @@ class LineupViewModel(
      * empty, and the next jump to it asks again.
      */
     fun loadGuideWindow(windowStart: Instant) {
-        val live = GuideWindow.start(Clock.System.now())
+        val live = GuideWindow.start(clock.now())
         if (windowStart <= live) return
         val lineup = (liveState.value as? LineupState.Ready)?.lineup ?: return
         val repository = liveRepository ?: return
@@ -268,7 +255,7 @@ class LineupViewModel(
         val (server, repository) = found
         val key = server.url
         liveRepository = repository
-        val cache = LineupCache(lineupCache, key)
+        val cache = LineupCache(lineupCache, key, background, clock::now)
         // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
         // so the last good lineup shows at once and the network load replaces it below.
         var last: Lineup? = lastGood?.takeIf { it.first == key }?.second
@@ -316,7 +303,7 @@ class LineupViewModel(
                 last = it
                 lastGood = key to it
                 emit(LineupState.Ready(it))
-                val live = GuideWindow.start(Clock.System.now())
+                val live = GuideWindow.start(clock.now())
                 extraDays.update { days -> days.filterKeys { start -> start > live } }
                 // A cache write failure must not fail the load or delay the next refresh.
                 try {
@@ -339,7 +326,7 @@ class LineupViewModel(
                         last = kept
                         emit(LineupState.Ready(kept))
                     }
-                    last == null -> emit(LineupState.Failed(describe(it)))
+                    last == null -> emit(LineupState.Failed(it.describe()))
                 }
             }
             delay(if (result.isSuccess && !lineupMoved) REFRESH_INTERVAL else RETRY_INTERVAL)
@@ -360,57 +347,110 @@ class LineupViewModel(
         return withTimeoutOrNull(RELOAD_WAIT) { request.await() }
     }
 
-    fun saveServer(url: String, apiToken: String) = viewModelScope.launch { store.setServer(url, apiToken) }
+    fun saveServer(url: String, apiToken: String) {
+        save { store.setServer(url, apiToken) }
+    }
 
-    fun toggleFavorite(guideId: String) = viewModelScope.launch { store.toggleFavorite(guideId) }
+    fun toggleFavorite(guideId: String) {
+        save { store.toggleFavorite(guideId) }
+    }
 
-    fun setLastChannel(guideId: String) = viewModelScope.launch { store.setLastChannel(guideId) }
+    fun setLastChannel(guideId: String) {
+        save { store.setLastChannel(guideId) }
+    }
 
-    fun setGuideFilter(key: String?) = viewModelScope.launch { store.setGuideFilter(key) }
+    fun setGuideFilter(key: String?) {
+        save { store.setGuideFilter(key) }
+    }
 
-    fun setCaptionsEnabled(enabled: Boolean) = viewModelScope.launch { store.setCaptionsEnabled(enabled) }
+    fun setCaptionsEnabled(enabled: Boolean) {
+        save { store.setCaptionsEnabled(enabled) }
+    }
 
-    fun setCaptionAdvanceMs(ms: Int) = viewModelScope.launch { store.setCaptionAdvanceMs(ms) }
+    fun setCaptionAdvanceMs(ms: Int) {
+        save { store.setCaptionAdvanceMs(ms) }
+    }
 
-    fun setChannelCaptionAdvance(guideId: String, ms: Int) =
-        viewModelScope.launch { store.setChannelCaptionAdvance(guideId, ms) }
+    fun setChannelCaptionAdvance(guideId: String, ms: Int) {
+        save { store.setChannelCaptionAdvance(guideId, ms) }
+    }
 
-    fun setSmoothCaptions(enabled: Boolean) = viewModelScope.launch { store.setSmoothCaptions(enabled) }
+    fun setSmoothCaptions(enabled: Boolean) {
+        save { store.setSmoothCaptions(enabled) }
+    }
 
-    fun setCaptionStyle(style: CaptionStyle) = viewModelScope.launch { store.setCaptionStyle(style) }
+    fun setCaptionStyle(style: CaptionStyle) {
+        save { store.setCaptionStyle(style) }
+    }
 
-    fun setKeyLegendShown(count: Int) = viewModelScope.launch { store.setKeyLegendShown(count) }
+    fun setKeyLegendShown(count: Int) {
+        save { store.setKeyLegendShown(count) }
+    }
 
-    fun setAutoOpenDelay(delay: AutoOpenDelay) = viewModelScope.launch { store.setAutoOpenDelay(delay) }
+    fun setAutoOpenDelay(delay: AutoOpenDelay) {
+        save { store.setAutoOpenDelay(delay) }
+    }
 
-    fun setPreviewSound(enabled: Boolean) = viewModelScope.launch { store.setPreviewSound(enabled) }
+    fun setPreviewSound(enabled: Boolean) {
+        save { store.setPreviewSound(enabled) }
+    }
 
-    fun setStartup(target: StartupTarget, guideId: String? = null) = viewModelScope.launch { store.setStartup(target, guideId) }
+    fun setStartup(target: StartupTarget, guideId: String? = null) {
+        save { store.setStartup(target, guideId) }
+    }
 
-    fun setClockFormat(format: ClockFormat) = viewModelScope.launch { store.setClockFormat(format) }
+    fun setLastTab(tab: TopLevelTab) {
+        save { store.setLastTab(tab) }
+    }
 
-    fun setGuideDensity(density: GuideDensity) = viewModelScope.launch { store.setGuideDensity(density) }
+    fun setClockFormat(format: ClockFormat) {
+        save { store.setClockFormat(format) }
+    }
 
-    fun setChannelHidden(guideId: String, hidden: Boolean) = viewModelScope.launch { store.setChannelHidden(guideId, hidden) }
+    fun setGuideDensity(density: GuideDensity) {
+        save { store.setGuideDensity(density) }
+    }
 
-    fun setChannelsHidden(guideIds: Collection<String>, hidden: Boolean) = viewModelScope.launch { store.setChannelsHidden(guideIds, hidden) }
+    fun setChannelHidden(guideId: String, hidden: Boolean) {
+        save { store.setChannelHidden(guideId, hidden) }
+    }
 
-    fun setZapSkipsHidden(enabled: Boolean) = viewModelScope.launch { store.setZapSkipsHidden(enabled) }
+    fun setChannelsHidden(guideIds: Collection<String>, hidden: Boolean) {
+        save { store.setChannelsHidden(guideIds, hidden) }
+    }
 
-    fun setSkipCommercials(enabled: Boolean) = viewModelScope.launch { store.setSkipCommercials(enabled) }
+    fun setZapSkipsHidden(enabled: Boolean) {
+        save { store.setZapSkipsHidden(enabled) }
+    }
+
+    fun setSkipCommercials(enabled: Boolean) {
+        save { store.setSkipCommercials(enabled) }
+    }
 
     /** Keeps the tracks picked in the show [showId] for its next episodes. */
-    fun setTrackChoice(showId: String, choice: TrackChoice) = viewModelScope.launch { store.setTrackChoice(showId, choice) }
+    fun setTrackChoice(showId: String, choice: TrackChoice) {
+        save { store.setTrackChoice(showId, choice) }
+    }
 
-    fun setFavoritesOrder(order: List<String>) = viewModelScope.launch { store.setFavoritesOrder(order) }
+    fun setFavoritesOrder(order: List<String>) {
+        save { store.setFavoritesOrder(order) }
+    }
 
-    fun setMatchFrameRate(enabled: Boolean) = viewModelScope.launch { store.setMatchFrameRate(enabled) }
+    fun setMatchFrameRate(enabled: Boolean) {
+        save { store.setMatchFrameRate(enabled) }
+    }
 
-    fun setDecoder(decoder: DecoderPreference) = viewModelScope.launch { store.setDecoder(decoder) }
+    fun setDecoder(decoder: DecoderPreference) {
+        save { store.setDecoder(decoder) }
+    }
 
-    fun setChannelDecoder(guideId: String, decoder: DecoderPreference?) = viewModelScope.launch { store.setChannelDecoder(guideId, decoder) }
+    fun setChannelDecoder(guideId: String, decoder: DecoderPreference?) {
+        save { store.setChannelDecoder(guideId, decoder) }
+    }
 
-    fun setBuffer(buffer: BufferPreference) = viewModelScope.launch { store.setBuffer(buffer) }
+    fun setBuffer(buffer: BufferPreference) {
+        save { store.setBuffer(buffer) }
+    }
 
     /**
      * Compares [runningVersion] with the published snapshot, once per process unless [again] is set, since GitHub
@@ -433,10 +473,13 @@ class LineupViewModel(
     }
 
     /** Locks Settings behind [pin], stored as its hash, or removes the lock for null. */
-    fun setSettingsPin(pin: String?) = viewModelScope.launch { store.setSettingsPin(pin?.let(SettingsPin::hash)) }
+    fun setSettingsPin(pin: String?) {
+        save { store.setSettingsPin(pin?.let(SettingsPin::hash)) }
+    }
 
-    override fun onCleared() {
-        sessions.close()
+    /** Writes a setting in this ViewModel's scope; a write the store refuses is logged rather than crashing the app. */
+    private fun save(write: suspend () -> Unit) {
+        viewModelScope.launch(logFailures) { write() }
     }
 
     /** [live] plus every day in [extra], per channel in start order without repeats, so a day loaded twice reads once. */
@@ -449,12 +492,6 @@ class LineupViewModel(
             }
         }
         return merged
-    }
-
-    /** The server's own error code when it answered, else the transport's message; never a URL or token. */
-    private fun describe(failure: Throwable): String = when (failure) {
-        is SofaKingException -> "${failure.code}: ${failure.message}"
-        else -> failure.message ?: failure.toString()
     }
 
     private companion object {

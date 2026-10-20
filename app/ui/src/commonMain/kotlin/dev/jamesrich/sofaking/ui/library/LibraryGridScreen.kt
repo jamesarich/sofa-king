@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.library
 
+import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.LibraryGrid
@@ -44,7 +46,6 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.SofaLoader
-import dev.jamesrich.sofaking.ui.guide.GuideChip
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaButton
@@ -72,16 +73,17 @@ internal class LibraryGridActions(
 @Composable
 internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actions: LibraryGridActions, returnedFrom: String? = null) {
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues()
-    val wide = library?.kind == LibraryKind.VIDEOS
+    val style = if (library?.kind == LibraryKind.VIDEOS) CardStyle.WIDE else CardStyle.POSTER
     val state = rememberLazyGridState()
     val direction = LocalLayoutDirection.current
     val focus = remember { FocusRequester() }
     val focusId = returnedFrom ?: grid?.items?.firstOrNull()?.id
     val hasItems = grid?.items?.isNotEmpty() == true
-    // Focus goes to the grid once, on arrival; a new sort or filter leaves it on the chip that changed it.
+    // Focus goes to the grid on arrival and back on the card whose page the viewer left; a new sort or filter
+    // leaves it on the chip that changed it.
     var focused by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(hasItems) {
-        if (hasItems && !focused) {
+    LaunchedEffect(hasItems, returnedFrom) {
+        if (hasItems && (!focused || returnedFrom != null)) {
             focused = true
             requestFocusWhenAttached(focus)
         }
@@ -95,7 +97,7 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
         }
     }
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(if (wide) WIDE_WIDTH else POSTER_WIDTH),
+        columns = GridCells.Adaptive(if (style == CardStyle.WIDE) WIDE_WIDTH else POSTER_WIDTH),
         state = state,
         contentPadding = PaddingValues(
             start = insets.calculateStartPadding(direction),
@@ -113,12 +115,7 @@ internal fun LibraryGridScreen(library: MediaLibrary?, grid: LibraryGrid?, actio
         val items = grid?.items.orEmpty()
         items(items, key = { it.id }) { item ->
             val modifier = if (item.id == focusId) Modifier.focusRequester(focus) else Modifier
-            val play = if (item.kind.playable) ({ actions.onPlayItem(item) }) else null
-            if (wide) {
-                WideCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
-            } else {
-                PosterCard(item, onClick = { actions.onOpenItem(item) }, onPlay = play, modifier = modifier, menu = actions.menu)
-            }
+            LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, modifier)
         }
         val g = grid
         if (g != null && (g.loading || g.error != null || items.isEmpty())) {
@@ -152,25 +149,33 @@ private fun GridHeader(library: MediaLibrary?, grid: LibraryGrid?, actions: Libr
             }
         }
         val sort = grid?.sort ?: LibrarySort.TITLE
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Each chip row comes back to the chip last focused in it, else its selected one.
+        val selectedSort = remember { FocusRequester() }
+        LazyRow(Modifier.focusRestorer(selectedSort), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(LibrarySort.entries.size) { i ->
                 val option = LibrarySort.entries[i]
-                GuideChip(selected = option == sort, onClick = { actions.onSort(option) }, label = stringResource(option.label()))
+                val focus = if (option == sort) Modifier.focusRequester(selectedSort) else Modifier
+                SofaChip(selected = option == sort, onClick = { actions.onSort(option) }, label = stringResource(option.label()), modifier = focus)
             }
             item {
                 val unwatched = grid?.unwatched == true
-                GuideChip(selected = unwatched, onClick = { actions.onUnwatched(!unwatched) }, label = stringResource(Res.string.library_filter_unwatched))
+                SofaChip(selected = unwatched, onClick = { actions.onUnwatched(!unwatched) }, label = stringResource(Res.string.library_filter_unwatched))
             }
         }
         val genres = grid?.genres.orEmpty()
         if (genres.isNotEmpty()) {
             val genre = grid?.genre
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val selectedGenre = remember { FocusRequester() }
+            val genreShown = genre != null && genres.any { it.equals(genre, ignoreCase = true) }
+            LazyRow(Modifier.focusRestorer(selectedGenre), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 item {
-                    GuideChip(selected = genre == null, onClick = { actions.onGenre(null) }, label = stringResource(Res.string.library_genre_all))
+                    val focus = if (!genreShown) Modifier.focusRequester(selectedGenre) else Modifier
+                    SofaChip(selected = genre == null, onClick = { actions.onGenre(null) }, label = stringResource(Res.string.library_genre_all), modifier = focus)
                 }
                 items(genres, key = { it }) { option ->
-                    GuideChip(selected = option.equals(genre, ignoreCase = true), onClick = { actions.onGenre(option) }, label = option)
+                    val selected = option.equals(genre, ignoreCase = true)
+                    val focus = if (selected) Modifier.focusRequester(selectedGenre) else Modifier
+                    SofaChip(selected = selected, onClick = { actions.onGenre(option) }, label = option, modifier = focus)
                 }
             }
         }

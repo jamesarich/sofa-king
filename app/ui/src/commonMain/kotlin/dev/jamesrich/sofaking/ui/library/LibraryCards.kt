@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.library
 
-import androidx.compose.foundation.ExperimentalFoundationApi
+import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.HeldOkGuard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,13 +45,12 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.*
-import dev.jamesrich.sofaking.ui.guide.HeldOkGuard
+import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
@@ -60,22 +60,42 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
+ * [item] as a [style] card, as every library page draws one: OK opens it with [onOpen], and the remote's Play key
+ * plays an item that plays with [onPlay].
+ */
+@Composable
+internal fun LibraryCard(
+    item: MediaItem,
+    style: CardStyle,
+    onOpen: (MediaItem) -> Unit,
+    onPlay: (MediaItem) -> Unit,
+    menu: CardMenu?,
+    modifier: Modifier = Modifier,
+) {
+    val play = if (item.kind.playable) ({ onPlay(item) }) else null
+    when (style) {
+        CardStyle.POSTER -> PosterCard(item, onClick = { onOpen(item) }, onPlay = play, modifier = modifier, menu = menu)
+        CardStyle.WIDE -> WideCard(item, onClick = { onOpen(item) }, onPlay = play, modifier = modifier, menu = menu)
+    }
+}
+
+/**
  * A movie or show as a 2:3 poster with its title underneath: a bar for how far in it is, a tick once watched and
  * a count of unwatched episodes on a show. OK calls [onClick]; the remote's Play key calls [onPlay] for an item
  * that plays; a held OK, a long touch or a right click opens [menu].
  */
 @Composable
-internal fun PosterCard(
+private fun PosterCard(
     item: MediaItem,
     onClick: () -> Unit,
     onPlay: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    width: Dp = POSTER_WIDTH,
     menu: CardMenu? = null,
 ) {
-    Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.width(POSTER_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ItemCard(item, onClick, onPlay, menu, aspectRatio = 2f / 3f, focusScale = null) {
-            Artwork(item.poster, item.title)
+            // A file without a poster still has a frame from the server, cropped to the poster's shape.
+            Artwork(item.poster ?: item.backdrop, label = null)
         }
         CardLabel(item.title, posterSubtitle(item))
     }
@@ -83,17 +103,16 @@ internal fun PosterCard(
 
 /** An episode, video or item in progress as a 16:9 card, its show and episode number under the title. */
 @Composable
-internal fun WideCard(
+private fun WideCard(
     item: MediaItem,
     onClick: () -> Unit,
     onPlay: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    width: Dp = WIDE_WIDTH,
     menu: CardMenu? = null,
 ) {
-    Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.width(WIDE_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ItemCard(item, onClick, onPlay, menu, aspectRatio = 16f / 9f, focusScale = WIDE_FOCUS_SCALE) {
-            Artwork(item.backdrop ?: item.poster, item.showTitle ?: item.title)
+            Artwork(item.backdrop ?: item.poster, label = null)
         }
         if (item.kind == ItemKind.EPISODE) {
             CardLabel(item.showTitle ?: item.title, listOfNotNull(item.episodeLabel, item.title.takeIf { item.showTitle != null }).joinToString(" · "))
@@ -110,7 +129,6 @@ internal class CardMenu(val onPlayFromStart: ((MediaItem) -> Unit)?, val onSetWa
  * The card itself, with [menu] on a held OK. The rest of the press that opened it, its repeats and key-up, is
  * swallowed, so the menu's first entry is not pressed by the same OK.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ItemCard(
     item: MediaItem,
@@ -171,7 +189,7 @@ private fun ItemCard(
 
 /** Passes OK's key-down and key-up through [guard], dropping the ones it swallows. */
 private fun Modifier.heldOk(guard: HeldOkGuard): Modifier = onPreviewKeyEvent { event ->
-    val ok = event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter
+    val ok = event.key.isOk
     when {
         !ok -> false
         event.type == KeyEventType.KeyDown -> guard.onKeyDown()
@@ -186,24 +204,6 @@ private val CardMenuEntry.label: StringResource
         CardMenuEntry.MARK_WATCHED -> Res.string.library_mark_watched
         CardMenuEntry.MARK_UNWATCHED -> Res.string.library_mark_unwatched
     }
-
-/** The picture filling its card, or the title in its place while there is none. */
-@Composable
-internal fun BoxScope.Artwork(url: String?, title: String) {
-    if (url == null) {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.align(Alignment.Center).padding(12.dp),
-        )
-    } else {
-        AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-    }
-}
 
 /** The progress bar along the bottom, the watched tick and a show's unwatched count. */
 @Composable

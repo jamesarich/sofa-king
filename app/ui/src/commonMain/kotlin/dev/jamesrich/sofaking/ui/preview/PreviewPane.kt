@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -30,11 +31,11 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.data.CaptionStyle
@@ -55,7 +56,6 @@ import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
-import dev.jamesrich.sofaking.ui.theme.SofaDusk
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlin.time.Instant
@@ -151,7 +151,9 @@ private val DETAIL_IMAGE_HEIGHT = 90.dp
  * [PREVIEW_DEBOUNCE_MS] after focus rests on a different channel; a stream the player already holds (the
  * channel just watched) keeps playing and its session goes back to preview intent. The player belongs to
  * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
- * [muted] follows the guide's rest timers; [failed] is the guide's record that the preview has no picture, set through
+ * [muted] follows the guide's rest timers while [ownsVolume]: the guide stays composed for a frame under the full
+ * screen it hands the player to, and its focus leaving the grid mutes the rest timers, which must not silence the
+ * full screen. [failed] is the guide's record that the preview has no picture, set through
  * [onFailedChanged].
  */
 @Composable
@@ -162,17 +164,20 @@ internal fun PreviewVideo(
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
     muted: Boolean,
+    ownsVolume: Boolean = true,
     failed: Boolean,
     onFailedChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val status by player.status.collectAsStateWithLifecycle()
     val buffering = status.state == PlaybackState.BUFFERING
-    LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
+    LaunchedEffect(muted, ownsVolume) { if (ownsVolume) player.volume = if (muted) 0f else 1f }
     // Bumped when the relay answers 410, so the tune effect reopens the channel at once instead of after the debounce.
     var retune by remember { mutableIntStateOf(0) }
+    // The channel whose stream the player holds; until it is the focused one, the card covers the last channel's picture.
+    var showing by remember { mutableStateOf(player.currentChannelId) }
 
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycle = appLifecycleOwner.lifecycle
     LaunchedEffect(player) {
         player.volume = 0f
         // Back from a paused full screen: rejoin the live edge rather than play from where it paused.
@@ -198,6 +203,7 @@ internal fun PreviewVideo(
         val held = player.currentChannelId == guideId
         if (held && retune == 0 && player.status.value.state != PlaybackState.IDLE) {
             // Back from the full screen with its stream still playing: keep it, as a preview again.
+            showing = guideId
             try {
                 sessions.setIntent(guideId, PlaybackIntent.PREVIEW)
             } catch (e: CancellationException) {
@@ -225,6 +231,7 @@ internal fun PreviewVideo(
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
             player.setStream(stream)
             player.prepare()
+            showing = guideId
         }
     }
 
@@ -233,7 +240,7 @@ internal fun PreviewVideo(
         player.Video(Modifier.fillMaxSize()) { PreviewCard(channel, failed) }
         // No overscan inset: the box sits inside the guide's margins already.
         if (showPreviewCaptions(captionsEnabled, channel != null, failed)) Captions(player, captionStyle, bottomFraction = 0f, Modifier.fillMaxSize())
-        if (failed) PreviewCard(channel, failed = true)
+        if (failed) PreviewCard(channel, failed = true) else if (channel != null && showing != channel.guideId) PreviewCard(channel, failed = false)
         AnimatedVisibility(
             rememberSettled(buffering && !failed),
             modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
@@ -248,7 +255,7 @@ internal fun PreviewVideo(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 SofaLoader(size = 16.dp)
-                Text(stringResource(Res.string.tuning), style = MaterialTheme.typography.labelLarge, color = SofaDusk)
+                Text(stringResource(Res.string.tuning), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onBackground)
             }
         }
     }

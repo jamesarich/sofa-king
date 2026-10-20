@@ -46,16 +46,17 @@ internal enum class PlayerAction {
 }
 
 /**
- * Up and Down zap the way they move the guide, Channel Up and Channel Down step the channel number; Media Previous
- * and Last Channel recall the last channel.
+ * Up and Down zap the way they move the guide, Channel Up and Channel Down step the channel number, and so do Media
+ * Next and Media Previous, as the system's next and previous do through the media session; Last Channel recalls the
+ * last channel.
  */
 internal fun Key.playerAction(): PlayerAction? = when (this) {
     Key.Captions, Key.C -> PlayerAction.TOGGLE_CAPTIONS
     Key.DirectionUp -> PlayerAction.ZAP_UP
     Key.DirectionDown -> PlayerAction.ZAP_DOWN
-    Key.ChannelUp -> PlayerAction.CHANNEL_UP
-    Key.ChannelDown -> PlayerAction.CHANNEL_DOWN
-    Key.MediaPrevious, Key.LastChannel -> PlayerAction.LAST_CHANNEL
+    Key.ChannelUp, Key.MediaNext -> PlayerAction.CHANNEL_UP
+    Key.ChannelDown, Key.MediaPrevious -> PlayerAction.CHANNEL_DOWN
+    Key.LastChannel -> PlayerAction.LAST_CHANNEL
     Key.MediaPlayPause -> PlayerAction.PLAY_PAUSE
     Key.MediaPlay -> PlayerAction.PLAY
     Key.MediaPause -> PlayerAction.PAUSE

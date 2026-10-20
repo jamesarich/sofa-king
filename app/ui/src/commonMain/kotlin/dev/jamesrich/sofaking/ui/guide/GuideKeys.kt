@@ -36,6 +36,16 @@ internal fun Key.gridStep(): GridStep? = when (this) {
     else -> null
 }
 
+/**
+ * Left on a row's first cell or Right on its last stays put: there is nothing further in the window, and focus
+ * search would otherwise leave the grid for the chips or the preview.
+ */
+internal fun Key.stopsAtRowEdge(cell: GuideCell, windowMinutes: Long): Boolean = when (this) {
+    Key.DirectionLeft -> cell.startMinute <= 0
+    Key.DirectionRight -> cell.endMinute >= windowMinutes
+    else -> false
+}
+
 /** How many days ahead of the live window the grid can show; the server's guide data rarely reaches further. */
 internal const val MAX_DAY_OFFSET = 6
 
@@ -44,32 +54,4 @@ internal fun dayOffsetAfter(current: Int, shortcut: GuideShortcut): Int = when (
     GuideShortcut.DAY_FORWARD -> (current + 1).coerceAtMost(MAX_DAY_OFFSET)
     GuideShortcut.DAY_BACK -> (current - 1).coerceAtLeast(0)
     else -> current
-}
-
-/**
- * Keeps a held OK from reaching what opens under it. A held OK opens the program details, which focus Watch while the
- * key is still down; its repeats and key-up would then press Watch and play the channel. [arm] when something opens on
- * a held OK, and the rest of that press, repeats and key-up, is swallowed.
- */
-internal class HeldOkGuard {
-    private var held = false
-    private var swallowing = false
-
-    /** OK went down; true when this key-down is a repeat of a press already swallowed. */
-    fun onKeyDown(): Boolean {
-        held = true
-        return swallowing
-    }
-
-    /** OK came up; true when it ends a swallowed press. */
-    fun onKeyUp(): Boolean {
-        val swallowed = swallowing
-        held = false
-        swallowing = false
-        return swallowed
-    }
-
-    fun arm() {
-        if (held) swallowing = true
-    }
 }

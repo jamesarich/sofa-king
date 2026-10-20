@@ -6,7 +6,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 
 /** The runtime settings the operator saved, by key; a key that is absent takes the environment's value. */
-suspend fun BackendStore.runtimeSettings(): Map<String, String> = query {
+suspend fun BackendStore.runtimeSettings(): Map<String, String> = read {
     RuntimeSettings.selectAll().associate { it[RuntimeSettings.key] to it[RuntimeSettings.value] }
 }
 

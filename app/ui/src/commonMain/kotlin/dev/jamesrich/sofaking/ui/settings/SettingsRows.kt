@@ -29,11 +29,15 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 
 /** The width of a settings control column: a field, a switch row or a choice row, so the page reads as one column. */
 internal val FIELD_WIDTH = 640.dp
+
+/** A choice row with four or more segments. */
+internal val WIDE_CHOICE_WIDTH = 820.dp
 
 @Composable
 internal fun SectionHeader(title: String) {
@@ -99,8 +103,10 @@ internal fun <T> ChoiceRow(
     choiceLabel: @Composable (T) -> String,
     onSelect: (T) -> Unit,
     help: String? = null,
+    /** Wider than a field for four or more segments with longer names, so each name keeps one line. */
+    width: Dp = FIELD_WIDTH,
 ) {
-    Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         val selectedFocus = remember { FocusRequester() }
         SingleChoiceSegmentedButtonRow(

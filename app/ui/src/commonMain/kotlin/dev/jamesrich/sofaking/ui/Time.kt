@@ -13,6 +13,7 @@ import kotlinx.datetime.format.DayOfWeekNames
 import kotlinx.datetime.format.Padding
 import kotlinx.datetime.format.char
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Duration
 import kotlin.time.Instant
 import kotlin.time.TimeSource
 
@@ -79,3 +80,24 @@ private val placeholder = Regex("%(\\d+)\\$[sd]")
  */
 internal fun formatTemplate(template: String, vararg args: Any): String =
     placeholder.replace(template) { match -> args.getOrNull(match.groupValues[1].toInt() - 1)?.toString() ?: match.value }
+
+/** A time in the item as `M:SS` or `H:MM:SS`. */
+internal fun formatPlayTime(ms: Long): String {
+    val total = (ms.coerceAtLeast(0) / 1000)
+    val hours = total / 3600
+    val minutes = (total % 3600) / 60
+    val seconds = total % 60
+    val ss = seconds.toString().padStart(2, '0')
+    return if (hours > 0) "$hours:${minutes.toString().padStart(2, '0')}:$ss" else "$minutes:$ss"
+}
+
+/** A duration in whole minutes as "2 h 5 min", "45 min" or "1 h": a program's time left, a library item's length. */
+internal fun Duration.hoursAndMinutes(): String {
+    val hours = inWholeHours
+    val minutes = (inWholeMinutes - hours * 60).toInt()
+    return when {
+        hours > 0 && minutes > 0 -> "$hours h $minutes min"
+        hours > 0 -> "$hours h"
+        else -> "$minutes min"
+    }
+}

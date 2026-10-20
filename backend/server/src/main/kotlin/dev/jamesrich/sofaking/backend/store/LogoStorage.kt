@@ -22,7 +22,7 @@ data class LogoRecord(
     val cached: Boolean get() = fetchedAt != null && contentType != null && contentHash != null
 }
 
-suspend fun BackendStore.logos(): List<LogoRecord> = query {
+suspend fun BackendStore.logos(): List<LogoRecord> = read {
     LogoCacheRows.selectAll().map { row ->
         LogoRecord(
             key = row[LogoCacheRows.key],

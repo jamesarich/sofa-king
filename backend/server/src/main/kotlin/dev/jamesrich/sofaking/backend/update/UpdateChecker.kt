@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.update
 
+import dev.jamesrich.sofaking.backend.catalog.redactedMessage
 import dev.jamesrich.sofaking.backend.io.atomicWrite
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
@@ -121,7 +122,8 @@ class UpdateChecker(
                     checkedAt.set(clock.instant())
                     JobOutcome(true, when (build.isCurrent(running)) { true -> "up to date (${build.revision})"; false -> "update available: ${build.revision}"; null -> "published ${build.revision ?: build.digest ?: "unknown"}" })
                 } catch (e: CancellationException) { throw e } catch (e: Exception) {
-                    val why = "${e.javaClass.simpleName}: ${e.message?.lineSequence()?.firstOrNull()?.take(120) ?: ""}".trimEnd(':', ' ')
+                    // Ktor's timeout messages carry the request URL; the note, the flash and the stored state never do.
+                    val why = "${e.javaClass.simpleName}: ${redactedMessage(e).take(120)}".trimEnd(':', ' ')
                     error.set(why)
                     checkedAt.set(clock.instant())
                     log.warn("update check failed class={}", e.javaClass.simpleName)

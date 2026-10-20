@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
+import dev.jamesrich.sofaking.backend.io.startOwned
+import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.backend.upstream.ffmpegBase
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -17,6 +19,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -34,14 +37,16 @@ class TsRemux(private val ffmpeg: String) {
 
     fun active(): Int = processes.size
 
-    /** Streams [url] remuxed to `video/mp2t` into [call]; returns when the client hangs up or FFmpeg exits. */
-    /** [sent] is told each chunk's size as it goes to the player. */
+    /** Streams [url] remuxed to `video/mp2t` into [call]; returns when the client hangs up or FFmpeg exits. [sent] is told each chunk's size as it goes to the player. */
     suspend fun stream(call: ApplicationCall, url: String, headers: Map<String, String>, sent: (Int) -> Unit = {}) {
         val command = remuxCommand(ffmpeg, url, headers)
-        // Creating the log file and forking FFmpeg block; the call's Netty thread must not do either.
-        val (errors, process) = withContext(Dispatchers.IO) {
-            val errors = Files.createTempFile("sofa-remux-", ".log")
-            errors to ProcessBuilder(command).redirectError(errors.toFile()).start()
+        // Creating the log file and forking FFmpeg block, so they run on IO; a cancel there must not drop either.
+        val errors = withContext(NonCancellable + Dispatchers.IO) { Files.createTempFile("sofa-remux-", ".log") }
+        val process = try {
+            ProcessBuilder(command).redirectError(errors.toFile()).startOwned()
+        } catch (e: java.io.IOException) {
+            withContext(NonCancellable + Dispatchers.IO) { Files.deleteIfExists(errors) }
+            throw e
         }
         processes += process
         // FFmpeg closing its pipe is the source ending; anything else that stops the copy is the client leaving.
@@ -63,28 +68,20 @@ class TsRemux(private val ffmpeg: String) {
                             sent(read)
                             flush()
                         }
-                        ended = true
+                        // The watchdog killing FFmpeg for a client that left also ends the read; only a read still wanted is the source ending.
+                        ended = isActive
                     }
                     watchdog.cancel()
                 }
             }
         } finally {
             withContext(NonCancellable + Dispatchers.IO) {
-                reap(process)
+                process.terminate(grace = 2.seconds)
                 processes -= process
-                val exit = process.exitValue()
+                val exit = if (process.isAlive) null else process.exitValue()
                 if (ended && exit != 0) log.warn("remux ended exit={} tail=\"{}\"", exit, tail(errors))
                 Files.deleteIfExists(errors)
             }
-        }
-    }
-
-    /** Suspends on the exit rather than blocking the request thread while FFmpeg winds down. */
-    private suspend fun reap(process: Process) {
-        process.destroy()
-        if (withTimeoutOrNull(2.seconds) { process.onExit().await() } == null) {
-            process.destroyForcibly()
-            withTimeoutOrNull(5.seconds) { process.onExit().await() }
         }
     }
 

@@ -22,11 +22,11 @@ Then build and test:
 ./gradlew :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
 ```
 
-Unit tests cover the API client, catalog and guide mapping, the playback session lifecycle, cache, settings, captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against Ktor's `MockEngine` in common code on every target, and against MockWebServer on the JVM where a real socket matters, so no server is needed. `RenderSmokeTest` draws the guide, settings, the settings lock page, the player's info bar and its channel list headless at TV size and writes them to `ui/build/screenshots`.
+Unit tests cover the API client, catalog and guide mapping, the server connection's bootstrap backoff and server changes, the playback session lifecycle, cache, settings, captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against Ktor's `MockEngine` in common code on every target, and against MockWebServer on the JVM where a real socket matters, so no server is needed. Screen tests in `ui`'s `jvmTest` drive the composables with Compose's ui-test (`runSkikoComposeUiTest`), pressing keys and finding nodes by semantics on a virtual clock. `RenderSmokeTest` draws the guide, settings, the settings lock page, the player's info bar and its channel list headless at TV size and writes them to `ui/build/screenshots`.
 
 ## Code
 
-Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Put code in `commonMain` unless it needs a platform API, keep `core` free of Compose, preserve coroutine cancellation, and close the sessions, players and HTTP calls you own. [Architecture](architecture.md) describes how the code is organized.
+Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Put code in `commonMain` unless it needs a platform API, keep `core` free of Compose, preserve coroutine cancellation, and close the sessions, players and HTTP calls you own. [Architecture](architecture.md) describes how the code is organized. Every Kotlin compile fails on a compiler warning (`sofaking.warningsAsErrors` in `gradle.properties`), so fix a warning or opt in to the API it names rather than leaving it.
 
 ## Run each platform
 
@@ -46,37 +46,63 @@ Both Swift hosts take their version from the catalog's `sofaking` through `tools
 
 The tests cannot see focus, the remote's keys or a real decoder. Check these on a real Android TV or Google TV device before a change that touches playback, focus or the remote:
 
-- [ ] Cold start opens the last watched channel, and Back shows the guide focused on it.
+- [ ] Cold start holds the splash screen until the last watched channel opens (no Loading page), and Back shows the guide focused on it. Leave the app from the Library tab and start it again: it opens on Library with nothing playing.
 - [ ] The Guide, Menu and Search keys work (the launcher may claim Guide on some devices), and voice search finds a channel.
 - [ ] D-pad focus moves through the guide without losing its place, including rapid focus changes over the preview, and the stream carries over between preview, player and guide.
 - [ ] Focus is visible on every button, chip, switch and field, including the Recent chip and a Later today line under a search result.
 - [ ] Info or a held OK on a guide cell opens the program details beside the grid with Watch focused, and releasing the held OK does not play the channel; Favorite toggles the star, Back and Close return focus to the cell.
 - [ ] Fast Forward moves the guide a day ahead with the same channel focused, Rewind and Now return, and the day's programs fill in.
-- [ ] The preview is muted, unmutes at 5 seconds and opens full screen at 10 seconds, and captions show over it.
+- [ ] The preview is muted, unmutes at 5 seconds and opens full screen at 10 seconds, and captions show over it. With music playing from another app, the muted preview leaves it playing and the preview's sound stops it.
 - [ ] Background and foreground transitions resume the same channel.
-- [ ] Audio, captions and decoder recovery work on the full-screen player.
+- [ ] Audio, captions and decoder recovery work on the full-screen player. Previous and Next on a remote that has them step the channel number down and up.
 - [ ] In the player, Left or Right on the info bar opens the channel list, Up from its top row reaches the chips and Left/Right move along them to the star, Captions, Pause and Stream info buttons, and OK on a row under All tunes a channel outside the guide filter.
 - [ ] With the remote's CC, Play/Pause and Info keys unused: the list's Captions button toggles captions and closes the list with the timing toast up, Pause pauses, the star changes the Favorites chip's rows, and Stream info opens the stream card with the playing audio track focused; OK on a card without tracks closes it.
 - [ ] CC then Left/Right moves the channel's caption timing both ways and the toast follows; Info held opens the stream card, and Up/Down and OK pick an audio track on a channel with several.
-- [ ] Settings → Open on start set to Guide opens the guide on a cold start, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
+- [ ] Settings → Open on start set to Guide opens the guide on a cold start, Library opens the Library tab, and A channel with one chosen opens that channel; Save & reload is off until the server fields change.
 - [ ] Settings → Manage channels: a group switched off empties its chip in the guide and its channels leave the channel list; the arrow opens the group's channels and one switched back on returns alone; hidden channels leave Channel Up/Down only once Skip hidden channels is on; the move buttons reorder the Favorites filter.
+- [ ] Settings opens on its first setting with no Back button drawn and Down walks General, Live TV, Recordings, Captions, Playback, Server; the header shows only the tabs and Settings. Settings → Server → Reload shows Reloading while the lineup loads. Settings → Recordings → Skip commercials jumps a recording's breaks.
 - [ ] Settings → Time format 24-hour and Guide rows Compact change the guide at once; Open system caption settings opens the TV's captioning page.
 - [ ] Settings → Lock → Set a PIN, Back, open Settings: the lock page focuses the PIN field; a wrong PIN says so and the fifth starts a 30 s wait; the right PIN opens Settings; Forgot the PIN with the server's API token removes it.
 - [ ] Settings → Match frame rate on: a 29.97 or 25 fps channel switches the TV's refresh rate (the panel may blank for a moment) and the launcher's rate returns on Back; Decoder Software and Buffer Smoother still play the channel.
-- [ ] Up from the guide's chips reaches the Live and Library tabs and Settings; OK on Library opens it with the tab still focused, Down enters the rows, Up from the top row returns to the tabs, and Back returns to Live.
+- [ ] Up from the guide's chips reaches the Live and Library tabs and Settings; OK on Library opens it with the tab still focused, Down enters the rows, Up from the top row or a grid's chips returns to the open tab, and Back returns to Live.
+- [ ] Back from the guide's grid reaches the chips, then the Live tab, and the next Back exits the app at once. Settings opened from Library or Recordings returns there on Back. On Library and Recordings, Back from the page focuses the open tab in the header, and a second Back opens Live with focus on the Live tab and no preview playing; a third exits. Down from there focuses the guide on the last channel and starts the preview. The Guide key on a Library page opens the guide at Now. Back from a recording focuses that recording, Back to a tab scrolls its page to the top, and a cold start into Library or an empty Recordings focuses the tab.
+- [ ] On the Library tab, Down reaches Search and the library chips; Search takes typed and spoken queries (the Search key starts it by voice), OK on a result opens its page and Back returns to the results, then to the Search chip.
 - [ ] In the Library, OK on a card opens its page with Play or Resume focused, Play on the remote plays a movie straight from its card, a library's grid sorts and filters from its chips and loads more as it scrolls, and Back from a page or a grid focuses the card or library left.
-- [ ] A show's page opens on the season with the next episode; the season chips switch the episode rows, and OK on an episode plays it, resuming where it stopped.
+- [ ] A show's page opens with its title in view and on the season with the next episode; Down from the buttons lands on that season's chip, the chips switch the episode rows, and OK on an episode plays it, resuming where it stopped.
 - [ ] In the library player, Left and Right scrub and apply once released, holding them jumps further, OK applies at once, Back cancels a scrub and then returns to the page with the episode focused; Home and back resumes where it was, and a far jump in a converted file restarts there.
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):
 
-- [ ] The tab bar shows Live, Library (only for a server with libraries) and Settings; a Top Shelf channel opens on Live from any tab.
+- [ ] The tab bar shows Live, Library (only for a server with libraries), Recordings (only for a server that records) and Settings; a Top Shelf channel opens on Live from any tab. Leave the app from Library and start it again: it opens on Library.
 - [ ] In the Library, a card opens its page, play/pause on the remote plays a movie or episode straight from its card, and a library's grid sorts, filters and loads more as it scrolls.
 - [ ] A show's page opens on the season with the next episode; selecting an episode plays it, resuming where it stopped, and its context menu starts it over or marks it watched.
 - [ ] The library player resumes where the item stopped, scrubs in the transport bar, returns to the page at the end, and after Home and back picks up where it was.
 - [ ] Holding the touch surface on a channel opens its program details, and Watch plays it.
 - [ ] The player's transport bar menu toggles the favorite and switches channels from Recent, Favorites and All channels.
 - [ ] After watching a few channels, the Top Shelf shows them newest first, and selecting one opens the app on it; the app and the extension must be signed with the `group.dev.jamesrich.sofaking` app group for the list to reach the extension.
+
+### Over adb
+
+Focus, keys and playback can be probed from a computer connected to the TV with `adb`:
+
+- Send remote keys with `adb shell input keyevent`, by name: `KEYCODE_DPAD_DOWN`, `KEYCODE_DPAD_CENTER`, `KEYCODE_BACK`, `KEYCODE_GUIDE`.
+- Find what has focus in `adb shell uiautomator dump` (the node with `focused="true"`), or with Google's `android` command-line tool, `android layout --flat`, which prints the screen's nodes as JSON with their `FOCUSED` state and center coordinates.
+- Read the app's log with `adb logcat -s SofaKing`; the CLI has no logcat command.
+- `adb exec-out screencap -p` captures the interface, but on some TVs the video is black in it, so judge playback from the log and the media session's playback state in `adb shell dumpsys media_session`, and sound from `adb shell dumpsys audio`.
+
+`android layout` installs a helper app, `com.android.cli.interact.instrumentation`, and leaves it running, which kills `uiautomator dump`. Stop it before using `uiautomator` again:
+
+```sh
+adb shell am force-stop com.android.cli.interact.instrumentation
+```
+
+On an emulator image with Play Protect, the helper's install waits for verification and `android layout` hangs with no timeout. Turn off the verification of `adb` installs first:
+
+```sh
+adb shell settings put global verifier_verify_adb_installs 0
+```
+
+The CLI's `android docs search` and `android docs fetch` answer from the Android developer documentation, including its TV pages. Its `input key` takes only numeric key codes, so `adb shell input keyevent` stays the way to send keys.
 
 ## Baseline Profile
 

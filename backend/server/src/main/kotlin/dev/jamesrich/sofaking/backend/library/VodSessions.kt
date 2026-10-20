@@ -1,6 +1,9 @@
 package dev.jamesrich.sofaking.backend.library
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.catalog.hash
+import dev.jamesrich.sofaking.backend.io.runFor
+import dev.jamesrich.sofaking.backend.io.terminate
 import dev.jamesrich.sofaking.contract.ClientProfile
 import dev.jamesrich.sofaking.contract.OpenVodPlayback
 import dev.jamesrich.sofaking.contract.PlaybackDescriptor
@@ -18,8 +21,10 @@ import java.time.Duration
 import java.time.Instant
 import java.util.HexFormat
 import java.util.UUID
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -139,6 +144,26 @@ class VodSessions(
     private val mutex = Mutex()
     private val random = SecureRandom()
     private val extracting = Mutex()
+    /** Sessions taken out under the lock whose FFmpeg and files [dispose] deals with once it is released. */
+    private val retired = ConcurrentLinkedQueue<VodState>()
+
+    /**
+     * Runs [action] under the sessions' lock, then ends the FFmpeg of every session it retired and deletes that
+     * session's files, so a slow exit or a folder of thousands of segments never holds up the other requests.
+     */
+    private suspend inline fun <T> locked(action: () -> T): T = try { mutex.withLock(action = action) } finally { dispose() }
+
+    private suspend fun dispose() {
+        if (retired.isEmpty()) return
+        withContext(NonCancellable) { while (true) stop(retired.poll() ?: break) }
+    }
+
+    /** Takes [state] out of the sessions and signals its FFmpeg; [dispose] finishes it off the lock. Its id is never reused, so its folder is its own. */
+    private fun retire(state: VodState) {
+        sessions.remove(state.id)
+        state.process?.destroy()
+        retired += state
+    }
 
     /** Clears what an earlier run left behind and checks the hardware encoder, if one is set, can encode. */
     suspend fun start() {
@@ -174,7 +199,7 @@ class VodSessions(
         return extracting.withLock {
             withContext(Dispatchers.IO) {
                 val stamp = "${Files.getLastModifiedTime(file).toMillis()}-${Files.size(file)}"
-                val name = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest("$itemId/$index/$stamp".toByteArray())).take(32)
+                val name = hash("$itemId/$index/$stamp").take(32)
                 val out = dir.resolve("$name.vtt")
                 if (!Files.isRegularFile(out)) {
                     Files.createDirectories(dir)
@@ -238,7 +263,7 @@ class VodSessions(
         else vodMode(media, if (growing) request.profile.copy(containers = emptyList()) else request.profile, audio)
         // Only a conversion cuts segments where it likes; a copy cuts at the file's own key frames, which nothing lists.
         val whole = request.wholePlaylist && mode == Wire.VodMode.TRANSCODE && !growing && durationMs != null && durationMs > 0
-        return mutex.withLock {
+        return locked {
             reap()
             if (mode != Wire.VodMode.DIRECT && sessions.values.count { it.mode != Wire.VodMode.DIRECT } >= maxConverting) {
                 throw ApiFailure(503, Wire.ErrorCode.CAPACITY_EXHAUSTED, "Too many files are being converted; try again when one stops", true)
@@ -248,16 +273,17 @@ class VodSessions(
                 startMs = if (mode == Wire.VodMode.DIRECT || whole) 0 else request.startMs, expires = clock.instant().plus(lease), startedAt = clock.instant(),
                 whole = whole, runStart = if (whole) (request.startMs / SEGMENT_MS).toInt() else 0,
             )
-            if (mode != Wire.VodMode.DIRECT) launch(state)
+            // A conversion that fails to start leaves its folder, and maybe its FFmpeg, to dispose.
+            if (mode != Wire.VodMode.DIRECT) try { launch(state) } catch (e: Throwable) { retired += state; throw e }
             sessions[state.id] = state
             state.wire()
         }
     }
 
-    suspend fun get(id: String): VodSession = mutex.withLock { live(id).wire() }
+    suspend fun get(id: String): VodSession = locked { live(id).wire() }
 
     /** The sessions playing now, oldest first. */
-    suspend fun snapshot(): List<VodActivity> = mutex.withLock {
+    suspend fun snapshot(): List<VodActivity> = locked {
         reap()
         sessions.values.sortedBy { it.startedAt }.map { VodActivity(it.id, it.itemId, it.recordingId, it.mode, it.startedAt, it.expires) }
     }
@@ -267,12 +293,12 @@ class VodSessions(
         val start = update.startMs
         if (start != null && start < 0) throw ApiFailure(400, "INVALID_REQUEST", "startMs is not negative")
         // A recording may have finished and moved since the stream started, so a restart finds its file again.
-        val recordingId = mutex.withLock { live(id).recordingId }
+        val recordingId = locked { live(id).recordingId }
         val playable = if (start != null && recordingId != null) recordings?.invoke(recordingId) else null
-        return mutex.withLock { restart(live(id), start, playable) }
+        return locked { restart(live(id), start, playable) }
     }
 
-    private fun restart(state: VodState, start: Long?, playable: PlayableFile?): VodSession {
+    private suspend fun restart(state: VodState, start: Long?, playable: PlayableFile?): VodSession {
         state.expires = clock.instant().plus(lease)
         // A whole playlist seeks anywhere already; a restart there only renews it.
         if (start != null && state.mode != Wire.VodMode.DIRECT && !state.whole) {
@@ -285,19 +311,16 @@ class VodSessions(
         return state.wire()
     }
 
-    suspend fun release(id: String): Boolean = mutex.withLock { sessions.remove(id)?.also { stop(it) } != null }
+    suspend fun release(id: String): Boolean = locked { sessions[id]?.also(::retire) != null }
 
-    suspend fun expire() = mutex.withLock { reap() }
+    suspend fun expire() = locked { reap() }
 
     /** Stops every session, as the server shuts down. */
-    suspend fun close() = mutex.withLock {
-        sessions.values.forEach { stop(it) }
-        sessions.clear()
-    }
+    suspend fun close() = locked { sessions.values.toList().forEach(::retire) }
 
     /** The file behind a media URL, waiting a little for FFmpeg to write it; null when the URL is stale or unknown. */
     suspend fun media(id: String, epoch: Int, secret: String, name: String): VodMedia? {
-        val state = mutex.withLock {
+        val state = locked {
             val state = sessions[id]?.takeIf { it.epoch == epoch && sameSecret(it.secret, secret) } ?: return null
             state.expires = clock.instant().plus(lease)
             state
@@ -326,7 +349,7 @@ class VodSessions(
         if (segment >= segmentCount(state.durationMs!!)) return null
         val file = dir.resolve(name)
         if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return VodMedia(file, "video/mp2t")
-        val epoch = mutex.withLock {
+        val epoch = locked {
             if (sessions[state.id] !== state) return null
             val running = state.process?.isAlive == true
             val reached = withContext(Dispatchers.IO) { written(dir, state.runStart) }
@@ -343,7 +366,7 @@ class VodSessions(
     private suspend fun waitFor(state: VodState, epoch: Int, ready: () -> Boolean): Unit? {
         repeat(200) {
             if (withContext(Dispatchers.IO) { ready() }) return Unit
-            val running = mutex.withLock { state.epoch == epoch && state.process?.isAlive == true && sessions[state.id] === state }
+            val running = locked { state.epoch == epoch && state.process?.isAlive == true && sessions[state.id] === state }
             if (!running) return if (withContext(Dispatchers.IO) { ready() }) Unit else null
             delay(100)
         }
@@ -357,10 +380,10 @@ class VodSessions(
 
     private fun reap() {
         val now = clock.instant()
-        sessions.values.filter { it.expires <= now }.forEach { sessions.remove(it.id); stop(it) }
+        sessions.values.filter { it.expires <= now }.forEach(::retire)
     }
 
-    private fun launch(state: VodState) {
+    private suspend fun launch(state: VodState) = withContext(Dispatchers.IO) {
         val dir = directory.resolve(state.id)
         // A whole playlist keeps the segments already converted, so a seek back to them plays at once.
         if (!state.whole || !Files.isDirectory(dir)) {
@@ -382,13 +405,13 @@ class VodSessions(
         log.info("vod session started session={} mode={} startMs={}", state.id, state.mode, if (state.whole) state.runStart * SEGMENT_MS else state.startMs)
     }
 
-    private fun stop(state: VodState, clearFiles: Boolean = true) {
-        state.process?.let { process ->
-            process.destroy()
-            if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
-        }
+    private suspend fun stop(state: VodState, clearFiles: Boolean = true) {
+        val process = state.process
         state.process = null
-        if (clearFiles) clear(directory.resolve(state.id))
+        withContext(Dispatchers.IO) {
+            process?.terminate()
+            if (clearFiles) clear(directory.resolve(state.id))
+        }
     }
 
     private fun VodState.wire(): VodSession {
@@ -427,14 +450,9 @@ class VodSessions(
             files.sortedBy { Files.getLastModifiedTime(it) }.take(files.size - SUBTITLES_KEPT).forEach { runCatching { Files.deleteIfExists(it) } }
         }
 
-        fun runs(command: List<String>, minutes: Long): Boolean = try {
-            val process = ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
-            if (!process.waitFor(minutes, TimeUnit.MINUTES)) {
-                process.destroyForcibly()
-                false
-            } else {
-                process.exitValue() == 0
-            }
+        /** Whether [command] exits 0 within [minutes]; a client giving up on the request ends FFmpeg too. */
+        suspend fun runs(command: List<String>, minutes: Long): Boolean = try {
+            ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(minutes.minutes) == 0
         } catch (_: IOException) {
             false
         }

@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import platform.AVFAudio.*
 import platform.AVFoundation.AVErrorDecoderNotFound
 import platform.AVFoundation.AVErrorDecodeFailed
 import platform.AVFoundation.AVErrorFailedToParse
@@ -62,7 +63,6 @@ import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.CMTimeRangeValue
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.duration
-import platform.AVFoundation.seekToDate
 import platform.AVFoundation.seekToTime
 import platform.AVFoundation.seekableTimeRanges
 import platform.CoreMedia.CMTimeGetSeconds
@@ -73,7 +73,6 @@ import platform.AVFoundation.timeControlStatus
 import platform.AVFoundation.volume
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSData
-import platform.Foundation.NSDate
 import platform.Foundation.NSError
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
@@ -119,8 +118,10 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     private var captionsOn = false
     private var ended = false
     private var reportedFailure: AVPlayerItem? = null
-    // The item whose caption track was chosen; an item reports its legible group only once it is ready to play.
+    // The item whose caption track was chosen, and its legible group. Both are read once the item is ready to play:
+    // the asset has no group to report before then, and asking for it blocks the main thread while it loads.
     private var captionsAppliedTo: AVPlayerItem? = null
+    private var legibleGroup: AVMediaSelectionGroup? = null
     private val hasFrame = MutableStateFlow(false)
 
     private val _status = MutableStateFlow(PlayerStatus())
@@ -159,13 +160,31 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     override val bufferedMs: Long get() = 0L
     override val supportsCaptionLead: Boolean get() = false
     override val hasTextTrack: Boolean
-        get() = av.currentItem?.asset?.mediaSelectionGroupForMediaCharacteristic(AVMediaCharacteristicLegible)?.options?.isNotEmpty() == true
+        get() = av.currentItem?.takeIf { it === captionsAppliedTo } != null && legibleGroup?.options?.isNotEmpty() == true
 
+    /**
+     * The audio session follows the volume, as audio focus does on Android: audible playback takes the Playback
+     * category, which plays through the silent switch and interrupts other apps' sound, and the muted preview sits in
+     * Ambient, which mixes with them.
+     */
     override var volume: Float
         get() = av.volume
         set(value) {
             av.volume = value
+            val audible = value > 0f
+            if (audible == audibleSession) return
+            audibleSession = audible
+            val session = AVAudioSession.sharedInstance()
+            if (audible) {
+                session.setCategory(AVAudioSessionCategoryPlayback, mode = AVAudioSessionModeMoviePlayback, options = 0u, error = null)
+                session.setActive(true, error = null)
+            } else {
+                session.setCategory(AVAudioSessionCategoryAmbient, mode = AVAudioSessionModeDefault, options = 0u, error = null)
+            }
         }
+
+    // Null until the first volume is set, so the first one always chooses the category.
+    private var audibleSession: Boolean? = null
 
     override var playWhenReady: Boolean = true
         set(value) {
@@ -230,8 +249,14 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     }
 
     override fun play() {
-        if (pauseClock.onPlay(uptimeMs()) && stream?.seekable != true) av.currentItem?.seekToDate(NSDate())
+        val toLive = pauseClock.onPlay(uptimeMs()) && stream?.seekable != true
         playWhenReady = true
+        // A relayed live playlist carries no program dates to seek by, and its window has moved on: rejoining the
+        // edge is reopening the stream, as on the desktop and the web.
+        if (toLive) {
+            stop()
+            prepare()
+        }
     }
 
     override fun pause() {
@@ -273,7 +298,11 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         av.seekToTime(CMTimeMakeWithSeconds(target / 1000.0, 600))
     }
 
-    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
+    private val mediaSessions = NewestMediaSession(::openNowPlaying)
+
+    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = mediaSessions.open(onZapStep)
+
+    private fun openNowPlaying(onZapStep: (Int) -> Unit): MediaSessionHandle {
         val commands = MPRemoteCommandCenter.sharedCommandCenter()
         val next = commands.nextTrackCommand.addTargetWithHandler { _ ->
             onZapStep(1)
@@ -361,8 +390,8 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
     }
 
     private fun applyCaptions() {
-        val item = av.currentItem ?: return
-        val group = item.asset.mediaSelectionGroupForMediaCharacteristic(AVMediaCharacteristicLegible) ?: return
+        val item = av.currentItem?.takeIf { it === captionsAppliedTo } ?: return
+        val group = legibleGroup ?: return
         val option = if (captionsOn) group.options.firstOrNull() as? AVMediaSelectionOption else null
         item.selectMediaOption(option, group)
     }
@@ -388,6 +417,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : LivePlayer 
         }
         if (item != null && item.status == AVPlayerItemStatusReadyToPlay && captionsAppliedTo !== item) {
             captionsAppliedTo = item
+            legibleGroup = item.asset.mediaSelectionGroupForMediaCharacteristic(AVMediaCharacteristicLegible)
             applyCaptions()
             readAudioTracks(item)
         }

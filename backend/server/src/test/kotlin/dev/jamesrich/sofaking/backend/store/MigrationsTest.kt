@@ -79,7 +79,7 @@ class MigrationsTest {
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT version FROM schema_version ORDER BY version").use { rows ->
-                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201), buildList { while (rows.next()) add(rows.getInt(1)) })
+                        assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202), buildList { while (rows.next()) add(rows.getInt(1)) })
                     }
                 }
             }
@@ -166,7 +166,7 @@ class MigrationsTest {
         val db = databaseAt(dir)
         try {
             applyMigrations(db, foundationMigrations())
-            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201), foundationMigrations().map { it.version })
+            assertEquals(listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202), foundationMigrations().map { it.version })
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").use { rows ->
@@ -180,5 +180,19 @@ class MigrationsTest {
                 }
             }
         } finally { closeDatabase(db); dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `every db migration file is listed in Migrations, in version order`() {
+        // Tests run in the server's project directory; the files are the sources, not what the last build copied.
+        val folder = java.nio.file.Path.of("src/main/resources/db")
+        assertTrue(Files.isDirectory(folder), "no migrations folder at ${folder.toAbsolutePath()}")
+        val files = Files.list(folder).use { paths -> paths.map { it.fileName.toString() }.filter { it.startsWith("V") && it.endsWith(".sql") }.toList() }
+        val named = Regex("""V(\d+)__\w+\.sql""")
+        assertEquals(emptyList(), files.filterNot(named::matches), "migration files not named Vnnn__name.sql")
+        val onDisk = files.sortedBy { named.matchEntire(it)!!.groupValues[1].toInt() }
+        assertEquals(onDisk.size, onDisk.map { named.matchEntire(it)!!.groupValues[1].toInt() }.distinct().size, "two files share a version: $onDisk")
+        val listed = foundationMigrations()
+        assertEquals(onDisk.map { named.matchEntire(it)!!.groupValues[1].toInt() }, listed.map { it.version }, "Migrations.kt lists other versions than the files: $onDisk")
+        for ((file, migration) in onDisk.zip(listed)) assertEquals(Files.readString(folder.resolve(file)), migration.sql, "$file is not the migration listed as version ${migration.version}")
     }
 }

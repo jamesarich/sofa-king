@@ -255,7 +255,11 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
      * The page title and the browser's Media Session: its metadata reaches the OS media controls, and their media
      * keys come back here. Browsers without the API keep the title alone.
      */
-    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
+    private val mediaSessions = NewestMediaSession(::openBrowserSession)
+
+    override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = mediaSessions.open(onZapStep)
+
+    private fun openBrowserSession(onZapStep: (Int) -> Unit): MediaSessionHandle {
         setMediaAction("play") { play() }
         setMediaAction("pause") { pause() }
         setMediaAction("nexttrack") { onZapStep(1) }
@@ -336,7 +340,6 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
      * Browsers refuse autoplay with sound until the page has had a user gesture. A refused play() is retried muted,
      * which they allow, and the sound returns on the first key press or pointer press.
      */
-    @OptIn(ExperimentalWasmJsInterop::class)
     private fun startPlayback() {
         video.play().unsafeCast<PlayPromise>().catch { error ->
             if (error.unsafeCast<DomError>().name == "NotAllowedError" && !video.muted) {
@@ -395,7 +398,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
  * frame can change size before `videoWidth` reports it (a variant switch), so it is never written into a texture of
  * an assumed size. GL objects are created on the first [draw], inside a render, so Compose's GL state stays known.
  */
-@OptIn(ExperimentalComposeUiApi::class, ExperimentalWasmJsInterop::class)
+@OptIn(ExperimentalComposeUiApi::class)
 private class VideoFrames(private val gl: WebGLRenderingContext) {
     private var texture: WebGLTexture? = null
     private var source: WebGLFramebuffer? = null
@@ -450,7 +453,6 @@ private const val READ_FRAMEBUFFER = 0x8CA8
 private const val DRAW_FRAMEBUFFER = 0x8CA9
 
 /** WebGL2's blit, which the WebGL 1 bindings lack; [rememberWebGLRenderTarget] only hands out WebGL2 contexts. */
-@OptIn(ExperimentalWasmJsInterop::class)
 private external interface WebGL2Blit : JsAny {
     fun blitFramebuffer(
         srcX0: Int, srcY0: Int, srcX1: Int, srcY1: Int,
@@ -460,12 +462,10 @@ private external interface WebGL2Blit : JsAny {
 }
 
 /** The promise play() returns; the bindings type it differently on js and wasm. */
-@OptIn(ExperimentalWasmJsInterop::class)
 private external interface PlayPromise : JsAny {
     fun catch(onRejected: (JsAny) -> JsAny?): JsAny
 }
 
-@OptIn(ExperimentalWasmJsInterop::class)
 private external interface DomError : JsAny {
     val name: String
 }
@@ -474,7 +474,6 @@ private external interface DomError : JsAny {
  * Suspends until [video] presents its next frame. Browsers without `requestVideoFrameCallback` (Firefox before
  * 132) wait for the next display frame instead.
  */
-@OptIn(ExperimentalWasmJsInterop::class)
 private suspend fun awaitVideoFrame(video: HTMLVideoElement) {
     if (!hasVideoFrameCallback(video)) {
         withFrameNanos { }
@@ -486,14 +485,11 @@ private suspend fun awaitVideoFrame(video: HTMLVideoElement) {
     }
 }
 
-@OptIn(ExperimentalWasmJsInterop::class)
 private fun hasVideoFrameCallback(video: HTMLVideoElement): Boolean = js("'requestVideoFrameCallback' in video")
 
-@OptIn(ExperimentalWasmJsInterop::class)
 private fun requestVideoFrame(video: HTMLVideoElement, onFrame: () -> Unit): Int =
     js("video.requestVideoFrameCallback(function () { onFrame(); })")
 
-@OptIn(ExperimentalWasmJsInterop::class)
 private fun cancelVideoFrame(video: HTMLVideoElement, handle: Int) {
     js("video.cancelVideoFrameCallback(handle);")
 }
@@ -501,22 +497,18 @@ private fun cancelVideoFrame(video: HTMLVideoElement, handle: Int) {
 private val MEDIA_ACTIONS = listOf("play", "pause", "nexttrack", "previoustrack")
 
 /** An action the browser doesn't know throws; it is skipped, as the spec advises. */
-@OptIn(ExperimentalWasmJsInterop::class)
 private fun setMediaAction(action: String, handler: () -> Unit) {
     js("if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, function () { handler(); }); } catch (e) {} }")
 }
 
-@OptIn(ExperimentalWasmJsInterop::class)
 private fun clearMediaAction(action: String) {
     js("if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, null); } catch (e) {} }")
 }
 
-@OptIn(ExperimentalWasmJsInterop::class)
 private fun setMediaMetadata(title: String, artist: String, artworkUrl: String?) {
     js("if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: title, artist: artist, artwork: artworkUrl ? [{ src: artworkUrl }] : [] }); }")
 }
 
-@OptIn(ExperimentalWasmJsInterop::class)
 private fun clearMediaMetadata() {
     js("if ('mediaSession' in navigator) { navigator.mediaSession.metadata = null; }")
 }
@@ -524,12 +516,10 @@ private fun clearMediaMetadata() {
 private fun isCrossOrigin(url: String): Boolean = URL(url, window.location.href).origin != window.location.origin
 
 /** A VTT cue's text with its markup tags removed; the bindings have no VTTCue. */
-@OptIn(ExperimentalWasmJsInterop::class)
 private fun cueText(cue: TextTrackCue): String = cue.unsafeCast<TextCue>().text.orEmpty().replace(cueMarkup, "")
 
 private val cueMarkup = Regex("<[^>]*>")
 
-@OptIn(ExperimentalWasmJsInterop::class)
 private external interface TextCue : JsAny {
     val text: String?
 }

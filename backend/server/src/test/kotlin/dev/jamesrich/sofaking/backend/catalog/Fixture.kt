@@ -212,7 +212,7 @@ class Fixture : AutoCloseable {
         append("<tv>")
         if (withChannels) append("<channel id=\"station\"><display-name>Station HD</display-name><icon src=\"$base/station.png\"/></channel><channel id=\"other\"><display-name>Other</display-name></channel>")
         val metadata = if (guideMetadata) {
-            "<sub-title>Pilot &amp; Plans</sub-title><episode-num system=\"xmltv_ns\">1.4.</episode-num>" +
+            "<sub-title>Pilot &amp; Plans</sub-title><category lang=\"en\">Sports</category><episode-num system=\"xmltv_ns\">1.4.</episode-num>" +
                 "<episode-num system=\"onscreen\">S02E05</episode-num><new/><rating system=\"VCHIP\"><value>TV-PG</value></rating>"
         } else {
             ""

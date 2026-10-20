@@ -56,20 +56,28 @@ class GuideFocusTest {
 
     // guideBackAction
 
+    private fun back(searchOpen: Boolean = false, grid: Boolean = false, chips: Boolean = false, header: Boolean = true) =
+        guideBackAction(searchOpen = searchOpen, gridFocused = grid, chipsFocused = chips, hasHeader = header)
+
     @Test
     fun `open search closes before anything else`() {
-        assertEquals(GuideBack.CLOSE_SEARCH, guideBackAction(searchOpen = true, gridFocused = true))
-        assertEquals(GuideBack.CLOSE_SEARCH, guideBackAction(searchOpen = true, gridFocused = false))
+        assertEquals(GuideBack.CLOSE_SEARCH, back(searchOpen = true, grid = true))
     }
 
     @Test
     fun `Back from the grid climbs to the chips`() {
-        assertEquals(GuideBack.FOCUS_CHIPS, guideBackAction(searchOpen = false, gridFocused = true))
+        assertEquals(GuideBack.FOCUS_CHIPS, back(grid = true))
     }
 
     @Test
-    fun `Back from the chips or the header exits`() {
-        assertEquals(GuideBack.EXIT, guideBackAction(searchOpen = false, gridFocused = false))
+    fun `Back from the chips climbs to the header's tabs when there are some`() {
+        assertEquals(GuideBack.FOCUS_HEADER, back(chips = true))
+        assertEquals(GuideBack.EXIT, back(chips = true, header = false))
+    }
+
+    @Test
+    fun `Back from the header exits at once`() {
+        assertEquals(GuideBack.EXIT, back())
     }
 
     // selectedChipIndex

@@ -110,6 +110,9 @@ class ViewerApiTest {
             try {
                 application { backendModule(store, MutableClock(), runtime, null, admin, config = config) }
                 val code = Json.decodeFromString<PairingCode>(client.post("/api/v1/admin/pairing-codes") { bearerAuth(admin) }.bodyAsText())
+                // A bad client id is refused before the code is spent.
+                val badId = client.post("/api/v1/pair") { contentType(ContentType.Application.Json); setBody(json.encodeToString(PairingClaim(code.code, "tv 1!"))) }
+                assertEquals(HttpStatusCode.BadRequest, badId.status)
                 val paired = client.post("/api/v1/pair") { contentType(ContentType.Application.Json); setBody(json.encodeToString(PairingClaim(code.code, "tv-1"))) }
                 assertEquals(HttpStatusCode.OK, paired.status)
                 assertEquals("", Json.decodeFromString<PairingResult>(paired.bodyAsText()).apiToken)

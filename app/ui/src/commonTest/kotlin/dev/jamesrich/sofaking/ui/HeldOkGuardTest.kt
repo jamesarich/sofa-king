@@ -1,4 +1,4 @@
-package dev.jamesrich.sofaking.ui.guide
+package dev.jamesrich.sofaking.ui
 
 import kotlin.test.Test
 import kotlin.test.assertFalse

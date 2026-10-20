@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.ui.guide
 
+import dev.jamesrich.sofaking.ui.HeldOkGuard
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.ui.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +21,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
@@ -49,12 +53,12 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalFocusManager
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.resources.*
@@ -63,10 +67,12 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.orderedFavorites
+import dev.jamesrich.sofaking.data.ProgramKind
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
+import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_BAND_HEIGHT
 import dev.jamesrich.sofaking.ui.preview.PREVIEW_ENABLED
 import dev.jamesrich.sofaking.ui.preview.PreviewDetails
@@ -111,7 +117,13 @@ internal sealed interface GuideFilter {
     data object Recent : GuideFilter
     @Serializable
     data class Group(val name: String) : GuideFilter
+    /** The channels showing a [kind] of program now. */
+    @Serializable
+    data class OnNow(val kind: ProgramKind) : GuideFilter
 }
+
+/** How often the kinds of program on now are read again. */
+private const val ON_NOW_REFRESH_SECONDS = 300L
 
 /** How often the initial focus is retried after the row refused it, before the header keeps focus. */
 private const val INITIAL_FOCUS_ATTEMPTS = 3
@@ -142,12 +154,17 @@ private data class DwellInput(val channelId: String?, val nonce: Int, val failed
 /** The cell most recently focused in the grid, shown by the preview pane. */
 private data class FocusedCell(val channel: Channel, val cell: GuideCell)
 
+/** The guide's test tag; Android exposes it as a resource id for the Baseline Profile generator. */
+const val GUIDE_TEST_TAG = "guide"
+
 /**
  * The guide grid. Filter, search, time cursor, scroll and the focused channel are saveable across a trip to the
  * player. [returnedFrom] is the channel the full screen was just left on: focus lands on it, a filter hiding it
  * gives way, and the preview's rest timer does not reopen it until focus has moved. [initialChannelId] (the
  * last channel watched) is where a fresh guide starts, [startAtNow] puts the cursor at the current time
- * instead of where it was, and [startSearch] opens search by voice on arrival.
+ * instead of where it was, and [startSearch] opens search by voice on arrival. [startInHeader] leaves focus on the
+ * header's tab, where Back from another tab put it: the guide takes its first focus, and the preview its channel,
+ * only once focus comes down into it.
  */
 @Composable
 fun GuideScreen(
@@ -162,7 +179,8 @@ fun GuideScreen(
     startAtNow: Boolean,
     startSearch: Boolean,
     returnedFrom: String?,
-    onPlay: (Channel, ZapScope?) -> Unit,
+    /** Opens [channel] full screen; [unattended] when the preview opened it by itself, with no key pressed. */
+    onPlay: (channel: Channel, scope: ZapScope?, unattended: Boolean) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     /** The viewer chose a filter chip; its key is saved for the next launch. */
     onFilterChanged: (String?) -> Unit,
@@ -180,6 +198,11 @@ fun GuideScreen(
     onRecord: suspend (Programme) -> Boolean = { false },
     /** Records the programme's series or stops it; false when the server did not take it. */
     onRecordSeries: suspend (Programme) -> Boolean = { false },
+    /** The header's open tab, which Back from the chips focuses; null when the header has no tabs. */
+    headerFocus: FocusRequester? = null,
+    startInHeader: Boolean = false,
+    /** Whether the guide is the page on top; on its way out under the player it leaves the volume alone. */
+    shown: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val now by rememberMinuteNow()
@@ -207,8 +230,11 @@ fun GuideScreen(
     val tomorrowLabel = stringResource(Res.string.guide_tomorrow)
     val rangeFormat = stringResource(Res.string.guide_range)
 
-    val filters = remember(lineup.channels) { guideFilters(lineup.channels) }
-    val filterCounts = remember(lineup.channels, favorites, recentChannels) { guideFilterCounts(lineup.channels, favorites, recentChannels) }
+    // What is on now is read every few minutes, not every minute, so the chips and their lists hold still while browsing.
+    val onNowSlot = now.epochSeconds / ON_NOW_REFRESH_SECONDS
+    val kindsOnNow = remember(lineup.channels, lineup.guide, onNowSlot) { channelsOnNow(lineup, now) }
+    val filters = remember(lineup.channels, kindsOnNow.keys) { guideFilters(lineup.channels, kindsOnNow.keys) }
+    val filterCounts = remember(lineup.channels, favorites, recentChannels, kindsOnNow) { guideFilterCounts(lineup.channels, favorites, recentChannels, kindsOnNow) }
     var filter by rememberSerializable { mutableStateOf(guideFilterFromKey(initialFilterKey)) }
     val activeFilter = filter.takeIf { it in filters } ?: GuideFilter.All
 
@@ -216,12 +242,13 @@ fun GuideScreen(
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     val query = if (searchOpen) searchState.text.toString() else ""
     val searchNow = now.takeIf { query.isNotBlank() }
-    val byFilter = remember(lineup.channels, favorites, favoritesOrder, recentChannels, activeFilter) {
+    val byFilter = remember(lineup.channels, favorites, favoritesOrder, recentChannels, activeFilter, kindsOnNow) {
         when (val f = activeFilter) {
             GuideFilter.All -> lineup.channels
             GuideFilter.Favorites -> orderedFavorites(lineup.channels, favorites, favoritesOrder)
             GuideFilter.Recent -> recentChannels(lineup.channels, recentChannels)
             is GuideFilter.Group -> lineup.channels.filter { f.name in it.groups }
+            is GuideFilter.OnNow -> kindsOnNow[f.kind].orEmpty()
         }
     }
     // A channel opened from a filter keeps the player's Up and Down inside it; search does not narrow it.
@@ -231,7 +258,7 @@ fun GuideScreen(
     }
     val currentZapScope by rememberUpdatedState(zapScope)
     val currentOnPlay by rememberUpdatedState(onPlay)
-    val play: (Channel) -> Unit = remember { { channel -> currentOnPlay(channel, currentZapScope) } }
+    val play: (Channel) -> Unit = remember { { channel -> currentOnPlay(channel, currentZapScope, false) } }
     // Search also matches programmes later in the window; those channels get a "Later" line under their row.
     val upcoming = remember(byFilter, lineup.guide, query, searchNow, windowEnd) {
         if (searchNow == null) {
@@ -279,6 +306,7 @@ fun GuideScreen(
     val focusedState = remember { mutableStateOf<FocusedCell?>(null) }
     var focused by focusedState
     var gridFocused by remember { mutableStateOf(false) }
+    var chipsFocused by remember { mutableStateOf(false) }
     // The preview's rest timers: muted on tune, sound after five seconds, full screen after the chosen delay,
     // restarted by any key. Both run only while a cell holds focus with search closed, so typing never opens a channel.
     // TalkBack reads the grid aloud as focus moves; a channel opening full screen would cut that off.
@@ -308,6 +336,8 @@ fun GuideScreen(
     // A guide opened for search gives focus to the search instead.
     var initialFocusDone by remember { mutableStateOf(startSearch) }
     var initialFocusAttempt by remember { mutableIntStateOf(0) }
+    // Until focus comes down from the header, where the guide was asked to leave it.
+    var awaitingEntry by remember { mutableStateOf(startInHeader) }
     var returnToSearchChip by remember { mutableStateOf(false) }
 
     // Scrolls the timeline so [minute] is inside the visible strip, leaving a half hour of room on the left.
@@ -335,8 +365,8 @@ fun GuideScreen(
         revealMinute(minute)
     }
 
-    LaunchedEffect(visible.isNotEmpty(), activeFilter, searchOpen, initialFocusAttempt) {
-        if (initialFocusDone || initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) return@LaunchedEffect
+    LaunchedEffect(visible.isNotEmpty(), activeFilter, searchOpen, initialFocusAttempt, awaitingEntry) {
+        if (awaitingEntry || initialFocusDone || initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) return@LaunchedEffect
         if (watchedIsHidden(returnedFrom, visible, lineup.channels)) {
             // Reruns with the full lineup on screen.
             filter = GuideFilter.All
@@ -362,6 +392,13 @@ fun GuideScreen(
     val onJumpHandled: (Boolean) -> Unit = { landed ->
         jump = null
         if (landed) initialFocusDone = true else if (!initialFocusDone) initialFocusAttempt++
+    }
+    // Only a composed row answers a jump; one whose row left the list (the lineup refreshing under the first
+    // focus) would wait forever, so it counts as missed and the first focus scrolls to the row again.
+    LaunchedEffect(jump) {
+        val waiting = jump ?: return@LaunchedEffect
+        repeat(FIRST_FOCUS_FRAMES * 2) { withFrameNanos { } }
+        if (jump == waiting) onJumpHandled(false)
     }
 
     // The guide fills in after the channels, so the focused cell's programmes change under it without a focus
@@ -428,6 +465,8 @@ fun GuideScreen(
     // Up and Down land on the cell under the time cursor. Default focus search treats any cell overlapping a
     // long focused cell (a full-row "No listing") as a candidate and can pick one hours ahead.
     val onGridKey: (KeyEvent) -> Boolean = handler@{ event ->
+        val edgeCell = focused?.cell?.takeIf { laterFocused == null && pendingRow == null }
+        if (edgeCell != null && event.key.stopsAtRowEdge(edgeCell, GuideTimeline.WINDOW_MINUTES)) return@handler true
         val (step, paged) = event.key.gridStep() ?: return@handler false
         if (event.type != KeyEventType.KeyDown) return@handler true
         // Rapid presses arrive before focus lands, so count from the row already requested.
@@ -505,18 +544,24 @@ fun GuideScreen(
     }
     LaunchedEffect(Unit) { if (startSearch) openVoiceSearch() }
     // From the grid, Back climbs to the selected chip (scrolled into the row first, since only a composed chip
-    // can take focus); from the chips or the header it leaves the activity to finish.
-    val backAction = guideBackAction(searchOpen, gridFocused)
-    BackHandler(enabled = backAction != GuideBack.EXIT) {
+    // can take focus), from the chips to the header's open tab; a press with nowhere left to climb leaves the
+    // activity to finish.
+    val backAction = guideBackAction(searchOpen, gridFocused, chipsFocused, hasHeader = headerFocus != null)
+    val climbBack: () -> Unit = {
         when (backAction) {
             GuideBack.CLOSE_SEARCH -> closeSearch()
             GuideBack.FOCUS_CHIPS -> scope.launch {
                 chipsState.scrollToItem(selectedChipIndex(filters, activeFilter))
                 requestFocusWhenAttached(selectedChip)
             }
+            GuideBack.FOCUS_HEADER -> headerFocus?.requestFocus()
             GuideBack.EXIT -> Unit
         }
     }
+    // A remote's Back key climbs in onGuideKey below; this takes the system Back gesture and Escape.
+    BackHandler(enabled = backAction != GuideBack.EXIT, onBack = climbBack)
+    // Whether the Back key-down that the guide took is still held, so only its own key-up climbs.
+    var backHeld by remember { mutableStateOf(false) }
     LaunchedEffect(searchOpen, searchFocusRequest) {
         if (!searchOpen) return@LaunchedEffect
         if (focusResults) {
@@ -597,7 +642,7 @@ fun GuideScreen(
                 filter = it
                 onFilterChanged(it.key())
             },
-            modifier = chipModifier,
+            modifier = chipModifier.onFocusChanged { chipsFocused = it.hasFocus },
         )
     }
     val searchBar: @Composable (Modifier) -> Unit = { barModifier ->
@@ -613,8 +658,8 @@ fun GuideScreen(
     // Observed from the snapshot, not read in composition, so a focus move still recomposes only the band.
     // Nothing opens while the app is stopped (Home, the speech recognizer, screen off); coming back starts
     // the rest over, muted, so a channel is never found open on return.
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+    val lifecycle = appLifecycleOwner.lifecycle
+    LifecycleEventEffect(Lifecycle.Event.ON_START, appLifecycleOwner) {
         dwell.restart(uptimeMs())
         dwellNonce++
     }
@@ -631,7 +676,7 @@ fun GuideScreen(
                         // The same handoff as OK: the preview session is promoted, nothing reloads. A preview
                         // without a picture is not opened; it would only carry its failure to the full screen.
                         val channel = focused?.channel?.takeIf { it.guideId == dwell.channelId }
-                        if (channel != null && !input.failed && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) play(channel)
+                        if (channel != null && !input.failed && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) currentOnPlay(channel, currentZapScope, true)
                         return@collectLatest
                     }
                     delay(dwell.nextTransitionMs(now) ?: return@collectLatest)
@@ -642,8 +687,22 @@ fun GuideScreen(
     // Remote shortcuts answered wherever focus is; everything else goes on to the focused node. Every key
     // press restarts the preview's rest timers.
     val onGuideKey: (KeyEvent) -> Boolean = handler@{ event ->
+        // Back climbs here rather than in BackHandler: Compose turns an unhandled Back key-down into a focus exit,
+        // and where focus sits on a node with a focusable parent that exit succeeds and eats the press. The open
+        // details take their own Back.
+        if (event.key == Key.Back && details == null) {
+            if (event.type == KeyEventType.KeyDown && backAction != GuideBack.EXIT) {
+                backHeld = true
+                return@handler true
+            }
+            if (event.type == KeyEventType.KeyUp && backHeld) {
+                backHeld = false
+                climbBack()
+                return@handler true
+            }
+        }
         // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
-        val okKey = event.key == Key.DirectionCenter || event.key == Key.Enter
+        val okKey = event.key.isOk
         // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
         if (okKey && event.type == KeyEventType.KeyDown && heldOk.onKeyDown()) return@handler true
         if (okKey && event.type == KeyEventType.KeyUp && heldOk.onKeyUp()) return@handler true
@@ -695,7 +754,7 @@ fun GuideScreen(
 
     // The app header above already carries the top screen margin; 16dp here is spacing, not overscan.
     val profile = LocalLayoutProfile.current
-    Box(modifier.fillMaxSize().onPreviewKeyEvent(onGuideKey).then(onGuidePointer)) {
+    Box(modifier.fillMaxSize().testTag(GUIDE_TEST_TAG).onFocusChanged { if (it.hasFocus) awaitingEntry = false }.onPreviewKeyEvent(onGuideKey).then(onGuidePointer)) {
         Column(modifier = Modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).padding(top = 16.dp)) {
             if (PREVIEW_ENABLED && profile.showsPreviewBand) {
                 PreviewBand(
@@ -710,6 +769,7 @@ fun GuideScreen(
                     captionsEnabled = captionsEnabled,
                     captionStyle = captionStyle,
                     muted = previewMuted,
+                    ownsVolume = shown,
                     failed = previewFailed,
                     onFailedChanged = { previewFailed = it },
                 )
@@ -774,6 +834,7 @@ fun GuideScreen(
                     modifier = Modifier.padding(top = 16.dp),
                 )
             } else {
+                CompositionLocalProvider(LocalBringIntoViewSpec provides NoBringIntoView) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).focusRestorer().onFocusChanged { gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),
@@ -804,6 +865,7 @@ fun GuideScreen(
                             )
                         }
                     }
+                }
                 }
             }
         }
@@ -842,6 +904,7 @@ private fun PreviewBand(
     captionsEnabled: Boolean,
     captionStyle: CaptionStyle,
     muted: Boolean,
+    ownsVolume: Boolean,
     failed: Boolean,
     onFailedChanged: (Boolean) -> Unit,
 ) {
@@ -870,6 +933,7 @@ private fun PreviewBand(
             captionsEnabled = captionsEnabled,
             captionStyle = captionStyle,
             muted = muted,
+            ownsVolume = ownsVolume,
             failed = failed,
             onFailedChanged = onFailedChanged,
         )

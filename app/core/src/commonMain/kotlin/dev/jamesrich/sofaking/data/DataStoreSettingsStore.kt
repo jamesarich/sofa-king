@@ -13,22 +13,33 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlin.uuid.ExperimentalUuidApi
+import kotlinx.coroutines.flow.retryWhen
+import kotlin.enums.enumEntries
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 import okio.Path.Companion.toPath
 
 /** [SettingsStore] on a preferences [DataStore]; there must be only one per file, which the DI graph's single instance guarantees. */
 class DataStoreSettingsStore(
     private val dataStore: DataStore<Preferences>,
+    /** How long an unreadable store waits before it is read again. */
+    private val readRetry: Duration = 5.seconds,
 ) : SettingsStore {
 
-    // An unreadable store reads as defaults rather than failing the flow, which would take the whole app down.
+    // An unreadable store reads as defaults rather than failing the flow, which would take the whole app down, and is
+    // read again after a pause, so the settings return once it reads or a write replaces it.
     override val settings: Flow<AppSettings> = dataStore.data
-        .catch { if (it is CancellationException) throw it else emit(emptyPreferences()) }
+        .retryWhen { cause, _ ->
+            if (cause is CancellationException) return@retryWhen false
+            emit(emptyPreferences())
+            delay(readRetry)
+            true
+        }
         .map { prefs ->
             AppSettings(
                 serverUrl = prefs[SERVER_URL].orEmpty(),
@@ -41,23 +52,21 @@ class DataStoreSettingsStore(
                 captionAdvanceMs = advanceMs(prefs),
                 captionAdvanceByChannel = channelAdvances(prefs),
                 smoothCaptions = prefs[SMOOTH_CAPTIONS] ?: true,
-                captionStyle = prefs[CAPTION_STYLE]?.let { name ->
-                    CaptionStyle.entries.firstOrNull { it.name == name }
-                } ?: CaptionStyle.SYSTEM,
-                autoOpenDelay = prefs[AUTO_OPEN_DELAY]?.let { name ->
-                    AutoOpenDelay.entries.firstOrNull { it.name == name }
-                } ?: AutoOpenDelay.AFTER_10_SECONDS,
+                captionStyle = prefs[CAPTION_STYLE].toEnum(CaptionStyle.SYSTEM),
+                autoOpenDelay = prefs[AUTO_OPEN_DELAY].toEnum(AutoOpenDelay.AFTER_10_SECONDS),
                 previewSound = prefs[PREVIEW_SOUND] ?: true,
                 keyLegendShown = prefs[KEY_LEGEND_SHOWN] ?: 0,
-                startup = prefs[STARTUP].toEnum(StartupTarget.LAST_CHANNEL),
+                // A stored LAST_CHANNEL, from before the tabs were remembered, reads as RESUME.
+                startup = prefs[STARTUP].toEnum(StartupTarget.RESUME),
                 startupChannel = prefs[STARTUP_CHANNEL],
+                lastTab = prefs[LAST_TAB].toEnum(TopLevelTab.LIVE),
                 clockFormat = prefs[CLOCK_FORMAT].toEnum(ClockFormat.AUTO),
                 guideDensity = prefs[GUIDE_DENSITY].toEnum(GuideDensity.COMFORTABLE),
                 hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
                 zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
                 skipCommercials = prefs[SKIP_COMMERCIALS] ?: false,
                 trackChoices = trackChoices(prefs),
-                favoritesOrder = prefs[FAVORITES_ORDER].orEmpty().split(SEPARATOR).filter { it.isNotEmpty() }.distinct(),
+                favoritesOrder = favoritesOrder(prefs).distinct(),
                 playback = PlaybackPreferences(
                     matchFrameRate = prefs[MATCH_FRAME_RATE] ?: false,
                     decoder = prefs[DECODER].toEnum(DecoderPreference.AUTO),
@@ -142,6 +151,10 @@ class DataStoreSettingsStore(
         }
     }
 
+    override suspend fun setLastTab(tab: TopLevelTab) {
+        dataStore.edit { prefs -> prefs[LAST_TAB] = tab.name }
+    }
+
     override suspend fun setClockFormat(format: ClockFormat) {
         dataStore.edit { prefs -> prefs[CLOCK_FORMAT] = format.name }
     }
@@ -208,7 +221,6 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[BUFFER] = buffer.name }
     }
 
-    @OptIn(ExperimentalUuidApi::class)
     override suspend fun ensureClientId(): String {
         val stored = dataStore.data.first()[CLIENT_ID]
         if (!stored.isNullOrEmpty()) return stored
@@ -246,7 +258,7 @@ class DataStoreSettingsStore(
     }.toMap()
 
     /** A stored enum name, or [default] when the value is missing or from a build that no longer has it. */
-    private inline fun <reified T : Enum<T>> String?.toEnum(default: T): T = enumValues<T>().firstOrNull { it.name == this } ?: default
+    private inline fun <reified T : Enum<T>> String?.toEnum(default: T): T = enumEntries<T>().firstOrNull { it.name == this } ?: default
 
     private fun advanceMs(prefs: Preferences): Int =
         (prefs[CAPTION_ADVANCE_MS] ?: AppSettings.DEFAULT_CAPTION_ADVANCE_MS).coerceIn(AppSettings.CAPTION_ADVANCE_RANGE_MS)
@@ -279,6 +291,7 @@ class DataStoreSettingsStore(
         val KEY_LEGEND_SHOWN = intPreferencesKey("key_legend_shown")
         val STARTUP = stringPreferencesKey("startup")
         val STARTUP_CHANNEL = stringPreferencesKey("startup_channel")
+        val LAST_TAB = stringPreferencesKey("last_tab")
         val CLOCK_FORMAT = stringPreferencesKey("clock_format")
         val GUIDE_DENSITY = stringPreferencesKey("guide_density")
         val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")

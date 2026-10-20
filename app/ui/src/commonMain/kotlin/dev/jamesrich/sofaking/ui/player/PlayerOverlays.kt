@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
@@ -50,6 +51,7 @@ import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.noListingText
+import dev.jamesrich.sofaking.ui.oneDecimal
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
@@ -75,17 +77,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import dev.jamesrich.sofaking.data.PlaybackStream
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import androidx.compose.material3.ripple
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 internal val OverlayShape = RoundedCornerShape(8.dp)
 
@@ -203,9 +205,13 @@ internal fun failureReasonRes(code: String): StringResource = when {
 internal fun failureHintRes(code: String): StringResource =
     if (SOURCE_UNAVAILABLE in code) Res.string.no_working_source_hint else Res.string.cant_play_retry
 
-/** [retryInSeconds] counts down to the next automatic reconnect; 0 while it runs, null while none is scheduled. */
+/**
+ * [retryInSeconds] counts down to the next automatic reconnect; 0 while it runs, null while none is scheduled. A
+ * lambda, so the countdown recomposes only this card.
+ */
 @Composable
-internal fun BoxScope.FailureCard(code: String, retryInSeconds: Int? = null) {
+internal fun BoxScope.FailureCard(code: String, retryInSeconds: () -> Int? = { null }) {
+    val retryIn = retryInSeconds()
     Column(
         Modifier
             .align(Alignment.Center)
@@ -216,9 +222,9 @@ internal fun BoxScope.FailureCard(code: String, retryInSeconds: Int? = null) {
     ) {
         Text(stringResource(failureReasonRes(code)), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
         Text(stringResource(failureHintRes(code)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-        if (retryInSeconds != null) {
+        if (retryIn != null) {
             Text(
-                if (retryInSeconds > 0) stringResource(Res.string.player_retry_in, retryInSeconds) else stringResource(Res.string.player_retry_now),
+                if (retryIn > 0) stringResource(Res.string.player_retry_in, retryIn) else stringResource(Res.string.player_retry_now),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -389,34 +395,19 @@ internal fun TouchControls(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val captionsState = stringResource(if (captionsOn) Res.string.captions_on else Res.string.captions_off)
     FlowRow(
         modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
-        ControlIcon(PlayerIcons.GridView, stringResource(Res.string.player_control_guide), onGuide)
+        ControlIcon(SofaIcons.GridView, stringResource(Res.string.player_control_guide), onGuide)
         ControlIcon(Icons.Filled.KeyboardArrowDown, stringResource(Res.string.player_control_channel_down), onChannelDown)
-        if (failed) {
-            ControlIcon(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), onRetry, primary = true)
-        } else {
-            ControlIcon(
-                if (paused) Icons.Filled.PlayArrow else PlayerIcons.Pause,
-                stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
-                onPlayPause,
-                primary = true,
-            )
-        }
+        PlayPauseControl(paused, failed, onPlayPause, onRetry, primary = true)
         ControlIcon(Icons.Filled.KeyboardArrowUp, stringResource(Res.string.player_control_channel_up), onChannelUp)
         ControlIcon(Icons.AutoMirrored.Filled.List, stringResource(Res.string.player_control_channels), onChannelList)
-        ControlIcon(
-            if (captionsOn) PlayerIcons.ClosedCaption else PlayerIcons.ClosedCaptionOff,
-            stringResource(Res.string.player_control_captions),
-            onCaptions,
-            modifier = Modifier.semantics { stateDescription = captionsState },
-        )
-        ControlIcon(if (hasAudioChoice) PlayerIcons.Audiotrack else Icons.Filled.Info, stringResource(Res.string.player_control_stream), onStreamInfo)
+        CaptionsControl(captionsOn, onCaptions)
+        StreamInfoControl(hasAudioChoice, onStreamInfo)
     }
 }
 
@@ -430,7 +421,7 @@ internal fun ControlIcon(
     label: String,
     onClick: () -> Unit,
     primary: Boolean = false,
-    size: Dp = 48.dp,
+    size: Dp = CONTROL_SIZE,
     modifier: Modifier = Modifier,
 ) {
     if (primary) {
@@ -443,6 +434,50 @@ internal fun ControlIcon(
         }
     }
 }
+
+/** Retry once the stream has [failed], which OK does on the remote; play or pause, as [paused] says, until then. */
+@Composable
+internal fun PlayPauseControl(
+    paused: Boolean,
+    failed: Boolean,
+    onPlayPause: () -> Unit,
+    onRetry: () -> Unit,
+    primary: Boolean = false,
+    size: Dp = CONTROL_SIZE,
+) {
+    if (failed) {
+        ControlIcon(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), onRetry, primary, size)
+    } else {
+        ControlIcon(
+            if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
+            stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
+            onPlayPause,
+            primary,
+            size,
+        )
+    }
+}
+
+/** The captions toggle; its icon and state description say whether they are on. */
+@Composable
+internal fun CaptionsControl(captionsOn: Boolean, onClick: () -> Unit, size: Dp = CONTROL_SIZE) {
+    val captionsState = stringResource(if (captionsOn) Res.string.captions_on else Res.string.captions_off)
+    ControlIcon(
+        if (captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
+        stringResource(Res.string.player_control_captions),
+        onClick,
+        size = size,
+        modifier = Modifier.semantics { stateDescription = captionsState },
+    )
+}
+
+/** Opens the stream card, showing the audio icon when [hasAudioChoice], since the card holds the audio picker. */
+@Composable
+internal fun StreamInfoControl(hasAudioChoice: Boolean, onClick: () -> Unit, size: Dp = CONTROL_SIZE) {
+    ControlIcon(if (hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info, stringResource(Res.string.player_control_stream), onClick, size = size)
+}
+
+private val CONTROL_SIZE = 48.dp
 
 /**
  * The info bar's slot along the bottom of the player, sliding up when [visible]. The alignment sits on
@@ -498,12 +533,12 @@ internal fun BoxScope.StreamCard(
         val video = listOfNotNull(
             info.videoCodec,
             if (info.width != null && info.height != null) stringResource(Res.string.stream_card_size, info.width, info.height) else null,
-            info.frameRate?.let { stringResource(Res.string.stream_card_fps, oneDecimal(it)) },
-            info.bitrateBps?.let { stringResource(Res.string.stream_card_mbps, oneDecimal(it / 1_000_000f)) },
+            info.frameRate?.let { stringResource(Res.string.stream_card_fps, oneDecimal(it.toDouble())) },
+            info.bitrateBps?.let { stringResource(Res.string.stream_card_mbps, oneDecimal(it / 1_000_000.0)) },
         )
         StatLine(stringResource(Res.string.stream_card_video), video.joinToString(DETAIL_SEPARATOR).ifEmpty { unknown })
         StatLine(stringResource(Res.string.stream_card_audio_codec), info.audioCodec ?: unknown)
-        StatLine(stringResource(Res.string.stream_card_buffered), stringResource(Res.string.stream_card_seconds, oneDecimal(bufferedMs / 1_000f)))
+        StatLine(stringResource(Res.string.stream_card_buffered), stringResource(Res.string.stream_card_seconds, oneDecimal(bufferedMs / 1_000.0)))
         StatLine(stringResource(Res.string.stream_card_source), stream?.providerId?.takeIf { it.isNotEmpty() } ?: unknown)
         StatLine(stringResource(Res.string.stream_card_session), stream?.sessionId?.take(8) ?: unknown)
         Spacer(Modifier.height(4.dp))
@@ -522,25 +557,25 @@ private fun StatLine(label: String, value: String) {
 /** A track to pick; the playing one reads as [selected], and OK on any row plays it. */
 @Composable
 internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    var focused by remember { mutableStateOf(false) }
+    val interactions = remember { MutableInteractionSource() }
+    val focused by interactions.collectIsFocusedAsState()
     val colors = MaterialTheme.colorScheme
     Row(
         modifier
             .fillMaxWidth()
+            .tvFocus(OverlayShape, focusedScale = 1f)
             .background(if (focused) colors.primary else Color.Transparent, OverlayShape)
-            .onFocusChanged { focused = it.isFocused }
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .selectable(selected = selected, interactionSource = interactions, indication = ripple(), role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(if (selected) "●" else "○", style = MaterialTheme.typography.bodyMedium, color = if (focused) colors.onPrimary else colors.primary)
+        Icon(
+            if (selected) SofaIcons.Recordings else SofaIcons.RadioButtonUnchecked,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = if (focused) colors.onPrimary else colors.primary,
+        )
         Text(label, style = MaterialTheme.typography.bodyMedium, color = if (focused) colors.onPrimary else colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
-}
-
-/** 59.94 reads as 59.9, 4.2 as 4.2, without a platform number formatter. */
-internal fun oneDecimal(value: Float): String {
-    val tenths = kotlin.math.round(value * 10f).toInt()
-    return "${tenths / 10}.${kotlin.math.abs(tenths % 10)}"
 }

@@ -93,6 +93,8 @@ class LibraryChoicesTest {
         assertEquals(3, initialSubtitle(detail, TrackChoice(subtitles = false))?.index, "off still shows forced dialogue")
         assertEquals(1, initialAudio(detail, TrackChoice("kor"))?.index, "a language the file lacks falls back to the default")
         assertEquals(TrackChoice("eng"), trackChoice(detail, audioIndex = 1, subtitleIndex = null))
+        val withStream = detail.copy(subtitles = listOf(MediaTrackInfo(5, "subrip", "eng")) + detail.subtitles)
+        assertEquals(1000, initialSubtitle(withStream, TrackChoice(subtitles = true, subtitleLanguage = "eng"))?.index, "a subtitle file beats the file's own text stream")
     }
 
     @Test
@@ -101,5 +103,31 @@ class LibraryChoicesTest {
         assertEquals("XYZ", trackLabel(MediaTrackInfo(3, "subrip", "xyz"), 1))
         assertEquals("Spanish", trackLabel(MediaTrackInfo(3, "subrip", "spa", "Spanish"), 1), "a title repeating the language is dropped")
         assertEquals("Track 2", trackLabel(MediaTrackInfo(3, "subrip"), 2))
+        assertEquals("English · SDH · External", trackLabel(MediaTrackInfo(1001, "subrip", "en", "SDH"), 2), "a subtitle file says so")
+    }
+
+    @Test
+    fun `file facts name the starting sound and each language once`() {
+        val detail = MediaItemDetail(
+            item(id = "m", kind = ItemKind.MOVIE),
+            audio = listOf(
+                MediaTrackInfo(1, "aac", "eng", channels = 2),
+                MediaTrackInfo(2, "eac3", "en", channels = 6, default = true),
+                MediaTrackInfo(3, "ac3", "spa", channels = 6),
+                MediaTrackInfo(8, "aac", "zxx", channels = 2),
+            ),
+            subtitles = listOf(
+                MediaTrackInfo(4, "subrip", "eng", forced = true),
+                MediaTrackInfo(5, "subrip", "fre"),
+                MediaTrackInfo(6, "hdmv_pgs_subtitle", "fra"),
+                MediaTrackInfo(7, "subrip", "und"),
+            ),
+        )
+        assertEquals(FileFacts("Dolby Digital Plus 5.1", listOf("English", "Spanish"), listOf("French")), fileFacts(detail))
+    }
+
+    @Test
+    fun `file facts are empty without tracks`() {
+        assertEquals(FileFacts(null, emptyList(), emptyList()), fileFacts(MediaItemDetail(item(id = "s", kind = ItemKind.SHOW))))
     }
 }

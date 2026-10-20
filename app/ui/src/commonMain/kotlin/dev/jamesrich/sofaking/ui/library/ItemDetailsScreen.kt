@@ -1,7 +1,14 @@
 package dev.jamesrich.sofaking.ui.library
 
+import dev.jamesrich.sofaking.ui.formatPlayTime
+import dev.jamesrich.sofaking.ui.hoursAndMinutes
+import dev.jamesrich.sofaking.ui.oneDecimal
+import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -12,8 +19,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,23 +27,33 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,16 +63,16 @@ import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.PrimaryAction
+import dev.jamesrich.sofaking.data.fileFacts
 import dev.jamesrich.sofaking.data.primaryAction
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.MessageScreen
-import dev.jamesrich.sofaking.ui.guide.GuideChip
-import dev.jamesrich.sofaking.ui.player.formatPlayTime
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import kotlin.math.abs
 import org.jetbrains.compose.resources.stringResource
 
 /** What an item's page does. [onPlay] resumes an item in progress unless [fromStart] is set. */
@@ -66,6 +81,8 @@ internal class ItemDetailsActions(
     val onSetWatched: (MediaItem, Boolean) -> Unit,
     val onSelectSeason: (String) -> Unit,
     val onRetry: () -> Unit,
+    val onPerson: (String) -> Unit = {},
+    val onOpenShow: (String) -> Unit = {},
 )
 
 /**
@@ -100,7 +117,7 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
         seasons.isNotEmpty() -> ((season as? ItemDetailState.Ready)?.detail?.children).orEmpty().filter { it.kind.playable }
         else -> detail.children.filter { it.kind.playable }
     }
-    val direction = LocalLayoutDirection.current
+    val sides = insets.horizontalOnly()
     val primaryFocus = remember { FocusRequester() }
     val episodeFocus = remember { FocusRequester() }
     val returnTo = returnedFrom?.takeIf { id -> episodes.any { it.id == id } }
@@ -111,39 +128,76 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = maxHeight * HERO_FRACTION
         Hero(item.backdrop ?: item.poster, Modifier.fillMaxWidth().height(heroHeight))
+        val edge = with(LocalDensity.current) { FOCUS_EDGE.toPx() }
+        val scrollSpec = remember(edge) { ScrollOnlyWhenHidden(edge) }
+        CompositionLocalProvider(LocalBringIntoViewSpec provides scrollSpec) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = insets.calculateStartPadding(direction),
-                end = insets.calculateEndPadding(direction),
                 top = (heroHeight * 0.3f).coerceAtLeast(insets.calculateTopPadding()),
                 bottom = insets.calculateBottomPadding() + 16.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            item(key = "summary") { Summary(detail, actions, primaryFocus) }
+            item(key = "summary") { Summary(detail, actions, primaryFocus, Modifier.padding(sides)) }
+            if (detail.cast.isNotEmpty()) {
+                item(key = "cast") { Cast(detail.cast.take(CAST_SHOWN), actions.onPerson, sides) }
+            }
             if (seasons.size > 1) {
-                item(key = "seasons") {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        seasons.forEach { s ->
-                            GuideChip(
-                                selected = s.id == selectedSeasonId,
-                                onClick = { actions.onSelectSeason(s.id) },
-                                label = seasonLabel(s),
-                            )
-                        }
-                    }
-                }
+                item(key = "seasons") { Seasons(seasons, selectedSeasonId, actions.onSelectSeason, sides) }
             }
             if (seasons.isNotEmpty() && season is ItemDetailState.Failed) {
                 item(key = "season-failed") {
-                    Text(season.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(season.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(sides))
                 }
             }
             items(episodes, key = { it.id }) { episode ->
                 val modifier = if (episode.id == returnTo) Modifier.focusRequester(episodeFocus) else Modifier
-                EpisodeRow(episode, onClick = { actions.onPlay(episode, false) }, modifier = modifier)
+                EpisodeRow(episode, onClick = { actions.onPlay(episode, false) }, modifier = Modifier.padding(sides).then(modifier))
             }
+        }
+        }
+    }
+}
+
+/**
+ * Focus scrolls the page only as far as it takes to show what took focus [edge] clear of the screen's edges, outside
+ * the overscan. A TV's default pivots it a third of the way down, which on arrival pushes the title above Play off
+ * the screen.
+ */
+private class ScrollOnlyWhenHidden(private val edge: Float) : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val leading = offset - edge
+        val trailing = offset + size + edge
+        return when {
+            leading >= 0f && trailing <= containerSize -> 0f
+            trailing - leading > containerSize -> leading
+            abs(leading) < abs(trailing - containerSize) -> leading
+            else -> trailing - containerSize
+        }
+    }
+}
+
+private val FOCUS_EDGE = 48.dp
+
+/** The seasons in one row; focus coming down from the buttons lands on the season being shown. */
+@Composable
+private fun Seasons(seasons: List<MediaItem>, selectedSeasonId: String?, onSelect: (String) -> Unit, sides: PaddingValues) {
+    val selected = seasons.indexOfFirst { it.id == selectedSeasonId }.coerceAtLeast(0)
+    val selectedFocus = remember { FocusRequester() }
+    LazyRow(
+        state = rememberLazyListState(initialFirstVisibleItemIndex = selected),
+        contentPadding = sides,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.focusRestorer(selectedFocus),
+    ) {
+        itemsIndexed(seasons, key = { _, season -> season.id }) { index, season ->
+            SofaChip(
+                selected = season.id == selectedSeasonId,
+                onClick = { onSelect(season.id) },
+                label = seasonLabel(season),
+                modifier = if (index == selected) Modifier.focusRequester(selectedFocus) else Modifier,
+            )
         }
     }
 }
@@ -161,9 +215,9 @@ private fun Hero(url: String?, modifier: Modifier) {
 }
 
 @Composable
-private fun Summary(detail: MediaItemDetail, actions: ItemDetailsActions, primaryFocus: FocusRequester) {
+private fun Summary(detail: MediaItemDetail, actions: ItemDetailsActions, primaryFocus: FocusRequester, modifier: Modifier) {
     val item = detail.item
-    Column(Modifier.widthIn(max = 760.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier.widthIn(max = 760.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (item.kind == ItemKind.EPISODE && item.showTitle != null) {
             Text(
                 listOfNotNull(item.showTitle, item.episodeLabel).joinToString(DETAIL_SEPARATOR),
@@ -173,13 +227,43 @@ private fun Summary(detail: MediaItemDetail, actions: ItemDetailsActions, primar
         }
         Text(item.title, style = MaterialTheme.typography.displaySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         MetaLine(detail)
+        FileLine(detail)
         detail.tagline?.let { Text(it, style = MaterialTheme.typography.titleMedium, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        item.overview?.let { Text(it, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis) }
+        item.overview?.let { Overview(it) }
         Buttons(detail, actions, primaryFocus)
         if (detail.directors.isNotEmpty()) Credit(stringResource(Res.string.library_directors, detail.directors.joinToString(", ")))
-        if (detail.cast.isNotEmpty()) Credit(stringResource(Res.string.library_cast, detail.cast.take(CAST_SHOWN).joinToString(", ")))
     }
 }
+
+/**
+ * The overview, cut at [OVERVIEW_LINES]. A cut one takes focus, so a remote can reach it, and OK shows the rest or
+ * folds it again.
+ */
+@Composable
+private fun Overview(text: String) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var cut by remember { mutableStateOf(false) }
+    val body: @Composable (Modifier) -> Unit = { modifier ->
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyLarge,
+            maxLines = if (expanded) Int.MAX_VALUE else OVERVIEW_LINES,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { if (!expanded) cut = it.hasVisualOverflow },
+            modifier = modifier,
+        )
+    }
+    if (cut || expanded) {
+        Surface(onClick = { expanded = !expanded }, shape = OverviewShape, color = Color.Transparent, modifier = Modifier.tvFocus(OverviewShape, focusedScale = 1f)) {
+            body(Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+        }
+    } else {
+        body(Modifier)
+    }
+}
+
+private const val OVERVIEW_LINES = 4
+private val OverviewShape = RoundedCornerShape(8.dp)
 
 /** Year, length or seasons, rating and the picture's badges on one line. */
 @Composable
@@ -191,7 +275,7 @@ private fun MetaLine(detail: MediaItemDetail) {
         when {
             seasons > 0 -> add(stringResource(Res.string.library_seasons, seasons))
             item.kind == ItemKind.SEASON -> add(stringResource(Res.string.library_episodes, detail.children.size))
-            else -> runtimeText(item.durationMs)?.let(::add)
+            else -> runtime(item.durationMs)?.let { add(it.hoursAndMinutes()) }
         }
         item.rating?.let { add(stringResource(Res.string.library_rating, oneDecimal(it))) }
         if (item.genres.isNotEmpty()) add(item.genres.take(3).joinToString(", "))
@@ -202,6 +286,37 @@ private fun MetaLine(detail: MediaItemDetail) {
         pictureBadge(item.videoHeight)?.let { OutlinedBadge(it) }
         if (item.hdr) OutlinedBadge(HDR)
         if (item.progress?.watched == true) WatchedTick()
+    }
+}
+
+/** The file's sound, its audio and subtitle languages, and the studio or network, on one line. */
+@Composable
+private fun FileLine(detail: MediaItemDetail) {
+    val facts = fileFacts(detail)
+    val parts = buildList {
+        facts.sound?.let(::add)
+        if (facts.audioLanguages.isNotEmpty()) add(facts.audioLanguages.joinToString(", "))
+        if (facts.subtitleLanguages.isNotEmpty()) add(stringResource(Res.string.library_subtitles, facts.subtitleLanguages.joinToString(", ")))
+        detail.studio?.let(::add)
+    }
+    if (parts.isEmpty()) return
+    Text(
+        parts.joinToString(DETAIL_SEPARATOR),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** The cast as chips; OK on one searches the libraries for what else they are in. */
+@Composable
+private fun Cast(cast: List<String>, onPerson: (String) -> Unit, sides: PaddingValues) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(Res.string.library_cast), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(sides))
+        LazyRow(contentPadding = sides, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.focusRestorer()) {
+            items(cast, key = { it }) { person -> SofaChip(selected = false, onClick = { onPerson(person) }, label = person) }
+        }
     }
 }
 
@@ -224,6 +339,10 @@ private fun Buttons(detail: MediaItemDetail, actions: ItemDetailsActions, primar
             modifier = if (action == null) Modifier.focusRequester(primaryFocus) else Modifier,
         ) {
             Text(stringResource(if (watched) Res.string.library_mark_unwatched else Res.string.library_mark_watched))
+        }
+        val showId = item.showId?.takeIf { item.kind == ItemKind.EPISODE || item.kind == ItemKind.SEASON }
+        if (showId != null) {
+            SofaButton(onClick = { actions.onOpenShow(showId) }) { Text(stringResource(Res.string.library_go_to_show)) }
         }
     }
 }
@@ -252,7 +371,7 @@ private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit, modifier: Modifi
     ) {
         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(EPISODE_THUMB_WIDTH).aspectRatio(16f / 9f).background(MaterialTheme.colorScheme.surfaceVariant, CardShape)) {
-                Artwork(episode.backdrop ?: episode.poster, episode.episode?.let { "E$it" } ?: episode.title)
+                Artwork(episode.stillOrBackdrop(), label = episode.episode?.let { "E$it" } ?: episode.title)
                 val progress = episode.progress
                 if (progress?.watched == true) WatchedTick(Modifier.align(Alignment.TopEnd).padding(6.dp))
                 if (progress != null && progress.inProgress) progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }
@@ -264,13 +383,16 @@ private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit, modifier: Modifi
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                val line = listOfNotNull(runtimeText(episode.durationMs), episode.aired).joinToString(DETAIL_SEPARATOR)
+                val line = listOfNotNull(runtime(episode.durationMs)?.hoursAndMinutes(), episode.aired).joinToString(DETAIL_SEPARATOR)
                 if (line.isNotEmpty()) Text(line, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 episode.overview?.let { Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             }
         }
     }
 }
+
+/** An episode's own still, which the server sends as its poster; its backdrop falls back to the show's. */
+internal fun MediaItem.stillOrBackdrop(): String? = if (kind == ItemKind.EPISODE) poster ?: backdrop else backdrop ?: poster
 
 @Composable
 private fun Credit(text: String) {
@@ -296,23 +418,12 @@ private fun seasonLabel(season: MediaItem): String = when (val number = season.s
     else -> stringResource(Res.string.library_season, number)
 }
 
-@Composable
-private fun runtimeText(durationMs: Long?): String? {
-    val (hours, minutes) = runtimeParts(durationMs) ?: return null
-    return if (hours > 0) stringResource(Res.string.library_hours_minutes, hours, minutes) else stringResource(Res.string.library_minutes, minutes)
-}
-
 /** The picture's size as the badge the live info bar would show; null below HD or when unknown. */
 internal fun pictureBadge(height: Int?): String? = when {
     height == null -> null
     height >= 2000 -> "4K"
     height >= 720 -> "HD"
     else -> null
-}
-
-private fun oneDecimal(value: Double): String {
-    val tenths = kotlin.math.round(value * 10).toInt()
-    return "${tenths / 10}.${tenths % 10}"
 }
 
 private const val HDR = "HDR"

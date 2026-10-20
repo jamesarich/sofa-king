@@ -4,6 +4,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackStream
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Instant
 
 /** What the seekable player shows about what it plays: a library item or a recording. */
 @Immutable
@@ -87,8 +89,8 @@ internal class VodScrub {
         val step = when {
             repeatCount >= FAST_REPEATS -> 300_000L
             repeatCount >= MEDIUM_REPEATS -> 60_000L
-            direction < 0 -> 10_000L
-            else -> 30_000L
+            direction < 0 -> BACK_STEP_MS
+            else -> FORWARD_STEP_MS
         }
         val from = targetMs ?: positionMs
         val moved = from + direction * step
@@ -115,20 +117,18 @@ internal class VodScrub {
 
     companion object {
         const val SCRUB_SETTLE_MS = 700L
+
+        /** One press back or forward, also the touch controls' and the media keys' steps. */
+        const val BACK_STEP_MS = 10_000L
+        const val FORWARD_STEP_MS = 30_000L
         private const val MEDIUM_REPEATS = 8
         private const val FAST_REPEATS = 24
     }
 }
 
-/** A time in the item as `M:SS` or `H:MM:SS`. */
-internal fun formatPlayTime(ms: Long): String {
-    val total = (ms.coerceAtLeast(0) / 1000)
-    val hours = total / 3600
-    val minutes = (total % 3600) / 60
-    val seconds = total % 60
-    val ss = seconds.toString().padStart(2, '0')
-    return if (hours > 0) "$hours:${minutes.toString().padStart(2, '0')}:$ss" else "$minutes:$ss"
-}
+/** When the item ends if it plays on from [positionMs] at [now]; null while its length is unknown. */
+internal fun vodEndsAt(now: Instant, positionMs: Long, durationMs: Long?): Instant? =
+    durationMs?.takeIf { it > 0 }?.let { now + (it - positionMs).coerceAtLeast(0).milliseconds }
 
 /** How far short of a known end a seek may land. */
 internal const val END_GUARD_MS = 2_000L

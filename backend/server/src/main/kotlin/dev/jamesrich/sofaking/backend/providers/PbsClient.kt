@@ -107,8 +107,7 @@ class PbsClient(private val context: ProviderContext) : ProviderClient {
         private const val SITE_BASE = "https://www.pbs.org"
         private const val PLAYER_BASE = "https://player.pbs.org"
         private const val STATIONS = "stations"
-        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
-        private val STREAM_HEADERS = mapOf("User-Agent" to USER_AGENT, "Origin" to SITE_BASE, "Referer" to "$SITE_BASE/")
+        private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Origin" to SITE_BASE, "Referer" to "$SITE_BASE/")
         private val HEADERS = STREAM_HEADERS + ("Accept" to "application/json")
         private val LABELS = mapOf(
             "ga-create" to "Create", "ga-fnx" to "FNX", "ga-local-subchannel-1" to "Local 1", "ga-local-subchannel-2" to "Local 2",

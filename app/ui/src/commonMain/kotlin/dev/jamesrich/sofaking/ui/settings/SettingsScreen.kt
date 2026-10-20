@@ -9,8 +9,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,7 +27,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -29,6 +34,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalUriHandler
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -87,6 +93,9 @@ class SettingsActions(
     val onSettingsPinChanged: (String?) -> Unit = {},
     /** Compares the running [version] with the published snapshot; [again] repeats a check already made. */
     val onCheckForUpdate: (version: String, again: Boolean) -> Unit = { _, _ -> },
+    val onSkipCommercialsChanged: (Boolean) -> Unit = {},
+    /** Loads the lineup and the library home again from the server. */
+    val onReload: () -> Unit = {},
 )
 
 /** The pairing flow as Settings shows it: whether a claim is running, and why the last one failed. */
@@ -106,16 +115,24 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     /** The lineup's channels, for the name of the chosen startup channel. */
     channels: List<Channel> = emptyList(),
+    /** Whether the server has a library, so a start can open it. */
+    libraryOffered: Boolean = false,
+    /** Whether the server records, which shows the Recordings section. */
+    recordingsOffered: Boolean = false,
+    /** True while a reload asked for here is running. */
+    reloading: Boolean = false,
     actions: SettingsActions = SettingsActions(),
     pairing: PairingUi = PairingUi(),
     /** The update check's answer, or null while none has run. */
     update: UpdateState? = null,
+    /** The page behind Settings the viewer just came back from ([CHANNELS_FOCUS_KEY], [STARTUP_FOCUS_KEY]); its button takes focus. */
+    returnedFrom: String? = null,
 ) {
     var captionAdvance by remember(settings.captionAdvanceMs) { mutableIntStateOf(settings.captionAdvanceMs) }
     var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
     var captionStyle by remember(settings.captionStyle) { mutableStateOf(settings.captionStyle) }
-    var serverUrl by remember(settings.serverUrl) { mutableStateOf(settings.serverUrl) }
-    var apiToken by remember(settings.apiToken) { mutableStateOf(settings.apiToken) }
+    val serverUrl = rememberStoredFieldState(settings.serverUrl)
+    val apiToken = rememberStoredFieldState(settings.apiToken)
     var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
     var autoOpen by remember(settings.autoOpenDelay) { mutableStateOf(settings.autoOpenDelay) }
     var previewSound by remember(settings.previewSound) { mutableStateOf(settings.previewSound) }
@@ -125,52 +142,65 @@ fun SettingsScreen(
     var matchFrameRate by remember(settings.playback.matchFrameRate) { mutableStateOf(settings.playback.matchFrameRate) }
     var decoder by remember(settings.playback.decoder) { mutableStateOf(settings.playback.decoder) }
     var buffer by remember(settings.playback.buffer) { mutableStateOf(settings.playback.buffer) }
-    var pairingCode by remember { mutableStateOf("") }
+    var skipCommercials by remember(settings.skipCommercials) { mutableStateOf(settings.skipCommercials) }
+    val pairingCode = rememberTextFieldState()
     val serverFocus = remember { FocusRequester() }
     val tokenFocus = remember { FocusRequester() }
     val codeFocus = remember { FocusRequester() }
     // Save only takes an address the server's API paths can be appended to and a token a header can carry;
     // the fields say what is missing. It stays off until either differs from what is stored.
-    val validUrl = ServerAddress.normalizeUrl(serverUrl)
-    val validToken = ServerAddress.normalizeToken(apiToken)
+    val validUrl = ServerAddress.normalizeUrl(serverUrl.text.toString())
+    val validToken = ServerAddress.normalizeToken(apiToken.text.toString())
     val canSave = canSaveServer(settings, validUrl, validToken)
     val save = { if (canSave && validUrl != null && validToken != null) onSave(validUrl, validToken) }
-    val validCode = ServerAddress.normalizeCode(pairingCode)
+    val validCode = ServerAddress.normalizeCode(pairingCode.text.toString())
     val canPair = canPairServer(validUrl, validCode, pairing.busy)
     val pair = { if (canPair && validUrl != null && validCode != null) pairing.onPair(validUrl, validCode) }
 
     // The server block opens on its fields only on a device with no server, or while a pairing attempt is being
-    // shown; otherwise it reads as one line with Change, and focus lands on Back rather than inside a field.
+    // shown; otherwise it reads as one line with Change, and focus lands on Back (or, where no Back button is drawn,
+    // the first setting) rather than inside a field.
     var changingServer by remember { mutableStateOf(settings.serverUrl.isEmpty()) }
     val serverOpen = changingServer || pairing.failure != null
+    val unconfigured = remember { settings.serverUrl.isEmpty() }
     val backFocus = remember { FocusRequester() }
+    val contentFocus = remember { FocusRequester() }
+    val firstFocus = if (showsBackButton()) backFocus else contentFocus
+    val channelsFocus = remember { FocusRequester() }
+    val startupFocus = remember { FocusRequester() }
 
     BackHandler { onBack() }
-    LaunchedEffect(Unit) { requestFocusWhenAttached(if (settings.serverUrl.isEmpty()) serverFocus else backFocus) }
+    LaunchedEffect(Unit) {
+        val returnTo = when (returnedFrom) {
+            CHANNELS_FOCUS_KEY -> channelsFocus
+            STARTUP_FOCUS_KEY -> startupFocus
+            else -> null
+        }
+        if (returnTo != null && requestFocusWhenAttached(returnTo)) return@LaunchedEffect
+        requestFocusWhenAttached(if (settings.serverUrl.isEmpty()) serverFocus else firstFocus)
+    }
     LaunchedEffect(changingServer) { if (changingServer && settings.serverUrl.isNotEmpty()) requestFocusWhenAttached(serverFocus) }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .screenPadding()
-            .focusRestorer(),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item { ScreenTitle(stringResource(Res.string.settings_title), onBack, backFocus) }
+    // The server block, first on a device with none and after Playback on one that has it.
+    val serverSection: LazyListScope.() -> Unit = {
         item { SectionHeader(stringResource(Res.string.settings_section_server)) }
         if (!serverOpen) {
             item {
                 SettingRow(label = stringResource(Res.string.settings_server_connected, settings.serverUrl)) {
                     SofaButton(onClick = { changingServer = true }) { Text(stringResource(Res.string.settings_server_change)) }
+                    // Stays enabled while it runs, so the D-pad focus never drops.
+                    SofaButton(onClick = { if (!reloading) actions.onReload() }) {
+                        Text(stringResource(if (reloading) Res.string.settings_server_reloading else Res.string.settings_server_reload))
+                    }
                 }
             }
         } else {
             item {
                 SettingField(
                     label = stringResource(Res.string.settings_server_url),
-                    stored = settings.serverUrl,
-                    onValueChange = { serverUrl = it },
-                    problem = stringResource(Res.string.settings_server_url_invalid).takeIf { validUrl == null },
+                    state = serverUrl,
+                    // An empty field is not yet wrong; it says so once something is typed.
+                    problem = stringResource(Res.string.settings_server_url_invalid).takeIf { serverUrl.text.isNotBlank() && validUrl == null },
                     focusRequester = serverFocus,
                     imeAction = ImeAction.Next,
                     onAction = { codeFocus.requestFocus(FocusDirection.Enter) },
@@ -178,12 +208,13 @@ fun SettingsScreen(
             }
             // The pairing code is the designed path; the token below it is the fallback.
             item {
+                // The help sits above the field, where the on-screen keyboard does not cover it.
                 Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HelpText(stringResource(Res.string.settings_pairing_help))
                     SettingField(
                         label = stringResource(Res.string.settings_pairing_code),
-                        stored = "",
-                        onValueChange = { pairingCode = it },
-                        problem = stringResource(Res.string.settings_pairing_code_invalid).takeIf { pairingCode.isNotEmpty() && validCode == null },
+                        state = pairingCode,
+                        problem = stringResource(Res.string.settings_pairing_code_invalid).takeIf { pairingCode.text.isNotEmpty() && validCode == null },
                         focusRequester = codeFocus,
                         imeAction = ImeAction.Done,
                         onAction = pair,
@@ -204,15 +235,13 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
-                    HelpText(stringResource(Res.string.settings_pairing_help))
                 }
             }
             item {
                 Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SettingField(
                         label = stringResource(Res.string.settings_api_token),
-                        stored = settings.apiToken,
-                        onValueChange = { apiToken = it },
+                        state = apiToken,
                         problem = stringResource(Res.string.settings_api_token_invalid).takeIf { validToken == null },
                         focusRequester = tokenFocus,
                         imeAction = ImeAction.Done,
@@ -223,7 +252,12 @@ fun SettingsScreen(
                     Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         SofaButton(onClick = save, enabled = canSave) { Text(stringResource(Res.string.settings_save)) }
                         if (settings.serverUrl.isNotEmpty()) {
-                            SofaButton(onClick = { changingServer = false; serverUrl = settings.serverUrl; apiToken = settings.apiToken }) {
+                            SofaButton(onClick = {
+                                changingServer = false
+                                serverUrl.setTextAndPlaceCursorAtEnd(settings.serverUrl)
+                                apiToken.setTextAndPlaceCursorAtEnd(settings.apiToken)
+                                pairingCode.clearText()
+                            }) {
                                 Text(stringResource(Res.string.settings_server_cancel))
                             }
                         }
@@ -231,17 +265,35 @@ fun SettingsScreen(
                 }
             }
         }
-        item { SectionHeader(stringResource(Res.string.settings_section_startup)) }
+    }
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .screenPadding()
+            .focusRequester(contentFocus)
+            .focusRestorer()
+            .focusGroup(),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item { ScreenTitle(stringResource(Res.string.settings_title), onBack, backFocus) }
+        // A device with no server starts here; a configured one keeps the server near the end, as it seldom changes.
+        if (unconfigured) serverSection()
+        item { SectionHeader(stringResource(Res.string.settings_section_general)) }
         item {
             ChoiceRow(
                 label = stringResource(Res.string.settings_startup),
-                choices = StartupTarget.entries,
+                help = stringResource(Res.string.settings_startup_help),
+                width = WIDE_CHOICE_WIDTH,
+                // The library is offered on a server that has one, and kept while it is the choice.
+                choices = StartupTarget.entries.filter { it != StartupTarget.LIBRARY || libraryOffered || startup == it },
                 selected = startup,
                 choiceLabel = {
                     stringResource(
                         when (it) {
-                            StartupTarget.LAST_CHANNEL -> Res.string.settings_startup_last
+                            StartupTarget.RESUME -> Res.string.settings_startup_resume
                             StartupTarget.GUIDE -> Res.string.settings_startup_guide
+                            StartupTarget.LIBRARY -> Res.string.settings_startup_library
                             StartupTarget.CHANNEL -> Res.string.settings_startup_channel
                         },
                     )
@@ -258,9 +310,29 @@ fun SettingsScreen(
             item {
                 val chosen = channels.firstOrNull { it.guideId == settings.startupChannel }
                 SettingRow(label = chosen?.label() ?: stringResource(Res.string.settings_startup_channel_none)) {
-                    SofaButton(onClick = actions.onChooseStartupChannel) { Text(stringResource(Res.string.settings_startup_choose)) }
+                    SofaButton(onClick = actions.onChooseStartupChannel, modifier = Modifier.focusRequester(startupFocus)) { Text(stringResource(Res.string.settings_startup_choose)) }
                 }
             }
+        }
+        item {
+            ChoiceRow(
+                label = stringResource(Res.string.settings_time_format),
+                choices = ClockFormat.entries,
+                selected = clockFormat,
+                choiceLabel = {
+                    stringResource(
+                        when (it) {
+                            ClockFormat.AUTO -> Res.string.settings_time_auto
+                            ClockFormat.TWELVE_HOUR -> Res.string.settings_time_12
+                            ClockFormat.TWENTY_FOUR_HOUR -> Res.string.settings_time_24
+                        },
+                    )
+                },
+                onSelect = {
+                    clockFormat = it
+                    actions.onClockFormatChanged(it)
+                },
+            )
         }
         item { SectionHeader(stringResource(Res.string.settings_section_guide)) }
         item {
@@ -296,26 +368,6 @@ fun SettingsScreen(
         }
         item {
             ChoiceRow(
-                label = stringResource(Res.string.settings_time_format),
-                choices = ClockFormat.entries,
-                selected = clockFormat,
-                choiceLabel = {
-                    stringResource(
-                        when (it) {
-                            ClockFormat.AUTO -> Res.string.settings_time_auto
-                            ClockFormat.TWELVE_HOUR -> Res.string.settings_time_12
-                            ClockFormat.TWENTY_FOUR_HOUR -> Res.string.settings_time_24
-                        },
-                    )
-                },
-                onSelect = {
-                    clockFormat = it
-                    actions.onClockFormatChanged(it)
-                },
-            )
-        }
-        item {
-            ChoiceRow(
                 label = stringResource(Res.string.settings_guide_rows),
                 choices = GuideDensity.entries,
                 selected = guideDensity,
@@ -336,9 +388,23 @@ fun SettingsScreen(
         item {
             Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(Res.string.settings_channels), style = MaterialTheme.typography.titleSmall)
-                SofaButton(onClick = actions.onManageChannels, enabled = channels.isNotEmpty()) {
+                SofaButton(onClick = actions.onManageChannels, enabled = channels.isNotEmpty(), modifier = Modifier.focusRequester(channelsFocus)) {
                     Text(stringResource(Res.string.settings_channels_open))
                 }
+            }
+        }
+        if (recordingsOffered) {
+            item { SectionHeader(stringResource(Res.string.recordings_title)) }
+            item {
+                ToggleRow(
+                    label = stringResource(Res.string.recordings_skip_commercials),
+                    help = stringResource(Res.string.recordings_skip_commercials_help),
+                    checked = skipCommercials,
+                    onCheckedChange = {
+                        skipCommercials = it
+                        actions.onSkipCommercialsChanged(it)
+                    },
+                )
             }
         }
         item { SectionHeader(stringResource(Res.string.settings_section_captions)) }
@@ -400,7 +466,7 @@ fun SettingsScreen(
                         },
                         enabled = captionAdvance > AppSettings.CAPTION_ADVANCE_RANGE_MS.first,
                         modifier = Modifier.focusRequester(lessFocus).semantics { contentDescription = lessLabel },
-                    ) { Text("−") }
+                    ) { Icon(SofaIcons.Remove, null) }
                     Text(captionTimingText(captionAdvance), style = MaterialTheme.typography.bodyLarge)
                     SofaButton(
                         onClick = {
@@ -410,7 +476,7 @@ fun SettingsScreen(
                         },
                         enabled = captionAdvance < AppSettings.CAPTION_ADVANCE_RANGE_MS.last,
                         modifier = Modifier.focusRequester(moreFocus).semantics { contentDescription = moreLabel },
-                    ) { Text("+") }
+                    ) { Icon(Icons.Filled.Add, null) }
                 }
             }
             item { HelpText(stringResource(Res.string.caption_timing_help)) }
@@ -480,6 +546,7 @@ fun SettingsScreen(
                 )
             }
         }
+        if (!unconfigured) serverSection()
         item { SectionHeader(stringResource(Res.string.settings_section_lock)) }
         item { LockSection(locked = settings.settingsLocked, onPinChanged = actions.onSettingsPinChanged) }
         // About: the app, its version and what is loaded, then where the build stands against the published snapshot.
@@ -518,27 +585,29 @@ internal fun canSaveServer(stored: AppSettings, url: String?, token: String?): B
 /** Pair is on for a valid address and a six-digit code while no claim is running. */
 internal fun canPairServer(url: String?, code: String?, busy: Boolean): Boolean = url != null && code != null && !busy
 
+/**
+ * The one state of a field's text, starting at the saved [stored] value; only a change to that value replaces what
+ * is typed. The screen reads and resets the field through it.
+ */
+@Composable
+private fun rememberStoredFieldState(stored: String): TextFieldState {
+    val state = rememberTextFieldState(stored)
+    LaunchedEffect(stored) {
+        if (state.text.toString() != stored) state.setTextAndPlaceCursorAtEnd(stored)
+    }
+    return state
+}
+
 @Composable
 private fun SettingField(
     label: String,
-    stored: String,
-    onValueChange: (String) -> Unit,
+    state: TextFieldState,
     problem: String?,
     focusRequester: FocusRequester,
     imeAction: ImeAction,
     onAction: () -> Unit,
     maskUnfocused: ((String) -> String)? = null,
 ) {
-    // The field owns what is typed; only a change to the saved [stored] value replaces it, so an echo of
-    // earlier keystrokes can never overwrite newer ones.
-    val state = rememberTextFieldState(stored)
-    LaunchedEffect(stored) {
-        if (state.text.toString() != stored) state.setTextAndPlaceCursorAtEnd(stored)
-    }
-    LaunchedEffect(state) {
-        snapshotFlow { state.text.toString() }.collect(onValueChange)
-    }
-
     Column(Modifier.width(FIELD_WIDTH)) {
         Text(label, style = MaterialTheme.typography.titleSmall)
         TvTextField(
@@ -603,3 +672,7 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
         update is UpdateState.Available && downloadUrl == null -> HelpText(stringResource(Res.string.settings_update_no_package))
     }
 }
+
+/** What Settings' `returnedFrom` holds for the channel manager and the startup channel picker. */
+internal const val CHANNELS_FOCUS_KEY = "channels"
+internal const val STARTUP_FOCUS_KEY = "startup-channel"

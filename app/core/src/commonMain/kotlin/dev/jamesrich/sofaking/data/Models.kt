@@ -42,6 +42,8 @@ data class Programme(
     val rating: String? = null,
     /** An image URL on the guide source's host. */
     val icon: String? = null,
+    /** What the guide's categories say it is. */
+    val kinds: Set<ProgramKind> = emptySet(),
 )
 
 data class Lineup(

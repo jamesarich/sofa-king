@@ -35,10 +35,4 @@ class SettingsLockTest {
         assertFalse(lock.waiting)
         assertEquals(0, lock.misses)
     }
-
-    @Test
-    fun `the PIN mask hides every digit`() {
-        assertEquals("••••", maskPin("1234"))
-        assertEquals("", maskPin(""))
-    }
 }

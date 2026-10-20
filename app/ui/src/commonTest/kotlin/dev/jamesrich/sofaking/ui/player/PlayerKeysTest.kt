@@ -2,8 +2,11 @@ package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.ui.guide.gridStep
+import dev.jamesrich.sofaking.ui.isOk
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.test.Test
 
 class PlayerKeysTest {
@@ -67,8 +70,9 @@ class PlayerKeysTest {
     }
 
     @Test
-    fun `Media Previous and Last Channel recall the last channel`() {
-        assertEquals(PlayerAction.LAST_CHANNEL, Key.MediaPrevious.playerAction())
+    fun `Media Next and Previous step the channel as the session does while Last Channel recalls the last channel`() {
+        assertEquals(PlayerAction.CHANNEL_DOWN, Key.MediaPrevious.playerAction())
+        assertEquals(PlayerAction.CHANNEL_UP, Key.MediaNext.playerAction())
         assertEquals(PlayerAction.LAST_CHANNEL, Key.LastChannel.playerAction())
     }
 
@@ -136,5 +140,13 @@ class PlayerKeysTest {
     fun `OK on the stream card goes to the focused track and closes a card with none`() {
         assertEquals(StreamCardKey.CARD, streamCardOk(hasTracks = true))
         assertEquals(StreamCardKey.CLOSE, streamCardOk(hasTracks = false))
+    }
+
+    @Test
+    fun `the keypad Enter is OK too`() {
+        assertTrue(Key.DirectionCenter.isOk)
+        assertTrue(Key.Enter.isOk)
+        assertTrue(Key.NumPadEnter.isOk)
+        assertFalse(Key.Spacebar.isOk)
     }
 }

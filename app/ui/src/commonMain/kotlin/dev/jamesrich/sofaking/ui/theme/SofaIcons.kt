@@ -1,4 +1,4 @@
-package dev.jamesrich.sofaking.ui.player
+package dev.jamesrich.sofaking.ui.theme
 
 import androidx.compose.material.icons.materialPath
 import androidx.compose.ui.graphics.Color
@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
  * extended set is a dependency the Kotlin/JS production build cannot shrink in a reasonable time: minifying it took
  * the web distribution from one minute to over twenty, so the icons the player and the app's tabs need live here instead.
  */
-internal object PlayerIcons {
+internal object SofaIcons {
     val Audiotrack: ImageVector by lazy {
         materialIcon(name = "Filled.Audiotrack") {
             materialPath {
@@ -241,6 +241,17 @@ internal object PlayerIcons {
             "Filled.RadioButtonChecked",
             "M12,7c-2.76,0 -5,2.24 -5,5s2.24,5 5,5 5,-2.24 5,-5 -2.24,-5 -5,-5zM12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z" +
                 "M12,20c-4.42,0 -8,-3.58 -8,-8s3.58,-8 8,-8 8,3.58 8,8 -3.58,8 -8,8z",
+        )
+    }
+
+    /** The caption timing's minus; the core set has Add but not Remove. */
+    val Remove: ImageVector by lazy { pathIcon("Filled.Remove", "M19,13H5v-2h14v2z") }
+
+    /** A track row's mark: [Recordings] when picked, this ring when not. */
+    val RadioButtonUnchecked: ImageVector by lazy {
+        pathIcon(
+            "Filled.RadioButtonUnchecked",
+            "M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.42,0 -8,-3.58 -8,-8s3.58,-8 8,-8 8,3.58 8,8 -3.58,8 -8,8z",
         )
     }
 

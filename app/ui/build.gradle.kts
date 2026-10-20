@@ -79,7 +79,11 @@ kotlin {
         optIn.add("androidx.compose.material3.ExperimentalMaterial3ExpressiveApi")
         optIn.add("androidx.compose.material3.ExperimentalMaterial3Api")
         optIn.add("androidx.compose.ui.ExperimentalComposeUiApi")
+        optIn.add("androidx.compose.foundation.ExperimentalFoundationApi")
     }
+    // Every web source set, parents and children alike, as the compiler requires opt-ins to agree along dependsOn.
+    sourceSets.matching { it.name.startsWith("web") || it.name.startsWith("js") || it.name.startsWith("wasmJs") }
+        .configureEach { languageSettings.optIn("kotlin.js.ExperimentalWasmJsInterop") }
 
     sourceSets {
         commonMain {
@@ -97,6 +101,7 @@ kotlin {
                 implementation(libs.compose.material3.adaptive.navigation.suite)
                 implementation(libs.compose.material.icons.core)
                 implementation(libs.navigationevent.compose)
+                implementation(libs.navigation3.ui)
                 implementation(libs.compose.components.resources)
                 implementation(libs.coil.compose)
                 implementation(libs.coil.network.ktor3)
@@ -120,6 +125,10 @@ kotlin {
         jvmMain.dependencies {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.vlcj)
+        }
+        // Desktop only: in commonTest it would reach the Android host tests, which have no Compose host.
+        jvmTest.dependencies {
+            implementation(libs.compose.ui.test)
         }
         webMain.dependencies {
             implementation(libs.kotlinx.browser)
@@ -176,17 +185,16 @@ compose.desktop {
             description = "Live TV for your own Sofa King server"
             vendor = "James Rich"
             copyright = "Copyright 2026 James Rich. Licensed under the GPL-3.0-only."
-            licenseFile.set(rootProject.layout.projectDirectory.file("../LICENSE"))
-            // The icons come from tools/render-icons.sh; a missing file leaves jpackage's default icon.
+            licenseFile.set(layout.settingsDirectory.file("../LICENSE"))
+            // The icons come from tools/render-icons.sh.
             val icons = layout.projectDirectory.dir("icons")
-            fun icon(name: String) = icons.file(name).takeIf { it.asFile.exists() }
             linux {
                 packageName = "sofa-king"
                 debMaintainer = "2199651+jamesarich@users.noreply.github.com"
                 menuGroup = "AudioVideo;Video;TV"
                 appCategory = "video"
                 shortcut = true
-                icon("sofa-king.png")?.let { iconFile.set(it) }
+                iconFile.set(icons.file("sofa-king.png"))
             }
             windows {
                 menuGroup = "Sofa King"
@@ -195,13 +203,13 @@ compose.desktop {
                 perUserInstall = true
                 // Fixed so each MSI upgrades the installed app in place.
                 upgradeUuid = "4b04060d-b077-47c9-acc6-f55b71d52d1f"
-                icon("sofa-king.ico")?.let { iconFile.set(it) }
+                iconFile.set(icons.file("sofa-king.ico"))
             }
             macOS {
                 bundleID = "dev.jamesrich.sofaking"
                 dockName = "Sofa King"
                 appCategory = "public.app-category.entertainment"
-                icon("sofa-king.icns")?.let { iconFile.set(it) }
+                iconFile.set(icons.file("sofa-king.icns"))
             }
         }
     }

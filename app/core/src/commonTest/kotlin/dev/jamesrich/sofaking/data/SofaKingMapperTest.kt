@@ -31,9 +31,10 @@ class SofaKingMapperTest {
         isNew: Boolean = false,
         rating: String? = null,
         icon: String? = null,
+        categories: List<String> = emptyList(),
     ) = ProgrammeDto(
         startsAt = startsAt, endsAt = endsAt, title = title, description = description,
-        subTitle = subTitle, episode = episode, isNew = isNew, rating = rating, icon = icon,
+        subTitle = subTitle, episode = episode, isNew = isNew, rating = rating, icon = icon, categories = categories,
     )
 
     @Test
@@ -137,6 +138,7 @@ class SofaKingMapperTest {
                 programme(
                     "2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Show",
                     subTitle = " The Pilot ", episode = "S1 E1", isNew = true, rating = "TV-PG", icon = "https://img/x.jpg",
+                    categories = listOf("Feature Film", "Drama", "Children"),
                 ),
                 programme("2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Plain", subTitle = "", episode = " ", rating = ""),
             ),
@@ -146,6 +148,8 @@ class SofaKingMapperTest {
 
         assertEquals(listOf("The Pilot", "S1 E1", "TV-PG", "https://img/x.jpg"), listOf(show.subTitle, show.episode, show.rating, show.icon))
         assertEquals(true, show.isNew)
+        assertEquals(setOf(ProgramKind.MOVIE, ProgramKind.KIDS), show.kinds)
+        assertEquals(emptySet(), plain.kinds)
         assertEquals(listOf(null, null, null, null), listOf(plain.subTitle, plain.episode, plain.rating, plain.icon))
         assertEquals(false, plain.isNew)
     }

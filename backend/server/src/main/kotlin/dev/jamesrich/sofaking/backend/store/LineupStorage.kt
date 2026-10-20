@@ -17,7 +17,10 @@ import org.jetbrains.exposed.v1.jdbc.*
 /** SQLite binds at most 32,766 variables per statement; multi-row inserts stay well under that. */
 private const val INSERT_CHUNK = 2000
 
-suspend fun BackendStore.lineup(): List<LineupEntryRecord> = query {
+/** Rows a guide import writes or deletes per transaction: big enough to keep imports quick, small enough that other writes wait at most about a second. */
+private const val PROGRAMMES_PER_TRANSACTION = 20_000
+
+suspend fun BackendStore.lineup(): List<LineupEntryRecord> = read {
     val offerings = LineupOfferings.selectAll().orderBy(LineupOfferings.position).groupBy({ it[LineupOfferings.entryId] }, { it[LineupOfferings.offeringId] })
     LineupEntries.selectAll().orderBy(LineupEntries.position).map { row ->
         val guideId = row[LineupEntries.guideId]
@@ -43,7 +46,7 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
     LineupOfferings.deleteAll()
     LineupEntries.deleteAll()
     entries.withIndex().chunked(INSERT_CHUNK).forEach { chunk ->
-        LineupEntries.batchInsert(chunk) { (position, entry) ->
+        LineupEntries.batchInsert(chunk, shouldReturnGeneratedValues = false) { (position, entry) ->
             this[LineupEntries.id] = entry.id
             this[LineupEntries.position] = position
             this[LineupEntries.number] = entry.number
@@ -61,7 +64,7 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
     }
     entries.flatMap { entry -> entry.offeringIds.withIndex().map { (position, offeringId) -> Triple(entry.id, position, offeringId) } }
         .chunked(INSERT_CHUNK).forEach { chunk ->
-            LineupOfferings.batchInsert(chunk) { (entryId, position, offeringId) ->
+            LineupOfferings.batchInsert(chunk, shouldReturnGeneratedValues = false) { (entryId, position, offeringId) ->
                 this[LineupOfferings.entryId] = entryId
                 this[LineupOfferings.position] = position
                 this[LineupOfferings.offeringId] = offeringId
@@ -72,13 +75,19 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
 
 class StoredGuide(val guideId: String, val importedAt: Instant, val channels: List<GuideChannel>, val programmeEnds: Map<String, Instant>, val programmes: Int)
 
-suspend fun BackendStore.guides(): Map<String, StoredGuide> = query {
-    val channels = GuideChannels.selectAll().groupBy({ it[GuideChannels.guideId] }) {
-        GuideChannel(it[GuideChannels.channelId], it[GuideChannels.displayName], it[GuideChannels.icon])
-    }
+/** Each guide's current generation of rows, as the import last published it. */
+private fun currentRows(table: Table, guideId: Column<String>, generation: Column<Long>) =
+    table.innerJoin(GuideImports, { guideId }, { GuideImports.guideId }) { generation eq GuideImports.generation }
+
+suspend fun BackendStore.guides(): Map<String, StoredGuide> = read {
+    val channels = currentRows(GuideChannels, GuideChannels.guideId, GuideChannels.generation)
+        .select(GuideChannels.columns).groupBy({ it[GuideChannels.guideId] }) {
+            GuideChannel(it[GuideChannels.channelId], it[GuideChannels.displayName], it[GuideChannels.icon])
+        }
     val maxEnd = GuideProgrammes.endsAt.max()
     val count = GuideProgrammes.channelId.count()
-    val ends = GuideProgrammes.select(GuideProgrammes.guideId, GuideProgrammes.channelId, maxEnd, count)
+    val ends = currentRows(GuideProgrammes, GuideProgrammes.guideId, GuideProgrammes.generation)
+        .select(GuideProgrammes.guideId, GuideProgrammes.channelId, maxEnd, count)
         .groupBy(GuideProgrammes.guideId, GuideProgrammes.channelId)
         .groupBy({ it[GuideProgrammes.guideId] }) { Triple(it[GuideProgrammes.channelId], Instant.ofEpochSecond(it[maxEnd]!!), it[count]) }
     GuideImports.selectAll().associate { row ->
@@ -88,37 +97,70 @@ suspend fun BackendStore.guides(): Map<String, StoredGuide> = query {
     }
 }
 
-/** Replaces one guide's channels and retained programmes atomically, then refreshes the planner statistics the import shifted. */
+/**
+ * Replaces one guide's channels and retained programmes, then refreshes the planner statistics the import shifted.
+ * The new rows go in as the guide's next generation over several short transactions, so other writes interleave with
+ * a large import; one small transaction then makes them current, and the old generation is deleted in steps. Readers
+ * see the old rows or the new ones, never a mix; a failed import leaves the old rows current and its own for the next
+ * import to clear.
+ */
 suspend fun BackendStore.saveGuide(guideId: String, importedAt: Instant, channels: List<GuideChannel>, programmes: List<GuideProgramme>) {
-    replaceGuide(guideId, importedAt, channels, programmes)
+    val current = query { GuideImports.select(GuideImports.generation).where { GuideImports.guideId eq guideId }.singleOrNull()?.get(GuideImports.generation) }
+    deleteGuideRows(guideId, except = current)
+    val next = (current ?: 0) + 1
+    query {
+        channels.distinctBy { it.id }.chunked(INSERT_CHUNK).forEach { chunk ->
+            GuideChannels.batchInsert(chunk, shouldReturnGeneratedValues = false) { channel ->
+                this[GuideChannels.guideId] = guideId
+                this[GuideChannels.generation] = next
+                this[GuideChannels.channelId] = channel.id
+                this[GuideChannels.displayName] = channel.displayName
+                this[GuideChannels.icon] = channel.icon
+            }
+        }
+    }
+    programmes.chunked(PROGRAMMES_PER_TRANSACTION).forEach { part ->
+        query {
+            part.chunked(INSERT_CHUNK).forEach { chunk ->
+                GuideProgrammes.batchInsert(chunk.map(GuideProgramme::bounded), ignore = true, shouldReturnGeneratedValues = false) { programme ->
+                    this[GuideProgrammes.guideId] = guideId
+                    this[GuideProgrammes.generation] = next
+                    this[GuideProgrammes.channelId] = programme.channelId
+                    this[GuideProgrammes.startsAt] = programme.startsAt.epochSecond
+                    this[GuideProgrammes.endsAt] = programme.endsAt.epochSecond
+                    this[GuideProgrammes.title] = programme.title
+                    this[GuideProgrammes.description] = programme.description
+                    this[GuideProgrammes.detailsJson] = detailsJson(programme)
+                }
+            }
+        }
+    }
+    query {
+        GuideImports.upsert {
+            it[GuideImports.guideId] = guideId
+            it[GuideImports.importedAt] = importedAt.toString()
+            it[generation] = next
+        }
+        Unit
+    }
+    deleteGuideRows(guideId, except = next)
     optimize()
 }
 
-private suspend fun BackendStore.replaceGuide(guideId: String, importedAt: Instant, channels: List<GuideChannel>, programmes: List<GuideProgramme>) = query {
-    GuideProgrammes.deleteWhere { GuideProgrammes.guideId eq guideId }
-    GuideChannels.deleteWhere { GuideChannels.guideId eq guideId }
-    GuideImports.deleteWhere { GuideImports.guideId eq guideId }
-    GuideImports.insert { it[GuideImports.guideId] = guideId; it[GuideImports.importedAt] = importedAt.toString() }
-    channels.distinctBy { it.id }.chunked(INSERT_CHUNK).forEach { chunk ->
-        GuideChannels.batchInsert(chunk) { channel ->
-            this[GuideChannels.guideId] = guideId
-            this[GuideChannels.channelId] = channel.id
-            this[GuideChannels.displayName] = channel.displayName
-            this[GuideChannels.icon] = channel.icon
+/** Deletes [guideId]'s channel and programme rows of every generation but [except] (null: all), a step at a time. */
+private suspend fun BackendStore.deleteGuideRows(guideId: String, except: Long?) {
+    query { GuideChannels.deleteWhere { (GuideChannels.guideId eq guideId) and (if (except == null) Op.TRUE else GuideChannels.generation neq except) } }
+    val args = listOf<Pair<IColumnType<*>, Any?>>(TextColumnType() to guideId, LongColumnType() to (except ?: -1L), IntegerColumnType() to PROGRAMMES_PER_TRANSACTION)
+    while (true) {
+        val deleted = query {
+            exec(
+                "DELETE FROM guide_programme WHERE rowid IN (SELECT rowid FROM guide_programme WHERE guide_id = ? AND generation <> ? LIMIT ?)",
+                args,
+            )
+            exec("SELECT changes()") { it.next(); it.getInt(1) } ?: 0
         }
+        if (deleted < PROGRAMMES_PER_TRANSACTION) break
     }
-    programmes.chunked(INSERT_CHUNK).forEach { chunk ->
-        GuideProgrammes.batchInsert(chunk.map(GuideProgramme::bounded), ignore = true) { programme ->
-            this[GuideProgrammes.guideId] = guideId
-            this[GuideProgrammes.channelId] = programme.channelId
-            this[GuideProgrammes.startsAt] = programme.startsAt.epochSecond
-            this[GuideProgrammes.endsAt] = programme.endsAt.epochSecond
-            this[GuideProgrammes.title] = programme.title
-            this[GuideProgrammes.description] = programme.description
-            this[GuideProgrammes.detailsJson] = detailsJson(programme)
-        }
-    }
-    Unit
 }
 
 private val programmeJson = Json { encodeDefaults = false; ignoreUnknownKeys = true; explicitNulls = false }
@@ -156,11 +198,11 @@ private fun programmeAt(row: ResultRow): GuideProgramme {
 }
 
 /** Programmes overlapping [from, to) for the given guide channels, grouped by channel and ordered by start. */
-suspend fun BackendStore.programmes(guideId: String, channelIds: Collection<String>, from: Instant, to: Instant): Map<String, List<GuideProgramme>> = query {
+suspend fun BackendStore.programmes(guideId: String, channelIds: Collection<String>, from: Instant, to: Instant): Map<String, List<GuideProgramme>> = read {
     if (channelIds.isEmpty()) {
         emptyMap()
     } else {
-        GuideProgrammes.selectAll().where {
+        currentRows(GuideProgrammes, GuideProgrammes.guideId, GuideProgrammes.generation).select(GuideProgrammes.columns).where {
             (GuideProgrammes.guideId eq guideId) and (GuideProgrammes.channelId inList channelIds.toSet()) and
                 (GuideProgrammes.startsAt less to.epochSecond) and (GuideProgrammes.endsAt greater from.epochSecond)
         }.orderBy(GuideProgrammes.startsAt).groupBy({ it[GuideProgrammes.channelId] }, ::programmeAt)

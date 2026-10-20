@@ -7,7 +7,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.upsert
 
 /** The ignored overview items: each item's key to the fingerprint of its text when it was ignored. */
-suspend fun BackendStore.ignoredAttention(): Map<String, String> = query {
+suspend fun BackendStore.ignoredAttention(): Map<String, String> = read {
     AttentionIgnores.selectAll().associate { it[AttentionIgnores.itemKey] to it[AttentionIgnores.fingerprint] }
 }
 

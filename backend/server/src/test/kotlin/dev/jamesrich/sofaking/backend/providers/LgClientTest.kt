@@ -32,7 +32,7 @@ class LgClientTest {
             assertEquals("LiveNOW from FOX", guide.programmes.first().title)
             val resolved = client.resolve("foxlivenow_foxlivenow_US")
             val deviceId = store.providerState("lg", ProviderContext.DEVICE_ID)!!.value
-            val ua = URLEncoder.encode("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36", Charsets.UTF_8)
+            val ua = URLEncoder.encode(BROWSER_USER_AGENT, Charsets.UTF_8)
             assertEquals("${fixture.base}/lg/master.m3u8?ads.deviceid=$deviceId&ads.ua=$ua&ads.country=US&ads.nonce=${clock.now.epochSecond}&ads.hotel=&ads.ifa=", resolved.url)
             assertEquals(clock.now.plus(Duration.ofHours(1)), resolved.expiresAt)
             assertEquals("https://lgchannels.com/", resolved.headers["Referer"])

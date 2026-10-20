@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,10 +36,10 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.TimeFormatter
+import dev.jamesrich.sofaking.ui.formatBytes
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
-import dev.jamesrich.sofaking.ui.settings.ToggleRow
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.launch
 import kotlinx.datetime.format.MonthNames
@@ -49,20 +50,22 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * The server's recordings in three groups: running now, recorded, and scheduled. A recorded or running one plays
  * with [onPlay] (resuming where the household stopped unless `fromStart`); [onDelete] stops, cancels or deletes one
- * after a second press confirms it. [skipCommercials] is the setting the player follows. The series rules follow the
+ * after a second press confirms it. The series rules follow the
  * recordings: [onRuleChange] sets whether one takes repeats and how many it keeps, and [onRuleDelete] stops one.
  */
 @Composable
 fun RecordingsScreen(
     state: RecordingsState,
-    skipCommercials: Boolean,
-    onSkipCommercialsChanged: (Boolean) -> Unit,
     onPlay: (recording: DvrRecording, fromStart: Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
     onRetry: () -> Unit,
     onBack: () -> Unit,
     onRuleChange: suspend (rule: SeriesRule, newOnly: Boolean, keep: Int) -> Boolean = { _, _, _ -> false },
     onRuleDelete: suspend (SeriesRule) -> Boolean = { false },
+    /** The recording just played, which takes focus again on the way back. */
+    returnedFrom: String? = null,
+    /** Whether the header above has focus; the list scrolls back to the top under it. */
+    headerFocused: Boolean = false,
 ) {
     BackHandler(onBack = onBack)
     when (state) {
@@ -70,27 +73,32 @@ fun RecordingsScreen(
         RecordingsState.Unconfigured -> MessageScreen(stringResource(Res.string.unconfigured), hint = stringResource(Res.string.unconfigured_hint))
         RecordingsState.Unavailable -> MessageScreen(stringResource(Res.string.recordings_unavailable))
         is RecordingsState.Failed -> MessageScreen(stringResource(Res.string.load_failed), detail = state.message, onRetry = onRetry)
-        is RecordingsState.Ready -> RecordingList(state, skipCommercials, onSkipCommercialsChanged, onPlay, onDelete, onRuleChange, onRuleDelete)
+        is RecordingsState.Ready -> RecordingList(state, onPlay, onDelete, onRuleChange, onRuleDelete, returnedFrom, headerFocused)
     }
 }
 
 @Composable
 private fun RecordingList(
     state: RecordingsState.Ready,
-    skipCommercials: Boolean,
-    onSkipCommercialsChanged: (Boolean) -> Unit,
     onPlay: (DvrRecording, Boolean) -> Unit,
     onDelete: suspend (DvrRecording) -> Boolean,
     onRuleChange: suspend (SeriesRule, Boolean, Int) -> Boolean,
     onRuleDelete: suspend (SeriesRule) -> Boolean,
+    returnedFrom: String?,
+    headerFocused: Boolean,
 ) {
     val time = rememberTimeFormatter()
+    val listState = rememberLazyListState()
+    // Back or Up to the header shows the list from its top, so Down lands on the first recording.
+    LaunchedEffect(headerFocused) { if (headerFocused) listState.animateScrollToItem(0) }
     val groups = remember(state.recordings) { recordingGroups(state.recordings) }
     val firstFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { requestFocusWhenAttached(firstFocus) }
+    // The recording just played takes focus, else the first; with none, focus stays on the header's tab.
+    LaunchedEffect(groups.isEmpty()) { if (groups.isNotEmpty()) requestFocusWhenAttached(firstFocus) }
     LazyColumn(
         // The app's header sits above, with the tabs, so the list pads the sides and bottom only.
         modifier = Modifier.fillMaxSize().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+        state = listState,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         if (state.space.totalBytes > 0) {
@@ -103,15 +111,6 @@ private fun RecordingList(
                 )
             }
         }
-        item(key = "skip") {
-            ToggleRow(
-                label = stringResource(Res.string.recordings_skip_commercials),
-                checked = skipCommercials,
-                onCheckedChange = onSkipCommercialsChanged,
-                help = stringResource(Res.string.recordings_skip_commercials_help),
-                modifier = if (groups.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier,
-            )
-        }
         if (groups.isEmpty()) {
             item(key = "empty") {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -120,7 +119,8 @@ private fun RecordingList(
                 }
             }
         }
-        val firstId = groups.firstOrNull()?.second?.firstOrNull()?.id
+        val firstId = returnedFrom?.takeIf { id -> groups.any { (_, recordings) -> recordings.any { it.id == id } } }
+            ?: groups.firstOrNull()?.second?.firstOrNull()?.id
         groups.forEach { (group, recordings) ->
             item(key = "group-${group.name}") {
                 Text(stringResource(group.label), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
@@ -155,8 +155,11 @@ private fun SeriesRow(
         busy = true
         failed = false
         scope.launch {
-            failed = !action()
-            busy = false
+            try {
+                failed = !action()
+            } finally {
+                busy = false
+            }
         }
     }
     Column(Modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -255,17 +258,22 @@ private fun RecordingRow(
             SofaButton(
                 modifier = deleteModifier,
                 onClick = {
-                    if (busy) {
-                        Unit
-                    } else if (!confirming) {
-                        confirming = true
-                        failed = false
-                    } else {
-                        confirming = false
-                        busy = true
-                        scope.launch {
-                            failed = !onDelete(recording)
-                            busy = false
+                    when {
+                        busy -> {}
+                        !confirming -> {
+                            confirming = true
+                            failed = false
+                        }
+                        else -> {
+                            confirming = false
+                            busy = true
+                            scope.launch {
+                                try {
+                                    failed = !onDelete(recording)
+                                } finally {
+                                    busy = false
+                                }
+                            }
                         }
                     }
                 },
@@ -334,22 +342,4 @@ private fun confirmLabel(state: RecordingState) = when (state) {
     RecordingState.RECORDING -> Res.string.recordings_confirm_stop
     RecordingState.SCHEDULED -> Res.string.recordings_confirm_cancel
     else -> Res.string.recordings_confirm_delete
-}
-
-/** A size in the largest unit that keeps it at 1 or more, with one decimal under 10: "740 MB", "2.4 GB". */
-internal fun formatBytes(bytes: Long): String {
-    val units = listOf("B", "KB", "MB", "GB", "TB")
-    var value = bytes.coerceAtLeast(0).toDouble()
-    var unit = 0
-    while (value >= 1000 && unit < units.lastIndex) {
-        value /= 1000
-        unit++
-    }
-    val text = if (value < 10 && unit > 0) {
-        val tenths = kotlin.math.round(value * 10).toLong()
-        if (tenths % 10 == 0L) "${tenths / 10}" else "${tenths / 10}.${tenths % 10}"
-    } else {
-        kotlin.math.round(value).toLong().toString()
-    }
-    return "$text ${units[unit]}"
 }

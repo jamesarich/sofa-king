@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.formatPlayTime
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -7,6 +9,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,8 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +29,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -48,18 +50,22 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.withStateAtLeast
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
@@ -72,7 +78,9 @@ import dev.jamesrich.sofaking.ui.KeepScreenOn
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
+import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.rememberSettled
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
@@ -118,7 +126,7 @@ fun VodPlayerScreen(
     val buffering = status.state == PlaybackState.BUFFERING
     var failure by remember { mutableStateOf<String?>(null) }
     var openRequest by remember { mutableIntStateOf(0) }
-    var positionMs by remember { mutableStateOf(0L) }
+    var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableStateOf<Long?>(null) }
     // The stream position to seek to once the item at a new URL is ready: a file played as it is starts at 0.
     var pendingSeek by remember { mutableStateOf<Long?>(null) }
@@ -137,7 +145,7 @@ fun VodPlayerScreen(
     var nextSecondsLeft by remember { mutableIntStateOf(UP_NEXT_SECONDS) }
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
     val scope = rememberCoroutineScope()
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycle = appLifecycleOwner.lifecycle
     val currentOnPosition by rememberUpdatedState(onPosition)
     val currentOnStopped by rememberUpdatedState(onStopped)
     val currentOnEnded by rememberUpdatedState(onEnded)
@@ -174,11 +182,14 @@ fun VodPlayerScreen(
         positionMs = targetMs
     }
 
-    DisposableEffect(player) {
-        val session = player.openMediaSession { step -> seekItem(positionMs + step * 30_000L) }
+    // Open only while the app is in front, as the app stops the player behind another app.
+    LifecycleStartEffect(player, lifecycleOwner = appLifecycleOwner) {
+        val session = player.openMediaSession { step ->
+            seekItem(positionMs + step * if (step < 0) VodScrub.BACK_STEP_MS else VodScrub.FORWARD_STEP_MS)
+        }
         mediaSession = session
         player.volume = 1f
-        onDispose {
+        onStopOrDispose {
             session.close()
             mediaSession = null
         }
@@ -223,13 +234,14 @@ fun VodPlayerScreen(
     }
     LaunchedEffect(status.state) {
         if (status.state == PlaybackState.READY || status.isPlaying) failure = null
-        if (status.state == PlaybackState.ENDED && !ended && stream != null) {
-            ended = true
-            val end = durationMs ?: positionMs
-            currentOnStopped(end, durationMs)
-            next = currentUpNext()
-            if (next == null) currentOnEnded()
-        }
+        if (status.state == PlaybackState.ENDED && stream != null) ended = true
+    }
+    // Its own effect, so the player's next state change (the app stopping it, say) cannot cancel the lookup.
+    LaunchedEffect(ended) {
+        if (!ended) return@LaunchedEffect
+        currentOnStopped(durationMs ?: positionMs, durationMs)
+        next = currentUpNext()
+        if (next == null) currentOnEnded()
     }
     // The Up next card counts down once a second and then plays what it names.
     LaunchedEffect(next) {
@@ -300,12 +312,12 @@ fun VodPlayerScreen(
     // The app stops the player and releases the session while another app is in front (see App); the screen
     // saves where it was and, back in front, reopens the item there, which the effect above loads and seeks.
     var backgrounded by remember { mutableStateOf(false) }
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP, appLifecycleOwner) {
         if (ended || stream == null) return@LifecycleEventEffect
         backgrounded = true
         currentOnStopped(positionMs, durationMs)
     }
-    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+    LifecycleEventEffect(Lifecycle.Event.ON_START, appLifecycleOwner) {
         if (!backgrounded) return@LifecycleEventEffect
         backgrounded = false
         scope.launch {
@@ -385,6 +397,12 @@ fun VodPlayerScreen(
         if (restream) reopenWithTracks()
     }
 
+    // The card stands in for the bar, which would otherwise run under it; the next key brings the bar back.
+    fun openTracks() {
+        tracksOpen = true
+        overlayVisible = false
+    }
+
     fun handleKeyEvent(event: KeyEvent): Boolean {
         // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
         if (tracksOpen) return false
@@ -416,7 +434,7 @@ fun VodPlayerScreen(
             VodAction.PAUSE -> if (player.playWhenReady) togglePause()
             VodAction.SHOW_INFO -> when {
                 // Down on the bar opens the Audio and subtitles card.
-                event.key == Key.DirectionDown && overlayVisible && tracks.pickable && failure == null -> tracksOpen = true
+                event.key == Key.DirectionDown && overlayVisible && tracks.pickable && failure == null -> openTracks()
                 overlayVisible && !paused && event.key == Key.Info -> overlayVisible = false
                 else -> showOverlay()
             }
@@ -437,9 +455,9 @@ fun VodPlayerScreen(
             onExit()
         }
     }
-    val positionText = formatPlayTime(scrubTarget ?: positionMs)
-    val durationText = durationMs?.let(::formatPlayTime)
-    val positionDescription = if (durationText != null) stringResource(Res.string.vod_position_description, positionText, durationText) else positionText
+    val density = LocalDensity.current
+    // The info bar's height as last drawn, so a subtitle sits just above it while it shows.
+    var barHeight by remember { mutableStateOf(0.dp) }
 
     Box(
         Modifier
@@ -468,22 +486,24 @@ fun VodPlayerScreen(
                 StatusPill(stringResource(Res.string.vod_subtitles_failed))
             }
         }
-        subtitles?.let { cues -> cues.textAt(positionMs)?.let { SubtitleText(it, raised = overlayVisible) } }
         failure?.let { FailureCard(it) }
         next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit) }
 
-        InfoBar((overlayVisible || failure != null) && next == null) {
+        val barVisible = (overlayVisible || failure != null) && next == null
+        InfoBar(barVisible) {
             Column(
                 Modifier
+                    .onSizeChanged { barHeight = with(density) { it.height.toDp() } }
                     .widthIn(max = 1200.dp)
                     .fillMaxWidth()
                     .background(SofaOverlayScrim, BarShape)
-                    .padding(24.dp)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
+                    .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Column(Modifier.weight(1f)) {
+                    // Announced as the bar comes up; the ticking times below are not, or a screen reader would read
+                    // every second of them.
+                    Column(Modifier.weight(1f).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }) {
                         Text(title.title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         title.subtitle?.let {
                             Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -492,40 +512,31 @@ fun VodPlayerScreen(
                     stream?.mode?.let { mode -> modeLabel(mode)?.let { Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                 }
                 VodSeekBar(
-                    positionMs = positionMs,
+                    positionMs = { positionMs },
                     durationMs = durationMs,
                     scrubMs = scrubTarget,
                     markers = title.markers,
                     onSeek = if (pointerDriven) { target -> seekItem(target); showOverlay() } else null,
                 )
-                Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = positionDescription }) {
-                    Text(positionText, style = MaterialTheme.typography.titleMedium, color = if (scrubTarget != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                    Spacer(Modifier.weight(1f))
-                    durationText?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                }
+                VodTimes(positionMs = { positionMs }, scrubMs = scrubTarget, durationMs = durationMs)
                 if (tracks.pickable && !pointerDriven) {
                     Text(stringResource(Res.string.vod_tracks_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (pointerDriven) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-                        ControlIcon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(Res.string.vod_control_back), { seekItem(positionMs - 10_000L); showOverlay() })
-                        if (failure != null) {
-                            ControlIcon(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), ::retry, primary = true)
-                        } else {
-                            ControlIcon(
-                                if (paused) Icons.Filled.PlayArrow else PlayerIcons.Pause,
-                                stringResource(if (paused) Res.string.player_control_play else Res.string.player_control_pause),
-                                ::togglePause,
-                                primary = true,
-                            )
-                        }
-                        ControlIcon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(Res.string.vod_control_forward), { seekItem(positionMs + 30_000L); showOverlay() })
+                        ControlIcon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(Res.string.vod_control_back), { seekItem(positionMs - VodScrub.BACK_STEP_MS); showOverlay() })
+                        PlayPauseControl(paused, failed = failure != null, onPlayPause = ::togglePause, onRetry = ::retry, primary = true)
+                        ControlIcon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(Res.string.vod_control_forward), { seekItem(positionMs + VodScrub.FORWARD_STEP_MS); showOverlay() })
                         if (tracks.pickable) {
-                            ControlIcon(PlayerIcons.ClosedCaption, stringResource(Res.string.vod_tracks_title), { tracksOpen = !tracksOpen })
+                            ControlIcon(SofaIcons.ClosedCaption, stringResource(Res.string.vod_tracks_title), { if (tracksOpen) tracksOpen = false else openTracks() })
                         }
                     }
                 }
             }
+        }
+        // Drawn over the bar and clear of its top edge; it waits while a card would cover it.
+        if (!tracksOpen && failure == null && next == null) {
+            subtitles?.let { cues -> VodSubtitle(cues, { positionMs }, bottom = if (barVisible) barHeight + SUBTITLE_GAP else SUBTITLE_GAP) }
         }
         if (tracksOpen) {
             TracksCard(tracks, audioTrack, subtitleTrack, onAudio = { pickAudio(it); focus.requestFocus() }, onSubtitle = { pickSubtitle(it); focus.requestFocus() })
@@ -533,9 +544,35 @@ fun VodPlayerScreen(
     }
 }
 
+// The position ticks four times a second, so it is passed as a lambda and read only by these small composables; the
+// screen itself recomposes only when something else changes.
+
+/** Where the item is, when it ends and how long it is, under the seek bar. */
+@Composable
+private fun VodTimes(positionMs: () -> Long, scrubMs: Long?, durationMs: Long?) {
+    val positionText = formatPlayTime(scrubMs ?: positionMs())
+    val durationText = durationMs?.let(::formatPlayTime)
+    val now by rememberMinuteNow()
+    val timeFormat = rememberTimeFormatter()
+    val endsText = vodEndsAt(now, scrubMs ?: positionMs(), durationMs)?.let { stringResource(Res.string.vod_ends_at, timeFormat.format(it)) }
+    val description = if (durationText != null) stringResource(Res.string.vod_position_description, positionText, durationText) else positionText
+    Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = description }) {
+        Text(positionText, style = MaterialTheme.typography.titleMedium, color = if (scrubMs != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+        Spacer(Modifier.weight(1f))
+        endsText?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Spacer(Modifier.weight(1f))
+        durationText?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    }
+}
+
+@Composable
+private fun BoxScope.VodSubtitle(cues: Subtitles, positionMs: () -> Long, bottom: Dp) {
+    cues.textAt(positionMs())?.let { SubtitleText(it, bottom = bottom) }
+}
+
 /** The bar under the title: what has played, the breaks, and where a scrub would land. [onSeek] takes a tap or click. */
 @Composable
-private fun VodSeekBar(positionMs: Long, durationMs: Long?, scrubMs: Long?, markers: List<VodMarker>, onSeek: ((Long) -> Unit)?) {
+private fun VodSeekBar(positionMs: () -> Long, durationMs: Long?, scrubMs: Long?, markers: List<VodMarker>, onSeek: ((Long) -> Unit)?) {
     val played = MaterialTheme.colorScheme.primary
     val marker = MaterialTheme.colorScheme.tertiary
     val cursor = MaterialTheme.colorScheme.onSurface
@@ -550,7 +587,7 @@ private fun VodSeekBar(positionMs: Long, durationMs: Long?, scrubMs: Long?, mark
         drawRoundRect(SofaOverlayTrack, Offset(0f, top), Size(size.width, barHeight), radius)
         if (length == null) return@Canvas
         fun x(ms: Long) = (ms.coerceIn(0, length).toFloat() / length) * size.width
-        drawRoundRect(played, Offset(0f, top), Size(x(positionMs), barHeight), radius)
+        drawRoundRect(played, Offset(0f, top), Size(x(positionMs()), barHeight), radius)
         markers.forEach { m ->
             drawRect(marker.copy(alpha = 0.8f), Offset(x(m.startMs), top), Size((x(m.endMs) - x(m.startMs)).coerceAtLeast(2f), barHeight))
         }
@@ -572,6 +609,7 @@ private fun modeLabel(mode: String): String? = when (mode) {
 
 private val UP_NEXT_PLAY_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)
 private val BarShape = RoundedCornerShape(8.dp)
+private val SUBTITLE_GAP = 24.dp
 private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 private val log = Logger.withTag("SofaKing")
 private const val TICK_MS = 250L

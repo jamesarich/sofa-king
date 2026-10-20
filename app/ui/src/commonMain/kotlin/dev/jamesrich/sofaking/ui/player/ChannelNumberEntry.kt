@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,6 +50,10 @@ internal class ChannelNumberInput {
     var miss: String? by mutableStateOf<String?>(null)
         private set
 
+    /** Counts misses, so the same number missed twice restarts the notice's timer. */
+    var misses: Int by mutableIntStateOf(0)
+        private set
+
     var onCommit: (ChannelNumberEntry) -> Unit = {}
 
     val hasDigits: Boolean get() = entry.digits.isNotEmpty()
@@ -70,6 +75,7 @@ internal class ChannelNumberInput {
 
     fun missed(digits: String) {
         miss = digits
+        misses++
     }
 
     fun clearMiss() {
@@ -86,7 +92,7 @@ internal fun rememberChannelNumberInput(): ChannelNumberInput {
         delay(DIGIT_COMMIT_MS)
         input.commit()
     }
-    LaunchedEffect(input.miss) {
+    LaunchedEffect(input.misses) {
         if (input.miss == null) return@LaunchedEffect
         delay(NUMBER_MISS_MS)
         input.clearMiss()

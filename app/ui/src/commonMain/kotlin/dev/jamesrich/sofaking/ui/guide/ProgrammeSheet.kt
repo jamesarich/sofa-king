@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -52,6 +51,7 @@ import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
+import dev.jamesrich.sofaking.ui.WholeLinesText
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.ProgrammeBadges
 import dev.jamesrich.sofaking.ui.episodeLine
@@ -62,6 +62,7 @@ import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
@@ -84,7 +85,6 @@ private val SHEET_TEXT_MAX_HEIGHT = 360.dp
  * programme is set (null on a server that does not record): a side panel over the guide on a TV, where a window of
  * its own would not take D-pad focus, and a Material bottom sheet elsewhere. Back and Close dismiss it.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ProgrammeSheet(
     details: ProgrammeDetails,
@@ -145,8 +145,8 @@ internal fun ProgrammeSheet(
 }
 
 /**
- * The TV panel: the image beside the heading, the description in the height left, ellipsized because the D-pad
- * cannot scroll text, and the buttons at the bottom.
+ * The TV panel: the image beside the heading, the description in as many whole lines as the height left holds,
+ * ellipsized because the D-pad cannot scroll text, and the buttons at the bottom.
  */
 @Composable
 private fun PanelContent(details: ProgrammeDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
@@ -156,9 +156,7 @@ private fun PanelContent(details: ProgrammeDetails, now: Instant, guideLoading: 
             Heading(details, now, guideLoading, Modifier.weight(1f))
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            details.programme?.description?.let {
-                Text(it, style = MaterialTheme.typography.bodyLarge, overflow = TextOverflow.Ellipsis)
-            }
+            details.programme?.description?.let { WholeLinesText(it, MaterialTheme.typography.bodyMedium, Modifier.fillMaxSize()) }
         }
         buttons()
     }
@@ -204,18 +202,18 @@ private fun Heading(details: ProgrammeDetails, now: Instant, guideLoading: Boole
             programme.episodeLine()?.let {
                 Text(it, style = MaterialTheme.typography.bodyLarge, color = secondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            Text(
-                listOfNotNull(timeFormat.range(programme.start, programme.stop), programmeTimingText(programme, now)).joinToString(DETAIL_SEPARATOR),
-                style = MaterialTheme.typography.bodyMedium,
-                color = secondary,
-            )
-            ProgrammeBadges(
-                programme = programme,
-                live = isAiring(programme, now),
-                fill = MaterialTheme.colorScheme.primary,
-                onFill = MaterialTheme.colorScheme.onPrimary,
-                outline = secondary,
-            )
+            // The badges ride on the time range and the time left has its own line, so neither wraps mid-phrase.
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(timeFormat.range(programme.start, programme.stop), style = MaterialTheme.typography.bodyMedium, color = secondary)
+                ProgrammeBadges(
+                    programme = programme,
+                    live = isAiring(programme, now),
+                    fill = MaterialTheme.colorScheme.primary,
+                    onFill = MaterialTheme.colorScheme.onPrimary,
+                    outline = secondary,
+                )
+            }
+            Text(programmeTimingText(programme, now), style = MaterialTheme.typography.bodyMedium, color = secondary)
         }
         Text(details.channel.label(), style = MaterialTheme.typography.bodyMedium, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

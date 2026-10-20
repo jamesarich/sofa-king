@@ -156,7 +156,7 @@ class RenderSmokeTest {
                 startAtNow = false,
                 startSearch = false,
                 returnedFrom = null,
-                onPlay = { _, _ -> },
+                onPlay = { _, _, _ -> },
                 onToggleFavorite = {},
                 onFilterChanged = {},
                 onLoadGuideWindow = {},
@@ -202,6 +202,8 @@ class RenderSmokeTest {
                 onSave = { _, _ -> },
                 onBack = {},
                 channelCount = channels.size,
+                libraryOffered = true,
+                recordingsOffered = true,
             )
         }
         assertTrue(image.hasContent())

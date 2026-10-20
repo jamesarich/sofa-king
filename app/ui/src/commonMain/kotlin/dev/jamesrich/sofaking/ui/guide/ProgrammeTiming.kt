@@ -27,14 +27,3 @@ private fun wholeMinutesUp(duration: Duration): Duration {
     val seconds = duration.inWholeSeconds
     return ((seconds + 59) / 60).minutes
 }
-
-/** A duration as "2 h 5 min", "45 min" or "1 h", for the sheet. */
-internal fun Duration.hoursAndMinutes(): String {
-    val hours = inWholeHours
-    val minutes = (inWholeMinutes - hours * 60).toInt()
-    return when {
-        hours > 0 && minutes > 0 -> "$hours h $minutes min"
-        hours > 0 -> "$hours h"
-        else -> "$minutes min"
-    }
-}

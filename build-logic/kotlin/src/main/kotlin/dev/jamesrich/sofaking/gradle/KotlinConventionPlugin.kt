@@ -20,10 +20,12 @@ import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsEnvSpec
 import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsPlugin
 import org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnPlugin
 import org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnRootEnvSpec
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 
 /**
  * What every project in the three builds shares: the JDK 21 toolchain for Kotlin and the web toolchains (Node, Yarn,
- * Binaryen) resolved through the repositories in `gradle/repositories.settings.gradle.kts`.
+ * Binaryen) resolved through the repositories in `gradle/repositories.settings.gradle.kts`, and, where a build sets
+ * `sofaking.warningsAsErrors=true` in its `gradle.properties`, compiler warnings that fail the build.
  * Apply it to each project, the root of a multi-project build included, since the Kotlin plugin adds the web
  * toolchain plugins to the root as well as to each web module.
  */
@@ -32,6 +34,13 @@ class KotlinConventionPlugin : Plugin<Project> {
     override fun apply(project: Project) = with(project) {
         plugins.withType(KotlinBasePlugin::class.java) {
             extensions.getByType(KotlinBaseExtension::class.java).jvmToolchain(JDK)
+        }
+
+        // Compiles only: Kotlin/Native's link tasks warn about the runner's processor count, which no source can fix.
+        // A gradle.properties value, not a CI flag, so local and CI compiles share remote-cache keys.
+        val warningsAsErrors = providers.gradleProperty("sofaking.warningsAsErrors").map(String::toBoolean).orElse(false)
+        tasks.withType(KotlinCompilationTask::class.java).configureEach {
+            it.compilerOptions.allWarningsAsErrors.set(warningsAsErrors)
         }
 
         // The JS and Wasm npm installs each run Yarn and store a lock file; run together under the configuration cache

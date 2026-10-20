@@ -94,7 +94,8 @@
         "properties": {
           "id": { "type": "string" }, "channelId": { "type": "string" }, "startsAt": { "type": "string", "format": "date-time" }, "endsAt": { "type": "string", "format": "date-time" },
           "title": { "type": "string" }, "description": { "type": ["string", "null"] }, "subTitle": { "type": ["string", "null"] }, "episode": { "type": ["string", "null"] },
-          "isNew": { "type": "boolean" }, "rating": { "type": ["string", "null"] }, "icon": { "type": ["string", "null"] }
+          "isNew": { "type": "boolean" }, "rating": { "type": ["string", "null"] }, "icon": { "type": ["string", "null"] },
+          "categories": { "type": "array", "items": { "type": "string" } }
         }
       },
       "OpenPlayback": {
@@ -703,7 +704,7 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryHome" } } } } } }
     },
     "/api/v1/library/search": {
-      "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "At most 50.", "security": [{ "apiToken": [] }],
+      "get": { "tags": ["Library"], "summary": "Titles holding q: movies, shows and videos, then episodes", "description": "Movies, shows and videos whose title holds q, then those with a cast member or director whose name holds it, then episodes by title. At most 50.", "security": [{ "apiToken": [] }],
         "parameters": [{ "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 100 } }],
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryPage" } } } }, "400": { "$ref": "#/components/responses/Error" } } }
     },

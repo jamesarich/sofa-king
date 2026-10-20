@@ -24,8 +24,8 @@ The scan reads the same names Plex, Jellyfin and Kodi read, so a collection alre
 
 | Library | Layout |
 | --- | --- |
-| Movies | `Title (Year)/Title (Year).mkv`, or a loose `Title (Year).mkv`. Tags after the year are ignored: `Alien (1979) [1080p]`, `Alien (1979) {tmdb-348}`, and dotted release names such as `Alien.1979.1080p.BluRay.mkv` |
-| TV shows | `Show (Year)/Season 01/Show - S01E02 - Title.mkv`. `S01E02E03` and `1x02` work too, `Specials` (or `Season 00`) is season 0, and a date-based show reads `Show/Season 2026/Show - 2026-10-17 - Title.ts` |
+| Movies | `Title (Year)/Title (Year).mkv`, or a loose `Title (Year).mkv`. Tags after the year are ignored: `Alien (1979) [1080p]`, `Alien (1979) {tmdb-348}`, and dotted release names such as `Alien.1979.1080p.BluRay.mkv`. A collection's order number before the title, `01 - Alien (1979)` or `3 - Alien (1979)`, is dropped too |
+| TV shows | `Show (Year)/Season 01/Show - S01E02 - Title.mkv`. `S01E02E03` and `1x02` work too, `Specials` (or `Season 00`) is season 0, and a date-based show reads `Show/Season 2026/Show - 2026-10-17 - Title.ts`. The quality and release group Sonarr appends are dropped from the title: `Title [WEBDL-1080p][x264]-GROUP` and `Title WEBDL-1080p` read as Title |
 | Other videos | Any layout; each file is one video titled by its name |
 
 Each show is one top folder of a TV library. An episode's season comes from its `.nfo`, then its season folder, then its file name, then its air date's year.

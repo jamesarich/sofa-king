@@ -1,9 +1,25 @@
 package dev.jamesrich.sofaking.ui
 
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import coil3.ImageLoader
 import coil3.PlatformContext
+import coil3.compose.AsyncImage
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import dev.jamesrich.sofaking.data.mediaHttpClient
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 
 /**
  * Coil's loader for channel logos and program images, over the API's connection pool. Coil's own memory cache,
@@ -14,3 +30,30 @@ internal fun sofaKingImageLoader(context: PlatformContext): ImageLoader =
     ImageLoader.Builder(context)
         .components { add(KtorNetworkFetcherFactory(httpClient = { mediaHttpClient })) }
         .build()
+
+/**
+ * The picture filling its card. Under it, and alone while it loads or when it fails, [label] stands in its place,
+ * or the library mark when the card's own caption already names the item.
+ */
+@Composable
+internal fun BoxScope.Artwork(url: String?, label: String?) {
+    if (label == null) {
+        Icon(
+            SofaIcons.VideoLibrary,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.align(Alignment.Center).size(48.dp),
+        )
+    } else {
+        Text(
+            label,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.Center).padding(12.dp),
+        )
+    }
+    if (url != null) AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+}

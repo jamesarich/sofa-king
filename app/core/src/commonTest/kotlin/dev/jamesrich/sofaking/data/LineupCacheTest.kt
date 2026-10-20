@@ -63,6 +63,7 @@ class LineupCacheTest {
             isNew = true,
             rating = "TV-PG",
             icon = "https://img.example/show.jpg",
+            kinds = setOf(ProgramKind.MOVIE, ProgramKind.KIDS),
         )
         val lineup = Lineup(
             channels = listOf(channelOne.copy(guideStatus = GuideStatus.STALE), channelThree),

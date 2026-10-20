@@ -6,6 +6,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.ClientInfo
+import dev.jamesrich.sofaking.data.JmdnsServerDiscovery
 import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
@@ -19,7 +20,7 @@ import java.awt.Dimension
 
 /** Sofa King on Linux, macOS and Windows desktops; a keyboard's arrows, Enter and Escape stand in for the remote. */
 fun main() {
-    initSofaKing(AppStorage.inDirectory(desktopDataDirectory().absolutePath, ClientInfo("desktop", hostName())))
+    initSofaKing(AppStorage.inDirectory(desktopDataDirectory().absolutePath, ClientInfo("desktop", hostName())), JmdnsServerDiscovery())
     application {
         Window(
             onCloseRequest = ::exitApplication,

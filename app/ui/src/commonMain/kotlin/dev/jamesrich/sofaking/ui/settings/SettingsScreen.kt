@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jamesrich.sofaking.BuildInfo
 import dev.jamesrich.sofaking.PairingFailure
 import dev.jamesrich.sofaking.data.AppSettings
@@ -49,6 +50,7 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.DecoderPreference
+import dev.jamesrich.sofaking.data.DiscoveredServer
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.StartupTarget
@@ -68,6 +70,8 @@ import dev.jamesrich.sofaking.ui.supportsCaptionSync
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.updateDownloadUrl
 import dev.jamesrich.sofaking.ui.theme.SofaButton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -128,6 +132,8 @@ fun SettingsScreen(
     update: UpdateState? = null,
     /** The page behind Settings the viewer just came back from ([CHANNELS_FOCUS_KEY], [STARTUP_FOCUS_KEY]); its button takes focus. */
     returnedFrom: String? = null,
+    /** The servers on the network, collected (and so browsed for) only while the server fields are open. */
+    discoveredServers: Flow<List<DiscoveredServer>> = noServers,
 ) {
     var captionAdvance by remember(settings.captionAdvanceMs) { mutableIntStateOf(settings.captionAdvanceMs) }
     var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
@@ -164,6 +170,7 @@ fun SettingsScreen(
     var changingServer by remember { mutableStateOf(settings.serverUrl.isEmpty()) }
     val serverOpen = changingServer || pairing.failure != null
     val unconfigured = remember { settings.serverUrl.isEmpty() }
+    val found by remember(serverOpen) { if (serverOpen) discoveredServers else noServers }.collectAsStateWithLifecycle(emptyList())
     val backFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val firstFocus = if (showsBackButton()) backFocus else contentFocus
@@ -196,6 +203,22 @@ fun SettingsScreen(
                 }
             }
         } else {
+            // Picking a server found on the network fills the address; the pairing code is next.
+            if (found.isNotEmpty()) {
+                item {
+                    Column(Modifier.width(FIELD_WIDTH).focusGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        HelpText(stringResource(Res.string.settings_discovered_servers))
+                        found.forEach { server ->
+                            SofaButton(onClick = {
+                                serverUrl.setTextAndPlaceCursorAtEnd(server.url)
+                                codeFocus.requestFocus()
+                            }) {
+                                Text(stringResource(Res.string.settings_discovered_server, server.name, server.url.substringAfter("://")))
+                            }
+                        }
+                    }
+                }
+            }
             item {
                 SettingField(
                     label = stringResource(Res.string.settings_server_url),
@@ -581,6 +604,8 @@ fun SettingsScreen(
     }
     }
 }
+
+private val noServers: Flow<List<DiscoveredServer>> = flowOf(emptyList())
 
 /** Save & reload is on only for a valid address and token that differ from what is stored, since saving the same server reloads for nothing. */
 internal fun canSaveServer(stored: AppSettings, url: String?, token: String?): Boolean =

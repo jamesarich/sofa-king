@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend
 
 import dev.jamesrich.sofaking.backend.admin.PlexStatusSource
+import dev.jamesrich.sofaking.backend.discovery.MdnsAdvertiser
 import dev.jamesrich.sofaking.backend.http.backendModule
 import dev.jamesrich.sofaking.backend.store.openStore
 import io.ktor.server.application.ApplicationStopped
@@ -25,9 +26,11 @@ fun main(): Unit = runBlocking<Unit> {
         }
     val ports = listOf(config.port) + if (config.hdhr.enabled) config.hdhr.extraPorts else emptyList()
     val plexStatus = runtime.plex?.let { sync -> PlexStatusSource { sync.status() } }
+    val mdns = if (config.mdns) MdnsAdvertiser(config.hdhr.friendlyName, config.port, config.version) else null
     // Both Ktor's shutdown hook and main's finally close; whichever comes second waits for the first to finish,
     // so the hook cannot return (and the JVM halt) while main is still closing the store.
     val closing = lazy {
+        mdns?.close()
         runBlocking { runtime.close() }
         log.info("shutdown: runtime closed")
         store.close()
@@ -43,6 +46,8 @@ fun main(): Unit = runBlocking<Unit> {
             close()
         }
     }
+    // JmDNS probes for its names before it answers, so it starts beside the server instead of delaying it.
+    if (mdns != null) Thread.ofPlatform().daemon().name("mdns-start").start { mdns.start() }
     try {
         server.start(wait = true)
     } finally {

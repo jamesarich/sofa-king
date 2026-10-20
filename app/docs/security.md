@@ -8,6 +8,10 @@ The server address and API token are saved with the other settings: in DataStore
 
 The token is sent only in the `Authorization` header of requests to the server's `/api/v1` API. Pairing with a code sends the code, the app's client id, platform and device name to `/api/v1/pair` without a token, and the server answers with the API token, which the app then saves like one typed in. With a paired or configured server, the app also keeps its hidden channels, favorites and recent channels on the server under that client id, so the server's admin can see and forget them. Media requests under `/media`, including library and recording playback under `/media/vod`, carry no token, and nor do logos and library artwork under `/logos` and `/artwork`, which image loaders fetch without one. The update check in Settings asks GitHub's public releases API for the `snapshot` release, with no token or client id. The app does not log the token, and Settings shows only its last four characters while the field is not being edited.
 
+## Local network
+
+The server is on the local network, which Android 17 opens to an app only with the `ACCESS_LOCAL_NETWORK` permission, part of Nearby devices. The Android app declares it and asks for it at its first start on Android 17; denied, it cannot reach or find the server until the permission is allowed in the system's app settings. Apple TV and iOS ask for local network access the first time the app reaches the server. Settings browses for servers over mDNS (`_sofaking._tcp`) only while its server fields are open.
+
 ## Cleartext HTTP
 
 The app allows cleartext HTTP (`network_security_config.xml` on Android, `NSAllowsArbitraryLoads` on iOS and Apple TV) so it can reach a Sofa King server on your LAN, which serves plain HTTP. A web app served over HTTPS cannot call a plain-HTTP server; browsers block the mixed content. Traffic to that server, including the token and the streams, is readable by anyone who can observe the network path.

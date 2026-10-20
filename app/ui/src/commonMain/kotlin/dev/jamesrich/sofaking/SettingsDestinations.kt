@@ -47,6 +47,7 @@ internal fun SettingsDestination(
             SettingsScreen(
                 settings = s,
                 onSave = { url, token -> vm.saveServer(url, token); shell.startOver() },
+                discoveredServers = vm.discoveredServers,
                 onBack = shell::leaveSettings,
                 channelCount = lineup?.channels?.size ?: 0,
                 channels = lineup?.channels.orEmpty(),

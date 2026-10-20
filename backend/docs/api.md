@@ -389,9 +389,23 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | GET | `/admin/system/snapshot.json` | The support snapshot as a JSON download |
 | GET | `/admin/api`, `/admin/api/openapi.json` | The API reference, and the OpenAPI 3.1 document it is rendered from |
 
+## Discovery
+
+Off loopback, unless `SOFA_MDNS=false`, the server advertises itself over mDNS (DNS-SD) on the LAN, so clients find it without an address:
+
+| Record | Value |
+| --- | --- |
+| Service type | `_sofaking._tcp` (`Wire.Discovery.SERVICE_TYPE`) |
+| Instance name | `SOFA_HDHR_NAME`, `Sofa King` by default; a name another server already holds gets a number added |
+| Host | `sofa-king.local` on each advertised address, with a number added when another device holds the name |
+| Port | `SOFA_PORT`, where every route above answers |
+| TXT `version` | The server's product version, `SOFA_VERSION`, or `unknown` outside the image |
+
+A client builds the server address as `http://HOST:PORT` from the resolved address and port. The advertisement says nothing about tokens: a client still [pairs](#pair-a-client) or takes the API token. The server withdraws it when it stops.
+
 ## Shared types
 
-The live TV, recording and library requests and responses above (`/api/v1/bootstrap`, `/api/v1/channels`, `/api/v1/guide/query`, `/api/v1/playback-sessions`, `/api/v1/recordings`, `/api/v1/recording-rules`, `/api/v1/libraries`, `/api/v1/library`, `/api/v1/vod-sessions`) and the error body are Kotlin types in the [contract](../../contract/README.md) build, which the server and the Sofa King app both compile against. `Wire` in the same package names the intents, guide statuses, error codes, guide limits and library item kinds clients act on.
+The live TV, recording and library requests and responses above (`/api/v1/bootstrap`, `/api/v1/channels`, `/api/v1/guide/query`, `/api/v1/playback-sessions`, `/api/v1/recordings`, `/api/v1/recording-rules`, `/api/v1/libraries`, `/api/v1/library`, `/api/v1/vod-sessions`) and the error body are Kotlin types in the [contract](../../contract/README.md) build, which the server and the Sofa King app both compile against. `Wire` in the same package names the intents, guide statuses, error codes, guide limits, library item kinds and the discovery service type clients act on.
 
 The server keeps clients older and newer than itself working: a response keeps every field of the frozen fixtures in `contract/src/jvmTest/resources/wire`, a field no client reads has a default, and the guide query and playback session requests ignore fields the server does not know. Admin requests reject unknown fields.
 

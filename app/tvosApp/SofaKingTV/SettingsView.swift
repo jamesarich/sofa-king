@@ -12,9 +12,18 @@ struct SettingsView: View {
     @State private var pairingError: String?
     // tvOS calls onAppear again when the full-screen keyboard closes, which would put back the saved values.
     @State private var filled = false
+    @State private var browser = ServerBrowser()
 
     var body: some View {
         Form {
+            // Choosing a server found on the network fills the address; pair with a code below.
+            if !browser.servers.isEmpty {
+                Section("Servers on this network") {
+                    ForEach(browser.servers) { server in
+                        Button("\(server.name) at \(server.url.replacingOccurrences(of: "http://", with: ""))") { url = server.url }
+                    }
+                }
+            }
             Section("Server") {
                 TextField("Server address", text: $url)
                     .textContentType(.URL)
@@ -52,6 +61,8 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .onAppear { browser.start() }
+        .onDisappear { browser.stop() }
         .onAppear {
             guard !filled else { return }
             filled = true

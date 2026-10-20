@@ -4,7 +4,7 @@ This page covers the server's intended deployment, which credential opens which 
 
 ## Intended deployment
 
-The server is designed for a private network. It has no accounts, no per-user access control and no TLS. It binds to loopback by default. On a non-loopback bind, such as the Docker image's, it always has an API token and an admin token: an unset one is generated at the first start, as the next section describes. Keep it on the LAN and do not forward its port to the internet. Put it behind a VPN or a TLS-terminating reverse proxy if it must be reached from outside.
+The server is designed for a private network. It has no accounts, no per-user access control and no TLS. It binds to loopback by default. On a non-loopback bind, such as the Docker image's, it always has an API token and an admin token: an unset one is generated at the first start, as the next section describes. Off loopback it advertises its name, address, port and version on the LAN over mDNS; `SOFA_MDNS=false` stops that. Keep it on the LAN and do not forward its port to the internet. Put it behind a VPN or a TLS-terminating reverse proxy if it must be reached from outside.
 
 ## Credentials and the routes they open
 

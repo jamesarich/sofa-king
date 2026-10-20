@@ -395,6 +395,7 @@
       "UpdateHdhrAccess": {
         "type": "object", "properties": { "allowed": { "type": "array", "maxItems": 64, "items": { "type": "string", "description": "An IP literal or CIDR block" } } }, "required": ["allowed"]
       },
+      "SaveTmdbToken": { "type": "object", "description": "A TMDB API read access token or v3 API key.", "properties": { "token": { "type": "string", "minLength": 32 } }, "required": ["token"] },
       "Discover": {
         "type": "object",
         "properties": {
@@ -867,6 +868,11 @@
         "parameters": [{ "name": "starterPolicy", "in": "query", "required": false, "description": "true also writes the starter policy", "schema": { "type": "boolean" } }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SourceDocument" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } }
+    },
+    "/api/v1/admin/tmdb-token": {
+      "put": { "tags": ["Admin"], "summary": "Save the TMDB token and restart", "description": "Asks TMDB whether it takes the token, stores it as tmdbToken in secrets.json in the data directory and ends the process once the response is sent. 400 INVALID_REQUEST for a value that cannot be a token, 400 TMDB_REJECTED when TMDB refuses it, 502 TMDB_UNREACHABLE when TMDB cannot be asked, 409 TMDB_FROM_ENVIRONMENT when SOFA_TMDB_TOKEN sets it, 500 SECRETS_UNWRITABLE when secrets.json cannot be read or written; nothing is written then. SOFA_TMDB_TOKEN wins over the saved token.", "security": [{ "adminToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveTmdbToken" } } } },
+        "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResult" } } } }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "500": { "$ref": "#/components/responses/Error" }, "502": { "$ref": "#/components/responses/Error" } } }
     },
     "/api/v1/admin/plex": {
       "get": { "tags": ["Plex"], "summary": "The last Plex sync", "description": "404 PLEX_NOT_CONFIGURED when SOFA_PLEX_URL is unset.", "security": [{ "adminToken": [] }],

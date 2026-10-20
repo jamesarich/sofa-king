@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.backend.setup
 
+import dev.jamesrich.sofaking.backend.SecretOrigin
+import dev.jamesrich.sofaking.backend.SecretsFile
 import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.api.CandidateFilter
 import dev.jamesrich.sofaking.backend.api.LineupPolicy
@@ -16,6 +18,8 @@ import dev.jamesrich.sofaking.backend.catalog.sourceBytes
 import dev.jamesrich.sofaking.backend.catalog.validatePolicy
 import dev.jamesrich.sofaking.backend.catalog.validateSources
 import dev.jamesrich.sofaking.backend.io.atomicWrite
+import dev.jamesrich.sofaking.backend.library.TmdbConfig
+import dev.jamesrich.sofaking.backend.library.TmdbFailure
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicBoolean
@@ -39,7 +43,13 @@ import org.slf4j.LoggerFactory
  * directory. Every write is validated the way the start validates it, so a restart never fails on what was written.
  * [restart] ends the process after the response is sent; the container's restart policy brings it back.
  */
-class SetupService(config: ServerConfig, private val restart: () -> Unit = ::exitForRestart, private val environment: Map<String, String> = System.getenv()) {
+class SetupService(
+    config: ServerConfig,
+    private val restart: () -> Unit = ::exitForRestart,
+    private val environment: Map<String, String> = System.getenv(),
+    /** Asks TMDB whether it takes a token, failing with [TmdbFailure]; the runtime passes a [dev.jamesrich.sofaking.backend.library.TmdbClient] check. */
+    private val checkTmdb: suspend (TmdbConfig) -> Unit = {},
+) {
     private val log = LoggerFactory.getLogger(SetupService::class.java)
     private val mutex = Mutex()
     private val restarting = AtomicBoolean(false)
@@ -55,6 +65,14 @@ class SetupService(config: ServerConfig, private val restart: () -> Unit = ::exi
 
     /** Whether a starter policy may be written: the server runs no policy and there is no policy file yet. */
     val canWriteStarterPolicy: Boolean get() = !hasPolicy && !Files.exists(policyPath)
+
+    /** Where the portal saves the TMDB token: `secrets.json` in the data directory. */
+    val secretsPath: Path = config.dataDirectory.resolve(SecretsFile.NAME)
+
+    /** Whether the environment sets the TMDB token, which then cannot be saved from here. */
+    val tmdbFromEnvironment: Boolean = config.secretOrigins["SOFA_TMDB_TOKEN"].let { it == SecretOrigin.ENVIRONMENT || it == SecretOrigin.FILE }
+
+    private val tmdbLanguage = config.tmdb?.language ?: "en-US"
 
     /** Whether a restart has been requested and the process is about to end. */
     val isRestarting: Boolean get() = restarting.get()
@@ -99,6 +117,32 @@ class SetupService(config: ServerConfig, private val restart: () -> Unit = ::exi
         writeStarter(providers)
         requestRestart()
         SetupResult(policyPath.toString(), true)
+    }
+
+    /**
+     * Checks [token] with TMDB, stores it in [secretsPath] and restarts, so the libraries read details and artwork from
+     * TMDB. Fails with 400 INVALID_REQUEST when it cannot be a token, 400 TMDB_REJECTED when TMDB refuses it, 502
+     * TMDB_UNREACHABLE when TMDB cannot be asked and 409 TMDB_FROM_ENVIRONMENT when the environment sets it; nothing is
+     * written then. The token never reaches a log or an error message.
+     */
+    suspend fun saveTmdbToken(token: String): SetupResult = mutex.withLock {
+        if (tmdbFromEnvironment) throw ApiFailure(409, "TMDB_FROM_ENVIRONMENT", "SOFA_TMDB_TOKEN is set in the environment; change it there")
+        val trimmed = token.trim()
+        if (trimmed.length < 32 || trimmed.any { it <= ' ' || it == '\u007f' }) {
+            throw ApiFailure(400, "INVALID_REQUEST", "A TMDB API read access token or API key has at least 32 characters and no spaces")
+        }
+        try { checkTmdb(TmdbConfig(trimmed, tmdbLanguage)) } catch (e: TmdbFailure) {
+            if (e.code == "TMDB_AUTH") throw ApiFailure(400, "TMDB_REJECTED", "TMDB did not accept the token")
+            throw ApiFailure(502, "TMDB_UNREACHABLE", "TMDB could not be asked (${e.code}); try again")
+        }
+        try {
+            withContext(Dispatchers.IO) { SecretsFile(secretsPath).store(SecretsFile.TMDB_TOKEN, trimmed) }
+        } catch (e: IllegalArgumentException) {
+            throw ApiFailure(500, "SECRETS_UNWRITABLE", e.message ?: "$secretsPath cannot be written")
+        }
+        log.info("setup: saved the TMDB token in {}", secretsPath)
+        requestRestart()
+        SetupResult(secretsPath.toString(), true)
     }
 
     private suspend fun writeStarter(providers: List<FeedConfig>) {

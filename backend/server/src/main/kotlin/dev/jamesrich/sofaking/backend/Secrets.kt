@@ -14,7 +14,11 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 
 /** Where a token the server runs with came from. */
-enum class SecretOrigin { ENVIRONMENT, FILE, GENERATED }
+enum class SecretOrigin {
+    ENVIRONMENT, FILE, GENERATED,
+    /** Saved from the admin portal or the admin API into `secrets.json`. */
+    SAVED,
+}
 
 /** The secrets that `NAME_FILE` can supply instead of `NAME`. */
 internal val FILE_SECRETS = listOf("SOFA_API_TOKEN", "SOFA_ADMIN_TOKEN", "SOFA_OUTPUT_TOKEN", "SOFA_PLEX_TOKEN", "SOFA_TMDB_TOKEN")
@@ -59,6 +63,12 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
         return names.associateWith { stored.getValue(it) } to generated
     }
 
+    /** The stored value of [name]; null when the file or the entry is missing. */
+    fun stored(name: String): String? = read()[name]
+
+    /** Stores [value] as [name], keeping the other entries. */
+    fun store(name: String, value: String) = write(read() + (name to value))
+
     private fun read(): Map<String, String> {
         if (!Files.exists(path)) return emptyMap()
         val text =
@@ -85,5 +95,8 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
 
     companion object {
         const val NAME = "secrets.json"
+
+        /** The TMDB token the portal saved; `SOFA_TMDB_TOKEN` wins over it. */
+        const val TMDB_TOKEN = "tmdbToken"
     }
 }

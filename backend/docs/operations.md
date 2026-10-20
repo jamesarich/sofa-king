@@ -15,7 +15,7 @@ The config folder holds everything the server keeps across restarts:
 | `dvr/` | Comskip's working files while it scans a recording |
 | `recordings/` | The recordings, when `SOFA_RECORDINGS_DIR` is unset. Compose mounts its own `deploy/recordings` folder instead, as [the recordings folder](deploy.md#the-recordings-folder) describes |
 | `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand. The updater's fallback backups and its `failed-image` record are in `backups/` in the Compose directory instead |
-| `secrets.json` | The generated API, admin and output tokens |
+| `secrets.json` | The generated API, admin and output tokens, and the TMDB token the Library page saved |
 | `sources.json`, `policy.json` | The source file and the lineup policy, when they are kept here |
 
 Playback sessions, library playback sessions, the live pairing code and resolved native stream URLs are held in memory. A restart ends active playback, and clients open new sessions. A recording running at the restart resumes into the same file.

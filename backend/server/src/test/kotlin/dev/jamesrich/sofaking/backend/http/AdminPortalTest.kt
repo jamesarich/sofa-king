@@ -276,6 +276,18 @@ class AdminPortalTest {
         }
     }
 
+    @Test fun `the Library page takes a TMDB token and refuses one that cannot be a token before asking TMDB`() = testApplication {
+        portal {
+            browser.signIn()
+            val page = browser.get("/admin/library").bodyAsText()
+            assertTrue(page.contains("action=\"/admin/library/tmdb\"") && page.contains("TMDB API read access token"))
+            val refused = browser.post("/admin/library/tmdb", "csrf" to field(page, "csrf"), "token" to "short")
+            assertEquals(HttpStatusCode.BadRequest, refused.status)
+            assertTrue(refused.bodyAsText().contains("Not saved: A TMDB API read access token or API key has at least 32 characters"))
+            assertFalse(Files.exists(dataDirectory.resolve("secrets.json")))
+        }
+    }
+
     @Test fun `the overview lists what needs attention and links to the fix`() = testApplication {
         portal(basePolicy, guides = { listOf(it.brokenGuide) }) {
             runtime.policy!!.apply("test")

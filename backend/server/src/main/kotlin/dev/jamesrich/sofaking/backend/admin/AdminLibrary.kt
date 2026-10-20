@@ -21,8 +21,12 @@ internal class LibraryView(
     val proposed: Map<String, String>? = null,
     /** The library whose Remove asks for confirmation. */
     val removing: LibraryRecord? = null,
-    /** Whether TMDB lookups are on (`SOFA_TMDB_TOKEN` is set). */
+    /** Whether TMDB lookups are on (`SOFA_TMDB_TOKEN` is set, or a token was saved here). */
     val tmdb: Boolean = false,
+    /** Whether the page may save a TMDB token: setup is available and the environment does not set one. */
+    val tmdbSettable: Boolean = false,
+    /** Why the last token was not saved. */
+    val tmdbError: String? = null,
 )
 
 /** What a library holds, in words: "120 movies", "14 shows, 612 episodes". */
@@ -104,7 +108,18 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
         if (view.tmdb) {
             p("mt-0") { +"Movies and shows get their titles, plots, genres, ratings, cast, posters and backdrops from TMDB after each scan; episodes get their names, plots and stills. A .nfo file beside a video, or local artwork, wins over TMDB. A {tmdb-123} tag in a folder name pins the match." }
         } else {
-            p("mt-0") { +"Details come from file names, .nfo files and local artwork only. Set SOFA_TMDB_TOKEN to a TMDB API read access token (free from themoviedb.org) and restart to fill in plots, ratings, cast, posters and backdrops." }
+            p("mt-0") { +"Details come from file names, .nfo files and local artwork only. Add a TMDB API read access token to fill in plots, ratings, cast, posters and backdrops: it is free from themoviedb.org, under Settings, then API." }
+        }
+        if (view.tmdbSettable) {
+            notice(view.tmdbError?.let { "Not saved: $it" })
+            postForm("/admin/library/tmdb", chrome.session, classes = "stack mt-12") {
+                div("field") {
+                    label { htmlFor = "tmdb-token"; +(if (view.tmdb) "Replace the TMDB token" else "TMDB API read access token") }
+                    passwordInput(name = "token") { id = "tmdb-token"; required = true; attributes["autocomplete"] = "off"; attributes["spellcheck"] = "false" }
+                }
+                div { button(type = ButtonType.submit, classes = if (view.tmdb) null else "primary") { +"Check and save" } }
+            }
+            p("muted small") { +"The server asks TMDB whether it takes the token, keeps it in secrets.json beside the generated tokens, and restarts." }
         }
         p("muted small") { +TMDB_NOTICE }
     }

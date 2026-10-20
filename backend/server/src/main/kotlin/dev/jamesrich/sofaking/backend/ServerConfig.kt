@@ -191,8 +191,17 @@ data class ServerConfig(
                     else log("secrets: SOFA_OUTPUT_TOKEN from ${file.path}")
                 }
             }
+            var tmdb = base.tmdb
+            if (tmdb == null) {
+                val file = SecretsFile(directory.resolve(SecretsFile.NAME))
+                file.stored(SecretsFile.TMDB_TOKEN)?.let { token ->
+                    tmdb = tmdbConfig(resolved + ("SOFA_TMDB_TOKEN" to token))
+                    allOrigins["SOFA_TMDB_TOKEN"] = SecretOrigin.SAVED
+                    log("secrets: SOFA_TMDB_TOKEN from ${file.path}, saved from the portal")
+                }
+            }
             return base.copy(
-                sourcesFile = sources, policyFile = policy, apiToken = apiToken, adminToken = adminToken,
+                sourcesFile = sources, policyFile = policy, apiToken = apiToken, adminToken = adminToken, tmdb = tmdb,
                 outputs = base.outputs.copy(token = outputToken), secretOrigins = allOrigins, secretsFile = secretsFile, foundInDataDirectory = found,
             )
         }

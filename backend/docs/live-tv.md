@@ -32,7 +32,7 @@ Set these environment variables before starting the server. Relative paths resol
 | `SOFA_RESTREAM_ORIGINS` | Unset | Comma-separated `host[:port]` list of LAN restream proxies whose 502 counts as source evidence, for example `RESTREAM_HOST:3000` |
 | `SOFA_OBSERVATION_RETENTION_DAYS` | `7` | Days of health observation history to keep, 1-3650 |
 | `SOFA_ALLOW_LOOPBACK_UPSTREAMS` | `false` | Allow playlist, guide and stream URLs on loopback (`127.0.0.1`, `::1`, `localhost`); for local fixtures only |
-| `SOFA_OUTPUT_TOKEN` | Unset | Token for the [player outputs](#third-party-players) under `/output/*`, at least 32 letters, digits, hyphens or underscores. It goes in the URL, so it is separate from the API token. Unset, only the API token (as a bearer) opens them |
+| `SOFA_OUTPUT_TOKEN` | Generated on a non-loopback bind | Token for the [player outputs](#third-party-players) under `/output/*`, at least 32 letters, digits, hyphens or underscores. It goes in the URL, so it is separate from the API token. On a non-loopback bind, an unset token is generated at the first start, stored in `SOFA_DATA_DIR/secrets.json` and reused; the admin portal's Plex page reveals it. On loopback, unset leaves only the API token (as a bearer) to open them |
 | `SOFA_XMLTV_DAYS` | `3` | Days ahead the XMLTV output carries, 1-14. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
 | `SOFA_HDHR_ENABLED` | `true`; `false` in `deploy/compose.yaml` | Serve the [HDHomeRun emulation](#plex-live-tv) (`/discover.json`, `/lineup.json`, `/auto/v*`) at the root. The server binary defaults to `true`. The Compose file passes `false` unless `deploy/.env` sets `SOFA_HDHR_ENABLED=true` |
 | `SOFA_HDHR_TUNERS` | `2` | Tuners each device exposes, which is the number of HDHomeRun streams open at once on that device, 1 to `SOFA_MAX_SESSIONS`. A value saved in the portal's [runtime settings](admin.md#settings) takes precedence |
@@ -147,7 +147,7 @@ Clients, players and Plex see every logo at `http://SERVER_HOST:9193/logos/KEY` 
 
 ## Third-party players
 
-The lineup is also served as an M3U playlist with an XMLTV guide, for any player that takes an M3U playlist URL ([API detail](api.md#player-outputs)). Set `SOFA_OUTPUT_TOKEN` (32 or more characters, from `openssl rand -hex 16`) and restart. The token goes in the URLs because players send no headers. Replace `SERVER_HOST:9193` with the address the player reaches the server by (port 8080 outside Docker):
+The lineup is also served as an M3U playlist with an XMLTV guide, for any player that takes an M3U playlist URL ([API detail](api.md#player-outputs)). The URLs carry the output token because players send no headers: the server generates one at the first start, and the admin portal's Plex page shows both URLs with it once you choose Reveal the output token. `SOFA_OUTPUT_TOKEN` sets your own instead. Replace `SERVER_HOST:9193` with the address the player reaches the server by (port 8080 outside Docker):
 
 ```text
 http://SERVER_HOST:9193/output/playlist.m3u?token=OUTPUT_TOKEN
@@ -161,19 +161,19 @@ To set up a player:
 1. Add the playlist URL as a playlist or IPTV source. Most players call this "add playlist" or "enter URL".
 2. If the player reads `url-tvg` from the playlist header, it offers the guide URL as the EPG source, and you can accept it. Otherwise add the guide URL as an EPG or XMLTV source.
 3. Set the playlist refresh to a few hours, so a changed stream suffix or a renumbered channel reaches the player. Channels match the guide by `tvg-id`, so no manual mapping is needed.
-4. To change the token, update `SOFA_OUTPUT_TOKEN`, restart the server, and update the playlist and guide URLs in each player.
+4. To change the token, [rotate it](operations.md#rotating-tokens), then update the playlist and guide URLs in each player.
 
 Players that accept a single URL can open a stream URL directly, without the playlist.
 
 ## Plex Live TV
 
-Plex Live TV & DVR takes an HDHomeRun tuner and an XMLTV guide. The server emulates the tuner at the root of its port ([API detail](api.md#hdhomerun-emulation)). The guide is the [player output](#third-party-players) XMLTV, so Plex needs `SOFA_OUTPUT_TOKEN` for the guide URL and no token for the tuner.
+Plex Live TV & DVR takes an HDHomeRun tuner and an XMLTV guide. The server emulates the tuner at the root of its port ([API detail](api.md#hdhomerun-emulation)). The guide is the [player output](#third-party-players) XMLTV, so Plex needs the output token for the guide URL and no token for the tuner.
 
 The tuner routes carry no token: anyone who can reach the port can list the lineup and watch through `/auto/vNUMBER`. Keep the port on the LAN and set `SOFA_HDHR_ALLOW` to the Plex server's address. Behind Docker on Linux, a published port keeps the client address with the default iptables setup. Where Docker's userland proxy handles the port, the server sees the Docker gateway address instead, and the allow-list must name that address. Set `SOFA_HDHR_ENABLED=false` when Plex is not used.
 
 The steps use the Docker port, 9193. Outside Docker the port is `SOFA_PORT`, 8080 by default.
 
-1. In `deploy/.env`, set `SOFA_HDHR_ENABLED=true`, `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` and `SOFA_HDHR_TUNERS` to the number of simultaneous Plex streams and recordings, at most `SOFA_MAX_SESSIONS`. Set `SOFA_OUTPUT_TOKEN` too, for the guide URL. Run `docker compose up -d`, then check from the Plex host with `curl --fail http://SERVER_HOST:9193/discover.json`.
+1. In `deploy/.env`, set `SOFA_HDHR_ENABLED=true`, `SOFA_HDHR_ALLOW=PLEX_SERVER_IP` and `SOFA_HDHR_TUNERS` to the number of simultaneous Plex streams and recordings, at most `SOFA_MAX_SESSIONS`. Run `docker compose up -d`, then check from the Plex host with `curl --fail http://SERVER_HOST:9193/discover.json`.
 2. In Plex Web, open Settings, then Live TV & DVR, then Set Up Plex DVR. The server does not answer SSDP discovery, so choose "Don't see your HDHomeRun device? Enter its network address manually" and enter `SERVER_HOST:9193`. Plex reads `/discover.json` and `/lineup.json` and lists the device by `SOFA_HDHR_NAME` with its tuner count.
 3. Plex shows the channels from `/lineup.json`. At the guide step, choose "Have an XMLTV guide on your server?" and enter `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN`. Plex fetches the guide on its own schedule. Keep `SOFA_XMLTV_DAYS` at 3 or more so a daily refresh never runs out of programs.
 4. Map the channels. The XMLTV lists each channel's name and number as display names, and the lineup carries the same values, so Plex pairs most of them. Choose the rest from the dropdowns. Plex saves a device's channel map in one request, and a very large map on one device fails with "There was a problem saving channel mappings". Split a large lineup across devices, as described below.

@@ -30,7 +30,7 @@ It answers `ready`. If the container exits at once instead, `docker compose logs
 
 ## 2. Sign in
 
-The first start generated an API token and an admin token and stored them in `config/secrets.json`. Print them, and keep them in shell variables for the later steps:
+The first start generated an API token, an admin token and an output token and stored them in `config/secrets.json`. Print them, and keep them in shell variables for the later steps:
 
 ```sh
 docker compose exec sofa-king-backend cat /config/secrets.json
@@ -90,14 +90,7 @@ The server builds one station per channel. When two services carry the same chan
 
 ## 5. Watch
 
-Plex and M3U players reach the guide and the streams with an output token. Add one to `.env` and apply it:
-
-```sh
-printf 'SOFA_OUTPUT_TOKEN=%s\n' "$(openssl rand -hex 16)" >> .env
-docker compose up -d
-```
-
-The portal's Plex page shows the playlist and guide URLs with this token once you choose to reveal it.
+Plex and M3U players reach the guide and the streams with the output token, `outputToken` in `config/secrets.json`. The portal's Plex page, under Players, shows the playlist and guide URLs with it once you choose Reveal the output token.
 
 ### Plex
 
@@ -108,7 +101,7 @@ printf 'SOFA_HDHR_ENABLED=true\nSOFA_HDHR_ALLOW=PLEX_SERVER_IP\n' >> .env
 docker compose up -d
 ```
 
-Then add the tuner at `SERVER_HOST:9193` and the guide at `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` in Plex, with the token from `.env`, as steps 2 to 5 of [Plex Live TV](live-tv.md#plex-live-tv) describe. [Keep Plex in step](live-tv.md#keep-plex-in-step) lets the server update Plex's channel maps itself.
+Then add the tuner at `SERVER_HOST:9193` and the guide at `http://SERVER_HOST:9193/output/guide.xml?token=OUTPUT_TOKEN` in Plex, with the output token, as steps 2 to 5 of [Plex Live TV](live-tv.md#plex-live-tv) describe. [Keep Plex in step](live-tv.md#keep-plex-in-step) lets the server update Plex's channel maps itself.
 
 ### The Sofa King app
 

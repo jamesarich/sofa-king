@@ -57,7 +57,7 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 
 | Symptom | Check |
 | --- | --- |
-| A player gets `401` on the playlist URL | `SOFA_OUTPUT_TOKEN` is unset or the `token` query differs. The API token opens `/output/*` only as a bearer header. |
+| A player gets `401` on the playlist URL | The `token` query differs from the output token; copy the URL again from the portal's Plex page. The API token opens `/output/*` only as a bearer header. |
 | A player plays a channel as the wrong type after a probe | The stream suffix follows the stored protocol. Refresh the playlist in the player. |
 | A channel shows no logo | `curl -i http://SERVER_HOST:9193/logos/KEY` with the key from the playlist. `404` means the logo source was refused or failed: a loopback or link-local address, a non-image content type, a body over 2 MiB, or an error. The log has `logo fetch failed key=KEY` with the reason, and the source is tried again an hour later. `GET /api/v1/admin/lineup/ENTRY_ID` shows the logo's source URL. |
 

@@ -58,9 +58,9 @@ class ConfigLoadTest {
         assertEquals(SecretOrigin.GENERATED, withApi.secretOrigins["SOFA_ADMIN_TOKEN"])
 
         val adminToken = "b".repeat(40)
-        val both = load(lan("SOFA_API_TOKEN" to apiToken, "SOFA_ADMIN_TOKEN" to adminToken))
-        assertEquals(adminToken, both.adminToken)
-        assertNull(both.secretsFile, "nothing is generated or read when the environment sets both")
+        val all = load(lan("SOFA_API_TOKEN" to apiToken, "SOFA_ADMIN_TOKEN" to adminToken, "SOFA_OUTPUT_TOKEN" to "c".repeat(40)))
+        assertEquals(adminToken, all.adminToken)
+        assertNull(all.secretsFile, "nothing is generated or read when the environment sets every token")
 
         Files.delete(dir.resolve("secrets.json"))
         val adminOnly = load(lan("SOFA_ADMIN_TOKEN" to adminToken))
@@ -68,6 +68,23 @@ class ConfigLoadTest {
         assertTrue(assertNotNull(adminOnly.apiToken).matches(hex64))
         assertFalse(Files.readString(dir.resolve("secrets.json")).contains("adminToken"), "an environment token is never stored")
         assertTrue(lines.none { adminToken in it || apiToken in it })
+    }
+
+    @Test fun `a LAN bind generates the output token too, valid for player URLs, and an environment one wins`() {
+        val first = load(lan())
+        val output = assertNotNull(first.outputs.token)
+        assertTrue(output.matches(hex64) && output != first.apiToken && output != first.adminToken)
+        assertEquals(SecretOrigin.GENERATED, first.secretOrigins["SOFA_OUTPUT_TOKEN"])
+        assertTrue(Files.readString(dir.resolve("secrets.json")).contains("\"outputToken\""))
+        assertTrue(lines.any { it.startsWith("secrets: generated SOFA_OUTPUT_TOKEN") } && lines.none { output in it }, "no token is logged: $lines")
+        assertEquals(output, load(lan()).outputs.token, "a later start reuses it")
+        assertEquals(output, ServerConfig.fromEnvironment(lan("SOFA_OUTPUT_TOKEN" to output, "SOFA_API_TOKEN" to "a".repeat(40))).outputs.token, "the generated token passes the variable's own check")
+
+        val chosen = "c".repeat(40)
+        val set = load(lan("SOFA_OUTPUT_TOKEN" to chosen))
+        assertEquals(chosen, set.outputs.token)
+        assertEquals(SecretOrigin.ENVIRONMENT, set.secretOrigins["SOFA_OUTPUT_TOKEN"])
+        assertNull(load(mapOf("SOFA_DATA_DIR" to dir.resolve("loopback").toString())).outputs.token, "a loopback bind generates none")
     }
 
     @Test fun `environment tokens keep their validation`() {

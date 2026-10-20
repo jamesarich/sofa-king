@@ -47,7 +47,7 @@ Running it:
 
 ## Clients
 
-Only Plex and the Sofa King app have been tested. The others speak the same HDHomeRun or M3U and XMLTV interfaces and should work. Replace `SERVER_HOST` with the server's LAN address and `OUTPUT_TOKEN` with `SOFA_OUTPUT_TOKEN`.
+Only Plex and the Sofa King app have been tested. The others speak the same HDHomeRun or M3U and XMLTV interfaces and should work. Replace `SERVER_HOST` with the server's LAN address and `OUTPUT_TOKEN` with the output token, which the admin portal's Plex page reveals.
 
 | Client | Status | Connect with |
 | --- | --- | --- |

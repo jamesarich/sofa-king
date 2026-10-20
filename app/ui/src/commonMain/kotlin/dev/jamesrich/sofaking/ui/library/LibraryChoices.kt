@@ -4,6 +4,8 @@ import dev.jamesrich.sofaking.data.CONTINUE_SHELF
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaShelf
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 /** How a row draws its items: 2:3 posters for movies and shows, 16:9 cards for episodes and what is being watched. */
 internal enum class CardStyle { POSTER, WIDE }
@@ -23,11 +25,10 @@ internal fun cardStyleFor(shelf: MediaShelf): CardStyle = when {
     else -> CardStyle.POSTER
 }
 
-/** Hours and minutes of a running time, rounded to the nearest minute; null when unknown or under half a minute. */
-internal fun runtimeParts(durationMs: Long?): Pair<Int, Int>? {
+/** A running time rounded to the nearest minute; null when unknown or under half a minute. */
+internal fun runtime(durationMs: Long?): Duration? {
     val minutes = ((durationMs ?: return null) + 30_000) / 60_000
-    if (minutes <= 0) return null
-    return (minutes / 60).toInt() to (minutes % 60).toInt()
+    return minutes.takeIf { it > 0 }?.minutes
 }
 
 /** What a card's menu offers, in order. */

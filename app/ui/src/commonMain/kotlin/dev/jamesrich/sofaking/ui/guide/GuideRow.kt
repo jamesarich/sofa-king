@@ -50,9 +50,9 @@ import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.Programme
-import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.ChannelLogo
-import dev.jamesrich.sofaking.ui.noListingRes
+import dev.jamesrich.sofaking.ui.NoListing
+import dev.jamesrich.sofaking.ui.noListing
 import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.formatNumber
@@ -92,12 +92,12 @@ internal class GuideRowEnv(
     /** A Later line's programme was chosen: the grid jumps to its cell. */
     val onJumpTo: (Channel, Programme) -> Unit,
 ) {
-    /** The text of a stretch with no programme, as [noListingRes] decides. */
-    fun noListingFor(channel: Channel): String = when (channel.noListingRes(guideLoading)) {
-        Res.string.no_guide -> noGuide
-        Res.string.guide_out_of_date -> guideOutOfDate
-        Res.string.listing_loading -> listingLoading
-        else -> noListing
+    /** The text of a stretch with no programme, as [noListing] decides. */
+    fun noListingFor(channel: Channel): String = when (channel.noListing(guideLoading)) {
+        NoListing.NO_GUIDE -> noGuide
+        NoListing.OUT_OF_DATE -> guideOutOfDate
+        NoListing.LOADING -> listingLoading
+        NoListing.NONE -> noListing
     }
 }
 

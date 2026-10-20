@@ -40,8 +40,6 @@
     <string name="library_unwatched_count">%1$d unwatched</string>
     <string name="library_watched">Watched</string>
     <string name="library_left">%1$s left</string>
-    <string name="library_minutes">%1$d min</string>
-    <string name="library_hours_minutes">%1$d h %2$d min</string>
     <string name="library_rating">★ %1$s</string>
     <string name="library_cast">Cast</string>
     <string name="library_directors">Directed by %1$s</string>

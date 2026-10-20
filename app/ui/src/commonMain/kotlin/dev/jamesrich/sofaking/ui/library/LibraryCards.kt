@@ -45,7 +45,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.ItemKind
@@ -61,20 +60,39 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
+ * [item] as a [style] card, as every library page draws one: OK opens it with [onOpen], and the remote's Play key
+ * plays an item that plays with [onPlay].
+ */
+@Composable
+internal fun LibraryCard(
+    item: MediaItem,
+    style: CardStyle,
+    onOpen: (MediaItem) -> Unit,
+    onPlay: (MediaItem) -> Unit,
+    menu: CardMenu?,
+    modifier: Modifier = Modifier,
+) {
+    val play = if (item.kind.playable) ({ onPlay(item) }) else null
+    when (style) {
+        CardStyle.POSTER -> PosterCard(item, onClick = { onOpen(item) }, onPlay = play, modifier = modifier, menu = menu)
+        CardStyle.WIDE -> WideCard(item, onClick = { onOpen(item) }, onPlay = play, modifier = modifier, menu = menu)
+    }
+}
+
+/**
  * A movie or show as a 2:3 poster with its title underneath: a bar for how far in it is, a tick once watched and
  * a count of unwatched episodes on a show. OK calls [onClick]; the remote's Play key calls [onPlay] for an item
  * that plays; a held OK, a long touch or a right click opens [menu].
  */
 @Composable
-internal fun PosterCard(
+private fun PosterCard(
     item: MediaItem,
     onClick: () -> Unit,
     onPlay: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    width: Dp = POSTER_WIDTH,
     menu: CardMenu? = null,
 ) {
-    Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.width(POSTER_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ItemCard(item, onClick, onPlay, menu, aspectRatio = 2f / 3f, focusScale = null) {
             // A file without a poster still has a frame from the server, cropped to the poster's shape.
             Artwork(item.poster ?: item.backdrop, label = null)
@@ -85,15 +103,14 @@ internal fun PosterCard(
 
 /** An episode, video or item in progress as a 16:9 card, its show and episode number under the title. */
 @Composable
-internal fun WideCard(
+private fun WideCard(
     item: MediaItem,
     onClick: () -> Unit,
     onPlay: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    width: Dp = WIDE_WIDTH,
     menu: CardMenu? = null,
 ) {
-    Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.width(WIDE_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ItemCard(item, onClick, onPlay, menu, aspectRatio = 16f / 9f, focusScale = WIDE_FOCUS_SCALE) {
             Artwork(item.backdrop ?: item.poster, label = null)
         }

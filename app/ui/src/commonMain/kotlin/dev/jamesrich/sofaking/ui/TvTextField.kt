@@ -19,12 +19,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 
 /**
  * Single-line Material 3 text entry whose outline thickens in the primary color when focused. [maskUnfocused]
- * rewrites what is shown while the field is not being edited (a secret's last characters), or always when
- * [maskAlways] is set (a PIN); the text itself is untouched.
+ * rewrites what is shown while the field is not being edited (a secret's last characters); the text itself is
+ * untouched.
  */
 @Composable
 internal fun TvTextField(
@@ -35,11 +34,9 @@ internal fun TvTextField(
     modifier: Modifier = Modifier,
     hint: String? = null,
     maskUnfocused: ((String) -> String)? = null,
-    maskAlways: Boolean = false,
-    keyboardType: KeyboardType = KeyboardType.Text,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val mask = if ((focused && !maskAlways) || maskUnfocused == null) null else remember(maskUnfocused) { MaskTransformation(maskUnfocused) }
+    val mask = if (focused || maskUnfocused == null) null else remember(maskUnfocused) { MaskTransformation(maskUnfocused) }
     OutlinedTextField(
         state = state,
         modifier = modifier.focusRequester(focusRequester).onFocusChanged { focused = it.hasFocus },
@@ -47,7 +44,7 @@ internal fun TvTextField(
         placeholder = hint?.let { { Text(it, style = MaterialTheme.typography.bodyLarge) } },
         lineLimits = TextFieldLineLimits.SingleLine,
         outputTransformation = mask,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
+        keyboardOptions = KeyboardOptions(imeAction = imeAction),
         onKeyboardAction = KeyboardActionHandler { onAction() },
     )
 }

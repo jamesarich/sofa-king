@@ -7,9 +7,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.KeyboardActionHandler
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.TextObfuscationMode
 import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.maxLengthReject
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -152,15 +160,7 @@ internal fun SettingsLockScreen(
         item {
             Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(Res.string.lock_pin), style = MaterialTheme.typography.titleSmall)
-                TvTextField(
-                    state = pin,
-                    focusRequester = pinFocus,
-                    imeAction = ImeAction.Done,
-                    onAction = unlock,
-                    maskUnfocused = ::maskPin,
-                    maskAlways = true,
-                    keyboardType = KeyboardType.NumberPassword,
-                )
+                PinField(pin, pinFocus, ImeAction.Done, onAction = unlock)
                 when {
                     waiting -> ErrorText(stringResource(Res.string.lock_wait, SettingsLock.WAIT.inWholeSeconds))
                     wrongPin -> ErrorText(stringResource(Res.string.lock_wrong))
@@ -195,8 +195,22 @@ internal fun SettingsLockScreen(
     }
 }
 
-/** Every digit as a bullet, so the PIN never shows on a shared screen. */
-internal fun maskPin(pin: String): String = "•".repeat(pin.length)
+/**
+ * A PIN's Material 3 secure field: the number pad, at most [SettingsPin.LENGTH] characters, and every digit hidden,
+ * even the one just typed, so the PIN never shows on a shared screen.
+ */
+@Composable
+private fun PinField(state: TextFieldState, focusRequester: FocusRequester, imeAction: ImeAction, onAction: () -> Unit) {
+    OutlinedSecureTextField(
+        state = state,
+        modifier = Modifier.focusRequester(focusRequester),
+        textStyle = MaterialTheme.typography.bodyLarge,
+        inputTransformation = InputTransformation.maxLengthReject(SettingsPin.LENGTH),
+        textObfuscationMode = TextObfuscationMode.Hidden,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = imeAction),
+        onKeyboardAction = KeyboardActionHandler { onAction() },
+    )
+}
 
 @Composable
 internal fun ErrorText(text: String) {
@@ -239,26 +253,10 @@ internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
             }
             else -> {
                 Text(stringResource(Res.string.settings_lock_pin), style = MaterialTheme.typography.titleSmall)
-                TvTextField(
-                    state = first,
-                    focusRequester = firstFocus,
-                    imeAction = ImeAction.Next,
-                    onAction = { againFocus.requestFocus() },
-                    maskUnfocused = ::maskPin,
-                    maskAlways = true,
-                    keyboardType = KeyboardType.NumberPassword,
-                )
+                PinField(first, firstFocus, ImeAction.Next, onAction = { againFocus.requestFocus() })
                 if (firstText.isNotEmpty() && !SettingsPin.isValid(firstText)) ErrorText(stringResource(Res.string.settings_lock_pin_invalid))
                 Text(stringResource(Res.string.settings_lock_pin_again), style = MaterialTheme.typography.titleSmall)
-                TvTextField(
-                    state = again,
-                    focusRequester = againFocus,
-                    imeAction = ImeAction.Done,
-                    onAction = set,
-                    maskUnfocused = ::maskPin,
-                    maskAlways = true,
-                    keyboardType = KeyboardType.NumberPassword,
-                )
+                PinField(again, againFocus, ImeAction.Done, onAction = set)
                 if (againText.isNotEmpty() && SettingsPin.isValid(firstText) && againText != firstText) ErrorText(stringResource(Res.string.settings_lock_pin_mismatch))
                 Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     SofaButton(onClick = set, enabled = canSet) { Text(stringResource(Res.string.settings_lock_confirm)) }

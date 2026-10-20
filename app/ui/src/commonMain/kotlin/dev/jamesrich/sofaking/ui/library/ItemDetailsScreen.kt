@@ -7,8 +7,6 @@ import dev.jamesrich.sofaking.ui.Artwork
 import dev.jamesrich.sofaking.ui.theme.SofaChip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.BringIntoViewSpec
-import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -37,7 +35,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -53,7 +50,6 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,11 +64,11 @@ import dev.jamesrich.sofaking.data.primaryAction
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.MessageScreen
+import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.tvFocus
-import kotlin.math.abs
 import org.jetbrains.compose.resources.stringResource
 
 /** What an item's page does. [onPlay] resumes an item in progress unless [fromStart] is set. */
@@ -128,9 +124,8 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val heroHeight = maxHeight * HERO_FRACTION
         Hero(item.backdrop ?: item.poster, Modifier.fillMaxWidth().height(heroHeight))
-        val edge = with(LocalDensity.current) { FOCUS_EDGE.toPx() }
-        val scrollSpec = remember(edge) { ScrollOnlyWhenHidden(edge) }
-        CompositionLocalProvider(LocalBringIntoViewSpec provides scrollSpec) {
+        // Focus scrolls only to show what it lands on, so arriving on Play keeps the title above it on screen.
+        ScrollOnlyWhenHidden(FOCUS_EDGE) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -160,24 +155,7 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
     }
 }
 
-/**
- * Focus scrolls the page only as far as it takes to show what took focus [edge] clear of the screen's edges, outside
- * the overscan. A TV's default pivots it a third of the way down, which on arrival pushes the title above Play off
- * the screen.
- */
-private class ScrollOnlyWhenHidden(private val edge: Float) : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val leading = offset - edge
-        val trailing = offset + size + edge
-        return when {
-            leading >= 0f && trailing <= containerSize -> 0f
-            trailing - leading > containerSize -> leading
-            abs(leading) < abs(trailing - containerSize) -> leading
-            else -> trailing - containerSize
-        }
-    }
-}
-
+/** How far clear of the screen's edges, outside the overscan, focus keeps what it lands on. */
 private val FOCUS_EDGE = 48.dp
 
 /** The seasons in one row; focus coming down from the buttons lands on the season being shown. */

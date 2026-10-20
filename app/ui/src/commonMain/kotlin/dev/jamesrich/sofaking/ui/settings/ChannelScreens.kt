@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -51,6 +50,7 @@ import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
+import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import org.jetbrains.compose.resources.stringResource
@@ -83,17 +83,13 @@ fun ChannelManagerScreen(
     val backFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val firstFocus = if (showsBackButton()) backFocus else contentFocus
-    val listState = rememberLazyListState()
     BackHandler { onBack() }
-    LaunchedEffect(Unit) {
-        requestFocusWhenAttached(firstFocus)
-        // Bringing the first row into view may scroll the title off the top; the page opens at its top.
-        if (firstFocus == contentFocus) listState.scrollToItem(0)
-    }
+    LaunchedEffect(Unit) { requestFocusWhenAttached(firstFocus) }
 
+    // Focus scrolls only to show what it lands on, so the first row taking focus keeps the title on screen.
+    ScrollOnlyWhenHidden(SETTINGS_FOCUS_EDGE) {
     LazyColumn(
         modifier = modifier.fillMaxSize().screenPadding().focusRequester(contentFocus).focusRestorer().focusGroup(),
-        state = listState,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { ScreenTitle(stringResource(Res.string.channels_title), onBack, backFocus) }
@@ -138,6 +134,7 @@ fun ChannelManagerScreen(
                 }
             }
         }
+    }
     }
 }
 

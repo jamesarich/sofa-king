@@ -1,9 +1,17 @@
 package dev.jamesrich.sofaking.ui
 
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import kotlin.math.abs
 
 /** How many frames a focus request waits for its node by default; a first guide frame on a slow TV needs more. */
 internal const val FOCUS_ATTACH_FRAMES = 10
@@ -51,3 +59,27 @@ internal class HeldOkGuard {
 
 /** The keys that press OK: the remote's centre, Enter and a keypad's Enter, as Compose's own clickable reads them. */
 internal val Key.isOk: Boolean get() = this == Key.DirectionCenter || this == Key.Enter || this == Key.NumPadEnter
+
+/**
+ * [content] whose lists scroll on focus only as far as it takes to show what took focus [edge] clear of their edges. A
+ * TV's default pivots the focused item a third of the way down, which on arrival pushes a page's title off the top.
+ */
+@Composable
+internal fun ScrollOnlyWhenHidden(edge: Dp, content: @Composable () -> Unit) {
+    val edgePx = with(LocalDensity.current) { edge.toPx() }
+    val spec = remember(edgePx) { ScrollOnlyWhenHiddenSpec(edgePx) }
+    CompositionLocalProvider(LocalBringIntoViewSpec provides spec, content = content)
+}
+
+private class ScrollOnlyWhenHiddenSpec(private val edge: Float) : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val leading = offset - edge
+        val trailing = offset + size + edge
+        return when {
+            leading >= 0f && trailing <= containerSize -> 0f
+            trailing - leading > containerSize -> leading
+            abs(leading) < abs(trailing - containerSize) -> leading
+            else -> trailing - containerSize
+        }
+    }
+}

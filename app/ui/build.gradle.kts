@@ -122,6 +122,10 @@ kotlin {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.vlcj)
         }
+        // Desktop only: in commonTest it would reach the Android host tests, which have no Compose host.
+        jvmTest.dependencies {
+            implementation(libs.compose.ui.test)
+        }
         webMain.dependencies {
             implementation(libs.kotlinx.browser)
         }

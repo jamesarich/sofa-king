@@ -104,9 +104,13 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
                 return@collectLatest
             }
             delay(SEARCH_DEBOUNCE_MS)
+            // A newer query cancels this one mid-request; the loader must still come down.
             searching = true
-            results = currentSearch(text)
-            searching = false
+            try {
+                results = currentSearch(text)
+            } finally {
+                searching = false
+            }
         }
     }
     val sections = remember(results) { searchSections(results.orEmpty()) }

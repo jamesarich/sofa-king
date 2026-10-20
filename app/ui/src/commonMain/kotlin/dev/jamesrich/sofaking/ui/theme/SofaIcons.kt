@@ -244,6 +244,17 @@ internal object SofaIcons {
         )
     }
 
+    /** The caption timing's minus; the core set has Add but not Remove. */
+    val Remove: ImageVector by lazy { pathIcon("Filled.Remove", "M19,13H5v-2h14v2z") }
+
+    /** A track row's mark: [Recordings] when picked, this ring when not. */
+    val RadioButtonUnchecked: ImageVector by lazy {
+        pathIcon(
+            "Filled.RadioButtonUnchecked",
+            "M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.42,0 -8,-3.58 -8,-8s3.58,-8 8,-8 8,3.58 8,8 -3.58,8 -8,8z",
+        )
+    }
+
     /** An icon from its SVG path data, as the icon set's sources give it. */
     private fun pathIcon(name: String, pathData: String): ImageVector =
         materialIcon(name) { addPath(addPathNodes(pathData), fill = SolidColor(Color.Black)) }

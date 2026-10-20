@@ -43,7 +43,7 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
     LineupOfferings.deleteAll()
     LineupEntries.deleteAll()
     entries.withIndex().chunked(INSERT_CHUNK).forEach { chunk ->
-        LineupEntries.batchInsert(chunk) { (position, entry) ->
+        LineupEntries.batchInsert(chunk, shouldReturnGeneratedValues = false) { (position, entry) ->
             this[LineupEntries.id] = entry.id
             this[LineupEntries.position] = position
             this[LineupEntries.number] = entry.number
@@ -61,7 +61,7 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
     }
     entries.flatMap { entry -> entry.offeringIds.withIndex().map { (position, offeringId) -> Triple(entry.id, position, offeringId) } }
         .chunked(INSERT_CHUNK).forEach { chunk ->
-            LineupOfferings.batchInsert(chunk) { (entryId, position, offeringId) ->
+            LineupOfferings.batchInsert(chunk, shouldReturnGeneratedValues = false) { (entryId, position, offeringId) ->
                 this[LineupOfferings.entryId] = entryId
                 this[LineupOfferings.position] = position
                 this[LineupOfferings.offeringId] = offeringId
@@ -100,7 +100,7 @@ private suspend fun BackendStore.replaceGuide(guideId: String, importedAt: Insta
     GuideImports.deleteWhere { GuideImports.guideId eq guideId }
     GuideImports.insert { it[GuideImports.guideId] = guideId; it[GuideImports.importedAt] = importedAt.toString() }
     channels.distinctBy { it.id }.chunked(INSERT_CHUNK).forEach { chunk ->
-        GuideChannels.batchInsert(chunk) { channel ->
+        GuideChannels.batchInsert(chunk, shouldReturnGeneratedValues = false) { channel ->
             this[GuideChannels.guideId] = guideId
             this[GuideChannels.channelId] = channel.id
             this[GuideChannels.displayName] = channel.displayName
@@ -108,7 +108,7 @@ private suspend fun BackendStore.replaceGuide(guideId: String, importedAt: Insta
         }
     }
     programmes.chunked(INSERT_CHUNK).forEach { chunk ->
-        GuideProgrammes.batchInsert(chunk.map(GuideProgramme::bounded), ignore = true) { programme ->
+        GuideProgrammes.batchInsert(chunk.map(GuideProgramme::bounded), ignore = true, shouldReturnGeneratedValues = false) { programme ->
             this[GuideProgrammes.guideId] = guideId
             this[GuideProgrammes.channelId] = programme.channelId
             this[GuideProgrammes.startsAt] = programme.startsAt.epochSecond

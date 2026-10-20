@@ -30,7 +30,7 @@ suspend fun BackendStore.stationAvailability(): Map<String, StationAvailability>
 suspend fun BackendStore.saveStationAvailability(availability: Map<String, StationAvailability>, at: Instant) = query {
     StationAvailabilityRows.deleteAll()
     availability.entries.sortedBy { it.key }.chunked(2000).forEach { chunk ->
-        StationAvailabilityRows.batchInsert(chunk) { (key, value) ->
+        StationAvailabilityRows.batchInsert(chunk, shouldReturnGeneratedValues = false) { (key, value) ->
             this[StationAvailabilityRows.key] = key
             this[StationAvailabilityRows.availabilityJson] = availabilityJson.encodeToString(
                 StoredAvailability(

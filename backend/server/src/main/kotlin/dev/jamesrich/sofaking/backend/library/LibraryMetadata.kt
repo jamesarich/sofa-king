@@ -8,6 +8,9 @@ import java.time.Duration
 import java.time.Instant
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import org.slf4j.LoggerFactory
+
+private val log = LoggerFactory.getLogger(LibraryMetadata::class.java)
 
 /** How long a match stays before it is fetched again; TMDB's terms allow caching for up to six months. */
 private val MATCHED_FOR: Duration = Duration.ofDays(30)
@@ -76,6 +79,7 @@ class LibraryMetadata internal constructor(
                 store.saveLibraryMetadata(records)
             } catch (e: TmdbFailure) {
                 if (e.code == "TMDB_AUTH" || e.code == "TMDB_RATE_LIMITED") return MetadataResult(fetched, matched, unmatched, failed, e.code)
+                log.info("tmdb lookup failed item={} code={}", item.id, e.code)
                 failed++
             }
         }

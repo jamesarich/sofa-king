@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.ServerConfig
 import dev.jamesrich.sofaking.backend.catalog.MediaFixture
 import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.store.addRecording
+import dev.jamesrich.sofaking.backend.store.recordings
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.*
 import java.net.InetSocketAddress

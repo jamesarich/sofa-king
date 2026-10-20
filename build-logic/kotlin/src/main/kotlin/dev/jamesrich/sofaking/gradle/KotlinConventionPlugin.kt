@@ -57,6 +57,24 @@ class KotlinConventionPlugin : Plugin<Project> {
         noDownloadRepository<YarnPlugin, YarnRootEnvSpec>()
         noDownloadRepository<WasmYarnPlugin, WasmYarnRootEnvSpec>()
         noDownloadRepository<BinaryenPlugin, BinaryenEnvSpec>()
+
+        // An IDE sync walks each project's task list and creates every task as it goes. Creating a task whose
+        // configuration creates others in the same list, as the Kotlin plugin's rootPackageJson does for every
+        // RequiresNpmDependencies task, broke that walk with a ConcurrentModificationException and failed Android
+        // Studio's sync. Create them all first, by name, which tolerates that. Command-line builds skip this.
+        if (providers.systemProperty("idea.sync.active").orNull.toBoolean()) {
+            gradle.projectsEvaluated { realizeAllTasks() }
+        }
+    }
+
+    private fun Project.realizeAllTasks() {
+        val realized = mutableSetOf<String>()
+        while (true) {
+            val pending = tasks.names - realized
+            if (pending.isEmpty()) return
+            pending.forEach { tasks.named(it).get() }
+            realized += pending
+        }
     }
 
     private inline fun <reified P : Plugin<*>, reified S : EnvSpec<*>> Project.noDownloadRepository() {

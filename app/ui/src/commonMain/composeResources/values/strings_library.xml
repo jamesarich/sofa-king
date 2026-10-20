@@ -10,7 +10,7 @@
     <string name="library_search_titles">Movies and shows</string>
     <string name="library_search_episodes">Episodes and videos</string>
     <string name="library_library_chip">%1$s %2$d</string>
-    <string name="library_loading">Loading the library…</string>
+    <string name="library_loading">Sofa King close, loading the library…</string>
     <string name="library_unavailable">This server has no libraries</string>
     <string name="library_unavailable_hint">Add a movies or shows folder in the server's portal, under Libraries.</string>
     <string name="library_empty">Nothing here yet</string>

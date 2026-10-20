@@ -4,7 +4,7 @@
 
 <h1 align="center">Sofa King</h1>
 
-<p align="center"><strong>Live TV, Sofa King good.</strong></p>
+<p align="center"><strong>Your own media center. Sofa King good.</strong></p>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-FFB547?labelColor=14111F"></a>
@@ -17,13 +17,13 @@
   <img src="docs/images/guide.png" alt="The guide in the desktop app: category chips, the focused channel's program and its muted preview, and a grid of channels over the afternoon" width="800">
 </p>
 
-A self-hosted live TV server for a home network, with a DVR and your own movies and shows, and an app that watches it on Android TV, Google TV, phones, desktops, iOS, Apple TV and the web.
+A self-hosted media center for a home network. One server keeps live TV, a DVR and your own movies and shows; one app watches all of it on Android TV, Google TV, phones, desktops, iOS, Apple TV and the web. No subscription or cloud account needed, and no reason to leave the sofa: it is Sofa King convenient.
 
-- **One lineup from free TV.** The server merges free streaming services, M3U playlists and XMLTV guides into one numbered lineup, with fallbacks across services.
-- **Plays anywhere.** The same lineup goes to the app, to Plex as an HDHomeRun tuner, and to M3U and XMLTV players.
-- **Previews that become the show.** The app's guide previews the focused channel muted and opens it full screen on the same stream, with no second tune.
-- **Records from the guide.** The server records programs and series into folders Plex and Kodi scan, finds the commercial breaks, and the app plays the recordings and can skip the breaks.
-- **Your own library too.** Movies, shows and other videos from a folder, with details and artwork from their `.nfo` files or TMDB, play in the same app, converted on the fly for a device that cannot play the file.
+- **Live TV in one lineup.** The server merges free streaming services, broadcasters' free news feeds, HDHomeRun tuners, M3U playlists and XMLTV guides into one numbered lineup, with fallbacks across services.
+- **A DVR that skips the boring bits.** The server records programs and series from the guide into folders Plex, Jellyfin, Emby and Kodi scan, finds the commercial breaks, and the app plays the recordings, even while they record, and can skip the breaks.
+- **Your own library.** Movies, shows and other videos from a folder, with details and artwork from their `.nfo` files or TMDB, Continue watching and Up next, converted on the fly for a device that cannot play the file.
+- **Made for the couch.** The guide previews the focused channel muted and opens it full screen on the same stream, every screen works with a TV remote's D-pad, and the app reopens where you left it.
+- **Plays well with others.** The same lineup goes to Plex as an HDHomeRun tuner and to M3U and XMLTV players.
 
 <p align="center">
   <img src="docs/images/player.png" alt="The player in the desktop app: a channel full screen with the info bar showing its number, name, program, rating, time and what is next" width="800">
@@ -44,4 +44,4 @@ The server image is public on GitHub Container Registry; anyone can pull it or b
 
 The [documentation index](docs/README.md) links every page and the shared glossary. [CONTRIBUTING](CONTRIBUTING.md) covers the repository's layout, the conventions both parts share and CI, and [SECURITY](SECURITY.md) covers reporting a vulnerability.
 
-Licensed under the [GNU General Public License v3.0](LICENSE).
+Licensed under the [GNU General Public License v3.0](LICENSE). Now put your feet up; it is Sofa King relaxing.

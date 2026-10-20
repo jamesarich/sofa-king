@@ -3,7 +3,7 @@
   "info": {
     "title": "Sofa King server",
     "version": "1",
-    "description": "The live TV server's HTTP interface: the API the Sofa King app uses under /api/v1, the admin API under /api/v1/admin, the player outputs under /output, the logo cache and the HDHomeRun emulation Plex reads. The admin portal under /admin is HTML and is not described here. Timestamps are UTC instants."
+    "description": "The Sofa King media center server's HTTP interface: the API the Sofa King app uses under /api/v1 for live TV, recordings and media libraries, the admin API under /api/v1/admin, the player outputs under /output, the logo cache and the HDHomeRun emulation Plex reads. The admin portal under /admin is HTML and is not described here. Timestamps are UTC instants."
   },
   "servers": [{ "url": "/" }],
   "tags": [

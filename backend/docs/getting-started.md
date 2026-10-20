@@ -139,6 +139,10 @@ Players that read the playlist header pick up the guide on their own. [Third-par
 
 ## Next steps
 
+Live TV is one third of the media center. The other two are Sofa King close:
+
+- Add your movies and shows: [mount the media folder](libraries.md#mount-the-media-folder) and add a library.
+- Record from the guide: [record a program](recordings.md#record-a-program), or keep the recordings on a disk of their own with [the recordings folder](deploy.md#the-recordings-folder).
 - Add the other services and group the lineup: [build a starter lineup](starter-lineup.md).
 - Back up the config folder: [operations](operations.md#backups).
 - Keep the host up to date, or put the server behind a reverse proxy: [deploy with Docker](deploy.md).

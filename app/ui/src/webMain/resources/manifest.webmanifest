@@ -1,7 +1,7 @@
 {
   "name": "Sofa King",
   "short_name": "Sofa King",
-  "description": "Live TV for your own Sofa King server",
+  "description": "Live TV, recordings and your own movies and shows from your Sofa King server",
   "start_url": ".",
   "display": "standalone",
   "orientation": "landscape",

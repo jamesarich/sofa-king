@@ -1,6 +1,6 @@
 # Contributing
 
-This guide covers how the repository is laid out, the conventions the app, the server and the contract share, and the CI that checks them. Each part's own build, tests and code rules are in its development page:
+Contributions are Sofa King welcome. This guide covers how the repository is laid out, the conventions the app, the server and the contract share, and the CI that checks them. Each part's own build, tests and code rules are in its development page:
 
 - The app: [development](app/docs/development.md) has the build and test commands, running each platform and the checks on a TV. [app/AGENTS.md](app/AGENTS.md) lists its code constraints.
 - The server: [development](backend/docs/development.md) has the build and test commands, the smoke scripts and adding a native provider. [backend/AGENTS.md](backend/AGENTS.md) lists its code constraints.

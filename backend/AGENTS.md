@@ -1,6 +1,6 @@
 # Sofa King server
 
-Kotlin/JVM live TV server for the Sofa King app in `../app`, in one Gradle module, `server` (Ktor on Netty, SQLite through Exposed and sqlite-jdbc, FFmpeg for remuxing). Read README, docs/README.md and docs/architecture.md for current setup and behavior, docs/api.md for the wire interface and docs/admin.md for the portal. Implement working slices, run the relevant checks and commit verified changes.
+Kotlin/JVM media center server (live TV, recordings and media libraries) for the Sofa King app in `../app`, in one Gradle module, `server` (Ktor on Netty, SQLite through Exposed and sqlite-jdbc, FFmpeg for remuxing, recording and library transcodes). Read README, docs/README.md and docs/architecture.md for current setup and behavior, docs/api.md for the wire interface and docs/admin.md for the portal. Implement working slices, run the relevant checks and commit verified changes.
 
 ## Build
 

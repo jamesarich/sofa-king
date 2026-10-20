@@ -182,7 +182,7 @@ compose.desktop {
             modules("java.instrument", "java.management", "jdk.unsupported")
             packageName = "Sofa King"
             packageVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
-            description = "Live TV for your own Sofa King server"
+            description = "Live TV, recordings and your own movies and shows from your Sofa King server"
             vendor = "James Rich"
             copyright = "Copyright 2026 James Rich. Licensed under the GPL-3.0-only."
             licenseFile.set(layout.settingsDirectory.file("../LICENSE"))

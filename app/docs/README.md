@@ -1,5 +1,7 @@
 # App documentation
 
+The Sofa King app watches a Sofa King server's live TV, recordings and media libraries. Start with [getting started](getting-started.md), then [using Sofa King](usage.md) for the controls.
+
 ## Guides
 
 | Page | What it covers |

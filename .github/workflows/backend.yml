@@ -264,8 +264,8 @@ jobs:
           docker buildx imagetools create \
             --tag "$image:main" \
             --tag "$image:sha-${GITHUB_SHA::7}" \
-            --annotation "index:org.opencontainers.image.title=Sofa King backend" \
-            --annotation "index:org.opencontainers.image.description=Live TV server: imports free streaming services and playlists into one lineup, relays the streams and emulates an HDHomeRun for Plex" \
+            --annotation "index:org.opencontainers.image.title=Sofa King server" \
+            --annotation "index:org.opencontainers.image.description=Self-hosted media center server: live TV from free streaming services, tuners and playlists in one lineup, a DVR with commercial detection, and movie and TV libraries converted on the fly; also an HDHomeRun tuner for Plex" \
             --annotation "index:org.opencontainers.image.source=https://github.com/jamesarich/sofa-king" \
             --annotation "index:org.opencontainers.image.licenses=GPL-3.0-only" \
             --annotation "index:org.opencontainers.image.revision=${GITHUB_SHA::7}" \

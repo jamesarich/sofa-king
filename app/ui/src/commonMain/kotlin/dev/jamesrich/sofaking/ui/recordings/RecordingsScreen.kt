@@ -69,7 +69,7 @@ fun RecordingsScreen(
 ) {
     BackHandler(onBack = onBack)
     when (state) {
-        RecordingsState.Loading -> MessageScreen(stringResource(Res.string.loading), loading = true)
+        RecordingsState.Loading -> MessageScreen(stringResource(Res.string.recordings_loading), loading = true)
         RecordingsState.Unconfigured -> MessageScreen(stringResource(Res.string.unconfigured), hint = stringResource(Res.string.unconfigured_hint))
         RecordingsState.Unavailable -> MessageScreen(stringResource(Res.string.recordings_unavailable))
         is RecordingsState.Failed -> MessageScreen(stringResource(Res.string.load_failed), detail = state.message, onRetry = onRetry)

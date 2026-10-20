@@ -1,6 +1,6 @@
 # Architecture
 
-One Kotlin/JVM process serves the HTTP API, the admin portal and the media relay. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programs, the server identity and source health. It also holds probe attempt times, observation history, the logo cache index, native provider state (device IDs, tokens), the lineup policy's station availability and change log, the paired viewers and their preferences, the runtime settings saved in the portal and the home page items it ignores. The logo files sit beside the database in the data directory. Playback sessions, admin portal sessions, the live pairing code and resolved native stream URLs exist in memory.
+One Kotlin/JVM process serves the HTTP API, the admin portal, the media relay, the DVR and the media libraries. SQLite stores provider snapshots, detected source protocols, the lineup, guide channels and programs, the server identity and source health. It also holds probe attempt times, observation history, the logo cache index, native provider state (device IDs, tokens), the lineup policy's station availability and change log, the paired viewers and their preferences, the runtime settings saved in the portal and the home page items it ignores, the recordings, their commercial breaks and the series rules, and the media libraries, their items, TMDB details and watch progress. The logo files sit beside the database in the data directory, the recordings in the recordings folder. Playback sessions, library playback sessions, admin portal sessions, the live pairing code and resolved native stream URLs exist in memory.
 
 The terms used here (provider, source, candidate, station) are defined in the [glossary](README.md#glossary), and lineup entry in the [repository glossary](../../docs/README.md#glossary). In code, a source is an `Offering`.
 
@@ -8,7 +8,7 @@ The terms used here (provider, source, candidate, station) are defined in the [g
 
 | Module | Contents |
 | --- | --- |
-| `../contract` | The live TV request and response types the server shares with the app, a Kotlin Multiplatform build included from `settings.gradle.kts` |
+| `../contract` | The live TV, recording and library request and response types the server shares with the app, a Kotlin Multiplatform build included from `settings.gradle.kts` |
 | `server` | The admin, lineup policy and status models, Ktor Netty server, imports, SQLite storage, lineup, source probes, media relay, player outputs, HDHomeRun emulation, media library scans and admin portal, JVM 21 |
 
 ## Data flow
@@ -162,7 +162,7 @@ A lease's requests are served by the code that serves a session's media requests
 
 ## Supported scope
 
-The server supports configured HTTP(S) playlists and guides, native provider clients, the lineup policy, JSON control and admin requests, and the admin portal. It supports HLS and MPEG-TS passthrough, M3U and XMLTV output with per-channel stream URLs for third-party players, and cached lineup logos served from this server. It supports HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification. Playing library items, recordings, timeshift, transcoding, shared HLS upstreams, SSDP discovery and events are not implemented. HLS variable substitution and content steering are unsupported.
+The server supports configured HTTP(S) playlists and guides, native provider clients, the lineup policy, JSON control and admin requests, and the admin portal. It supports HLS and MPEG-TS passthrough, M3U and XMLTV output with per-channel stream URLs for third-party players, and cached lineup logos served from this server. It supports HDHomeRun emulation with an HLS-to-MPEG-TS stream-copy remux for Plex, Plex channel-map sync, and FFmpeg source qualification. It records channels into MPEG-TS files and plays recordings and library items as they are or as HLS that FFmpeg copies or converts. Timeshift and transcoding of live channels, shared HLS upstreams, SSDP discovery and events are not implemented. HLS variable substitution and content steering are unsupported.
 
 ## Operations
 

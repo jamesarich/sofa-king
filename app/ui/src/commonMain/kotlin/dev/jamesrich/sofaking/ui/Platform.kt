@@ -6,6 +6,7 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import dev.jamesrich.sofaking.data.PublishedBuild
+import dev.jamesrich.sofaking.data.UpdateInstaller
 
 /**
  * Back on every platform: the remote's or system Back on Android, the swipe on iOS, Escape on desktops and the
@@ -49,6 +50,13 @@ internal expect val supportsCaptionSync: Boolean
  * desktop or in a browser, or null where no package is published (iOS), so Settings says so instead.
  */
 internal expect fun updateDownloadUrl(latest: PublishedBuild): String?
+
+/**
+ * Installs a published build from inside the app: on Android, unless an app store installed it; null elsewhere,
+ * where Get the update opens [updateDownloadUrl] instead.
+ */
+@Composable
+internal expect fun rememberUpdateInstaller(): UpdateInstaller?
 
 /**
  * While [enabled], switches the display to a mode that matches the frame rate of the video [player] plays, and

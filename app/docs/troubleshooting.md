@@ -98,8 +98,8 @@ It records: on a server that records, the program details offer Record and Recor
 
 ### Why will a snapshot APK not install over my build?
 
-Android refuses an update signed with another key. A snapshot and a build from your machine can be signed with different debug keys, so uninstall one before installing the other.
+Android refuses an update signed with another key. A snapshot and a build from your machine can be signed with different debug keys, so uninstall one before installing the other. Install update in Settings checks the key first and says so, rather than handing Android a package it would refuse.
 
 ### Does a TV need the Play Store?
 
-No. Install the APK with `adb`, as [getting started](getting-started.md#android-tv-and-google-tv) describes.
+No. Install the APK with `adb`, as [getting started](getting-started.md#android-tv-and-google-tv) describes; after that, Settings → About installs newer snapshots, as [the update check](usage.md#update-check) describes.

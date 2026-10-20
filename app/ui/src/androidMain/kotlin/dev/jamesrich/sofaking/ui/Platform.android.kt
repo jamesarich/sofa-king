@@ -26,6 +26,8 @@ import android.provider.Settings
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.MatchExoDisplayFrameRate
 import dev.jamesrich.sofaking.data.PublishedBuild
+import dev.jamesrich.sofaking.data.UpdateInstaller
+import dev.jamesrich.sofaking.data.appUpdateInstaller
 
 @Composable
 internal actual fun rememberIsTelevision(): Boolean {
@@ -125,3 +127,9 @@ internal actual val supportsCaptionSync: Boolean = true
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = MatchExoDisplayFrameRate(player, enabled)
 
 internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = latest.apkUrl ?: latest.pageUrl
+
+@Composable
+internal actual fun rememberUpdateInstaller(): UpdateInstaller? {
+    val context = LocalContext.current
+    return remember(context) { appUpdateInstaller(context) }
+}

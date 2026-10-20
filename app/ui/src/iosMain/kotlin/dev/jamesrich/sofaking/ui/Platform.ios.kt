@@ -19,6 +19,7 @@ import platform.UIKit.UIApplicationOpenSettingsURLString
 import platform.Foundation.NSURL
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.data.PublishedBuild
+import dev.jamesrich.sofaking.data.UpdateInstaller
 
 /** iPhone and iPad; Apple TV is not a target. */
 @Composable
@@ -82,3 +83,6 @@ internal actual val supportsCaptionSync: Boolean = false
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
 
 internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = null
+
+@Composable
+internal actual fun rememberUpdateInstaller(): UpdateInstaller? = null

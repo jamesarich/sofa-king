@@ -21,6 +21,8 @@ data class PublishedBuild(
     val pageUrl: String,
     /** The Android package's download address, when the release carries one. */
     val apkUrl: String?,
+    /** The package's SHA-256 in lowercase hex, from the digest GitHub records for the asset; null when it records none. */
+    val apkSha256: String? = null,
 )
 
 /** How the running build compares with the published one. */
@@ -58,11 +60,13 @@ class UpdateChecker(
             return null
         }
         val version = release.name.removePrefix("Snapshot").ifEmpty { release.tagName }
+        val apk = release.assets.firstOrNull { it.name.endsWith(".apk") }
         return PublishedBuild(
             version = version,
             run = runNumber(version),
             pageUrl = release.htmlUrl,
-            apkUrl = release.assets.firstOrNull { it.name.endsWith(".apk") }?.url,
+            apkUrl = apk?.url,
+            apkSha256 = apk?.digest?.let(::sha256Hex),
         )
     }
 
@@ -75,7 +79,12 @@ class UpdateChecker(
     )
 
     @Serializable
-    private data class AssetDto(val name: String = "", @SerialName("browser_download_url") val url: String = "")
+    private data class AssetDto(
+        val name: String = "",
+        @SerialName("browser_download_url") val url: String = "",
+        /** `sha256:` and the hex digest; GitHub computes it on upload. */
+        val digest: String? = null,
+    )
 
     companion object {
         const val RELEASE_URL = "https://api.github.com/repos/jamesarich/sofa-king/releases/tags/snapshot"
@@ -91,6 +100,11 @@ class UpdateChecker(
             return if (theirs > mine) UpdateState.Available(latest) else UpdateState.UpToDate(latest)
         }
 
+        /** The hex of a `sha256:<hex>` asset digest, lowercased, or null for any other algorithm or shape. */
+        fun sha256Hex(digest: String): String? =
+            digest.removePrefix("sha256:").takeIf { it != digest && SHA256.matches(it) }?.lowercase()
+
+        private val SHA256 = Regex("[0-9a-fA-F]{64}")
         private val RUN = Regex("""-dev\.(\d+)(?:\+|$)""")
     }
 }

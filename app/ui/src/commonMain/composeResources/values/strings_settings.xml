@@ -111,6 +111,17 @@
     <string name="settings_update_failed">Could not reach GitHub to check for a newer build.</string>
     <string name="settings_update_get">Get the update</string>
     <string name="settings_update_check">Check again</string>
+    <string name="settings_update_install">Install update</string>
+    <string name="settings_update_downloading">Downloading the update…</string>
+    <string name="settings_update_downloading_percent">Downloading the update… %1$s</string>
+    <string name="settings_update_installing">Installing. Sofa King closes while the update installs; open it again afterward.</string>
+    <string name="settings_update_failed_download">The download did not finish. Check the connection and try again.</string>
+    <string name="settings_update_failed_checksum">The download does not match the checksum GitHub published, so it was not installed. Try again.</string>
+    <string name="settings_update_failed_package">The download is not a Sofa King package, so it was not installed.</string>
+    <string name="settings_update_failed_key">The published build is signed with a different key than this one, so Android cannot install it over this app. Uninstall this build, then install the package with adb.</string>
+    <string name="settings_update_failed_version">The published package is not newer than this build, so it was not installed.</string>
+    <string name="settings_update_failed_installer">Android did not install the update: %1$s</string>
+    <string name="settings_update_failed_installer_silent">Android did not install the update.</string>
     <string name="settings_update_address">Nothing on this device opens the address, so download it elsewhere: %1$s. On a TV, install the package with adb.</string>
     <string name="settings_update_no_package">No package is published for this platform; build it from the source at that snapshot.</string>
     <plurals name="settings_channels_loaded">

@@ -65,7 +65,7 @@ image=${SOFA_UPDATE_IMAGE:-ghcr.io/jamesarich/sofa-king:main}
 container=${SOFA_UPDATE_CONTAINER:-sofa-king-backend}
 # The tag Compose runs, which an update points at the new image: compose.yaml's image (the published one, or
 # SOFA_IMAGE from .env) unless set.
-local_tag=${SOFA_UPDATE_LOCAL_TAG:-$(cd "$dir" && docker compose config --images 2>/dev/null | head -n 1 || true)}
+local_tag=${SOFA_UPDATE_LOCAL_TAG:-$( (cd "$dir" && docker compose config --images 2>/dev/null) | head -n 1 || true)}
 local_tag=${local_tag:-sofa-king-backend:local}
 previous_tag=${SOFA_UPDATE_PREVIOUS_TAG:-sofa-king-backend:previous}
 keep=${SOFA_UPDATE_KEEP_BACKUPS:-5}

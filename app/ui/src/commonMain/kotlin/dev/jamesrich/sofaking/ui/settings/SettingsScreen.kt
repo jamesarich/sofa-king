@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.ui.settings
 
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -658,36 +660,41 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
         else -> null
     }
     val downloadUrl = latest?.let(::updateDownloadUrl)
-    Text(
-        when (update) {
-            null, UpdateState.Checking -> stringResource(Res.string.settings_update_checking)
-            is UpdateState.Available -> stringResource(Res.string.settings_update_available, update.latest.version)
-            is UpdateState.UpToDate -> stringResource(Res.string.settings_update_current)
-            is UpdateState.Unknown -> stringResource(Res.string.settings_update_unknown, update.latest.version)
-            UpdateState.Failed -> stringResource(Res.string.settings_update_failed)
-        },
-        style = MaterialTheme.typography.bodyMedium,
-    )
-    // Above the buttons, since a TV scrolls only as far as the focused button and text below it stays off screen.
-    if (install != null && install != InstallState.Idle) HelpText(installText(install))
-    Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        if (update is UpdateState.Available) {
-            if (installer != null && update.latest.apkUrl != null) {
-                // Stays enabled while busy, since a disabled button drops focus to another row; install ignores the press.
-                SofaButton(onClick = { installer.install(update.latest) }) {
-                    Text(stringResource(Res.string.settings_update_install))
-                }
-            } else if (downloadUrl != null) {
-                SofaButton(onClick = { runCatching { uriHandler.openUri(downloadUrl) }.onFailure { address = downloadUrl } }) {
-                    Text(stringResource(Res.string.settings_update_get))
+    // The status grows above the focused button, so the list is scrolled to keep the whole row in view as it changes.
+    val requester = remember { BringIntoViewRequester() }
+    LaunchedEffect(install) { if (install != null && install != InstallState.Idle) requester.bringIntoView() }
+    Column(Modifier.bringIntoViewRequester(requester), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            when (update) {
+                null, UpdateState.Checking -> stringResource(Res.string.settings_update_checking)
+                is UpdateState.Available -> stringResource(Res.string.settings_update_available, update.latest.version)
+                is UpdateState.UpToDate -> stringResource(Res.string.settings_update_current)
+                is UpdateState.Unknown -> stringResource(Res.string.settings_update_unknown, update.latest.version)
+                UpdateState.Failed -> stringResource(Res.string.settings_update_failed)
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        // Above the buttons, since a TV scrolls only as far as the focused button and text below it stays off screen.
+        if (install != null && install != InstallState.Idle) HelpText(installText(install))
+        Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (update is UpdateState.Available) {
+                if (installer != null && update.latest.apkUrl != null) {
+                    // Stays enabled while busy, since a disabled button drops focus to another row; install ignores the press.
+                    SofaButton(onClick = { installer.install(update.latest) }) {
+                        Text(stringResource(Res.string.settings_update_install))
+                    }
+                } else if (downloadUrl != null) {
+                    SofaButton(onClick = { runCatching { uriHandler.openUri(downloadUrl) }.onFailure { address = downloadUrl } }) {
+                        Text(stringResource(Res.string.settings_update_get))
+                    }
                 }
             }
+            SofaButton(onClick = onCheckAgain, enabled = update != UpdateState.Checking) { Text(stringResource(Res.string.settings_update_check)) }
         }
-        SofaButton(onClick = onCheckAgain, enabled = update != UpdateState.Checking) { Text(stringResource(Res.string.settings_update_check)) }
-    }
-    when {
-        address != null -> HelpText(stringResource(Res.string.settings_update_address, address!!))
-        update is UpdateState.Available && downloadUrl == null -> HelpText(stringResource(Res.string.settings_update_no_package))
+        when {
+            address != null -> HelpText(stringResource(Res.string.settings_update_address, address!!))
+            update is UpdateState.Available && downloadUrl == null -> HelpText(stringResource(Res.string.settings_update_no_package))
+        }
     }
 }
 

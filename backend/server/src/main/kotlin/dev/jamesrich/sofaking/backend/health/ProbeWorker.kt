@@ -10,7 +10,6 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.ffmpegBase
 import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
-import dev.jamesrich.sofaking.backend.upstream.probeHeadersSafe
 import io.ktor.client.HttpClient
 import java.nio.file.Files
 import java.time.Clock
@@ -155,7 +154,7 @@ class ProbeWorker(
             .asSequence()
             .filter {
                 val feed = feeds.config(it.providerId)
-                (if (plan != null) it.id in plan else feed.probe) && (qualifier != null || probeHeadersSafe(feed.headers))
+                if (plan != null) it.id in plan else feed.probe
             }.mapNotNull { offering ->
                 val state = states[offering.id] ?: return@mapNotNull null
                 val probeable =

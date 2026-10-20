@@ -327,6 +327,25 @@ class ProbeWorkerTest {
         }
     }
 
+    @Test fun `a provider with secret headers is probed, and its headers reach only the source's origin`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-probe-headers-")
+        val seen = java.util.Collections.synchronizedList(mutableListOf<Pair<String, String?>>())
+        val engine = MockEngine { request ->
+            seen += request.url.host to request.headers["X-Provider-Key"]
+            if (request.url.host == "provider.test") respond("", HttpStatusCode.Found, io.ktor.http.headersOf(io.ktor.http.HttpHeaders.Location, "http://cdn.test/live.ts"))
+            else respond("", HttpStatusCode.Forbidden)
+        }
+        try { HttpClient(CIO).use { feedHttp -> HttpClient(engine) { followRedirects = false }.use { http -> openStore(dir).use { store ->
+            val clock = MutableClock()
+            val config = FeedConfig("p", "http://provider.test/feed.m3u", headers = mapOf("X-Provider-Key" to "secret"))
+            val offering = Offering("source", "c", "p", "http://provider.test/live.ts", "mpegts")
+            store.saveSnapshot(FeedSnapshot("p", listOf(Channel("c", "1", "Station")), listOf(offering), clock.now.toString()))
+            val feeds = FeedService(listOf(config), store, feedHttp, clock); feeds.initialize()
+            val worker = ProbeWorker(feeds, store, clock, "unused", http)
+            assertTrue(worker.step(), "the source is probed")
+            assertEquals(listOf("provider.test" to "secret", "cdn.test" to null), seen.toList())
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
     @Test fun `probe now puts a source at the front of the queue whether or not it is due`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-probe-now-")
         try { HttpClient(CIO).use { http -> openStore(dir).use { store ->

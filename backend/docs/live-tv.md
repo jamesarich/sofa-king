@@ -218,7 +218,7 @@ The extra ports must differ from `SOFA_PORT`. They are opened only when `SOFA_HD
 
 Credentials are sent only to the configured request origin. Cross-origin CDN requests receive only `User-Agent`, `Accept`, `Accept-Language`, `Origin` and `Referer`. Authorization, cookies and custom headers are removed. Redirects are limited to five. HTTPS redirects cannot downgrade to HTTP, and sources configured with HTTPS also reject HTTP media resources.
 
-Providers that need secret headers on a different CDN origin are unsupported. A provider with any other header is never probed ([probing](lineup-policy.md#probing)).
+Providers that need secret headers on a different CDN origin are unsupported.
 
 ## Upstream addresses
 

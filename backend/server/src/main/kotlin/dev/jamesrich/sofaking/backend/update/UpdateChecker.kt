@@ -75,9 +75,11 @@ class UpdateState(
 
 /**
  * Keeps the server aware of the published image and in touch with the host's updater. The check asks the registry
- * for the tag's index and reads the OCI annotations the build writes; it runs as the `update` job every six hours
+ * for the tag's index and reads the OCI annotations the build writes; it runs as the `update` job every five minutes
  * after a first delay, and on request. The host's updater owns the swap: it writes [UpdaterReport] to the data
- * directory after every run and starts when the request file this class writes appears.
+ * directory after every run and starts when the request file this class writes appears. A check that finds a newer
+ * build writes that file itself when an updater reports, so a new image goes in minutes after it is published rather
+ * than at the updater's next timer.
  */
 class UpdateChecker(
     private val http: HttpClient,
@@ -88,7 +90,7 @@ class UpdateChecker(
     val running: RunningBuild,
     private val jobs: Jobs,
     private val firstCheckAfter: Duration = Duration.ofMinutes(2),
-    private val every: Duration = Duration.ofHours(6),
+    private val every: Duration = Duration.ofMinutes(5),
 ) {
     private val log = LoggerFactory.getLogger(UpdateChecker::class.java)
     private val mutex = Mutex()
@@ -96,6 +98,8 @@ class UpdateChecker(
     private val checkedAt = AtomicReference<Instant?>()
     private val error = AtomicReference<String?>()
     private val requests = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
+    /** The revision this process last asked the updater for, so each published build is asked for once. */
+    private val asked = AtomicReference<String?>()
 
     init {
         if (image != null) jobs.register(JOB, "Update check", every) { requests.trySend(Unit) }
@@ -120,7 +124,12 @@ class UpdateChecker(
                     published.set(build)
                     error.set(null)
                     checkedAt.set(clock.instant())
-                    JobOutcome(true, when (build.isCurrent(running)) { true -> "up to date (${build.revision})"; false -> "update available: ${build.revision}"; null -> "published ${build.revision ?: build.digest ?: "unknown"}" })
+                    val requested = requestNewer(build)
+                    JobOutcome(true, when (build.isCurrent(running)) {
+                        true -> "up to date (${build.revision})"
+                        false -> "update available: ${build.revision}" + if (requested) "; asked the updater to install it" else ""
+                        null -> "published ${build.revision ?: build.digest ?: "unknown"}"
+                    })
                 } catch (e: CancellationException) { throw e } catch (e: Exception) {
                     // Ktor's timeout messages carry the request URL; the note, the flash and the stored state never do.
                     val why = "${e.javaClass.simpleName}: ${redactedMessage(e).take(120)}".trimEnd(':', ' ')
@@ -143,6 +152,21 @@ class UpdateChecker(
             log.warn("could not write the update request class={}", e.javaClass.simpleName)
             false
         }
+    }
+
+    /**
+     * Asks the host's updater to install [build] when it is not what runs: only when an updater reports, so one is
+     * installed; once per revision; and never for a revision the updater rolled back or skipped. True when asked.
+     */
+    private suspend fun requestNewer(build: PublishedBuild): Boolean {
+        val revision = build.revision ?: return false
+        if (build.isCurrent(running) != false || asked.get() == revision) return false
+        val report = withContext(Dispatchers.IO) { updaterReport() } ?: return false
+        if (report.candidate == revision && report.outcome in REFUSED) return false
+        if (!requestUpdate()) return false
+        asked.set(revision)
+        log.info("update requested revision={}", revision)
+        return true
     }
 
     /** Runs the check after [firstCheckAfter], then every [every] and whenever Run now asks. */
@@ -255,6 +279,8 @@ class UpdateChecker(
         const val JOB = "update"
         const val STATUS_FILE = "update-status.json"
         const val REQUEST_FILE = "update-requested"
+        /** The updater's outcomes for an image it will not install again. */
+        private val REFUSED = setOf("rolled-back", "skipped")
         const val REVISION = "org.opencontainers.image.revision"
         const val VERSION = "org.opencontainers.image.version"
         private const val MANIFEST_TYPES =

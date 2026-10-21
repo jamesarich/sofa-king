@@ -37,7 +37,7 @@ class PlayerVolumeTest {
     }
 
     @Test
-    fun `mute silences without losing the level, and a step or the slider unmutes`() {
+    fun `mute silences without losing the level and a step or the slider unmutes`() {
         val volume = PlayerVolume(adjustable = true)
         volume.restore(40, muted = false)
 
@@ -57,7 +57,7 @@ class PlayerVolumeTest {
     }
 
     @Test
-    fun `plus, equals and minus step the volume and M mutes`() {
+    fun `plus equals and minus step the volume and M mutes`() {
         assertEquals(VolumeKey.UP, Key.Plus.volumeKey())
         assertEquals(VolumeKey.UP, Key.Equals.volumeKey())
         assertEquals(VolumeKey.UP, Key.NumPadAdd.volumeKey())

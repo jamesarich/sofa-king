@@ -18,6 +18,9 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
 /**
@@ -54,6 +57,15 @@ class ProviderContext(
 
     suspend fun clearState(key: String) = store.deleteProviderState(providerId, key)
 
+    /**
+     * [fresh] when it loaded, kept under [key]; when it failed, what the last load kept, across restarts too, or an
+     * empty map before any load. For data whose loss costs more than its staleness, such as a channel's group.
+     */
+    suspend fun lastGood(key: String, fresh: Result<Map<String, String>>): Map<String, String> = fresh.fold(
+        onSuccess = { value -> value.also { if (state(key) != stateJson.encodeToString(MAP, it)) saveState(key, stateJson.encodeToString(MAP, it), null) } },
+        onFailure = { state(key)?.let { runCatching { stateJson.decodeFromString(MAP, it) }.getOrNull() }.orEmpty() },
+    )
+
     /** The value [fetch] produced within [ttl], else a fresh one; concurrent callers share one fetch. */
     suspend fun <T : Any> cached(key: String, ttl: Duration, fetch: suspend () -> T): T {
         caches[key]?.let { (at, value) -> if (Duration.between(at, clock.instant()) < ttl) @Suppress("UNCHECKED_CAST") return value as T }
@@ -69,6 +81,8 @@ class ProviderContext(
 
     companion object {
         const val DEVICE_ID = "device_id"
+        private val MAP = MapSerializer(String.serializer(), String.serializer())
+        private val stateJson = Json
     }
 }
 

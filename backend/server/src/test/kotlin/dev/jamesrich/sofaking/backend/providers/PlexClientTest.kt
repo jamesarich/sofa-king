@@ -57,7 +57,7 @@ class PlexClientTest {
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 
-    @Test fun `a failed genre fetch keeps the groups the last one found`() = runBlocking<Unit> {
+    @Test fun `a failed genre fetch keeps the groups the last one found, across a restart`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-plex-")
         try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
             fixture.plex()
@@ -65,10 +65,9 @@ class PlexClientTest {
             val client = PlexClient(ProviderFixture.context("plex", options(fixture), http, store, clock))
             assertEquals(listOf("Bingeworthy", "Movies"), client.channels().map { it.group })
             fixture.route("/epg/") { Canned("{}", 500) }
-            clock.now = clock.now.plus(Duration.ofMinutes(31))
-            val listings = fixture.hits("/epg/lineups/plex/channels")
-            assertEquals(listOf("Bingeworthy", "Movies"), client.channels().map { it.group }, "a lost group would move the station's number")
-            assertTrue(fixture.hits("/epg/lineups/plex/channels") > listings, "the channels were fetched again")
+            // A new client over the same store is the server after a restart, with nothing fetched in memory.
+            val restarted = PlexClient(ProviderFixture.context("plex", options(fixture), http, store, clock))
+            assertEquals(listOf("Bingeworthy", "Movies"), restarted.channels().map { it.group }, "a lost group would move the station's number")
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 

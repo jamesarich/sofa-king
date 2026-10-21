@@ -91,12 +91,10 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun listed(): List<Listed> = context.cached(CHANNELS, Duration.ofMinutes(30)) { fetchChannels() }
 
-    /** The genres the last good fetch found; a failed one keeps them, since a lost group moves a station's number. */
-    @Volatile private var lastGroups: Map<String, String> = emptyMap()
-
     private suspend fun fetchChannels(): List<Listed> {
         val payload = authorized { token -> context.http.get("$apiBase/lineups/plex/channels?X-Plex-Token=${encode(token)}", headers(token)) }.json()
-        val groups = runCatchingCancellable { genres() }.onSuccess { lastGroups = it }.getOrElse { lastGroups }
+        // A failed fetch keeps the last genres, since a lost group moves a station's number.
+        val groups = context.lastGood(GROUPS, runCatchingCancellable { genres() })
         val result = LinkedHashMap<String, Listed>()
         for (channel in payload["MediaContainer"]["Channel"].array) {
             val media = channel["Media"][0]
@@ -172,6 +170,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         private const val PRODUCT = "Plex Mediaverse"
         private const val CHANNELS = "channels"
         private const val TOKEN = "token"
+        private const val GROUPS = "genre_groups"
         private const val MANIFEST_LIMIT = 1024 * 1024
         private const val GRID_SPACING_MILLIS = 250L
         private const val RATE_LIMIT_WAIT_MILLIS = 15_000L

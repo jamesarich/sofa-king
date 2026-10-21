@@ -65,8 +65,9 @@ class ViewerSync(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: SofaKingException) {
-                if (e.status == 401) {
-                    log.i { "preferences: the server does not keep them (${e.code}); not syncing" }
+                // A refusal will not change by asking again; a timeout, a rate limit or a server error may.
+                if (e.status in 400..499 && e.status != 408 && e.status != 429) {
+                    log.i { "preferences: the server refused to read them (${e.code}); not syncing" }
                     return
                 }
                 log.w { "preferences: could not read the server's copy (${e.code})" }

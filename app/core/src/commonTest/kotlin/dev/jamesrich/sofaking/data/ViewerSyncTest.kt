@@ -124,6 +124,16 @@ class ViewerSyncTest {
     }
 
     @Test
+    fun `a refused read is not retried and nothing is pushed`() = runTest {
+        val server = FakeServer(this)
+        server.getStatus = 403
+        store.setChannelHidden("h1", true)
+        start(server)
+        advanceTimeBy(30.seconds); runCurrent()
+        assertEquals(listOf("GET"), server.http.requests.map { it.method })
+    }
+
+    @Test
     fun `a server without the routes is asked once and then left alone`() = runTest {
         val server = FakeServer(this)
         server.putStatus = 404

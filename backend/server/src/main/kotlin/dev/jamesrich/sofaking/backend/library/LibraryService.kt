@@ -174,6 +174,8 @@ class LibraryService(
         jobs.record(LIBRARY_SCAN_JOB) {
             val now = clock.instant()
             val plan = scanLock.withLock {
+                // Removed since this scan began: it writes nothing.
+                if (store.libraries().none { it.id == library.id }) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
                 val plan = scanner.scan(library, Path.of(library.path), store.libraryItems(library.id), now)
                 if (plan.save.isNotEmpty()) store.saveLibraryItems(plan.save)
                 if (plan.missing.isNotEmpty()) store.markLibraryItemsMissing(plan.missing, now)

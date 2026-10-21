@@ -53,7 +53,7 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetchStreams(): List<Listed> {
         val html = context.http.get("$siteBase/streams", HEADERS + ("Accept" to "text/html")).require("Adult Swim streams page").text()
-        val state = nextData(html)["props"]["__REDUX_STATE__"]
+        val state = nextData(html, "Adult Swim streams page")["props"]["__REDUX_STATE__"]
         val streams = state["streams"].array
         if (streams.isEmpty()) throw ProviderFailure("Adult Swim page carries no streams")
         val result = LinkedHashMap<String, Listed>()
@@ -85,11 +85,5 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
         private const val SITE_BASE = "https://www.adultswim.com"
         private const val STREAMS = "streams"
         private val HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Accept" to "application/json, text/plain, */*", "Origin" to SITE_BASE, "Referer" to "$SITE_BASE/streams/")
-        private val NEXT_DATA = Regex("""<script id="__NEXT_DATA__"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
-
-        internal fun nextData(html: String): kotlinx.serialization.json.JsonElement {
-            val match = NEXT_DATA.find(html) ?: throw ProviderFailure("No __NEXT_DATA__ on the page")
-            return try { lenientJson.parseToJsonElement(match.groupValues[1]) } catch (e: Exception) { throw ProviderFailure("__NEXT_DATA__ is not JSON", cause = e) }
-        }
     }
 }

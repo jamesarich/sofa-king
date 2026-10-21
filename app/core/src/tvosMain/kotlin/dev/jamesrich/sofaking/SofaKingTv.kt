@@ -33,7 +33,9 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -98,10 +100,10 @@ class SofaKingTv {
 
     /** Opens, or re-reads, a watch session for [channelId] and remembers it as the last channel. */
     @Throws(Exception::class)
-    suspend fun watchChannel(channelId: String): PlaybackStream {
+    suspend fun watchChannel(channelId: String): PlaybackStream = opening {
         val stream = viewModel.sessions.tune(channelId, PlaybackIntent.WATCH)
         viewModel.setLastChannel(channelId)
-        return stream
+        stream
     }
 
     /** Releases the held session; [reopen] returns to it. */
@@ -111,9 +113,30 @@ class SofaKingTv {
     @Throws(Exception::class)
     suspend fun reopen(): PlaybackStream? = viewModel.sessions.reopen()
 
-    /** Releases the held session for good, as leaving the player does. */
+    /**
+     * Releases the held session for good, as leaving the player does. An open still running is canceled first, which
+     * releases what it opened: Swift's task cancellation does not reach a Kotlin suspend call.
+     */
     fun stopWatching() {
-        scope.launch { viewModel.sessions.release(forget = true) }
+        val pending = open
+        open = null
+        scope.launch {
+            pending?.cancelAndJoin()
+            viewModel.sessions.release(forget = true)
+        }
+    }
+
+    /** The channel or item open running now; touched only on the main thread, as every call here is. */
+    private var open: Job? = null
+
+    private suspend fun <T> opening(block: suspend () -> T): T {
+        val job = scope.async { block() }
+        open = job
+        try {
+            return job.await()
+        } finally {
+            if (open === job) open = null
+        }
     }
 
     fun watchLibraryHome(onChange: (LibraryHomeState) -> Unit): Watch = watch(library.home, onChange)
@@ -143,13 +166,13 @@ class SofaKingTv {
      * drawn in.
      */
     @Throws(Exception::class)
-    suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream {
+    suspend fun playItem(item: MediaItem, fromStart: Boolean): PlaybackStream = opening {
         val state = withTimeoutOrNull(DETAIL_WAIT_MS) { library.detail(item.id).first { it !is ItemDetailState.Loading } }
         val detail = (state as? ItemDetailState.Ready)?.detail
         val choice = trackChoice(item)
         val audio = detail?.let { initialAudio(it, choice) }?.takeIf { it.index != detail.let(::defaultAudio)?.index }
         val picture = detail?.let { initialSubtitle(it, choice) }?.takeIf(::isPictureSubtitle)
-        return library.play(item, appleTvProfile, fromStart, audio?.index, picture?.index)
+        library.play(item, appleTvProfile, fromStart, audio?.index, picture?.index)
     }
 
     /** The tracks the viewer picked in [item]'s show, which its episodes start with; null for none or a movie. */
@@ -197,7 +220,8 @@ class SofaKingTv {
 
     /** Opens [recording] on the session, from the start with [fromStart], else where the household stopped in it. */
     @Throws(Exception::class)
-    suspend fun playRecording(recording: DvrRecording, fromStart: Boolean): PlaybackStream = recordings.play(recording, appleTvProfile, fromStart)
+    suspend fun playRecording(recording: DvrRecording, fromStart: Boolean): PlaybackStream =
+        opening { recordings.play(recording, appleTvProfile, fromStart) }
 
     /** The player is at [positionMs] in [recordingId]; [durationMs] is 0 while the length is unknown. */
     fun recordingProgress(recordingId: String, positionMs: Long, durationMs: Long) =

@@ -291,6 +291,9 @@ class PlaybackSessions(
                 val renewed = kind.renew(api, held)
                 mutex.withLock {
                     if (_current.value?.sessionId != sessionId) return
+                    // A restart, intent change or re-read published a newer stream while this renewal was out; the server
+                    // may have answered the renewal before that, so its answer is stale and the next renewal reads afresh.
+                    if (_current.value != held) continue
                     _current.value = renewed
                     if (renewed.url != held.url) _replaced.tryEmit(renewed)
                 }

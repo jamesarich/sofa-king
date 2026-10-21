@@ -14,6 +14,7 @@ import androidx.core.content.IntentCompat
 import androidx.core.content.pm.PackageInfoCompat
 import androidx.core.app.PendingIntentCompat
 import co.touchlab.kermit.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -138,6 +139,12 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
             return InstallState.Failed(InstallFailure.INSTALLER, e.message)
         } catch (e: SecurityException) {
             log.w { "update install refused: ${e.message}" }
+            return InstallState.Failed(InstallFailure.INSTALLER, e.message)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: RuntimeException) {
+            // The package manager and installer throw IllegalStateException and kin too; nothing here may crash the app.
+            log.w { "update install failed: ${e.message}" }
             return InstallState.Failed(InstallFailure.INSTALLER, e.message)
         } finally {
             file.delete()

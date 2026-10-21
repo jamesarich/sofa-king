@@ -110,8 +110,9 @@ class SofaKingTv {
     @Throws(Exception::class)
     suspend fun release() = viewModel.sessions.release()
 
+    /** Like an open, a reopen still running when the player leaves is canceled by [stopWatching], so it holds nothing after. */
     @Throws(Exception::class)
-    suspend fun reopen(): PlaybackStream? = viewModel.sessions.reopen()
+    suspend fun reopen(): PlaybackStream? = opening { viewModel.sessions.reopen() }
 
     /**
      * Releases the held session for good, as leaving the player does. An open still running is canceled first, which
@@ -189,8 +190,9 @@ class SofaKingTv {
      * the picture subtitle track [subtitleIndex] drawn in (none when negative).
      */
     @Throws(Exception::class)
-    suspend fun switchItemTracks(item: MediaItem, positionMs: Long, audioIndex: Int, subtitleIndex: Int): PlaybackStream =
+    suspend fun switchItemTracks(item: MediaItem, positionMs: Long, audioIndex: Int, subtitleIndex: Int): PlaybackStream = opening {
         library.switchTracks(item, appleTvProfile, positionMs, audioIndex.takeIf { it >= 0 }, subtitleIndex.takeIf { it >= 0 })
+    }
 
     /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
     @Throws(Exception::class)

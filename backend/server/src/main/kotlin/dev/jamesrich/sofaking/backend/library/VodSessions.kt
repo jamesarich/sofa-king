@@ -27,7 +27,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
@@ -77,6 +79,11 @@ private const val SUBTITLES = "subtitles"
 
 /** How long reading one subtitle stream out of a file may take. */
 private const val SUBTITLE_TIMEOUT_MINUTES = 10L
+
+private const val SUBTITLE_LOCK_STRIPES = 16
+
+/** Subtitle extractions that run at once. */
+private const val SUBTITLE_EXTRACTIONS = 3
 
 /** How long FFmpeg waits for a growing recording to grow before it ends the stream. */
 private const val FOLLOW_TIMEOUT_MICROS = 60_000_000L
@@ -147,7 +154,10 @@ class VodSessions(
     private val sessions = HashMap<String, VodState>()
     private val mutex = Mutex()
     private val random = SecureRandom()
-    private val extracting = Mutex()
+    /** One lock per stripe of subtitle files, so one file is never extracted twice at once and a slow one holds up no other. */
+    private val extracting = Array(SUBTITLE_LOCK_STRIPES) { Mutex() }
+    /** Each extraction reads a whole file, so only a few run at once. */
+    private val extractions = Semaphore(SUBTITLE_EXTRACTIONS)
     /** Sessions taken out under the lock whose FFmpeg and files [dispose] deals with once it is released. */
     private val retired = ConcurrentLinkedQueue<VodState>()
 
@@ -200,20 +210,22 @@ class VodSessions(
         val file = source.file ?: video
         val map = if (source.file == null) "0:$index" else "0:s:0"
         val dir = directory.resolve(SUBTITLES)
-        return extracting.withLock {
+        val stamp = withContext(Dispatchers.IO) { "${Files.getLastModifiedTime(file).toMillis()}-${Files.size(file)}" }
+        val name = hash("$itemId/$index/$stamp").take(32)
+        val out = dir.resolve("$name.vtt")
+        return extracting[Math.floorMod(name.hashCode(), SUBTITLE_LOCK_STRIPES)].withLock {
             withContext(Dispatchers.IO) {
-                val stamp = "${Files.getLastModifiedTime(file).toMillis()}-${Files.size(file)}"
-                val name = hash("$itemId/$index/$stamp").take(32)
-                val out = dir.resolve("$name.vtt")
                 if (!Files.isRegularFile(out)) {
                     Files.createDirectories(dir)
                     val partial = dir.resolve("$name.part")
                     val command = listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", file.toString(), "-map", map, "-c:s", "webvtt", "-f", "webvtt", partial.toString())
-                    if (!runs(command, SUBTITLE_TIMEOUT_MINUTES)) {
+                    // A client that gives up mid-conversion ends FFmpeg; what it wrote goes with it.
+                    try {
+                        if (!extractions.withPermit { runs(command, SUBTITLE_TIMEOUT_MINUTES) }) throw ApiFailure(502, "SUBTITLE_FAILED", "The subtitles could not be read from the file")
+                        Files.move(partial, out, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                    } finally {
                         Files.deleteIfExists(partial)
-                        throw ApiFailure(502, "SUBTITLE_FAILED", "The subtitles could not be read from the file")
                     }
-                    Files.move(partial, out, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
                     prune(dir)
                 }
                 out

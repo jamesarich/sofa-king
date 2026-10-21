@@ -4,6 +4,7 @@ import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.api.StationOverride
@@ -868,7 +869,7 @@ class AdminPortal(
         val views = runtime.libraries?.catalog?.snapshot()?.views.orEmpty()
         return active.map { activity ->
             val title = activity.recordingId?.let { id ->
-                runCatching { runtime.dvr?.recording(id) }.getOrNull()?.let { r -> listOfNotNull(r.title, r.episodeTitle).joinToString(" · ") } ?: "Recording"
+                runCatchingCancellable { runtime.dvr?.recording(id) }.getOrNull()?.let { r -> listOfNotNull(r.title, r.episodeTitle).joinToString(" · ") } ?: "Recording"
             } ?: views[activity.itemId]?.item?.let { item ->
                 val episode = item.season?.let { s -> item.episode?.let { e -> "S${s}E$e" } }
                 listOfNotNull(item.showTitle, episode, item.title).joinToString(" · ")

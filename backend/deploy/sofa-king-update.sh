@@ -112,7 +112,7 @@ backup_database() {
   log "the container could not back up the database; backing it up with the host's python3"
   rm -f "$data/backups/$name"
   backup="$state/$name"
-  python3 - "$data/backend.sqlite" "$backup" <<'EOF'
+  python3 - "$data/backend.sqlite" "$backup" <<'EOF' || { rm -f "$backup"; return 1; }
 import sqlite3, sys
 source = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
 target = sqlite3.connect(sys.argv[2])
@@ -171,7 +171,11 @@ while IFS=$'\t' read -r destination source; do
   esac
 done < <(docker inspect --format '{{range .Mounts}}{{.Destination}}{{"\t"}}{{.Source}}{{"\n"}}{{end}}' "$container")
 [ -n "$data" ] || { log "no mount of $container holds $data_dir"; report failed "no mount of $container holds $data_dir"; exit 1; }
-backup_database "backend-$(date -u +%Y%m%dT%H%M%SZ)-${from//[^A-Za-z0-9._-]/_}.sqlite"
+# No update without a backup to roll back to.
+if ! backup_database "backend-$(date -u +%Y%m%dT%H%M%SZ)-${from//[^A-Za-z0-9._-]/_}.sqlite"; then
+  report failed "could not back up the database; $from is still running"
+  exit 1
+fi
 # Backup names start with a UTC timestamp, so name order is age order.
 for folder in "$state" "$data/backups"; do
   [ -d "$folder" ] || continue
@@ -183,7 +187,8 @@ docker tag "$candidate" "$local_tag"
 # A container that fails to be created or started counts as unhealthy, so the rollback below still runs.
 if compose up -d --no-build --force-recreate && healthy; then
   rm -f "$state/failed-image"
-  docker image prune --force >/dev/null
+  # The update is done; a prune that fails, as one does while another runs, only leaves old images for the next.
+  docker image prune --force >/dev/null || log "could not prune old images"
   log "running $to"
   report updated "updated $from to $to"
   exit 0

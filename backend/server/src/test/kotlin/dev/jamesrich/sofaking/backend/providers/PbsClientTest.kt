@@ -47,4 +47,17 @@ class PbsClientTest {
             assertEquals(2, explicit.channels().size)
         } } } } finally { dir.toFile().deleteRecursively() }
     }
+
+    @Test fun `a station that fails for now fails the import, and one PBS no longer lists is skipped`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-pbs-")
+        try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
+            fixture.json("/api/station/$station/stations-list/", ProviderFixture.resource("pbs-station.json").replace("BASE", fixture.base))
+            fixture.route("/api/station/busy/stations-list/") { Canned("{}", 503) }
+            fixture.route("/api/station/gone/stations-list/") { Canned("{}", 404) }
+            val busy = PbsClient(ProviderFixture.context("pbs", mapOf("stations" to "$station,busy", "siteBase" to fixture.base), http, store, MutableClock()))
+            assertTrue(assertFailsWith<ProviderFailure> { busy.channels() }.transient, "the last import's channels stay")
+            val gone = PbsClient(ProviderFixture.context("pbs2", mapOf("stations" to "$station,gone", "siteBase" to fixture.base), http, store, MutableClock()))
+            assertEquals(2, gone.channels().size)
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
 }

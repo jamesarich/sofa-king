@@ -57,9 +57,12 @@ private val UPDATER_FRESH: Duration = Duration.ofHours(1)
 internal suspend fun ffmpegVersion(ffmpeg: String): String = withContext(Dispatchers.IO) {
     try {
         val process = ProcessBuilder(ffmpeg, "-version").redirectErrorStream(true).start()
-        val line = try { process.inputStream.bufferedReader().use { it.readLine() } } finally {
-            if (!process.waitFor(5, TimeUnit.SECONDS)) process.destroyForcibly()
+        // The few lines it prints fit the pipe's buffer, so the exit comes first and an FFmpeg that hangs never holds the page.
+        if (!process.waitFor(5, TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            return@withContext "not readable at $ffmpeg"
         }
+        val line = process.inputStream.bufferedReader().use { it.readLine() }
         line?.takeIf { it.startsWith("ffmpeg") }?.removePrefix("ffmpeg version ")?.substringBefore(" Copyright")?.trim() ?: "not readable at $ffmpeg"
     } catch (e: java.io.IOException) { "not found at $ffmpeg" }
 }

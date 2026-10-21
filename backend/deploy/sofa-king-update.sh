@@ -5,7 +5,7 @@
 # About page shows, and starts by removing the update-requested file the portal writes, which the path unit watches.
 #
 # Install it from the Compose directory with: sudo ./sofa-king-update.sh install
-# That writes a service, a 15-minute timer and the path unit for that directory and this copy of the script, and
+# That writes a service, a 2-minute timer and the path unit for that directory and this copy of the script, and
 # starts them; see docs/deploy.md#update-automatically.
 set -euo pipefail
 # Backups hold provider session tokens, so each is readable by its owner alone: the container's user or root.
@@ -40,8 +40,9 @@ install_units() {
     printf 'ExecStart=%s\n' "$script"
   } > "$units/sofa-king-update.service"
   {
-    printf '[Unit]\nDescription=Check for a new Sofa King server image every 15 minutes\n\n'
-    printf '[Timer]\nOnBootSec=5min\nOnUnitActiveSec=15min\nRandomizedDelaySec=60\n\n[Install]\nWantedBy=timers.target\n'
+    # An unchanged image costs the pull one manifest request, so the check can run often.
+    printf '[Unit]\nDescription=Check for a new Sofa King server image every 2 minutes\n\n'
+    printf '[Timer]\nOnBootSec=5min\nOnUnitActiveSec=2min\nRandomizedDelaySec=15\n\n[Install]\nWantedBy=timers.target\n'
   } > "$units/sofa-king-update.timer"
   {
     printf '[Unit]\nDescription=Update the Sofa King server when its admin portal asks\n\n'
@@ -52,7 +53,7 @@ install_units() {
   [ -z "${SOFA_UPDATE_UNIT_DIR:-}" ] || return 0
   systemctl daemon-reload
   systemctl enable --now sofa-king-update.timer sofa-king-update.path
-  echo "sofa-king-update: checks every 15 minutes; to check now: sudo systemctl start sofa-king-update"
+  echo "sofa-king-update: checks every 2 minutes; to check now: sudo systemctl start sofa-king-update"
 }
 
 if [ "${1:-}" = install ]; then

@@ -50,7 +50,7 @@ internal class AboutView(val server: AboutServer, val status: ServerStatus, val 
     constructor(view: AboutView, confirm: Boolean) : this(view.server, view.status, view.snapshot, view.update, confirm)
 }
 
-/** The updater has checked in when its last report is under this old; the timer runs every 15 minutes. */
+/** The updater has checked in when its last report is under this old; the timer runs every 2 minutes. */
 private val UPDATER_FRESH: Duration = Duration.ofHours(1)
 
 /** The first line of `ffmpeg -version`, or why it could not be read; [ffmpeg] is the configured path. */
@@ -281,7 +281,7 @@ private fun FlowContent.updatePanel(chrome: Chrome, update: UpdateState) = panel
         dt { +"Updater" }
         dd {
             when {
-                report == null -> { +"Has not reported. "; span("muted") { +"Install the host's updater to apply updates; its timer checks every 15 minutes and writes its result here." } }
+                report == null -> { +"Has not reported. "; span("muted") { +"Install the host's updater to apply updates; its timer checks every 2 minutes and writes its result here." } }
                 else -> {
                     +when (report.outcome) {
                         "up-to-date" -> "Checked and found nothing new"

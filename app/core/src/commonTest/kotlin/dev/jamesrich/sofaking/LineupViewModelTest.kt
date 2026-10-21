@@ -177,6 +177,19 @@ class LineupViewModelTest {
     }
 
     @Test
+    fun `a cached lineup without programmes still on is loading until the network answers`() = viewModelTest {
+        val cached = Lineup(listOf(Channel("old", 9.0, "Old", null, listOf("Other"))), emptyMap())
+        LineupCache(cacheStore, "http://sofa.test") { now }.write(cached)
+        val server = FakeServer(this)
+        server.failCatalog = true
+        val viewModel = start(server)
+
+        assertTrue(viewModel.state.first { it is LineupState.Ready }.lineup.guideLoading, "the rows read loading, not no listing")
+        val settled = viewModel.state.first { it is LineupState.Ready && !it.lineup.guideLoading }.lineup
+        assertEquals(cached.channels, settled.channels, "a failed load stops loading and keeps the cached channels")
+    }
+
+    @Test
     fun `a failed refresh keeps the lineup on screen and a failed first load does not`() = viewModelTest {
         val server = FakeServer(this)
         server.failCatalog = true
@@ -230,6 +243,11 @@ class LineupViewModelTest {
         // A refresh keeps the extra day beside the fresh live guide.
         advanceTimeBy(3.hours + 1.minutes)
         assertEquals(2, viewModel.state.value.lineup.guide.getValue("c1").size)
+
+        // So does a reload asked for by hand, which nothing would follow by asking for the day again.
+        viewModel.refresh()
+        runCurrent()
+        assertEquals(2, viewModel.state.first { it is LineupState.Ready && !it.lineup.guideLoading }.lineup.guide.getValue("c1").size)
     }
 
     @Test

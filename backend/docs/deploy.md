@@ -294,7 +294,7 @@ sudo ./sofa-king-update.sh install
 
 Other settings come from the environment: `SOFA_UPDATE_IMAGE` (the image to pull, `ghcr.io/jamesarich/sofa-king:main`), `SOFA_UPDATE_CONFIG_DIR` (the folder with the status and request files, `config` under the Compose directory; set it when running `install` too), `SOFA_UPDATE_CONTAINER` (`sofa-king-backend`), `SOFA_UPDATE_LOCAL_TAG` (the image `compose.yaml` runs, read with `docker compose config --images`) and `SOFA_UPDATE_PREVIOUS_TAG` (`sofa-king-backend:previous`), `SOFA_UPDATE_KEEP_BACKUPS` and `SOFA_UPDATE_HEALTH_SECONDS`. An image built by hand is replaced at the next check; stop the timer and the path unit to keep it. The updater installs new images, not new copies of itself, so download it again and run `install` again to take a newer script.
 
-The server checks the registry itself too, as [update](admin.md#update) describes: it reads the revision the `main` tag's index carries and compares it with its own, so the portal says whether an update is available before the updater runs. `SOFA_UPDATE_IMAGE` in `.env` names another image for that check, or set it empty to turn it off.
+The server checks the registry itself too, as [update](admin.md#update) describes: it reads the revision the `main` tag's index carries and compares it with its own, so the portal says whether an update is available before the updater runs. It checks every five minutes and, once the updater has reported, writes `config/update-requested` for a newer revision, so the path unit installs it within minutes; the 15-minute timer stays as the fallback. `SOFA_UPDATE_IMAGE` in `.env` names another image for that check, or set it empty to turn it off.
 
 ## Deploy your build to a host without a JDK
 

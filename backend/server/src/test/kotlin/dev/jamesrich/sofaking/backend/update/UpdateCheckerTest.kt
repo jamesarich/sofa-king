@@ -73,6 +73,36 @@ class UpdateCheckerTest {
         dir.toFile().deleteRecursively()
     }
 
+    @Test fun `a newer build asks an installed updater once, and never for one it refused`() = runTest {
+        val dir = Files.createTempDirectory("sofa-update-")
+        val request = dir.resolve(UpdateChecker.REQUEST_FILE)
+        fun report(outcome: String, candidate: String) = Files.writeString(
+            dir.resolve(UpdateChecker.STATUS_FILE),
+            """{"checkedAt":"2026-10-21T17:00:00Z","running":"abc1234","candidate":"$candidate","outcome":"$outcome"}""",
+        )
+        HttpClient(registry()).use { http ->
+            val jobs = Jobs(clock)
+            val checker = UpdateChecker(http, clock, dir, "ghcr.io/jamesarich/sofa-king:main", RunningBuild("abc1234", "1.3.0"), jobs)
+            checker.check()
+            assertFalse(Files.exists(request), "no updater has reported, so none is installed")
+            report("up-to-date", "abc1234")
+            checker.check()
+            assertTrue(Files.exists(request))
+            assertEquals("update available: def5678; asked the updater to install it", jobs.snapshot().single().lastNote)
+            Files.delete(request)
+            checker.check()
+            assertFalse(Files.exists(request), "asked once per revision")
+        }
+        HttpClient(registry()).use { http ->
+            report("rolled-back", "def5678")
+            UpdateChecker(http, clock, dir, "ghcr.io/jamesarich/sofa-king:main", RunningBuild("abc1234", "1.3.0"), Jobs(clock)).check()
+            assertFalse(Files.exists(request), "a build the updater rolled back is not asked for again")
+            UpdateChecker(http, clock, dir, "ghcr.io/jamesarich/sofa-king:main", RunningBuild("def5678", "1.4.0"), Jobs(clock)).check()
+            assertFalse(Files.exists(request), "the running build")
+        }
+        dir.toFile().deleteRecursively()
+    }
+
     @Test fun `a registry failure is recorded, not thrown, and names no URL`() = runTest {
         val dir = Files.createTempDirectory("sofa-update-")
         HttpClient(MockEngine { respond("down", HttpStatusCode.ServiceUnavailable) }).use { http ->

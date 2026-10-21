@@ -264,7 +264,7 @@ private fun FlowContent.updatePanel(chrome: Chrome, update: UpdateState) = panel
             +"An update is available: "; build(update.published?.version, update.published?.revision); +" is published."
         }
         update.error != null -> div("notice warn") { attributes["role"] = "status"; +"The last check failed: ${update.error}" }
-        update.checkedAt == null -> p("muted") { +"Not checked yet. The first check runs two minutes after start, then every six hours." }
+        update.checkedAt == null -> p("muted") { +"Not checked yet. The first check runs two minutes after start, then every five minutes." }
         else -> p("muted") { +"The registry names no commit for the published image, so it cannot be compared." }
     }
     dl("kv") {

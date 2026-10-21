@@ -174,15 +174,13 @@ compose.dependencyCompatibility {
     exclude("io.coil-kt.coil3")
 }
 
-// jpackage needs a major version above 0, so 0.x packages as 1.x. A snapshot's packages carry its build number, so
-// each installs over the last: the .deb takes the whole suffix (1.1.0-dev.42+abc1234, which apt orders by the build
-// number), and the MSI and the macOS build version, which allow only numbers, take the build number as their last field.
-val packageBase = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
-val packageBuild = if (versionSuffix.isEmpty()) {
-    packageBase
-} else {
-    packageBase.substringBeforeLast('.') + "." + providers.gradleProperty("sofaking.versionCode").get()
-}
+// Every package carries the catalog version, and a snapshot's carry its build number too, so each installs over the
+// last: the .deb takes the whole suffix (0.1.0-dev.42+abc1234, which apt orders by the build number), and the MSI,
+// which allows only numbers, takes the build number as its last field. jpackage refuses a macOS version whose first
+// number is 0, so only the app bundle maps a leading 0. to 1., with the build number as its build version.
+val buildNumber = providers.gradleProperty("sofaking.versionCode").get()
+fun withBuild(version: String) = if (versionSuffix.isEmpty()) version else version.substringBeforeLast('.') + ".$buildNumber"
+val macVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
 
 compose.desktop {
     application {
@@ -192,7 +190,7 @@ compose.desktop {
             // From `suggestRuntimeModules`; DataStore's protobuf needs jdk.unsupported, and the trimmed runtime lacks it.
             modules("java.instrument", "java.management", "jdk.unsupported")
             packageName = "Sofa King"
-            packageVersion = packageBase
+            packageVersion = appVersion
             description = "Live TV, recordings and your own movies and shows from your Sofa King server"
             vendor = "James Rich"
             copyright = "Copyright 2026 James Rich. Licensed under the GPL-3.0-only."
@@ -201,7 +199,7 @@ compose.desktop {
             val icons = layout.projectDirectory.dir("icons")
             linux {
                 packageName = "sofa-king"
-                debPackageVersion = packageBase + versionSuffix
+                debPackageVersion = appVersion + versionSuffix
                 debMaintainer = "2199651+jamesarich@users.noreply.github.com"
                 menuGroup = "AudioVideo;Video;TV"
                 appCategory = "video"
@@ -209,7 +207,7 @@ compose.desktop {
                 iconFile.set(icons.file("sofa-king.png"))
             }
             windows {
-                msiPackageVersion = packageBuild
+                msiPackageVersion = withBuild(appVersion)
                 menuGroup = "Sofa King"
                 menu = true
                 shortcut = true
@@ -219,7 +217,8 @@ compose.desktop {
                 iconFile.set(icons.file("sofa-king.ico"))
             }
             macOS {
-                packageBuildVersion = packageBuild
+                packageVersion = macVersion
+                packageBuildVersion = withBuild(macVersion)
                 bundleID = "dev.jamesrich.sofaking"
                 dockName = "Sofa King"
                 appCategory = "public.app-category.entertainment"

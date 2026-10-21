@@ -114,7 +114,7 @@ Settings opens from the header's Settings button on a TV and from the navigation
 | Server | Reload | | Loads the lineup and the library home again from the server |
 | Lock | Set a PIN | Off | Four digits, entered twice, that Settings asks for before it opens; see [settings lock](#settings-lock). Remove the PIN takes it off |
 
-About shows the version and how many channels are loaded, then whether a newer build is published, and the notice for the TMDB details the server can add to libraries; the Apple TV app shows that notice under About too. On a snapshot, every build shows a version ending in `-dev.BUILD+COMMIT`, the build number and the short commit, the same version the server's admin portal shows for a server built from that commit. The desktop installers show their package version: the `.deb` ends in the same suffix, and the MSI and macOS package show 1.1.BUILD.
+About shows the version and how many channels are loaded, then whether a newer build is published, and the notice for the TMDB details the server can add to libraries; the Apple TV app shows that notice under About too. On a snapshot, every build shows a version ending in `-dev.BUILD+COMMIT`, the build number and the short commit, the same version the server's admin portal shows for a server built from that commit. The `.deb` carries the same version, the MSI shows 0.1.BUILD, and the macOS app shows 1.1.0, since macOS packages cannot start at 0.
 
 ### Update check
 

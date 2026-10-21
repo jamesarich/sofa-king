@@ -51,7 +51,6 @@ import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.RecordingMarks
-import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
@@ -83,7 +82,6 @@ private const val SWIPE_UP_DP = 80
 internal const val CHANNEL_NOT_FOUND = Wire.ErrorCode.CHANNEL_NOT_FOUND
 /** How long the player waits for the lineup it asked for to catch up with the one it holds. */
 private const val LINEUP_SYNC_MS = 2_000L
-private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 private val log = Logger.withTag("SofaKing")
 
 /** How long a zap rests before the new channel is tuned, so pressing through channels does not open a session per press. */
@@ -241,7 +239,7 @@ fun PlayerScreen(
                     throw e
                 } catch (e: Exception) {
                     // The reconnect loop below tunes again with backoff, as it does for a stream that failed.
-                    state.fail((e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE)
+                    state.fail(failureCode(e))
                     return@launch
                 }
                 if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {

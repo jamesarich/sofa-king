@@ -69,7 +69,8 @@ class LibraryArtwork(
                     if (Files.isRegularFile(file)) return@withContext Artwork(file, "image/jpeg")
                     if (!Files.isRegularFile(video, LinkOption.NOFOLLOW_LINKS)) return@withContext null
                     Files.createDirectories(directory)
-                    val partial = directory.resolve("$key.part.jpg")
+                    // Its own name: the lock is dropped as it is released, so a waiter and a newcomer can both get here.
+                    val partial = directory.resolve("$key.${java.util.UUID.randomUUID()}.part.jpg")
                     val seconds = "%.3f".format(java.util.Locale.ROOT, source.atMs / 1000.0)
                     val command = listOf(
                         ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", seconds, "-i", video.toString(),

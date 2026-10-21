@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -15,15 +17,20 @@ internal fun msToNextMinute(epochMs: Long): Long = MINUTE_MS - epochMs.mod(MINUT
 
 /**
  * The current instant, refreshed on every wall-clock minute, so the guide and the player turn over together
- * and with the programmes' start times; reading it in composition never calls the clock.
+ * and with the programmes' start times; reading it in composition never calls the clock. It is read again each
+ * time the app comes to the front, since a delay pending through standby can wake long after its minute.
  */
 @Composable
 internal fun rememberMinuteNow(): State<Instant> {
     val initial = remember { Clock.System.now() }
-    return produceState(initial) {
-        while (true) {
-            delay(msToNextMinute(Clock.System.now().toEpochMilliseconds()))
+    val lifecycle = appLifecycleOwner.lifecycle
+    return produceState(initial, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             value = Clock.System.now()
+            while (true) {
+                delay(msToNextMinute(Clock.System.now().toEpochMilliseconds()))
+                value = Clock.System.now()
+            }
         }
     }
 }

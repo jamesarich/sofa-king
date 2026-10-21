@@ -99,6 +99,21 @@ class AuthPathTest {
         } finally { store.close(); dir.toFile().deleteRecursively() }
     }
 
+    @Test fun `without a token the outputs answer only this machine, not a proxy`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-auth-output-")
+        val store = openStore(dir)
+        try {
+            application {
+                backendModule(store, Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), apiToken = null, adminToken = null)
+                routing { get("/output/playlist.m3u") { authorizeOutput(call, outputToken = null, apiToken = null); call.respondText("playlist") } }
+            }
+            assertEquals("playlist", client.get("/output/playlist.m3u").bodyAsText())
+            val proxied = client.get("/output/playlist.m3u") { header(HttpHeaders.XForwardedFor, "203.0.113.9") }
+            assertEquals(HttpStatusCode.Forbidden, proxied.status)
+            assertTrue("LOOPBACK_ONLY" in proxied.bodyAsText())
+        } finally { store.close(); dir.toFile().deleteRecursively() }
+    }
+
     private suspend fun ApplicationTestBuilder.raw(path: String, token: String? = null): HttpResponse =
         client.get { url { encodedPath = path }; token?.let { bearerAuth(it) } }
 }

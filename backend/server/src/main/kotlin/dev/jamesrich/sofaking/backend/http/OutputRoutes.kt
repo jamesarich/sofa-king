@@ -136,9 +136,15 @@ internal suspend fun serveExternal(
     }
 }
 
-/** The output token in the query or as a bearer, or the API token as a bearer; nothing when neither is configured. */
+/**
+ * The output token in the query or as a bearer, or the API token as a bearer. With neither configured the outputs are
+ * open to this machine only, as the API is, so a reverse proxy cannot expose them.
+ */
 internal fun authorizeOutput(call: ApplicationCall, outputToken: String?, apiToken: String?) {
-    if (outputToken == null && apiToken == null) return
+    if (outputToken == null && apiToken == null) {
+        if (call.request.fromThisMachine()) return
+        throw ApiFailure(403, "LOOPBACK_ONLY", "Without a token the outputs answer only this machine")
+    }
     val bearer = call.request.headers[HttpHeaders.Authorization]?.takeIf { it.startsWith("Bearer ") }?.removePrefix("Bearer ")
     val query = call.request.queryParameters["token"]
     val authorized = (outputToken != null && (sameSecret(query, outputToken) || sameSecret(bearer, outputToken))) || (apiToken != null && sameSecret(bearer, apiToken))

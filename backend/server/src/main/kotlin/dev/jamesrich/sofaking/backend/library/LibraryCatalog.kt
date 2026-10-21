@@ -329,12 +329,15 @@ class LibraryCatalog internal constructor(
         )
     }
 
-    /** The in-progress items, newest first, with the next episode of each show whose last-played episode was finished. */
+    /**
+     * The items stopped part way, rewatches included, newest first, with the next episode of each show whose last-played
+     * episode was finished.
+     */
     private fun continueWatching(snapshot: Snapshot, states: Map<String, PlayStateRecord>): List<View> {
         val picks = LinkedHashMap<String, Pair<View, String>>()
         for (state in states.values) {
             val view = snapshot.views[state.itemId] ?: continue
-            if (!state.watched && state.positionMs > 0) picks[view.record.id] = view to state.updatedAt
+            if (state.positionMs > 0) picks[view.record.id] = view to state.updatedAt
         }
         for ((_, episodes) in snapshot.episodes) {
             val last = episodes.mapNotNull { episode -> states[episode.record.id]?.let { episode to it } }.maxByOrNull { it.second.updatedAt } ?: continue
@@ -348,13 +351,13 @@ class LibraryCatalog internal constructor(
     }
 
     /**
-     * The episode to play next: the one last played if it is unfinished, else the first unwatched one after it, else
+     * The episode to play next: the one last played if it stopped part way, else the first unwatched one after it, else
      * the first unwatched one. Specials (season 0) are skipped.
      */
     private fun nextEpisode(episodes: List<View>, states: Map<String, PlayStateRecord>): View? {
         val regular = episodes.filter { it.record.season != 0 }
         val last = regular.withIndex().mapNotNull { (index, episode) -> states[episode.record.id]?.let { Triple(index, episode, it) } }.maxByOrNull { it.third.updatedAt }
-        if (last != null && !last.third.watched) return last.second
+        if (last != null && (!last.third.watched || last.third.positionMs > 0)) return last.second
         val unwatched = { episode: View -> states[episode.record.id]?.watched != true }
         val from = last?.first?.plus(1) ?: 0
         return regular.drop(from).firstOrNull(unwatched) ?: regular.firstOrNull(unwatched)

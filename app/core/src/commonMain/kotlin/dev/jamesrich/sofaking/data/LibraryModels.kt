@@ -60,8 +60,8 @@ data class PlayProgress(
     /** How far in, from 0 to 1, or null when the length is unknown. */
     val fraction: Float? get() = durationMs?.takeIf { it > 0 }?.let { (positionMs.toFloat() / it).coerceIn(0f, 1f) }
 
-    /** Started and not finished: the item resumes rather than starts. */
-    val inProgress: Boolean get() = !watched && positionMs > 0
+    /** Stopped part way, on a first watch or a rewatch: the item resumes rather than starts. */
+    val inProgress: Boolean get() = positionMs > 0
 }
 
 /**

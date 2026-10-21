@@ -18,6 +18,9 @@ private val MATCHED_FOR: Duration = Duration.ofDays(30)
 /** How long a title TMDB did not know waits before it is searched again. */
 private val UNMATCHED_FOR: Duration = Duration.ofDays(7)
 
+/** Lookups in a row that cannot reach TMDB before a run stops. */
+private const val UNREACHABLE_STOP = 3
+
 /** What one metadata refresh did, for the scan's job note. [stopped] names the failure that ended it early. */
 data class MetadataResult(val fetched: Int, val matched: Int, val unmatched: Int, val failed: Int, val stopped: String? = null) {
     val note: String get() = buildString {
@@ -30,7 +33,7 @@ data class MetadataResult(val fetched: Int, val matched: Int, val unmatched: Int
 /**
  * Fills in what TMDB knows about a library's movies and shows, and a show's seasons and episodes. An id from a
  * `.nfo` or a `{tmdb-N}` tag pins the match; otherwise the title and year are searched. Lookups are kept in the
- * database and fetched again after [MATCHED_FOR]; a refused token or a rate limit ends the run, to resume on the next.
+ * database and fetched again after [MATCHED_FOR]; a refused token, a rate limit or three lookups in a row that cannot reach TMDB end the run, to resume on the next.
  */
 class LibraryMetadata internal constructor(
     private val store: BackendStore,
@@ -50,6 +53,7 @@ class LibraryMetadata internal constructor(
         val known = store.libraryMetadata(present.map { it.id })
         val now = clock.instant()
         var fetched = 0; var matched = 0; var unmatched = 0; var failed = 0
+        var unreachable = 0
         val tops = present.filter { it.kind == ItemKind.MOVIE || it.kind == ItemKind.SHOW }
         for (item in tops) {
             val hint = item.details?.tmdbId
@@ -76,9 +80,12 @@ class LibraryMetadata internal constructor(
                     } else unmatched++
                 }
                 fetched++
+                unreachable = 0
                 store.saveLibraryMetadata(records)
             } catch (e: TmdbFailure) {
                 if (e.code == "TMDB_AUTH" || e.code == "TMDB_RATE_LIMITED") return MetadataResult(fetched, matched, unmatched, failed, e.code)
+                // With the network down every lookup waits out its timeout; a few in a row end the run until the next scan.
+                if (e.code.startsWith("TMDB_UNREACHABLE") && ++unreachable >= UNREACHABLE_STOP) return MetadataResult(fetched, matched, unmatched, failed + 1, "TMDB_UNREACHABLE")
                 log.info("tmdb lookup failed item={} code={}", item.id, e.code)
                 failed++
             }

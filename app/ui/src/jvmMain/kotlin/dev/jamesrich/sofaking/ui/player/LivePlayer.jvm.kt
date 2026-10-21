@@ -39,6 +39,7 @@ import uk.co.caprica.vlcj.player.embedded.videosurface.callback.RenderCallback
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.format.RV32BufferFormat
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -75,6 +76,17 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
      * while [_status] moves at once.
      */
     private val commands = Executors.newSingleThreadExecutor { task -> Thread(task, "libvlc-commands").apply { isDaemon = true } }
+
+    /**
+     * Queues [task] on [commands]. Once [release] has shut the queue, a libVLC event still on its way or a late call
+     * from the UI has nothing left to command, so it is dropped rather than thrown on libVLC's or the UI's thread.
+     */
+    private fun command(task: () -> Unit) {
+        try {
+            commands.execute(task)
+        } catch (_: RejectedExecutionException) {
+        }
+    }
 
     /**
      * Counts the streams [prepare] opens and [stop] ends. A queued stop runs late, and the old stream's callbacks keep
@@ -121,7 +133,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
     override var volume: Float = 1f
         set(value) {
             field = value
-            commands.execute { applyVolume() }
+            command { applyVolume() }
         }
 
     /** On the command thread. */
@@ -133,17 +145,17 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
         get() = _status.value.playWhenReady
         set(value) {
             _status.update { it.copy(playWhenReady = value) }
-            commands.execute { if (vlc.status().isPlayable) vlc.controls().setPause(!value) }
+            command { if (vlc.status().isPlayable) vlc.controls().setPause(!value) }
         }
 
     override fun setCaptionsEnabled(enabled: Boolean) {
         captionsOn = enabled
-        commands.execute { applyCaptions() }
+        command { applyCaptions() }
     }
 
     override fun selectAudioTrack(id: String) {
         val track = id.toIntOrNull() ?: return
-        commands.execute {
+        command {
             vlc.audio().setTrack(track)
             readAudioTracks()
         }
@@ -177,7 +189,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
         _status.update { it.copy(state = PlaybackState.BUFFERING) }
         val start = playWhenReady
         val opening = generation.incrementAndGet()
-        commands.execute {
+        command {
             opened = opening
             if (start) vlc.media().play(url) else vlc.media().startPaused(url)
         }
@@ -185,7 +197,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
 
     override fun stop() {
         generation.incrementAndGet()
-        commands.execute { vlc.controls().stop() }
+        command { vlc.controls().stop() }
         hasFrame = false
         _audioTracks.value = emptyList()
         _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
@@ -209,7 +221,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
     override fun seekTo(positionMs: Long) {
         if (!isSeekable) return
         val target = clampSeek(positionMs, durationMs)
-        commands.execute { vlc.controls().setTime(target) }
+        command { vlc.controls().setTime(target) }
     }
 
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = NoMediaSession
@@ -320,7 +332,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
         override fun playing(mediaPlayer: MediaPlayer) {
             if (!isCurrent) return
             _status.update { it.copy(state = PlaybackState.READY, isPlaying = true) }
-            commands.execute {
+            command {
                 applyCaptions()
                 readAudioTracks()
             }
@@ -332,15 +344,15 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
          * preview, so the player's volume is set again on the new stream.
          */
         override fun audioDeviceChanged(mediaPlayer: MediaPlayer, audioDevice: String?) {
-            commands.execute { applyVolume() }
+            command { applyVolume() }
         }
 
         override fun elementaryStreamAdded(mediaPlayer: MediaPlayer, type: TrackType, id: Int) {
-            if (type == TrackType.AUDIO) commands.execute { readAudioTracks() }
+            if (type == TrackType.AUDIO) command { readAudioTracks() }
         }
 
         override fun elementaryStreamSelected(mediaPlayer: MediaPlayer, type: TrackType, id: Int) {
-            if (type == TrackType.AUDIO) commands.execute { readAudioTracks() }
+            if (type == TrackType.AUDIO) command { readAudioTracks() }
         }
 
         override fun paused(mediaPlayer: MediaPlayer) {

@@ -136,6 +136,22 @@ class LibraryMetadataTest {
         assertTrue(store.libraryMetadata(store.libraryItems(library.id).map { it.id }).isEmpty())
     }
 
+    @Test fun `three lookups in a row that cannot reach TMDB stop the run`() = runBlocking {
+        val root = Files.createTempDirectory("sofa-media-")
+        for (name in listOf("Alien (1979)", "Heat (1995)", "Ronin (1998)", "Se7en (1995)", "Fargo (1996)")) root.file("movies/$name.mkv")
+        val calls = mutableListOf<String>()
+        val offline = HttpClient(MockEngine { request ->
+            calls += request.url.encodedPath
+            throw java.io.IOException("network is unreachable")
+        })
+        val (_, service) = service(root, offline)
+        val library = service.create("Movies", LibraryKind.MOVIES, root.resolve("movies").toString())
+        service.scan(library.id)
+        assertEquals(3, calls.size, "the third failure in a row ends the run")
+        val note = service.library(library.id).scanNote!!
+        assertTrue(note.contains("stopped: TMDB_UNREACHABLE"), note)
+    }
+
     @Test fun `a match needs the same title, and a lone result its year`() {
         val item = LibraryItemRecord(id = "i", libraryId = "l", kind = ItemKind.MOVIE, title = "Mr. Robot", year = 2015, addedAt = "")
         assertEquals(2, pickShow(listOf(TmdbShowResult(1, "Mr Robot", firstAirDate = "1999-01-01"), TmdbShowResult(2, "Mr. Robot", firstAirDate = "2015-06-24")), item))

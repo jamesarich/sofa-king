@@ -9,8 +9,11 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.test.*
 
 class LibraryServiceTest {
@@ -154,5 +157,28 @@ class LibraryServiceTest {
         assertEquals(409, assertFailsWith<ApiFailure> { s.service.create("Again", LibraryKind.MOVIES, movies.toString()) }.status)
         assertFalse(s.service.folderChoices().contains(movies))
         assertTrue(s.service.folderChoices().contains(s.root))
+    }
+
+    @Test fun `removing a library does not wait for its files to be probed, and the scan then writes nothing`() = runBlocking {
+        val dir = Files.createTempDirectory("sofa-library-")
+        val root = Files.createDirectories(dir.resolve("media"))
+        val clock = MutableClock()
+        val store = openStore(dir.resolve("data"), clock)
+        val probing = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val scanner = LibraryScanner({ probing.complete(Unit); release.await(); media }, missingGrace = Duration.ofDays(7))
+        val service = LibraryService(store, clock, listOf(MediaRoot("Media", root)), scanner, Jobs(clock))
+        val movies = Files.createDirectories(root.resolve("movies"))
+        movies.file("Alien (1979)/Alien (1979).mkv")
+        val library = service.create("Movies", LibraryKind.MOVIES, movies.toString())
+
+        val scan = async(Dispatchers.Default) { runCatching { service.scan(library.id) } }
+        probing.await()
+        withTimeout(5_000) { service.delete(library.id) }
+        release.complete(Unit)
+
+        assertEquals("LIBRARY_NOT_FOUND", (scan.await().exceptionOrNull() as ApiFailure).code)
+        assertTrue(store.libraryItems(library.id).isEmpty())
+        store.close(); dir.toFile().deleteRecursively()
     }
 }

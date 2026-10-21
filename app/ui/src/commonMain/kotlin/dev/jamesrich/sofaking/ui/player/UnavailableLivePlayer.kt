@@ -63,7 +63,7 @@ internal class UnavailableLivePlayer(override val captionSync: CaptionSync, priv
     }
 
     @Composable
-    override fun Video(modifier: Modifier, shutter: @Composable () -> Unit) {
+    override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) {
         Box(modifier) { shutter() }
     }
 

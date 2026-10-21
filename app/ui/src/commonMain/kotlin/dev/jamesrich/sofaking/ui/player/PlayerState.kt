@@ -55,6 +55,15 @@ internal interface PlayerControls {
 
     /** Focus moves back to the picture from the info bar's buttons. */
     fun focusPicture()
+
+    /** The Record key: records the program on now, or cancels its recording, where the server records. */
+    fun record()
+
+    /** The Zoom key: the picture's next [VideoZoom]. */
+    fun zoom()
+
+    /** The Stop key: leaves the player, as Back does. */
+    fun stop()
 }
 
 /**
@@ -474,6 +483,10 @@ internal class PlayerState(
                     PlayerSideKey.SHOW_INFO -> showInfo()
                 }
             }
+            PlayerAction.STREAM_INFO -> openStreamCard()
+            PlayerAction.RECORD -> controls.record()
+            PlayerAction.ZOOM -> controls.zoom()
+            PlayerAction.STOP -> controls.stop()
         }
         return true
     }

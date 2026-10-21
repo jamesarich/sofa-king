@@ -89,6 +89,11 @@ class VodPlaybackTest {
         assertEquals(VodAction.BUTTONS, Key.DirectionDown.vodAction())
         assertEquals(VodAction.CAPTIONS, Key.Captions.vodAction())
         assertEquals(VodAction.CAPTIONS, Key.C.vodAction())
+        assertEquals(VodAction.BACK, Key.ButtonL1.vodAction())
+        assertEquals(VodAction.FORWARD, Key.ButtonR1.vodAction())
+        assertEquals(VodAction.TRACKS, Key.MediaAudioTrack.vodAction())
+        assertEquals(VodAction.ZOOM, Key.TvZoomMode.vodAction())
+        assertEquals(VodAction.STOP, Key.MediaStop.vodAction())
         assertNull(Key.Back.vodAction(), "Back is left to the back handler")
     }
 

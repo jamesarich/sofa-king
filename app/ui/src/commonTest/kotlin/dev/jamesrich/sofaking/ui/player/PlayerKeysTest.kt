@@ -87,6 +87,16 @@ class PlayerKeysTest {
     }
 
     @Test
+    fun `a gamepad's shoulder buttons step the channel and the remote's Audio Record Zoom and Stop keys act`() {
+        assertEquals(PlayerAction.CHANNEL_UP, Key.ButtonR1.playerAction())
+        assertEquals(PlayerAction.CHANNEL_DOWN, Key.ButtonL1.playerAction())
+        assertEquals(PlayerAction.STREAM_INFO, Key.MediaAudioTrack.playerAction())
+        assertEquals(PlayerAction.RECORD, Key.MediaRecord.playerAction())
+        assertEquals(PlayerAction.ZOOM, Key.TvZoomMode.playerAction())
+        assertEquals(PlayerAction.STOP, Key.MediaStop.playerAction())
+    }
+
+    @Test
     fun `Left and Right are the side keys and everything else has no player action`() {
         assertEquals(PlayerAction.LEFT, Key.DirectionLeft.playerAction())
         assertEquals(PlayerAction.RIGHT, Key.DirectionRight.playerAction())

@@ -148,6 +148,8 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         onKeyLegendShown = vm::setKeyLegendShown,
         recordingMarks = recordingMarks.takeIf { capabilities.recordings },
         onRecord = vm.recordings::toggle,
+        zoom = shell.videoZoom,
+        onZoom = { shell.videoZoom = it },
     )
 }
 

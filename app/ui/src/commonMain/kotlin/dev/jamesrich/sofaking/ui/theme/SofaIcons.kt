@@ -317,6 +317,17 @@ internal object SofaIcons {
     /** Record, in the live player. */
     val Record: ImageVector by lazy { pathIcon("Filled.FiberManualRecord", "M12,4a8,8 0,1 0,0 16a8,8 0,1 0,0 -16z") }
 
+    /** The previous channel, on the live bar. */
+    val SwapHoriz: ImageVector by lazy { pathIcon("Filled.SwapHoriz", "M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z") }
+
+    /** Zoom, in both players. */
+    val AspectRatio: ImageVector by lazy {
+        pathIcon(
+            "Filled.AspectRatio",
+            "M19 12h-2v3h-3v2h5v-5zM7 9h3V7H5v5h2V9zm14-6H3c-1.1 0-2 0.9-2 2v14c0 1.1 0.9 2 2 2h18c1.1 0 2-0.9 2-2V5c0-1.1-0.9-2-2-2zm0 16.01H3V4.99h18v14.02z",
+        )
+    }
+
     /** A library item's Audio and subtitles. */
     val Subtitles: ImageVector by lazy {
         pathIcon(

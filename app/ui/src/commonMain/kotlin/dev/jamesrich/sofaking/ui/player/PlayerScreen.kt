@@ -76,7 +76,7 @@ internal const val CAPTION_TIMING_WINDOW_MS = 3_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
 private const val STREAM_CARD_IDLE_MS = 15_000L
 private const val LIVE_TOAST_MS = 1_500L
-private const val RECORD_NOTICE_MS = 3_000L
+private const val NOTICE_MS = 3_000L
 /** A swipe up this far on a touch screen opens the channel list. */
 private const val SWIPE_UP_DP = 80
 /** The server's answer when a session is asked for a channel id its lineup no longer has. */
@@ -139,6 +139,9 @@ fun PlayerScreen(
     recordingMarks: RecordingMarks? = null,
     /** Records the program, or cancels its recording; false when the server did not take it. */
     onRecord: suspend (Programme) -> Boolean = { false },
+    /** How the picture meets the screen, and the next one picked from the bar or the Zoom key. */
+    zoom: VideoZoom = VideoZoom.FIT,
+    onZoom: (VideoZoom) -> Unit = {},
 ) {
     val state = rememberPlayerState(lineup.channels, startIndex, previousGuideId, zapScope, captionsEnabled, attended = !unattended, keyLegendShown)
     val captionSync = player.captionSync
@@ -373,6 +376,40 @@ fun PlayerScreen(
     }
     BackHandler { if (state.back()) onExit() }
 
+    // A short note at the top left: Record's answer once the server has taken the change or not, or the new zoom.
+    var notice by remember { mutableStateOf<String?>(null) }
+    var recordBusy by remember { mutableStateOf(false) }
+    val recordingTemplate = stringResource(Res.string.player_recording)
+    val recordCanceledTemplate = stringResource(Res.string.player_recording_canceled)
+    val recordFailedText = stringResource(Res.string.player_recording_failed)
+    val zoomTemplate = stringResource(Res.string.player_zoom_notice)
+    val zoomLabels = VideoZoom.entries.associateWith { stringResource(it.label) }
+    LaunchedEffect(notice) {
+        if (notice == null) return@LaunchedEffect
+        delay(NOTICE_MS)
+        notice = null
+    }
+    fun recordFor(programme: Programme?): LiveRecord? {
+        val marks = recordingMarks ?: return null
+        val on = programme ?: return null
+        val recording = marks.of(on).recording
+        return LiveRecord(recording) {
+            if (recordBusy) return@LiveRecord
+            recordBusy = true
+            scope.launch {
+                try {
+                    notice = when {
+                        !onRecord(on) -> recordFailedText
+                        recording -> formatTemplate(recordCanceledTemplate, on.title)
+                        else -> formatTemplate(recordingTemplate, on.title)
+                    }
+                } finally {
+                    recordBusy = false
+                }
+            }
+        }
+    }
+
     val controls = object : PlayerControls {
         override fun guide() = onGuide()
 
@@ -406,38 +443,19 @@ fun PlayerScreen(
         override fun focusPicture() {
             focus.requestFocus()
         }
-    }
 
-    // Record on the bar: the program on now, and a short answer once the server has taken the change or not.
-    var recordNotice by remember { mutableStateOf<String?>(null) }
-    var recordBusy by remember { mutableStateOf(false) }
-    val recordingTemplate = stringResource(Res.string.player_recording)
-    val recordCanceledTemplate = stringResource(Res.string.player_recording_canceled)
-    val recordFailedText = stringResource(Res.string.player_recording_failed)
-    LaunchedEffect(recordNotice) {
-        if (recordNotice == null) return@LaunchedEffect
-        delay(RECORD_NOTICE_MS)
-        recordNotice = null
-    }
-    fun recordFor(programme: Programme?): LiveRecord? {
-        val marks = recordingMarks ?: return null
-        val on = programme ?: return null
-        val recording = marks.of(on).recording
-        return LiveRecord(recording) {
-            if (recordBusy) return@LiveRecord
-            recordBusy = true
-            scope.launch {
-                try {
-                    recordNotice = when {
-                        !onRecord(on) -> recordFailedText
-                        recording -> formatTemplate(recordCanceledTemplate, on.title)
-                        else -> formatTemplate(recordingTemplate, on.title)
-                    }
-                } finally {
-                    recordBusy = false
-                }
-            }
+        override fun record() {
+            val channel = state.currentChannel ?: return
+            recordFor(lineup.nowAndNext(channel, now).first)?.onClick?.invoke()
         }
+
+        override fun zoom() {
+            val next = zoom.next()
+            onZoom(next)
+            notice = formatTemplate(zoomTemplate, zoomLabels.getValue(next))
+        }
+
+        override fun stop() = onExit()
     }
 
     Box(
@@ -485,7 +503,7 @@ fun PlayerScreen(
                 )
             },
     ) {
-        player.Video(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
+        player.Video(Modifier.fillMaxSize(), zoom) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         Captions(player, captionStyle, captionBottomFraction, Modifier.fillMaxSize())
         KeepScreenOn(playing && state.attended)
         // Picture-in-picture shows the picture and its captions, which scale with the window, and nothing else.
@@ -499,7 +517,7 @@ fun PlayerScreen(
                 state,
                 buffering = buffering,
                 paused = paused,
-                notice = recordNotice,
+                notice = notice,
                 onBack = onExit.takeIf { pointerDriven && state.overlayVisible && !state.miniGuideOpen && !state.streamCardOpen },
             )
             state.failure?.let { FailureCard(it.code) { state.retryIn } }
@@ -527,6 +545,7 @@ fun PlayerScreen(
                 paused = paused,
                 hasAudioChoice = audioTracks.isNotEmpty(),
                 record = recordFor(lineup.nowAndNext(channel, now).first),
+                zoom = zoom,
                 favorite = if (onToggleFavorite != null) channel.guideId in favorites else null,
                 onToggleFavorite = { currentOnToggleFavorite?.invoke(channel) },
                 controls = controls,
@@ -581,8 +600,9 @@ private fun PlayerTimers(state: PlayerState, player: LivePlayer, paused: Boolean
             delay(1_000)
         }
     }
-    LaunchedEffect(state.overlayVisible, state.overlayRequest) {
-        if (!state.overlayVisible) return@LaunchedEffect
+    // The bar stays up while paused, as the library player's does.
+    LaunchedEffect(state.overlayVisible, state.overlayRequest, paused) {
+        if (!state.overlayVisible || paused) return@LaunchedEffect
         delay(BAR_IDLE_MS)
         state.overlayVisible = false
     }

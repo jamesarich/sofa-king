@@ -28,6 +28,9 @@ class PlayerStateTest {
         override fun retry() { calls += "retry" }
         override fun focusButtons() { calls += "buttons" }
         override fun focusPicture() { calls += "picture" }
+        override fun record() { calls += "record" }
+        override fun zoom() { calls += "zoom" }
+        override fun stop() { calls += "stop" }
     }
 
     private val controls = Controls()
@@ -181,6 +184,17 @@ class PlayerStateTest {
         state.down(Key.MediaPause)
         state.down(Key.Captions)
         assertEquals(listOf("playPause", "play", "pause", "captions"), controls.calls)
+    }
+
+    @Test
+    fun `Record Zoom and Stop reach the player and Audio Track opens the stream card`() {
+        val state = PlayerState(lineup, startIndex = 0)
+        state.down(Key.MediaRecord)
+        state.down(Key.TvZoomMode)
+        state.down(Key.MediaStop)
+        assertEquals(listOf("record", "zoom", "stop"), controls.calls)
+        state.down(Key.MediaAudioTrack)
+        assertTrue(state.streamCardOpen)
     }
 
     @Test

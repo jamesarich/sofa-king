@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -37,6 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicInteger
+import androidx.compose.ui.draw.clipToBounds
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
@@ -247,12 +247,12 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
 
     /** Live video through media3-ui-compose: `ContentFrame` sizes a SurfaceView to the picture and shows [shutter] after each reset. */
     @Composable
-    override fun Video(modifier: Modifier, shutter: @Composable () -> Unit) {
+    override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) {
         ContentFrame(
             player = exo,
-            modifier = modifier,
+            modifier = modifier.clipToBounds(),
             surfaceType = SURFACE_TYPE_SURFACE_VIEW,
-            contentScale = ContentScale.Fit,
+            contentScale = zoom.contentScale,
             shutter = shutter,
         )
     }

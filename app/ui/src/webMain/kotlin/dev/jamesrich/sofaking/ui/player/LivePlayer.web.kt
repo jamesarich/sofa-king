@@ -14,7 +14,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.webgl.WebGLRenderTarget
 import androidx.compose.ui.platform.webgl.rememberWebGLRenderTarget
 import androidx.compose.ui.text.AnnotatedString
@@ -59,6 +58,7 @@ import org.w3c.dom.TextTrackMode
 import org.w3c.dom.events.Event
 import org.w3c.dom.get
 import org.w3c.dom.url.URL
+import androidx.compose.ui.draw.clipToBounds
 
 private val log = Logger.withTag("SofaKing")
 
@@ -251,7 +251,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
      */
     @OptIn(ExperimentalComposeUiApi::class)
     @Composable
-    override fun Video(modifier: Modifier, shutter: @Composable () -> Unit) {
+    override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) {
         val showsFrame by hasFrame.collectAsState()
         val inCanvas by drawsInCanvas.collectAsState()
         val size by frameSize.collectAsState()
@@ -280,9 +280,10 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
                 frames.release()
             }
         }
-        Box(modifier.background(Color.Black)) {
+        LaunchedEffect(zoom) { video.style.setProperty("object-fit", zoom.objectFit) }
+        Box(modifier.background(Color.Black).clipToBounds()) {
             if (target != null) {
-                Image(target.painter, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize())
+                Image(target.painter, contentDescription = null, contentScale = zoom.contentScale, modifier = Modifier.matchParentSize())
             } else {
                 HtmlElementView(factory = { video }, modifier = Modifier.matchParentSize())
             }
@@ -488,3 +489,11 @@ private val cueMarkup = Regex("<[^>]*>")
 private external interface TextCue : JsAny {
     val text: String?
 }
+
+/** The element's `object-fit` for [VideoZoom], for the fallback that shows the element itself. */
+private val VideoZoom.objectFit: String
+    get() = when (this) {
+        VideoZoom.FIT -> "contain"
+        VideoZoom.FILL -> "cover"
+        VideoZoom.STRETCH -> "fill"
+    }

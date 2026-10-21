@@ -103,7 +103,7 @@ private class RecordingPlayer(nowMs: () -> Long) : StreamLivePlayer(nowMs) {
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = error("not used")
 
     @Composable
-    override fun Video(modifier: Modifier, shutter: @Composable () -> Unit) = Unit
+    override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) = Unit
 
     override fun release() = Unit
 }

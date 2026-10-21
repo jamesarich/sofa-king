@@ -264,8 +264,13 @@ fun GuideScreen(
         revealMinute(minute)
     }
 
-    LaunchedEffect(visible.isNotEmpty(), activeFilter, state.searchOpen, state.initialFocusAttempt, state.awaitingEntry) {
+    LaunchedEffect(visible.isNotEmpty(), activeFilter, state.searchOpen, state.initialFocusAttempt, state.awaitingEntry, state.dayOffset) {
         if (state.awaitingEntry || state.initialFocusDone || state.initialFocusAttempt >= INITIAL_FOCUS_ATTEMPTS) return@LaunchedEffect
+        if (startAtNow && state.dayOffset != 0) {
+            // Now is in today's window, whatever day the guide was left on; this reruns on it.
+            state.dayOffset = 0
+            return@LaunchedEffect
+        }
         if (watchedIsHidden(returnedFrom, visible, lineup.channels)) {
             // Reruns with the full lineup on screen.
             state.showAll()

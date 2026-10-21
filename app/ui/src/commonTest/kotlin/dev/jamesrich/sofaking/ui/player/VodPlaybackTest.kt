@@ -83,8 +83,22 @@ class VodPlaybackTest {
         assertEquals(VodAction.BACK, Key.DirectionLeft.vodAction())
         assertEquals(VodAction.FORWARD, Key.MediaFastForward.vodAction())
         assertEquals(VodAction.PLAY_PAUSE, Key.DirectionCenter.vodAction())
-        assertEquals(VodAction.SHOW_INFO, Key.DirectionDown.vodAction())
+        assertEquals(VodAction.PLAY_PAUSE, Key.Spacebar.vodAction())
+        assertEquals(VodAction.PLAY_PAUSE, Key.K.vodAction())
+        assertEquals(VodAction.SHOW_INFO, Key.DirectionUp.vodAction())
+        assertEquals(VodAction.BUTTONS, Key.DirectionDown.vodAction())
+        assertEquals(VodAction.CAPTIONS, Key.Captions.vodAction())
+        assertEquals(VodAction.CAPTIONS, Key.C.vodAction())
         assertNull(Key.Back.vodAction(), "Back is left to the back handler")
+    }
+
+    @Test
+    fun `a break is skippable from its start to its end`() {
+        val breaks = listOf(VodMarker(60_000, 180_000, VodMarkerKind.BREAK))
+        assertNull(breakEndAt(breaks, 59_999))
+        assertEquals(180_000, breakEndAt(breaks, 60_000))
+        assertEquals(180_000, breakEndAt(breaks, 179_999))
+        assertNull(breakEndAt(breaks, 180_000))
     }
 
     @Test

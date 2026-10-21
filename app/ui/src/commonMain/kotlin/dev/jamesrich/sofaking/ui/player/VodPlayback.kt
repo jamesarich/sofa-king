@@ -56,20 +56,26 @@ internal fun breakToSkip(markers: List<VodMarker>, previousMs: Long, nowMs: Long
     return markers.firstOrNull { it.kind == VodMarkerKind.BREAK && it.startMs > previousMs && it.startMs <= nowMs && nowMs < it.endMs }?.endMs
 }
 
+/** The end of the commercial break [positionMs] is in, to skip to; null outside one. */
+internal fun breakEndAt(markers: List<VodMarker>, positionMs: Long): Long? =
+    markers.firstOrNull { it.kind == VodMarkerKind.BREAK && positionMs >= it.startMs && positionMs < it.endMs }?.endMs
+
 /** What a key does in the seekable player. */
-internal enum class VodAction { PLAY_PAUSE, PLAY, PAUSE, BACK, FORWARD, SHOW_INFO }
+internal enum class VodAction { PLAY_PAUSE, PLAY, PAUSE, BACK, FORWARD, SHOW_INFO, BUTTONS, CAPTIONS }
 
 /**
- * Left and Rewind step back, Right and Fast Forward step forward, OK and the media keys play and pause, and Up, Down
- * and Info show the bar.
+ * Left and Rewind step back, Right and Fast Forward step forward, OK, Space, K and the media keys play and pause, Up
+ * and Info show the bar, Down shows it and then moves into its buttons, and CC and C switch the subtitles or captions.
  */
 internal fun Key.vodAction(): VodAction? = when (this) {
     Key.DirectionLeft, Key.MediaRewind, Key.MediaPrevious -> VodAction.BACK
     Key.DirectionRight, Key.MediaFastForward, Key.MediaNext -> VodAction.FORWARD
-    Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.Spacebar -> VodAction.PLAY_PAUSE
+    Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.Spacebar, Key.K -> VodAction.PLAY_PAUSE
     Key.MediaPlay -> VodAction.PLAY
     Key.MediaPause -> VodAction.PAUSE
-    Key.DirectionUp, Key.DirectionDown, Key.Info -> VodAction.SHOW_INFO
+    Key.DirectionUp, Key.Info -> VodAction.SHOW_INFO
+    Key.DirectionDown -> VodAction.BUTTONS
+    Key.Captions, Key.C -> VodAction.CAPTIONS
     else -> null
 }
 

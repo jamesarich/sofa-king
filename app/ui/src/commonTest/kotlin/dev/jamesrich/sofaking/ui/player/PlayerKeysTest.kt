@@ -118,10 +118,10 @@ class PlayerKeysTest {
     }
 
     @Test
-    fun `Left and Right adjust caption timing after CC or open the channel list on the info bar or show it`() {
+    fun `Left and Right adjust caption timing after CC or move into the info bar's buttons or show it`() {
         assertEquals(PlayerSideKey.ADJUST_CAPTION_TIMING, playerSideKey(timingAdjustable = true, infoVisible = true))
         assertEquals(PlayerSideKey.ADJUST_CAPTION_TIMING, playerSideKey(timingAdjustable = true, infoVisible = false))
-        assertEquals(PlayerSideKey.OPEN_CHANNEL_LIST, playerSideKey(timingAdjustable = false, infoVisible = true))
+        assertEquals(PlayerSideKey.FOCUS_BUTTONS, playerSideKey(timingAdjustable = false, infoVisible = true))
         assertEquals(PlayerSideKey.SHOW_INFO, playerSideKey(timingAdjustable = false, infoVisible = false))
     }
 

@@ -57,7 +57,7 @@ internal fun Key.playerAction(): PlayerAction? = when (this) {
     Key.ChannelUp, Key.MediaNext -> PlayerAction.CHANNEL_UP
     Key.ChannelDown, Key.MediaPrevious -> PlayerAction.CHANNEL_DOWN
     Key.LastChannel -> PlayerAction.LAST_CHANNEL
-    Key.MediaPlayPause -> PlayerAction.PLAY_PAUSE
+    Key.MediaPlayPause, Key.Spacebar, Key.K -> PlayerAction.PLAY_PAUSE
     Key.MediaPlay -> PlayerAction.PLAY
     Key.MediaPause -> PlayerAction.PAUSE
     Key.Info -> PlayerAction.TOGGLE_INFO
@@ -78,15 +78,15 @@ internal fun PlayerAction.zapStep(): Int? = when (this) {
 }
 
 /** What Left or Right does in the player. */
-internal enum class PlayerSideKey { ADJUST_CAPTION_TIMING, OPEN_CHANNEL_LIST, SHOW_INFO }
+internal enum class PlayerSideKey { ADJUST_CAPTION_TIMING, FOCUS_BUTTONS, SHOW_INFO }
 
 /**
- * For a few seconds after the CC key, Left and Right move the channel's caption timing; on the info bar they open the
- * channel list, as OK does; otherwise they show the bar.
+ * For a few seconds after the CC key, Left and Right move the channel's caption timing; on the info bar they move
+ * into its buttons; otherwise they show the bar.
  */
 internal fun playerSideKey(timingAdjustable: Boolean, infoVisible: Boolean): PlayerSideKey = when {
     timingAdjustable -> PlayerSideKey.ADJUST_CAPTION_TIMING
-    infoVisible -> PlayerSideKey.OPEN_CHANNEL_LIST
+    infoVisible -> PlayerSideKey.FOCUS_BUTTONS
     else -> PlayerSideKey.SHOW_INFO
 }
 
@@ -94,8 +94,8 @@ internal fun playerSideKey(timingAdjustable: Boolean, infoVisible: Boolean): Pla
 internal enum class MiniGuideKey { LIST, SWALLOWED, PLAYER }
 
 /**
- * Up and Down move focus inside the panel, Left and Right move along its top row of filter chips and action buttons
- * and do nothing on a channel row, and every other key acts as it does in the player.
+ * Up and Down move focus inside the panel, Left and Right move along its top row of filter chips and do nothing on a
+ * channel row, and every other key acts as it does in the player.
  */
 internal fun Key.inMiniGuide(chipsFocused: Boolean = false): MiniGuideKey = when (this) {
     Key.DirectionUp, Key.DirectionDown -> MiniGuideKey.LIST
@@ -122,7 +122,7 @@ internal fun streamCardOk(hasTracks: Boolean): StreamCardKey = if (hasTracks) St
 /** What a tap or click on the video does. */
 internal enum class PlayerTap { CLOSE_CHANNEL_LIST, HIDE_INFO, SHOW_INFO }
 
-/** A tap closes the channel list first; otherwise it toggles the info bar, which carries the touch controls. */
+/** A tap closes the channel list first; otherwise it toggles the info bar, which carries the buttons. */
 internal fun playerTap(channelListOpen: Boolean, infoVisible: Boolean): PlayerTap = when {
     channelListOpen -> PlayerTap.CLOSE_CHANNEL_LIST
     infoVisible -> PlayerTap.HIDE_INFO

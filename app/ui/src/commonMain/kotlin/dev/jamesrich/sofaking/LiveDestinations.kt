@@ -103,6 +103,8 @@ internal fun GuideDestination(
 internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: LineupViewModel, player: LivePlayer) {
     val state by vm.state.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val capabilities by vm.capabilities.collectAsStateWithLifecycle()
+    val recordingMarks by vm.recordings.marks.collectAsStateWithLifecycle()
     val lineup = (state as? LineupState.Ready)?.lineup
     val hidden = settings?.hiddenChannels.orEmpty()
     val visibleLineup = rememberVisibleLineup(lineup, hidden)
@@ -144,6 +146,8 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         onToggleFavorite = { vm.toggleFavorite(it.guideId) },
         keyLegendShown = settings?.keyLegendShown ?: AppSettings.KEY_LEGEND_BARS,
         onKeyLegendShown = vm::setKeyLegendShown,
+        recordingMarks = recordingMarks.takeIf { capabilities.recordings },
+        onRecord = vm.recordings::toggle,
     )
 }
 

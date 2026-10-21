@@ -49,6 +49,8 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
+import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
@@ -68,13 +70,13 @@ import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 
-private const val ZAP_OVERLAY_MS = 5_000L
 private const val CAPTION_TOAST_MS = 2_000L
 /** How long after the CC key Left and Right keep adjusting the channel's caption timing; each press restarts it. */
 internal const val CAPTION_TIMING_WINDOW_MS = 3_000L
 private const val MINI_GUIDE_IDLE_MS = 8_000L
 private const val STREAM_CARD_IDLE_MS = 15_000L
 private const val LIVE_TOAST_MS = 1_500L
+private const val RECORD_NOTICE_MS = 3_000L
 /** A swipe up this far on a touch screen opens the channel list. */
 private const val SWIPE_UP_DP = 80
 /** The server's answer when a session is asked for a channel id its lineup no longer has. */
@@ -133,6 +135,10 @@ fun PlayerScreen(
     /** How many info bars have carried the key legend so far; it rides the first [AppSettings.KEY_LEGEND_BARS]. */
     keyLegendShown: Int = AppSettings.KEY_LEGEND_BARS,
     onKeyLegendShown: (Int) -> Unit = {},
+    /** The server's scheduled recordings, for the bar's Record; null where it does not record. */
+    recordingMarks: RecordingMarks? = null,
+    /** Records the program, or cancels its recording; false when the server did not take it. */
+    onRecord: suspend (Programme) -> Boolean = { false },
 ) {
     val state = rememberPlayerState(lineup.channels, startIndex, previousGuideId, zapScope, captionsEnabled, attended = !unattended, keyLegendShown)
     val captionSync = player.captionSync
@@ -359,8 +365,12 @@ fun PlayerScreen(
     }
 
     val focus = remember { FocusRequester() }
-    // Focus returns to the player surface whenever a panel closes, including after its list is removed.
-    LaunchedEffect(state.miniGuideOpen, state.streamCardOpen) { if (!state.miniGuideOpen && !state.streamCardOpen) focus.requestFocus() }
+    val buttonsEntry = remember { FocusRequester() }
+    // Focus returns to the player surface whenever a panel closes, including after its list is removed, and when the
+    // bar leaves while one of its buttons has it.
+    LaunchedEffect(state.miniGuideOpen, state.streamCardOpen, state.overlayVisible) {
+        if (!state.miniGuideOpen && !state.streamCardOpen && !(state.overlayVisible && state.buttonsFocused)) focus.requestFocus()
+    }
     BackHandler { if (state.back()) onExit() }
 
     val controls = object : PlayerControls {
@@ -387,6 +397,46 @@ fun PlayerScreen(
             val channel = state.currentChannel ?: return
             state.clearFailure()
             load(channel)
+        }
+
+        override fun focusButtons() {
+            buttonsEntry.requestFocus()
+        }
+
+        override fun focusPicture() {
+            focus.requestFocus()
+        }
+    }
+
+    // Record on the bar: the program on now, and a short answer once the server has taken the change or not.
+    var recordNotice by remember { mutableStateOf<String?>(null) }
+    var recordBusy by remember { mutableStateOf(false) }
+    val recordingTemplate = stringResource(Res.string.player_recording)
+    val recordCanceledTemplate = stringResource(Res.string.player_recording_canceled)
+    val recordFailedText = stringResource(Res.string.player_recording_failed)
+    LaunchedEffect(recordNotice) {
+        if (recordNotice == null) return@LaunchedEffect
+        delay(RECORD_NOTICE_MS)
+        recordNotice = null
+    }
+    fun recordFor(programme: Programme?): LiveRecord? {
+        val marks = recordingMarks ?: return null
+        val on = programme ?: return null
+        val recording = marks.of(on).recording
+        return LiveRecord(recording) {
+            if (recordBusy) return@LiveRecord
+            recordBusy = true
+            scope.launch {
+                try {
+                    recordNotice = when {
+                        !onRecord(on) -> recordFailedText
+                        recording -> formatTemplate(recordCanceledTemplate, on.title)
+                        else -> formatTemplate(recordingTemplate, on.title)
+                    }
+                } finally {
+                    recordBusy = false
+                }
+            }
         }
     }
 
@@ -424,6 +474,7 @@ fun PlayerScreen(
                     },
                 )
             }
+            .showBarOnMouseMove(LocalLastInput.current, state::showInfo)
             // A swipe up on a touch screen opens the channel list, the way a second OK does on the remote.
             .pointerInput(Unit) {
                 var dragged = 0f
@@ -444,7 +495,13 @@ fun PlayerScreen(
         if (channel == null) {
             Text(stringResource(Res.string.no_channels), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.align(Alignment.Center))
         } else {
-            StatusPills(state, buffering = buffering, paused = paused)
+            StatusPills(
+                state,
+                buffering = buffering,
+                paused = paused,
+                notice = recordNotice,
+                onBack = onExit.takeIf { pointerDriven && state.overlayVisible && !state.miniGuideOpen && !state.streamCardOpen },
+            )
             state.failure?.let { FailureCard(it.code) { state.retryIn } }
             ChannelNumberBadge(state.numbers)
             StreamCardPanel(state, player, sessions, audioTracks)
@@ -457,25 +514,6 @@ fun PlayerScreen(
                 favoritesOrder = favoritesOrder,
                 recent = recentGuideIds,
                 now = now,
-                actions = MiniGuideActions(
-                    captionsOn = state.captionsOn,
-                    paused = paused,
-                    failed = state.failure != null,
-                    hasAudioChoice = audioTracks.isNotEmpty(),
-                    favorite = if (onToggleFavorite != null) channel.guideId in favorites else null,
-                    onToggleFavorite = { currentOnToggleFavorite?.invoke(channel) },
-                    // Captions close the list so Left and Right can move the timing while the toast shows.
-                    onCaptions = {
-                        controls.toggleCaptions()
-                        state.miniGuideOpen = false
-                    },
-                    onPlayPause = controls::playPause,
-                    onRetry = {
-                        controls.retry()
-                        state.miniGuideOpen = false
-                    },
-                    onStreamInfo = state::openStreamCard,
-                ),
             )
             InfoBarPanel(
                 state = state,
@@ -488,9 +526,13 @@ fun PlayerScreen(
                 pointerDriven = pointerDriven,
                 paused = paused,
                 hasAudioChoice = audioTracks.isNotEmpty(),
+                record = recordFor(lineup.nowAndNext(channel, now).first),
+                favorite = if (onToggleFavorite != null) channel.guideId in favorites else null,
+                onToggleFavorite = { currentOnToggleFavorite?.invoke(channel) },
                 controls = controls,
-                onGuide = onExit,
+                onGuide = controls::guide,
                 focus = focus,
+                entry = buttonsEntry,
             )
         }
     }
@@ -541,7 +583,7 @@ private fun PlayerTimers(state: PlayerState, player: LivePlayer, paused: Boolean
     }
     LaunchedEffect(state.overlayVisible, state.overlayRequest) {
         if (!state.overlayVisible) return@LaunchedEffect
-        delay(ZAP_OVERLAY_MS)
+        delay(BAR_IDLE_MS)
         state.overlayVisible = false
     }
     LaunchedEffect(state.captionToast) {

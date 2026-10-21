@@ -54,6 +54,15 @@ class VodTracks(
 
     /** True when subtitle track [index] is pictures the server draws, rather than text the player does. */
     fun isPicture(index: Int?): Boolean = index != null && subtitles.any { it.index == index && it.picture }
+
+    /**
+     * The subtitle track the CC key turns on: the one shown [last] while the item plays, else the one it started
+     * with, else the first text track, else the first track; null when there are none.
+     */
+    fun subtitleToTurnOn(last: Int?): Int? =
+        listOfNotNull(last, initialSubtitle).firstOrNull { index -> subtitles.any { it.index == index } }
+            ?: subtitles.firstOrNull { !it.picture }?.index
+            ?: subtitles.firstOrNull()?.index
 }
 
 /** The row the Audio and subtitles card opens on. */

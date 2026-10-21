@@ -26,6 +26,8 @@ class PlayerStateTest {
         override fun play() { calls += "play" }
         override fun pause() { calls += "pause" }
         override fun retry() { calls += "retry" }
+        override fun focusButtons() { calls += "buttons" }
+        override fun focusPicture() { calls += "picture" }
     }
 
     private val controls = Controls()
@@ -280,10 +282,12 @@ class PlayerStateTest {
     }
 
     @Test
-    fun `Left and Right open the channel list from the info bar and show the bar otherwise`() {
+    fun `Left and Right move into the info bar's buttons and show the bar otherwise`() {
         val state = PlayerState(lineup, startIndex = 0)
         state.down(Key.DirectionLeft)
-        assertTrue(state.miniGuideOpen)
+        assertEquals(listOf("buttons"), controls.calls)
+        assertFalse(state.miniGuideOpen)
+        assertTrue(state.overlayVisible)
 
         val hidden = PlayerState(lineup, startIndex = 0)
         hidden.overlayVisible = false
@@ -374,5 +378,27 @@ class PlayerStateTest {
         assertFalse(state.down(Key.DirectionUp))
         assertFalse(state.down(Key.DirectionCenter))
         assertTrue(controls.calls.isEmpty())
+    }
+
+    @Test
+    fun `on the bar's buttons Left Right and OK go to them while Up and Back go back to the picture`() {
+        val state = PlayerState(lineup, startIndex = 1)
+        state.buttonsFocused = true
+        assertFalse(state.down(Key.DirectionRight))
+        assertFalse(state.down(Key.DirectionCenter))
+        assertTrue(state.down(Key.DirectionUp))
+        assertTrue(state.up(Key.DirectionUp))
+        assertTrue(state.down(Key.Back))
+        assertTrue(state.up(Key.Back))
+        assertEquals(listOf("picture", "picture"), controls.calls)
+        assertEquals("2", state.currentChannel?.guideId, "no zap while a button has focus")
+    }
+
+    @Test
+    fun `a media key on the bar's buttons goes back to the picture and acts there`() {
+        val state = PlayerState(lineup, startIndex = 0)
+        state.buttonsFocused = true
+        assertTrue(state.down(Key.MediaPlayPause))
+        assertEquals(listOf("picture", "playPause"), controls.calls)
     }
 }

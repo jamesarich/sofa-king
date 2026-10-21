@@ -177,6 +177,7 @@ internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupVi
                 title = item.vodTitle(),
                 player = player,
                 sessions = vm.sessions,
+                itemId = item.id,
                 open = { libraryVm.play(item, player.playbackProfile, route.fromStart, audio, pictureSubtitle) },
                 onPosition = { position, duration -> libraryVm.progress(item.id, position, duration) },
                 onStopped = { position, duration -> libraryVm.stopped(item.id, position, duration) },

@@ -75,46 +75,12 @@ class BallySportsClient(private val context: ProviderContext) : ProviderClient {
                 if (!chunk.contains("channelData") && !chunk.contains("epgData") && !chunk.contains("epgItems")) continue
                 // RSC encodes dates as "$D2026-..." and undefined as "$undefined"; plain JSON wants neither.
                 val cleaned = DATE.replace(chunk) { "\"${it.groupValues[1]}\"" }.replace("\"\$undefined\"", "null")
-                if (channels.isEmpty()) channels = extractArray(cleaned, "channelData").orEmpty()
+                if (channels.isEmpty()) channels = jsonArrayAfter(cleaned, "channelData").orEmpty()
                 // The page named the array `epgData` until October 2026 and `epgItems` since.
-                if (epg.isEmpty()) epg = extractArray(cleaned, "epgData") ?: extractArray(cleaned, "epgItems").orEmpty()
+                if (epg.isEmpty()) epg = jsonArrayAfter(cleaned, "epgData") ?: jsonArrayAfter(cleaned, "epgItems").orEmpty()
                 if (channels.isNotEmpty() && epg.isNotEmpty()) break
             }
             return channels to epg
-        }
-
-        /** The JSON array following `"key":`, skipping occurrences whose value is a `"$..."` back-reference. */
-        private fun extractArray(text: String, key: String): List<kotlinx.serialization.json.JsonElement>? {
-            val pattern = "\"$key\":"
-            var from = 0
-            while (true) {
-                val at = text.indexOf(pattern, from)
-                if (at < 0) return null
-                var start = at + pattern.length
-                while (start < text.length && text[start].isWhitespace()) start++
-                if (start >= text.length || text[start] != '[') { from = at + 1; continue }
-                var depth = 0
-                var quoted = false
-                var escaped = false
-                var index = start
-                while (index < text.length) {
-                    val c = text[index]
-                    if (quoted) {
-                        if (escaped) escaped = false else if (c == '\\') escaped = true else if (c == '"') quoted = false
-                    } else if (c == '"') {
-                        quoted = true
-                    } else if (c == '[') {
-                        depth++
-                    } else if (c == ']') {
-                        depth--
-                        if (depth == 0) { index++; break }
-                    }
-                    index++
-                }
-                val parsed = runCatching { lenientJson.parseToJsonElement(text.substring(start, index)) as? JsonArray }.getOrNull()
-                if (parsed != null) return parsed.toList()
-                from = at + 1
-            }
         }
     }
 }

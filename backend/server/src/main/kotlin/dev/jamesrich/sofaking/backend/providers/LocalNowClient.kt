@@ -86,8 +86,7 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
     private suspend fun runtime(): Runtime {
         context.state(RUNTIME)?.split('\n')?.takeIf { it.size == 2 }?.let { return Runtime(it[0], it[1]) }
         val html = context.http.get(pageUrl, PAGE_HEADERS).require("Local Now page").text()
-        val data = NEXT_DATA.find(html)?.groupValues?.get(1) ?: throw ProviderFailure("Local Now page has no runtime config")
-        val config = lenientJson.parseToJsonElement(data)["runtimeConfig"]
+        val config = nextData(html, "Local Now page")["runtimeConfig"]
         val host = config.str("DSP_API_URL")?.let { if (it.startsWith("http")) it else "https://$it" } ?: throw ProviderFailure("Local Now runtime config has no API host")
         val token = config.str("DSP_TOKEN")?.let { runCatching { lenientJson.parseToJsonElement(it).str("token") }.getOrNull() }
             ?: throw ProviderFailure("Local Now runtime config has no token")
@@ -109,7 +108,6 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
         private const val PAGE_URL = "https://localnow.com/"
         private const val SNAPSHOT = "snapshot"
         private const val RUNTIME = "runtime"
-        private val NEXT_DATA = Regex("""<script id="__NEXT_DATA__"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
         private val RUNTIME_LIFETIME = Duration.ofHours(12)
         private val URL_LIFETIME = Duration.ofHours(1)
         private val STREAM_HEADERS = mapOf("User-Agent" to BROWSER_USER_AGENT, "Origin" to "https://localnow.com", "Referer" to "https://localnow.com/")

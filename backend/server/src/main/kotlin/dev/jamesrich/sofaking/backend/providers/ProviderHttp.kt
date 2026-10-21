@@ -166,5 +166,47 @@ internal fun JsonElement?.str(key: String): String? = this[key].string
 /** True for JSON `true`, the string "true" and the string "True". */
 internal val JsonElement?.truthy: Boolean get() = (this as? JsonPrimitive)?.let { runCatching { it.jsonPrimitive.content }.getOrNull()?.lowercase() == "true" } == true
 
+/**
+ * The first JSON array after `"key":` in [text], such as a page's inline state, cut out by bracket depth and parsed
+ * alone, so the rest of the page need not be JSON. An occurrence whose value is not an array, or not one that parses
+ * (a back-reference, a cut-off chunk), is skipped; null when none is left.
+ */
+internal fun jsonArrayAfter(text: String, key: String): JsonArray? {
+    val pattern = "\"$key\":"
+    var from = 0
+    while (true) {
+        val at = text.indexOf(pattern, from).takeIf { it >= 0 } ?: return null
+        from = at + 1
+        var start = at + pattern.length
+        while (start < text.length && text[start].isWhitespace()) start++
+        if (start >= text.length || text[start] != '[') continue
+        var depth = 0
+        var quoted = false
+        var escaped = false
+        var end = -1
+        for (index in start until text.length) {
+            val char = text[index]
+            when {
+                escaped -> escaped = false
+                quoted && char == '\\' -> escaped = true
+                char == '"' -> quoted = !quoted
+                quoted -> Unit
+                char == '[' -> depth++
+                char == ']' -> if (--depth == 0) { end = index + 1; break }
+            }
+        }
+        if (end < 0) return null
+        runCatching { lenientJson.parseToJsonElement(text.substring(start, end)) as? JsonArray }.getOrNull()?.let { return it }
+    }
+}
+
+private val NEXT_DATA = Regex("""<script id="__NEXT_DATA__"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
+
+/** A Next.js page's `__NEXT_DATA__` state; [what] names the page in the failure when it has none, or none that parses. */
+internal fun nextData(html: String, what: String): JsonElement {
+    val match = NEXT_DATA.find(html) ?: throw ProviderFailure("$what has no __NEXT_DATA__")
+    return try { lenientJson.parseToJsonElement(match.groupValues[1]) } catch (e: Exception) { throw ProviderFailure("$what's __NEXT_DATA__ is not JSON", cause = e) }
+}
+
 /** An HTTP(S) URL or null; providers publish relative paths and empty strings where a logo should be. */
 internal fun httpOrNull(value: String?): String? = value?.trim()?.takeIf { it.startsWith("https://") || it.startsWith("http://") }?.take(2048)

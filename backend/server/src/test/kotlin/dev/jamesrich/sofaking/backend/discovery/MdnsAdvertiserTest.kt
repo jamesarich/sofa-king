@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.discovery
 
 import dev.jamesrich.sofaking.contract.Wire
+import java.net.InetAddress
 import kotlin.test.*
 
 class MdnsAdvertiserTest {
@@ -27,6 +28,45 @@ class MdnsAdvertiserTest {
         val advertiser = MdnsAdvertiser("Sofa King", 9193, "unknown", addresses = { emptyList() })
         advertiser.start()
         advertiser.close()
+        advertiser.close()
+    }
+
+    @Test fun `a rescan advertises on an address that appears and withdraws from one that goes`() {
+        val first = InetAddress.getByName("192.0.2.10")
+        val second = InetAddress.getByName("192.0.2.20")
+        var current = emptyList<InetAddress>()
+        val open = mutableListOf<InetAddress>()
+        val advertiser = MdnsAdvertiser("Sofa King", 9193, "unknown", addresses = { current }, responder = { address ->
+            open += address
+            AutoCloseable { open -= address }
+        })
+        advertiser.refresh()
+        assertEquals(emptyList<InetAddress>(), open)
+        current = listOf(first)
+        advertiser.refresh()
+        advertiser.refresh()
+        assertEquals(listOf(first), open)
+        current = listOf(second)
+        advertiser.refresh()
+        assertEquals(listOf(second), open)
+        advertiser.close()
+        assertEquals(emptyList<InetAddress>(), open)
+        current = listOf(first)
+        advertiser.refresh()
+        assertEquals(emptyList<InetAddress>(), open)
+    }
+
+    @Test fun `an address that fails is tried again at the next rescan`() {
+        val address = InetAddress.getByName("192.0.2.10")
+        var attempts = 0
+        val advertiser = MdnsAdvertiser("Sofa King", 9193, "unknown", addresses = { listOf(address) }, responder = {
+            if (++attempts == 1) error("interface not ready")
+            AutoCloseable { }
+        })
+        advertiser.refresh()
+        advertiser.refresh()
+        advertiser.refresh()
+        assertEquals(2, attempts)
         advertiser.close()
     }
 }

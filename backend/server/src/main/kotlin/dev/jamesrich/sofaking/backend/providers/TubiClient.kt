@@ -43,7 +43,7 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetch(): Snapshot {
         val html = context.http.get(pageUrl, PAGE_HEADERS).require("Tubi live page").text()
-        val containers = containers(html)
+        val containers = jsonArrayAfter(html, LINEAR_KEY) ?: throw ProviderFailure("Tubi live page has no linear containers")
         val groups = HashMap<String, String>()
         val order = LinkedHashSet<String>()
         for (container in containers.filterNot { it.str("container_slug") in CURATED } + containers.filter { it.str("container_slug") in CURATED }) {
@@ -83,35 +83,10 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
         return httpOrNull(resource["manifest"].str("url"))
     }
 
-    /** The `tubitv_us_linear` container array inside the page state, cut out by bracket depth and parsed alone. */
-    private fun containers(html: String): List<JsonElement> {
-        val key = html.indexOf(LINEAR_KEY).takeIf { it >= 0 } ?: throw ProviderFailure("Tubi live page has no linear containers")
-        val start = html.indexOf('[', key + LINEAR_KEY.length).takeIf { it >= 0 } ?: throw ProviderFailure("Tubi linear containers are not an array")
-        var depth = 0
-        var quoted = false
-        var escaped = false
-        for (index in start until html.length) {
-            val char = html[index]
-            when {
-                escaped -> escaped = false
-                quoted && char == '\\' -> escaped = true
-                char == '"' -> quoted = !quoted
-                quoted -> Unit
-                char == '[' || char == '{' -> depth++
-                char == ']' || char == '}' -> if (--depth == 0) {
-                    return runCatching { lenientJson.parseToJsonElement(html.substring(start, index + 1)).array }.getOrNull()
-                        ?: throw ProviderFailure("Tubi linear containers are not JSON")
-                }
-            }
-        }
-        throw ProviderFailure("Tubi linear containers are cut off")
-    }
-
-
     companion object {
         private const val PAGE_URL = "https://tubitv.com/live"
         private const val EPG_URL = "https://tubitv.com/oz/epg/programming"
-        private const val LINEAR_KEY = "\"tubitv_us_linear\""
+        private const val LINEAR_KEY = "tubitv_us_linear"
         private const val SNAPSHOT = "snapshot"
         private const val BATCH = 50
         private val URL_LIFETIME = Duration.ofHours(1)

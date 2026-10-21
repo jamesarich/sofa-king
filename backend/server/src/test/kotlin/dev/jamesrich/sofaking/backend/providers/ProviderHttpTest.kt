@@ -39,4 +39,17 @@ class ProviderHttpTest {
             assertEquals("c", cdn["csrf-token"])
         }
     }
+
+    @Test fun `the array after a key is cut out of a page, past back-references and brackets in strings`() {
+        val page = """self.push({"items":"${'$'}1"}); var state = {"items": [{"name":"a ] [ \" b"},[1,2]], "rest": {"""
+        assertEquals("""[{"name":"a ] [ \" b"},[1,2]]""", jsonArrayAfter(page, "items").toString())
+        assertNull(jsonArrayAfter(page, "missing"))
+        assertNull(jsonArrayAfter("""{"items": [1, 2""", "items"))
+    }
+
+    @Test fun `next data reads the page state and names the page when it has none`() {
+        val page = """<html><script id="__NEXT_DATA__" type="application/json">{"props":{"a":1}}</script></html>"""
+        assertEquals("1", nextData(page, "Test page")["props"]["a"].toString())
+        assertEquals("Test page has no __NEXT_DATA__", assertFailsWith<ProviderFailure> { nextData("<html></html>", "Test page") }.message)
+    }
 }

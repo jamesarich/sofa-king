@@ -11,9 +11,9 @@ on:
         default: true
         type: boolean
     outputs:
-      suffix:
-        description: The version suffix every package was built with.
-        value: ${{ jobs.version.outputs.suffix }}
+      version:
+        description: The version every package was built with, such as 0.1.0-dev.42+abc1234.
+        value: ${{ jobs.version.outputs.version }}
     secrets:
       ANDROID_DEBUG_KEYSTORE:
         required: false
@@ -43,6 +43,7 @@ jobs:
     outputs:
       code: ${{ steps.v.outputs.code }}
       suffix: ${{ steps.v.outputs.suffix }}
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,14 +56,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          eval "$(.github/version.sh | grep -E '^(code|suffix)=')"
-          published=$(gh release view snapshot --repo "$GITHUB_REPOSITORY" --json name --jq .name 2>/dev/null | sed -n 's/^Snapshot-dev\.\([0-9]*\).*/\1/p' || true)
+          eval "$(.github/version.sh)"
+          published=$(gh release view snapshot --repo "$GITHUB_REPOSITORY" --json name --jq .name 2>/dev/null | sed -n 's/.*-dev\.\([0-9]*\).*/\1/p' || true)
           if [ -n "$published" ] && [ "$((published + 1))" -gt "$code" ]; then
             code=$((published + 1))
             suffix="-dev.$code+${GITHUB_SHA::7}"
+            version="${version%%-dev.*}$suffix"
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
   linux:
     name: Android and Linux desktop
@@ -211,6 +214,6 @@ jobs:
       contents: write
     uses: ./.github/workflows/publish-snapshot.yml
     with:
-      suffix: ${{ needs.version.outputs.suffix }}
+      version: ${{ needs.version.outputs.version }}
     secrets:
       APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}

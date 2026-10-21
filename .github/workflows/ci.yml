@@ -199,6 +199,6 @@ jobs:
       contents: write
     uses: ./.github/workflows/publish-snapshot.yml
     with:
-      suffix: ${{ needs.snapshot.outputs.suffix }}
+      version: ${{ needs.snapshot.outputs.version }}
     secrets:
       APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}

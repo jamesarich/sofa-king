@@ -6,7 +6,8 @@ import SofaKingCore
 /// One channel full screen on AVPlayer, through a server watch session that core opens, renews and releases.
 /// Menu dismisses it; leaving releases the session, and backgrounding releases it until the app returns.
 /// A stream that fails or stalls is reopened through the same session after a growing pause, as the Compose app does.
-/// The transport bar's menu stars the channel and switches to another: recent, favorites or any channel.
+/// The transport bar's menu records the program on now, stars the channel and switches to another: recent, favorites
+/// or any channel.
 struct PlayerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
@@ -66,7 +67,7 @@ struct PlayerView: View {
         }
     }
 
-    /// The transport bar's custom items: the favorite toggle and the channel list, grouped as the guide's chips are.
+    /// The transport bar's custom items: Record, the favorite toggle and the channel list, grouped as the guide's chips are.
     private var menuItems: [UIMenuElement] {
         let favorite = model.favorites.contains(channel.guideId)
         let star = UIAction(
@@ -81,7 +82,23 @@ struct PlayerView: View {
             channelMenu("All channels", all, inline: false),
         ].compactMap { $0 }
         let channels = UIMenu(title: "Channels", image: UIImage(systemName: "list.bullet"), children: groups)
-        return [star, channels]
+        let items: [UIMenuElement?] = [recordAction, star, channels]
+        return items.compactMap { $0 }
+    }
+
+    /// Record, or Cancel recording, for the program on now, on a server that records; as in the program's details.
+    private var recordAction: UIAction? {
+        guard model.recordingsShown, let marks = model.recordingMarks, let lineup = model.lineup,
+              let now = model.core.nowAndNext(lineup: lineup, channel: channel).now,
+              model.core.recordable(programme: now)
+        else { return nil }
+        let recording = model.core.recordingMark(marks: marks, programme: now).recording
+        return UIAction(
+            title: recording ? "Cancel recording" : "Record",
+            image: UIImage(systemName: recording ? "xmark.circle" : "record.circle")
+        ) { _ in
+            Task { _ = try? await model.core.toggleRecording(programme: now) }
+        }
     }
 
     private func channelMenu(_ title: String, _ channels: [Channel], inline: Bool) -> UIMenu? {

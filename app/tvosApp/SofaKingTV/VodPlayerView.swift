@@ -41,7 +41,7 @@ struct VodRequest: Identifiable, Hashable {
 /// A library item or recording full screen on AVPlayer, through a server session core opens, renews and releases.
 /// The system player's transport bar scrubs; a converted stream scrubs within what the server has converted so far.
 /// A recording's commercial breaks show on the bar, and with Skip commercials on, playback that runs into one jumps
-/// to its end. The position is saved as it plays and when it stops; leaving releases the session, and backgrounding
+/// to its end; inside a break the player offers Skip break. The position is saved as it plays and when it stops; leaving releases the session, and backgrounding
 /// releases it until the app returns, when the item reopens where it was. Reaching the end of an episode offers the
 /// next one, played after a countdown; reaching the end of anything else returns to the page. For a library item,
 /// the transport bar's Audio and Subtitles menus pick a track: another audio track plays the item again from where it
@@ -69,10 +69,12 @@ struct VodPlayerView: View {
     @State private var subtitleText: String?
     /// Where the last tick found the player in the item, so a break is skipped only when playback runs into it.
     @State private var lastPositionMs: Int64 = 0
+    /// The end of the commercial break the player is in, for Skip break; nil outside one.
+    @State private var breakEndMs: Int64?
 
     var body: some View {
         ZStack {
-            VodController(player: player, menus: trackMenus).ignoresSafeArea()
+            VodController(player: player, menus: trackMenus, actions: contextualActions).ignoresSafeArea()
             if let subtitleText {
                 Text(subtitleText)
                     .font(.title3)
@@ -232,6 +234,7 @@ struct VodPlayerView: View {
         }
         skipBreak(from: lastPositionMs, to: positionMs, in: s)
         lastPositionMs = positionMs
+        breakEndMs = breaks.first(where: { positionMs >= $0.startMs && positionMs < $0.endMs })?.endMs
         guard player.rate > 0 else { return }
         switch request.source {
         case .item(let item): model.core.itemProgress(itemId: item.id, positionMs: positionMs, durationMs: durationMs)
@@ -251,15 +254,29 @@ struct VodPlayerView: View {
         guard model.settings?.skipCommercials == true, player.rate > 0,
               let b = breaks.first(where: { previousMs < $0.startMs && nowMs >= $0.startMs && nowMs < $0.endMs })
         else { return }
-        let target = CMTime(value: b.endMs - s.offsetMs, timescale: 1000)
+        jump(to: b.endMs, in: s)
+    }
+
+    /// Moves to `ms` in the item; a point past what the server has converted restarts the conversion there.
+    private func jump(to ms: Int64, in s: PlaybackStream) {
+        let target = CMTime(value: ms - s.offsetMs, timescale: 1000)
         let seekableEnd = player.currentItem?.seekableTimeRanges.last?.timeRangeValue.end ?? .zero
         if s.mode == "direct" || CMTimeCompare(target, seekableEnd) <= 0 {
             player.seek(to: target, toleranceBefore: .zero, toleranceAfter: .zero)
         } else {
             Task {
-                if let restarted = try? await model.core.restartItemAt(positionMs: b.endMs) { load(restarted) }
+                if let restarted = try? await model.core.restartItemAt(positionMs: ms) { load(restarted) }
             }
         }
+    }
+
+    /// Skip break while the player is in a commercial break, which the system shows over the picture.
+    private var contextualActions: [UIAction] {
+        guard let end = breakEndMs, let s = stream else { return [] }
+        return [UIAction(title: "Skip break", image: UIImage(systemName: "forward.end")) { _ in
+            breakEndMs = nil
+            jump(to: end, in: s)
+        }]
     }
 
     /// The subtitle at the player's position in the item, or nil.
@@ -443,19 +460,23 @@ private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
-/// The system player UI, which handles the Siri Remote's play, pause, scrubbing and Menu.
+/// The system player UI, which handles the Siri Remote's play, pause, scrubbing and Menu, with the app's track menus
+/// in its transport bar and Skip break over the picture.
 private struct VodController: UIViewControllerRepresentable {
     let player: AVPlayer
     let menus: [UIMenuElement]
+    let actions: [UIAction]
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.transportBarCustomMenuItems = menus
+        controller.contextualActions = actions
         return controller
     }
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
         controller.transportBarCustomMenuItems = menus
+        controller.contextualActions = actions
     }
 }

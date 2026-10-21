@@ -65,7 +65,7 @@ The examples use the Docker port, `SERVER_HOST:9193`, and the tokens in `$SOFA_A
 
 | Symptom | Check |
 | --- | --- |
-| The Sofa King app does not list the server | The app finds servers on its own network over mDNS. The log says `mdns: advertising` at the start with the addresses it uses; `no LAN address to advertise on` means none qualified. Discovery does not cross subnets or VLANs, does not leave a Docker bridge network, and stops at a firewall that drops UDP port 5353; `SOFA_MDNS=false` turns it off. Enter the address in the app instead, `SERVER_HOST:9193`. |
+| The Sofa King app does not list the server | The app finds servers on its own network over mDNS. The log says `mdns: advertising` with the addresses it uses, at the start and again whenever they change, which it checks every minute; `no LAN address to advertise on` means none qualified yet. Discovery does not cross subnets or VLANs, does not leave a Docker bridge network, and stops at a firewall that drops UDP port 5353; `SOFA_MDNS=false` turns it off. Enter the address in the app instead, `SERVER_HOST:9193`. |
 | `http://sofa-king.local:9193` does not open | The server answers that name over mDNS, with a number added when another device already holds it; the log's `mdns: advertising` line follows the start. Computers that do not resolve `.local` names, and networks that block mDNS, need the address. |
 
 ## Plex

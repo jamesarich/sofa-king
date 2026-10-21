@@ -80,7 +80,8 @@ class RouteGuardTest {
     }.distinct()
 
     private fun Endpoint.isApi() = path == "/api" || path.startsWith("/api/")
-    private fun Endpoint.isAdminApi() = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/")
+    private fun Endpoint.isAdminApi() = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/") ||
+        (method == HttpMethod.Patch && path.startsWith("/api/v1/sources/"))
 
     private suspend fun ApplicationTestBuilder.call(endpoint: Endpoint, token: String? = null): HttpResponse =
         client.request(endpoint.path) { method = endpoint.method; token?.let { bearerAuth(it) } }

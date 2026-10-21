@@ -61,7 +61,7 @@ curl --fail -H "Authorization: Bearer $SOFA_API_TOKEN" \
 Disable a source by its ID:
 
 ```sh
-curl --fail -X PATCH -H "Authorization: Bearer $SOFA_API_TOKEN" \
+curl --fail -X PATCH -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" \
   http://SERVER_HOST:9193/api/v1/sources/SOURCE_ID \
   -H 'Content-Type: application/json' \
   --data '{"manuallyDisabled":true}'

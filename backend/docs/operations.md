@@ -146,7 +146,7 @@ The [native providers](providers.md) call each service's public endpoints. A ser
 4. To stop the server from retrying a broken source, disable it:
 
    ```sh
-   curl --fail -X PATCH -H "Authorization: Bearer $SOFA_API_TOKEN" \
+   curl --fail -X PATCH -H "Authorization: Bearer $SOFA_ADMIN_TOKEN" \
      http://SERVER_HOST:9193/api/v1/sources/SOURCE_ID \
      -H 'Content-Type: application/json' --data '{"manuallyDisabled":true}'
    ```

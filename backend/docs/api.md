@@ -21,7 +21,7 @@ These routes take no token: `/healthz`, `/readyz`, `/logos/{key}`, `/artwork/{id
 | GET | `/api/v1/channels` | Catalog revision and the enabled lineup entries as channels; supports ETag/If-None-Match |
 | GET | `/api/v1/providers` | Provider import status and channel counts |
 | GET | `/api/v1/sources` | Health and manual-disable flag of every source |
-| PATCH | `/api/v1/sources/{id}` | Set `manuallyDisabled` |
+| PATCH | `/api/v1/sources/{id}` | Set `manuallyDisabled`; takes the admin token, as the admin routes do |
 | POST | `/api/v1/guide/query` | Programs overlapping a requested channel/time window |
 | POST | `/api/v1/playback-sessions` | Create a preview or watch session |
 | GET | `/api/v1/playback-sessions/{id}` | Read the current playback descriptor |

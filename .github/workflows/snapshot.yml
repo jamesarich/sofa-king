@@ -212,3 +212,5 @@ jobs:
     uses: ./.github/workflows/publish-snapshot.yml
     with:
       suffix: ${{ needs.version.outputs.suffix }}
+    secrets:
+      APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}

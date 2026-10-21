@@ -25,11 +25,12 @@ class ViewerSyncTest {
     private class FakeServer(scope: TestScope) {
         var stored: String? = null
         var putStatus = 200
+        var getStatus = 200
         var stamp = 1
         val http = FakeHttp(scope) { request ->
             when {
                 request.path.startsWith("/api/v1/preferences/") && request.method == "GET" ->
-                    stored?.let { json(it) } ?: apiError(404, "VIEWER_NOT_FOUND")
+                    if (getStatus != 200) apiError(getStatus, "NOT_READY") else stored?.let { json(it) } ?: apiError(404, "VIEWER_NOT_FOUND")
                 request.path.startsWith("/api/v1/preferences/") && request.method == "PUT" -> {
                     if (putStatus != 200) return@FakeHttp apiError(putStatus, "RESOURCE_NOT_FOUND")
                     stored = request.body.dropLast(1) + ""","updatedAt":"2026-10-16T00:0${stamp++}:00Z"}"""
@@ -104,6 +105,22 @@ class ViewerSyncTest {
         advanceTimeBy(4.seconds); runCurrent()
         // The local copy differs from the server's, so it is pushed once the first collection settles.
         assertEquals(listOf("GET", "PUT"), server.http.requests.map { it.method })
+    }
+
+    @Test
+    fun `a failed read of the server's copy is retried and never overwritten by this device`() = runTest {
+        val server = FakeServer(this)
+        server.stored = """{"hidden":["x"],"favorites":["a"],"recent":["a"],"updatedAt":"2026-10-15T20:00:00Z"}"""
+        server.getStatus = 503
+        start(server)
+        advanceTimeBy(5.seconds); runCurrent()
+        assertEquals(listOf("GET"), server.http.requests.map { it.method }, "nothing is pushed before the server answers")
+
+        server.getStatus = 200
+        advanceTimeBy(10.seconds); runCurrent()
+        assertEquals(listOf("GET", "GET"), server.http.requests.map { it.method })
+        assertEquals(setOf("x"), store.settings.first().hiddenChannels, "the server's copy is taken over once it answers")
+        assertTrue(server.stored!!.contains(""""hidden":["x"]"""))
     }
 
     @Test

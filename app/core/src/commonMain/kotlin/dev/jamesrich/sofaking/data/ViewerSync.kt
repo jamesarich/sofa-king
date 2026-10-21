@@ -55,15 +55,27 @@ class ViewerSync(
         val clientId = store.ensureClientId()
         var known: SyncedPreferences? = null
         var supported = true
-        val initial = store.settings.first()
-        val remote = try {
-            api.preferences(clientId)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: IOException) {
-            log.w { "preferences: could not read the server's copy (${e.message})" }
-            null
+        // Until the server answers, this device cannot tell a missing copy from a newer one, so it pushes nothing.
+        var remote: ViewerPreferencesDto? = null
+        var answered = false
+        while (!answered) {
+            try {
+                remote = api.preferences(clientId)
+                answered = true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: SofaKingException) {
+                if (e.status == 401) {
+                    log.i { "preferences: the server does not keep them (${e.code}); not syncing" }
+                    return
+                }
+                log.w { "preferences: could not read the server's copy (${e.code})" }
+            } catch (e: IOException) {
+                log.w { "preferences: could not read the server's copy (${e.message})" }
+            }
+            if (!answered) delay(retryAfter)
         }
+        val initial = store.settings.first()
         if (remote != null && remote.updatedAt.isNotEmpty() && remote.updatedAt != initial.preferencesSyncedAt) {
             val taken = SyncedPreferences.of(remote)
             log.i { "preferences: taking the server's copy from ${remote.updatedAt}" }

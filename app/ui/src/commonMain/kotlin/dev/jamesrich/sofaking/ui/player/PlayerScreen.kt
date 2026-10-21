@@ -191,6 +191,8 @@ fun PlayerScreen(
         artworkUrl = channel.logo,
     )
 
+    val lifecycle = appLifecycleOwner.lifecycle
+
     fun load(channel: Channel) {
         val metadata = nowPlayingFor(channel)
         mediaSession?.publish(metadata)
@@ -217,17 +219,24 @@ fun PlayerScreen(
         // Playback can't start until the full advance is buffered, so a fresh tune starts at the full lead.
         captionSync.effectiveUs = captionSync.advanceUs
         tuneJob.job = scope.launch {
-            val stream = try {
-                sessions.tune(channel.guideId, PlaybackIntent.WATCH)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // The reconnect loop below tunes again with backoff, as it does for a stream that failed.
-                state.fail((e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE)
-                return@launch
+            while (true) {
+                val stream = try {
+                    sessions.tune(channel.guideId, PlaybackIntent.WATCH)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // The reconnect loop below tunes again with backoff, as it does for a stream that failed.
+                    state.fail((e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE)
+                    return@launch
+                }
+                if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    player.setStream(stream, metadata)
+                    player.prepare()
+                    return@launch
+                }
+                // The app went behind another one while the session opened, and its stop released that session.
+                lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {}
             }
-            player.setStream(stream, metadata)
-            player.prepare()
         }
     }
 
@@ -235,7 +244,6 @@ fun PlayerScreen(
     // to the whole lineup; the tuned channel keeps its stream and its row follows it.
     LaunchedEffect(channels) { state.followRing(channels) }
 
-    val lifecycle = appLifecycleOwner.lifecycle
     LaunchedEffect(state.index, currentChannel?.guideId, lifecycle, state.recovering) {
         // While a dead id is being followed, nothing tunes until the row for its replacement is known.
         if (state.recovering != null) return@LaunchedEffect

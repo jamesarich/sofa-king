@@ -195,6 +195,10 @@ jobs:
     needs: [check, apple, snapshot]
     permissions:
       contents: write
+      pages: write
+      id-token: write
     uses: ./.github/workflows/publish-snapshot.yml
     with:
       suffix: ${{ needs.snapshot.outputs.suffix }}
+    secrets:
+      APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}

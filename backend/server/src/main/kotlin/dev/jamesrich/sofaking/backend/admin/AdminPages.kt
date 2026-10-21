@@ -163,7 +163,7 @@ internal fun signInPage(enabled: Boolean, error: String? = null, theme: String? 
 internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("Home", chrome, "/admin") {
     val now = chrome.now
     val needs = view.attention.count { it.tone != Tone.OFF }
-    pageHead("Home", if (needs == 0) "Everything is running. Nothing needs you right now." else "${plural(needs, "thing")} need${if (needs == 1) "s" else ""} you.")
+    pageHead("Home", if (needs == 0) "Everything is running. Put your feet up; nothing needs you right now." else "${plural(needs, "thing")} need${if (needs == 1) "s" else ""} you.")
     fun UL.items(items: List<Attention>, ignored: Boolean) {
         for (item in items) li(item.tone.css) {
             div("what") {
@@ -204,7 +204,7 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
         a("/admin/lineup?state=enabled&guide=missing", classes = "tile" + if (view.guide.total > 0 && view.guide.percent < 90) " warn" else "") {
             span("label") { +"Guide coverage" }
             span("value") { +"${view.guide.percent}%" }
-            span("sub") { +"${thousands(view.guide.available)} of ${thousands(view.guide.total)} on-air channels have programmes ahead" }
+            span("sub") { +"${thousands(view.guide.available)} of ${thousands(view.guide.total)} on-air channels have programs ahead" }
         }
         val plex = view.plex
         a("/admin/plex", classes = "tile" + if (plex?.lastError != null || (plex?.missing ?: 0) > 0) " bad" else "") {
@@ -237,7 +237,7 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
     }
     div("cols") {
         panel("Watching now", id = "watching", aside = { span("muted") { +plural(view.sessions.size + view.playing.size, "session") } }) {
-            if (view.sessions.isEmpty() && view.playing.isEmpty()) p("muted") { +"Nobody is watching." }
+            if (view.sessions.isEmpty() && view.playing.isEmpty()) p("muted") { +"Nobody is watching. The sofa is all yours." }
             else if (view.sessions.isNotEmpty()) div("scroll") {
                 table {
                     caption("sr") { +"Watching now" }
@@ -414,7 +414,7 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
             label { htmlFor = "f-guide"; +"Guide" }
             select {
                 id = "f-guide"; name = "guide"
-                for ((value, label) in listOf("" to "Any guide", "available" to "Has programmes", "missing" to "Missing or ended")) {
+                for ((value, label) in listOf("" to "Any guide", "available" to "Has programs", "missing" to "Missing or ended")) {
                     option { this.value = value; selected = value == filter.guide; +label }
                 }
             }
@@ -445,7 +445,7 @@ internal fun lineupPage(chrome: Chrome, view: LineupView): String = layout("Chan
         span { +("${thousands(view.matches)} of ${thousands(view.total)} channels" + if (view.pages > 1) " · page ${filter.page} of ${view.pages}" else "") }
         span("muted small legend") {
             span("swatch bad") { attributes["aria-hidden"] = "true" }; +" no healthy source "
-            span("swatch warn") { attributes["aria-hidden"] = "true" }; +" no programmes ahead"
+            span("swatch warn") { attributes["aria-hidden"] = "true" }; +" no programs ahead"
         }
     }
     if (view.rows.isEmpty()) div("panel") {
@@ -845,7 +845,7 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
         else div("scroll") {
             table {
                 caption("sr") { +"Guides" }
-                thead { tr { col("Guide"); col("Channels", "num"); col("Programmes", "num"); col("Last import"); col("Status") } }
+                thead { tr { col("Guide"); col("Channels", "num"); col("Programs", "num"); col("Last import"); col("Status") } }
                 tbody {
                     for (guide in view.guides.sortedWith(compareBy({ it.errorCode == null }, { it.id }))) tr {
                         th { attributes["scope"] = "row"; +guide.id }

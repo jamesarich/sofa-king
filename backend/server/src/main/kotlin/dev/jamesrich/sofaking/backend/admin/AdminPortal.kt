@@ -384,7 +384,7 @@ class AdminPortal(
                     val recording = dvr.recording(id)
                     dvr.delete(id)
                     session.flash.set(Flash(when (recording.state) {
-                        Wire.RecordingState.SCHEDULED -> "Cancelled ${recording.title}."
+                        Wire.RecordingState.SCHEDULED -> "Canceled ${recording.title}."
                         Wire.RecordingState.RECORDING -> "Stopped ${recording.title}; what it recorded is kept."
                         else -> "Deleted ${recording.title}."
                     }))
@@ -397,7 +397,7 @@ class AdminPortal(
             }
             action("/viewers/cancel") { session, _ ->
                 runtime.pairing.cancel()
-                session.flash.set(Flash("Cancelled the pairing code."))
+                session.flash.set(Flash("Canceled the pairing code."))
                 seeOther(call, "/admin/viewers")
             }
             action("/viewers/{clientId}/forget") { session, _ ->
@@ -844,7 +844,7 @@ class AdminPortal(
             val unmapped = applied?.result?.unmappedCategories?.size ?: 0
             if (unmapped > 0) add(Attention(Tone.OFF, "${plural(unmapped, "category", "categories")} map to no group", "Their stations fall to the default group; map one to choose.", "/admin/groups#unmapped", "Groups", "unmapped", "lineup-policy.md#unmapped-categories"))
             val ended = guide.stale + guide.empty
-            if (ended > 0) add(Attention(Tone.WARN, "${plural(ended, "on-air channel")} show no programmes", "Their guide ended or holds nothing ahead.", "/admin/lineup?state=enabled&guide=missing", "Channels", "guide-ended", "troubleshooting.md#guide"))
+            if (ended > 0) add(Attention(Tone.WARN, "${plural(ended, "on-air channel")} show no programs", "Their guide ended or holds nothing ahead.", "/admin/lineup?state=enabled&guide=missing", "Channels", "guide-ended", "troubleshooting.md#guide"))
         }.sortedBy { listOf(Tone.BAD, Tone.WARN, Tone.OK, Tone.OFF).indexOf(it.tone) }
         // An ignored item stays out while its text is what it was when ignored; a change brings it back.
         val ignored = runtime.store.ignoredAttention()

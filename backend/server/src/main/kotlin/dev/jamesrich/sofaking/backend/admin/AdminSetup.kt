@@ -259,7 +259,7 @@ internal fun FlowContent.setupCards(chrome: Chrome, setup: SetupService, provide
 internal fun restartingPage(theme: String?, what: String): String = layout("Restarting", null, null, theme, refreshSeconds = 20) {
     div("panel signin") {
         h1("mt-0") { +"Restarting" }
-        p { +"$what The server is restarting to read it and is back in a few seconds." }
+        p { +"$what Hang tight: the server is restarting to read it and is back in a few seconds." }
         p("muted") { +"This page opens the portal again in 20 seconds, still signed in. If the server does not come back, its log says why, and the file it wrote is at the path the Sources page showed." }
         a("/admin", classes = "btn primary") { +"Open the portal" }
     }

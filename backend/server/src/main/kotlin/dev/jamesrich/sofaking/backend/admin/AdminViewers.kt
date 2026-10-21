@@ -36,7 +36,7 @@ internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("De
             div("pairing") {
                 div("pairing-qr") { unsafe { raw(qrSvg(pairing.link, "Pairing code ${pairing.code.code} for ${pairing.serverUrl}")) } }
                 div("pairing-text") {
-                    p("mt-0") { +"On the TV, open Settings in the Sofa King app and enter:" }
+                    p("mt-0") { +"In the Sofa King app, open Settings and enter:" }
                     dl("kv") {
                         dt { +"Server address" }; dd { code { +pairing.serverUrl } }
                         dt { +"Pairing code" }; dd { span("pairing-code num") { attributes["aria-label"] = "Pairing code ${pairing.code.code}"; +spacedCode(pairing.code.code) } }

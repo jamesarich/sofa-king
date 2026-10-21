@@ -16,6 +16,11 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlin.test.*
 
@@ -118,6 +123,41 @@ class VodApiTest {
             assertEquals(HttpStatusCode.NotFound, client.post("/api/v1/vod-sessions") {
                 bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"itemId":"nope"}""")
             }.status)
+        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+    }
+
+    @Test fun `a session released or expired while a seek restarts it leaves no FFmpeg and no files behind`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-vod-restart-")
+        clip(dir.resolve("media/movies/Clip (2020)/Clip (2020).mkv"))
+        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null, maxTranscodes = 1)
+        val store = openStore(dir)
+        val clock = MutableClock()
+        val runtime = LiveRuntime.create(store, config, clock, probes = false)
+        try {
+            val library = runtime.libraries!!.create("Movies", LibraryKind.MOVIES, dir.resolve("media/movies").toString())
+            runtime.libraries!!.scan(library.id)
+            val movie = runtime.libraries!!.catalog.items(library.id, null, false, null, 10).items.single()
+            val vod = runtime.vod!!
+            // The release lands before, during and after the restart's stop and start, and an expiry once.
+            for (wait in listOf(0L, 5L, 20L, 60L, 200L, -1L)) {
+                val session = vod.open(OpenVodPlayback(movie.id, ClientProfile()))
+                coroutineScope {
+                    launch(Dispatchers.Default) { runCatching { vod.update(session.id, UpdateVodPlayback(startMs = 4000)) } }
+                    launch(Dispatchers.Default) {
+                        delay(wait.coerceAtLeast(0))
+                        if (wait >= 0) vod.release(session.id)
+                        else {
+                            clock.now = clock.now.plus(Duration.ofMinutes(6))
+                            vod.expire()
+                        }
+                    }
+                }
+                assertTrue(vod.snapshot().isEmpty(), "wait $wait")
+            }
+            fun transcoding() = ProcessHandle.current().children().filter { child -> child.info().arguments().orElse(emptyArray()).any { it.startsWith(dir.toString()) } }.count()
+            pollUntil(10_000) { transcoding() == 0L }
+            assertTrue(Files.list(dir.resolve("transcode")).use { files -> files.noneMatch { Files.isDirectory(it) && it.fileName.toString() != "subtitles" } }, "every session's folder is deleted")
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
     }
 

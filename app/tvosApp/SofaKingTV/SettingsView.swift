@@ -51,7 +51,7 @@ struct SettingsView: View {
                 }
                 .disabled(pairing || url.isEmpty || code.count < 6)
                 if let pairingError { Text(pairingError).foregroundStyle(.red).font(.caption) }
-                Text("In the admin portal, open Players, then Devices, and choose Show a pairing code; enter the server address above and the code here instead of the token.")
+                Text("In the admin portal, open Players › Devices and choose Show a pairing code, then enter the server address above and the code here. No token needed.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("About") {

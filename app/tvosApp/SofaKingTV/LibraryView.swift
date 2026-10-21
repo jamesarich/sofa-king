@@ -33,7 +33,7 @@ struct LibraryHomeView: View {
             }
         case let failed as LibraryHomeStateFailed:
             VStack(spacing: 32) {
-                Text("The library did not load").font(.title2)
+                Text("The library didn't load").font(.title2)
                 Text(failed.message).foregroundStyle(.secondary)
                 Button("Try again") { model.core.refreshLibrary() }
             }
@@ -41,10 +41,10 @@ struct LibraryHomeView: View {
             ContentUnavailableView(
                 "This server has no libraries",
                 systemImage: "film.stack",
-                description: Text("Add a movies or shows folder in the server's portal, under Libraries.")
+                description: Text("Add a movies or shows folder in the admin portal, under Library.")
             )
         default:
-            ProgressView("Loading the library")
+            ProgressView("Sofa King close, loading the library…")
         }
     }
 

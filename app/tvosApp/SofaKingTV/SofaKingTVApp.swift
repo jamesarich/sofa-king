@@ -196,13 +196,13 @@ struct ContentView: View {
                 SettingsView()
             case let failed as LineupStateFailed:
                 VStack(spacing: 32) {
-                    Text("Can't load the lineup").font(.title2)
+                    Text("Couldn't reach the Sofa King server").font(.title2)
                     Text(failed.message).foregroundStyle(.secondary)
                     Button("Try again") { model.core.refresh() }
                     NavigationLink("Settings") { SettingsView() }
                 }
             default:
-                ProgressView("Loading the lineup")
+                ProgressView("Sofa King close, loading channels…")
             }
         }
     }
@@ -212,8 +212,8 @@ extension PairingFailure {
     /// What to tell the viewer when pairing fails this way.
     var message: String {
         switch self {
-        case .invalidCode: "That code was not accepted. Codes last ten minutes and work once; show a new one in the admin portal."
-        case .olderServer: "This server does not pair yet; enter the API token instead."
+        case .invalidCode: "That code didn't work. Codes last ten minutes and work once; show a new one in the admin portal."
+        case .olderServer: "This server is too old to pair with a code; enter its API token instead."
         default: "No Sofa King server answered at that address."
         }
     }

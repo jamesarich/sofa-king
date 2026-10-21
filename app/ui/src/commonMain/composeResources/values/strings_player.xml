@@ -45,6 +45,7 @@
     <string name="player_control_channel_up">Channel up</string>
     <string name="player_control_channel_down">Channel down</string>
     <string name="player_control_channels">Channels</string>
+    <string name="player_control_previous">Previous channel</string>
     <string name="player_control_captions">Captions</string>
     <string name="player_control_pause">Pause</string>
     <string name="player_control_play">Play</string>

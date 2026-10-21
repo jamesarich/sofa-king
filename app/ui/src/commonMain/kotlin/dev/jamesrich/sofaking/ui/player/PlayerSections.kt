@@ -170,9 +170,10 @@ internal fun BoxScope.InfoBarPanel(
     }
 
     val failed = state.failure != null
-    val items = liveButtons(pointerDriven, canRecord = record != null, canFavorite = favorite != null).map { button ->
+    val items = liveButtons(pointerDriven, canRecord = record != null, canFavorite = favorite != null, hasPrevious = state.previousIndex != null).map { button ->
         when (button) {
             LiveButton.CHANNELS -> PlayerButtonItem(Icons.AutoMirrored.Filled.List, stringResource(Res.string.player_control_channels), state::openMiniGuide)
+            LiveButton.PREVIOUS -> PlayerButtonItem(SofaIcons.SwapHoriz, stringResource(Res.string.player_control_previous), control(toPicture = true) { state.recallLastChannel() })
             LiveButton.PLAY_PAUSE -> if (failed) {
                 PlayerButtonItem(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), control { controls.retry() })
             } else {

@@ -30,14 +30,23 @@ class PlayerButtonsTest {
     }
 
     @Test
-    fun `the live bar keeps zoom beside the stream card and Record only where the server records`() {
+    fun `the live bar keeps zoom beside the stream card and Previous and Record only where they apply`() {
         assertEquals(
             listOf(LiveButton.CHANNELS, LiveButton.PLAY_PAUSE, LiveButton.CAPTIONS, LiveButton.STREAM_INFO, LiveButton.ZOOM, LiveButton.GUIDE),
             liveButtons(pointer = false, canRecord = false, canFavorite = false),
         )
         assertEquals(
-            listOf(LiveButton.CHANNELS, LiveButton.CAPTIONS, LiveButton.STREAM_INFO, LiveButton.ZOOM, LiveButton.RECORD, LiveButton.FAVORITE, LiveButton.GUIDE),
-            liveButtons(pointer = true, canRecord = true, canFavorite = true),
+            listOf(
+                LiveButton.CHANNELS,
+                LiveButton.PREVIOUS,
+                LiveButton.CAPTIONS,
+                LiveButton.STREAM_INFO,
+                LiveButton.ZOOM,
+                LiveButton.RECORD,
+                LiveButton.FAVORITE,
+                LiveButton.GUIDE,
+            ),
+            liveButtons(pointer = true, canRecord = true, canFavorite = true, hasPrevious = true),
         )
     }
 

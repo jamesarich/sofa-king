@@ -317,6 +317,9 @@ internal object SofaIcons {
     /** Record, in the live player. */
     val Record: ImageVector by lazy { pathIcon("Filled.FiberManualRecord", "M12,4a8,8 0,1 0,0 16a8,8 0,1 0,0 -16z") }
 
+    /** The previous channel, on the live bar. */
+    val SwapHoriz: ImageVector by lazy { pathIcon("Filled.SwapHoriz", "M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z") }
+
     /** Zoom, in both players. */
     val AspectRatio: ImageVector by lazy {
         pathIcon(

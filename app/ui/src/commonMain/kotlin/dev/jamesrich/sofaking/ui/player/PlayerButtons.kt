@@ -84,6 +84,9 @@ internal fun vodButtons(
 internal enum class LiveButton {
     CHANNELS,
 
+    /** The channel watched before this one, as long-press OK and the Last key recall it. */
+    PREVIOUS,
+
     /** Pause or play, or Retry while the stream has failed. */
     PLAY_PAUSE,
     CAPTIONS,
@@ -101,12 +104,13 @@ internal enum class LiveButton {
 }
 
 /**
- * The live player's buttons, in the bar's order: the channel list first, then what the CC, Play/Pause, Info and Zoom
- * keys do, Record where the server records and there is a program on, the star where favorites can change, and the guide.
+ * The live player's buttons, in the bar's order: the channel list first, the previous channel once there is one
+ * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, Record where the server records and there is a program on, the star where favorites can change, and the guide.
  * A finger or a mouse has play and pause beside the channel buttons instead ([pointer]).
  */
-internal fun liveButtons(pointer: Boolean, canRecord: Boolean, canFavorite: Boolean): List<LiveButton> = buildList {
+internal fun liveButtons(pointer: Boolean, canRecord: Boolean, canFavorite: Boolean, hasPrevious: Boolean = false): List<LiveButton> = buildList {
     add(LiveButton.CHANNELS)
+    if (hasPrevious) add(LiveButton.PREVIOUS)
     if (!pointer) add(LiveButton.PLAY_PAUSE)
     add(LiveButton.CAPTIONS)
     add(LiveButton.STREAM_INFO)

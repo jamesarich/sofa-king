@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -174,6 +175,8 @@ fun VodPlayerScreen(
     // True while a button on the bar has focus, so the D-pad moves along the row instead of seeking.
     var rowFocused by remember { mutableStateOf(false) }
     val rowEntry = remember { FocusRequester() }
+    // Set when playback runs into a break it does not skip, so Skip break takes focus and OK skips, as other players' skip pill does.
+    var focusSkip by remember { mutableStateOf(false) }
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
     val fullScreen = LocalWindowFullScreen.current
     val inPictureInPicture = LocalInPictureInPicture.current
@@ -329,8 +332,9 @@ fun VodPlayerScreen(
                         seekItem(end)
                         skippedToast = true
                     } else {
-                        // The bar comes up with Skip break on it.
+                        // The bar comes up with Skip break on it, focused for the remote.
                         showOverlay()
+                        focusSkip = true
                     }
                 }
             }
@@ -568,6 +572,14 @@ fun VodPlayerScreen(
     LaunchedEffect(Unit) { focus.requestFocus() }
     // A button that had focus when the bar left, or when it was removed, hands it back to the picture.
     LaunchedEffect(overlayVisible, buttons.size) { if (rowFocused && (!overlayVisible || buttons.isEmpty())) focus.requestFocus() }
+    LaunchedEffect(focusSkip, overlayVisible, buttons.firstOrNull()) {
+        if (!focusSkip) return@LaunchedEffect
+        focusSkip = false
+        if (!overlayVisible || pointerDriven || buttons.firstOrNull() != VodButton.SKIP_BREAK) return@LaunchedEffect
+        // The bar's row is laid out once the frame that shows it is drawn.
+        withFrameNanos {}
+        rowEntry.requestFocus()
+    }
     BackHandler {
         if (tracksOpen) {
             tracksOpen = false

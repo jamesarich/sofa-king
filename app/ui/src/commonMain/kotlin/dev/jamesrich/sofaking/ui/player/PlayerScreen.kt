@@ -600,8 +600,9 @@ private fun PlayerTimers(state: PlayerState, player: LivePlayer, paused: Boolean
             delay(1_000)
         }
     }
-    LaunchedEffect(state.overlayVisible, state.overlayRequest) {
-        if (!state.overlayVisible) return@LaunchedEffect
+    // The bar stays up while paused, as the library player's does.
+    LaunchedEffect(state.overlayVisible, state.overlayRequest, paused) {
+        if (!state.overlayVisible || paused) return@LaunchedEffect
         delay(BAR_IDLE_MS)
         state.overlayVisible = false
     }

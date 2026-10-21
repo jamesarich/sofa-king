@@ -73,7 +73,7 @@ Pause shows how many seconds the picture is behind live and that resuming after 
 
 ## Captions
 
-Enable captions with the CC key or in Settings. They show in the guide's preview as well as the player.
+Enable captions with the CC key or in Settings. They show in the guide's preview as well as the player. Recordings show them too; a library item shows only the subtitles picked in its Audio and subtitles card.
 
 Where captions are drawn depends on the platform:
 

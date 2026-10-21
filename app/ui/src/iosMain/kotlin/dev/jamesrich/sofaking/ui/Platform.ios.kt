@@ -82,6 +82,10 @@ internal actual val supportsCaptionSync: Boolean = false
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
 
+/** The SwiftUI host owns the status bar, and the app offers no picture-in-picture on iOS. */
+@Composable
+internal actual fun rememberPlayerWindow(player: LivePlayer, active: Boolean): Boolean = false
+
 internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = null
 
 @Composable

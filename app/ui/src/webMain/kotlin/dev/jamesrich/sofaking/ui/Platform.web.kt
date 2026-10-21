@@ -52,6 +52,10 @@ internal actual val supportsCaptionSync: Boolean = false
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
 
+/** The page goes full screen through [WindowFullScreen], from the players; the canvas has no picture-in-picture. */
+@Composable
+internal actual fun rememberPlayerWindow(player: LivePlayer, active: Boolean): Boolean = false
+
 internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = latest.pageUrl
 
 @Composable

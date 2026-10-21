@@ -219,6 +219,14 @@ internal object SofaIcons {
         }
     }
 
+    val Fullscreen: ImageVector by lazy {
+        pathIcon("Filled.Fullscreen", "M7,14L5,14v5h5v-2L7,17v-3zM5,10h2L7,7h3L10,5L5,5v5zM17,17h-3v2h5v-5h-2v3zM14,5v2h3v3h2L19,5h-5z")
+    }
+
+    val FullscreenExit: ImageVector by lazy {
+        pathIcon("Filled.FullscreenExit", "M5,16h3v3h2v-5L5,14v2zM8,8L5,8v2h5L10,5L8,5v3zM14,19h2v-3h3v-2h-5v5zM16,5v3h3v2h-5L14,5h2z")
+    }
+
     val LiveTv: ImageVector by lazy {
         pathIcon(
             "Filled.LiveTv",

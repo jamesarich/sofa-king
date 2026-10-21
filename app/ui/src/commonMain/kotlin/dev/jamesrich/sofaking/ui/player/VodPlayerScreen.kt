@@ -75,7 +75,9 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.KeepScreenOn
+import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
@@ -149,6 +151,8 @@ fun VodPlayerScreen(
     var subtitlesFailed by remember { mutableStateOf(false) }
     var nextSecondsLeft by remember { mutableIntStateOf(UP_NEXT_SECONDS) }
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
+    val fullScreen = LocalWindowFullScreen.current
+    val inPictureInPicture = LocalInPictureInPicture.current
     val scope = rememberCoroutineScope()
     val lifecycle = appLifecycleOwner.lifecycle
     val currentOnPosition by rememberUpdatedState(onPosition)
@@ -475,10 +479,17 @@ fun VodPlayerScreen(
             .focusable()
             .semantics { contentDescription = title.title }
             .onPreviewKeyEvent(::handleKeyEvent)
-            .pointerInput(Unit) { detectTapGestures(onTap = { if (overlayVisible) overlayVisible = false else showOverlay() }) },
+            .pointerInput(fullScreen) {
+                detectTapGestures(
+                    onDoubleTap = fullScreen?.let { { _ -> it.toggle() } },
+                    onTap = { if (overlayVisible) overlayVisible = false else showOverlay() },
+                )
+            },
     ) {
         player.Video(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         KeepScreenOn(status.isPlaying)
+        // Picture-in-picture shows only the picture: the subtitles are drawn at the full screen's size.
+        if (inPictureInPicture) return@Box
 
         Column(Modifier.align(Alignment.TopStart).screenPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             AnimatedVisibility(rememberSettled((buffering || stream == null) && failure == null), enter = PopIn, exit = PopOut) {
@@ -538,6 +549,7 @@ fun VodPlayerScreen(
                         if (tracks.pickable) {
                             ControlIcon(SofaIcons.ClosedCaption, stringResource(Res.string.vod_tracks_title), { if (tracksOpen) tracksOpen = false else openTracks() })
                         }
+                        FullScreenControl()
                     }
                 }
             }

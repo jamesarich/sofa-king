@@ -40,9 +40,12 @@ import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.ui.LocalAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.LocalClockFormat
+import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalLastInput
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
+import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.MatchDisplayFrameRate
+import dev.jamesrich.sofaking.ui.WindowFullScreen
 import dev.jamesrich.sofaking.ui.guide.GuideShortcut
 import dev.jamesrich.sofaking.ui.guide.LocalGuideDensity
 import dev.jamesrich.sofaking.ui.guide.guideShortcut
@@ -52,8 +55,10 @@ import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
 import dev.jamesrich.sofaking.ui.rememberLastInput
 import dev.jamesrich.sofaking.ui.rememberLayoutProfile
+import dev.jamesrich.sofaking.ui.rememberPlayerWindow
 import dev.jamesrich.sofaking.ui.sofaKingImageLoader
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
+import dev.jamesrich.sofaking.ui.togglesFullScreen
 import dev.jamesrich.sofaking.ui.trackLastInput
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -62,14 +67,24 @@ import kotlinx.coroutines.launch
 /**
  * The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the
  * user is on. [pairing] is a server to pair with from a `sofaking://pair` link the platform received; the app claims
- * it once and calls [onPairingHandled], so a restored activity does not claim it again.
+ * it once and calls [onPairingHandled], so a restored activity does not claim it again. [windowFullScreen] is the
+ * host window's full screen where the app can switch it (a desktop window, a browser page).
  */
 @Composable
-fun App(modifier: Modifier = Modifier, pairing: PairingRequest? = null, onPairingHandled: () -> Unit = {}) {
+fun App(
+    modifier: Modifier = Modifier,
+    pairing: PairingRequest? = null,
+    onPairingHandled: () -> Unit = {},
+    windowFullScreen: WindowFullScreen? = null,
+) {
     setSingletonImageLoaderFactory(::sofaKingImageLoader)
     SofaKingTheme {
         val lastInput = rememberLastInput()
-        CompositionLocalProvider(LocalLayoutProfile provides rememberLayoutProfile(), LocalLastInput provides lastInput) {
+        CompositionLocalProvider(
+            LocalLayoutProfile provides rememberLayoutProfile(),
+            LocalLastInput provides lastInput,
+            LocalWindowFullScreen provides windowFullScreen,
+        ) {
             Surface(modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
         }
     }
@@ -163,6 +178,7 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
     }
     // Only the full screen asks for a display mode: the guide's preview zaps too often for a set that blanks on each switch.
     MatchDisplayFrameRate(player, enabled = playback?.matchFrameRate == true && top.playsFullScreen)
+    val inPictureInPicture = rememberPlayerWindow(player, active = top.playsFullScreen)
     // The preview starts without a caption lead; the full screen sets each channel's own. Settings may change
     // the server, so it releases the session outright rather than keeping it to reopen.
     LaunchedEffect(top) {
@@ -208,6 +224,7 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
     }
 
     val tv = LocalLayoutProfile.current.tv
+    val windowFullScreen = LocalWindowFullScreen.current
     val settingsFocus = remember { FocusRequester() }
     val tabFocus = remember { FocusRequester() }
     val tabs = TabsModel(nav.tab, offered.library, offered.recordings) { picked ->
@@ -270,6 +287,7 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
         LocalClockFormat provides (settings?.clockFormat ?: ClockFormat.AUTO),
         LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
         LocalAppLifecycleOwner provides lifecycleOwner,
+        LocalInPictureInPicture provides inPictureInPicture,
     ) {
         TopLevel(
             tv = tv,
@@ -282,6 +300,10 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
             NavDisplay(
                 entries = entries.getValue(Tab.LIVE) + if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),
                 modifier = Modifier.onPreviewKeyEvent { event ->
+                    if (windowFullScreen != null && event.key.togglesFullScreen(inPlayer = shell.nav.top.playsFullScreen)) {
+                        if (event.type == KeyEventType.KeyUp) windowFullScreen.toggle()
+                        return@onPreviewKeyEvent true
+                    }
                     // Guide (or Menu) means live TV from any page a viewer browses; the players and Settings keep their keys.
                     val browsing = shell.nav.tab != Tab.LIVE && !shell.nav.top.playsFullScreen && !shell.nav.top.isSettings
                     if (!browsing || event.key.guideShortcut() != GuideShortcut.NOW) return@onPreviewKeyEvent false

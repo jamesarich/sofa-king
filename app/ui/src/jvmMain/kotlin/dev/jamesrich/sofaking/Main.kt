@@ -1,7 +1,10 @@
 package dev.jamesrich.sofaking
 
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.jamesrich.sofaking.data.AppStorage
@@ -10,6 +13,7 @@ import dev.jamesrich.sofaking.data.JmdnsServerDiscovery
 import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
+import dev.jamesrich.sofaking.ui.WindowFullScreen
 import org.jetbrains.compose.resources.stringResource
 import java.io.File
 import java.net.InetAddress
@@ -22,14 +26,32 @@ import java.awt.Dimension
 fun main() {
     initSofaKing(AppStorage.inDirectory(desktopDataDirectory().absolutePath, ClientInfo("desktop", hostName())), JmdnsServerDiscovery())
     application {
+        val state = rememberWindowState(width = 1280.dp, height = 720.dp)
+        val fullScreen = remember(state) { DesktopFullScreen(state) }
         Window(
             onCloseRequest = ::exitApplication,
             title = stringResource(Res.string.app_name),
-            state = rememberWindowState(width = 1280.dp, height = 720.dp),
+            state = state,
         ) {
             // Below this the guide has no room for a row; the layout adapts to anything larger.
             LaunchedEffect(Unit) { window.minimumSize = Dimension(480, 360) }
-            App()
+            App(windowFullScreen = fullScreen)
+        }
+    }
+}
+
+/** The window's full screen through its placement; leaving it restores the window as it was, maximized or not. */
+private class DesktopFullScreen(private val state: WindowState) : WindowFullScreen {
+    private var before = WindowPlacement.Floating
+
+    override val isFullScreen: Boolean get() = state.placement == WindowPlacement.Fullscreen
+
+    override fun toggle() {
+        if (isFullScreen) {
+            state.placement = before
+        } else {
+            before = state.placement
+            state.placement = WindowPlacement.Fullscreen
         }
     }
 }

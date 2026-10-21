@@ -42,6 +42,7 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.ChannelLogo
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
+import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.RiseIn
@@ -377,7 +378,8 @@ internal fun InfoOverlay(
 /**
  * What the remote's keys do, as icon buttons for a finger or a mouse, in a row under the info bar with play/pause in
  * the middle; shown after a tap or click. Each action is the same one its key takes. [failed] adds Retry, which OK
- * does on the remote; [hasAudioChoice] adds the audio picker, which the stream card holds.
+ * does on the remote; [hasAudioChoice] adds the audio picker, which the stream card holds. A window the app can make
+ * full screen adds that switch last.
  */
 @Composable
 internal fun TouchControls(
@@ -408,6 +410,7 @@ internal fun TouchControls(
         ControlIcon(Icons.AutoMirrored.Filled.List, stringResource(Res.string.player_control_channels), onChannelList)
         CaptionsControl(captionsOn, onCaptions)
         StreamInfoControl(hasAudioChoice, onStreamInfo)
+        FullScreenControl()
     }
 }
 
@@ -475,6 +478,18 @@ internal fun CaptionsControl(captionsOn: Boolean, onClick: () -> Unit, size: Dp 
 @Composable
 internal fun StreamInfoControl(hasAudioChoice: Boolean, onClick: () -> Unit, size: Dp = CONTROL_SIZE) {
     ControlIcon(if (hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info, stringResource(Res.string.player_control_stream), onClick, size = size)
+}
+
+/** Switches the window's full screen, as F does; nothing where the app cannot switch it (Android and iOS). */
+@Composable
+internal fun FullScreenControl(size: Dp = CONTROL_SIZE) {
+    val fullScreen = LocalWindowFullScreen.current ?: return
+    ControlIcon(
+        if (fullScreen.isFullScreen) SofaIcons.FullscreenExit else SofaIcons.Fullscreen,
+        stringResource(if (fullScreen.isFullScreen) Res.string.player_control_exit_full_screen else Res.string.player_control_full_screen),
+        fullScreen::toggle,
+        size = size,
+    )
 }
 
 private val CONTROL_SIZE = 48.dp

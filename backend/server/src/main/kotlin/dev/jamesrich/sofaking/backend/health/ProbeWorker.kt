@@ -140,8 +140,9 @@ class ProbeWorker(
                 if (pruned > 0) log.info("pruned health observations count={} retentionDays={}", pruned, config.observationRetention.toDays())
             }
             val next = pending.removeFirstOrNull() ?: return@withLock null
-            inFlight += next.id
+            // Recorded before it counts as in flight: a failed write must not leave it unprobeable until a restart.
             store.markProbeAttempt(next.id, clock.instant())
+            inFlight += next.id
             next
         }
 

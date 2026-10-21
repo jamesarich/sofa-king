@@ -15,6 +15,8 @@
     <string name="no_working_source">No working source for this channel right now</string>
     <string name="no_working_source_hint">Every source for it is down or quarantined. The server checks again on its own; press OK to try now, or pick another channel.</string>
     <string name="player_control_stream">Stream info</string>
+    <string name="player_control_full_screen">Full screen</string>
+    <string name="player_control_exit_full_screen">Exit full screen</string>
     <string name="player_control_retry">Retry</string>
     <string name="key_legend">▲▼ Channel · OK Channels · CC Captions · Info held Stream · ⏯ Pause</string>
     <string name="stream_card_title">Stream</string>

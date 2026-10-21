@@ -64,7 +64,9 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import dev.jamesrich.sofaking.ui.uptimeMs
 import androidx.compose.ui.input.pointer.pointerInput
 import dev.jamesrich.sofaking.ui.InputKind
+import dev.jamesrich.sofaking.ui.LocalInPictureInPicture
 import dev.jamesrich.sofaking.ui.LocalLastInput
+import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 
 private const val ZAP_OVERLAY_MS = 5_000L
 private const val CAPTION_TOAST_MS = 2_000L
@@ -155,6 +157,8 @@ fun PlayerScreen(
     val paused = !status.playWhenReady
     val audioTracks by player.audioTracks.collectAsStateWithLifecycle()
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
+    val fullScreen = LocalWindowFullScreen.current
+    val inPictureInPicture = LocalInPictureInPicture.current
     val now by rememberMinuteNow()
     val scope = rememberCoroutineScope()
     val tuneJob = remember { TuneJob() }
@@ -406,13 +410,17 @@ fun PlayerScreen(
                 state.onKeyEvent(event.key, event.type, controls, event.isLongPress, event.repeatCountOrNull, hasAudioTracks = audioTracks.isNotEmpty())
             }
             // A tap or click on the video: the channel list closes, or the info bar and its touch controls toggle. Focus
-            // stays on the player surface, so the remote and keyboard keep working after a pointer has been used.
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = {
-                    state.attended = true
-                    state.tap()
-                    focus.requestFocus()
-                })
+            // stays on the player surface, so the remote and keyboard keep working after a pointer has been used. A
+            // double click switches a window the app can make full screen.
+            .pointerInput(fullScreen) {
+                detectTapGestures(
+                    onDoubleTap = fullScreen?.let { { _ -> it.toggle() } },
+                    onTap = {
+                        state.attended = true
+                        state.tap()
+                        focus.requestFocus()
+                    },
+                )
             }
             // A swipe up on a touch screen opens the channel list, the way a second OK does on the remote.
             .pointerInput(Unit) {
@@ -427,6 +435,8 @@ fun PlayerScreen(
         player.Video(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         Captions(player, captionStyle, captionBottomFraction, Modifier.fillMaxSize())
         KeepScreenOn(playing && state.attended)
+        // Picture-in-picture shows the picture and its captions, which scale with the window, and nothing else.
+        if (inPictureInPicture) return@Box
 
         val channel = state.currentChannel
         if (channel == null) {

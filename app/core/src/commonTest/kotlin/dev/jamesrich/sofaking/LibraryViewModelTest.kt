@@ -239,8 +239,9 @@ class LibraryViewModelTest {
 
         assertEquals(300_000, model.play(movie, PlaybackProfile()).startAtMs)
         assertEquals(0, model.play(movie, PlaybackProfile(), fromStart = true).startAtMs)
-        assertEquals(0, model.play(movie.copy(progress = movie.progress!!.copy(watched = true)), PlaybackProfile()).startAtMs, "a watched item starts over")
-        assertEquals(3, opens.size)
+        assertEquals(300_000, model.play(movie.copy(progress = movie.progress!!.copy(watched = true)), PlaybackProfile()).startAtMs, "a rewatch resumes")
+        assertEquals(0, model.play(movie.copy(progress = PlayProgress(0, 6_000_000, watched = true)), PlaybackProfile()).startAtMs, "a watched item starts over")
+        assertEquals(4, opens.size)
     }
 
     @Test

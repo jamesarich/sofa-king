@@ -167,8 +167,10 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
             }
         }
     }
-    // Before the first prepare: switching text tracks on a playing live stream restarts it.
-    val captionsEnabled = settings?.captionsEnabled
+    // Before the first prepare: switching text tracks on a playing live stream restarts it. A library item's
+    // subtitles are the app's own, drawn over the picture, so the player's captions stay off under them; libVLC and
+    // AVPlayer would otherwise draw the file's own text track as well.
+    val captionsEnabled = settings?.captionsEnabled?.let { it && top !is Route.Vod }
     LaunchedEffect(captionsEnabled) {
         if (captionsEnabled != null) player.setCaptionsEnabled(captionsEnabled)
     }

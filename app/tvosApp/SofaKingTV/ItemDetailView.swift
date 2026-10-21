@@ -19,7 +19,7 @@ struct ItemDetailView: View {
                 page(ready.detail)
             case let failed as ItemDetailStateFailed:
                 VStack(spacing: 32) {
-                    Text("The library did not load").font(.title2)
+                    Text("The library didn't load").font(.title2)
                     Text(failed.message).foregroundStyle(.secondary)
                     Button("Try again") { model.core.refreshItem(id: itemId) }
                 }

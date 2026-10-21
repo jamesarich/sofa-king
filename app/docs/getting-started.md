@@ -74,11 +74,11 @@ There is no published iOS or Apple TV build. On a Mac, build them from source as
 
 The first start opens on Connect to your Sofa King server with the header's Settings button focused. Press OK, then under Server:
 
-1. Enter the Server URL: the server's address, for example `SERVER_HOST`, which the app completes as `http://SERVER_HOST:9193`, or the whole URL when the server uses another port or HTTPS. On the same network as the server, Servers on this network lists it above the field; selecting it fills the address in (Android, Android TV, desktops and Apple TV). For the web app behind a proxy, enter the proxy's origin, as [web](#web) describes.
+1. Enter the Server address: the server's address, for example `SERVER_HOST`, which the app completes as `http://SERVER_HOST:9193`, or the whole URL when the server uses another port or HTTPS. On the same network as the server, Servers on this network lists it above the field; selecting it fills the address in (Android, Android TV, desktops and Apple TV). For the web app behind a proxy, enter the proxy's origin, as [web](#web) describes.
 2. Enter the API token, or leave it empty when the server runs without one. The field shows only the last four characters once you leave it.
 3. Select Save & reload.
 
-Or pair instead of typing the token: in the admin portal, open Players, then Devices, and choose Show a pairing code, then on the TV enter the Server URL and the six digits under Pairing code and select Pair. The app stores the token the server hands out. On an Android phone, an iPhone or an iPad with the app installed, scanning the QR code on that page with the camera pairs at once.
+Or pair instead of typing the token: in the admin portal, open Players, then Devices, and choose Show a pairing code, then on the TV enter the Server address and the six digits under Pairing code and select Pair. The app stores the token the server hands out. On an Android phone, an iPhone or an iPad with the app installed, scanning the QR code on that page with the camera pairs at once.
 
 The guide opens and fills in: channels first, then their programs.
 

@@ -33,7 +33,7 @@ struct RecordingsView: View {
             }
             Button("Keep it", role: .cancel) {}
         }
-        .alert("The server did not take that change. Try again.", isPresented: $failed) {
+        .alert("The server didn't take that change. Try again.", isPresented: $failed) {
             Button("OK") {}
         }
     }
@@ -45,14 +45,14 @@ struct RecordingsView: View {
             list(ready)
         case let failed as RecordingsStateFailed:
             VStack(spacing: 32) {
-                Text("The recordings did not load").font(.title2)
+                Text("The recordings didn't load").font(.title2)
                 Text(failed.message).foregroundStyle(.secondary)
                 Button("Try again") { model.core.refreshRecordings() }
             }
         case is RecordingsStateUnavailable:
             ContentUnavailableView("This server does not record", systemImage: "record.circle")
         default:
-            ProgressView("Loading the recordings")
+            ProgressView("Sofa King close, loading recordings…")
         }
     }
 

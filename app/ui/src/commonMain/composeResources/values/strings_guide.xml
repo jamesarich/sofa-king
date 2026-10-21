@@ -27,7 +27,7 @@
     <string name="guide_details_cancel_recording">Cancel recording</string>
     <string name="guide_details_record_series">Record series</string>
     <string name="guide_details_stop_series">Stop series</string>
-    <string name="guide_details_record_failed">The server did not take that change. Try again.</string>
+    <string name="guide_details_record_failed">The server didn't take that change. Try again.</string>
     <string name="guide_time_left">%1$s left</string>
     <string name="guide_starts_in">Starts in %1$s</string>
     <string name="guide_ended">Ended</string>

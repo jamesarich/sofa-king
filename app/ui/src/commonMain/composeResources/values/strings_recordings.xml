@@ -6,8 +6,8 @@
     <string name="recordings_recorded">Recorded</string>
     <string name="recordings_scheduled">Scheduled</string>
     <string name="recordings_empty">Nothing recorded yet</string>
-    <string name="recordings_empty_hint">Open a program's details in the guide and press Record.</string>
-    <string name="recordings_unavailable">This server does not record</string>
+    <string name="recordings_empty_hint">Open a program's details in the guide and choose Record.</string>
+    <string name="recordings_unavailable">This server doesn't record</string>
     <string name="recordings_space">%1$s free of %2$s</string>
     <string name="recordings_until">Recording until %1$s</string>
     <string name="recordings_failed">Failed</string>
@@ -22,7 +22,7 @@
     <string name="recordings_confirm_delete">Delete for good?</string>
     <string name="recordings_confirm_stop">Stop recording?</string>
     <string name="recordings_confirm_cancel">Cancel recording?</string>
-    <string name="recordings_change_failed">The server did not take that change. Try again.</string>
+    <string name="recordings_change_failed">The server didn't take that change. Try again.</string>
     <string name="recordings_series">Series</string>
     <string name="recordings_series_new_only">New episodes only</string>
     <string name="recordings_series_all_airings">All airings</string>

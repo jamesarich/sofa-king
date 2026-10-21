@@ -100,7 +100,7 @@ private struct RecordButtons: View {
                     }
                 }
                 if failed {
-                    Text("The server did not take that change. Try again.").font(.caption).foregroundStyle(.red)
+                    Text("The server didn't take that change. Try again.").font(.caption).foregroundStyle(.red)
                 }
             }
         }

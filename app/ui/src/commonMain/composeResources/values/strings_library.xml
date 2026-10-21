@@ -12,10 +12,10 @@
     <string name="library_library_chip">%1$s %2$d</string>
     <string name="library_loading">Sofa King close, loading the library…</string>
     <string name="library_unavailable">This server has no libraries</string>
-    <string name="library_unavailable_hint">Add a movies or shows folder in the server's portal, under Libraries.</string>
+    <string name="library_unavailable_hint">Add a movies or shows folder in the admin portal, under Library.</string>
     <string name="library_empty">Nothing here yet</string>
     <string name="library_empty_hint">The server adds what it finds on its next library scan.</string>
-    <string name="library_load_failed">The library did not load</string>
+    <string name="library_load_failed">The library didn't load</string>
     <string name="library_items_count">%1$d items</string>
     <string name="library_sort_title">Title</string>
     <string name="library_sort_added">Recently added</string>

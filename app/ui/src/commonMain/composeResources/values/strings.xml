@@ -3,10 +3,10 @@
     <string name="tagline">Everything you watch, Sofa King good.</string>
     <string name="loading">Sofa King close, loading channels…</string>
     <string name="load_failed">Couldn't reach the Sofa King server</string>
-    <string name="load_failed_hint">Check the server URL and API token in Settings, and that the TV is on the same network as the server.</string>
+    <string name="load_failed_hint">Check the server address in Settings, and that this device is on the same network as the server.</string>
     <string name="unconfigured">Connect to your Sofa King server</string>
-    <string name="unconfigured_hint">Open Settings, enter the server's address and the pairing code from its admin portal, then select Pair.</string>
-    <string name="retry">Retry</string>
+    <string name="unconfigured_hint">Open Settings, choose or enter your server's address, then enter the pairing code from its admin portal and select Pair.</string>
+    <string name="retry">Try again</string>
     <string name="no_listing">No listing</string>
     <string name="listing_loading">Loading listings…</string>
     <string name="no_guide">No guide for this channel</string>
@@ -14,8 +14,8 @@
     <string name="programme_new">New</string>
     <string name="up_next">Next: %1$s</string>
     <string name="zap_scope">%1$s %2$d/%3$d</string>
-    <string name="no_channels">Sofa King empty in here. No channels to play</string>
-    <string name="no_channels_hint">The server has no playable channels yet. Check its providers and source health.</string>
+    <string name="no_channels">Sofa King empty in here: no channels yet</string>
+    <string name="no_channels_hint">The server has no playable channels yet. Check the Sources page in its admin portal.</string>
     <string name="settings">Settings</string>
     <string name="tuning">Tuning…</string>
     <string name="refreshing">Refreshing…</string>

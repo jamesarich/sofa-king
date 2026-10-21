@@ -120,7 +120,11 @@ fun VodPlayerScreen(
     tracks: VodTracks = VodTracks(),
 ) {
     val held by sessions.current.collectAsStateWithLifecycle()
-    val stream = held?.takeIf { it.itemId != null }
+    // The item this page opened: Up next composes the next page beside this one while they cross-fade, and each
+    // plays, seeks and releases only its own item's session.
+    var ownItem by remember { mutableStateOf<String?>(null) }
+    var loadedUrl by remember { mutableStateOf<String?>(null) }
+    val stream = held?.takeIf { it.itemId != null && it.itemId == ownItem }
     val status by player.status.collectAsStateWithLifecycle()
     val paused = !status.playWhenReady
     val buffering = status.state == PlaybackState.BUFFERING
@@ -162,7 +166,7 @@ fun VodPlayerScreen(
 
     /** Moves to [targetMs] in the item: inside the stream the player holds, or a conversion restarted there. */
     fun seekItem(targetMs: Long) {
-        val current = sessions.current.value?.takeIf { it.itemId != null } ?: return
+        val current = sessions.current.value?.takeIf { it.itemId != null && it.itemId == ownItem } ?: return
         when (val plan = vodSeekPlan(current, targetMs, player.durationMs, current.itemDurationMs)) {
             is VodSeekPlan.InStream -> player.seekTo(plan.streamMs)
             is VodSeekPlan.Restart -> {
@@ -198,7 +202,7 @@ fun VodPlayerScreen(
     LaunchedEffect(openRequest) {
         failure = null
         try {
-            open()
+            ownItem = open().itemId
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -215,6 +219,7 @@ fun VodPlayerScreen(
             val wasPaused = !player.playWhenReady && player.hasItem && player.currentChannelId.isNullOrEmpty()
             player.stop()
             player.setStream(s, NowPlaying(currentTitle.title, currentTitle.subtitle.orEmpty(), currentTitle.artworkUrl))
+            loadedUrl = s.url
             pendingSeek = (s.startAtMs - s.offsetMs).takeIf { it > 0 }
             positionMs = s.startAtMs
             durationMs = s.itemDurationMs
@@ -264,7 +269,7 @@ fun VodPlayerScreen(
                 scrubTarget = null
                 seekItem(target)
             }
-            val current = sessions.current.value?.takeIf { it.itemId != null } ?: continue
+            val current = sessions.current.value?.takeIf { it.itemId != null && it.itemId == ownItem } ?: continue
             if (!player.isSeekable || pendingSeek != null) continue
             val previous = positionMs
             val now = player.positionMs + current.offsetMs
@@ -334,8 +339,9 @@ fun VodPlayerScreen(
     DisposableEffect(Unit) {
         onDispose {
             if (!ended) currentOnStopped(positionMs, durationMs)
-            player.stop()
-            sessions.releaseAsync(forget = true)
+            if (loadedUrl == null || player.currentStreamUrl == loadedUrl) player.stop()
+            // No item yet means the open was still running, or its result was lost to a cancel: release what is held.
+            sessions.releaseAsync(forget = true, itemId = ownItem)
         }
     }
     LaunchedEffect(title, mediaSession) {

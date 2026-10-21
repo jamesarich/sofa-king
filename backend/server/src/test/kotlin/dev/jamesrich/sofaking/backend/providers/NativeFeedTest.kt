@@ -187,5 +187,6 @@ class NativeFeedTest {
         assertFailsWith<IllegalArgumentException> { FeedConfig("x").validate() }
         assertEquals("svc://pbs/4b65%3Aga-create", NativeServices.offeringUrl("pbs", "4b65:ga-create"))
         assertEquals("4b65:ga-create", NativeServices.channelId("svc://pbs/4b65%3Aga-create"))
+        for (id in listOf("news 24", "a+b", "x/y?z#w")) assertEquals(id, NativeServices.channelId(NativeServices.offeringUrl("svc", id)), id)
     }
 }

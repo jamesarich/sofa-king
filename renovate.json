@@ -108,12 +108,13 @@
       "ignoreUnstable": false
     },
     {
-      "description": "Built locally from the Dockerfile; not in any registry",
+      "description": "The server's own images: compose.build.yaml builds sofa-king-backend locally, and compose.yaml follows the rolling main tag, which a digest pin would freeze (and the updater cannot docker tag a digest reference)",
       "matchManagers": [
         "docker-compose"
       ],
       "matchPackageNames": [
-        "sofa-king-backend"
+        "sofa-king-backend",
+        "ghcr.io/jamesarich/sofa-king"
       ],
       "enabled": false
     }

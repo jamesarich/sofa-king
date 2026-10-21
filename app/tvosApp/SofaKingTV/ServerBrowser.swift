@@ -67,15 +67,31 @@ final class ServerBrowser {
                 servers.append(Server(name: name, url: "http://\(ip):\(port.rawValue)"))
                 servers.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             }
-            fallthrough
+            finish(connection, named: name)
+        case .waiting:
+            // Bonjour found the server but its port does not answer yet, as while it starts; the connection would
+            // wait for a network change, so it is dropped and the browse results are tried again shortly.
+            finish(connection, named: name)
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.retryDelay) { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, let browser = self.browser else { return }
+                    self.update(browser.browseResults)
+                }
+            }
         case .failed, .cancelled:
-            connection.stateUpdateHandler = nil
-            connection.cancel()
-            if resolving[name] === connection { resolving[name] = nil }
+            finish(connection, named: name)
         default:
             break
         }
     }
+
+    private func finish(_ connection: NWConnection, named name: String) {
+        connection.stateUpdateHandler = nil
+        connection.cancel()
+        if resolving[name] === connection { resolving[name] = nil }
+    }
+
+    private static let retryDelay: TimeInterval = 5
 
     private static func name(of endpoint: NWEndpoint) -> String? {
         if case let .service(name, _, _, _) = endpoint { return name }

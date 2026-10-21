@@ -66,6 +66,7 @@ import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.rememberScreenReaderActive
 import dev.jamesrich.sofaking.ui.rememberVoiceSearch
 import dev.jamesrich.sofaking.ui.uptimeMs
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -196,7 +197,8 @@ fun GuideScreen(
         } else {
             buildMap {
                 for (channel in byFilter) {
-                    val later = GuideSearch.upcoming(query, lineup.guide[channel.guideId].orEmpty(), searchNow, windowEnd)
+                    // Within the window on screen: a match from earlier would jump to the window's start, not to it.
+                    val later = GuideSearch.upcoming(query, lineup.guide[channel.guideId].orEmpty(), maxOf(searchNow, windowStart - 1.milliseconds), windowEnd)
                     if (later.isNotEmpty()) put(channel.guideId, later)
                 }
             }

@@ -43,7 +43,7 @@ Channels come from the server's lineup. The app lists a channel when the server 
 | Long-press OK | Open the program's details | Return to the previously watched channel |
 | Channel Up / Down | Move a page (4 rows) | The next higher / lower channel number |
 | Captions (CC) | | Toggle captions |
-| Play/Pause | | Pause or resume; resume after 30 seconds returns to live |
+| Play/Pause | | Pause or resume and show the info bar, which stays up while paused; resume after 30 seconds returns to live |
 | Digits | Move to the row with that number, showing All when the filter hides it; OK or a 1.5-second pause commits | Enter a channel number; OK or a 1.5-second pause tunes it |
 | Next / Previous | | The next higher / lower channel number, as Assistant's next and previous do |
 | Last channel | | Return to the previously watched channel, also after picking a channel in the guide |

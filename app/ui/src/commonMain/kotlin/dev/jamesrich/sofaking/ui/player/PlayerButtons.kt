@@ -187,12 +187,13 @@ internal fun PlayerButtonRow(
     showLabel: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    var focusedLabel by remember { mutableStateOf<String?>(null) }
+    // The focused button by place, so its label follows a press that changes it (Pause to Play, Zoom: Fit to Fill).
+    var focusedIndex by remember { mutableStateOf<Int?>(null) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             Modifier.focusGroup().onFocusChanged {
                 onFocused(it.hasFocus)
-                if (!it.hasFocus) focusedLabel = null
+                if (!it.hasFocus) focusedIndex = null
             },
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -204,12 +205,12 @@ internal fun PlayerButtonRow(
                     item.onClick,
                     modifier = Modifier
                         .then(if (position == 0) Modifier.focusRequester(entry) else Modifier)
-                        .onFocusChanged { if (it.isFocused) focusedLabel = item.label }
+                        .onFocusChanged { if (it.isFocused) focusedIndex = position }
                         .then(if (item.state != null) Modifier.semantics { stateDescription = item.state } else Modifier),
                 )
             }
         }
-        val label = focusedLabel
+        val label = focusedIndex?.let { items.getOrNull(it)?.label }
         if (showLabel && label != null) {
             Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
         }

@@ -187,6 +187,19 @@ class PlayerStateTest {
     }
 
     @Test
+    fun `play and pause bring the bar up`() {
+        val state = PlayerState(lineup, startIndex = 0)
+        state.down(Key.MediaPlayPause)
+        assertTrue(state.overlayVisible)
+        state.overlayVisible = false
+        state.down(Key.MediaPlay)
+        assertTrue(state.overlayVisible)
+        state.overlayVisible = false
+        state.down(Key.MediaPause)
+        assertTrue(state.overlayVisible)
+    }
+
+    @Test
     fun `Record Zoom and Stop reach the player and Audio Track opens the stream card`() {
         val state = PlayerState(lineup, startIndex = 0)
         state.down(Key.MediaRecord)
@@ -245,7 +258,7 @@ class PlayerStateTest {
         assertTrue(state.down(Key.Back))
         assertFalse(state.miniGuideOpen)
         assertTrue(state.up(Key.Back))
-        assertTrue(state.back())
+        assertTrue(state.back(controls))
     }
 
     @Test
@@ -253,20 +266,30 @@ class PlayerStateTest {
         val state = PlayerState(lineup, startIndex = 0)
         state.openStreamCard()
         state.down(Key.Back)
-        assertFalse(state.back())
-        assertTrue(state.back())
+        assertFalse(state.back(controls))
+        assertTrue(state.back(controls))
     }
 
     @Test
     fun `the system Back closes the stream card then the channel list then leaves`() {
         val state = PlayerState(lineup, startIndex = 0)
         state.openMiniGuide()
-        assertFalse(state.back())
+        assertFalse(state.back(controls))
         assertFalse(state.miniGuideOpen)
         state.openStreamCard()
-        assertFalse(state.back())
+        assertFalse(state.back(controls))
         assertFalse(state.streamCardOpen)
-        assertTrue(state.back())
+        assertTrue(state.back(controls))
+    }
+
+    @Test
+    fun `the system Back on the bar's buttons goes back to the picture and keeps the bar`() {
+        val state = PlayerState(lineup, startIndex = 0)
+        state.showInfo()
+        state.buttonsFocused = true
+        assertFalse(state.back(controls))
+        assertEquals(listOf("picture"), controls.calls)
+        assertTrue(state.overlayVisible)
     }
 
     @Test

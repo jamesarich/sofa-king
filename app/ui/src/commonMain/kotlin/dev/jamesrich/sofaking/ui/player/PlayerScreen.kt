@@ -374,8 +374,6 @@ fun PlayerScreen(
     LaunchedEffect(state.miniGuideOpen, state.streamCardOpen, state.overlayVisible) {
         if (!state.miniGuideOpen && !state.streamCardOpen && !(state.overlayVisible && state.buttonsFocused)) focus.requestFocus()
     }
-    BackHandler { if (state.back()) onExit() }
-
     // A short note at the top left: Record's answer once the server has taken the change or not, or the new zoom.
     var notice by remember { mutableStateOf<String?>(null) }
     var recordBusy by remember { mutableStateOf(false) }
@@ -457,6 +455,7 @@ fun PlayerScreen(
 
         override fun stop() = onExit()
     }
+    BackHandler { if (state.back(controls)) onExit() }
 
     Box(
         Modifier

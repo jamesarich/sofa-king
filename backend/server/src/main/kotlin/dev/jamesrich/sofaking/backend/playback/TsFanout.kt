@@ -112,14 +112,18 @@ internal class TsFanout(
         mutex.withLock {
             if (!readers.remove(reader)) return
             reader.channel.close()
-            if (readers.isEmpty() && !ended) {
-                linger =
-                    scope.launch(CoroutineName("ts-linger")) {
-                        delay(config.lingerMillis)
-                        stop(null)
-                    }
-            }
+            lingerIfIdle()
         }
+    }
+
+    /** Under [mutex]: once the last reader is gone, by leaving or by falling behind, the stream stops after the linger. */
+    private fun lingerIfIdle() {
+        if (readers.isNotEmpty() || ended || linger != null) return
+        linger =
+            scope.launch(CoroutineName("ts-linger")) {
+                delay(config.lingerMillis)
+                stop(null)
+            }
     }
 
     private suspend fun stop(cause: Throwable?) {
@@ -145,6 +149,7 @@ internal class TsFanout(
                     if (failed) (dropped ?: ArrayList<Reader>().also { dropped = it }) += reader
                 }
             }
+            if (dropped != null) lingerIfIdle()
         }
         val slow = dropped ?: return
         slow.forEach { it.channel.close(SlowReaderException()) }

@@ -90,6 +90,20 @@ class TsFanoutTest {
         fast.close()
     }
 
+    @Test fun `dropping the last reader as slow stops the upstream after the linger`() = runTest {
+        val streams = SharedStreams(backgroundScope, FanoutConfig(readerChunks = 2, lingerMillis = 2000)) { testScheduler.currentTime }
+        val body = ByteChannel()
+        val slow = streams.join("source") { consume -> consume(body) }
+        for (chunk in listOf(p[0] + p[1] + p[2], p[3], p[4])) { body.writeFully(chunk); body.flush(); yield(); yield() }
+        slow.chunks.receive(); slow.chunks.receive()
+        assertFailsWith<SlowReaderException> { slow.chunks.receive() }
+        slow.close()
+        assertEquals(1, streams.active())
+        testScheduler.advanceTimeBy(2001)
+        testScheduler.runCurrent()
+        assertEquals(0, streams.active(), "the upstream is not left running for nobody")
+    }
+
     @Test fun `only whole aligned packets are forwarded regardless of upstream chunking`() = runTest {
         val streams = SharedStreams(backgroundScope, FanoutConfig()) { testScheduler.currentTime }
         val body = ByteChannel()

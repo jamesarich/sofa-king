@@ -28,6 +28,20 @@ class VodModeTest {
         assertEquals(Wire.VodMode.TRANSCODE, vodMode(null, tv), "an unprobed file")
     }
 
+    @Test fun `video with more than 8 bits a sample plays as is only on a player that decodes it`() {
+        fun deep(video: String, format: String = "yuv420p10le") = media("matroska,webm", video, "aac").let { it.copy(video = it.video!!.copy(pixelFormat = format)) }
+        val main10 = tv.copy(deepColor = listOf("hevc"))
+        assertEquals(Wire.VodMode.DIRECT, vodMode(deep("hevc"), main10))
+        assertEquals(Wire.VodMode.TRANSCODE, vodMode(deep("hevc"), tv.copy(deepColor = emptyList())), "a decoder without Main 10")
+        assertEquals(Wire.VodMode.TRANSCODE, vodMode(deep("h264"), main10), "H.264 High 10")
+        assertEquals(Wire.VodMode.DIRECT, vodMode(deep("h264", "yuv420p"), main10), "8-bit")
+        // A player that does not say decodes them all but H.264, as players did before they could say.
+        assertEquals(Wire.VodMode.DIRECT, vodMode(deep("hevc", "p010le"), tv))
+        assertEquals(Wire.VodMode.TRANSCODE, vodMode(deep("h264"), tv))
+        assertTrue(deepColor(VideoStream("hevc", bitDepth = 10)))
+        assertFalse(deepColor(VideoStream("h264", pixelFormat = "yuvj420p")))
+    }
+
     @Test fun `a picked audio stream decides the audio`() {
         val file = media("mov,mp4,m4a,3gp,3g2,mj2", "h264", "truehd")
         assertEquals(Wire.VodMode.AUDIO, vodMode(file, browser))

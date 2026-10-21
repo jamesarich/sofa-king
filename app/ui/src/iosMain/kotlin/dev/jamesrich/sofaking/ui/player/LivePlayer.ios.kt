@@ -227,7 +227,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
 
     /**
      * AVPlayer plays MP4 and its audio as is, and HEVC tagged `hvc1`, which the server copies into fragmented MP4 for
-     * HLS. It shows HDR10 and HLG, tone-mapping them on an SDR screen.
+     * HLS. It shows HDR10 and HLG, tone-mapping them on an SDR screen, so it decodes HEVC Main 10.
      */
     override val playbackProfile = PlaybackProfile(
         containers = listOf("mp4"),
@@ -235,6 +235,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         audioCodecs = listOf("aac", "ac3", "eac3", "mp3", "alac", "flac"),
         maxHeight = 2160,
         hdr = true,
+        deepColor = listOf("hevc"),
     )
 
     override val isSeekable: Boolean get() = stream?.seekable == true && av.currentItem?.status == AVPlayerItemStatusReadyToPlay

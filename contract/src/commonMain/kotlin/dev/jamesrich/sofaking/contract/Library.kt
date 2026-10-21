@@ -93,6 +93,11 @@ import kotlinx.serialization.Serializable
     val audioCodecs: List<String> = emptyList(),
     val maxHeight: Int? = null,
     val hdr: Boolean = false,
+    /**
+     * The video codecs it also decodes at more than 8 bits a sample, such as `hevc` for HEVC Main 10. Null for a
+     * player that does not say, which the server takes as every codec in [videoCodecs] but `h264`.
+     */
+    val deepColor: List<String>? = null,
 )
 
 /**

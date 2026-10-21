@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Slider
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -132,13 +133,16 @@ internal fun VolumeControl(onAdjust: () -> Unit, onDone: () -> Unit, size: Dp = 
             },
             size = size,
         )
+        val shown = if (volume.muted) 0f else volume.level.toFloat()
+        val slider = rememberSliderState(shown, trackRange = 0f..AppSettings.MAX_VOLUME.toFloat())
+        // The slider follows a key, the wheel or the mute switch; a drag reaches it the same way, through the volume.
+        LaunchedEffect(shown) { slider.value = shown }
         Slider(
-            value = if (volume.muted) 0f else volume.level.toFloat(),
+            state = slider,
             onValueChange = {
                 volume.set(it.roundToInt())
                 onAdjust()
             },
-            valueRange = 0f..AppSettings.MAX_VOLUME.toFloat(),
             onValueChangeFinished = onDone,
             modifier = Modifier.width(VOLUME_SLIDER_WIDTH).semantics {
                 contentDescription = label

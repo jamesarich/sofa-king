@@ -84,6 +84,8 @@ class LibraryService(
     private val scanLock = Mutex()
     /** One scan at a time, TMDB pass included. */
     private val scans = Mutex()
+    /** Held from the check that a folder is free to the insert that takes it. */
+    private val creating = Mutex()
 
     init {
         jobs.register(LIBRARY_SCAN_JOB, "Library scan", every) { requestScan(null) }
@@ -102,7 +104,8 @@ class LibraryService(
      */
     suspend fun folderChoices(): List<Path> {
         val used = store.libraries().mapTo(HashSet()) { it.path }
-        return roots.flatMap { root -> folders(root.root, 2) }.filter { it.toString() !in used }
+        // Absolute, as create stores them, so a relative root still drops the folders in use.
+        return roots.flatMap { root -> folders(root.root.toAbsolutePath().normalize(), 2) }.filter { it.toString() !in used }
     }
 
     /**
@@ -110,7 +113,7 @@ class LibraryService(
      * the folder; one under the recordings folder carries the root's label too, as `TV (Recordings)`.
      */
     suspend fun suggestions(): List<LibrarySuggestion> {
-        val parents = roots.associateBy { it.root.normalize() }
+        val parents = roots.associateBy { it.root.toAbsolutePath().normalize() }
         return folderChoices().mapNotNull { folder ->
             val root = parents[folder.parent] ?: return@mapNotNull null
             val name = folder.fileName.toString()
@@ -134,9 +137,11 @@ class LibraryService(
         val title = name.trim()
         if (title.isEmpty() || title.length > 100) throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
         val folder = allowed(path)
-        if (store.libraries().any { it.path == folder.toString() }) throw ApiFailure(409, "LIBRARY_EXISTS", "Another library already uses that folder")
         val library = LibraryRecord(UUID.randomUUID().toString(), title, kind, folder.toString(), clock.instant().toString())
-        store.insertLibrary(library)
+        creating.withLock {
+            if (store.libraries().any { it.path == folder.toString() }) throw ApiFailure(409, "LIBRARY_EXISTS", "Another library already uses that folder")
+            store.insertLibrary(library)
+        }
         revision.incrementAndGet()
         requestScan(library.id)
         return library

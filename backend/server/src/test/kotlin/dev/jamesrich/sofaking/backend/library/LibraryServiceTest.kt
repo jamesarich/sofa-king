@@ -9,6 +9,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
@@ -121,6 +122,24 @@ class LibraryServiceTest {
         )
         s.service.create("Movies", LibraryKind.MOVIES, movies.toString())
         assertEquals(listOf("Films", "TV_Shows"), s.service.suggestions().map { it.name })
+    }
+
+    @Test fun `a relative media root drops the folders in use, and two adds of one folder give one library`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-library-")
+        val absolute = Files.createDirectories(dir.resolve("media/Movies")).parent
+        val relative = Path.of("").toAbsolutePath().relativize(absolute)
+        val clock = MutableClock()
+        val store = openStore(dir.resolve("data"), clock)
+        val service = LibraryService(store, clock, listOf(MediaRoot("Media", relative)), LibraryScanner({ media }), Jobs(clock))
+        val folder = relative.resolve("Movies").toString()
+        val outcomes = kotlinx.coroutines.coroutineScope {
+            List(2) { async(kotlinx.coroutines.Dispatchers.Default) { runCatching { service.create("Movies", LibraryKind.MOVIES, folder) } } }.map { it.await() }
+        }
+        assertEquals(1, outcomes.count { it.isSuccess })
+        assertEquals("LIBRARY_EXISTS", (outcomes.single { it.isFailure }.exceptionOrNull() as ApiFailure).code, "a double submit is a 409, not a 500")
+        assertTrue(service.folderChoices().none { it.fileName.toString() == "Movies" }, "the folder in use is not offered")
+        assertTrue(service.suggestions().isEmpty())
+        store.close(); dir.toFile().deleteRecursively()
     }
 
     @Test fun `a library folder must sit inside the media directory and be unused`() = runBlocking {

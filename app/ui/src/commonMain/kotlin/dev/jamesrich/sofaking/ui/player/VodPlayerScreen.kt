@@ -78,7 +78,6 @@ import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
-import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
@@ -218,7 +217,7 @@ fun VodPlayerScreen(
                         throw e
                     } catch (e: Exception) {
                         log.w { "vod: restart failed: ${e.message}" }
-                        failure = (e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE
+                        failure = failureCode(e)
                     }
                 }
             }
@@ -248,7 +247,7 @@ fun VodPlayerScreen(
             throw e
         } catch (e: Exception) {
             log.w { "vod: open failed: ${e.message}" }
-            failure = (e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE
+            failure = failureCode(e)
         }
     }
     // Each new URL for the item (the first open, a restart, a reopen) is set on the player and prepared once the
@@ -395,7 +394,7 @@ fun VodPlayerScreen(
                 throw e
             } catch (e: Exception) {
                 log.w { "vod: reopen failed: ${e.message}" }
-                failure = (e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE
+                failure = failureCode(e)
             }
         }
     }
@@ -444,7 +443,7 @@ fun VodPlayerScreen(
                 throw e
             } catch (e: Exception) {
                 log.w { "vod: track switch failed: ${e.message}" }
-                failure = (e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE
+                failure = failureCode(e)
             }
         }
     }
@@ -879,7 +878,6 @@ private fun modeLabel(mode: String): String? = when (mode) {
 private val UP_NEXT_PLAY_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)
 private val BarShape = RoundedCornerShape(8.dp)
 private val SUBTITLE_GAP = 24.dp
-private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 private val log = Logger.withTag("SofaKing")
 private const val TICK_MS = 250L
 private const val REPORT_MS = 1_000L

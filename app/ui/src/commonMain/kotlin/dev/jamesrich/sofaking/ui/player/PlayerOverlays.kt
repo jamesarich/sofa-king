@@ -84,6 +84,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.SofaKingException
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.tvFocus
 import androidx.compose.material3.ripple
@@ -205,6 +206,11 @@ internal fun failureReasonRes(code: String, live: Boolean = true): StringResourc
     live -> Res.string.cant_play
     else -> Res.string.vod_cant_play
 }
+
+/** The [FailureCard] code for [e]: the server's error code, or `SESSION_UNAVAILABLE` when the server gave none. */
+internal fun failureCode(e: Exception): String = (e as? SofaKingException)?.code ?: SESSION_UNAVAILABLE
+
+private const val SESSION_UNAVAILABLE = "SESSION_UNAVAILABLE"
 
 /** What the card says under the headline: a channel with no working source gets its own line, and an item has no reconnect. */
 internal fun failureHintRes(code: String, live: Boolean = true): StringResource = when {

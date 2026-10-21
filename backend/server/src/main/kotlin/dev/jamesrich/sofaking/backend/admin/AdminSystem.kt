@@ -50,7 +50,7 @@ internal class AboutView(val server: AboutServer, val status: ServerStatus, val 
     constructor(view: AboutView, confirm: Boolean) : this(view.server, view.status, view.snapshot, view.update, confirm)
 }
 
-/** The updater has checked in when its last report is under this old; the timer runs every 2 minutes. */
+/** The updater has checked in when its last report is under this old. */
 private val UPDATER_FRESH: Duration = Duration.ofHours(1)
 
 /** The first line of `ffmpeg -version`, or why it could not be read; [ffmpeg] is the configured path. */

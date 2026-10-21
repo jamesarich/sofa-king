@@ -40,7 +40,7 @@ install_units() {
     printf 'ExecStart=%s\n' "$script"
   } > "$units/sofa-king-update.service"
   {
-    # An unchanged image costs the pull one manifest request, so the check can run often.
+    # An unchanged image costs the pull a manifest check and no download.
     printf '[Unit]\nDescription=Check for a new Sofa King server image every 2 minutes\n\n'
     printf '[Timer]\nOnBootSec=5min\nOnUnitActiveSec=2min\nRandomizedDelaySec=15\n\n[Install]\nWantedBy=timers.target\n'
   } > "$units/sofa-king-update.timer"

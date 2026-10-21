@@ -9,7 +9,7 @@ class LibraryChoicesTest {
         MediaItem(id, "lib", kind, "Title $id", parentId = parentId, progress = progress, unwatched = unwatched, season = season)
 
     @Test
-    fun `a movie in progress resumes, a rewatch part way too, and one not started plays`() {
+    fun `a movie in progress resumes as does a rewatch part way and one not started plays`() {
         val started = item("m", ItemKind.MOVIE, PlayProgress(60_000, 600_000, watched = false))
         assertEquals(PrimaryAction.Resume(started, 60_000), primaryAction(MediaItemDetail(started)))
         val rewatch = item("m", ItemKind.MOVIE, PlayProgress(120_000, 600_000, watched = true))

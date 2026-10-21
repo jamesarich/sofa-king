@@ -4,7 +4,7 @@ services:
   sofa-king-backend:
     # The published image for linux/amd64 and linux/arm64. SOFA_IMAGE in .env runs another, such as a local build;
     # compose.build.yaml builds one from a checkout. See docs/deploy.md#build.
-    image: ${SOFA_IMAGE:-ghcr.io/jamesarich/sofa-king:main}
+    image: ${SOFA_IMAGE:-ghcr.io/jamesarich/sofa-king:main@sha256:2a71e527f4eba9e3c7fe333a19ba02c943c33ab4dcad97ba6d728721eb7c9be6}
     container_name: sofa-king-backend
     restart: unless-stopped
     # Runs as the owner of ./config. 1000:1000 is the first user on most Linux hosts; otherwise set UID and GID

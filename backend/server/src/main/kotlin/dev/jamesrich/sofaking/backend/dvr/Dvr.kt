@@ -221,18 +221,24 @@ class Dvr(
      * files. A cancelled rule airing is remembered so the rule does not schedule it again.
      */
     suspend fun delete(id: String) {
-        val recording = store.recording(id)?.takeIf { it.state != CANCELLED } ?: throw notFound()
-        when (recording.state) {
-            Wire.RecordingState.RECORDING -> running[id]?.cancelAndJoin() ?: finish(recording, null)
-            Wire.RecordingState.SCHEDULED -> mutex.withLock {
-                if (recording.ruleId != null) store.saveRecording(recording.copy(state = CANCELLED, updatedAt = clock.instant())) else store.deleteRecording(id)
-            }
-            else -> mutex.withLock {
-                recording.path?.let { removeFiles(it) }
-                store.deleteRecording(id)
-                log.info("recording deleted id={} title=\"{}\"", id, recording.title)
+        // Decided under the lock, so a recording the tick starts meanwhile is stopped, not overwritten.
+        val stopping = mutex.withLock {
+            val recording = store.recording(id)?.takeIf { it.state != CANCELLED } ?: throw notFound()
+            when (recording.state) {
+                Wire.RecordingState.RECORDING -> recording
+                Wire.RecordingState.SCHEDULED -> {
+                    if (recording.ruleId != null) store.saveRecording(recording.copy(state = CANCELLED, updatedAt = clock.instant())) else store.deleteRecording(id)
+                    null
+                }
+                else -> {
+                    recording.path?.let { removeFiles(it) }
+                    store.deleteRecording(id)
+                    log.info("recording deleted id={} title=\"{}\"", id, recording.title)
+                    null
+                }
             }
         }
+        stopping?.let { running[id]?.cancelAndJoin() ?: finish(it, null) }
     }
 
     // Scheduling
@@ -312,9 +318,11 @@ class Dvr(
             var take: RecordedTake? = null
             try {
                 current = mutex.withLock {
-                    val relative = current.path?.takeIf { it.startsWith(RecordingLayout.IN_PROGRESS) }?.let(Path::of)
-                        ?: RecordingLayout.inProgress(RecordingLayout.path(current.name, current.startsAt, zone) { taken(it) })
-                    current.copy(state = Wire.RecordingState.RECORDING, reason = null, path = relative.toString(), updatedAt = clock.instant())
+                    // A cancel or delete may have landed since the tick chose this recording.
+                    val latest = store.recording(current.id)?.takeIf { it.state == Wire.RecordingState.SCHEDULED || it.state == Wire.RecordingState.RECORDING } ?: return@launch
+                    val relative = latest.path?.takeIf { it.startsWith(RecordingLayout.IN_PROGRESS) }?.let(Path::of)
+                        ?: RecordingLayout.inProgress(RecordingLayout.path(latest.name, latest.startsAt, zone) { taken(it) })
+                    latest.copy(state = Wire.RecordingState.RECORDING, reason = null, path = relative.toString(), updatedAt = clock.instant())
                         .also { store.saveRecording(it) }
                 }
                 log.info("recording started id={} channel={} title=\"{}\"", current.id, current.channelId, current.title)

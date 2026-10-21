@@ -116,12 +116,18 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
     override val supportsCaptionLead: Boolean = false
     override val hasTextTrack: Boolean get() = vlc.subpictures().trackCount() > 0
 
+    /** Set again as each audio stream starts, from [Events.audioDeviceChanged]. */
+    @Volatile
     override var volume: Float = 1f
         set(value) {
             field = value
-            val percent = (value * 100).roundToInt()
-            commands.execute { vlc.audio().setVolume(percent) }
+            commands.execute { applyVolume() }
         }
+
+    /** On the command thread. */
+    private fun applyVolume() {
+        vlc.audio().setVolume((volume * 100).roundToInt())
+    }
 
     override var playWhenReady: Boolean
         get() = _status.value.playWhenReady
@@ -318,6 +324,15 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
                 applyCaptions()
                 readAudioTracks()
             }
+        }
+
+        /**
+         * libVLC reports the device as each audio stream starts. On PulseAudio and PipeWire a volume set while no stream
+         * exists is lost, and the new stream takes the volume the server last saw for the app, often the guide's muted
+         * preview, so the player's volume is set again on the new stream.
+         */
+        override fun audioDeviceChanged(mediaPlayer: MediaPlayer, audioDevice: String?) {
+            commands.execute { applyVolume() }
         }
 
         override fun elementaryStreamAdded(mediaPlayer: MediaPlayer, type: TrackType, id: Int) {

@@ -66,4 +66,16 @@ class RuntimeSettingsTest {
             assertEquals(setOf(RuntimeValues.LOG_LEVEL), settings.saved)
         }
     }
+
+    @Test fun `tuners saved with a higher session cap survive a restart`() = runBlocking<Unit> {
+        val dir = directory()
+        openStore(dir).use { store ->
+            RuntimeSettings(store, environment, clock).update(mapOf(RuntimeValues.MAX_SESSIONS to "8", RuntimeValues.HDHR_TUNERS to "6"))
+        }
+        openStore(dir).use { store ->
+            val settings = RuntimeSettings(store, environment, clock)
+            assertTrue(settings.load().isEmpty())
+            assertEquals(RuntimeValues("info", 3, 60, 6, 8), settings.current)
+        }
+    }
 }

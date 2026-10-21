@@ -365,7 +365,7 @@ class PlaybackSessions(
     ) {
         fun dto(startMs: Long) = OpenVodPlaybackDto(
             itemId = if (recording) "" else itemId,
-            profile = ClientProfileDto(profile.containers, profile.videoCodecs, profile.audioCodecs, profile.maxHeight, profile.hdr),
+            profile = ClientProfileDto(profile.containers, profile.videoCodecs, profile.audioCodecs, profile.maxHeight, profile.hdr, profile.deepColor),
             startMs = startMs,
             audioIndex = audioIndex,
             recordingId = itemId.takeIf { recording },

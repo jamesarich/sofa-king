@@ -31,19 +31,22 @@ internal fun media3Profile(context: Context): PlaybackProfile {
             .maxOrNull(),
         hevcHdr10 = decoders(MimeTypes.VIDEO_H265).any { info -> info.profileLevels.any { it.profile in HEVC_HDR10_PROFILES } },
         displayHdrTypes = displayHdrTypes(context),
+        decodesDeep = { mime -> decoders(mime).any { info -> info.profileLevels.any { it.profile in DEEP_PROFILES[mime].orEmpty() } } },
     )
 }
 
 /**
  * Media3's containers with the codecs [decodes] finds a decoder for, the tallest picture the H.264 or HEVC decoders
  * take (at most 2160) and HDR when an HEVC decoder takes HDR10's profile and the display shows HDR10. A display that
- * lists only Dolby Vision or HLG does not count, since most HDR files are HDR10.
+ * lists only Dolby Vision or HLG does not count, since most HDR files are HDR10. [decodesDeep] tells which of those
+ * codecs a decoder also takes at 10 bits a sample: an emulator's or an older box's HEVC decoder may take Main only.
  */
 internal fun playbackProfileOf(
     decodes: (mime: String) -> Boolean,
     decoderMaxHeight: Int?,
     hevcHdr10: Boolean,
     displayHdrTypes: IntArray,
+    decodesDeep: (mime: String) -> Boolean,
 ): PlaybackProfile {
     val video = buildList {
         add("h264")
@@ -65,10 +68,21 @@ internal fun playbackProfileOf(
         audioCodecs = audio,
         maxHeight = decoderMaxHeight?.coerceAtMost(2160) ?: 1080,
         hdr = hevcHdr10 && hdr10Display,
+        deepColor = DEEP_PROFILES.filterKeys { decodes(it) && decodesDeep(it) }.keys.map(CODEC_NAMES::getValue),
     )
 }
 
 private val HEVC_HDR10_PROFILES = setOf(CodecProfileLevel.HEVCProfileMain10HDR10, CodecProfileLevel.HEVCProfileMain10HDR10Plus)
+
+/** The profiles that take 10 bits a sample, by codec. */
+private val DEEP_PROFILES = mapOf(
+    MimeTypes.VIDEO_H264 to setOf(CodecProfileLevel.AVCProfileHigh10),
+    MimeTypes.VIDEO_H265 to setOf(CodecProfileLevel.HEVCProfileMain10) + HEVC_HDR10_PROFILES,
+    MimeTypes.VIDEO_VP9 to setOf(CodecProfileLevel.VP9Profile2, CodecProfileLevel.VP9Profile2HDR, CodecProfileLevel.VP9Profile2HDR10Plus),
+    MimeTypes.VIDEO_AV1 to setOf(CodecProfileLevel.AV1ProfileMain10, CodecProfileLevel.AV1ProfileMain10HDR10, CodecProfileLevel.AV1ProfileMain10HDR10Plus),
+)
+
+private val CODEC_NAMES = mapOf(MimeTypes.VIDEO_H264 to "h264", MimeTypes.VIDEO_H265 to "hevc", MimeTypes.VIDEO_VP9 to "vp9", MimeTypes.VIDEO_AV1 to "av1")
 
 /** The HDR types the default display shows in its current mode; Android 14 reports them per mode. */
 private fun displayHdrTypes(context: Context): IntArray {

@@ -171,6 +171,8 @@ data class PlaybackProfile(
     val audioCodecs: List<String> = emptyList(),
     val maxHeight: Int? = null,
     val hdr: Boolean = false,
+    /** The video codecs it decodes at more than 8 bits a sample, such as `hevc` for HEVC Main 10; null leaves it to the server. */
+    val deepColor: List<String>? = null,
     /**
      * True for a player whose own scrubber cannot ask for a conversion to restart: the server then lists the whole
      * item and converts from wherever it seeks.

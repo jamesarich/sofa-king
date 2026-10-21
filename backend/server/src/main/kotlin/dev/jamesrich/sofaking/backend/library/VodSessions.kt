@@ -522,7 +522,8 @@ internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStre
     val default = media.audio.firstOrNull { it.default } ?: media.audio.firstOrNull()
     val track = audio ?: default
     val videoFits = video.codec in profile.videoCodecs &&
-        (profile.maxHeight?.let { (video.height ?: 0) <= it } ?: true) && (video.transfer == null || profile.hdr)
+        (profile.maxHeight?.let { (video.height ?: 0) <= it } ?: true) && (video.transfer == null || profile.hdr) &&
+        (!deepColor(video) || video.codec in (profile.deepColor ?: profile.videoCodecs - "h264"))
     val audioFits = track == null || track.codec in profile.audioCodecs
     val container = containerOf(media.container)
     // HEVC tagged `hev1` in MP4 plays on Android but not in AVPlayer; the remux retags it `hvc1`, which plays on both.
@@ -535,6 +536,16 @@ internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStre
         else -> Wire.VodMode.TRANSCODE
     }
 }
+
+/** Pixel formats with more than 8 bits a sample, such as `yuv420p10le` and `p010le`. */
+private val DEEP_PIXEL_FORMAT = Regex("""(p9|p1[0-6]|p01[0-6])(le|be)?$""")
+
+/**
+ * True when [video] has more than 8 bits a sample, as HEVC Main 10 and H.264 High 10 do. Most hardware decoders take
+ * 10-bit HEVC, VP9 and AV1, but no phone, TV or browser takes 10-bit H.264.
+ */
+internal fun deepColor(video: VideoStream): Boolean =
+    (video.bitDepth ?: 0) > 8 || video.pixelFormat?.let { DEEP_PIXEL_FORMAT.containsMatchIn(it) } == true
 
 /**
  * True when the stream is written as fragmented MP4 rather than MPEG-TS: copied HEVC, which AVPlayer plays only in

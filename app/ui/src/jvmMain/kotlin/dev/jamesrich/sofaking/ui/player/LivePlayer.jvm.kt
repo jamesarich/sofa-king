@@ -204,12 +204,13 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
     }
 
     // libVLC answers these from its own state without blocking, so they are read on the caller's thread.
-    /** libVLC decodes nearly every container and codec in software; it does not map HDR to the screen. */
+    /** libVLC decodes nearly every container and codec in software, at any bit depth; it does not map HDR to the screen. */
     override val playbackProfile = PlaybackProfile(
         containers = listOf("mp4", "mkv", "webm", "ts", "avi", "mov"),
         videoCodecs = listOf("h264", "hevc", "vp8", "vp9", "av1", "mpeg2video", "mpeg4", "vc1"),
         audioCodecs = listOf("aac", "ac3", "eac3", "dts", "truehd", "mp3", "mp2", "opus", "vorbis", "flac"),
         maxHeight = 2160,
+        deepColor = listOf("h264", "hevc", "vp9", "av1"),
     )
 
     override val isSeekable: Boolean get() = stream?.seekable == true && vlc.status().isSeekable

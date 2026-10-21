@@ -193,25 +193,32 @@ internal fun DigitsBadge(text: String) {
 /** The server's answer when every source of a channel is down or quarantined. */
 internal const val SOURCE_UNAVAILABLE = "SOURCE_UNAVAILABLE"
 
-/** Plain-English headline for a playback error; [code] is the ExoPlayer error name or a session code. */
-internal fun failureReasonRes(code: String): StringResource = when {
+/**
+ * Plain-English headline for a playback error; [code] is the ExoPlayer error name or a session code, and [live] tells
+ * a channel from a library item or recording.
+ */
+internal fun failureReasonRes(code: String, live: Boolean = true): StringResource = when {
     SOURCE_UNAVAILABLE in code -> Res.string.no_working_source
     "NETWORK_CONNECTION" in code -> Res.string.cant_reach_stream
     "BAD_HTTP_STATUS" in code -> Res.string.stream_refused
     "PARSING" in code || "UNSUPPORTED" in code -> Res.string.stream_unsupported
-    else -> Res.string.cant_play
+    live -> Res.string.cant_play
+    else -> Res.string.vod_cant_play
 }
 
-/** What the card says under the headline: a channel with no working source gets its own line. */
-internal fun failureHintRes(code: String): StringResource =
-    if (SOURCE_UNAVAILABLE in code) Res.string.no_working_source_hint else Res.string.cant_play_retry
+/** What the card says under the headline: a channel with no working source gets its own line, and an item has no reconnect. */
+internal fun failureHintRes(code: String, live: Boolean = true): StringResource = when {
+    !live -> Res.string.vod_cant_play_retry
+    SOURCE_UNAVAILABLE in code -> Res.string.no_working_source_hint
+    else -> Res.string.cant_play_retry
+}
 
 /**
  * [retryInSeconds] counts down to the next automatic reconnect; 0 while it runs, null while none is scheduled. A
  * lambda, so the countdown recomposes only this card.
  */
 @Composable
-internal fun BoxScope.FailureCard(code: String, retryInSeconds: () -> Int? = { null }) {
+internal fun BoxScope.FailureCard(code: String, live: Boolean = true, retryInSeconds: () -> Int? = { null }) {
     val retryIn = retryInSeconds()
     Column(
         Modifier
@@ -221,8 +228,8 @@ internal fun BoxScope.FailureCard(code: String, retryInSeconds: () -> Int? = { n
             .semantics { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(stringResource(failureReasonRes(code)), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
-        Text(stringResource(failureHintRes(code)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(stringResource(failureReasonRes(code, live)), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onSurface)
+        Text(stringResource(failureHintRes(code, live)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         if (retryIn != null) {
             Text(
                 if (retryIn > 0) stringResource(Res.string.player_retry_in, retryIn) else stringResource(Res.string.player_retry_now),

@@ -505,7 +505,7 @@ fun VodPlayerScreen(
                 StatusPill(stringResource(Res.string.vod_subtitles_failed))
             }
         }
-        failure?.let { FailureCard(it) }
+        failure?.let { FailureCard(it, live = false) }
         next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit) }
 
         val barVisible = (overlayVisible || failure != null) && next == null

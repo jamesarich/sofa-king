@@ -15,7 +15,8 @@ class PlaybackProfileTest {
         maxHeight: Int? = 2160,
         hevcHdr10: Boolean = true,
         displayHdrTypes: IntArray = intArrayOf(HDR_TYPE_HDR10),
-    ) = playbackProfileOf(decoders::contains, maxHeight, hevcHdr10, displayHdrTypes)
+        deep: Set<String> = setOf(MimeTypes.VIDEO_H265),
+    ) = playbackProfileOf(decoders::contains, maxHeight, hevcHdr10, displayHdrTypes, deep::contains)
 
     @Test
     fun `codecs are the ones a decoder takes with H264 always`() {
@@ -37,5 +38,12 @@ class PlaybackProfileTest {
         assertFalse(profile(hevcHdr10 = false).hdr)
         assertFalse(profile(displayHdrTypes = intArrayOf()).hdr)
         assertFalse(profile(displayHdrTypes = intArrayOf(HDR_TYPE_DOLBY_VISION, HDR_TYPE_HLG)).hdr)
+    }
+
+    @Test
+    fun `deep color lists the codecs a decoder takes at 10 bits`() {
+        assertEquals(listOf("hevc"), profile().deepColor)
+        assertEquals(emptyList<String>(), profile(deep = emptySet()).deepColor)
+        assertEquals("no VP9 decoder at all", listOf("h264"), profile(deep = setOf(MimeTypes.VIDEO_H264, MimeTypes.VIDEO_VP9)).deepColor)
     }
 }

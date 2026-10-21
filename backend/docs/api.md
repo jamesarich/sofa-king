@@ -163,7 +163,7 @@ A library's items come sorted by `sort`: `title` (the default, ignoring a leadin
 
 ## Play library files
 
-`POST /api/v1/vod-sessions` takes the item's `itemId`, the player's `profile`, `startMs` (where to start, for a resume) and `audioIndex` (the audio stream's index from the item's `audio` tracks; the file's default when absent). A stream other than the default is never played directly, since the stream has to carry it. The profile lists the `containers` (`mp4`, `mkv`, `webm`, `ts`), `videoCodecs` (`h264`, `hevc`, `vp9`, `av1`, `mpeg2video`) and `audioCodecs` (`aac`, `ac3`, `eac3`, `mp3`, `opus`, `flac`, `dts`, `truehd`) the player decodes, its `maxHeight`, and `hdr` when it shows HDR. The server answers `201` with a session whose `mode` says how it plays:
+`POST /api/v1/vod-sessions` takes the item's `itemId`, the player's `profile`, `startMs` (where to start, for a resume) and `audioIndex` (the audio stream's index from the item's `audio` tracks; the file's default when absent). A stream other than the default is never played directly, since the stream has to carry it. The profile lists the `containers` (`mp4`, `mkv`, `webm`, `ts`), `videoCodecs` (`h264`, `hevc`, `vp9`, `av1`, `mpeg2video`) and `audioCodecs` (`aac`, `ac3`, `eac3`, `mp3`, `opus`, `flac`, `dts`, `truehd`) the player decodes, its `maxHeight`, `hdr` when it shows HDR, and `deepColor`, the video codecs it also decodes at more than 8 bits a sample (such as `hevc` for HEVC Main 10). Without `deepColor` the server takes every listed codec but `h264` as decoded at any depth. The server answers `201` with a session whose `mode` says how it plays:
 
 | Mode | When | What the player gets |
 | --- | --- | --- |

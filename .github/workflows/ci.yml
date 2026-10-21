@@ -15,6 +15,7 @@ on:
       - ".github/workflows/ci.yml"
       - ".github/workflows/snapshot.yml"
       - ".github/workflows/publish-snapshot.yml"
+      - ".github/version.sh"
   push:
     branches: [main]
     paths:
@@ -29,6 +30,7 @@ on:
       - ".github/workflows/ci.yml"
       - ".github/workflows/snapshot.yml"
       - ".github/workflows/publish-snapshot.yml"
+      - ".github/version.sh"
   workflow_dispatch:
 
 concurrency:

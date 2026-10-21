@@ -137,7 +137,7 @@ kotlin {
     }
 }
 
-// The snapshot suffix, `-dev.RUN+COMMIT` or empty, read by the About row at runtime. A custom resource directory
+// The snapshot suffix, `-dev.BUILD+COMMIT` or empty, read by the About row at runtime. A custom resource directory
 // replaces the source set's default one, so the common resources are synced beside the generated file.
 val versionSuffixResources = layout.buildDirectory.dir("generated/versionSuffix")
 val generateVersionSuffix = tasks.register("generateVersionSuffix") {
@@ -174,6 +174,15 @@ compose.dependencyCompatibility {
     exclude("io.coil-kt.coil3")
 }
 
+// Every package carries the catalog version, and a snapshot's carry its build number too, so each installs over the
+// last: the .deb takes the whole suffix (0.1.0-dev.42+abc1234, which apt orders by the build number), and the MSI,
+// which allows only numbers, takes the build number as its last field. jpackage refuses a macOS version whose first
+// number is 0, so the app bundle is built as 1.x, and a later CFBundleShortVersionString, which macOS reads instead,
+// shows the catalog version; its build version ends in the build number.
+val buildNumber = providers.gradleProperty("sofaking.versionCode").get()
+fun withBuild(version: String) = if (versionSuffix.isEmpty()) version else version.substringBeforeLast('.') + ".$buildNumber"
+val macVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
+
 compose.desktop {
     application {
         mainClass = "dev.jamesrich.sofaking.MainKt"
@@ -182,7 +191,7 @@ compose.desktop {
             // From `suggestRuntimeModules`; DataStore's protobuf needs jdk.unsupported, and the trimmed runtime lacks it.
             modules("java.instrument", "java.management", "jdk.unsupported")
             packageName = "Sofa King"
-            packageVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
+            packageVersion = appVersion
             description = "Live TV, recordings and your own movies and shows from your Sofa King server"
             vendor = "James Rich"
             copyright = "Copyright 2026 James Rich. Licensed under the GPL-3.0-only."
@@ -191,6 +200,7 @@ compose.desktop {
             val icons = layout.projectDirectory.dir("icons")
             linux {
                 packageName = "sofa-king"
+                debPackageVersion = appVersion + versionSuffix
                 debMaintainer = "2199651+jamesarich@users.noreply.github.com"
                 menuGroup = "AudioVideo;Video;TV"
                 appCategory = "video"
@@ -198,6 +208,7 @@ compose.desktop {
                 iconFile.set(icons.file("sofa-king.png"))
             }
             windows {
+                msiPackageVersion = withBuild(appVersion)
                 menuGroup = "Sofa King"
                 menu = true
                 shortcut = true
@@ -207,6 +218,9 @@ compose.desktop {
                 iconFile.set(icons.file("sofa-king.ico"))
             }
             macOS {
+                packageVersion = macVersion
+                packageBuildVersion = withBuild(macVersion)
+                infoPlist { extraKeysRawXml = "<key>CFBundleShortVersionString</key><string>$appVersion</string>" }
                 bundleID = "dev.jamesrich.sofaking"
                 dockName = "Sofa King"
                 appCategory = "public.app-category.entertainment"

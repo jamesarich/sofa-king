@@ -20,6 +20,7 @@ on:
       - "build-logic/**"
       - "!build-logic/**/*.md"
       - ".github/workflows/backend.yml"
+      - ".github/version.sh"
   pull_request:
     paths:
       - "backend/**"
@@ -31,6 +32,7 @@ on:
       - "build-logic/**"
       - "!build-logic/**/*.md"
       - ".github/workflows/backend.yml"
+      - ".github/version.sh"
   workflow_dispatch:
 
 permissions:
@@ -140,6 +142,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The version counts the commits behind HEAD.
+          fetch-depth: 0
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -163,7 +167,8 @@ jobs:
         run: |
           echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sofa-king" >> "$GITHUB_OUTPUT"
           echo "revision=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-          echo "version=$(sed -n 's/^sofaking = "\(.*\)"$/\1/p' ../gradle/libs.versions.toml)" >> "$GITHUB_OUTPUT"
+          # The same version as the app's snapshot built from this commit.
+          ../.github/version.sh | grep '^version=' >> "$GITHUB_OUTPUT"
 
       # Each platform keeps its own layer cache; main writes it and pull requests read it.
       - id: build

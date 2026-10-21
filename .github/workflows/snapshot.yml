@@ -44,18 +44,25 @@ jobs:
       code: ${{ steps.v.outputs.code }}
       suffix: ${{ steps.v.outputs.suffix }}
     steps:
-      # The run number is CI's when CI calls this and this workflow's own on a manual run, so neither may fall below
-      # the published snapshot: a lower version code cannot install over it, and the app offers no update to it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # The commit count from .github/version.sh, which the server image uses too. A rerun on a published commit goes
+      # one past the published snapshot, since a version code no higher cannot install over it and the app offers no
+      # update to it.
       - id: v
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_NUMBER: ${{ github.run_number }}
         run: |
+          eval "$(.github/version.sh | grep -E '^(code|suffix)=')"
           published=$(gh release view snapshot --repo "$GITHUB_REPOSITORY" --json name --jq .name 2>/dev/null | sed -n 's/^Snapshot-dev\.\([0-9]*\).*/\1/p' || true)
-          code=$RUN_NUMBER
-          if [ -n "$published" ] && [ "$((published + 1))" -gt "$code" ]; then code=$((published + 1)); fi
+          if [ -n "$published" ] && [ "$((published + 1))" -gt "$code" ]; then
+            code=$((published + 1))
+            suffix="-dev.$code+${GITHUB_SHA::7}"
+          fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
-          echo "suffix=-dev.$code+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
 
   linux:
     name: Android and Linux desktop

@@ -90,7 +90,7 @@ class UpdateChecker(
         const val RELEASE_URL = "https://api.github.com/repos/jamesarich/sofa-king/releases/tags/snapshot"
         private val json = Json { ignoreUnknownKeys = true }
 
-        /** The snapshot workflow's run number in a version like `0.4.0-dev.123+abc1234`, or null for any other version. */
+        /** The snapshot's build number, the commit count, in a version like `0.4.0-dev.123+abc1234`, or null for any other version. */
         fun runNumber(version: String): Int? = RUN.find(version)?.groupValues?.get(1)?.toIntOrNull()
 
         /** Where [running], the version this build reports, stands against [latest]. */

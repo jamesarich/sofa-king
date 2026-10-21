@@ -53,6 +53,7 @@ import dev.jamesrich.sofaking.ui.WholeLinesText
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.player.Captions
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.LocalPlayerVolume
 import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.rememberSettled
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
@@ -151,7 +152,7 @@ private val DETAIL_IMAGE_HEIGHT = 90.dp
  * [PREVIEW_DEBOUNCE_MS] after focus rests on a different channel; a stream the player already holds (the
  * channel just watched) keeps playing and its session goes back to preview intent. The player belongs to
  * the app, which stops it in the background and releases it. Captions are the full screen's, scaled to the box.
- * [muted] follows the guide's rest timers while [ownsVolume]: the guide stays composed for a frame under the full
+ * [muted] follows the guide's rest timers, and sound plays at the players' volume, while [ownsVolume]: the guide stays composed for a frame under the full
  * screen it hands the player to, and its focus leaving the grid mutes the rest timers, which must not silence the
  * full screen. [failed] is the guide's record that the preview has no picture, set through
  * [onFailedChanged].
@@ -171,7 +172,8 @@ internal fun PreviewVideo(
 ) {
     val status by player.status.collectAsStateWithLifecycle()
     val buffering = status.state == PlaybackState.BUFFERING
-    LaunchedEffect(muted, ownsVolume) { if (ownsVolume) player.volume = if (muted) 0f else 1f }
+    val gain = LocalPlayerVolume.current.gain
+    LaunchedEffect(muted, ownsVolume, gain) { if (ownsVolume) player.volume = if (muted) 0f else gain }
     // Bumped when the relay answers 410, so the tune effect reopens the channel at once instead of after the debounce.
     var retune by remember { mutableIntStateOf(0) }
     // The channel whose stream the player holds; until it is the focused one, the card covers the last channel's picture.

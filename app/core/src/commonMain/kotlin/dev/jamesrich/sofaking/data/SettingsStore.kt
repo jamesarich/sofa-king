@@ -27,6 +27,12 @@ data class AppSettings(
     val autoOpenDelay: AutoOpenDelay = AutoOpenDelay.AFTER_10_SECONDS,
     /** Whether a resting guide preview unmutes; off keeps it silent until full screen. */
     val previewSound: Boolean = true,
+    /**
+     * The players' own volume in percent, and whether it is muted, where the app draws a volume control (desktop and
+     * web); Android and Apple TV follow the system volume and leave these alone. Never synced.
+     */
+    val volume: Int = MAX_VOLUME,
+    val volumeMuted: Boolean = false,
     /** How many info bars have carried the key legend; it stops after [KEY_LEGEND_BARS]. */
     val keyLegendShown: Int = 0,
     /** Where a cold start lands; [startupChannel] is the channel for [StartupTarget.CHANNEL]. */
@@ -67,7 +73,7 @@ data class AppSettings(
             "lastChannel=$lastChannel, recentChannels=$recentChannels, guideFilter=$guideFilter, captionsEnabled=$captionsEnabled, " +
             "captionAdvanceMs=$captionAdvanceMs, " +
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
-            "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, keyLegendShown=$keyLegendShown, startup=$startup, " +
+            "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
             "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, trackChoices=${trackChoices.size})"
@@ -77,6 +83,9 @@ data class AppSettings(
         /** Negative shows captions later, positive earlier; the per-channel values keep the same range. */
         val CAPTION_ADVANCE_RANGE_MS = -8_000..8_000
         const val CAPTION_ADVANCE_STEP_MS = 500
+
+        /** [volume] runs from silent to the stream's own level; the players never amplify. */
+        const val MAX_VOLUME = 100
 
         /** The key legend rides the first info bars after install, then only the stream card. */
         const val KEY_LEGEND_BARS = 3
@@ -135,6 +144,9 @@ interface SettingsStore {
     suspend fun setAutoOpenDelay(delay: AutoOpenDelay)
 
     suspend fun setPreviewSound(enabled: Boolean)
+
+    /** Keeps the players' [level], 0 to [AppSettings.MAX_VOLUME], and whether it is [muted]. */
+    suspend fun setVolume(level: Int, muted: Boolean)
 
     suspend fun setKeyLegendShown(count: Int)
 

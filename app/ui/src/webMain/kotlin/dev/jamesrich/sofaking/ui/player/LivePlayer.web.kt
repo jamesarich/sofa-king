@@ -151,6 +151,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
             video.muted = value == 0f || awaitingGesture
         }
 
+    override val drawsVolumeControl: Boolean get() = true
+
     override var playWhenReady: Boolean
         get() = _status.value.playWhenReady
         set(value) {

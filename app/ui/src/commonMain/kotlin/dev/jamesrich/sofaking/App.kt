@@ -16,12 +16,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -51,6 +55,9 @@ import dev.jamesrich.sofaking.ui.guide.LocalGuideDensity
 import dev.jamesrich.sofaking.ui.guide.guideShortcut
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.LivePlayer
+import dev.jamesrich.sofaking.ui.player.LocalPlayerVolume
+import dev.jamesrich.sofaking.ui.player.PlayerVolume
+import dev.jamesrich.sofaking.ui.player.volumeKey
 import dev.jamesrich.sofaking.ui.player.PlaybackState
 import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
 import dev.jamesrich.sofaking.ui.rememberLastInput
@@ -62,7 +69,9 @@ import dev.jamesrich.sofaking.ui.togglesFullScreen
 import dev.jamesrich.sofaking.ui.trackLastInput
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * The whole app, the same on every platform: the theme, the window's layout profile and input, then the screen the
@@ -149,6 +158,20 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
     // and one server session behind it, promoted from preview to watch in place.
     val captionSync = remember { CaptionSync() }
     val player = rememberLivePlayer(captionSync)
+    // The players' own volume where the app draws it: restored once the settings are read, and kept a moment after
+    // it settles, so a slider drag is one write.
+    val volume = remember(player) { PlayerVolume(adjustable = player.drawsVolumeControl) }
+    val settingsRead = settings != null
+    LaunchedEffect(volume, settingsRead) {
+        val stored = vm.settings.value ?: return@LaunchedEffect
+        if (!volume.adjustable) return@LaunchedEffect
+        volume.restore(stored.volume, stored.volumeMuted)
+        snapshotFlow { volume.level to volume.muted }.collectLatest { (level, muted) ->
+            delay(VOLUME_SAVE_MS)
+            val saved = vm.settings.value ?: return@collectLatest
+            if (saved.volume != level || saved.volumeMuted != muted) vm.setVolume(level, muted)
+        }
+    }
     val sessions = vm.sessions
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -290,6 +313,7 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
         LocalGuideDensity provides (settings?.guideDensity ?: GuideDensity.COMFORTABLE),
         LocalAppLifecycleOwner provides lifecycleOwner,
         LocalInPictureInPicture provides inPictureInPicture,
+        LocalPlayerVolume provides volume,
     ) {
         TopLevel(
             tv = tv,
@@ -306,12 +330,18 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
                         if (event.type == KeyEventType.KeyUp) windowFullScreen.toggle()
                         return@onPreviewKeyEvent true
                     }
+                    // A player's volume keys, held to repeat; where the system's volume rules they go on to the player.
+                    val volumeKey = event.key.volumeKey()
+                    if (volumeKey != null && shell.nav.top.playsFullScreen && volume.adjustable) {
+                        if (event.type == KeyEventType.KeyDown) volume.press(volumeKey)
+                        return@onPreviewKeyEvent true
+                    }
                     // Guide (or Menu) means live TV from any page a viewer browses; the players and Settings keep their keys.
                     val browsing = shell.nav.tab != Tab.LIVE && !shell.nav.top.playsFullScreen && !shell.nav.top.isSettings
                     if (!browsing || event.key.guideShortcut() != GuideShortcut.NOW) return@onPreviewKeyEvent false
                     if (event.type == KeyEventType.KeyDown) shell.guideFromElsewhere()
                     true
-                },
+                }.playerVolumeWheel(volume) { shell.nav.top.playsFullScreen },
                 onBack = shell::back,
                 transitionSpec = cut,
                 popTransitionSpec = cut,
@@ -337,3 +367,27 @@ private suspend fun resume(player: LivePlayer, sessions: PlaybackSessions) {
 }
 
 private const val NOTICE_MS = 5_000L
+private const val VOLUME_SAVE_MS = 500L
+
+/**
+ * The mouse wheel or a two-finger scroll over a full screen player steps its volume, up away from the viewer, where
+ * the app draws the control. A scroll a panel took (the channel list, a track card) is left alone, and a trackpad's
+ * small deltas add up to one step.
+ */
+private fun Modifier.playerVolumeWheel(volume: PlayerVolume, inPlayer: () -> Boolean): Modifier =
+    if (!volume.adjustable) this else pointerInput(volume) {
+        var scrolled = 0f
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Final)
+                if (event.type != PointerEventType.Scroll || !inPlayer()) continue
+                val change = event.changes.firstOrNull { !it.isConsumed } ?: continue
+                scrolled += change.scrollDelta.y
+                if (abs(scrolled) >= 1f) {
+                    volume.step(if (scrolled < 0f) 1 else -1)
+                    scrolled = 0f
+                }
+                change.consume()
+            }
+        }
+    }

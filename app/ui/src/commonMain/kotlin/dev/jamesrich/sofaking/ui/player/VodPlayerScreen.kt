@@ -35,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -153,6 +154,7 @@ fun VodPlayerScreen(
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
     val fullScreen = LocalWindowFullScreen.current
     val inPictureInPicture = LocalInPictureInPicture.current
+    val volume = LocalPlayerVolume.current
     val scope = rememberCoroutineScope()
     val lifecycle = appLifecycleOwner.lifecycle
     val currentOnPosition by rememberUpdatedState(onPosition)
@@ -197,12 +199,13 @@ fun VodPlayerScreen(
             seekItem(positionMs + step * if (step < 0) VodScrub.BACK_STEP_MS else VodScrub.FORWARD_STEP_MS)
         }
         mediaSession = session
-        player.volume = 1f
+        player.volume = volume.gain
         onStopOrDispose {
             session.close()
             mediaSession = null
         }
     }
+    LaunchedEffect(player, volume) { snapshotFlow { volume.gain }.collect { player.volume = it } }
     // Opens the item, again on a retry. The stream it publishes is loaded by the effect below.
     LaunchedEffect(openRequest) {
         failure = null
@@ -504,6 +507,7 @@ fun VodPlayerScreen(
             AnimatedVisibility(subtitlesFailed, enter = PopIn, exit = PopOut) {
                 StatusPill(stringResource(Res.string.vod_subtitles_failed))
             }
+            VolumeToast()
         }
         failure?.let { FailureCard(it, live = false) }
         next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit) }
@@ -549,6 +553,7 @@ fun VodPlayerScreen(
                         if (tracks.pickable) {
                             ControlIcon(SofaIcons.ClosedCaption, stringResource(Res.string.vod_tracks_title), { if (tracksOpen) tracksOpen = false else openTracks() })
                         }
+                        VolumeControl(onAdjust = ::showOverlay, onDone = { showOverlay(); focus.requestFocus() })
                         FullScreenControl()
                     }
                 }

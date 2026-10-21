@@ -402,6 +402,8 @@ internal fun TouchControls(
     onPlayPause: () -> Unit,
     onStreamInfo: () -> Unit,
     onRetry: () -> Unit,
+    onVolumeAdjust: () -> Unit,
+    onVolumeDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     FlowRow(
@@ -417,6 +419,7 @@ internal fun TouchControls(
         ControlIcon(Icons.AutoMirrored.Filled.List, stringResource(Res.string.player_control_channels), onChannelList)
         CaptionsControl(captionsOn, onCaptions)
         StreamInfoControl(hasAudioChoice, onStreamInfo)
+        VolumeControl(onVolumeAdjust, onVolumeDone)
         FullScreenControl()
     }
 }
@@ -499,7 +502,7 @@ internal fun FullScreenControl(size: Dp = CONTROL_SIZE) {
     )
 }
 
-private val CONTROL_SIZE = 48.dp
+internal val CONTROL_SIZE = 48.dp
 
 /**
  * The info bar's slot along the bottom of the player, sliding up when [visible]. The alignment sits on

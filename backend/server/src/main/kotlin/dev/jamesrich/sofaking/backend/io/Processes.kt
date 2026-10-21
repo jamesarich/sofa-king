@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.backend.io
 
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.future.await
@@ -9,10 +10,18 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Starts the process, outside the caller's cancellation so a cancel cannot drop it once forked, and returns it.
- * Forking blocks, so it runs on [Dispatchers.IO].
+ * Starts the process and returns it; a caller canceled while it forks gets the cancellation and the process is ended,
+ * since the result of a dispatcher switch is dropped on a canceled return. Forking blocks, so it runs on [Dispatchers.IO].
  */
-internal suspend fun ProcessBuilder.startOwned(): Process = withContext(NonCancellable + Dispatchers.IO) { start() }
+internal suspend fun ProcessBuilder.startOwned(): Process {
+    var started: Process? = null
+    try {
+        return withContext(NonCancellable + Dispatchers.IO) { start().also { started = it } }
+    } catch (e: CancellationException) {
+        started?.terminate()
+        throw e
+    }
+}
 
 /**
  * Runs the process to its exit and returns the exit code, or null when it ran past [timeout]. The process never

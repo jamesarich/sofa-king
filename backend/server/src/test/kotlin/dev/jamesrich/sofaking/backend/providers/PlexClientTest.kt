@@ -57,6 +57,21 @@ class PlexClientTest {
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 
+    @Test fun `a failed genre fetch keeps the groups the last one found`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-plex-")
+        try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
+            fixture.plex()
+            val clock = MutableClock()
+            val client = PlexClient(ProviderFixture.context("plex", options(fixture), http, store, clock))
+            assertEquals(listOf("Bingeworthy", "Movies"), client.channels().map { it.group })
+            fixture.route("/epg/") { Canned("{}", 500) }
+            clock.now = clock.now.plus(Duration.ofMinutes(31))
+            val listings = fixture.hits("/epg/lineups/plex/channels")
+            assertEquals(listOf("Bingeworthy", "Movies"), client.channels().map { it.group }, "a lost group would move the station's number")
+            assertTrue(fixture.hits("/epg/lineups/plex/channels") > listings, "the channels were fetched again")
+        } } } } finally { dir.toFile().deleteRecursively() }
+    }
+
     @Test fun `a rejected token is replaced once and resolve returns the part master with its token`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-plex-")
         try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->

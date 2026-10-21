@@ -91,9 +91,12 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun listed(): List<Listed> = context.cached(CHANNELS, Duration.ofMinutes(30)) { fetchChannels() }
 
+    /** The genres the last good fetch found; a failed one keeps them, since a lost group moves a station's number. */
+    @Volatile private var lastGroups: Map<String, String> = emptyMap()
+
     private suspend fun fetchChannels(): List<Listed> {
         val payload = authorized { token -> context.http.get("$apiBase/lineups/plex/channels?X-Plex-Token=${encode(token)}", headers(token)) }.json()
-        val groups = runCatchingCancellable { genres() }.getOrElse { emptyMap() }
+        val groups = runCatchingCancellable { genres() }.onSuccess { lastGroups = it }.getOrElse { lastGroups }
         val result = LinkedHashMap<String, Listed>()
         for (channel in payload["MediaContainer"]["Channel"].array) {
             val media = channel["Media"][0]
@@ -115,7 +118,8 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
             .mapNotNull { filter -> filter.str("identifier")?.let { it to (filter.str("title") ?: it) } }
         val result = HashMap<String, String>()
         for ((identifier, title) in filters.filterNot { it.first in CATCH_ALL } + filters.filter { it.first in CATCH_ALL }) {
-            val listing = authorized { token ->
+            // About twenty listings in a row, which Plex answers with 429 when they come too fast.
+            val listing = authorized(patient = true) { token ->
                 context.http.get("$apiBase/lineups/plex/channels?genre=${encode(identifier)}&X-Plex-Token=${encode(token)}", headers(token))
             }.json()
             for (channel in listing["MediaContainer"]["Channel"].array) {

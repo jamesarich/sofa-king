@@ -182,8 +182,7 @@ compose.desktop {
             // From `suggestRuntimeModules`; DataStore's protobuf needs jdk.unsupported, and the trimmed runtime lacks it.
             modules("java.instrument", "java.management", "jdk.unsupported")
             packageName = "Sofa King"
-            val desktopVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
-            packageVersion = desktopVersion
+            packageVersion = appVersion
             description = "Live TV, recordings and your own movies and shows from your Sofa King server"
             vendor = "James Rich"
             copyright = "Copyright 2026 James Rich. Licensed under the GPL-3.0-only."
@@ -192,8 +191,8 @@ compose.desktop {
             val icons = layout.projectDirectory.dir("icons")
             linux {
                 packageName = "sofa-king"
-                // dpkg orders 1.1.0-dev.N+COMMIT by run number and after a plain 1.1.0, so each snapshot upgrades the last.
-                debPackageVersion = desktopVersion + versionSuffix
+                // dpkg orders 0.1.0-dev.BUILD+COMMIT by build number and after a plain 0.1.0, so each snapshot upgrades the last.
+                debPackageVersion = appVersion + versionSuffix
                 debMaintainer = "2199651+jamesarich@users.noreply.github.com"
                 menuGroup = "AudioVideo;Video;TV"
                 appCategory = "video"
@@ -214,6 +213,13 @@ compose.desktop {
                 dockName = "Sofa King"
                 appCategory = "public.app-category.entertainment"
                 iconFile.set(icons.file("sofa-king.icns"))
+                // jpackage refuses a 0 major on macOS, so it gets a 1.x stand-in; the later plist key wins and shows the
+                // real version, and CFBundleVersion carries the build number.
+                packageVersion = if (appVersion.startsWith("0.")) "1" + appVersion.removePrefix("0") else appVersion
+                packageBuildVersion = providers.gradleProperty("sofaking.versionCode").get()
+                infoPlist {
+                    extraKeysRawXml = "<key>CFBundleShortVersionString</key><string>$appVersion</string>"
+                }
             }
         }
     }

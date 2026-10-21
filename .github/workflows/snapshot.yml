@@ -44,15 +44,20 @@ jobs:
       code: ${{ steps.v.outputs.code }}
       suffix: ${{ steps.v.outputs.suffix }}
     steps:
-      # The run number is CI's when CI calls this and this workflow's own on a manual run, so neither may fall below
-      # the published snapshot: a lower version code cannot install over it, and the app offers no update to it.
+      # The full history, for the commit count.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # The build number is the commit count, which backend.yml computes the same way, so the app and the server built
+      # from one commit carry one version. It never falls below the published snapshot: a lower version code cannot
+      # install over it, and the app offers no update to it.
       - id: v
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_NUMBER: ${{ github.run_number }}
         run: |
           published=$(gh release view snapshot --repo "$GITHUB_REPOSITORY" --json name --jq .name 2>/dev/null | sed -n 's/^Snapshot-dev\.\([0-9]*\).*/\1/p' || true)
-          code=$RUN_NUMBER
+          code=$(git rev-list --count HEAD)
           if [ -n "$published" ] && [ "$((published + 1))" -gt "$code" ]; then code=$((published + 1)); fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "suffix=-dev.$code+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"

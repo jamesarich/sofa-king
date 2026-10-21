@@ -137,9 +137,11 @@ jobs:
     env:
       PUBLISH: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     steps:
+      # The full history, for the commit count.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -158,12 +160,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # The catalog version with the suffix snapshot.yml gives the app built from the same commit.
       - name: Name the image
         id: names
         run: |
           echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sofa-king" >> "$GITHUB_OUTPUT"
           echo "revision=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-          echo "version=$(sed -n 's/^sofaking = "\(.*\)"$/\1/p' ../gradle/libs.versions.toml)" >> "$GITHUB_OUTPUT"
+          echo "version=$(sed -n 's/^sofaking = "\(.*\)"$/\1/p' ../gradle/libs.versions.toml)-dev.$(git rev-list --count HEAD)+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       # Each platform keeps its own layer cache; main writes it and pull requests read it.
       - id: build

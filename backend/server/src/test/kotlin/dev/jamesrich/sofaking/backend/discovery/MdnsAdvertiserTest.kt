@@ -41,7 +41,7 @@ class MdnsAdvertiserTest {
             AutoCloseable { open -= address }
         })
         advertiser.refresh()
-        assertEquals(emptyList(), open)
+        assertEquals(emptyList<InetAddress>(), open)
         current = listOf(first)
         advertiser.refresh()
         advertiser.refresh()
@@ -50,10 +50,10 @@ class MdnsAdvertiserTest {
         advertiser.refresh()
         assertEquals(listOf(second), open)
         advertiser.close()
-        assertEquals(emptyList(), open)
+        assertEquals(emptyList<InetAddress>(), open)
         current = listOf(first)
         advertiser.refresh()
-        assertEquals(emptyList(), open)
+        assertEquals(emptyList<InetAddress>(), open)
     }
 
     @Test fun `an address that fails is tried again at the next rescan`() {

@@ -14,7 +14,10 @@ import io.ktor.http.headersOf
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.test.*
 
 class LibraryMetadataTest {
@@ -68,6 +71,29 @@ class LibraryMetadataTest {
         // Fresh lookups are not repeated on the next scan.
         service.scan(library.id)
         assertEquals(2, calls.size)
+    }
+
+    @Test fun `removing a library does not wait for its TMDB pass, which then leaves no details behind`() = runBlocking {
+        val root = Files.createTempDirectory("sofa-media-")
+        root.file("movies/Alien (1979)/Alien (1979).mkv")
+        val asked = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val http = HttpClient(MockEngine { request ->
+            asked.complete(Unit)
+            gate.await()
+            if (request.url.encodedPath.endsWith("/search/movie")) {
+                respond("""{"results":[{"id":348,"title":"Alien","release_date":"1979-05-25"}]}""", headers = headersOf(HttpHeaders.ContentType, "application/json"))
+            } else respond("""{"id":348,"title":"Alien","release_date":"1979-05-25"}""", headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        })
+        val (store, service) = service(root, http)
+        val library = service.create("Movies", LibraryKind.MOVIES, root.resolve("movies").toString())
+        val scanning = launch { service.scan(library.id) }
+        asked.await()
+        val movie = store.libraryItems(library.id).single()
+        withTimeout(5_000) { service.delete(library.id) }
+        gate.complete(Unit)
+        scanning.join()
+        assertTrue(store.libraryMetadata(listOf(movie.id)).isEmpty(), "the pass's details for the removed items are gone")
     }
 
     @Test fun `a show pins its id from a tag and fetches the seasons it holds`() = runBlocking {

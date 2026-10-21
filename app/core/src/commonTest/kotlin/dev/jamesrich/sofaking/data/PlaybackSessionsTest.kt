@@ -30,6 +30,7 @@ class PlaybackSessionsTest {
         val sessions = linkedMapOf<String, Session>()
         var nextId = 1
         var openDelayMs = 0L
+        var refuseOpens = false
 
         /** Epoch bumps the next renewal should report, as the server does when it swaps the upstream. */
         var bumpEpochOnRenew = false
@@ -39,6 +40,7 @@ class PlaybackSessionsTest {
             val id = request.path.removePrefix("/api/v1/playback-sessions/").takeIf { request.path.startsWith("/api/v1/playback-sessions/") }
             when {
                 request.method == "POST" && request.path == "/api/v1/playback-sessions" -> {
+                    if (refuseOpens) return@FakeHttp apiError(503, "CAPACITY_EXHAUSTED")
                     val json = Json.parseToJsonElement(request.body).jsonObject
                     val session = Session("s${nextId++}", json["channelId"]!!.jsonPrimitive.content, json["intent"]!!.jsonPrimitive.content)
                     sessions[session.id] = session
@@ -248,6 +250,20 @@ class PlaybackSessionsTest {
         assertEquals("s2", reopened.sessionId)
         assertEquals(PlaybackIntent.WATCH, reopened.intent)
         assertEquals("watch", fake.sessions["s2"]!!.intent)
+    }
+
+    @Test
+    fun `a stop after a failed tune does not reopen a channel from an earlier stop`() = runTest {
+        val (fake, sessions) = fixture()
+        sessions.tune("c1", PlaybackIntent.WATCH)
+        sessions.release()
+        sessions.reopen()
+        sessions.tune("c2", PlaybackIntent.WATCH)
+        fake.refuseOpens = true
+        assertTrue(runCatching { sessions.tune("c3", PlaybackIntent.WATCH) }.isFailure)
+        sessions.release()
+
+        assertNull(sessions.reopen(), "nothing was held when the app stopped")
     }
 
     @Test

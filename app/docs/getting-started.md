@@ -41,11 +41,15 @@ Sofa King appears with the TV's apps. Phones and tablets take the same APK. Late
 
 ### Desktop
 
-The desktop app plays streams through [VLC](https://www.videolan.org/vlc/) 3. On Linux, install the package with apt, which installs VLC with it:
+The desktop app plays streams through [VLC](https://www.videolan.org/vlc/) 3. On Debian or Ubuntu, add the snapshot release as an apt source and install the package, which installs VLC with it; later snapshots then arrive with the system's other updates, through `sudo apt upgrade` or Software Updater:
 
 ```sh
-sudo apt install ./sofa-king-snapshot-linux-amd64.deb
+sudo curl -fsSLo /usr/share/keyrings/sofa-king.gpg https://github.com/jamesarich/sofa-king/releases/download/snapshot/sofa-king-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/sofa-king.gpg] https://github.com/jamesarich/sofa-king/releases/download/snapshot/ ./" | sudo tee /etc/apt/sources.list.d/sofa-king.list
+sudo apt update && sudo apt install sofa-king
 ```
+
+To install one snapshot without the source, download `sofa-king-snapshot-linux-amd64.deb` and run `sudo apt install ./sofa-king-snapshot-linux-amd64.deb`. A package from before the 0.1.0 versions, which reads 1.1.0, needs `--allow-downgrades` once.
 
 On macOS and Windows, install VLC 3 first, then `sofa-king-snapshot-macos-arm64.dmg` or `sofa-king-snapshot-windows-x64.msi`. Those packages are unsigned, so macOS and Windows ask before the first start.
 

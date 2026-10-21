@@ -9,6 +9,10 @@ on:
         description: The version suffix the packages were built with, for the release title.
         required: true
         type: string
+    secrets:
+      APT_SIGNING_KEY:
+        description: The armored secret key that signs the apt repository; without it the release carries none.
+        required: false
 
 permissions:
   contents: read
@@ -18,12 +22,39 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    env:
+      # A step's condition cannot read a secret, only whether the job has one.
+      SIGN_APT: ${{ secrets.APT_SIGNING_KEY != '' }}
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: dist-*
           path: dist
           merge-multiple: true
+      # The release doubles as a flat apt repository, so `apt upgrade` installs each snapshot's .deb: the index, the
+      # signed Release and the public key that checks it sit beside the package.
+      - name: Sign the apt repository
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        if: env.SIGN_APT == 'true'
+        working-directory: dist
+        run: |
+          export GNUPGHOME="$(mktemp -d)"
+          printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import
+          command -v apt-ftparchive >/dev/null || sudo apt-get install -y --no-install-recommends apt-utils
+          apt-ftparchive packages . > Packages
+          gzip -9kn Packages
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="Sofa King" \
+            -o APT::FTPArchive::Release::Label="Sofa King" \
+            -o APT::FTPArchive::Release::Suite=snapshot \
+            -o APT::FTPArchive::Release::Codename=snapshot \
+            -o APT::FTPArchive::Release::Architectures=amd64 \
+            release . > "$RUNNER_TEMP/Release"
+          mv "$RUNNER_TEMP/Release" Release
+          gpg --batch --yes --clearsign -o InRelease Release
+          gpg --batch --yes --armor --detach-sign -o Release.gpg Release
+          gpg --export > sofa-king-archive-keyring.gpg
       - name: Replace the snapshot release
         env:
           GH_TOKEN: ${{ github.token }}

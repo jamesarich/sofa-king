@@ -13,9 +13,9 @@ import kotlinx.serialization.json.Json
 
 /** The build GitHub publishes as the rolling `snapshot` prerelease: one per push to `main` that changed the app. */
 data class PublishedBuild(
-    /** The release title's version, such as `0.4.0-dev.123+abc1234`, or the title itself when it carries none. */
+    /** The release title's version, such as `0.4.0-dev.123+abc1234`, or the tag when the title carries none. */
     val version: String,
-    /** The workflow run that built it, parsed from [version]; null for a release not built by the snapshot workflow. */
+    /** The build number, the commit count `.github/version.sh` gives, parsed from [version]; null for a release not built by the snapshot workflow. */
     val run: Int?,
     /** The release page, which lists every package. */
     val pageUrl: String,
@@ -59,7 +59,8 @@ class UpdateChecker(
         } catch (_: IllegalArgumentException) {
             return null
         }
-        val version = release.name.removePrefix("Snapshot").ifEmpty { release.tagName }
+        // Titled `Snapshot 0.4.0-dev.123+abc1234`.
+        val version = release.name.removePrefix("Snapshot").trim().ifEmpty { release.tagName }
         val apk = release.assets.firstOrNull { it.name.endsWith(".apk") }
         return PublishedBuild(
             version = version,

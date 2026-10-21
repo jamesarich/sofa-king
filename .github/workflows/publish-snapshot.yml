@@ -5,8 +5,8 @@ name: Publish snapshot
 on:
   workflow_call:
     inputs:
-      suffix:
-        description: The version suffix the packages were built with, for the release title.
+      version:
+        description: The version the packages were built with, such as 0.1.0-dev.42+abc1234, for the release title.
         required: true
         type: string
     secrets:
@@ -59,11 +59,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          VERSION_SUFFIX: ${{ inputs.suffix }}
+          VERSION: ${{ inputs.version }}
         run: |
           gh release delete snapshot --cleanup-tag --yes || true
           gh release create snapshot dist/* \
             --prerelease \
             --target "$GITHUB_SHA" \
-            --title "Snapshot${VERSION_SUFFIX}" \
+            --title "Snapshot $VERSION" \
             --notes "Built from ${GITHUB_SHA} by ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Unsigned desktop packages; the APK uses a debug key."

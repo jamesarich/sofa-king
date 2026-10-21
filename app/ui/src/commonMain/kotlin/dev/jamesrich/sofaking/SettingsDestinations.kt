@@ -81,7 +81,7 @@ internal fun SettingsDestination(
                         shell.settingsUnlocked = true
                     },
                 ),
-                pairing = PairingUi(busy = pairing.busy, failure = pairing.failure, onPair = vm::pair),
+                pairing = PairingUi(busy = pairing.busy, failure = pairing.failure, onPair = vm::pair, onDismiss = vm::pairingDismissed),
                 update = update,
                 returnedFrom = arrival.returnedFrom,
             )

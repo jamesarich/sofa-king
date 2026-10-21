@@ -179,6 +179,11 @@ class LineupViewModel(
         _pairing.update { it.copy(outcome = null) }
     }
 
+    /** Settings closed the server block that showed the last failure, or saved another server; it shows no more. */
+    fun pairingDismissed() {
+        _pairing.update { it.copy(failure = null) }
+    }
+
     private suspend fun claim(url: String, code: String): PairingFailure? {
         _pairing.value = PairingState(busy = true)
         val failure = claimCode(url, code)
@@ -377,6 +382,7 @@ class LineupViewModel(
     }
 
     fun saveServer(url: String, apiToken: String) {
+        pairingDismissed()
         save { store.setServer(url, apiToken) }
     }
 

@@ -177,7 +177,8 @@ compose.dependencyCompatibility {
 // Every package carries the catalog version, and a snapshot's carry its build number too, so each installs over the
 // last: the .deb takes the whole suffix (0.1.0-dev.42+abc1234, which apt orders by the build number), and the MSI,
 // which allows only numbers, takes the build number as its last field. jpackage refuses a macOS version whose first
-// number is 0, so only the app bundle maps a leading 0. to 1., with the build number as its build version.
+// number is 0, so the app bundle is built as 1.x, and a later CFBundleShortVersionString, which macOS reads instead,
+// shows the catalog version; its build version ends in the build number.
 val buildNumber = providers.gradleProperty("sofaking.versionCode").get()
 fun withBuild(version: String) = if (versionSuffix.isEmpty()) version else version.substringBeforeLast('.') + ".$buildNumber"
 val macVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix("0.")}" else it }
@@ -219,6 +220,7 @@ compose.desktop {
             macOS {
                 packageVersion = macVersion
                 packageBuildVersion = withBuild(macVersion)
+                infoPlist { extraKeysRawXml = "<key>CFBundleShortVersionString</key><string>$appVersion</string>" }
                 bundleID = "dev.jamesrich.sofaking"
                 dockName = "Sofa King"
                 appCategory = "public.app-category.entertainment"

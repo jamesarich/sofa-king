@@ -35,6 +35,10 @@ class PlaybackSessionsTest {
         /** Epoch bumps the next renewal should report, as the server does when it swaps the upstream. */
         var bumpEpochOnRenew = false
 
+        /** How long a renewal's answer, read when the renewal arrives, takes to come back. */
+        var renewalDelayMs = 0L
+        var renewalsAnswered = 0
+
         val http = FakeHttp(scope) { request ->
             if (request.headers["Authorization"] != "Bearer secret") return@FakeHttp apiError(401, "AUTH_REQUIRED")
             val id = request.path.removePrefix("/api/v1/playback-sessions/").takeIf { request.path.startsWith("/api/v1/playback-sessions/") }
@@ -49,7 +53,14 @@ class PlaybackSessionsTest {
                 }
                 id != null && request.method == "GET" -> sessions[id]?.let { json(it.body()) } ?: apiError(410, "SESSION_EXPIRED")
                 id != null && request.method == "PATCH" -> sessions[id]?.let { session ->
-                    Json.parseToJsonElement(request.body).jsonObject["intent"]?.jsonPrimitive?.content?.let { session.intent = it }
+                    val intent = Json.parseToJsonElement(request.body).jsonObject["intent"]?.jsonPrimitive?.content
+                    if (intent == null && renewalDelayMs > 0) {
+                        val answer = session.body()
+                        delay(renewalDelayMs)
+                        renewalsAnswered++
+                        return@FakeHttp json(answer)
+                    }
+                    intent?.let { session.intent = it }
                     if (bumpEpochOnRenew) {
                         session.epoch++
                         bumpEpochOnRenew = false
@@ -154,6 +165,20 @@ class PlaybackSessionsTest {
         assertNotEquals(stream.url, replaced.url)
         assertEquals("${FAKE_BASE}media/sessions/s1/2/root.m3u8", replaced.url)
         assertEquals(replaced, sessions.current.value)
+    }
+
+    @Test
+    fun `a renewal the server answered before an intent change does not undo it`() = runTest {
+        val (fake, sessions) = fixture()
+        sessions.tune("c1", PlaybackIntent.PREVIEW)
+        fake.renewalDelayMs = 500
+        fake.awaitRequests { requests -> requests.any { it == "PATCH /api/v1/playback-sessions/s1 {}" } }
+
+        sessions.setIntent("c1", PlaybackIntent.WATCH)
+        withTimeout(5_000) { while (fake.renewalsAnswered == 0) delay(10) }
+        delay(50)
+
+        assertEquals(PlaybackIntent.WATCH, sessions.current.value!!.intent)
     }
 
     @Test

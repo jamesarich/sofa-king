@@ -253,12 +253,14 @@ class LineupViewModel(
         val lineup = (liveState.value as? LineupState.Ready)?.lineup ?: return
         val repository = liveRepository ?: return
         if (windowStart in extraDays.value || !daysLoading.add(windowStart)) return
+        val server = extraDaysServer
         viewModelScope.launch {
             try {
                 val started = TimeSource.Monotonic.markNow()
                 val guide = repository.loadGuide(lineup.channels, windowStart)
                 log.i { "guide: day ${windowStart} ${guide.programmes.values.sumOf { it.size }} programmes in ${started.elapsedNow()}" }
-                extraDays.update { it + (windowStart to guide.programmes) }
+                // A day that arrives after Settings named another server is the old server's, so it is dropped.
+                if (extraDaysServer == server) extraDays.update { it + (windowStart to guide.programmes) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

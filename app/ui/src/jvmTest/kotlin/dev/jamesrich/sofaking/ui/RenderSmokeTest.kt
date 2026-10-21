@@ -40,7 +40,11 @@ import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.InfoBar
 import dev.jamesrich.sofaking.ui.player.InfoOverlay
 import dev.jamesrich.sofaking.ui.player.MiniGuide
-import dev.jamesrich.sofaking.ui.player.MiniGuideActions
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import dev.jamesrich.sofaking.ui.player.PlayerButtonItem
+import dev.jamesrich.sofaking.ui.player.PlayerButtonRow
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.UnavailableLivePlayer
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
@@ -257,7 +261,7 @@ class RenderSmokeTest {
     }
 
     @Test
-    fun `the channel list renders its chips, action buttons and rows`() {
+    fun `the channel list renders its chips and rows`() {
         val image = render("player-channels") {
             Box(Modifier.fillMaxSize()) {
                 MiniGuide(
@@ -269,18 +273,29 @@ class RenderSmokeTest {
                     previousGuideId = "c4",
                     now = now,
                     onTune = {},
-                    actions = MiniGuideActions(
-                        captionsOn = true,
-                        paused = false,
-                        failed = false,
-                        hasAudioChoice = true,
-                        favorite = true,
-                        onToggleFavorite = {},
-                        onCaptions = {},
-                        onPlayPause = {},
-                        onRetry = {},
-                        onStreamInfo = {},
+                )
+            }
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
+    fun `the bar's buttons render with the focused one's name`() {
+        val image = render("player-buttons") {
+            Box(Modifier.fillMaxSize()) {
+                PlayerButtonRow(
+                    items = listOf(
+                        PlayerButtonItem(SofaIcons.FastForward, "Skip break", {}),
+                        PlayerButtonItem(SofaIcons.Subtitles, "Audio and subtitles", {}),
+                        PlayerButtonItem(SofaIcons.Replay, "Start over", {}),
+                        PlayerButtonItem(SofaIcons.SkipNext, "Next episode", {}),
+                        PlayerButtonItem(SofaIcons.Record, "Record", {}),
+                        PlayerButtonItem(SofaIcons.Replay10, "Back 10 seconds", {}),
+                        PlayerButtonItem(SofaIcons.Forward30, "Forward 30 seconds", {}),
                     ),
+                    entry = remember { FocusRequester() },
+                    onFocused = {},
+                    showLabel = true,
                 )
             }
         }

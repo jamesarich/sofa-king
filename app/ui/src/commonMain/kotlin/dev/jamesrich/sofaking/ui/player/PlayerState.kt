@@ -49,6 +49,12 @@ internal interface PlayerControls {
 
     /** A failed channel tunes again now, however many automatic retries have run. */
     fun retry()
+
+    /** Focus moves into the info bar's buttons. */
+    fun focusButtons()
+
+    /** Focus moves back to the picture from the info bar's buttons. */
+    fun focusPicture()
 }
 
 /**
@@ -123,6 +129,9 @@ internal class PlayerState(
 
     // True while a chip of the channel list has focus, so Left and Right move along the chips.
     var miniGuideChipsFocused by mutableStateOf(false)
+
+    // True while a button of the info bar has focus, so the D-pad moves along them instead of zapping.
+    var buttonsFocused by mutableStateOf(false)
 
     var streamCardOpen by mutableStateOf(false)
     var streamCardActivity by mutableIntStateOf(0)
@@ -336,6 +345,19 @@ internal class PlayerState(
         repeatCount: Int? = null,
         hasAudioTracks: Boolean = false,
     ): Boolean {
+        if (buttonsFocused) {
+            // Each key keeps the bar up for another while.
+            overlayRequest++
+            when (key.inButtonRow()) {
+                ButtonRowKey.ROW -> return false
+                // Up, Back and Escape hand focus back to the picture on key-up, so the key-up cannot act there too.
+                ButtonRowKey.LEAVE -> {
+                    if (type == KeyEventType.KeyUp) controls.focusPicture()
+                    return true
+                }
+                ButtonRowKey.PLAYER -> controls.focusPicture()
+            }
+        }
         // The mini-guide's focused list swallows Back before BackHandler sees it, so close it here and
         // eat the matching key-up so the same press can't also leave the player.
         if (key == Key.Back) {
@@ -445,7 +467,10 @@ internal class PlayerState(
                 when (playerSideKey(adjustable, overlayVisible)) {
                     // Right shows captions earlier, Left later.
                     PlayerSideKey.ADJUST_CAPTION_TIMING -> controls.adjustCaptionTiming(if (action == PlayerAction.RIGHT) 1 else -1)
-                    PlayerSideKey.OPEN_CHANNEL_LIST -> openMiniGuide()
+                    PlayerSideKey.FOCUS_BUTTONS -> {
+                        controls.focusButtons()
+                        keepInfo()
+                    }
                     PlayerSideKey.SHOW_INFO -> showInfo()
                 }
             }

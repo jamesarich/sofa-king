@@ -2,6 +2,7 @@ package dev.jamesrich.sofaking.ui.player
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class VodTracksTest {
     private val english = VodTrack(3, "English")
@@ -25,5 +26,17 @@ class VodTracksTest {
         val tracks = VodTracks(audio = listOf(VodTrack(1, "English"), VodTrack(2, "Commentary")), subtitles = listOf(english))
         assertEquals(TracksFocus.Audio(2), tracksFocus(tracks, audio = 2, subtitle = 3))
         assertEquals(TracksFocus.Audio(1), tracksFocus(tracks, audio = null, subtitle = 3))
+    }
+
+    @Test
+    fun `the CC key turns on the subtitle shown last or the starting one or the first text track`() {
+        val picture = VodTrack(2, "English (PGS)", picture = true)
+        val tracks = VodTracks(subtitles = listOf(picture, english, spanish), initialSubtitle = 4)
+        assertEquals(3, tracks.subtitleToTurnOn(last = 3))
+        assertEquals(4, tracks.subtitleToTurnOn(last = null))
+        assertEquals(4, tracks.subtitleToTurnOn(last = 9), "a track the item no longer lists")
+        assertEquals(3, VodTracks(subtitles = listOf(picture, english)).subtitleToTurnOn(last = null))
+        assertEquals(2, VodTracks(subtitles = listOf(picture)).subtitleToTurnOn(last = null))
+        assertNull(VodTracks().subtitleToTurnOn(last = null))
     }
 }

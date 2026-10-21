@@ -383,48 +383,6 @@ internal fun InfoOverlay(
 }
 
 /**
- * What the remote's keys do, as icon buttons for a finger or a mouse, in a row under the info bar with play/pause in
- * the middle; shown after a tap or click. Each action is the same one its key takes. [failed] adds Retry, which OK
- * does on the remote; [hasAudioChoice] adds the audio picker, which the stream card holds. A window the app can make
- * full screen adds that switch last.
- */
-@Composable
-internal fun TouchControls(
-    captionsOn: Boolean,
-    paused: Boolean,
-    failed: Boolean,
-    hasAudioChoice: Boolean,
-    onGuide: () -> Unit,
-    onChannelUp: () -> Unit,
-    onChannelDown: () -> Unit,
-    onChannelList: () -> Unit,
-    onCaptions: () -> Unit,
-    onPlayPause: () -> Unit,
-    onStreamInfo: () -> Unit,
-    onRetry: () -> Unit,
-    onVolumeAdjust: () -> Unit,
-    onVolumeDone: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    FlowRow(
-        modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        itemVerticalAlignment = Alignment.CenterVertically,
-    ) {
-        ControlIcon(SofaIcons.GridView, stringResource(Res.string.player_control_guide), onGuide)
-        ControlIcon(Icons.Filled.KeyboardArrowDown, stringResource(Res.string.player_control_channel_down), onChannelDown)
-        PlayPauseControl(paused, failed, onPlayPause, onRetry, primary = true)
-        ControlIcon(Icons.Filled.KeyboardArrowUp, stringResource(Res.string.player_control_channel_up), onChannelUp)
-        ControlIcon(Icons.AutoMirrored.Filled.List, stringResource(Res.string.player_control_channels), onChannelList)
-        CaptionsControl(captionsOn, onCaptions)
-        StreamInfoControl(hasAudioChoice, onStreamInfo)
-        VolumeControl(onVolumeAdjust, onVolumeDone)
-        FullScreenControl()
-    }
-}
-
-/**
  * One player control, for a finger, a mouse or the D-pad: the icon carries the label as its description. The centre
  * touch control is [primary] and larger; [size] is the tonal button's, 48 dp unless the row it sits in is tighter.
  */

@@ -53,9 +53,6 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrimDense
 import kotlin.time.Instant
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.Star
 import dev.jamesrich.sofaking.ui.panelEdgeMargin
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.tvFocus
@@ -64,29 +61,11 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 
 /**
- * The current channel's actions at the end of the channel list's top row, so a remote with only a D-pad, OK and
- * Back reaches what the CC, Play/Pause and Info keys do: the star ([favorite] null leaves it out), captions, pause
- * or play (Retry while [failed]), and the stream card, which lists the audio tracks when [hasAudioChoice].
- */
-internal class MiniGuideActions(
-    val captionsOn: Boolean,
-    val paused: Boolean,
-    val failed: Boolean,
-    val hasAudioChoice: Boolean,
-    val favorite: Boolean?,
-    val onToggleFavorite: () -> Unit,
-    val onCaptions: () -> Unit,
-    val onPlayPause: () -> Unit,
-    val onRetry: () -> Unit,
-    val onStreamInfo: () -> Unit,
-)
-
-/**
  * Bottom channel list over the video: a chip row (Recent, Favorites, the guide filter the player was opened from,
- * All) above the rows, with the current channel's [actions] at its end. OK tunes and closes it through [onTune];
+ * All) above the rows. OK tunes and closes it through [onTune];
  * Back and the idle timer are handled by the owner. Focus starts on the current channel's row; Up from the first
- * row reaches the top row. [onChipsFocused] tells the owner when the top row has focus, so Left and Right move
- * along its chips and buttons instead of being swallowed.
+ * row reaches the chips. [onChipsFocused] tells the owner when the chips have focus, so Left and Right move along
+ * them instead of being swallowed.
  */
 @Composable
 internal fun BoxScope.MiniGuide(
@@ -100,7 +79,6 @@ internal fun BoxScope.MiniGuide(
     now: Instant,
     onTune: (Channel) -> Unit,
     onChipsFocused: (Boolean) -> Unit = {},
-    actions: MiniGuideActions? = null,
 ) {
     val scoped = scope != null
     val filters = remember(recent.isNotEmpty(), scoped) { miniGuideFilters(hasRecent = recent.isNotEmpty(), scoped = scoped) }
@@ -124,7 +102,7 @@ internal fun BoxScope.MiniGuide(
             .background(SofaOverlayScrimDense),
     ) {
         Column(Modifier.fillMaxWidth().fillMaxHeight().screenPadding(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).padding(top = panelEdgeMargin())) {
-            // One focus group, so the owner sees the top row as focused whether a chip or a button holds it.
+            // One focus group, so the owner sees the top row as focused whichever chip holds it.
             Row(
                 Modifier.fillMaxWidth().focusGroup().onFocusChanged { onChipsFocused(it.hasFocus) },
                 verticalAlignment = Alignment.CenterVertically,
@@ -153,7 +131,6 @@ internal fun BoxScope.MiniGuide(
                         )
                     }
                 }
-                if (actions != null) MiniGuideActionRow(actions)
             }
             Spacer(Modifier.height(8.dp))
             if (rows.isEmpty()) {
@@ -196,27 +173,6 @@ internal fun BoxScope.MiniGuide(
 private val FocusedRowOnTop = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = offset
 }
-
-/** The action buttons, chip-high; each does what its remote key does, and the icons show the captions and favorite state. */
-@Composable
-private fun MiniGuideActionRow(actions: MiniGuideActions) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        actions.favorite?.let { favorite ->
-            ControlIcon(
-                if (favorite) Icons.Filled.Star else Icons.Outlined.Star,
-                stringResource(if (favorite) Res.string.guide_details_remove_favorite else Res.string.guide_details_add_favorite),
-                actions.onToggleFavorite,
-                size = ACTION_SIZE,
-            )
-        }
-        CaptionsControl(actions.captionsOn, actions.onCaptions, size = ACTION_SIZE)
-        PlayPauseControl(actions.paused, actions.failed, actions.onPlayPause, actions.onRetry, size = ACTION_SIZE)
-        StreamInfoControl(actions.hasAudioChoice, actions.onStreamInfo, size = ACTION_SIZE)
-    }
-}
-
-/** The action buttons sit a little taller than the 32 dp chips beside them, with room for a 24 dp icon. */
-private val ACTION_SIZE = 36.dp
 
 private val RowShape = RoundedCornerShape(8.dp)
 

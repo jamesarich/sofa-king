@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.resources.*
@@ -55,6 +56,9 @@ internal fun RecordingDestination(route: Route.Recording, shell: AppShellState, 
             onStopped = { position, duration -> recordingsVm.stopped(recording.id, position, duration) },
             onExit = shell::back,
             autoSkipBreaks = settings?.skipCommercials ?: false,
+            captionsOn = settings?.captionsEnabled ?: false,
+            onToggleCaptions = { vm.setCaptionsEnabled(settings?.captionsEnabled != true) },
+            captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
         )
         recordings is RecordingsState.Ready || recordings is RecordingsState.Failed -> LaunchedEffect(Unit) { shell.back() }
         else -> MessageScreen(stringResource(Res.string.recordings_loading), loading = true)

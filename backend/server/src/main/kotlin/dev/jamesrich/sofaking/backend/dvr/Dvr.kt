@@ -381,7 +381,13 @@ class Dvr(
             Wire.CommercialScan.FAILED to emptyList()
         }
         mutex.withLock {
-            val latest = store.recording(id)?.takeIf { it.path == recording.path } ?: return@withLock
+            val latest = store.recording(id)?.takeIf { it.path == recording.path }
+            if (latest == null) {
+                // Deleted or moved during the scan, which then wrote its breaks beside a file that is gone.
+                val file = root.resolve(recording.path!!)
+                withContext(Dispatchers.IO) { if (!Files.exists(file)) Files.deleteIfExists(Commercials.sidecar(file)) }
+                return@withLock
+            }
             store.saveRecording(latest.copy(commercials = outcome.first, breaks = outcome.second, updatedAt = clock.instant()))
         }
         if (outcome.first == Wire.CommercialScan.DONE) log.info("commercial scan id={} title=\"{}\" breaks={}", id, recording.title, outcome.second.size)

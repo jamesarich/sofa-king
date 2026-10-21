@@ -10,11 +10,11 @@ import kotlin.test.assertTrue
 
 class QrCodeTest {
     @Test fun `the SVG draws the modules ZXing encodes and escapes its label`() {
-        val link = pairingLink("http://192.168.1.3:9193", "123456")
-        assertEquals("sofaking://pair?server=http%3A%2F%2F192.168.1.3%3A9193&code=123456", link)
-        val svg = qrSvg(link, "Pairing <code> & more")
+        val link = pairingLink("http://192.0.2.10:9193", "123456")
+        assertEquals("sofaking://pair?server=http%3A%2F%2F192.0.2.10%3A9193&code=123456", link)
+        val svg = qrSvg(link, "Pairing \"<code>\" & more")
         assertTrue(svg.startsWith("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 "))
-        assertTrue(svg.contains("aria-label=\"Pairing &lt;code&gt; &amp; more\""))
+        assertTrue(svg.contains("aria-label=\"Pairing &quot;&lt;code&gt;&quot; &amp; more\""))
         assertEquals(link, decode(svg))
     }
 

@@ -4,6 +4,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import dev.jamesrich.sofaking.backend.http.xml
 
 /**
  * [text] as a QR code in SVG, one path of unit squares on a white field with a two-module quiet zone, so the portal
@@ -22,7 +23,6 @@ internal fun qrSvg(text: String, title: String): String {
             path.append("M").append(start).append(' ').append(y).append('h').append(x - start).append("v1h-").append(x - start).append('z')
         }
     }
-    val safeTitle = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${matrix.width} ${matrix.height}" role="img" aria-label="$safeTitle" shape-rendering="crispEdges">""" +
+    return """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${matrix.width} ${matrix.height}" role="img" aria-label="${xml(title)}" shape-rendering="crispEdges">""" +
         """<rect width="${matrix.width}" height="${matrix.height}" fill="#fff"/><path fill="#000" d="$path"/></svg>"""
 }

@@ -135,7 +135,12 @@ candidate=$(docker image inspect --format '{{.Id}}' "$image")
 running=$(docker inspect --format '{{.Image}}' "$container" 2>/dev/null || echo none)
 from=$(revision "$running")
 to=$(revision "$candidate")
-if [ "$candidate" = "$running" ]; then
+if [ "$running" = none ]; then
+  report failed "there is no $container container; start it with docker compose up -d"
+  exit 1
+fi
+# A container left created but never started by a failed run is not up to date; this run starts it again.
+if [ "$candidate" = "$running" ] && [ "$(docker inspect --format '{{.State.Running}}' "$container")" = true ]; then
   report up-to-date "running $to"
   exit 0
 fi
@@ -175,8 +180,8 @@ done
 
 docker tag "$running" "$previous_tag"
 docker tag "$candidate" "$local_tag"
-compose up -d --no-build --force-recreate
-if healthy; then
+# A container that fails to be created or started counts as unhealthy, so the rollback below still runs.
+if compose up -d --no-build --force-recreate && healthy; then
   rm -f "$state/failed-image"
   docker image prune --force >/dev/null
   log "running $to"
@@ -193,8 +198,7 @@ cp "$backup" "$data/backend.sqlite"
 chown "$owner" "$data/backend.sqlite"
 echo "$candidate" > "$state/failed-image"
 docker tag "$previous_tag" "$local_tag"
-compose up -d --no-build --force-recreate
-if healthy; then
+if compose up -d --no-build --force-recreate && healthy; then
   log "running $from again"
   report rolled-back "$to was not healthy after ${wait_seconds}s; running $from again"
 else

@@ -581,7 +581,10 @@ fun VodPlayerScreen(
         rowEntry.requestFocus()
     }
     BackHandler {
-        if (tracksOpen) {
+        // Where Back skips the key path (Android with predictive back), a focused bar button hands focus back here.
+        if (rowFocused) {
+            focus.requestFocus()
+        } else if (tracksOpen) {
             tracksOpen = false
             focus.requestFocus()
         } else if (scrubTarget != null) {

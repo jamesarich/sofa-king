@@ -316,14 +316,22 @@ internal class PlayerState(
         return if (legendOnThisBar) ++legendCount else null
     }
 
-    /** The system Back: an open panel closes; true when nothing was open and the player is left. */
-    fun back(): Boolean {
+    /**
+     * The system Back: an open panel closes, or a focused bar button hands focus back to the picture with the bar still
+     * up, as Up does; true when nothing was open and the player is left.
+     */
+    fun back(controls: PlayerControls): Boolean {
         when {
             // The press that closed a panel ends here: with the panel's focused row gone, its key-up can miss the
             // surface's key handler and arrive as a Back of its own.
             swallowBackUp -> swallowBackUp = false
             streamCardOpen -> streamCardOpen = false
             miniGuideOpen -> miniGuideOpen = false
+            // Where Back skips the key path (Android with predictive back), it reaches the row only here.
+            buttonsFocused -> {
+                controls.focusPicture()
+                keepInfo()
+            }
             else -> return true
         }
         return false
@@ -467,9 +475,19 @@ internal class PlayerState(
             PlayerAction.TOGGLE_CAPTIONS -> controls.toggleCaptions()
             PlayerAction.ZAP_UP, PlayerAction.ZAP_DOWN, PlayerAction.CHANNEL_UP, PlayerAction.CHANNEL_DOWN -> zapStep(action.zapStep()!!)
             PlayerAction.LAST_CHANNEL -> recallLastChannel()
-            PlayerAction.PLAY_PAUSE -> controls.playPause()
-            PlayerAction.PLAY -> controls.play()
-            PlayerAction.PAUSE -> controls.pause()
+            // The bar comes up with the change and, paused, stays up, as the library player's does.
+            PlayerAction.PLAY_PAUSE -> {
+                controls.playPause()
+                showInfo()
+            }
+            PlayerAction.PLAY -> {
+                controls.play()
+                showInfo()
+            }
+            PlayerAction.PAUSE -> {
+                controls.pause()
+                showInfo()
+            }
             PlayerAction.TOGGLE_INFO -> if (!numbers.hasDigits) overlayVisible = !overlayVisible
             PlayerAction.LEFT, PlayerAction.RIGHT -> {
                 val adjustable = captionToast?.timingMs != null && captionsOn

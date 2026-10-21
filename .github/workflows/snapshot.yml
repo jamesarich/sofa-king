@@ -21,6 +21,8 @@ on:
         required: false
       SOFAKING_CACHE_PASSWORD:
         required: false
+      GRADLE_ENCRYPTION_KEY:
+        required: false
   workflow_dispatch:
 
 concurrency:
@@ -42,10 +44,18 @@ jobs:
       code: ${{ steps.v.outputs.code }}
       suffix: ${{ steps.v.outputs.suffix }}
     steps:
+      # The run number is CI's when CI calls this and this workflow's own on a manual run, so neither may fall below
+      # the published snapshot: a lower version code cannot install over it, and the app offers no update to it.
       - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
-          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-          echo "suffix=-dev.${{ github.run_number }}+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          published=$(gh release view snapshot --repo "$GITHUB_REPOSITORY" --json name --jq .name 2>/dev/null | sed -n 's/^Snapshot-dev\.\([0-9]*\).*/\1/p' || true)
+          code=$RUN_NUMBER
+          if [ -n "$published" ] && [ "$((published + 1))" -gt "$code" ]; then code=$((published + 1)); fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "suffix=-dev.$code+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
   linux:
     name: Android and Linux desktop

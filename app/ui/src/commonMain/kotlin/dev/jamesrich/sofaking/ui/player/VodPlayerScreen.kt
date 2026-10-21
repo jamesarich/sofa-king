@@ -134,6 +134,9 @@ fun VodPlayerScreen(
     captionsOn: Boolean? = null,
     onToggleCaptions: () -> Unit = {},
     captionStyle: CaptionStyle = CaptionStyle.SYSTEM,
+    /** How the picture meets the screen, and the next one picked from the bar or the Zoom key. */
+    zoom: VideoZoom = VideoZoom.FIT,
+    onZoom: (VideoZoom) -> Unit = {},
 ) {
     val held by sessions.current.collectAsStateWithLifecycle()
     // Up next composes the next page beside this one while they cross-fade, so each plays, seeks and releases only
@@ -166,7 +169,8 @@ fun VodPlayerScreen(
     var upcoming by remember { mutableStateOf<VodUpNext?>(null) }
     // The subtitle track CC turns back on.
     var lastSubtitle by remember { mutableStateOf(tracks.initialSubtitle) }
-    var ccToast by remember { mutableStateOf<CcToast?>(null) }
+    // CC's answer, or the zoom just picked, for a moment.
+    var toast by remember { mutableStateOf<VodToast?>(null) }
     // True while a button on the bar has focus, so the D-pad moves along the row instead of seeking.
     var rowFocused by remember { mutableStateOf(false) }
     val rowEntry = remember { FocusRequester() }
@@ -352,10 +356,10 @@ fun VodPlayerScreen(
         delay(TOAST_MS)
         subtitlesFailed = false
     }
-    LaunchedEffect(ccToast) {
-        if (ccToast == null) return@LaunchedEffect
+    LaunchedEffect(toast) {
+        if (toast == null) return@LaunchedEffect
         delay(TOAST_MS)
-        ccToast = null
+        toast = null
     }
     LaunchedEffect(skippedToast) {
         if (!skippedToast) return@LaunchedEffect
@@ -471,21 +475,27 @@ fun VodPlayerScreen(
         val captions = currentCaptionsOn
         if (captions != null) {
             currentOnToggleCaptions()
-            ccToast = CcToast(if (captions) Res.string.captions_off else Res.string.captions_on)
+            toast = VodToast(if (captions) Res.string.captions_off else Res.string.captions_on)
             return
         }
         if (subtitleTrack != null) {
             pickSubtitle(null)
-            ccToast = CcToast(Res.string.vod_subtitles_off)
+            toast = VodToast(Res.string.vod_subtitles_off)
             return
         }
         val target = tracks.subtitleToTurnOn(lastSubtitle)
         if (target == null) {
-            ccToast = CcToast(Res.string.vod_no_subtitles)
+            toast = VodToast(Res.string.vod_no_subtitles)
         } else {
             pickSubtitle(target)
-            ccToast = CcToast(Res.string.vod_subtitles_on)
+            toast = VodToast(Res.string.vod_subtitles_on)
         }
+    }
+
+    fun stepZoom() {
+        val next = zoom.next()
+        onZoom(next)
+        toast = VodToast(Res.string.player_zoom_notice, next.label)
     }
 
     val buttons = vodButtons(
@@ -548,6 +558,9 @@ fun VodPlayerScreen(
                 showOverlay()
             }
             VodAction.CAPTIONS -> toggleCaptions()
+            VodAction.TRACKS -> if (tracks.pickable && failure == null) openTracks() else showOverlay()
+            VodAction.ZOOM -> stepZoom()
+            VodAction.STOP -> onExit()
         }
         return true
     }
@@ -598,7 +611,7 @@ fun VodPlayerScreen(
             }
             .showBarOnMouseMove(LocalLastInput.current, ::showOverlay),
     ) {
-        player.Video(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
+        player.Video(Modifier.fillMaxSize(), zoom) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         // A recording's captions are the stream's own, drawn by the player as on live TV.
         if (captionsOn == true) Captions(player, captionStyle, CaptionPolicy.bottomPaddingFraction(windowHeightDp), Modifier.fillMaxSize())
         KeepScreenOn(status.isPlaying)
@@ -624,8 +637,8 @@ fun VodPlayerScreen(
             }
             val popIn = PopIn
             val popOut = PopOut
-            AnimatedContent(ccToast, transitionSpec = { popIn togetherWith popOut }, label = "ccToast") { toast ->
-                if (toast != null) StatusPill(stringResource(toast.text))
+            AnimatedContent(toast, transitionSpec = { popIn togetherWith popOut }, label = "toast") { shown ->
+                if (shown != null) StatusPill(shown.arg?.let { stringResource(shown.text, stringResource(it)) } ?: stringResource(shown.text))
             }
             VolumeToast()
         }
@@ -678,17 +691,19 @@ fun VodPlayerScreen(
                     vodButtonItem(
                         button,
                         captionsOn = captionsOn == true,
+                        zoom = zoom,
                         onClick = {
                             when (button) {
                                 VodButton.SKIP_BREAK -> breakEnd?.let(::seekItem)
                                 VodButton.TRACKS -> if (tracksOpen) tracksOpen = false else openTracks()
                                 VodButton.CAPTIONS -> toggleCaptions()
+                                VodButton.ZOOM -> stepZoom()
                                 VodButton.START_OVER -> seekItem(0)
                                 VodButton.NEXT -> onPlayNext()
                             }
                             showOverlay()
-                            // A seek moves on and the picture takes the keys again; Captions stays for another press.
-                            if (button != VodButton.CAPTIONS && button != VodButton.TRACKS) focus.requestFocus()
+                            // A seek moves on and the picture takes the keys again; Captions and Zoom stay for another press.
+                            if (button !in STAYING_BUTTONS) focus.requestFocus()
                         },
                     )
                 }
@@ -815,9 +830,9 @@ private fun DrawScope.drawSeekTrack(playedFraction: Float, lengthMs: Long?, mark
     }
 }
 
-/** The row's button for [button], with a recording's captions shown as [captionsOn]. */
+/** The row's button for [button], with a recording's captions shown as [captionsOn] and the picture at [zoom]. */
 @Composable
-private fun vodButtonItem(button: VodButton, captionsOn: Boolean, onClick: () -> Unit): PlayerButtonItem = when (button) {
+private fun vodButtonItem(button: VodButton, captionsOn: Boolean, zoom: VideoZoom, onClick: () -> Unit): PlayerButtonItem = when (button) {
     VodButton.SKIP_BREAK -> PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_break), onClick)
     VodButton.TRACKS -> PlayerButtonItem(SofaIcons.Subtitles, stringResource(Res.string.vod_tracks_title), onClick)
     VodButton.CAPTIONS -> PlayerButtonItem(
@@ -826,12 +841,16 @@ private fun vodButtonItem(button: VodButton, captionsOn: Boolean, onClick: () ->
         onClick,
         state = stringResource(if (captionsOn) Res.string.captions_on else Res.string.captions_off),
     )
+    VodButton.ZOOM -> zoomButtonItem(zoom, onClick)
     VodButton.START_OVER -> PlayerButtonItem(SofaIcons.Replay, stringResource(Res.string.vod_control_start_over), onClick)
     VodButton.NEXT -> PlayerButtonItem(SofaIcons.SkipNext, stringResource(Res.string.vod_control_next), onClick)
 }
 
-/** A CC press's answer, shown for a moment; compared by identity so a repeated press restarts it. */
-private class CcToast(val text: StringResource)
+/** The buttons that keep focus after a press, as each press steps them on (the track card takes it itself). */
+private val STAYING_BUTTONS = setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.TRACKS)
+
+/** A CC or Zoom press's answer, [text] with [arg] in it if any, shown for a moment; compared by identity so a repeated press restarts it. */
+private class VodToast(val text: StringResource, val arg: StringResource? = null)
 
 @Composable
 private fun modeLabel(mode: String): String? = when (mode) {

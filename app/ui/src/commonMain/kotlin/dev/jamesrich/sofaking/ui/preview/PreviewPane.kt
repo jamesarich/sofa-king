@@ -62,6 +62,7 @@ import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlin.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import dev.jamesrich.sofaking.ui.player.VideoZoom
 
 /** Kill switch: false removes the pane and the preview player entirely. */
 const val PREVIEW_ENABLED = true
@@ -239,7 +240,7 @@ internal fun PreviewVideo(
 
     Box(modifier.width(PREVIEW_WIDTH).height(PREVIEW_HEIGHT).background(SofaScrim)) {
         // One surface for the life of the preview; the card covers it from a reset until the next first frame.
-        player.Video(Modifier.fillMaxSize()) { PreviewCard(channel, failed) }
+        player.Video(Modifier.fillMaxSize(), VideoZoom.FIT) { PreviewCard(channel, failed) }
         // No overscan inset: the box sits inside the guide's margins already.
         if (showPreviewCaptions(captionsEnabled, channel != null, failed)) Captions(player, captionStyle, bottomFraction = 0f, Modifier.fillMaxSize())
         if (failed) PreviewCard(channel, failed = true) else if (channel != null && showing != channel.guideId) PreviewCard(channel, failed = false)

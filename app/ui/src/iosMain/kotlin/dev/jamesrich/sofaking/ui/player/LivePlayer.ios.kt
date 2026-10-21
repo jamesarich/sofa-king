@@ -89,6 +89,9 @@ import platform.UIKit.UIColor
 import platform.UIKit.UIImage
 import platform.UIKit.UIView
 import platform.darwin.NSObjectProtocol
+import androidx.compose.runtime.LaunchedEffect
+import platform.AVFoundation.AVLayerVideoGravityResize
+import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
@@ -320,9 +323,10 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
     }
 
     @Composable
-    override fun Video(modifier: Modifier, shutter: @Composable () -> Unit) {
+    override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) {
         val density = LocalDensity.current.density
         val showsFrame by hasFrame.collectAsState()
+        LaunchedEffect(zoom) { playerLayer.videoGravity = zoom.gravity }
         Box(
             modifier.onSizeChanged { size ->
                 CATransaction.begin()
@@ -335,6 +339,7 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
                 factory = {
                     UIView().apply {
                         backgroundColor = UIColor.blackColor
+                        clipsToBounds = true
                         layer.addSublayer(playerLayer)
                     }
                 },
@@ -419,3 +424,11 @@ private fun playerErrorFor(error: NSError?, httpStatus: Long?): PlayerError {
     }
     return PlayerError(code)
 }
+
+/** AVFoundation's layer gravity for [VideoZoom]. */
+private val VideoZoom.gravity: String?
+    get() = when (this) {
+        VideoZoom.FIT -> AVLayerVideoGravityResizeAspect
+        VideoZoom.FILL -> AVLayerVideoGravityResizeAspectFill
+        VideoZoom.STRETCH -> AVLayerVideoGravityResize
+    }

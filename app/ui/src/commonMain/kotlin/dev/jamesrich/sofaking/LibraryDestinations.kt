@@ -185,6 +185,8 @@ internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupVi
                 upNext = { libraryVm.upNext(item)?.also { next = it }?.upNext() },
                 onPlayNext = { next?.let { shell.replaceTop(Route.Vod(it.id)) } },
                 tracks = tracks,
+                zoom = shell.videoZoom,
+                onZoom = { shell.videoZoom = it },
             )
         }
         detail is ItemDetailState.Failed -> MessageScreen(

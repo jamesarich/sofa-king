@@ -42,20 +42,36 @@ internal fun Key.playerExit(): PlayerExit? = when (this) {
  * is a short Info press, since Info held opens the stream card.
  */
 internal enum class PlayerAction {
-    TOGGLE_CAPTIONS, ZAP_UP, ZAP_DOWN, CHANNEL_UP, CHANNEL_DOWN, LAST_CHANNEL, PLAY_PAUSE, PLAY, PAUSE, TOGGLE_INFO, LEFT, RIGHT
+    TOGGLE_CAPTIONS,
+    ZAP_UP,
+    ZAP_DOWN,
+    CHANNEL_UP,
+    CHANNEL_DOWN,
+    LAST_CHANNEL,
+    PLAY_PAUSE,
+    PLAY,
+    PAUSE,
+    TOGGLE_INFO,
+    LEFT,
+    RIGHT,
+    STREAM_INFO,
+    RECORD,
+    ZOOM,
+    STOP,
 }
 
 /**
  * Up and Down zap the way they move the guide, Channel Up and Channel Down step the channel number, and so do Media
- * Next and Media Previous, as the system's next and previous do through the media session; Last Channel recalls the
- * last channel.
+ * Next and Media Previous, as the system's next and previous do through the media session, and a gamepad's
+ * shoulder buttons; Last Channel recalls the last channel. Audio Track opens the stream card, Record records the
+ * program on now, Zoom steps the picture's zoom and Stop leaves the player.
  */
 internal fun Key.playerAction(): PlayerAction? = when (this) {
     Key.Captions, Key.C -> PlayerAction.TOGGLE_CAPTIONS
     Key.DirectionUp -> PlayerAction.ZAP_UP
     Key.DirectionDown -> PlayerAction.ZAP_DOWN
-    Key.ChannelUp, Key.MediaNext -> PlayerAction.CHANNEL_UP
-    Key.ChannelDown, Key.MediaPrevious -> PlayerAction.CHANNEL_DOWN
+    Key.ChannelUp, Key.MediaNext, Key.ButtonR1 -> PlayerAction.CHANNEL_UP
+    Key.ChannelDown, Key.MediaPrevious, Key.ButtonL1 -> PlayerAction.CHANNEL_DOWN
     Key.LastChannel -> PlayerAction.LAST_CHANNEL
     Key.MediaPlayPause, Key.Spacebar, Key.K -> PlayerAction.PLAY_PAUSE
     Key.MediaPlay -> PlayerAction.PLAY
@@ -63,6 +79,10 @@ internal fun Key.playerAction(): PlayerAction? = when (this) {
     Key.Info -> PlayerAction.TOGGLE_INFO
     Key.DirectionLeft -> PlayerAction.LEFT
     Key.DirectionRight -> PlayerAction.RIGHT
+    Key.MediaAudioTrack -> PlayerAction.STREAM_INFO
+    Key.MediaRecord -> PlayerAction.RECORD
+    Key.TvZoomMode -> PlayerAction.ZOOM
+    Key.MediaStop -> PlayerAction.STOP
     else -> null
 }
 

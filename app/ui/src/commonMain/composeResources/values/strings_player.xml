@@ -37,6 +37,11 @@
     <string name="stream_card_mbps">%1$s Mb/s</string>
     <string name="stream_card_size">%1$d × %2$d</string>
     <string name="player_control_guide">Guide</string>
+    <string name="player_control_zoom">Zoom</string>
+    <string name="player_zoom_fit">Fit</string>
+    <string name="player_zoom_fill">Fill</string>
+    <string name="player_zoom_stretch">Stretch</string>
+    <string name="player_zoom_notice">Zoom: %1$s</string>
     <string name="player_control_channel_up">Channel up</string>
     <string name="player_control_channel_down">Channel down</string>
     <string name="player_control_channels">Channels</string>

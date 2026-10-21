@@ -154,6 +154,7 @@ internal fun BoxScope.InfoBarPanel(
     paused: Boolean,
     hasAudioChoice: Boolean,
     record: LiveRecord?,
+    zoom: VideoZoom,
     favorite: Boolean?,
     onToggleFavorite: () -> Unit,
     controls: PlayerControls,
@@ -193,6 +194,7 @@ internal fun BoxScope.InfoBarPanel(
                 stringResource(Res.string.player_control_stream),
                 state::openStreamCard,
             )
+            LiveButton.ZOOM -> zoomButtonItem(zoom, control { controls.zoom() })
             LiveButton.RECORD -> PlayerButtonItem(
                 if (record?.recording == true) SofaIcons.Recordings else SofaIcons.Record,
                 stringResource(if (record?.recording == true) Res.string.guide_details_cancel_recording else Res.string.guide_details_record),

@@ -41,8 +41,8 @@ import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.math.min
 import kotlin.math.roundToInt
+import androidx.compose.ui.draw.clipToBounds
 
 private val log = Logger.withTag("SofaKing")
 
@@ -230,14 +230,14 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = NoMediaSession
 
     @Composable
-    override fun Video(modifier: Modifier, shutter: @Composable () -> Unit) {
+    override fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit) {
         Box(modifier) {
-            Canvas(Modifier.matchParentSize()) {
+            Canvas(Modifier.matchParentSize().clipToBounds()) {
                 frameCount.intValue
                 synchronized(frameLock) {
                     val frame = image ?: return@Canvas
-                    val scale = min(size.width / frame.width, size.height / frame.height)
-                    val drawn = Size(frame.width * scale, frame.height * scale)
+                    val scale = zoom.contentScale.computeScaleFactor(Size(frame.width.toFloat(), frame.height.toFloat()), size)
+                    val drawn = Size(frame.width * scale.scaleX, frame.height * scale.scaleY)
                     val origin = Offset((size.width - drawn.width) / 2, (size.height - drawn.height) / 2)
                     drawImage(
                         frame,

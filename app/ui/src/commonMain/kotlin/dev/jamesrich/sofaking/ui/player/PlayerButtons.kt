@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LastInput
+import dev.jamesrich.sofaking.ui.theme.SofaIcons
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /** How long a player's bar stays up after the last key, tap or mouse movement, unless something holds it. */
@@ -48,6 +50,9 @@ internal enum class VodButton {
 
     /** A recording's captions, on or off. */
     CAPTIONS,
+
+    /** The picture's [VideoZoom], one step on. */
+    ZOOM,
     START_OVER,
 
     /** The next episode, without waiting for this one to end. */
@@ -56,8 +61,8 @@ internal enum class VodButton {
 
 /**
  * The library and recordings player's buttons, in the bar's order. A break being played leads, so Down and OK skip
- * it; a library item with tracks to pick offers them and a recording its captions; Start over once [pastStart]; and
- * the next episode when there is one. A failed stream offers none: OK retries it.
+ * it; a library item with tracks to pick offers them and a recording its captions; then Zoom; Start over once
+ * [pastStart]; and the next episode when there is one. A failed stream offers none: OK retries it.
  */
 internal fun vodButtons(
     failed: Boolean,
@@ -70,6 +75,7 @@ internal fun vodButtons(
     if (inBreak) add(VodButton.SKIP_BREAK)
     if (tracksPickable) add(VodButton.TRACKS)
     if (captions) add(VodButton.CAPTIONS)
+    add(VodButton.ZOOM)
     if (pastStart) add(VodButton.START_OVER)
     if (hasNext) add(VodButton.NEXT)
 }
@@ -85,6 +91,9 @@ internal enum class LiveButton {
     /** The stream card, which lists the audio tracks. */
     STREAM_INFO,
 
+    /** The picture's [VideoZoom], one step on. */
+    ZOOM,
+
     /** Records the program on now, or cancels its recording. */
     RECORD,
     FAVORITE,
@@ -92,8 +101,8 @@ internal enum class LiveButton {
 }
 
 /**
- * The live player's buttons, in the bar's order: the channel list first, then what the CC, Play/Pause and Info keys
- * do, Record where the server records and there is a program on, the star where favorites can change, and the guide.
+ * The live player's buttons, in the bar's order: the channel list first, then what the CC, Play/Pause, Info and Zoom
+ * keys do, Record where the server records and there is a program on, the star where favorites can change, and the guide.
  * A finger or a mouse has play and pause beside the channel buttons instead ([pointer]).
  */
 internal fun liveButtons(pointer: Boolean, canRecord: Boolean, canFavorite: Boolean): List<LiveButton> = buildList {
@@ -101,6 +110,7 @@ internal fun liveButtons(pointer: Boolean, canRecord: Boolean, canFavorite: Bool
     if (!pointer) add(LiveButton.PLAY_PAUSE)
     add(LiveButton.CAPTIONS)
     add(LiveButton.STREAM_INFO)
+    add(LiveButton.ZOOM)
     if (canRecord) add(LiveButton.RECORD)
     if (canFavorite) add(LiveButton.FAVORITE)
     add(LiveButton.GUIDE)
@@ -146,6 +156,19 @@ internal class PlayerButtonItem(
     val onClick: () -> Unit,
     val state: String? = null,
 )
+
+/** What a [VideoZoom] is called on its button and in the note a press shows. */
+internal val VideoZoom.label: StringResource
+    get() = when (this) {
+        VideoZoom.FIT -> Res.string.player_zoom_fit
+        VideoZoom.FILL -> Res.string.player_zoom_fill
+        VideoZoom.STRETCH -> Res.string.player_zoom_stretch
+    }
+
+/** Zoom on either bar, named with the zoom it is at, as "Zoom: Fit". */
+@Composable
+internal fun zoomButtonItem(zoom: VideoZoom, onClick: () -> Unit): PlayerButtonItem =
+    PlayerButtonItem(SofaIcons.AspectRatio, stringResource(Res.string.player_zoom_notice, stringResource(zoom.label)), onClick)
 
 /**
  * The bar's row of buttons, the same for the D-pad and for a finger or mouse. [entry] focuses the first button,

@@ -11,6 +11,7 @@ import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import dev.jamesrich.sofaking.data.RecordingsState
 import dev.jamesrich.sofaking.data.ServerCapabilities
+import dev.jamesrich.sofaking.ui.player.VideoZoom
 import dev.jamesrich.sofaking.ui.settings.SettingsLock
 
 /** Which header button takes focus when a tab's page comes back: its tab (after Back to Live) or Settings. */
@@ -46,6 +47,9 @@ internal class AppShellState(
 
     /** A short word in the header, such as a channel the player found gone; cleared after a few seconds. */
     var notice by mutableStateOf<String?>(null)
+
+    /** The players' zoom, which lasts from channel to channel and item to item until the app closes. */
+    var videoZoom by mutableStateOf(VideoZoom.FIT)
 
     /** The Settings lock's count of wrong tries, which outlives each trip to Settings. */
     val settingsLock = SettingsLock()

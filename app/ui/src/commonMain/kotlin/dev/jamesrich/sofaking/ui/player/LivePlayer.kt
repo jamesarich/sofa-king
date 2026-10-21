@@ -219,9 +219,9 @@ interface LivePlayer {
     /** Opens the system media session; next and previous from it zap through [onZapStep] (+1 next, -1 previous). */
     fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle
 
-    /** The picture, fitted to [modifier]'s bounds; [shutter] covers it from a reset until the next first frame. */
+    /** The picture in [modifier]'s bounds as [zoom] says, cropped to them; [shutter] covers it from a reset until the next first frame. */
     @Composable
-    fun Video(modifier: Modifier, shutter: @Composable () -> Unit)
+    fun Video(modifier: Modifier, zoom: VideoZoom, shutter: @Composable () -> Unit)
 
     fun release()
 }

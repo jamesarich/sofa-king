@@ -6,9 +6,9 @@ import kotlin.test.assertEquals
 
 class PlayerButtonsTest {
     @Test
-    fun `a library episode offers its tracks and start over and the next episode`() {
+    fun `a library episode offers its tracks and zoom and start over and the next episode`() {
         assertEquals(
-            listOf(VodButton.TRACKS, VodButton.START_OVER, VodButton.NEXT),
+            listOf(VodButton.TRACKS, VodButton.ZOOM, VodButton.START_OVER, VodButton.NEXT),
             vodButtons(failed = false, inBreak = false, tracksPickable = true, captions = false, pastStart = true, hasNext = true),
         )
     }
@@ -16,7 +16,7 @@ class PlayerButtonsTest {
     @Test
     fun `a recording in a break leads with Skip break and offers its captions`() {
         assertEquals(
-            listOf(VodButton.SKIP_BREAK, VodButton.CAPTIONS),
+            listOf(VodButton.SKIP_BREAK, VodButton.CAPTIONS, VodButton.ZOOM),
             vodButtons(failed = false, inBreak = true, tracksPickable = false, captions = true, pastStart = false, hasNext = false),
         )
     }
@@ -27,6 +27,25 @@ class PlayerButtonsTest {
             emptyList(),
             vodButtons(failed = true, inBreak = true, tracksPickable = true, captions = true, pastStart = true, hasNext = true),
         )
+    }
+
+    @Test
+    fun `the live bar keeps zoom beside the stream card and Record only where the server records`() {
+        assertEquals(
+            listOf(LiveButton.CHANNELS, LiveButton.PLAY_PAUSE, LiveButton.CAPTIONS, LiveButton.STREAM_INFO, LiveButton.ZOOM, LiveButton.GUIDE),
+            liveButtons(pointer = false, canRecord = false, canFavorite = false),
+        )
+        assertEquals(
+            listOf(LiveButton.CHANNELS, LiveButton.CAPTIONS, LiveButton.STREAM_INFO, LiveButton.ZOOM, LiveButton.RECORD, LiveButton.FAVORITE, LiveButton.GUIDE),
+            liveButtons(pointer = true, canRecord = true, canFavorite = true),
+        )
+    }
+
+    @Test
+    fun `zoom steps from fit to fill to stretch and back`() {
+        assertEquals(VideoZoom.FILL, VideoZoom.FIT.next())
+        assertEquals(VideoZoom.STRETCH, VideoZoom.FILL.next())
+        assertEquals(VideoZoom.FIT, VideoZoom.STRETCH.next())
     }
 
     @Test

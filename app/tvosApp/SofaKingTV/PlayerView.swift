@@ -17,6 +17,8 @@ struct PlayerView: View {
     @State private var itemObservers: [AnyCancellable] = []
     @State private var reconnect: Task<Void, Never>?
     @State private var attempts = 0
+    /// False once the player has left: a tune or reconnect still running then must not play or open anything.
+    @State private var shown = false
 
     init(channel: Channel) {
         _channel = State(initialValue: channel)
@@ -31,9 +33,11 @@ struct PlayerView: View {
         }
         .task { await tune() }
         .onAppear {
+            shown = true
             replaced = model.core.watchReplaced { stream in play(stream) }
         }
         .onDisappear {
+            shown = false
             replaced?.cancel()
             reconnect?.cancel()
             itemObservers.removeAll()
@@ -109,11 +113,12 @@ struct PlayerView: View {
     private func tune() async {
         do {
             let stream = try await model.core.watchChannel(channelId: channel.guideId)
-            // Left while the session opened: the view is gone, and leaving released the session.
-            guard !Task.isCancelled else { return }
+            // Left while the session opened: the view is gone, and leaving released the session. A switch or a
+            // reconnect runs in a task of its own that leaving does not cancel, so the view's presence decides too.
+            guard !Task.isCancelled, shown else { return }
             play(stream)
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, shown else { return }
             failure = error.localizedDescription
             scheduleReconnect()
         }
@@ -139,7 +144,7 @@ struct PlayerView: View {
     /// Reopens the channel after 2, 4, 8 … seconds, up to a minute between tries; the server hands back the held session
     /// or a new one when the old stream is gone.
     private func scheduleReconnect() {
-        guard reconnect == nil || reconnect?.isCancelled == true else { return }
+        guard shown, reconnect == nil || reconnect?.isCancelled == true else { return }
         let delay = min(60, 2 << min(attempts, 5))
         attempts += 1
         reconnect = Task {

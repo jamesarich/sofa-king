@@ -100,9 +100,13 @@ fun learnAliases(result: BuildResult, policy: LineupPolicy, schedules: Map<Strin
             continue
         }
         for (from in members.filter { it != into }) {
-            if (numberOnly(policy.stations[from])) learned[from] = into
+            val override = policy.stations[from]
+            // A number the household set is never released, so a merge would lose it; one the server wrote goes with the key.
+            val handNumbered = override?.number != null && from !in policy.numbering.assigned
+            if (numberOnly(override) && !handNumbered) learned[from] = into
             else {
-                findings += "$from: schedule matches $into, but its station override holds more than a number; not merged"
+                val why = if (handNumbered && numberOnly(override)) "its number was set by hand" else "its station override holds more than a number"
+                findings += "$from: schedule matches $into, but $why; not merged"
                 suggestions += "$from: possible alias of $into"
             }
         }

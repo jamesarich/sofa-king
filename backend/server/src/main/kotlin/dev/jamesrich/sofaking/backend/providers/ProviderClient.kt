@@ -69,8 +69,8 @@ object NativeServices {
 
     fun isNative(url: String): Boolean = url.startsWith("svc://")
 
-    /** The channel id a native offering URL names. */
-    fun channelId(url: String): String = java.net.URI(url).path.removePrefix("/")
+    /** The channel id a native offering URL names, decoded as [offeringUrl] encoded it (a space is `+` there). */
+    fun channelId(url: String): String = java.net.URLDecoder.decode(java.net.URI(url).rawPath.removePrefix("/"), Charsets.UTF_8)
 }
 
 /**

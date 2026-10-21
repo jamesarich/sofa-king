@@ -108,6 +108,7 @@ class HdhrTest {
                 assertEquals(HttpStatusCode.Forbidden, client.get("/lan/$path").status, path)
             }
             assertEquals(HttpStatusCode.OK, client.get("/loop/discover.json").status)
+            assertEquals(HttpStatusCode.Forbidden, client.get("/open/discover.json") { header(HttpHeaders.XForwardedFor, "203.0.113.5") }.status, "open on loopback, but not through a proxy")
             assertEquals(HttpStatusCode.NotFound, client.get("/discover.json").status)
             assertEquals(HttpStatusCode.NotFound, client.get("/lineup.json").status)
         } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }

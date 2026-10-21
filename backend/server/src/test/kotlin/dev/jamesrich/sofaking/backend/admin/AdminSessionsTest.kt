@@ -25,14 +25,15 @@ class SameSecretTest {
 
 class AdminSessionsTest {
     private val dir: Path = Files.createTempDirectory("sofa-admin-sessions-")
+    private val secret = "admin".repeat(8)
 
     @AfterTest fun cleanUp() { dir.toFile().deleteRecursively() }
 
     @Test fun `a stored session survives a restart, and the database holds its hash, never the cookie's ID`() = runBlocking<Unit> {
         val clock = MutableClock()
-        val opened = openStore(dir).use { store -> AdminSessions(clock, store).open() }
+        val opened = openStore(dir).use { store -> AdminSessions(clock, secret, store).open() }
         openStore(dir).use { store ->
-            val restarted = AdminSessions(clock, store)
+            val restarted = AdminSessions(clock, secret, store)
             val found = assertNotNull(restarted.find(opened.cookie), "the new process finds the session")
             assertEquals(opened.session.csrf, found.csrf)
             assertNull(restarted.find(opened.cookie + "x"))
@@ -46,14 +47,14 @@ class AdminSessionsTest {
     @Test fun `sign-out and expiry end a session for the next process too`() = runBlocking<Unit> {
         val clock = MutableClock()
         openStore(dir).use { store ->
-            val sessions = AdminSessions(clock, store, lifetime = Duration.ofHours(12))
+            val sessions = AdminSessions(clock, secret, store, lifetime = Duration.ofHours(12))
             val out = sessions.open()
             val kept = sessions.open()
             sessions.close(out.cookie)
             assertNull(sessions.find(out.cookie))
-            assertNull(AdminSessions(clock, store).find(out.cookie), "signed out is signed out after a restart")
+            assertNull(AdminSessions(clock, secret, store).find(out.cookie), "signed out is signed out after a restart")
             clock.now = clock.now.plus(Duration.ofHours(13))
-            assertNull(AdminSessions(clock, store).find(kept.cookie), "an expired session is not loaded")
+            assertNull(AdminSessions(clock, secret, store).find(kept.cookie), "an expired session is not loaded")
             assertTrue(store.adminSessions(clock.instant()).isEmpty())
         }
     }
@@ -61,14 +62,14 @@ class AdminSessionsTest {
     @Test fun `past the limit the session closest to expiry gives way, in the store too`() = runBlocking<Unit> {
         val clock = MutableClock()
         openStore(dir).use { store ->
-            val sessions = AdminSessions(clock, store, limit = 2)
+            val sessions = AdminSessions(clock, secret, store, limit = 2)
             val first = sessions.open()
             clock.now = clock.now.plusSeconds(60)
             val second = sessions.open()
             clock.now = clock.now.plusSeconds(60)
             val third = sessions.open()
             assertNull(sessions.find(first.cookie))
-            val restarted = AdminSessions(clock, store)
+            val restarted = AdminSessions(clock, secret, store)
             assertNull(restarted.find(first.cookie))
             assertNotNull(restarted.find(second.cookie))
             assertNotNull(restarted.find(third.cookie))
@@ -77,9 +78,19 @@ class AdminSessionsTest {
 
     @Test fun `without a store sessions live in memory`() = runBlocking<Unit> {
         val clock = MutableClock()
-        val sessions = AdminSessions(clock)
+        val sessions = AdminSessions(clock, secret)
         val opened = sessions.open()
         assertNotNull(sessions.find(opened.cookie))
-        assertNull(AdminSessions(clock).find(opened.cookie), "a new process starts with none")
+        assertNull(AdminSessions(clock, secret).find(opened.cookie), "a new process starts with none")
+    }
+
+    @Test fun `a changed or removed admin token ends the sessions the old one opened`() = runBlocking<Unit> {
+        val clock = MutableClock()
+        openStore(dir).use { store ->
+            val opened = AdminSessions(clock, secret, store).open()
+            assertNull(AdminSessions(clock, "rotated".repeat(8), store).find(opened.cookie), "a rotated token signs everyone out")
+            assertNull(AdminSessions(clock, null, store).find(opened.cookie), "with no token nobody is signed in")
+            assertNotNull(AdminSessions(clock, secret, store).find(opened.cookie), "the same token keeps the session")
+        }
     }
 }

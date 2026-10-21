@@ -18,6 +18,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -132,6 +133,32 @@ class LibraryViewModelTest {
         runCurrent()
         assertEquals(2, server.requests.count { it.contains("/items") })
         assertEquals(listOf("m1", "m2"), model.grid.value!!.items.map { it.id }, "a repeated item shows once")
+    }
+
+    @Test
+    fun `a grid whose next page failed keeps its pages when opened again`() = fixture.viewModelTest {
+        var pages = 0
+        val server = RouteServer(this) { _, path, _ ->
+            when (path) {
+                "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
+                "/api/v1/libraries/lib/items" -> if (++pages == 2) 503 to """{"code":"NOT_READY","message":"NOT_READY","retryable":true}"""
+                    else 200 to """{"items":[${item("m1")},${item("m2")}],"total":4,"next":"c2"}"""
+                else -> null
+            }
+        }
+        val model = viewModel(server)
+        runCurrent()
+        model.openGrid("lib")
+        runCurrent()
+        model.loadMore()
+        runCurrent()
+        assertNotNull(model.grid.value!!.error)
+
+        // Back from an item opens the same grid again.
+        model.openGrid("lib")
+        runCurrent()
+        assertEquals(listOf("m1", "m2"), model.grid.value!!.items.map { it.id }, "the loaded pages stay")
+        assertEquals(2, pages, "nothing is reloaded from the first page")
     }
 
     @Test

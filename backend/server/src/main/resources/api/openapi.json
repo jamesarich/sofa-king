@@ -658,7 +658,7 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SourceStatus" } } } } } } }
     },
     "/api/v1/sources/{id}": {
-      "patch": { "tags": ["Sources"], "summary": "Disable or enable a source by hand", "description": "A disabled source is never selected or probed; sessions playing it move on.", "security": [{ "apiToken": [] }],
+      "patch": { "tags": ["Sources"], "summary": "Disable or enable a source by hand", "description": "A disabled source is never selected or probed; sessions playing it move on.", "security": [{ "adminToken": [] }],
         "parameters": [{ "$ref": "#/components/parameters/id" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateSource" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SourceStatus" } } } }, "404": { "$ref": "#/components/responses/Error" } } }

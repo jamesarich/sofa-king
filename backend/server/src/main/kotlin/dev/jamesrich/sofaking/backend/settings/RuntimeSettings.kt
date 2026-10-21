@@ -100,9 +100,11 @@ class RuntimeSettings(private val store: BackendStore, val environment: RuntimeV
     suspend fun load(): List<String> = mutex.withLock {
         val overrides = store.runtimeSettings()
         val problems = mutableListOf<String>()
-        val kept = overrides.filter { (name, value) ->
-            try { RuntimeValues.from(environment, mapOf(name to value)); true } catch (e: ApiFailure) { problems += e.message; false }
-        }
+        fun fits(values: Map<String, String>, report: Boolean) =
+            try { RuntimeValues.from(environment, values); true } catch (e: ApiFailure) { if (report) problems += e.message; false }
+        // Checked as the set it was saved as, since tuners are held to the saved session cap, not the environment's.
+        var kept = if (fits(overrides, report = false)) overrides else overrides.filter { (name, value) -> fits(mapOf(name to value), report = true) }
+        if (!fits(kept, report = true)) kept = kept - RuntimeValues.HDHR_TUNERS
         apply(RuntimeValues.from(environment, kept), kept.keys)
         problems
     }

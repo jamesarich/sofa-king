@@ -148,6 +148,9 @@ class LineupViewModel(
     /** The windows being fetched, so a repeated jump does not query twice; read and written on the main thread. */
     private val daysLoading = HashSet<Instant>()
 
+    /** The server [extraDays] were loaded from. */
+    private var extraDaysServer: String? = null
+
     /** The repository of the lineup on screen, for an extra day's query; set by [load]. */
     private var liveRepository: SofaKingRepository? = null
 
@@ -174,6 +177,11 @@ class LineupViewModel(
     /** The screen that asked has acted on [PairingState.outcome]; the failure stays for Settings to show. */
     fun pairingHandled() {
         _pairing.update { it.copy(outcome = null) }
+    }
+
+    /** Settings closed the server block that showed the last failure, or saved another server; it shows no more. */
+    fun pairingDismissed() {
+        _pairing.update { it.copy(failure = null) }
     }
 
     private suspend fun claim(url: String, code: String): PairingFailure? {
@@ -215,8 +223,12 @@ class LineupViewModel(
             // The request, if any, is answered by the first load below; a server change or another reload that
             // cancels this transform answers it with nothing.
             var pending = request
-            // A new server starts without the old one's extra days.
-            extraDays.value = emptyMap()
+            // A new server starts without the old one's extra days; a reload keeps them, since nothing asks again.
+            val serverKey = found?.first?.url
+            if (serverKey != extraDaysServer) {
+                extraDays.value = emptyMap()
+                extraDaysServer = serverKey
+            }
             try {
                 load(found, onCatalog = { lineup -> pending?.complete(lineup); pending = null })
             } finally {
@@ -276,7 +288,9 @@ class LineupViewModel(
             cache.open()?.let { cached ->
                 log.i { "cache: ${cached.channels.size} channels in ${cacheStarted.elapsedNow()}" }
                 emit(LineupState.Ready(Lineup(cached.channels, emptyMap(), guideLoading = true)))
-                val full = Lineup(cached.channels, cached.guide().orEmpty())
+                // A guide that failed to decode, or whose programmes have all ended, is still on its way from the server.
+                val guide = cached.guide()
+                val full = Lineup(cached.channels, guide.orEmpty(), guideLoading = guide.isNullOrEmpty())
                 log.i { "cache: ${full.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}" }
                 last = full
                 lastGood = key to full
@@ -342,6 +356,11 @@ class LineupViewModel(
                         emit(LineupState.Ready(kept))
                     }
                     last == null -> emit(LineupState.Failed(it.describe()))
+                    last.guideLoading -> {
+                        val kept = last.copy(guideLoading = false)
+                        last = kept
+                        emit(LineupState.Ready(kept))
+                    }
                 }
             }
             delay(if (result.isSuccess && !lineupMoved) REFRESH_INTERVAL else RETRY_INTERVAL)
@@ -363,6 +382,7 @@ class LineupViewModel(
     }
 
     fun saveServer(url: String, apiToken: String) {
+        pairingDismissed()
         save { store.setServer(url, apiToken) }
     }
 

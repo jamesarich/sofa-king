@@ -17,6 +17,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.URLBuilder
+import io.ktor.http.URLParserException
 import io.ktor.http.Url
 import io.ktor.http.content.TextContent
 import io.ktor.http.encodeURLPathPart
@@ -225,15 +226,17 @@ class SofaKingApi(
     }
 
     /** The absolute media URL for a descriptor, whose [PlaybackDescriptorDto.url] is relative to the server. */
-    internal fun mediaUrl(descriptor: PlaybackDescriptorDto): String = try {
-        URLBuilder(base).takeFrom(descriptor.url).buildString()
-    } catch (e: IllegalArgumentException) {
-        throw IOException("Unusable media URL", e)
-    }
+    internal fun mediaUrl(descriptor: PlaybackDescriptorDto): String =
+        resolve(descriptor.url) ?: throw IOException("Unusable media URL")
 
     /** A channel logo resolved against the server address, as media URLs are; null when it cannot be resolved. */
-    internal fun logoUrl(raw: String): String? = try {
+    internal fun logoUrl(raw: String): String? = resolve(raw)
+
+    /** [raw] against the server address; null when it does not parse, which Ktor reports as either exception. */
+    private fun resolve(raw: String): String? = try {
         URLBuilder(base).takeFrom(raw).buildString()
+    } catch (_: URLParserException) {
+        null
     } catch (_: IllegalArgumentException) {
         null
     }

@@ -94,8 +94,9 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
             if (original != request) throw ApiFailure(409, "IDEMPOTENCY_CONFLICT", "Key already used for another request")
             return@withLock sessions[id]?.descriptor() ?: throw ApiFailure(410, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
         }
-        makeRoom()
+        // Chosen first, so a channel that cannot play never costs another viewer their slot.
         val offering = select(request.channelId)
+        makeRoom()
         val now = clock.instant()
         val session = LiveSession(UUID.randomUUID().toString(), request, offering, now.plus(lease(request.intent)), startedAt = now, client = client)
         sessions[session.id] = session
@@ -106,10 +107,11 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     /** A watch session for a player that sends no API calls; it lives while media requests keep arriving. [shareable] false keeps [externalFor] from handing it to another player. */
     suspend fun openExternal(channelId: String, client: String? = null, shareable: Boolean = true): PlaybackSession = mutex.withLock {
         reap()
+        val offering = select(channelId)
         makeRoom()
         val id = UUID.randomUUID().toString()
         val now = clock.instant()
-        val session = LiveSession(id, OpenPlayback(channelId, Wire.Intent.WATCH, "external:$id"), select(channelId), now.plus(EXTERNAL_IDLE), external = true, shareable = shareable, startedAt = now, client = client)
+        val session = LiveSession(id, OpenPlayback(channelId, Wire.Intent.WATCH, "external:$id"), offering, now.plus(EXTERNAL_IDLE), external = true, shareable = shareable, startedAt = now, client = client)
         sessions[id] = session
         session.descriptor()
     }

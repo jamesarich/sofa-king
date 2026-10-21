@@ -80,7 +80,12 @@ class LibraryService(
 
     private val trigger = Channel<Unit>(Channel.CONFLATED)
     private val pending = ConcurrentHashMap.newKeySet<String>()
+    /** Held while a scan writes items and while a library is removed; the TMDB pass runs without it. */
     private val scanLock = Mutex()
+    /** One scan at a time, TMDB pass included. */
+    private val scans = Mutex()
+    /** Held from the check that a folder is free to the insert that takes it. */
+    private val creating = Mutex()
 
     init {
         jobs.register(LIBRARY_SCAN_JOB, "Library scan", every) { requestScan(null) }
@@ -99,7 +104,8 @@ class LibraryService(
      */
     suspend fun folderChoices(): List<Path> {
         val used = store.libraries().mapTo(HashSet()) { it.path }
-        return roots.flatMap { root -> folders(root.root, 2) }.filter { it.toString() !in used }
+        // Absolute, as create stores them, so a relative root still drops the folders in use.
+        return roots.flatMap { root -> folders(root.root.toAbsolutePath().normalize(), 2) }.filter { it.toString() !in used }
     }
 
     /**
@@ -107,7 +113,7 @@ class LibraryService(
      * the folder; one under the recordings folder carries the root's label too, as `TV (Recordings)`.
      */
     suspend fun suggestions(): List<LibrarySuggestion> {
-        val parents = roots.associateBy { it.root.normalize() }
+        val parents = roots.associateBy { it.root.toAbsolutePath().normalize() }
         return folderChoices().mapNotNull { folder ->
             val root = parents[folder.parent] ?: return@mapNotNull null
             val name = folder.fileName.toString()
@@ -131,9 +137,11 @@ class LibraryService(
         val title = name.trim()
         if (title.isEmpty() || title.length > 100) throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
         val folder = allowed(path)
-        if (store.libraries().any { it.path == folder.toString() }) throw ApiFailure(409, "LIBRARY_EXISTS", "Another library already uses that folder")
         val library = LibraryRecord(UUID.randomUUID().toString(), title, kind, folder.toString(), clock.instant().toString())
-        store.insertLibrary(library)
+        creating.withLock {
+            if (store.libraries().any { it.path == folder.toString() }) throw ApiFailure(409, "LIBRARY_EXISTS", "Another library already uses that folder")
+            store.insertLibrary(library)
+        }
         revision.incrementAndGet()
         requestScan(library.id)
         return library
@@ -160,20 +168,31 @@ class LibraryService(
     }
 
     /** Scans [id] now, on the caller, and records the outcome on the library and the Jobs page. */
-    suspend fun scan(id: String): ScanResult = scanLock.withLock {
+    suspend fun scan(id: String): ScanResult = scans.withLock {
         val library = library(id)
         var result: ScanResult? = null
         jobs.record(LIBRARY_SCAN_JOB) {
             val now = clock.instant()
-            val plan = scanner.scan(library, Path.of(library.path), store.libraryItems(library.id), now)
-            if (plan.save.isNotEmpty()) store.saveLibraryItems(plan.save)
-            if (plan.missing.isNotEmpty()) store.markLibraryItemsMissing(plan.missing, now)
-            if (plan.delete.isNotEmpty()) store.deleteLibraryItems(plan.delete)
-            // Clients see the files now; the TMDB pass below can take minutes on a new library.
-            if (plan.save.isNotEmpty() || plan.missing.isNotEmpty() || plan.delete.isNotEmpty()) revision.incrementAndGet()
-            val looked = if (plan.result.unavailable) null else metadata?.refresh(library, store.libraryItems(library.id))
+            val plan = scanLock.withLock {
+                // Removed since this scan began: it writes nothing.
+                if (store.libraries().none { it.id == library.id }) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+                val plan = scanner.scan(library, Path.of(library.path), store.libraryItems(library.id), now)
+                if (plan.save.isNotEmpty()) store.saveLibraryItems(plan.save)
+                if (plan.missing.isNotEmpty()) store.markLibraryItemsMissing(plan.missing, now)
+                if (plan.delete.isNotEmpty()) store.deleteLibraryItems(plan.delete)
+                // Clients see the files now; the TMDB pass below can take minutes on a new library.
+                if (plan.save.isNotEmpty() || plan.missing.isNotEmpty() || plan.delete.isNotEmpty()) revision.incrementAndGet()
+                plan
+            }
+            val items = store.libraryItems(library.id)
+            // Off the scan lock, so removing a library never waits for TMDB.
+            val looked = if (plan.result.unavailable) null else metadata?.refresh(library, items)
             val note = listOfNotNull(plan.result.note, looked?.note).joinToString("; ")
-            store.recordLibraryScan(library.id, now, !plan.result.unavailable, note)
+            scanLock.withLock {
+                // Removed during the TMDB pass, which then saved details for items that are gone.
+                if (store.libraries().none { it.id == library.id }) store.deleteLibraryItems(items.map { it.id })
+                else store.recordLibraryScan(library.id, now, !plan.result.unavailable, note)
+            }
             revision.incrementAndGet()
             result = plan.result
             JobOutcome(!plan.result.unavailable && looked?.stopped == null, "${library.name}: $note")

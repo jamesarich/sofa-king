@@ -136,6 +136,20 @@ class LibraryPlaybackTest {
     }
 
     @Test
+    fun `releasing an item that is no longer held leaves the next item's session alone`() = runTest {
+        val (fake, sessions) = fixture()
+        sessions.play("e1", tv)
+        val next = sessions.play("e2", tv)
+
+        sessions.release(forget = true, itemId = "e1")
+
+        assertEquals(next, sessions.current.value)
+        assertEquals(setOf("v2"), fake.vods.keys)
+        sessions.release(forget = true, itemId = "e2")
+        assertNull(sessions.current.value)
+    }
+
+    @Test
     fun `a file played as it is starts at 0 and the player seeks to the resume point`() = runTest {
         val (fake, sessions) = fixture()
         fake.mode = "direct"

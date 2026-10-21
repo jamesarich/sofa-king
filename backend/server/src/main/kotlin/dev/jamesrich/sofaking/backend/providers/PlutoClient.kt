@@ -77,10 +77,11 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetchChannels(): List<Listed> {
         val payload = authorized { session -> context.http.get("${session.channels}/v2/guide/channels?channelIds=&offset=0&limit=1000&sort=number:asc", headers(session)) }.json()
-        val categories = runCatchingCancellable {
+        // A failed fetch keeps the last categories, since a lost group moves a station's number.
+        val categories = context.lastGood(CATEGORIES, runCatchingCancellable {
             authorized { session -> context.http.get("${session.channels}/v2/guide/categories?offset=0&limit=1000", headers(session)) }.json()["data"].array
                 .mapNotNull { category -> category.str("id")?.let { id -> category.str("name")?.let { id to it } } }.toMap()
-        }.getOrElse { emptyMap() }
+        })
         val result = LinkedHashMap<String, Listed>()
         for (channel in payload["data"].array) {
             val id = channel.str("id") ?: continue
@@ -135,6 +136,7 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
         private const val APP_VERSION = "8.0.0-111b2b9dc00bd0bea9030b30662159ed9e7c8bc6"
         private const val CHANNELS = "channels"
         private const val SESSION = "session"
+        private const val CATEGORIES = "categories"
         private const val GUIDE_BATCH = 25
         private const val GUIDE_MINUTES = 720
         private val SESSION_LIFETIME = Duration.ofHours(4)

@@ -88,7 +88,9 @@ class PbsClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun station(id: String): Station? {
         val fetched = context.http.get("$siteBase/api/station/$id/stations-list/", HEADERS)
-        if (!fetched.ok) return null
+        // Only a station PBS no longer lists is skipped; any other failure fails the import, which keeps the last one.
+        if (fetched.status in GONE_STATUSES) return null
+        fetched.require("PBS station list")
         val attributes = fetched.json()["stationData"]["attributes"]
         val callSign = attributes.str("call_sign") ?: id
         val zone = runCatching { ZoneId.of(attributes.str("timezone") ?: "America/New_York") }.getOrDefault(ZoneId.of("America/New_York"))

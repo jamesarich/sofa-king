@@ -108,14 +108,18 @@ internal class VodState(
     var startMs: Long,
     var expires: Instant,
     val startedAt: Instant,
-    var process: Process? = null,
+    /** Set off the sessions' lock while [restarting] is held, and read under it. */
+    @Volatile var process: Process? = null,
     /**
      * True when the session serves a playlist of the whole item and converts from the segment a player asks for;
      * [runStart] is the segment the running FFmpeg started at.
      */
     val whole: Boolean = false,
     var runStart: Int = 0,
-)
+) {
+    /** Held while this session's FFmpeg is stopped and started again, off the sessions' lock. */
+    val restarting = Mutex()
+}
 
 /** A library file or recording being played, as the portal's Watching now lists it. */
 class VodActivity(val id: String, val itemId: String, val recordingId: String?, val mode: String, val startedAt: Instant, val expiresAt: Instant)
@@ -295,20 +299,28 @@ class VodSessions(
         // A recording may have finished and moved since the stream started, so a restart finds its file again.
         val recordingId = locked { live(id).recordingId }
         val playable = if (start != null && recordingId != null) recordings?.invoke(recordingId) else null
-        return locked { restart(live(id), start, playable) }
-    }
-
-    private suspend fun restart(state: VodState, start: Long?, playable: PlayableFile?): VodSession {
-        state.expires = clock.instant().plus(lease)
+        val state = locked { live(id).also { it.expires = clock.instant().plus(lease) } }
         // A whole playlist seeks anywhere already; a restart there only renews it.
         if (start != null && state.mode != Wire.VodMode.DIRECT && !state.whole) {
-            playable?.let { state.file = it.file; state.growing = it.growing }
-            stop(state)
-            state.epoch++
-            state.startMs = start
-            launch(state)
+            // Stopped and started off the sessions' lock, so a slow FFmpeg exit holds up only this session.
+            state.restarting.withLock {
+                stop(state)
+                locked {
+                    live(id)
+                    playable?.let { state.file = it.file; state.growing = it.growing }
+                    state.epoch++
+                    state.startMs = start
+                }
+                launchOwned(state)
+            }
         }
-        return state.wire()
+        return locked { live(id).wire() }
+    }
+
+    /** [launch], then retires the new FFmpeg at once when the session was released or expired while it started. */
+    private suspend fun launchOwned(state: VodState) {
+        launch(state)
+        locked { if (sessions[state.id] !== state) retire(state) }
     }
 
     suspend fun release(id: String): Boolean = locked { sessions[id]?.also(::retire) != null }
@@ -349,14 +361,17 @@ class VodSessions(
         if (segment >= segmentCount(state.durationMs!!)) return null
         val file = dir.resolve(name)
         if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return VodMedia(file, "video/mp2t")
-        val epoch = locked {
-            if (sessions[state.id] !== state) return null
-            val running = state.process?.isAlive == true
-            val reached = withContext(Dispatchers.IO) { written(dir, state.runStart) }
-            if (!running || segment < state.runStart || segment > reached + LOOKAHEAD_SEGMENTS) {
+        val epoch = state.restarting.withLock {
+            val jump = locked {
+                if (sessions[state.id] !== state) return null
+                val running = state.process?.isAlive == true
+                val reached = withContext(Dispatchers.IO) { written(dir, state.runStart) }
+                !running || segment < state.runStart || segment > reached + LOOKAHEAD_SEGMENTS
+            }
+            if (jump) {
                 stop(state, clearFiles = false)
-                state.runStart = segment
-                launch(state)
+                locked { state.runStart = segment }
+                launchOwned(state)
             }
             state.epoch
         }

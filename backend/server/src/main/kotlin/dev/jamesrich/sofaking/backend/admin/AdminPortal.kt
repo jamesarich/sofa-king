@@ -102,7 +102,7 @@ class AdminPortal(
     /** The log events the Events page lists. */
     private val events: EventRing = EventRing.shared,
 ) {
-    val sessions = AdminSessions(clock, runtime.store)
+    val sessions = AdminSessions(clock, secret, runtime.store)
     private val ffmpeg = AtomicReference<String?>()
 
     /**

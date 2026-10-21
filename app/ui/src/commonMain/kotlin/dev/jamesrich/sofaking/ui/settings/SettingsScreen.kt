@@ -114,6 +114,8 @@ class PairingUi(
     val failure: PairingFailure? = null,
     /** Claims the code at the server URL; the caller saves the server on success. */
     val onPair: (serverUrl: String, code: String) -> Unit = { _, _ -> },
+    /** The server block that showed [failure] closed; it is not shown again. */
+    val onDismiss: () -> Unit = {},
 )
 
 @Composable
@@ -172,8 +174,9 @@ fun SettingsScreen(
     // The server block opens on its fields only on a device with no server, or while a pairing attempt is being
     // shown; otherwise it reads as one line with Change, and focus lands on Back (or, where no Back button is drawn,
     // the first setting) rather than inside a field.
-    var changingServer by remember { mutableStateOf(settings.serverUrl.isEmpty()) }
-    val serverOpen = changingServer || pairing.failure != null
+    var changingServer by remember { mutableStateOf(settings.serverUrl.isEmpty() || pairing.failure != null) }
+    LaunchedEffect(pairing.failure) { if (pairing.failure != null) changingServer = true }
+    val serverOpen = changingServer
     val unconfigured = remember { settings.serverUrl.isEmpty() }
     val found by remember(serverOpen) { if (serverOpen) discoveredServers else noServers }.collectAsStateWithLifecycle(emptyList())
     val backFocus = remember { FocusRequester() }
@@ -283,6 +286,7 @@ fun SettingsScreen(
                         if (settings.serverUrl.isNotEmpty()) {
                             SofaButton(onClick = {
                                 changingServer = false
+                                pairing.onDismiss()
                                 serverUrl.setTextAndPlaceCursorAtEnd(settings.serverUrl)
                                 apiToken.setTextAndPlaceCursorAtEnd(settings.apiToken)
                                 pairingCode.clearText()

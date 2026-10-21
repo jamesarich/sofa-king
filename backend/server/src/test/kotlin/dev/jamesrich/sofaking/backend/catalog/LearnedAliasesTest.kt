@@ -91,10 +91,21 @@ class LearnedAliasesTest {
         val learning = learnAliases(build(pinned, catalog), pinned, schedules)
         assertTrue(learning.learned.isEmpty())
         assertEquals(listOf("ghosthunterschannel: schedule matches ghosthunters, but its station override holds more than a number; not merged"), learning.findings)
-        val numbered = policy.copy(stations = mapOf("ghosthunterschannel" to StationOverride(number = "7")))
+        val numbered = policy.copy(
+            stations = mapOf("ghosthunterschannel" to StationOverride(number = "7")),
+            numbering = PolicyNumbering(assigned = listOf("ghosthunterschannel")),
+        )
         val learned = learnAliases(build(numbered, catalog), numbered, schedules).learned
         assertEquals(mapOf("ghosthunterschannel" to "ghosthunters"), learned)
-        assertFalse("ghosthunterschannel" in withLearned(numbered, learned).stations, "its number goes with the station")
+        assertFalse("ghosthunterschannel" in withLearned(numbered, learned).stations, "a number the server wrote goes with the station")
+    }
+
+    @Test fun `a station whose number was set by hand is never merged away`() {
+        val handSet = policy.copy(stations = mapOf("ghosthunterschannel" to StationOverride(number = "5")))
+        val learning = learnAliases(build(handSet, catalog), handSet, schedules)
+        assertTrue(learning.learned.isEmpty())
+        assertEquals(listOf("ghosthunterschannel: schedule matches ghosthunters, but its number was set by hand; not merged"), learning.findings)
+        assertTrue("ghosthunterschannel: possible alias of ghosthunters" in learning.suggestions)
     }
 
     @Test fun `schedules match on three programmes and 60 percent of the smaller one, starting within five minutes`() {

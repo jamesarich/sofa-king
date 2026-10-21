@@ -317,7 +317,10 @@ class LoopbackRelayTest {
                     val segment = http.get("http://127.0.0.1:${URI(source.url).port}${references.first()}") { header(RELAY_CREDENTIAL_HEADER, source.credential) }
                     assertEquals(0x47.toByte(), segment.readRawBytes().first())
                     // The listener is on loopback alone.
-                    outsideAddress()?.let { address -> assertFailsWith<java.io.IOException> { Socket(address, URI(source.url).port).close() } }
+                    // A host firewall in stealth mode drops the attempt instead of refusing it, so it times out instead.
+                    outsideAddress()?.let { address ->
+                        assertFailsWith<java.io.IOException> { Socket().use { it.connect(java.net.InetSocketAddress(address, URI(source.url).port), 2_000) } }
+                    }
                     source.url to source.credential
                 }
                 assertEquals(HttpStatusCode.Unauthorized, http.get(url.first) { header(RELAY_CREDENTIAL_HEADER, url.second) }.status, "an ended lease")

@@ -44,7 +44,7 @@ Each run looks for stations that are probably one channel under two names, and m
 
 For each pair where both stations have a guide, the run compares their programs over the next twelve hours. Programs match when their titles agree (lowercase, letters and digits only) and they start within five minutes of each other. With at least three matches, covering at least 60% of the smaller schedule, the two are one station. The one with fewer sources joins the one with more, and on a tie the key that sorts first wins. `NFL Network` and `NFL Channel` air different programs, so they stay apart. A pair with no schedule to compare stays apart and is listed as a suggested alias.
 
-The run builds with what it learns, and an apply writes each one to `names.learned` as `{"from": "to"}`, with the assigned numbers, so a rebuild from the file merges the same stations without any guide. When the merged-away key had an override holding only a number, that override goes with it; a station whose override holds anything more is never merged away, and the findings say so.
+The run builds with what it learns, and an apply writes each one to `names.learned` as `{"from": "to"}`, with the assigned numbers, so a rebuild from the file merges the same stations without any guide. When the merged-away key had an override holding only a number the server assigned, that override goes with it; a station whose number was set by hand, or whose override holds anything more, is never merged away, and the findings say so.
 
 `names.never` lists pairs of keys that never merge, learned or suggested:
 

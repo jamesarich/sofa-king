@@ -12,10 +12,10 @@ import io.ktor.utils.io.readBuffer
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -26,6 +26,9 @@ private val log = LoggerFactory.getLogger(LibraryArtwork::class.java)
 
 /** How long taking one frame may run. */
 private const val FRAME_SECONDS = 30L
+
+/** How many locks the image fetches share. */
+private const val LOCK_STRIPES = 64
 
 /** A TMDB image path as its API returns one: a slash, then letters, digits, `_` or `-`, and an image extension. */
 private val TMDB_IMAGE_PATH = Regex("""/[A-Za-z0-9_-]{1,128}\.(jpg|jpeg|png|webp)""")
@@ -46,7 +49,10 @@ class LibraryArtwork(
     /** FFmpeg, which takes a frame for a file with no picture; null takes none. */
     private val ffmpeg: String? = null,
 ) {
-    private val locks = ConcurrentHashMap<String, Mutex>()
+    /** One lock per stripe of keys, so a key always has the same one and two fetches of it never run at once. */
+    private val locks = Array(LOCK_STRIPES) { Mutex() }
+
+    private fun lockFor(key: String): Mutex = locks[Math.floorMod(key.hashCode(), LOCK_STRIPES)]
 
     /** The image [source] names, or null when it is gone, outside its library folder, or TMDB could not supply it. */
     suspend fun image(source: ArtSource): Artwork? = when (source) {
@@ -63,13 +69,13 @@ class LibraryArtwork(
         val key = "frame-" + hash(source.toString())
         val file = directory.resolve(key)
         if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return Artwork(file, "image/jpeg")
-        return locks.computeIfAbsent(key) { Mutex() }.withLock {
+        return lockFor(key).withLock {
+            val partial = directory.resolve("$key.part.jpg")
             try {
                 withContext(Dispatchers.IO) {
                     if (Files.isRegularFile(file)) return@withContext Artwork(file, "image/jpeg")
                     if (!Files.isRegularFile(video, LinkOption.NOFOLLOW_LINKS)) return@withContext null
                     Files.createDirectories(directory)
-                    val partial = directory.resolve("$key.part.jpg")
                     val seconds = "%.3f".format(java.util.Locale.ROOT, source.atMs / 1000.0)
                     val command = listOf(
                         ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-ss", seconds, "-i", video.toString(),
@@ -81,7 +87,6 @@ class LibraryArtwork(
                         false
                     }
                     if (!made || !Files.isRegularFile(partial) || Files.size(partial) == 0L) {
-                        Files.deleteIfExists(partial)
                         log.info("artwork frame failed")
                         return@withContext null
                     }
@@ -89,7 +94,8 @@ class LibraryArtwork(
                     Artwork(file, "image/jpeg")
                 }
             } finally {
-                locks.remove(key)
+                // A failed or canceled grab leaves no part file; a finished one has already moved it.
+                withContext(NonCancellable + Dispatchers.IO) { Files.deleteIfExists(partial) }
             }
         }
     }
@@ -107,18 +113,14 @@ class LibraryArtwork(
         val key = hash("${source.size}${source.path}")
         val file = directory.resolve(key)
         if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return Artwork(file, type)
-        return locks.computeIfAbsent(key) { Mutex() }.withLock {
-            try {
-                if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return@withLock Artwork(file, type)
-                val bytes = download("$tmdbImages/${source.size}${source.path}") ?: return@withLock null
-                withContext(Dispatchers.IO) {
-                    Files.createDirectories(directory)
-                    atomicWrite(file, bytes, sync = false)
-                }
-                Artwork(file, LogoCache.rasterType(bytes) ?: type)
-            } finally {
-                locks.remove(key)
+        return lockFor(key).withLock {
+            if (withContext(Dispatchers.IO) { Files.isRegularFile(file) }) return@withLock Artwork(file, type)
+            val bytes = download("$tmdbImages/${source.size}${source.path}") ?: return@withLock null
+            withContext(Dispatchers.IO) {
+                Files.createDirectories(directory)
+                atomicWrite(file, bytes, sync = false)
             }
+            Artwork(file, LogoCache.rasterType(bytes) ?: type)
         }
     }
 

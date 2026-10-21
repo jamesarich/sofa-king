@@ -104,9 +104,15 @@ class PlaybackSessions(
     val replaced: SharedFlow<PlaybackStream> = _replaced.asSharedFlow()
 
     /** Points at a server, releasing whatever the previous one held; null until Settings names a valid server. */
-    suspend fun configure(api: SofaKingApi?) {
-        release(forget = true)
-        mutex.withLock { this.api = api }
+    suspend fun configure(api: SofaKingApi?): Unit = withContext(NonCancellable) {
+        // One lock for both, so no tune queued behind the release opens a session on the old server.
+        mutex.withLock {
+            resumable = null
+            val previous = this@PlaybackSessions.api
+            val held = _current.value
+            if (held != null && previous != null) releaseHeld(previous, held)
+            this@PlaybackSessions.api = api
+        }
     }
 
     /**
@@ -115,6 +121,8 @@ class PlaybackSessions(
      */
     suspend fun tune(channelId: String, intent: PlaybackIntent): PlaybackStream = mutex.withLock {
         val api = api ?: throw IOException("No server configured")
+        // A tune supersedes what an earlier stop left to reopen, even when this open fails.
+        resumable = null
         val held = _current.value
         if (held != null && held.channelId == channelId) {
             val reread = reread(api, held)
@@ -134,10 +142,14 @@ class PlaybackSessions(
         }
     }
 
-    /** Releases the held session. It can be reopened with [reopen] unless [forget] is set. */
-    suspend fun release(forget: Boolean = false): Unit = withContext(NonCancellable) {
+    /**
+     * Releases the held session. It can be reopened with [reopen] unless [forget] is set. With [itemId], only that
+     * item's session is released, so a page that leaves after the next one opened leaves the next one's alone.
+     */
+    suspend fun release(forget: Boolean = false, itemId: String? = null): Unit = withContext(NonCancellable) {
         mutex.withLock {
             val held = _current.value
+            if (itemId != null && held?.itemId != itemId) return@withLock
             if (forget) resumable = null else if (held != null) resumable = resumableOf(held)
             val api = api
             if (held != null && api != null) releaseHeld(api, held)
@@ -145,8 +157,8 @@ class PlaybackSessions(
     }
 
     /** [release] on this instance's own scope, for callers that cannot suspend or whose scope may already be canceled. */
-    fun releaseAsync(forget: Boolean = false) {
-        scope.launch { release(forget) }
+    fun releaseAsync(forget: Boolean = false, itemId: String? = null) {
+        scope.launch { release(forget, itemId) }
     }
 
     /**
@@ -176,6 +188,7 @@ class PlaybackSessions(
 
     private suspend fun openItem(request: ItemRequest, startMs: Long): PlaybackStream = mutex.withLock {
         val api = api ?: throw IOException("No server configured")
+        resumable = null
         _current.value?.let { releaseHeld(api, it) }
         itemPositionMs = startMs.coerceAtLeast(0)
         open(api, Item(request, itemPositionMs))

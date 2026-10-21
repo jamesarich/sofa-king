@@ -172,13 +172,18 @@ struct VodPlayerView: View {
     private func open() async {
         failure = nil
         do {
+            let s: PlaybackStream
             switch request.source {
             case .item(let item):
-                load(try await model.core.playItem(item: item, fromStart: request.fromStart))
+                s = try await model.core.playItem(item: item, fromStart: request.fromStart)
             case .recording(let recording):
-                load(try await model.core.playRecording(recording: recording, fromStart: request.fromStart))
+                s = try await model.core.playRecording(recording: recording, fromStart: request.fromStart)
             }
+            // Left while the session opened: the view is gone, and leaving released the session.
+            guard !Task.isCancelled else { return }
+            load(s)
         } catch {
+            guard !Task.isCancelled else { return }
             failure = error.localizedDescription
         }
     }

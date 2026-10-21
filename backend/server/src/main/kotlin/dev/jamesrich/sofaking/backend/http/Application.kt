@@ -167,7 +167,9 @@ fun Application.backendModule(
             if (!portal.admit(call, path)) finish()
         } else {
             // Admin routes take the admin token when one is configured; otherwise the API token covers them too.
-            val isAdmin = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/")
+            // Disabling a source changes what every viewer gets, so it is one too, though outside /api/v1/admin.
+            val isAdmin = path == "/api/v1/admin" || path.startsWith("/api/v1/admin/") ||
+                (call.request.httpMethod == HttpMethod.Patch && path.startsWith("/api/v1/sources/"))
             val expected = if (isAdmin && adminToken != null) adminToken else apiToken
             // A pairing claim carries no token yet; the code it presents is checked by its route.
             val isApi = path == "/api" || path.startsWith("/api/")

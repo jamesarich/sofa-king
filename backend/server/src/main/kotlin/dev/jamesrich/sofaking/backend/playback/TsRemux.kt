@@ -51,7 +51,7 @@ class TsRemux(private val ffmpeg: String, private val relay: LoopbackRelay) {
         val errors = withContext(NonCancellable + Dispatchers.IO) { Files.createTempFile("sofa-remux-", ".log") }
         val process = try {
             ffmpegProcess(command).redirectError(errors.toFile()).startOwned()
-        } catch (e: java.io.IOException) {
+        } catch (e: Throwable) {
             withContext(NonCancellable + Dispatchers.IO) { Files.deleteIfExists(errors) }
             throw e
         }

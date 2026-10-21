@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.pollFor
 import dev.jamesrich.sofaking.backend.pollUntil
 import dev.jamesrich.sofaking.backend.store.addRecording
+import dev.jamesrich.sofaking.backend.store.recording
 import dev.jamesrich.sofaking.backend.store.recordings
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.*
@@ -21,6 +22,12 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Timeout
@@ -387,6 +394,24 @@ class DvrTest {
         assertEquals(188L * 10, done.bytes)
         assertEquals(188L * 10, Files.size(root.resolve(final)))
         assertFalse(Files.exists(root.resolve(RecordingLayout.IN_PROGRESS)), "the in-progress folder is pruned")
+    }
+
+    @Test fun `cancelling a rule airing while the tick starts it keeps it cancelled`() = ticking {
+        // Recordings launch on this test's event loop, with the DVR's own loops stopped, so only these two calls interleave.
+        val scope = CoroutineScope(currentCoroutineContext() + SupervisorJob())
+        dvr.start(scope).forEach { it.cancel() }
+        try {
+            store.addRecording(stored("airing", clock.now.minusSeconds(30), Wire.RecordingState.SCHEDULED).copy(ruleId = "rule"))
+            coroutineScope {
+                launch { dvr.tick() }
+                launch { dvr.delete("airing") }
+            }
+            pollUntil(10_000) { store.recording("airing")?.state.let { it == CANCELLED || it == Wire.RecordingState.FAILED } }
+            assertEquals(CANCELLED, store.recording("airing")?.state, "the tick does not undo the cancel")
+            assertFalse(Files.exists(root.resolve(RecordingLayout.IN_PROGRESS)), "nothing is recorded")
+        } finally {
+            scope.cancel()
+        }
     }
 
     @Test fun `a recording that wrote nothing fails as NO_MEDIA and leaves no file behind`() = ticking {

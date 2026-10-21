@@ -170,7 +170,9 @@ class LibraryApiTest {
         Files.createDirectories(file.parent)
         val process = ProcessBuilder(
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15",
-            "-t", "2", "-pix_fmt", "yuv420p", "-c:v", "mpeg2video", "-color_trc", "smpte2084", "-color_primaries", "bt2020", "-colorspace", "bt2020nc",
+            // The frames carry the tags too: newer FFmpeg writes the filter graph's color properties, not the output options.
+            "-t", "2", "-vf", "setparams=color_trc=smpte2084:color_primaries=bt2020:colorspace=bt2020nc",
+            "-pix_fmt", "yuv420p", "-c:v", "mpeg2video", "-color_trc", "smpte2084", "-color_primaries", "bt2020", "-colorspace", "bt2020nc",
             file.toString(),
         ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
         check(process.waitFor(60, TimeUnit.SECONDS) && process.exitValue() == 0) { "FFmpeg could not write the clip" }

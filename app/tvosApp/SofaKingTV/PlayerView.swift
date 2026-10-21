@@ -108,8 +108,12 @@ struct PlayerView: View {
 
     private func tune() async {
         do {
-            play(try await model.core.watchChannel(channelId: channel.guideId))
+            let stream = try await model.core.watchChannel(channelId: channel.guideId)
+            // Left while the session opened: the view is gone, and leaving released the session.
+            guard !Task.isCancelled else { return }
+            play(stream)
         } catch {
+            guard !Task.isCancelled else { return }
             failure = error.localizedDescription
             scheduleReconnect()
         }

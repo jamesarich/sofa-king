@@ -155,7 +155,8 @@ class LibraryViewModel(
     fun openGrid(libraryId: String, sort: LibrarySort = LibrarySort.TITLE, unwatched: Boolean = false, genre: String? = null) {
         val open = _grid.value
         val wanted = LibraryGrid(libraryId, sort, unwatched, genre, genres = open?.takeIf { it.libraryId == libraryId }?.genres.orEmpty())
-        if (open != null && open.sameQuery(wanted) && open.error == null) return
+        // A grid whose next page failed keeps its pages, and loadMore retries that page; only a failed first page loads afresh.
+        if (open != null && open.sameQuery(wanted) && (open.error == null || open.items.isNotEmpty())) return
         gridJob?.cancel()
         _grid.value = wanted
         loadPage(null)

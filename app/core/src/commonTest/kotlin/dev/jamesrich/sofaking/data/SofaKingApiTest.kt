@@ -135,6 +135,14 @@ class SofaKingApiTest {
     }
 
     @Test
+    fun `an unparsable logo is dropped and an unparsable media URL is an IOException`() {
+        val api = SofaKingApi("https://tv.example", "t", offline)
+
+        assertNull(api.logoUrl("http://h:port/x"))
+        assertFailsWith<IOException> { api.mediaUrl(PlaybackDescriptorDto("hls", "application/vnd.apple.mpegurl", "http://h:port/x", 1)) }
+    }
+
+    @Test
     fun `HLS descriptors get the MIME type Media3 recognizes and MPEG-TS passes through`() {
         assertEquals("application/x-mpegURL", mediaMimeType(PlaybackDescriptorDto("hls", "application/vnd.apple.mpegurl", "/x.m3u8", 1)))
         assertEquals("application/x-mpegURL", mediaMimeType(PlaybackDescriptorDto("hls", "Application/X-MpegURL", "/x", 1)))

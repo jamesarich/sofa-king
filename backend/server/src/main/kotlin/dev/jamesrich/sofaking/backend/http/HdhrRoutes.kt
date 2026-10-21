@@ -79,7 +79,8 @@ fun Route.hdhrRoutes(runtime: LiveRuntime, config: HdhrConfig, store: IdentitySt
     val log = org.slf4j.LoggerFactory.getLogger("dev.jamesrich.sofaking.backend.http.Hdhr")
 
     suspend fun guard(call: ApplicationCall): Boolean {
-        if (access.admits(call.request.origin.remoteAddress, call.request.path())) return true
+        // Open to every address only on loopback, and then only to this machine, so a reverse proxy cannot expose it.
+        if (access.admits(call.request.origin.remoteAddress, call.request.path()) && (!access.open || call.request.fromThisMachine())) return true
         call.respondText("Forbidden", status = HttpStatusCode.Forbidden)
         return false
     }

@@ -159,7 +159,7 @@ internal fun layout(title: String, chrome: Chrome?, current: String?, theme: Str
                 if (chrome?.startedAt != null) +" Up ${uptime(chrome.startedAt, chrome.now)}."
             }
             if (chrome != null) form(action = "/admin/theme", method = FormMethod.post, classes = "inline theme") {
-                attributes["aria-label"] = "Colour scheme"
+                attributes["aria-label"] = "Color scheme"
                 hiddenInput(name = "csrf") { value = chrome.session.csrf }
                 hiddenInput(name = "back") { value = chrome.back }
                 span("muted") { +"Theme" }

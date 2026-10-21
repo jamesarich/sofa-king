@@ -432,6 +432,10 @@ class LineupViewModel(
         save { store.setPreviewSound(enabled) }
     }
 
+    fun setVolume(level: Int, muted: Boolean) {
+        save { store.setVolume(level, muted) }
+    }
+
     fun setStartup(target: StartupTarget, guideId: String? = null) {
         save { store.setStartup(target, guideId) }
     }

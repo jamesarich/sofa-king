@@ -159,6 +159,7 @@ fun PlayerScreen(
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
     val fullScreen = LocalWindowFullScreen.current
     val inPictureInPicture = LocalInPictureInPicture.current
+    val volume = LocalPlayerVolume.current
     val now by rememberMinuteNow()
     val scope = rememberCoroutineScope()
     val tuneJob = remember { TuneJob() }
@@ -178,12 +179,13 @@ fun PlayerScreen(
     LifecycleStartEffect(player, lifecycleOwner = appLifecycleOwner) {
         val session = player.openMediaSession { step -> state.zapStep(step) }
         mediaSession = session
-        player.volume = 1f
+        player.volume = volume.gain
         onStopOrDispose {
             session.close()
             mediaSession = null
         }
     }
+    LaunchedEffect(player, volume) { snapshotFlow { volume.gain }.collect { player.volume = it } }
     LaunchedEffect(player) { player.status.collect { state.onStatus(it) } }
     LaunchedEffect(player) {
         player.errors.collect { error -> state.fail(error.code, immediate = error.streamGone) }

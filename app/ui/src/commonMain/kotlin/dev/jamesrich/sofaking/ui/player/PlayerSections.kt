@@ -54,6 +54,7 @@ internal fun BoxScope.StatusPills(state: PlayerState, buffering: Boolean, paused
         ) { toast ->
             if (toast != null) CaptionToastPill(toast.outcome, toast.timingMs)
         }
+        VolumeToast()
     }
 }
 
@@ -161,6 +162,8 @@ internal fun BoxScope.InfoBarPanel(
                 onPlayPause = control { controls.playPause() },
                 onStreamInfo = state::openStreamCard,
                 onRetry = control { controls.retry() },
+                onVolumeAdjust = state::keepInfo,
+                onVolumeDone = control {},
             )
         }
     }

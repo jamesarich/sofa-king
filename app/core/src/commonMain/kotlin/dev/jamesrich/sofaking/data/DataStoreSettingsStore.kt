@@ -55,6 +55,8 @@ class DataStoreSettingsStore(
                 captionStyle = prefs[CAPTION_STYLE].toEnum(CaptionStyle.SYSTEM),
                 autoOpenDelay = prefs[AUTO_OPEN_DELAY].toEnum(AutoOpenDelay.AFTER_10_SECONDS),
                 previewSound = prefs[PREVIEW_SOUND] ?: true,
+                volume = (prefs[VOLUME] ?: AppSettings.MAX_VOLUME).coerceIn(0, AppSettings.MAX_VOLUME),
+                volumeMuted = prefs[VOLUME_MUTED] ?: false,
                 keyLegendShown = prefs[KEY_LEGEND_SHOWN] ?: 0,
                 // A stored LAST_CHANNEL, from before the tabs were remembered, reads as RESUME.
                 startup = prefs[STARTUP].toEnum(StartupTarget.RESUME),
@@ -137,6 +139,13 @@ class DataStoreSettingsStore(
 
     override suspend fun setPreviewSound(enabled: Boolean) {
         dataStore.edit { prefs -> prefs[PREVIEW_SOUND] = enabled }
+    }
+
+    override suspend fun setVolume(level: Int, muted: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[VOLUME] = level.coerceIn(0, AppSettings.MAX_VOLUME)
+            prefs[VOLUME_MUTED] = muted
+        }
     }
 
     override suspend fun setKeyLegendShown(count: Int) {
@@ -288,6 +297,8 @@ class DataStoreSettingsStore(
         val CAPTION_STYLE = stringPreferencesKey("caption_style")
         val AUTO_OPEN_DELAY = stringPreferencesKey("auto_open_delay")
         val PREVIEW_SOUND = booleanPreferencesKey("preview_sound")
+        val VOLUME = intPreferencesKey("volume")
+        val VOLUME_MUTED = booleanPreferencesKey("volume_muted")
         val KEY_LEGEND_SHOWN = intPreferencesKey("key_legend_shown")
         val STARTUP = stringPreferencesKey("startup")
         val STARTUP_CHANNEL = stringPreferencesKey("startup_channel")

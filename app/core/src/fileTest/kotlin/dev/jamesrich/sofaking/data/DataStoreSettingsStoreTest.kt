@@ -320,6 +320,22 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `volume is full and unmuted by default and keeps a level clamped to the range`() = runTest {
+        val store = newStore()
+        assertEquals(AppSettings.MAX_VOLUME, store.settings.first().volume)
+        assertFalse(store.settings.first().volumeMuted)
+
+        store.setVolume(35, muted = true)
+        assertEquals(35, store.settings.first().volume)
+        assertTrue(store.settings.first().volumeMuted)
+
+        store.setVolume(250, muted = false)
+        assertEquals(AppSettings.MAX_VOLUME, store.settings.first().volume)
+        store.setVolume(-5, muted = false)
+        assertEquals(0, store.settings.first().volume)
+    }
+
+    @Test
     fun `a file that is not a preferences store reads as defaults and is replaced`() = runTest {
         SystemFileSystem.createDirectories(dir)
         SystemFileSystem.sink(file).buffered().use { it.write(byteArrayOf(0x7f, 0x00, 0x7f, 0x7f, 0x7f)) }

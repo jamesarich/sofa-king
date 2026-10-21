@@ -136,6 +136,8 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
             command { applyVolume() }
         }
 
+    override val drawsVolumeControl: Boolean get() = true
+
     /** On the command thread. */
     private fun applyVolume() {
         vlc.audio().setVolume((volume * 100).roundToInt())

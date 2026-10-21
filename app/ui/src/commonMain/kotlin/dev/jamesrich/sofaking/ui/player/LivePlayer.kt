@@ -160,7 +160,16 @@ interface LivePlayer {
     /** What the engine knows about the stream now; the stream card reads it while open. */
     fun streamInfo(): StreamInfo
 
+    /** The engine's loudness, 0 (silent) to 1 (the stream's own level). */
     var volume: Float
+
+    /**
+     * True where nothing outside the app turns this player up or down for the viewer (a desktop window, a browser
+     * page), so the players draw their own volume control (see [PlayerVolume]); a TV, phone or Apple TV has the
+     * system's volume keys instead.
+     */
+    val drawsVolumeControl: Boolean get() = false
+
     var playWhenReady: Boolean
 
     /** Text tracks are disabled rather than unselected, so a zap keeps the choice; set it before the first prepare. */

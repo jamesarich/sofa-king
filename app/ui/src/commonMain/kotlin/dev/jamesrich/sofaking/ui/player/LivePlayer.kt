@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.data.AdBreakNow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
@@ -210,10 +211,16 @@ interface LivePlayer {
     fun seekTo(positionMs: Long) = Unit
 
     /**
-     * The ad break playing now, from the marks the server adds to a live playlist (`AdRun`); null outside one, and
-     * always on engines that cannot read playlist tags (see `supportsLiveBreaks`).
+     * The ad break playing now, read by the engine itself from the marks the server adds to a live playlist (`AdRun`);
+     * null outside one. Only engines with [readsAdMarks] answer.
      */
     fun adBreak(): AdBreakNow? = null
+
+    /** True where the engine reads the playlist's ad marks itself (Media3); the others have the server place the picture by [loadedAheadMs]. */
+    val readsAdMarks: Boolean get() = false
+
+    /** How much of a live stream the engine has loaded past the picture, for the server to place the picture among the ads; null when it cannot say. */
+    val loadedAheadMs: Long? get() = null
 
     /**
      * What the engine plays as it is, sent when a library item opens: the server plays a file that fits as it is

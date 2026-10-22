@@ -8,6 +8,7 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.put
@@ -99,6 +100,11 @@ class SofaKingApi(
     /** Renews the lease; [intent] changes preview to watch (or back) without replacing the stream. */
     internal suspend fun updateSession(id: String, intent: String?): PlaybackSessionDto = call {
         http.patch(sessionPath(id)) { json(UpdatePlaybackDto(intent)) }.decode()
+    }
+
+    /** Whether the session's player shows an ad, for an engine that cannot read the playlist's marks; [aheadMs] is what it loaded past the picture. */
+    internal suspend fun adBreak(id: String, aheadMs: Long): AdBreakStateDto = call {
+        http.get(sessionPath(id) + "/ad-break") { parameter("aheadMs", aheadMs) }.decode()
     }
 
     internal suspend fun releaseSession(id: String) = call {

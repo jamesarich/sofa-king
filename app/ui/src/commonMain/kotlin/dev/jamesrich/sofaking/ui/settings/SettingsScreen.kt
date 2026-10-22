@@ -72,7 +72,6 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.ScrollOnlyWhenHidden
 import dev.jamesrich.sofaking.ui.supportsCaptionSync
-import dev.jamesrich.sofaking.ui.supportsLiveBreaks
 import dev.jamesrich.sofaking.ui.supportsPlaybackPreferences
 import dev.jamesrich.sofaking.ui.rememberUpdateInstaller
 import dev.jamesrich.sofaking.ui.updateDownloadUrl
@@ -405,28 +404,26 @@ fun SettingsScreen(
                 },
             )
         }
-        if (supportsLiveBreaks) {
-            item {
-                ChoiceRow(
-                    label = stringResource(Res.string.settings_live_breaks),
-                    help = stringResource(Res.string.settings_live_breaks_help),
-                    choices = LiveBreaks.entries,
-                    selected = liveBreaks,
-                    choiceLabel = {
-                        stringResource(
-                            when (it) {
-                                LiveBreaks.PLAY -> Res.string.settings_live_breaks_play
-                                LiveBreaks.SCREEN_MUTED -> Res.string.settings_live_breaks_screen_muted
-                                LiveBreaks.SCREEN -> Res.string.settings_live_breaks_screen
-                            },
-                        )
-                    },
-                    onSelect = {
-                        liveBreaks = it
-                        actions.onLiveBreaksChanged(it)
-                    },
-                )
-            }
+        item {
+            ChoiceRow(
+                label = stringResource(Res.string.settings_live_breaks),
+                help = stringResource(Res.string.settings_live_breaks_help),
+                choices = LiveBreaks.entries,
+                selected = liveBreaks,
+                choiceLabel = {
+                    stringResource(
+                        when (it) {
+                            LiveBreaks.PLAY -> Res.string.settings_live_breaks_play
+                            LiveBreaks.SCREEN_MUTED -> Res.string.settings_live_breaks_screen_muted
+                            LiveBreaks.SCREEN -> Res.string.settings_live_breaks_screen
+                        },
+                    )
+                },
+                onSelect = {
+                    liveBreaks = it
+                    actions.onLiveBreaksChanged(it)
+                },
+            )
         }
         item {
             ChoiceRow(

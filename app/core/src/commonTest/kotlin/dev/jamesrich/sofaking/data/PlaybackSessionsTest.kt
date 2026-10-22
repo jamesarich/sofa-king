@@ -51,6 +51,9 @@ class PlaybackSessionsTest {
                     delay(openDelayMs)
                     json(session.body(), status = 201)
                 }
+                id != null && id.endsWith("/ad-break") -> sessions[id.removeSuffix("/ad-break")]?.let {
+                    if (request.query == "aheadMs=12000") json("""{"inBreak":true,"remainingMs":42000}""") else json("{}")
+                } ?: apiError(410, "SESSION_EXPIRED")
                 id != null && request.method == "GET" -> sessions[id]?.let { json(it.body()) } ?: apiError(410, "SESSION_EXPIRED")
                 id != null && request.method == "PATCH" -> sessions[id]?.let { session ->
                     val intent = Json.parseToJsonElement(request.body).jsonObject["intent"]?.jsonPrimitive?.content
@@ -115,6 +118,16 @@ class PlaybackSessionsTest {
         val body = Json.parseToJsonElement(open.substringAfter("playback-sessions ")).jsonObject
         assertEquals("preview", body["intent"]!!.jsonPrimitive.content)
         assertEquals("key-0", body["idempotencyKey"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `the server places the held channel in an ad break from what the player loaded ahead`() = runTest {
+        val (_, sessions) = fixture()
+        assertNull(sessions.adBreak(aheadMs = 12_000))
+        sessions.tune("c1", PlaybackIntent.WATCH)
+
+        assertEquals(AdBreakNow(remainingMs = 42_000), sessions.adBreak(aheadMs = 12_000))
+        assertNull(sessions.adBreak(aheadMs = 3_000))
     }
 
     @Test

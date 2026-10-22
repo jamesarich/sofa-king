@@ -1,9 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.contract.AdRun
-
-/** The picture is in an ad break; [remainingMs] is how long the break has left, when the playlist says. */
-data class AdBreakNow(val remainingMs: Long?)
+import dev.jamesrich.sofaking.data.AdBreakNow
 
 /**
  * Whether the segment playing at [positionMs] is an ad, from the server's [AdRun] marks among a live media playlist's

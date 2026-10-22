@@ -221,6 +221,12 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
 
     override val durationMs: Long? get() = vlc.status().length().takeIf { isSeekable && it > 0L }
 
+    /**
+     * libVLC reports no buffer depth, but it holds a live HLS stream its live delay behind the newest segment, which
+     * it fetches as soon as the playlist lists it; that delay stands in for what it has loaded past the picture.
+     */
+    override val loadedAheadMs: Long? get() = if (stream?.seekable == false) VLC_LIVE_DELAY_MS else null
+
     override fun seekTo(positionMs: Long) {
         if (!isSeekable) return
         val target = clampSeek(positionMs, durationMs)
@@ -394,3 +400,6 @@ internal object NoMediaSession : MediaSessionHandle {
 
     override fun close() = Unit
 }
+
+/** libVLC's default `adaptive-livedelay`: how far behind the newest segment of a live HLS playlist it plays. */
+private const val VLC_LIVE_DELAY_MS = 15_000L

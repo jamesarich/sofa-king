@@ -45,9 +45,6 @@ internal expect val supportsPlaybackPreferences: Boolean
 /** True where captions are drawn through `CaptionSync` (Android's Media3), so smoothing and timing apply; Settings hides those rows elsewhere. */
 internal expect val supportsCaptionSync: Boolean
 
-/** True where the live player reads the server's ad marks (Android's Media3), so the break screen can cover ads; Settings hides the row elsewhere. */
-internal expect val supportsLiveBreaks: Boolean
-
 /**
  * What Get the update opens for a published [latest] build: the Android package on Android, the release page on a
  * desktop or in a browser, or null where no package is published (iOS), so Settings says so instead.

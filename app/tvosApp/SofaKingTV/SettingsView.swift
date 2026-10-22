@@ -1,7 +1,7 @@
 import SwiftUI
 import SofaKingCore
 
-/// The server address and token. The address must be a usable URL before the lineup loads.
+/// The server address and token, and what covers live ads. The address must be a usable URL before the lineup loads.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -53,6 +53,20 @@ struct SettingsView: View {
                 if let pairingError { Text(pairingError).foregroundStyle(.red).font(.caption) }
                 Text("In the admin portal, open Players › Devices and choose Show a pairing code, then enter the server address above and the code here. No token needed.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Section {
+                Picker("During ads", selection: Binding(
+                    get: { model.settings?.liveBreaks ?? .play },
+                    set: { model.core.setLiveBreaks(mode: $0) }
+                )) {
+                    Text("Show them").tag(LiveBreaks.play)
+                    Text("Logo, muted").tag(LiveBreaks.screenMuted)
+                    Text("Logo, sound on").tag(LiveBreaks.screen)
+                }
+            } header: {
+                Text("Live TV")
+            } footer: {
+                Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back.")
             }
             Section("About") {
                 // TMDB's terms ask apps that show its data to say so.

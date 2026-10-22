@@ -13,8 +13,8 @@ import kotlin.math.roundToLong
  * picture, and a `#EXT-X-DISCONTINUITY` alone means nothing: Pluto puts one between episodes too.
  */
 internal object AdBreaks {
-    /** One media segment: its media sequence number, length, and whether it is an ad. */
-    data class Segment(val sequence: Long, val durationMs: Long, val ad: Boolean)
+    /** One media segment: its media sequence number, length, whether it is an ad, and its absolute URL. */
+    data class Segment(val sequence: Long, val durationMs: Long, val ad: Boolean, val url: String = "")
 
     private val ATTRIBUTE = Regex("""([A-Za-z0-9-]+)=("[^"]*"|[^,]*)""")
 
@@ -23,15 +23,19 @@ internal object AdBreaks {
     private val PLUTO_BUMPER = Regex("""ad_?bumper""", RegexOption.IGNORE_CASE)
 
     /** [text] with a [AdRun.TAG] line for each run of ad segments it holds; a playlist with none, or a multivariant one, comes back as it was. */
-    fun annotate(text: String, base: URI): String {
-        val runs = runs(text, base)
+    fun annotate(text: String, base: URI): String = annotate(text, runs(text, base))
+
+    /** [text] with a [AdRun.TAG] line for each of [runs]. */
+    fun annotate(text: String, runs: List<AdRun>): String {
         if (runs.isEmpty()) return text
         return text.trimEnd('\n', '\r') + "\n" + runs.joinToString("") { it.tag() + "\n" }
     }
 
     /** The runs of ad segments in [text], in order; empty for a multivariant playlist. */
-    fun runs(text: String, base: URI): List<AdRun> {
-        val parsed = parse(text, base) ?: return emptyList()
+    fun runs(text: String, base: URI): List<AdRun> = parse(text, base)?.let(::runs).orEmpty()
+
+    /** The runs of ad segments in [parsed], in order. */
+    fun runs(parsed: Parsed): List<AdRun> {
         val runs = ArrayList<AdRun>()
         var index = 0
         while (index < parsed.segments.size) {
@@ -82,7 +86,7 @@ internal object AdBreaks {
                     val at = date
                     val ad = cueOpen || pluto(base, line) || (at != null && ranges.any { at in it })
                     if (pendingEnd != null) plannedEnd[segments.size] = pendingEnd
-                    segments += Segment(sequence + segments.size, durationMs, ad)
+                    segments += Segment(sequence + segments.size, durationMs, ad, absolute(base, line))
                     pendingEnd = null
                     date = at?.plus(durationMs)
                     durationMs = 0L
@@ -91,6 +95,8 @@ internal object AdBreaks {
         }
         return Parsed(segments, plannedEnd)
     }
+
+    private fun absolute(base: URI, reference: String): String = try { base.resolve(reference).toString() } catch (_: IllegalArgumentException) { reference }
 
     /** True for a Pluto segment from its ad muxer or a bumper clip; other hosts never match, whatever their paths. */
     private fun pluto(base: URI, reference: String): Boolean {

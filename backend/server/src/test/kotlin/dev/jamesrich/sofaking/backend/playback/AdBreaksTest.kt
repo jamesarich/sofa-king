@@ -53,6 +53,27 @@ https://siloh-ns1.plutotv.net/967_pluto/clip/6a95facf_ab2537c1/720p/hls/0.ts
         assertEquals(listOf(true, true, false), ads(bumpers, plutoBase))
     }
 
+    @Test fun `a creative straight from Pluto's ad store between bumpers keeps the break whole`() {
+        val pod = """#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:172
+#EXTINF:5.013,
+https://siloh-ns1.plutotv.net/v1/mp4/c(ts)/h(default)/max(3)/rev(1)/p(2_ad%2Fcreative%2F6ac32127_ad%2F720p%2Fvideo_600.mp4)/2.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:5,
+https://siloh-ns1.plutotv.net/2_ad/creative/6883a82f_ad/720p/20250725_155215/hls/hls_1600_00002.ts
+#EXTINF:5,
+https://siloh-ns1.plutotv.net/2_ad/creative/6883a82f_ad/720p/20250725_155215/hls/hls_1600_00003.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:5,
+https://siloh-ns1.plutotv.net/160_Pluto_TV_OandO/clip/58e5397b_ptv_7424adbumperanimationdotsinverted30_30fps/1080pDRM/hls/0.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:5,
+https://siloh-ns1.plutotv.net/406_CBS_TV/clip/6126d984_CSI_S2E18/720p/20230303_180600/hls/hls_1600-00078.ts
+"""
+        assertEquals(listOf(true, true, true, true, false), ads(pod, plutoBase))
+        assertEquals(listOf(AdRun(172, 175)), AdBreaks.runs(pod, plutoBase))
+    }
+
     @Test fun `the muxer path means nothing on another host`() {
         assertEquals(listOf(false, false, false, false), ads(pluto.replace("siloh-ns1.plutotv.net", "cdn.example.test"), plutoBase))
     }

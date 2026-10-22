@@ -18,8 +18,12 @@ internal object AdBreaks {
 
     private val ATTRIBUTE = Regex("""([A-Za-z0-9-]+)=("[^"]*"|[^,]*)""")
 
-    /** Pluto's ad muxer serves stitched creatives under `/v1/mp4/…` and `/mp4/v1/…`; its own bumpers are `…adbumper…` clips. */
+    /**
+     * Pluto's ad muxer serves stitched creatives under `/v1/mp4/…` and `/mp4/v1/…`, and some creatives come straight from
+     * their store, `/<n>_ad/creative/…`, the same path the muxer wraps; its own bumpers are `…adbumper…` clips.
+     */
     private val PLUTO_MUXER = Regex("""^/(?:v1/mp4|mp4/v1)/""")
+    private val PLUTO_CREATIVE = Regex("""^/\d+_ad/creative/""")
     private val PLUTO_BUMPER = Regex("""ad_?bumper""", RegexOption.IGNORE_CASE)
 
     /** [text] with a [AdRun.TAG] line for each run of ad segments it holds; a playlist with none, or a multivariant one, comes back as it was. */
@@ -104,7 +108,8 @@ internal object AdBreaks {
         val host = uri.host?.lowercase() ?: return false
         if (!host.endsWith(".plutotv.net") && !host.endsWith(".pluto.tv")) return false
         val path = uri.rawPath ?: return false
-        return PLUTO_MUXER.containsMatchIn(path) || ("_Pluto_TV_OandO/" in path && PLUTO_BUMPER.containsMatchIn(path))
+        return PLUTO_MUXER.containsMatchIn(path) || PLUTO_CREATIVE.containsMatchIn(path) ||
+            ("_Pluto_TV_OandO/" in path && PLUTO_BUMPER.containsMatchIn(path))
     }
 
     /** A `#EXT-X-DATERANGE` marking an SCTE-35 splice out, as the program-date span it covers; open-ended ones are left alone. */

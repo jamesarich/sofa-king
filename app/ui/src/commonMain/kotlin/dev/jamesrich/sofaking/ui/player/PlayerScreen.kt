@@ -46,7 +46,9 @@ import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.isLongPress
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
 import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.AppSettings
+import dev.jamesrich.sofaking.data.BreakWatch
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
@@ -184,7 +186,7 @@ fun PlayerScreen(
 
     // The server marks the ad segments of a streaming channel's playlist; while Settings asks, the break screen covers
     // them. Media3 reads the marks itself; the other engines ask the server, which knows the segments they fetched.
-    // OK or Back shows the picture again until that break is over.
+    // OK or Back shows the picture again until that break is over (BreakWatch).
     var inAdBreak by remember { mutableStateOf(false) }
     var adBreakLeftMs by remember { mutableStateOf<Long?>(null) }
     var adBreakDismissed by remember { mutableStateOf(false) }
@@ -192,6 +194,8 @@ fun PlayerScreen(
         inAdBreak = false
         adBreakDismissed = false
         if (!liveBreaks.covers) return@LaunchedEffect
+        val watch = BreakWatch()
+        var lastFound: AdBreakNow? = null
         while (true) {
             var wait = if (player.readsAdMarks) AD_BREAK_POLL_MS else AD_BREAK_ASK_MS
             val found = if (player.readsAdMarks) {
@@ -210,9 +214,12 @@ fun PlayerScreen(
                     }
                 }
             }
-            inAdBreak = found != null
-            adBreakLeftMs = found?.remainingMs
-            if (found == null) adBreakDismissed = false
+            val shown = watch.shown(found)
+            if (found == null && shown != null && lastFound != null) log.d { "ad break: reading lost it, holding ${shown.remainingMs ?: "?"} ms" }
+            lastFound = found
+            inAdBreak = shown != null
+            adBreakLeftMs = shown?.remainingMs
+            if (watch.over) adBreakDismissed = false
             delay(wait)
         }
     }

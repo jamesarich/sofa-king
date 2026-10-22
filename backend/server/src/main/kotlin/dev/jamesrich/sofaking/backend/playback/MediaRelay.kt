@@ -159,7 +159,7 @@ class MediaRelay(
                 http, feeds.upstream, call, withDeliveryDirectives(url, call), stream,
                 path = { sessions.resourcePath(id, epoch, it) },
                 sent = { resource.bytes.addAndGet(it) },
-                manifest = { text, source -> resource.ads?.annotate(text, source) ?: text },
+                manifest = { text, source -> resource.playlists.steady(text, source).let { resource.ads?.annotate(it, source) ?: it } },
                 sniffed = { protocol -> if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts") },
             )
         }

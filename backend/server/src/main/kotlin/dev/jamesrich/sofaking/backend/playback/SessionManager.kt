@@ -36,6 +36,7 @@ internal class LiveSession(
     val requests = mutableSetOf<Job>()
     /** The app's own sessions mark the ads in their playlists and say where the player is among them; players outside the app get the source's playlists as they are. */
     val ads: AdClock? = if (external) null else AdClock()
+    val playlists = SteadyPlaylists()
     fun resource(url: String, suffix: String? = null): String {
         resources.tokenFor(url)?.let { return it }
         return resourceToken(url, suffix).also { resources.put(it, url, pinned = it.endsWith(".m3u8") || url == offering.url) }
@@ -80,7 +81,14 @@ internal class ResourceMap(private val segmentLimit: Int = 4096) {
  * [bytes] counts what the relay sends the player on this session. [ads] is the session's [AdClock], which marks the
  * playlists and notes the segments fetched, on the app's own sessions only.
  */
-data class MediaResource(val offering: Offering, val url: String, val shared: Boolean = false, val bytes: AtomicLong = AtomicLong(), val ads: AdClock? = null)
+data class MediaResource(
+    val offering: Offering,
+    val url: String,
+    val shared: Boolean = false,
+    val bytes: AtomicLong = AtomicLong(),
+    val ads: AdClock? = null,
+    val playlists: SteadyPlaylists = SteadyPlaylists(),
+)
 
 class SessionManager(private val catalog: CatalogService, private val store: BackendStore, private val clock: Clock, capacity: Int = 4) {
     /** How many sessions may be open at once; the runtime settings change it without a restart. */
@@ -217,7 +225,7 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         if (session.requests.size >= 12) throw ApiFailure(429, Wire.ErrorCode.CAPACITY_EXHAUSTED, "Too many media requests", true)
         session.requests += job
         if (session.external) session.expires = clock.instant().plus(EXTERNAL_IDLE)
-        MediaResource(session.offering, url, shared, session.bytes, session.ads)
+        MediaResource(session.offering, url, shared, session.bytes, session.ads, session.playlists)
     }
     suspend fun finished(id: String, job: Job) = mutex.withLock {
         sessions[id]?.let { session ->

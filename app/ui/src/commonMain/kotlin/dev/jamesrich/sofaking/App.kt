@@ -351,7 +351,11 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
     }
 }
 
-/** Back in front: a fresh session for the channel and intent released on stop, at the URL the player holds for it. */
+/**
+ * Back in front: a fresh session for the channel and intent released on stop, played at its new URL. The player can
+ * still hold an older channel's stream, one whose session was released before the stop; that URL is gone, so the
+ * reopened channel replaces it rather than the player loading a released session's playlist.
+ */
 private suspend fun resume(player: LivePlayer, sessions: PlaybackSessions) {
     val stream = try {
         sessions.reopen()
@@ -362,7 +366,14 @@ private suspend fun resume(player: LivePlayer, sessions: PlaybackSessions) {
         null
     }
     if (!player.hasItem) return
-    if (stream != null && stream.channelId == player.currentChannelId) player.replaceStream(stream)
+    when {
+        stream == null || stream.itemId != null -> Unit
+        stream.channelId == player.currentChannelId -> player.replaceStream(stream)
+        else -> {
+            player.stop()
+            player.setStream(stream)
+        }
+    }
     if (player.status.value.state == PlaybackState.IDLE) player.prepare()
 }
 

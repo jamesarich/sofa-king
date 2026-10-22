@@ -47,7 +47,9 @@ import org.khronos.webgl.WebGLRenderingContext.Companion.TEXTURE_WRAP_S
 import org.khronos.webgl.WebGLRenderingContext.Companion.TEXTURE_WRAP_T
 import org.khronos.webgl.WebGLRenderingContext.Companion.UNSIGNED_BYTE
 import org.khronos.webgl.WebGLTexture
+import org.w3c.dom.CanPlayTypeResult
 import org.w3c.dom.DISABLED
+import org.w3c.dom.EMPTY
 import org.w3c.dom.HIDDEN
 import org.w3c.dom.HTMLMediaElement
 import org.w3c.dom.HTMLVideoElement
@@ -134,9 +136,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
                 return@addEventListener
             }
             _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
-            // MEDIA_ERR_SRC_NOT_SUPPORTED (4) is a format the browser cannot play; anything else is the network.
-            val code = if (video.error?.code?.toInt() == 4) PlayerErrorCodes.PARSING_CONTAINER_UNSUPPORTED else PlayerErrorCodes.NETWORK_CONNECTION_FAILED
-            _errors.tryEmit(PlayerError(code))
+            val playable = current != null && video.canPlayType(current.mimeType) != CanPlayTypeResult.EMPTY
+            _errors.tryEmit(mediaElementError(video.error?.code?.toInt(), playable, loaded))
         }
     }
 

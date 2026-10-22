@@ -14,6 +14,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
@@ -218,18 +219,27 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
 
     override val readsAdMarks: Boolean get() = true
 
-    /** The live window counts from its playlist's first segment, which is where the segments' start times count from too. */
+    private val adMarks = AdMarks()
+    private val adPeriod = Timeline.Period()
+
+    /**
+     * The window counts from its playlist's first segment, which slides on every refresh while the picture may still
+     * be in a segment the window has dropped; the period's clock stays put, so the marks are kept on it.
+     */
     override fun adBreak(): AdBreakNow? {
         if (seekableItem) return null
         val playlist = (exo.currentManifest as? HlsManifest)?.mediaPlaylist ?: return null
+        val timeline = exo.currentTimeline
+        if (timeline.isEmpty) return null
+        val windowStartMs = -timeline.getPeriod(exo.currentPeriodIndex, adPeriod).positionInWindowMs
         val segments = playlist.segments
-        return adBreakAt(
+        adMarks.add(
             tags = playlist.tags,
             mediaSequence = playlist.mediaSequence,
-            startsMs = segments.map { it.relativeStartTimeUs / 1_000 },
+            startsMs = segments.map { windowStartMs + it.relativeStartTimeUs / 1_000 },
             durationsMs = segments.map { it.durationUs / 1_000 },
-            positionMs = exo.currentPosition,
         )
+        return adMarks.at(windowStartMs + exo.currentPosition)
     }
 
     override fun seekTo(positionMs: Long) {

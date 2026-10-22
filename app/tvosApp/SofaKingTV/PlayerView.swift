@@ -93,20 +93,21 @@ struct PlayerView: View {
         adBreak = nil
         breakDismissed = false
         guard liveBreaks.covers else { return }
+        // Rides out a reading that loses the break for a moment, and keeps Show picture until the break is over.
+        let watch = BreakWatch()
         while !Task.isCancelled {
             var wait: Duration = .seconds(1)
+            var found: AdBreakNow?
             if let ahead = loadedAheadMs() {
                 do {
-                    adBreak = try await model.core.adBreak(aheadMs: ahead)
+                    found = try await model.core.adBreak(aheadMs: ahead)
                 } catch {
                     // A server from before the break screen: ask again in a while.
-                    adBreak = nil
                     wait = .seconds(15)
                 }
-            } else {
-                adBreak = nil
             }
-            if adBreak == nil { breakDismissed = false }
+            adBreak = watch.shown(found: found)
+            if watch.over { breakDismissed = false }
             try? await Task.sleep(for: wait)
         }
     }

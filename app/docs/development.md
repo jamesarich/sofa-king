@@ -24,6 +24,15 @@ Then build and test:
 
 Unit tests cover the API client, catalog and guide mapping, the server connection's bootstrap backoff and server changes, the playback session lifecycle, cache, settings, the Apple TV's settings storage and its move out of Caches (`tvosTest`, which only macOS runs), captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against Ktor's `MockEngine` in common code on every target, and against MockWebServer on the JVM where a real socket matters, so no server is needed. Screen tests in `ui`'s `jvmTest` drive the composables with Compose's ui-test (`runSkikoComposeUiTest`), pressing keys and finding nodes by semantics on a virtual clock. `RenderSmokeTest` draws the guide, settings, the settings lock page, the player's info bar and its channel list headless at TV size and writes them to `ui/build/screenshots`.
 
+`AppKeyFuzzTest` runs the whole app, paired through a pairing link to a fake server on loopback, and presses 300 random remote keys, weighted toward the D-pad. It fails when a key throws, focus is lost for more than 3 seconds, or the app holds more than one playback session, and names the seed and the last keys pressed; the screen and its semantics tree go to `ui/build/fuzz`, beside a trace of every key and what it left focused. Replay a failure or run a longer soak with the seed and the number of keys, or press a fixed list of keys by the names the trace uses:
+
+```sh
+SOFAKING_FUZZ_SEED=7 SOFAKING_FUZZ_STEPS=2000 ./gradlew :ui:jvmTest --tests 'dev.jamesrich.sofaking.AppKeyFuzzTest' --rerun
+SOFAKING_FUZZ_KEYS=Down,Back,Down,Up ./gradlew :ui:jvmTest --tests 'dev.jamesrich.sofaking.AppKeyFuzzTest' --rerun
+```
+
+The JVM lays the app out as a desktop window, not a TV, and has no decoder, so the player shows its failure card.
+
 ## Android Studio
 
 Open the repository root, not `app/`. The root `settings.gradle.kts` imports the app, the server and the contract as one composite build named `sofa-king-monorepo`, and the root `gradle.properties` holds the Gradle settings the IDE's sync uses. Use an Android Studio release that supports the catalog's `agp` version, with its bundled Kotlin Multiplatform plugin enabled, and the SDK in `app/local.properties` as above. A preview `agp` (an alpha or beta) syncs only in the Android Studio Canary or Beta built with it; a stable Studio stops at the last stable plugin, and a nightly expects a plugin preview that Google Maven may not have published yet. Either refuses the sync with "The project is using an incompatible version" (or "incompatible preview version") of the Android Gradle plugin, under Gradle Sync issues in the Build window. To see which plugin a Studio build accepts, read `buildVersion` in `com/android/version.properties` inside the app's `plugins/android/lib/libagp-version.jar`.

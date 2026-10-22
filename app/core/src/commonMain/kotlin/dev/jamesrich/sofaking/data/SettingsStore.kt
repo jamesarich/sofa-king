@@ -50,6 +50,8 @@ data class AppSettings(
     val skipCommercials: Boolean = false,
     /** What the live player does in an ad break a streaming channel marks: plays it, or covers it with the break screen. */
     val liveBreaks: LiveBreaks = LiveBreaks.PLAY,
+    /** How long the break screen has covered ads today on this device; never synced. */
+    val adsDodged: AdsDodged = AdsDodged(),
     /** The favorites in the order the user put them (see [orderedFavorites]); starred channels not listed follow by number. */
     val favoritesOrder: List<String> = emptyList(),
     val playback: PlaybackPreferences = PlaybackPreferences(),
@@ -77,7 +79,7 @@ data class AppSettings(
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
-            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, liveBreaks=$liveBreaks, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
+            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, liveBreaks=$liveBreaks, adsDodged=$adsDodged, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, trackChoices=${trackChoices.size})"
 
     companion object {
@@ -113,7 +115,6 @@ enum class TopLevelTab { LIVE, LIBRARY, RECORDINGS }
 /** How captions are drawn; SYSTEM defers to the platform's CaptioningManager settings. */
 enum class CaptionStyle { SYSTEM, LARGE_HIGH_CONTRAST }
 
-/** [afterMs] is how long focus rests before the preview opens full screen, or null when it never does. */
 /** The live player in an ad break: [PLAY] shows it; the others cover it with the break screen, with or without its sound. */
 enum class LiveBreaks(val covers: Boolean, val muted: Boolean) {
     PLAY(covers = false, muted = false),
@@ -121,6 +122,19 @@ enum class LiveBreaks(val covers: Boolean, val muted: Boolean) {
     SCREEN(covers = true, muted = false),
 }
 
+/**
+ * The milliseconds of ads the break screen covered on [day], a local date as `2026-10-22` that the caller supplies;
+ * another day reads as none, so the count starts again each morning.
+ */
+data class AdsDodged(val day: String = "", val ms: Long = 0) {
+    /** The milliseconds covered on [day]. */
+    fun on(day: String): Long = if (day == this.day) ms else 0
+
+    /** This count with [ms] more covered on [day], which starts it again when the day has changed. */
+    fun plus(day: String, ms: Long): AdsDodged = AdsDodged(day, on(day) + ms.coerceAtLeast(0))
+}
+
+/** [afterMs] is how long focus rests before the preview opens full screen, or null when it never does. */
 enum class AutoOpenDelay(val afterMs: Long?) {
     OFF(null),
     AFTER_10_SECONDS(10_000L),
@@ -179,6 +193,9 @@ interface SettingsStore {
     suspend fun setSkipCommercials(enabled: Boolean)
 
     suspend fun setLiveBreaks(mode: LiveBreaks)
+
+    /** Adds [ms] of ads the break screen covered on [day] to [AppSettings.adsDodged]. */
+    suspend fun addAdsDodged(day: String, ms: Long)
 
     /** Keeps [choice] as the tracks picked in the show [showId]. */
     suspend fun setTrackChoice(showId: String, choice: TrackChoice)

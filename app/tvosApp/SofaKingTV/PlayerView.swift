@@ -25,6 +25,11 @@ struct PlayerView: View {
     @State private var adBreak: AdBreakNow?
     /// Show picture was chosen during this break; cleared once it ends.
     @State private var breakDismissed = false
+    /// The line this break screen was dealt, and the rest of the shuffled lines, so none comes back until all have shown.
+    @State private var breakQuip = ""
+    @State private var quipDeck: [String] = []
+    /// When the break screen came up, for Ads dodged today; nil while it is down.
+    @State private var coveredSince: Date?
 
     init(channel: Channel) {
         _channel = State(initialValue: channel)
@@ -39,13 +44,17 @@ struct PlayerView: View {
         }
         .task { await tune() }
         .task(id: "\(channel.guideId) \(liveBreaks.name)") { await watchAdBreaks() }
-        .onChange(of: breakScreen != nil) { _, _ in applyBreakSound() }
+        .onChange(of: breakScreen != nil) { _, up in
+            applyBreakSound()
+            if up { startCovering() } else { stopCovering() }
+        }
         .onAppear {
             shown = true
             replaced = model.core.watchReplaced { stream in play(stream) }
         }
         .onDisappear {
             shown = false
+            stopCovering()
             replaced?.cancel()
             reconnect?.cancel()
             itemObservers.removeAll()
@@ -55,6 +64,7 @@ struct PlayerView: View {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .background:
+                stopCovering()
                 reconnect?.cancel()
                 player.replaceCurrentItem(with: nil)
                 Task { try? await model.core.release() }
@@ -79,7 +89,36 @@ struct PlayerView: View {
     /// The break screen to draw over the picture now, or nil.
     private var breakScreen: BreakScreen? {
         guard let adBreak, !breakDismissed, failure == nil else { return nil }
-        return BreakScreen(remainingMs: adBreak.remainingMs?.int64Value)
+        return BreakScreen(
+            remainingMs: adBreak.remainingMs?.int64Value,
+            quip: breakQuip,
+            upNext: upNext,
+            dodgedBeforeMs: model.settings?.adsDodged.on(day: BreakScreen.today()) ?? 0,
+            coveredSince: coveredSince ?? .now
+        )
+    }
+
+    /// The channel's next program, for the break screen: `Up next: Forensic Files at 9:30 PM`.
+    private var upNext: String? {
+        guard let lineup = model.lineup, let next = model.core.nowAndNext(lineup: lineup, channel: channel).next else { return nil }
+        return "Up next: \(next.title) at \(model.core.start(of: next).formatted(date: .omitted, time: .shortened))"
+    }
+
+    /// Deals the break screen its line and starts counting the time it covers.
+    private func startCovering() {
+        if quipDeck.isEmpty {
+            quipDeck = BreakScreen.quips.shuffled()
+            if quipDeck.first == breakQuip { quipDeck.append(quipDeck.removeFirst()) }
+        }
+        breakQuip = quipDeck.removeFirst()
+        coveredSince = .now
+    }
+
+    /// Adds the time the break screen covered to Ads dodged today, once it goes.
+    private func stopCovering() {
+        guard let since = coveredSince else { return }
+        coveredSince = nil
+        model.core.addAdsDodged(day: BreakScreen.today(), ms: Int64(Date.now.timeIntervalSince(since) * 1000))
     }
 
     /// Show picture while the break screen is up, which the system shows over it as it does Skip intro.

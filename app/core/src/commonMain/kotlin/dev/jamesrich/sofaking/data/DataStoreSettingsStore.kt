@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.CancellationException
@@ -68,6 +69,7 @@ class DataStoreSettingsStore(
                 zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
                 skipCommercials = prefs[SKIP_COMMERCIALS] ?: false,
                 liveBreaks = prefs[LIVE_BREAKS].toEnum(LiveBreaks.PLAY),
+                adsDodged = AdsDodged(prefs[ADS_DODGED_DAY].orEmpty(), prefs[ADS_DODGED_MS] ?: 0L),
                 trackChoices = trackChoices(prefs),
                 favoritesOrder = favoritesOrder(prefs).distinct(),
                 playback = PlaybackPreferences(
@@ -199,6 +201,14 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[LIVE_BREAKS] = mode.name }
     }
 
+    override suspend fun addAdsDodged(day: String, ms: Long) {
+        dataStore.edit { prefs ->
+            val dodged = AdsDodged(prefs[ADS_DODGED_DAY].orEmpty(), prefs[ADS_DODGED_MS] ?: 0L).plus(day, ms)
+            prefs[ADS_DODGED_DAY] = dodged.day
+            prefs[ADS_DODGED_MS] = dodged.ms
+        }
+    }
+
     override suspend fun setTrackChoice(showId: String, choice: TrackChoice) {
         dataStore.edit { prefs ->
             val kept = (listOf(showId to choice) + trackChoices(prefs).filterKeys { it != showId }.toList()).take(TrackChoice.KEPT)
@@ -314,6 +324,8 @@ class DataStoreSettingsStore(
         val ZAP_SKIPS_HIDDEN = booleanPreferencesKey("zap_skips_hidden")
         val SKIP_COMMERCIALS = booleanPreferencesKey("skip_commercials")
         val LIVE_BREAKS = stringPreferencesKey("live_breaks")
+        val ADS_DODGED_DAY = stringPreferencesKey("ads_dodged_day")
+        val ADS_DODGED_MS = longPreferencesKey("ads_dodged_ms")
         val FAVORITES_ORDER = stringPreferencesKey("favorites_order")
         val TRACK_CHOICES = stringPreferencesKey("track_choices")
         val MATCH_FRAME_RATE = booleanPreferencesKey("match_frame_rate")

@@ -2,22 +2,28 @@ package dev.jamesrich.sofaking.ui.player
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -32,17 +38,23 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.formatPlayTime
+import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.theme.SofaMauve
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.random.Random
+import kotlin.time.Duration.Companion.minutes
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
@@ -108,13 +120,59 @@ internal fun hueRotation(degrees: Float): ColorMatrix {
 }
 
 /**
+ * Deals the numbers 0 until [size] in a shuffled order, and shuffles again once all are dealt, so a break screen line
+ * comes back only after the rest have had a turn, and never twice running.
+ */
+internal class Deck(private val size: Int, private val random: Random = Random) {
+    private val cards = ArrayDeque<Int>()
+    private var last = -1
+
+    fun next(): Int {
+        if (cards.isEmpty()) {
+            cards += (0 until size).shuffled(random)
+            if (cards.size > 1 && cards.first() == last) cards.addLast(cards.removeFirst())
+        }
+        return cards.removeFirst().also { last = it }
+    }
+}
+
+/** The lines a break picks from, one per break, under the countdown. */
+private val BREAK_QUIPS = listOf(
+    Res.string.break_quip_throne,
+    Res.string.break_quip_realm,
+    Res.string.break_quip_adjust,
+    Res.string.break_quip_snacks,
+    Res.string.break_quip_castle,
+    Res.string.break_quip_cushion,
+    Res.string.break_quip_stretch,
+    Res.string.break_quip_patient,
+    Res.string.break_quip_pillows,
+    Res.string.break_quip_recline,
+)
+
+/** What the break screen remembers from one break to the next while the app runs: the next line, and the corners seen. */
+private object BreakTally {
+    val quips = Deck(BREAK_QUIPS.size)
+    var corners = 0
+}
+
+/**
  * The break screen: black, with the crown-on-sofa mark drifting around and bouncing off the edges the way an old DVD
- * player's screensaver did, a new color on every edge and the brand colors back on a corner, with a little pop.
- * [remainingMs], when known, counts down under the mark; the mark moves, so nothing sits still long enough to burn in.
+ * player's screensaver did, a new color on every edge and the brand colors back on a corner, with a little pop and a
+ * line to mark the occasion. [remainingMs], when known, counts down under the mark, over a line picked for the break,
+ * [upNext] (the channel's next program) and the ads dodged today, [dodgedBeforeMs] before this break plus the time
+ * it has been up. Everything moves with the mark, so nothing sits still long enough to burn in. When it goes,
+ * [onCovered] gets the milliseconds it was on screen, counted in drawn frames, so time in the background is left out.
  * It draws only; the player decides whether the sound plays under it.
  */
 @Composable
-internal fun BreakScreen(modifier: Modifier = Modifier, remainingMs: (() -> Long?)? = null) {
+internal fun BreakScreen(
+    modifier: Modifier = Modifier,
+    remainingMs: (() -> Long?)? = null,
+    upNext: String? = null,
+    dodgedBeforeMs: Long = 0,
+    onCovered: (Long) -> Unit = {},
+) {
     val label = stringResource(Res.string.break_screen_title)
     BoxWithConstraints(
         modifier
@@ -131,6 +189,19 @@ internal fun BreakScreen(modifier: Modifier = Modifier, remainingMs: (() -> Long
         var bounce by remember { mutableStateOf(Bounce(area.width * 0.3f, area.height * 0.2f, right = true, down = true)) }
         var tint by remember { mutableIntStateOf(0) }
         val pop = remember { Animatable(1f) }
+        val quip = remember { BreakTally.quips.next() }
+        // The corner just hit, counted from the app's start, while its line shows.
+        var corner by remember { mutableStateOf<Int?>(null) }
+        LaunchedEffect(corner) {
+            if (corner == null) return@LaunchedEffect
+            delay(CORNER_LINE_MS)
+            corner = null
+        }
+        var coveredNanos by remember { mutableLongStateOf(0L) }
+        val dodgedBefore = remember { dodgedBeforeMs }
+        val dodgedMinutes by remember { derivedStateOf { (dodgedBefore + coveredNanos / 1_000_000) / 60_000 } }
+        val currentOnCovered by rememberUpdatedState(onCovered)
+        DisposableEffect(Unit) { onDispose { currentOnCovered(coveredNanos / 1_000_000) } }
         LaunchedEffect(area, unit) {
             if (unit == IntSize.Zero) return@LaunchedEffect
             val roomX = (area.width - unit.width).toFloat()
@@ -139,21 +210,28 @@ internal fun BreakScreen(modifier: Modifier = Modifier, remainingMs: (() -> Long
             var last = 0L
             while (true) {
                 val hit = withFrameNanos { now ->
-                    // A long gap (the app in the background) moves the mark no more than one frame's worth.
-                    val seconds = if (last == 0L) 0f else ((now - last) / 1e9f).coerceAtMost(MAX_FRAME_SECONDS)
+                    val gap = if (last == 0L) 0L else now - last
                     last = now
+                    // A long gap (the app in the background) moves the mark no more than one frame's worth, and does
+                    // not count as covered.
+                    if (gap < MAX_COVERED_GAP_NANOS) coveredNanos += gap
+                    val seconds = (gap / 1e9f).coerceAtMost(MAX_FRAME_SECONDS)
                     val (next, hit) = bounce.step(speedPxPerSecond * seconds, roomX, roomY, cornerSlop)
                     bounce = next
                     hit
                 }
                 if (hit != BounceHit.NONE) tint = bounce.tint
-                if (hit == BounceHit.CORNER) launch {
-                    pop.snapTo(CORNER_POP)
-                    pop.animateTo(1f, tween(CORNER_POP_MS))
+                if (hit == BounceHit.CORNER) {
+                    launch {
+                        pop.snapTo(CORNER_POP)
+                        pop.animateTo(1f, tween(CORNER_POP_MS))
+                    }
+                    corner = ++BreakTally.corners
                 }
             }
         }
         val filter = remember(tint) { if (tint == 0) null else ColorFilter.colorMatrix(hueRotation(BOUNCE_HUES[tint])) }
+        val lineWidth = Modifier.widthIn(max = logoSize * 2.5f)
         Column(
             modifier = Modifier
                 .offset { IntOffset(bounce.x.roundToInt(), bounce.y.roundToInt()) }
@@ -165,7 +243,7 @@ internal fun BreakScreen(modifier: Modifier = Modifier, remainingMs: (() -> Long
                     scaleY = pop.value
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Image(painterResource(Res.drawable.banner_logo), contentDescription = null, colorFilter = filter, modifier = Modifier.size(logoSize))
             val left = remainingMs?.invoke()
@@ -173,7 +251,36 @@ internal fun BreakScreen(modifier: Modifier = Modifier, remainingMs: (() -> Long
                 if (left != null) stringResource(Res.string.break_screen_back_in, formatPlayTime(left)) else label,
                 style = MaterialTheme.typography.titleMedium,
                 color = SofaMauve,
+                modifier = Modifier.padding(top = 4.dp),
             )
+            val cornerNumber = corner
+            Text(
+                when {
+                    cornerNumber == 1 -> stringResource(Res.string.break_corner_first)
+                    cornerNumber != null -> stringResource(Res.string.break_corner_again, cornerNumber)
+                    left == null -> stringResource(Res.string.break_quip_unknown)
+                    left <= ALMOST_BACK_MS -> stringResource(Res.string.break_quip_almost)
+                    else -> stringResource(BREAK_QUIPS[quip])
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                color = SofaMauve,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                modifier = lineWidth,
+            )
+            val faint = SofaMauve.copy(alpha = 0.7f)
+            if (upNext != null) {
+                Text(upNext, style = MaterialTheme.typography.bodySmall, color = faint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = lineWidth)
+            }
+            if (dodgedMinutes > 0) {
+                Text(
+                    stringResource(Res.string.break_ads_dodged, dodgedMinutes.minutes.hoursAndMinutes()),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = faint,
+                    maxLines = 1,
+                    modifier = lineWidth,
+                )
+            }
         }
     }
 }
@@ -185,3 +292,9 @@ private val CORNER_SLOP = 6.dp
 private const val MAX_FRAME_SECONDS = 0.05f
 private const val CORNER_POP = 1.25f
 private const val CORNER_POP_MS = 600
+/** How long a corner's line shows. */
+private const val CORNER_LINE_MS = 4_000L
+/** A frame gap longer than this was the app away, not the screen up. */
+private const val MAX_COVERED_GAP_NANOS = 1_000_000_000L
+/** The last stretch of a break, when the line tells everyone to get back on the sofa. */
+private const val ALMOST_BACK_MS = 10_000L

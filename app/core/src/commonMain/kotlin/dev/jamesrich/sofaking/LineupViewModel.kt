@@ -473,6 +473,11 @@ class LineupViewModel(
         save { store.setLiveBreaks(mode) }
     }
 
+    /** Counts [ms] more of ads the break screen covered on [day], a local date as `2026-10-22`. */
+    fun addAdsDodged(day: String, ms: Long) {
+        if (ms > 0) save { store.addAdsDodged(day, ms) }
+    }
+
     /** Keeps the tracks picked in the show [showId] for its next episodes. */
     fun setTrackChoice(showId: String, choice: TrackChoice) {
         save { store.setTrackChoice(showId, choice) }

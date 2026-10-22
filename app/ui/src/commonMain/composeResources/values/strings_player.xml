@@ -84,4 +84,20 @@
     <string name="vod_up_next_keys">OK plays it now, Back returns</string>
     <string name="break_screen_title">Commercial break</string>
     <string name="break_screen_back_in">Back in %1$s</string>
+    <string name="break_quip_throne">Hold the throne.</string>
+    <string name="break_quip_realm">The realm can wait.</string>
+    <string name="break_quip_adjust">Do not adjust your sofa.</string>
+    <string name="break_quip_snacks">Snack window open.</string>
+    <string name="break_quip_castle">Your show is in another castle.</string>
+    <string name="break_quip_cushion">Cushioning you from the ads.</string>
+    <string name="break_quip_stretch">Stretch your legs, Your Majesty.</string>
+    <string name="break_quip_patient">Sofa King patient.</string>
+    <string name="break_quip_pillows">Pillow fights permitted.</string>
+    <string name="break_quip_recline">Recline. Unwind. Repeat.</string>
+    <string name="break_quip_unknown">Nobody told us how long. Rude.</string>
+    <string name="break_quip_almost">Places, everyone. Feet up.</string>
+    <string name="break_corner_first">Corner! You saw it. Nobody will believe you.</string>
+    <string name="break_corner_again">Corner number %1$d. Sofa King lucky.</string>
+    <string name="break_up_next">Up next: %1$s at %2$s</string>
+    <string name="break_ads_dodged">Ads dodged today: %1$s</string>
 </resources>

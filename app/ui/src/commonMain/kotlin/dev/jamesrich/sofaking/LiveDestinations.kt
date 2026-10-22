@@ -20,6 +20,7 @@ import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.localDay
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.ZapScope
@@ -152,6 +153,8 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         zoom = shell.videoZoom,
         onZoom = { shell.videoZoom = it },
         liveBreaks = settings?.liveBreaks ?: LiveBreaks.PLAY,
+        adsDodgedTodayMs = settings?.adsDodged?.on(localDay()) ?: 0,
+        onAdsDodged = { vm.addAdsDodged(localDay(), it) },
     )
 }
 

@@ -64,7 +64,9 @@ import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.captionEngineName
+import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.localDay
 import dev.jamesrich.sofaking.ui.pageServerUrl
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 import dev.jamesrich.sofaking.ui.player.captionTimingText
@@ -79,6 +81,8 @@ import dev.jamesrich.sofaking.ui.updateDownloadUrl
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -419,7 +423,11 @@ fun SettingsScreen(
         item {
             ChoiceRow(
                 label = stringResource(Res.string.settings_live_breaks),
-                help = stringResource(Res.string.settings_live_breaks_help),
+                help = listOfNotNull(
+                    stringResource(Res.string.settings_live_breaks_help),
+                    settings.adsDodged.on(localDay()).milliseconds.takeIf { it >= 1.minutes }
+                        ?.let { stringResource(Res.string.settings_ads_dodged, it.hoursAndMinutes()) },
+                ).joinToString(" "),
                 choices = LiveBreaks.entries,
                 selected = liveBreaks,
                 choiceLabel = {

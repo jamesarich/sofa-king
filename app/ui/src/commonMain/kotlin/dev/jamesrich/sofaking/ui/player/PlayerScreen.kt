@@ -198,12 +198,15 @@ fun PlayerScreen(
         var lastFound: AdBreakNow? = null
         while (true) {
             var wait = if (player.readsAdMarks) AD_BREAK_POLL_MS else AD_BREAK_ASK_MS
+            // With nothing loaded past the picture the picture is stalled, and the server can't place it.
+            val ahead = if (player.readsAdMarks) null else player.loadedAheadMs
+            val stalled = !player.readsAdMarks && ahead == null
             val found = if (player.readsAdMarks) {
                 player.adBreak()
             } else {
-                player.loadedAheadMs?.let { ahead ->
+                ahead?.let { loaded ->
                     try {
-                        sessions.adBreak(ahead)
+                        sessions.adBreak(loaded)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -214,8 +217,10 @@ fun PlayerScreen(
                     }
                 }
             }
-            val shown = watch.shown(found)
-            if (found == null && shown != null && lastFound != null) log.d { "ad break: reading lost it, holding ${shown.remainingMs ?: "?"} ms" }
+            val shown = if (stalled) watch.stalled() else watch.shown(found)
+            if (found == null && shown != null && lastFound != null) {
+                log.d { "ad break: ${if (stalled) "picture stalled" else "reading lost it"}, holding ${shown.remainingMs ?: "?"} ms" }
+            }
             lastFound = found
             inAdBreak = shown != null
             adBreakLeftMs = shown?.remainingMs

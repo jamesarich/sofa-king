@@ -773,8 +773,7 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit, keepInView
                     }
                 }
             }
-            // Stays enabled while it runs, since a disabled button drops focus to another row; the press is ignored.
-            SofaButton(onClick = { if (update != UpdateState.Checking) onCheckAgain() }) { Text(stringResource(Res.string.settings_update_check)) }
+            SofaButton(onClick = onCheckAgain, enabled = update != UpdateState.Checking) { Text(stringResource(Res.string.settings_update_check)) }
         }
         when {
             address != null -> HelpText(stringResource(Res.string.settings_update_address, address!!))

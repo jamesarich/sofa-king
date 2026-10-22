@@ -177,11 +177,11 @@ https://xumo-xumoent-ch827-uj0ch.fast.nbcuni.com/live/master_6/00350/master_6_04
 #EXT-X-DISCONTINUITY
 #EXT-X-ASSET:CAID=0x544D4E6F74696369617341686F72615F
 #EXTINF:2.0,
-../../../../segment/ba62fe743df0fe93366eba3a257d792884136c7f/prod_default_xumo-nbcu-linear/a70a6d64-59d0-4521-8a5c-8cce516ee827/5/3504695
+../../../../segment/0123456789abcdef0123456789abcdef01234567/prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5/3504695
 #EXTINF:2.0,
-../../../../segment/ba62fe743df0fe93366eba3a257d792884136c7f/prod_default_xumo-nbcu-linear/a70a6d64-59d0-4521-8a5c-8cce516ee827/5/3504696
+../../../../segment/0123456789abcdef0123456789abcdef01234567/prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5/3504696
 """
-        val xumoBase = URI("https://d4whmvwm0rdvi.cloudfront.net/v1/manifest/ba62fe743df0fe93366eba3a257d792884136c7f/prod_default_xumo-nbcu-linear/a70a6d64-59d0-4521-8a5c-8cce516ee827/5.m3u8")
+        val xumoBase = URI("https://d1example.cloudfront.net/v1/manifest/0123456789abcdef0123456789abcdef01234567/prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5.m3u8")
         assertEquals(listOf(false, false, true, true), ads(xumo, xumoBase))
         val plex = """#EXTM3U
 #EXT-X-MEDIA-SEQUENCE:419891
@@ -191,11 +191,11 @@ https://linear-850.frequency.stream/mt/plex/850/hls/master/playlist_384x216_1541
 https://epg.provider.plex.tv/library/parts/6a1610be-66635fc0/segment?x-plex-client-identifier=x
 #EXT-X-DISCONTINUITY
 #EXTINF:2.002,
-https://eae8c080c7094f6297eb29810ab35d7a.mediatailor.us-west-2.amazonaws.com/v1/segment/ba62fe743df0fe93366eba3a257d792884136c7f/LINEAR-850-CWFOREVER-PLEX_US/3b43ed32-e8fa-4861-ab1b-fd4941e13e18/4/419893
+https://0123456789abcdef0123456789abcdef.mediatailor.us-west-2.amazonaws.com/v1/segment/0123456789abcdef0123456789abcdef01234567/LINEAR-850-CWFOREVER-PLEX_US/00000000-0000-4000-8000-000000000002/4/419893
 #EXTINF:2.002,
 https://epg.provider.plex.tv/library/parts/6a1610be-66635fc0/segment?x-plex-client-identifier=x
 #EXTINF:2.002,
-https://eae8c080c7094f6297eb29810ab35d7a.mediatailor.us-west-2.amazonaws.com/v1/segment/ba62fe743df0fe93366eba3a257d792884136c7f/LINEAR-850-CWFOREVER-PLEX_US/3b43ed32-e8fa-4861-ab1b-fd4941e13e18/4/419895
+https://0123456789abcdef0123456789abcdef.mediatailor.us-west-2.amazonaws.com/v1/segment/0123456789abcdef0123456789abcdef01234567/LINEAR-850-CWFOREVER-PLEX_US/00000000-0000-4000-8000-000000000002/4/419895
 """
         // Plex's own part segment between two stitched ones is part of the break.
         assertEquals(listOf(false, false, true, true, true), ads(plex, URI("https://epg.provider.plex.tv/library/parts/6a1610be-66635fc0/index.m3u8")))

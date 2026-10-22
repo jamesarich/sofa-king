@@ -36,3 +36,9 @@ import kotlinx.serialization.Serializable
 @Serializable data class PlaybackDescriptor(val protocol: String, val mimeType: String, val url: String, val epoch: Int)
 /** [providerId] names the source the server picked for the session, for the app's stream card; older servers leave it empty. */
 @Serializable data class PlaybackSession(val id: String, val channelId: String, val intent: String, val expiresAt: String = "", val descriptor: PlaybackDescriptor, val providerId: String = "")
+/**
+ * Whether the session's player shows an ad, for a player that cannot read the playlist's [AdRun] marks: the server
+ * places the picture from the last segment the player fetched and how far it has loaded ahead. [remainingMs] is how
+ * long the break has left, when the playlist says.
+ */
+@Serializable data class AdBreakState(val inBreak: Boolean = false, val remainingMs: Long? = null)

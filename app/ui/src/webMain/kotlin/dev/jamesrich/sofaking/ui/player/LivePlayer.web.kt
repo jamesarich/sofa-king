@@ -202,6 +202,18 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
 
     override val positionMs: Long get() = if (isSeekable) (video.currentTime * 1000).toLong().coerceAtLeast(0L) else 0L
 
+    /** The end of the buffered range the picture is in, less the picture's time. */
+    override val loadedAheadMs: Long?
+        get() {
+            if (stream?.seekable != false || !loaded) return null
+            val now = video.currentTime
+            val buffered = video.buffered
+            for (i in 0 until buffered.length) {
+                if (now >= buffered.start(i) && now <= buffered.end(i)) return ((buffered.end(i) - now) * 1000).toLong().coerceAtLeast(0L)
+            }
+            return null
+        }
+
     /** A finished file reports its duration; a growing recording reports Infinity, so its seekable end stands in. */
     override val durationMs: Long?
         get() {

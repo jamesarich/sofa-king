@@ -86,8 +86,11 @@ private const val SWIPE_UP_DP = 80
 internal const val CHANNEL_NOT_FOUND = Wire.ErrorCode.CHANNEL_NOT_FOUND
 /** How long the player waits for the lineup it asked for to catch up with the one it holds. */
 private const val LINEUP_SYNC_MS = 2_000L
-/** How often the player asks whether an ad is playing; a break is several segments of a few seconds each. */
+/** How often the player looks for an ad in its own playlist; a break is several segments of a few seconds each. */
 private const val AD_BREAK_POLL_MS = 500L
+/** How often an engine that cannot read the playlist asks the server instead, and how long it waits after a failed ask. */
+private const val AD_BREAK_ASK_MS = 1_000L
+private const val AD_BREAK_RETRY_MS = 15_000L
 private val log = Logger.withTag("SofaKing")
 
 /** How long a zap rests before the new channel is tuned, so pressing through channels does not open a session per press. */
@@ -180,7 +183,8 @@ fun PlayerScreen(
     val tuneJob = remember { TuneJob() }
 
     // The server marks the ad segments of a streaming channel's playlist; while Settings asks, the break screen covers
-    // them. OK or Back shows the picture again until that break is over.
+    // them. Media3 reads the marks itself; the other engines ask the server, which knows the segments they fetched.
+    // OK or Back shows the picture again until that break is over.
     var inAdBreak by remember { mutableStateOf(false) }
     var adBreakLeftMs by remember { mutableStateOf<Long?>(null) }
     var adBreakDismissed by remember { mutableStateOf(false) }
@@ -189,11 +193,27 @@ fun PlayerScreen(
         adBreakDismissed = false
         if (!liveBreaks.covers) return@LaunchedEffect
         while (true) {
-            val found = player.adBreak()
+            var wait = if (player.readsAdMarks) AD_BREAK_POLL_MS else AD_BREAK_ASK_MS
+            val found = if (player.readsAdMarks) {
+                player.adBreak()
+            } else {
+                player.loadedAheadMs?.let { ahead ->
+                    try {
+                        sessions.adBreak(ahead)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // A server from before the break screen, or one between sessions: ask again in a while.
+                        log.d { "ad break: ask failed: ${e.message}" }
+                        wait = AD_BREAK_RETRY_MS
+                        null
+                    }
+                }
+            }
             inAdBreak = found != null
             adBreakLeftMs = found?.remainingMs
             if (found == null) adBreakDismissed = false
-            delay(AD_BREAK_POLL_MS)
+            delay(wait)
         }
     }
     val breakScreen = inAdBreak && !adBreakDismissed && state.failure == null && !inPictureInPicture

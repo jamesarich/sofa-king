@@ -7,7 +7,8 @@ import SofaKingCore
 /// Menu dismisses it; leaving releases the session, and backgrounding releases it until the app returns.
 /// A stream that fails or stalls is reopened through the same session after a growing pause, as the Compose app does.
 /// The transport bar's menu records the program on now, stars the channel and switches to another: recent, favorites
-/// or any channel.
+/// or any channel. With Settings › During ads on a logo, the break screen covers the ads a streaming channel marks, as
+/// the server places them from the segments AVPlayer fetched; Show picture over it brings the picture back for that break.
 struct PlayerView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
@@ -20,6 +21,10 @@ struct PlayerView: View {
     @State private var attempts = 0
     /// False once the player has left: a tune or reconnect still running then must not play or open anything.
     @State private var shown = false
+    /// The ad break playing now, as the server last said; nil outside one.
+    @State private var adBreak: AdBreakNow?
+    /// Show picture was chosen during this break; cleared once it ends.
+    @State private var breakDismissed = false
 
     init(channel: Channel) {
         _channel = State(initialValue: channel)
@@ -27,12 +32,14 @@ struct PlayerView: View {
 
     var body: some View {
         ZStack {
-            PlayerController(player: player, menuItems: menuItems).ignoresSafeArea()
+            PlayerController(player: player, menuItems: menuItems, actions: breakActions, breakScreen: breakScreen).ignoresSafeArea()
             if let failure {
                 Text(failure).padding().background(.thinMaterial, in: .rect(cornerRadius: 16))
             }
         }
         .task { await tune() }
+        .task(id: "\(channel.guideId) \(liveBreaks.name)") { await watchAdBreaks() }
+        .onChange(of: breakScreen != nil) { _, _ in applyBreakSound() }
         .onAppear {
             shown = true
             replaced = model.core.watchReplaced { stream in play(stream) }
@@ -65,6 +72,59 @@ struct PlayerView: View {
             model.requestedChannel = nil
             switchTo(next)
         }
+    }
+
+    private var liveBreaks: LiveBreaks { model.settings?.liveBreaks ?? .play }
+
+    /// The break screen to draw over the picture now, or nil.
+    private var breakScreen: BreakScreen? {
+        guard let adBreak, !breakDismissed, failure == nil else { return nil }
+        return BreakScreen(remainingMs: adBreak.remainingMs?.int64Value)
+    }
+
+    /// Show picture while the break screen is up, which the system shows over it as it does Skip intro.
+    private var breakActions: [UIAction] {
+        guard breakScreen != nil else { return [] }
+        return [UIAction(title: "Show picture", image: UIImage(systemName: "eye")) { _ in breakDismissed = true }]
+    }
+
+    /// Asks the server every second whether an ad is playing, while Settings covers them.
+    private func watchAdBreaks() async {
+        adBreak = nil
+        breakDismissed = false
+        guard liveBreaks.covers else { return }
+        while !Task.isCancelled {
+            var wait: Duration = .seconds(1)
+            if let ahead = loadedAheadMs() {
+                do {
+                    adBreak = try await model.core.adBreak(aheadMs: ahead)
+                } catch {
+                    // A server from before the break screen: ask again in a while.
+                    adBreak = nil
+                    wait = .seconds(15)
+                }
+            } else {
+                adBreak = nil
+            }
+            if adBreak == nil { breakDismissed = false }
+            try? await Task.sleep(for: wait)
+        }
+    }
+
+    /// The end of the loaded range the picture is in, less the picture's time: what AVPlayer has loaded past it.
+    private func loadedAheadMs() -> Int64? {
+        guard let item = player.currentItem else { return nil }
+        let now = player.currentTime().seconds
+        guard now.isFinite else { return nil }
+        for value in item.loadedTimeRanges {
+            let range = value.timeRangeValue
+            if now >= range.start.seconds && now <= range.end.seconds { return Int64((range.end.seconds - now) * 1000) }
+        }
+        return nil
+    }
+
+    private func applyBreakSound() {
+        player.isMuted = breakScreen != nil && liveBreaks.muted
     }
 
     /// The transport bar's custom items: Record, the favorite toggle and the channel list, grouped as the guide's chips are.
@@ -173,19 +233,37 @@ struct PlayerView: View {
     }
 }
 
-/// The system player UI, which handles the Siri Remote's play, pause and Menu, with the app's items in its transport bar.
+/// The system player UI, which handles the Siri Remote's play, pause and Menu, with the app's items in its transport bar,
+/// Show picture over the picture, and the break screen between the picture and the system's controls.
 private struct PlayerController: UIViewControllerRepresentable {
     let player: AVPlayer
     let menuItems: [UIMenuElement]
+    let actions: [UIAction]
+    let breakScreen: BreakScreen?
+
+    func makeCoordinator() -> UIHostingController<BreakScreen?> {
+        let hosting = UIHostingController<BreakScreen?>(rootView: nil)
+        hosting.view.backgroundColor = .clear
+        hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        return hosting
+    }
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.transportBarCustomMenuItems = menuItems
+        controller.contextualActions = actions
+        if let overlay = controller.contentOverlayView {
+            context.coordinator.view.frame = overlay.bounds
+            overlay.addSubview(context.coordinator.view)
+        }
+        context.coordinator.rootView = breakScreen
         return controller
     }
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
         controller.transportBarCustomMenuItems = menuItems
+        controller.contextualActions = actions
+        context.coordinator.rootView = breakScreen
     }
 }

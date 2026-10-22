@@ -123,8 +123,6 @@ internal actual val supportsPlaybackPreferences: Boolean = true
 
 internal actual val supportsCaptionSync: Boolean = true
 
-internal actual val supportsLiveBreaks: Boolean = true
-
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = MatchExoDisplayFrameRate(player, enabled)
 

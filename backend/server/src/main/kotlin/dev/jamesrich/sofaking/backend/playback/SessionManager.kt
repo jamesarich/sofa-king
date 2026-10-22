@@ -34,6 +34,8 @@ internal class LiveSession(
     /** Token to URL for every mapped resource; playlists are pinned, segments and keys share a 4,096-entry LRU. */
     val resources = ResourceMap()
     val requests = mutableSetOf<Job>()
+    /** The app's own sessions mark the ads in their playlists and say where the player is among them; players outside the app get the source's playlists as they are. */
+    val ads: AdClock? = if (external) null else AdClock()
     fun resource(url: String, suffix: String? = null): String {
         resources.tokenFor(url)?.let { return it }
         return resourceToken(url, suffix).also { resources.put(it, url, pinned = it.endsWith(".m3u8") || url == offering.url) }
@@ -75,10 +77,10 @@ internal class ResourceMap(private val segmentLimit: Int = 4096) {
 
 /**
  * [shared] marks the live MPEG-TS root, which one upstream connection fans out to every session on the source;
- * [bytes] counts what the relay sends the player on this session. [adMarks] is true for the app's own sessions, whose
- * playlists carry the ad runs the server finds (see [AdBreaks]); players outside the app get the source's as it is.
+ * [bytes] counts what the relay sends the player on this session. [ads] is the session's [AdClock], which marks the
+ * playlists and notes the segments fetched, on the app's own sessions only.
  */
-data class MediaResource(val offering: Offering, val url: String, val shared: Boolean = false, val bytes: AtomicLong = AtomicLong(), val adMarks: Boolean = false)
+data class MediaResource(val offering: Offering, val url: String, val shared: Boolean = false, val bytes: AtomicLong = AtomicLong(), val ads: AdClock? = null)
 
 class SessionManager(private val catalog: CatalogService, private val store: BackendStore, private val clock: Clock, capacity: Int = 4) {
     /** How many sessions may be open at once; the runtime settings change it without a restart. */
@@ -175,6 +177,8 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     /** Leases outlast the app's 15-second renewal several times over; abandoned previews free their slot sooner. */
     private fun lease(intent: String): Duration = if (intent == Wire.Intent.WATCH) Duration.ofSeconds(90) else Duration.ofSeconds(45)
     /** Ends the session; true when it was open. */
+    /** Where the session's player is among the ads, given [aheadMs] of media it has loaded past the picture. */
+    suspend fun adBreak(id: String, aheadMs: Long): AdBreakState = mutex.withLock { active(id) }.ads?.at(aheadMs) ?: AdBreakState()
     suspend fun release(id: String): Boolean = mutex.withLock { sessions.remove(id)?.cancel() != null }
     suspend fun healthChanged(offeringId: String) = mutex.withLock {
         if (store.health(offeringId)?.let(::eligible) != true) {
@@ -213,7 +217,7 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         if (session.requests.size >= 12) throw ApiFailure(429, Wire.ErrorCode.CAPACITY_EXHAUSTED, "Too many media requests", true)
         session.requests += job
         if (session.external) session.expires = clock.instant().plus(EXTERNAL_IDLE)
-        MediaResource(session.offering, url, shared, session.bytes, adMarks = !session.external)
+        MediaResource(session.offering, url, shared, session.bytes, session.ads)
     }
     suspend fun finished(id: String, job: Job) = mutex.withLock {
         sessions[id]?.let { session ->

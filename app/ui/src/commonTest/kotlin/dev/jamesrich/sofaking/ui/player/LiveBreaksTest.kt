@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.data.AdBreakNow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

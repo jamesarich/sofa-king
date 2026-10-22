@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking
 
+import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.Channel
@@ -7,6 +8,7 @@ import dev.jamesrich.sofaking.data.DataStoreSettingsStore
 import dev.jamesrich.sofaking.data.DvrRecording
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LibrarySort
+import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackIntent
@@ -262,6 +264,18 @@ class SofaKingTv {
     fun setSkipCommercials(enabled: Boolean) {
         viewModel.setSkipCommercials(enabled)
     }
+
+    /** Whether the break screen covers the ads a streaming channel marks, and whether their sound plays under it. */
+    fun setLiveBreaks(mode: LiveBreaks) {
+        viewModel.setLiveBreaks(mode)
+    }
+
+    /**
+     * The ad break the player shows, as the server places it from the segments AVPlayer fetched and [aheadMs], what it
+     * has loaded past the picture; null outside one.
+     */
+    @Throws(Exception::class)
+    suspend fun adBreak(aheadMs: Long): AdBreakNow? = viewModel.sessions.adBreak(aheadMs)
 
     /** Remembers [tab] as the one the app was last on, which the next start reopens. */
     fun setLastTab(tab: TopLevelTab) {

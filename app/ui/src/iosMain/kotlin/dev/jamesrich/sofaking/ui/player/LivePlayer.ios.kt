@@ -60,6 +60,7 @@ import platform.AVFoundation.currentTime
 import platform.AVFoundation.duration
 import platform.AVFoundation.seekToTime
 import platform.AVFoundation.seekableTimeRanges
+import platform.AVFoundation.loadedTimeRanges
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMakeWithSeconds
 import platform.Foundation.NSValue
@@ -255,6 +256,21 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
                     start.value.toDouble() / start.timescale + duration.value.toDouble() / duration.timescale
                 }?.takeIf { it.isFinite() && it > 0 }
             return seconds?.let { (it * 1000).toLong() }
+        }
+
+    /** The end of the loaded range the picture is in, less the picture's time. */
+    override val loadedAheadMs: Long?
+        get() {
+            if (stream?.seekable != false) return null
+            val item = av.currentItem ?: return null
+            val now = CMTimeGetSeconds(av.currentTime()).takeIf { it.isFinite() } ?: return null
+            val end = item.loadedTimeRanges.mapNotNull { range ->
+                (range as? NSValue)?.CMTimeRangeValue?.useContents {
+                    val from = start.value.toDouble() / start.timescale
+                    from to from + duration.value.toDouble() / duration.timescale
+                }
+            }.firstOrNull { (from, to) -> now >= from && now <= to }?.second ?: return null
+            return ((end - now) * 1000).toLong().coerceAtLeast(0L)
         }
 
     override fun seekTo(positionMs: Long) {

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.data.AdBreakNow
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.compose.runtime.Composable
@@ -214,6 +215,8 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     override val positionMs: Long get() = if (isSeekable) exo.currentPosition.coerceAtLeast(0L) else 0L
 
     override val durationMs: Long? get() = exo.duration.takeIf { isSeekable && it != C.TIME_UNSET }
+
+    override val readsAdMarks: Boolean get() = true
 
     /** The live window counts from its playlist's first segment, which is where the segments' start times count from too. */
     override fun adBreak(): AdBreakNow? {

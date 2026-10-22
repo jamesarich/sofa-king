@@ -224,6 +224,10 @@ fun Application.backendModule(
             post("/api/v1/playback-sessions") { call.respond(HttpStatusCode.Created, runtime.sessions.open(call.appBody<OpenPlayback>(), call.request.origin.remoteAddress)) }
             get("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.get(call.parameters["id"]!!)) }
             patch("/api/v1/playback-sessions/{id}") { call.respond(runtime.sessions.update(call.parameters["id"]!!, call.appBody<UpdatePlayback>())) }
+            get("/api/v1/playback-sessions/{id}/ad-break") {
+                val ahead = call.request.queryParameters["aheadMs"]?.let { it.toLongOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid aheadMs") } ?: 0L
+                call.respond(runtime.sessions.adBreak(call.parameters["id"]!!, ahead))
+            }
             delete("/api/v1/playback-sessions/{id}") { runtime.sessions.release(call.parameters["id"]!!); call.respond(HttpStatusCode.NoContent) }
             get("/media/sessions/{id}/{epoch}/{token}") {
                 val epoch = call.parameters["epoch"]?.toIntOrNull() ?: throw ApiFailure(400, "INVALID_REQUEST", "Invalid stream epoch")

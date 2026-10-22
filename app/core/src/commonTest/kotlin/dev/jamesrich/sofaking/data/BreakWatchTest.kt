@@ -33,6 +33,44 @@ class BreakWatchTest {
     }
 
     @Test
+    fun `a stalled picture keeps a break with no known end up past the gap`() {
+        val time = TestTimeSource()
+        val watch = BreakWatch(time)
+        watch.shown(AdBreakNow(remainingMs = null))
+        time += 10.seconds
+        assertEquals(AdBreakNow(remainingMs = null), watch.stalled())
+        time += 20.seconds
+        assertEquals(AdBreakNow(remainingMs = null), watch.stalled())
+        assertFalse(watch.over)
+        time += 10.seconds
+        assertEquals(AdBreakNow(remainingMs = null), watch.shown(null))
+        time += BreakWatch.GAP
+        assertNull(watch.shown(null))
+    }
+
+    @Test
+    fun `a stalled picture stops the countdown`() {
+        val time = TestTimeSource()
+        val watch = BreakWatch(time)
+        watch.shown(AdBreakNow(remainingMs = 10_000))
+        time += 4.seconds
+        assertEquals(AdBreakNow(remainingMs = 6_000), watch.stalled())
+        time += 30.seconds
+        assertEquals(AdBreakNow(remainingMs = 6_000), watch.stalled())
+        assertEquals(AdBreakNow(remainingMs = 6_000), watch.shown(null))
+        time += 2.seconds
+        assertEquals(AdBreakNow(remainingMs = 4_000), watch.shown(null))
+    }
+
+    @Test
+    fun `a stall outside a break shows nothing`() {
+        val time = TestTimeSource()
+        val watch = BreakWatch(time)
+        assertNull(watch.stalled())
+        assertTrue(watch.over)
+    }
+
+    @Test
     fun `a break that ends on time is gone at once but over only after the gap`() {
         val time = TestTimeSource()
         val watch = BreakWatch(time)

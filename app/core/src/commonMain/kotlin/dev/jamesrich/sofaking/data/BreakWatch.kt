@@ -17,11 +17,22 @@ class BreakWatch internal constructor(private val timeSource: TimeSource) {
 
     private var seen: TimeMark? = null
     private var ends: TimeMark? = null
+    private var stalling = false
+    private var frozen: AdBreakNow? = null
 
-    val over: Boolean get() = seen.let { it == null || it.elapsedNow() >= GAP }
+    val over: Boolean get() = if (stalling && frozen != null) false else seen.let { it == null || it.elapsedNow() >= GAP }
 
     /** The break to show after [found], the latest reading, or null when there is none. */
     fun shown(found: AdBreakNow?): AdBreakNow? {
+        if (stalling) {
+            // The picture moves again: the held break's countdown and gap go on from where the stall stopped them.
+            stalling = false
+            frozen?.let { held ->
+                seen = timeSource.markNow()
+                ends = held.remainingMs?.let { timeSource.markNow() + it.milliseconds }
+            }
+            frozen = null
+        }
         if (found != null) {
             seen = timeSource.markNow()
             ends = found.remainingMs?.let { timeSource.markNow() + it.milliseconds }
@@ -34,6 +45,19 @@ class BreakWatch internal constructor(private val timeSource: TimeSource) {
         }
         val ends = ends ?: return AdBreakNow(remainingMs = null)
         return (-ends.elapsedNow()).inWholeMilliseconds.takeIf { it > 0 }?.let { AdBreakNow(it) }
+    }
+
+    /**
+     * The break to show while the player has no reading because its picture is stalled (its buffer ran dry): the
+     * picture does not move, so the break on screen stays as it is, its countdown and its gap stopped until readings
+     * come back.
+     */
+    fun stalled(): AdBreakNow? {
+        if (!stalling) {
+            frozen = shown(null)
+            stalling = true
+        }
+        return frozen
     }
 
     companion object {

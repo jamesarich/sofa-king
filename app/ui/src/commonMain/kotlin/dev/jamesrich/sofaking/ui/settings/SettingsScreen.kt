@@ -28,6 +28,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +36,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalUriHandler
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.ExperimentalResourceApi
@@ -81,6 +83,7 @@ import dev.jamesrich.sofaking.ui.updateDownloadUrl
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import org.jetbrains.compose.resources.pluralStringResource
@@ -635,7 +638,17 @@ fun SettingsScreen(
             val version = BuildInfo.VERSION + suffix.orEmpty()
             // The suffix file is read before the check, so a snapshot compares as one.
             LaunchedEffect(suffix) { if (suffix != null) actions.onCheckForUpdate(version, false) }
-            Column(Modifier.width(FIELD_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // The last buttons on the page sit above the TMDB notice, and a TV scrolls only as far as the focused
+            // button, so focus anywhere in About brings the whole block, down to the page's last line, into view.
+            val about = remember { BringIntoViewRequester() }
+            val scope = rememberCoroutineScope()
+            Column(
+                Modifier
+                    .width(FIELD_WIDTH)
+                    .bringIntoViewRequester(about)
+                    .onFocusChanged { if (it.hasFocus) scope.launch { about.bringIntoView() } },
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text(
                     listOf(
                         stringResource(Res.string.app_name),
@@ -645,7 +658,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                UpdateRow(update = update, onCheckAgain = { actions.onCheckForUpdate(version, true) })
+                UpdateRow(update = update, onCheckAgain = { actions.onCheckForUpdate(version, true) }, keepInView = about)
                 // TMDB's terms ask apps that show its data to say so.
                 Text(
                     stringResource(Res.string.settings_tmdb_notice),
@@ -720,7 +733,7 @@ private fun versionSuffix(): String? {
  * package or the release page; where neither can open, the address is shown to type.
  */
 @Composable
-private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
+private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit, keepInView: BringIntoViewRequester) {
     val uriHandler = LocalUriHandler.current
     var address by remember { mutableStateOf<String?>(null) }
     val installer = rememberUpdateInstaller()
@@ -732,10 +745,9 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
         else -> null
     }
     val downloadUrl = latest?.let(::updateDownloadUrl)
-    // The status grows above the focused button, so the list is scrolled to keep the whole row in view as it changes.
-    val requester = remember { BringIntoViewRequester() }
-    LaunchedEffect(install) { if (install != null && install != InstallState.Idle) requester.bringIntoView() }
-    Column(Modifier.bringIntoViewRequester(requester), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // The status grows above the focused button, so the list is scrolled to keep the whole block in view as it changes.
+    LaunchedEffect(install) { if (install != null && install != InstallState.Idle) keepInView.bringIntoView() }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             when (update) {
                 null, UpdateState.Checking -> stringResource(Res.string.settings_update_checking)
@@ -761,7 +773,8 @@ private fun UpdateRow(update: UpdateState?, onCheckAgain: () -> Unit) {
                     }
                 }
             }
-            SofaButton(onClick = onCheckAgain, enabled = update != UpdateState.Checking) { Text(stringResource(Res.string.settings_update_check)) }
+            // Stays enabled while it runs, since a disabled button drops focus to another row; the press is ignored.
+            SofaButton(onClick = { if (update != UpdateState.Checking) onCheckAgain() }) { Text(stringResource(Res.string.settings_update_check)) }
         }
         when {
             address != null -> HelpText(stringResource(Res.string.settings_update_address, address!!))

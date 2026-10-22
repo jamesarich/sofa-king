@@ -155,6 +155,14 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `live ad breaks play until the break screen is chosen`() = runTest {
+        val store = newStore()
+        assertEquals(LiveBreaks.PLAY, store.settings.first().liveBreaks)
+        store.setLiveBreaks(LiveBreaks.SCREEN_MUTED)
+        assertEquals(LiveBreaks.SCREEN_MUTED, store.settings.first().liveBreaks)
+    }
+
+    @Test
     fun `the tracks picked in a show are kept per show and the newest pick replaces the last`() = runTest {
         val store = newStore()
         assertTrue(store.settings.first().trackChoices.isEmpty())

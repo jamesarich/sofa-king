@@ -10,6 +10,7 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.RecordingMarks
@@ -150,6 +151,7 @@ internal fun PlayerDestination(route: Route.Player, shell: AppShellState, vm: Li
         onRecord = vm.recordings::toggle,
         zoom = shell.videoZoom,
         onZoom = { shell.videoZoom = it },
+        liveBreaks = settings?.liveBreaks ?: LiveBreaks.PLAY,
     )
 }
 

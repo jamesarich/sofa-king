@@ -79,6 +79,8 @@ internal actual val supportsPlaybackPreferences: Boolean = false
 
 internal actual val supportsCaptionSync: Boolean = false
 
+internal actual val supportsLiveBreaks: Boolean = false
+
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit
 

@@ -21,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -40,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.ui.KeepScreenOn
 import dev.jamesrich.sofaking.ui.formatTemplate
+import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.isLongPress
 import dev.jamesrich.sofaking.ui.repeatCountOrNull
 import dev.jamesrich.sofaking.resources.*
@@ -47,6 +50,7 @@ import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
@@ -82,6 +86,8 @@ private const val SWIPE_UP_DP = 80
 internal const val CHANNEL_NOT_FOUND = Wire.ErrorCode.CHANNEL_NOT_FOUND
 /** How long the player waits for the lineup it asked for to catch up with the one it holds. */
 private const val LINEUP_SYNC_MS = 2_000L
+/** How often the player asks whether an ad is playing; a break is several segments of a few seconds each. */
+private const val AD_BREAK_POLL_MS = 500L
 private val log = Logger.withTag("SofaKing")
 
 /** How long a zap rests before the new channel is tuned, so pressing through channels does not open a session per press. */
@@ -140,6 +146,8 @@ fun PlayerScreen(
     /** How the picture meets the screen, and the next one picked from the bar or the Zoom key. */
     zoom: VideoZoom = VideoZoom.FIT,
     onZoom: (VideoZoom) -> Unit = {},
+    /** Whether the break screen covers the ads a streaming channel marks, and whether their sound plays under it. */
+    liveBreaks: LiveBreaks = LiveBreaks.PLAY,
 ) {
     val state = rememberPlayerState(lineup.channels, startIndex, previousGuideId, zapScope, captionsEnabled, attended = !unattended, keyLegendShown)
     val captionSync = player.captionSync
@@ -171,6 +179,28 @@ fun PlayerScreen(
     val scope = rememberCoroutineScope()
     val tuneJob = remember { TuneJob() }
 
+    // The server marks the ad segments of a streaming channel's playlist; while Settings asks, the break screen covers
+    // them. OK or Back shows the picture again until that break is over.
+    var inAdBreak by remember { mutableStateOf(false) }
+    var adBreakLeftMs by remember { mutableStateOf<Long?>(null) }
+    var adBreakDismissed by remember { mutableStateOf(false) }
+    LaunchedEffect(player, liveBreaks.covers, state.tuned?.guideId) {
+        inAdBreak = false
+        adBreakDismissed = false
+        if (!liveBreaks.covers) return@LaunchedEffect
+        while (true) {
+            val found = player.adBreak()
+            inAdBreak = found != null
+            adBreakLeftMs = found?.remainingMs
+            if (found == null) adBreakDismissed = false
+            delay(AD_BREAK_POLL_MS)
+        }
+    }
+    val breakScreen = inAdBreak && !adBreakDismissed && state.failure == null && !inPictureInPicture
+    val breakScreenUp by rememberUpdatedState(breakScreen)
+    val breakMuted by rememberUpdatedState(breakScreen && liveBreaks.muted)
+    fun gain() = if (breakMuted) 0f else volume.gain
+
     val currentChannel = state.currentChannel
     val channelAdvance = state.captionAdvance(captionAdvanceFor)
     val captionLead = if (state.captionsOn && player.supportsCaptionLead) channelAdvance * 1_000L else 0L
@@ -186,13 +216,13 @@ fun PlayerScreen(
     LifecycleStartEffect(player, lifecycleOwner = appLifecycleOwner) {
         val session = player.openMediaSession { step -> state.zapStep(step) }
         mediaSession = session
-        player.volume = volume.gain
+        player.volume = gain()
         onStopOrDispose {
             session.close()
             mediaSession = null
         }
     }
-    LaunchedEffect(player, volume) { snapshotFlow { volume.gain }.collect { player.volume = it } }
+    LaunchedEffect(player, volume) { snapshotFlow { gain() }.collect { player.volume = it } }
     LaunchedEffect(player) { player.status.collect { state.onStatus(it) } }
     LaunchedEffect(player) {
         player.errors.collect { error -> state.fail(error.code, immediate = error.streamGone) }
@@ -453,7 +483,20 @@ fun PlayerScreen(
 
         override fun stop() = onExit()
     }
-    BackHandler { if (state.back(controls)) onExit() }
+    /**
+     * OK with nothing else on screen, or Back with no panel open, goes to the break screen, which leaves on the
+     * key-up; the info bar and zapping work over it as ever.
+     */
+    fun breakScreenTakes(key: Key): Boolean {
+        if (!breakScreenUp || state.miniGuideOpen || state.streamCardOpen || state.buttonsFocused) return false
+        return key == Key.Back || (key.isOk && !state.overlayVisible && !state.numbers.hasDigits)
+    }
+    BackHandler {
+        when {
+            breakScreenTakes(Key.Back) -> adBreakDismissed = true
+            state.back(controls) -> onExit()
+        }
+    }
 
     Box(
         Modifier
@@ -474,6 +517,10 @@ fun PlayerScreen(
             }
             .onPreviewKeyEvent { event ->
                 state.attended = true
+                if (breakScreenTakes(event.key)) {
+                    if (event.type == KeyEventType.KeyUp) adBreakDismissed = true
+                    return@onPreviewKeyEvent true
+                }
                 state.onKeyEvent(event.key, event.type, controls, event.isLongPress, event.repeatCountOrNull, hasAudioTracks = audioTracks.isNotEmpty())
             }
             // A tap or click on the video: the channel list closes, or the info bar and its touch controls toggle. Focus
@@ -484,7 +531,7 @@ fun PlayerScreen(
                     onDoubleTap = fullScreen?.let { { _ -> it.toggle() } },
                     onTap = {
                         state.attended = true
-                        state.tap()
+                        if (breakScreenTakes(Key.Back)) adBreakDismissed = true else state.tap()
                         focus.requestFocus()
                     },
                 )
@@ -505,6 +552,7 @@ fun PlayerScreen(
         KeepScreenOn(playing && state.attended)
         // Picture-in-picture shows the picture and its captions, which scale with the window, and nothing else.
         if (inPictureInPicture) return@Box
+        if (breakScreen) BreakScreen(Modifier.fillMaxSize(), remainingMs = { adBreakLeftMs })
 
         val channel = state.currentChannel
         if (channel == null) {

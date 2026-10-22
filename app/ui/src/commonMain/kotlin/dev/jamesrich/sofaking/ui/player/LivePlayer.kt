@@ -210,6 +210,12 @@ interface LivePlayer {
     fun seekTo(positionMs: Long) = Unit
 
     /**
+     * The ad break playing now, from the marks the server adds to a live playlist (`AdRun`); null outside one, and
+     * always on engines that cannot read playlist tags (see `supportsLiveBreaks`).
+     */
+    fun adBreak(): AdBreakNow? = null
+
+    /**
      * What the engine plays as it is, sent when a library item opens: the server plays a file that fits as it is
      * and copies or converts the rest into HLS. Engines claim only what they decode on every device they run on;
      * the default, MP4 with H.264 and AAC up to 1080p, is what every engine plays.

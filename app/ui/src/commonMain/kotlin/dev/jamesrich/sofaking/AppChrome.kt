@@ -76,11 +76,19 @@ internal fun TabPage(
     LaunchedEffect(Unit) {
         val target = headerReturn
         if (target != null) {
-            if (showsTabs) requestFocusWhenAttached(if (target == HeaderReturn.SETTINGS) settingsFocus else tabFocus)
+            val button = if (target == HeaderReturn.SETTINGS) settingsFocus else tabFocus
+            if (showsTabs) {
+                requestFocusWhenAttached(button)
+            } else {
+                // The rail or bar keeps focus only when the page takes none of its own, as on a first arrival below.
+                repeat(IDLE_FOCUS_FRAMES) { withFrameNanos { } }
+                if (!pageFocused) requestFocusWhenAttached(button)
+            }
             onHeaderFocusRequested()
-        } else if (focusHeaderIfIdle && showsTabs) {
+        } else if (focusHeaderIfIdle) {
             // A page that takes no focus of its own (Library's home, Recordings with nothing recorded) leaves it on
-            // its tab, so something is focused from the start and OK or Down work at once.
+            // its tab, in the header on a TV and on the rail or bar elsewhere, so something is focused from the start
+            // and the remote or a keyboard works at once.
             repeat(IDLE_FOCUS_FRAMES) { withFrameNanos { } }
             if (!pageFocused) requestFocusWhenAttached(tabFocus)
         }
@@ -127,6 +135,7 @@ internal fun TopLevel(
     settingsOpen: Boolean,
     onSettings: () -> Unit,
     settingsFocus: FocusRequester,
+    tabFocus: FocusRequester,
     content: @Composable () -> Unit,
 ) {
     if (tv) {
@@ -141,6 +150,7 @@ internal fun TopLevel(
             NavigationSuiteItem(
                 selected = !settingsOpen && tabs.selected == Tab.LIVE,
                 onClick = { tabs.onTab(Tab.LIVE) },
+                modifier = if (!settingsOpen && tabs.selected == Tab.LIVE) Modifier.focusRequester(tabFocus) else Modifier,
                 icon = { Icon(SofaIcons.LiveTv, contentDescription = null) },
                 label = { Text(stringResource(Res.string.nav_live)) },
                 navigationSuiteType = type,
@@ -149,6 +159,7 @@ internal fun TopLevel(
                 NavigationSuiteItem(
                     selected = !settingsOpen && tabs.selected == Tab.LIBRARY,
                     onClick = { tabs.onTab(Tab.LIBRARY) },
+                    modifier = if (!settingsOpen && tabs.selected == Tab.LIBRARY) Modifier.focusRequester(tabFocus) else Modifier,
                     icon = { Icon(SofaIcons.VideoLibrary, contentDescription = null) },
                     label = { Text(stringResource(Res.string.nav_library)) },
                     navigationSuiteType = type,
@@ -158,6 +169,7 @@ internal fun TopLevel(
                 NavigationSuiteItem(
                     selected = !settingsOpen && tabs.selected == Tab.RECORDINGS,
                     onClick = { tabs.onTab(Tab.RECORDINGS) },
+                    modifier = if (!settingsOpen && tabs.selected == Tab.RECORDINGS) Modifier.focusRequester(tabFocus) else Modifier,
                     icon = { Icon(SofaIcons.Recordings, contentDescription = null) },
                     label = { Text(stringResource(Res.string.recordings_title)) },
                     navigationSuiteType = type,

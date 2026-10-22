@@ -1,7 +1,13 @@
 package dev.jamesrich.sofaking
 
+import androidx.compose.ui.InternalComposeUiApi
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ComposeUiTest
@@ -10,11 +16,13 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onLast
-import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.SkikoComposeUiTest
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.unit.Density
+import androidx.navigationevent.NavigationEventInput
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import dev.jamesrich.sofaking.data.AppStorage
@@ -41,8 +49,10 @@ import kotlin.time.Instant
  * does not come back, or the app holds more than one playback session. It pairs through the same link a QR code
  * carries, so the shell, the tabs, the guide, the player and Settings run as they do on a desktop.
  *
- * `SOFAKING_FUZZ_SEED` and `SOFAKING_FUZZ_STEPS` replay a failure or run a longer soak, and `SOFAKING_FUZZ_KEYS`
- * presses a fixed list of keys by name instead. Each run writes a trace of the keys and what they left focused to
+ * `SOFAKING_FUZZ_SEED` and `SOFAKING_FUZZ_STEPS` replay a failure's keys or run a longer soak, and `SOFAKING_FUZZ_KEYS`
+ * presses a fixed list of keys by name instead. The ViewModels run on the Swing thread in real time beside the test
+ * (the test's UI thread needs Main, so it cannot be swapped for a test dispatcher), so a seed replays the same keys,
+ * not always the same timing. Each run writes a trace of the keys and what they left focused to
  * build/fuzz; a failure adds the screen and its semantics tree.
  */
 @OptIn(ExperimentalTestApi::class)
@@ -54,6 +64,7 @@ class AppKeyFuzzTest {
     /** What each key left focused, by its label, so a run that sits in one corner of the app shows it. */
     private val visited = mutableMapOf<String, Int>()
     private val trace = mutableListOf<String>()
+    private val backInput = EscapeBackInput()
 
     @Test
     fun `random remote keys never crash the app, lose focus or leak a session`() {
@@ -65,10 +76,19 @@ class AppKeyFuzzTest {
             val data = Files.createTempDirectory("sofaking-fuzz").toString()
             initSofaKing(AppStorage.inDirectory(data, ClientInfo("desktop", "fuzz")))
             runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
-                setContent { App(pairing = PairingRequest(server.url, "123456")) }
+                setContent {
+                    // A window turns an Escape nothing took into a back event; the test scene has no window, so this does.
+                    val dispatcher = LocalNavigationEventDispatcherOwner.current?.navigationEventDispatcher
+                    DisposableEffect(dispatcher) {
+                        dispatcher?.addInput(backInput)
+                        onDispose { dispatcher?.removeInput(backInput) }
+                    }
+                    App(pairing = PairingRequest(server.url, "123456"))
+                }
                 waitUntil("the guide shows the lineup", timeoutMillis = 20_000) { server.guideQueries.get() > 0 && focusedCount() > 0 }
+                val started = System.nanoTime()
                 walk(server, uncaught)
-                println("Key fuzz: seed $seed, $steps keys, ${server.sessionsOpened.get()} sessions opened, ${server.guideQueries.get()} guide queries, ${visited.size} focus targets")
+                println("Key fuzz: seed $seed, $steps keys in ${(System.nanoTime() - started) / 1_000_000_000} s, ${server.sessionsOpened.get()} sessions opened, ${server.guideQueries.get()} guide queries, ${visited.size} focus targets")
                 File("build/fuzz").apply { mkdirs() }.resolve("visited-$seed.txt")
                     .writeText(visited.entries.sortedByDescending { it.value }.joinToString("\n") { "${it.value}\t${it.key}" })
                 File("build/fuzz/trace-$seed.txt").writeText(trace.joinToString("\n"))
@@ -85,7 +105,8 @@ class AppKeyFuzzTest {
         fun failWith(reason: String, cause: Throwable? = null): Nothing {
             val out = File("build/fuzz").apply { mkdirs() }
             runCatching { ImageIO.write(topRoot().captureToImage().toAwtImage(), "png", File(out, "failure.png")) }
-            runCatching { File(out, "failure-semantics.txt").writeText(onAllNodes(isRoot(), useUnmergedTree = true).printToString()) }
+            runCatching { File(out, "failure-semantics.txt").writeText(onAllNodes(isRoot(), useUnmergedTree = true).printToString(maxDepth = Int.MAX_VALUE)) }
+            File(out, "trace-$seed.txt").writeText(trace.joinToString("\n"))
             val message = "$reason (seed $seed, step ${pressed.size}); last keys: ${pressed.takeLast(KEY_TRAIL).joinToString(" ")}"
             if (cause != null) throw AssertionError(message, cause) else fail(message)
         }
@@ -93,11 +114,7 @@ class AppKeyFuzzTest {
             val press = script?.get(step) ?: PRESSES.weightedPick(random)
             pressed += press.name
             try {
-                keyTarget().performKeyInput {
-                    keyDown(press.key)
-                    advanceEventTime(if (press.held) HOLD_MS else TAP_MS)
-                    keyUp(press.key)
-                }
+                send(press)
                 waitForIdle()
             } catch (e: Throwable) {
                 failWith("the app threw on ${press.name}", e)
@@ -115,9 +132,30 @@ class AppKeyFuzzTest {
         }
     }
 
-    /** The focused node takes the key, as a remote's would; a popup or dialog adds a root of its own. */
-    private fun ComposeUiTest.keyTarget() =
-        if (focusedCount() > 0) onAllNodes(isFocused(), useUnmergedTree = true).onLast() else topRoot()
+    /**
+     * Sends the key the way a window does: through the scene, so an open popup, menu or dialog takes it before the
+     * screen behind it, then an Escape nothing took on as a back event.
+     */
+    @OptIn(InternalComposeUiApi::class)
+    private fun ComposeUiTest.send(press: Press) {
+        val scene = (this as SkikoComposeUiTest).scene
+        fun dispatch(type: KeyEventType) = runOnUiThread {
+            val event = KeyEvent(press.key, type)
+            if (!scene.sendKeyEvent(event)) backInput.onKeyEvent(event)
+        }
+        dispatch(KeyEventType.KeyDown)
+        if (press.held) {
+            // A held key repeats its key-down, as a keyboard or a remote does, once the repeat delay has passed.
+            mainClock.advanceTimeBy(REPEAT_DELAY_MS)
+            repeat(((HOLD_MS - REPEAT_DELAY_MS) / REPEAT_MS).toInt()) {
+                dispatch(KeyEventType.KeyDown)
+                mainClock.advanceTimeBy(REPEAT_MS)
+            }
+        } else {
+            mainClock.advanceTimeBy(TAP_MS)
+        }
+        dispatch(KeyEventType.KeyUp)
+    }
 
     private fun ComposeUiTest.topRoot() = onAllNodes(isRoot()).onLast()
 
@@ -131,6 +169,13 @@ class AppKeyFuzzTest {
     }
 
     private fun ComposeUiTest.focusedCount() = onAllNodes(isFocused(), useUnmergedTree = true).fetchSemanticsNodes().size
+
+    /** What a desktop window does with an Escape key-down nothing took: a back event. */
+    private class EscapeBackInput : NavigationEventInput() {
+        fun onKeyEvent(event: KeyEvent) {
+            if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) dispatchOnBackCompleted()
+        }
+    }
 
     private class Press(val name: String, val key: Key, val weight: Int, val held: Boolean = false)
 
@@ -147,7 +192,8 @@ class AppKeyFuzzTest {
         private val http = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         val url = "http://127.0.0.1:${http.address.port}"
         val guideQueries = AtomicInteger()
-        val openSessions: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
+        /** Each open session's channel and intent, so a re-read or a renewal answers with what the app opened. */
+        val openSessions: MutableMap<String, Pair<String, String>> = Collections.synchronizedMap(mutableMapOf())
         val sessionsOpened = AtomicInteger()
         private val groups = listOf("News", "Sports", "Movies", "Kids", "Music")
         private val channels = List(CHANNELS) { i -> "ch$i" }
@@ -185,9 +231,10 @@ class AppKeyFuzzTest {
                 path == "recording-rules" && exchange.requestMethod == "GET" -> exchange.json(200, """{"rules":[]}""")
                 path == "playback-sessions" -> {
                     val id = UUID.randomUUID().toString()
-                    openSessions += id
+                    val opened = (CHANNEL_ID.find(body)?.groupValues?.get(1) ?: channels[0]) to (INTENT.find(body)?.groupValues?.get(1) ?: "watch")
+                    openSessions[id] = opened
                     sessionsOpened.incrementAndGet()
-                    exchange.json(201, session(id, CHANNEL_ID.find(body)?.groupValues?.get(1) ?: channels[0], INTENT.find(body)?.groupValues?.get(1) ?: "watch"))
+                    exchange.json(201, session(id, opened.first, opened.second))
                 }
                 path.endsWith("/ad-break") -> exchange.json(200, """{"inBreak":false}""")
                 path.startsWith("playback-sessions/") -> {
@@ -197,8 +244,16 @@ class AppKeyFuzzTest {
                             openSessions -= id
                             exchange.sendResponseHeaders(204, -1)
                         }
-                        id in openSessions -> exchange.json(200, session(id, channels[0], INTENT.find(body)?.groupValues?.get(1) ?: "watch"))
-                        else -> exchange.json(404, """{"code":"SESSION_NOT_FOUND","message":"gone"}""")
+                        else -> {
+                            val open = openSessions[id]
+                            if (open == null) {
+                                exchange.json(410, """{"code":"SESSION_EXPIRED","message":"gone"}""")
+                            } else {
+                                val now = INTENT.find(body)?.groupValues?.get(1)?.let { open.first to it } ?: open
+                                openSessions[id] = now
+                                exchange.json(200, session(id, now.first, now.second))
+                            }
+                        }
                     }
                 }
                 else -> exchange.json(404, """{"code":"NOT_FOUND","message":"$path"}""")
@@ -248,6 +303,8 @@ class AppKeyFuzzTest {
         const val CHANNELS = 40
         const val TAP_MS = 60L
         const val HOLD_MS = 900L
+        const val REPEAT_DELAY_MS = 500L
+        const val REPEAT_MS = 50L
         const val FOCUS_GRACE_MS = 3_000L
         const val KEY_TRAIL = 30
         const val LABEL_CHARS = 40

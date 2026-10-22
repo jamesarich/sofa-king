@@ -63,6 +63,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.hoursAndMinutes
+import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
@@ -104,9 +105,10 @@ internal fun ProgrammeSheet(
         SheetButtons(details.channel, isFavorite, watchFocus, onWatch, onToggleFavorite, onDismiss)
         if (recordable != null && recording != null) RecordButtons(recordable, recording, onRecord, onRecordSeries)
     }
+    // Watch takes focus on every layout, so the remote or a keyboard can act on the panel or sheet at once.
+    LaunchedEffect(details) { requestFocusWhenAttached(watchFocus) }
     if (LocalLayoutProfile.current.tv) {
         BackHandler(onBack = onDismiss)
-        LaunchedEffect(details) { requestFocusWhenAttached(watchFocus) }
         Box(
             Modifier
                 .fillMaxSize()
@@ -139,7 +141,7 @@ internal fun ProgrammeSheet(
         }
     } else {
         ModalBottomSheet(onDismissRequest = onDismiss) {
-            SheetContent(details, now, guideLoading, buttons)
+            Box(Modifier.arrowKeysMoveFocus()) { SheetContent(details, now, guideLoading, buttons) }
         }
     }
 }

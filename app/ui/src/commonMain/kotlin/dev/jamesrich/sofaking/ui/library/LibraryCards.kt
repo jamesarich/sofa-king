@@ -55,6 +55,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import androidx.compose.runtime.LaunchedEffect
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -165,7 +166,7 @@ private fun ItemCard(
         }
         if (menu != null) {
             val first = remember { FocusRequester() }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.heldOk(heldOk)) {
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.heldOk(heldOk).arrowKeysMoveFocus()) {
                 val entries = cardMenuEntries(item, playFromStart = menu.onPlayFromStart != null)
                 entries.forEachIndexed { index, entry ->
                     DropdownMenuItem(

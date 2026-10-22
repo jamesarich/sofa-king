@@ -26,7 +26,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -96,8 +95,7 @@ fun App(
             LocalLastInput provides lastInput,
             LocalWindowFullScreen provides windowFullScreen,
         ) {
-            val focusManager = LocalFocusManager.current
-            Surface(modifier.fillMaxSize().trackLastInput(lastInput).arrowKeysMoveFocus(focusManager), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
+            Surface(modifier.fillMaxSize().trackLastInput(lastInput).arrowKeysMoveFocus(), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
         }
     }
 }
@@ -325,6 +323,7 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
             settingsOpen = top.isSettings,
             onSettings = openSettings,
             settingsFocus = settingsFocus,
+            tabFocus = tabFocus,
         ) {
             NavDisplay(
                 entries = entries.getValue(Tab.LIVE) + if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),

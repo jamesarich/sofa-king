@@ -413,7 +413,11 @@ fun GuideScreen(
         }
     }
 
-    val onOpenDetails: (Channel, GuideCell) -> Unit = remember { { channel, cell -> state.openDetails(channel, cell) } }
+    // Off a TV the details are a bottom sheet, a window of their own.
+    val detailsInWindow = !LocalLayoutProfile.current.tv
+    val onOpenDetails: (Channel, GuideCell) -> Unit = remember(detailsInWindow) {
+        { channel, cell -> state.openDetails(channel, cell, inWindow = detailsInWindow) }
+    }
     val currentRequestJump by rememberUpdatedState(requestJump)
     val currentWindowStart by rememberUpdatedState(windowStart)
     val onJumpTo: (Channel, Programme) -> Unit = remember {
@@ -524,7 +528,10 @@ fun GuideScreen(
     // The app header above already carries the top screen margin; 16dp here is spacing, not overscan.
     val profile = LocalLayoutProfile.current
     Box(
-        modifier.fillMaxSize().testTag(GUIDE_TEST_TAG).onFocusChanged { if (it.hasFocus) state.awaitingEntry = false }
+        modifier.fillMaxSize().testTag(GUIDE_TEST_TAG)
+            // Digits typed and left behind for the header, the rail or another tab go nowhere: committed later they
+            // would pull focus back into the guide, or into a page already closing.
+            .onFocusChanged { if (it.hasFocus) state.awaitingEntry = false else state.numbers.clear() }
             .onPreviewKeyEvent { event -> state.onKeyEvent(event.key, event.type, backAction, controls) }
             .then(onGuidePointer),
     ) {

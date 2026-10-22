@@ -105,6 +105,26 @@ class GuideStateTest {
     }
 
     @Test
+    fun `a held OK opens the details sheet when it comes up and leaves the key-up to the cell`() {
+        assertFalse(down(Key.DirectionCenter))
+        state.openDetails(channels[0], cell(0, 30), inWindow = true)
+        assertNull(state.details)
+        assertFalse(down(Key.DirectionCenter))
+        assertFalse(up(Key.DirectionCenter))
+        assertEquals(ProgrammeDetails(channels[0], cell(0, 30).programme), state.details)
+        assertFalse(down(Key.DirectionCenter))
+    }
+
+    @Test
+    fun `Info opens the details sheet at once`() {
+        state.cellFocused(channels[1], cell(0, 30))
+        assertTrue(down(Key.Info))
+        state.details = null
+        state.openDetails(channels[1], cell(0, 30), inWindow = true)
+        assertEquals(ProgrammeDetails(channels[1], cell(0, 30).programme), state.details)
+    }
+
+    @Test
     fun `Info opens the focused programme's details and closes them`() {
         state.cellFocused(channels[1], cell(0, 30))
         assertTrue(down(Key.Info))

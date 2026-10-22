@@ -168,6 +168,7 @@ internal class GuideState(
 
     // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
     private val heldOk = HeldOkGuard()
+    private var detailsOnRelease: ProgrammeDetails? = null
 
     /** The clock moved on: once it leaves the live window, the window and the cursor roll over to the live one. */
     fun rollWindow(now: Instant) {
@@ -241,10 +242,19 @@ internal class GuideState(
         searchFocusRequest++
     }
 
-    /** The details of the programme in [cell], on the Info key or a held OK, whose rest goes nowhere. */
-    fun openDetails(channel: Channel, cell: GuideCell) {
-        heldOk.arm()
-        details = ProgrammeDetails(channel, cell.programme)
+    /**
+     * The details of the programme in [cell], on the Info key or a held OK, whose rest goes nowhere. Where they open
+     * in a window of their own ([inWindow], the bottom sheet), a held OK opens them when it comes up instead: the
+     * press has to end on the cell, whose clickable would otherwise keep it and ignore the next OK there.
+     */
+    fun openDetails(channel: Channel, cell: GuideCell, inWindow: Boolean = false) {
+        val opened = ProgrammeDetails(channel, cell.programme)
+        if (inWindow && heldOk.held) {
+            detailsOnRelease = opened
+        } else {
+            heldOk.arm()
+            details = opened
+        }
     }
 
     /**
@@ -310,6 +320,13 @@ internal class GuideState(
         }
         // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
         val okKey = key.isOk
+        if (okKey && type == KeyEventType.KeyUp) detailsOnRelease?.let { opened ->
+            // The cell takes this key-up and ends its press; the details open after it.
+            detailsOnRelease = null
+            heldOk.onKeyUp()
+            details = opened
+            return false
+        }
         // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
         if (okKey && type == KeyEventType.KeyDown && heldOk.onKeyDown()) return true
         if (okKey && type == KeyEventType.KeyUp && heldOk.onKeyUp()) return true

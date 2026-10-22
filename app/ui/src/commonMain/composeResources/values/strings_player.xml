@@ -82,4 +82,6 @@
     <string name="vod_up_next_play">Play now</string>
     <string name="vod_up_next_cancel">Cancel</string>
     <string name="vod_up_next_keys">OK plays it now, Back returns</string>
+    <string name="break_screen_title">Commercial break</string>
+    <string name="break_screen_back_in">Back in %1$s</string>
 </resources>

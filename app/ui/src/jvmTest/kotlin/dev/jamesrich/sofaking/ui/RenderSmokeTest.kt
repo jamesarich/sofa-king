@@ -36,6 +36,7 @@ import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
 import dev.jamesrich.sofaking.ui.guide.ProgrammeDetails
 import dev.jamesrich.sofaking.ui.guide.ProgrammeSheet
+import dev.jamesrich.sofaking.ui.player.BreakScreen
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.InfoBar
 import dev.jamesrich.sofaking.ui.player.InfoOverlay
@@ -213,6 +214,12 @@ class RenderSmokeTest {
                 recordingsOffered = true,
             )
         }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
+    fun `the break screen draws the bouncing mark on black`() {
+        val image = render("break-screen") { BreakScreen(remainingMs = { 102_000L }) }
         assertTrue(image.hasContent())
     }
 

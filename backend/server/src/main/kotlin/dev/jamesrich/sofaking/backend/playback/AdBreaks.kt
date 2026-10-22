@@ -20,7 +20,7 @@ internal object AdBreaks {
 
     /** Pluto's ad muxer serves stitched creatives under `/v1/mp4/…` and `/mp4/v1/…`; its own bumpers are `…adbumper…` clips. */
     private val PLUTO_MUXER = Regex("""^/(?:v1/mp4|mp4/v1)/""")
-    private val PLUTO_BUMPER = Regex("""_ad_?bumper""", RegexOption.IGNORE_CASE)
+    private val PLUTO_BUMPER = Regex("""ad_?bumper""", RegexOption.IGNORE_CASE)
 
     /** [text] with a [AdRun.TAG] line for each run of ad segments it holds; a playlist with none, or a multivariant one, comes back as it was. */
     fun annotate(text: String, base: URI): String {

@@ -270,6 +270,11 @@ class SofaKingTv {
         viewModel.setLiveBreaks(mode)
     }
 
+    /** Counts [ms] more of ads the break screen covered on [day], a local date as `2026-10-22`, toward Ads dodged today. */
+    fun addAdsDodged(day: String, ms: Long) {
+        viewModel.addAdsDodged(day, ms)
+    }
+
     /**
      * The ad break the player shows, as the server places it from the segments AVPlayer fetched and [aheadMs], what it
      * has loaded past the picture; null outside one.

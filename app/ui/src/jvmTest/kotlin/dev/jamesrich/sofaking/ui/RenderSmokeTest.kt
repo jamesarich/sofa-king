@@ -224,6 +224,14 @@ class RenderSmokeTest {
     }
 
     @Test
+    fun `the break screen carries the next program and the ads dodged today`() {
+        val image = render("break-screen-extras") {
+            BreakScreen(remainingMs = null, upNext = "Up next: Forensic Files at 9:30 PM", dodgedBeforeMs = 14 * 60_000L)
+        }
+        assertTrue(image.hasContent())
+    }
+
+    @Test
     fun `settings with no server renders the open server fields`() {
         val image = render("settings-unconfigured") {
             SettingsScreen(settings = AppSettings(), onSave = { _, _ -> }, onBack = {}, channelCount = 0)

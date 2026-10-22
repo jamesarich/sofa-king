@@ -2,22 +2,49 @@ import SwiftUI
 
 /// The break screen, as the Compose app draws it: black, with the crown-on-sofa mark drifting around and bouncing off
 /// the edges the way an old DVD player's screensaver did, a new color on every edge and the brand colors back on a
-/// corner. `remainingMs`, when known, counts down under the mark. It draws only; the player decides about the sound.
+/// corner, with a line to mark the occasion. `remainingMs`, when known, counts down under the mark, over `quip` (the
+/// line the player dealt for this break), `upNext` and the ads dodged today: `dodgedBeforeMs` before this break plus
+/// the time since `coveredSince`. It draws only; the player decides about the sound.
 struct BreakScreen: View {
     let remainingMs: Int64?
+    var quip = ""
+    var upNext: String?
+    var dodgedBeforeMs: Int64 = 0
+    var coveredSince = Date.now
+
+    /// The lines a break is dealt one of, as the Compose app's.
+    static let quips = [
+        "Hold the throne.",
+        "The realm can wait.",
+        "Do not adjust your sofa.",
+        "Snack window open.",
+        "Your show is in another castle.",
+        "Cushioning you from the ads.",
+        "Stretch your legs, Your Majesty.",
+        "Sofa King patient.",
+        "Pillow fights permitted.",
+        "Recline. Unwind. Repeat.",
+    ]
+
+    /// Today in the device's time zone, as `2026-10-22`: the day Ads dodged today counts in.
+    static func today() -> String {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: .now)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
 
     var body: some View {
         GeometryReader { geometry in
             TimelineView(.animation) { context in
                 let markSize = min(max(min(geometry.size.width, geometry.size.height) * 0.22, 96), 240)
-                // Wide enough for the label under the mark, which is wider than the mark itself.
-                let unit = CGSize(width: markSize * 1.6, height: markSize + 48)
+                // Wide and tall enough for the lines under the mark, which are wider than the mark itself.
+                let unit = CGSize(width: markSize * 2.2, height: markSize + 150)
                 let bounce = Bounce(
                     // Counted from a fixed date, so the mark carries on where it was whenever the countdown redraws the screen.
                     seconds: context.date.timeIntervalSinceReferenceDate,
                     room: CGSize(width: max(geometry.size.width - unit.width, 1), height: max(geometry.size.height - unit.height, 1))
                 )
-                VStack(spacing: 8) {
+                let faint = Color(red: 0.77, green: 0.73, blue: 0.85).opacity(0.7)
+                VStack(spacing: 6) {
                     SofaMark()
                         .frame(width: markSize, height: markSize)
                         .hueRotation(.degrees(bounce.hue))
@@ -26,8 +53,20 @@ struct BreakScreen: View {
                         .lineLimit(1)
                         .fixedSize()
                         .foregroundStyle(Color(red: 0.77, green: 0.73, blue: 0.85))
+                    Text(bounce.cornerSeconds.map { $0 < 4 } == true ? "Corner! You saw it. Nobody will believe you." : line)
+                        .font(.callout)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Color(red: 0.77, green: 0.73, blue: 0.85))
+                    if let upNext {
+                        Text(upNext).font(.caption).lineLimit(1).foregroundStyle(faint)
+                    }
+                    let dodgedMinutes = (dodgedBeforeMs + Int64(max(context.date.timeIntervalSince(coveredSince), 0) * 1000)) / 60_000
+                    if dodgedMinutes > 0 {
+                        Text("Ads dodged today: \(BreakScreen.hoursAndMinutes(dodgedMinutes))").font(.caption).lineLimit(1).foregroundStyle(faint)
+                    }
                 }
-                .frame(width: unit.width, height: unit.height)
+                .frame(width: unit.width, height: unit.height, alignment: .top)
                 .position(x: bounce.x + unit.width / 2, y: bounce.y + unit.height / 2)
             }
         }
@@ -42,11 +81,25 @@ struct BreakScreen: View {
         let seconds = Int((remainingMs + 999) / 1000)
         return "Back in \(seconds / 60):\(String(format: "%02d", seconds % 60))"
     }
+
+    /// The line under the countdown: the break's own, or one for a break of unknown length or one nearly over.
+    private var line: String {
+        guard let remainingMs else { return "Nobody told us how long. Rude." }
+        return remainingMs <= 10_000 ? "Places, everyone. Feet up." : quip
+    }
+
+    /// Whole minutes as "2 h 5 min", "45 min" or "1 h", as the Compose app writes them.
+    private static func hoursAndMinutes(_ minutes: Int64) -> String {
+        let hours = minutes / 60
+        let rest = minutes % 60
+        if hours > 0 && rest > 0 { return "\(hours) h \(rest) min" }
+        return hours > 0 ? "\(hours) h" : "\(rest) min"
+    }
 }
 
 /// Where the mark is after `seconds`, worked out from the start rather than step by step: each axis runs back and forth
 /// across its room at the same speed. Every edge it has hit moves the color on; a corner, both edges at once, brings
-/// the brand colors back.
+/// the brand colors back and its line for a few seconds.
 struct Bounce {
     static let speed: Double = 72
     static let cornerSlop: Double = 6
@@ -55,6 +108,8 @@ struct Bounce {
     let x: Double
     let y: Double
     let hue: Double
+    /// How long ago the mark hit a corner, while that corner was its last hit; nil after an edge.
+    let cornerSeconds: Double?
 
     init(seconds: Double, room: CGSize) {
         let distance = Bounce.speed * seconds
@@ -65,6 +120,7 @@ struct Bounce {
         let hits = xHits + yHits
         let corner = xHits > 0 && yHits > 0 && abs(xLastHit - yLastHit) <= Bounce.cornerSlop
         hue = hits == 0 || corner ? 0 : Bounce.hues[(hits - 1) % 5 + 1]
+        cornerSeconds = corner ? (distance - max(xLastHit, yLastHit)) / Bounce.speed : nil
     }
 
     /// The place along one axis after moving `distance` from `start`, the edges hit so far, and the distance at the last one.

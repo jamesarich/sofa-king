@@ -1,7 +1,9 @@
 package dev.jamesrich.sofaking.ui.player
 
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 
 class BreakScreenTest {
     @Test
@@ -68,5 +70,29 @@ class BreakScreenTest {
         val identity = hueRotation(0f).values
         val expected = floatArrayOf(1f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, 1f, 0f)
         expected.forEachIndexed { i, v -> assertEquals(v, identity[i], 0.001f, "entry $i") }
+    }
+
+    @Test
+    fun `the deck deals every line once before any comes back`() {
+        val deck = Deck(5, Random(7))
+        val first = List(5) { deck.next() }
+        assertEquals((0 until 5).toSet(), first.toSet())
+        val second = List(5) { deck.next() }
+        assertEquals((0 until 5).toSet(), second.toSet())
+    }
+
+    @Test
+    fun `the deck never deals the same line twice running`() {
+        repeat(50) { seed ->
+            val deck = Deck(3, Random(seed))
+            val dealt = List(30) { deck.next() }
+            dealt.zipWithNext().forEach { (a, b) -> assertNotEquals(a, b, "seed $seed: $dealt") }
+        }
+    }
+
+    @Test
+    fun `a deck of one deals it every time`() {
+        val deck = Deck(1)
+        assertEquals(listOf(0, 0, 0), List(3) { deck.next() })
     }
 }

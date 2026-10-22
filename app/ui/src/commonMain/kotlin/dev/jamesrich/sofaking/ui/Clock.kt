@@ -7,6 +7,8 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.time.Instant
 
@@ -14,6 +16,10 @@ private const val MINUTE_MS = 60_000L
 
 /** Milliseconds from [epochMs] to the start of the next wall-clock minute; a full minute when it is on one. */
 internal fun msToNextMinute(epochMs: Long): Long = MINUTE_MS - epochMs.mod(MINUTE_MS)
+
+/** The calendar day [at] falls on in [zone], as `2026-10-22`: the day Ads dodged today counts in. */
+internal fun localDay(at: Instant = Clock.System.now(), zone: TimeZone = TimeZone.currentSystemDefault()): String =
+    at.toLocalDateTime(zone).date.toString()
 
 /**
  * The current instant, refreshed on every wall-clock minute, so the guide and the player turn over together

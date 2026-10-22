@@ -59,6 +59,7 @@ import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberMinuteNow
+import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.theme.SofaScrim
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -153,6 +154,9 @@ fun PlayerScreen(
     onZoom: (VideoZoom) -> Unit = {},
     /** Whether the break screen covers the ads a streaming channel marks, and whether their sound plays under it. */
     liveBreaks: LiveBreaks = LiveBreaks.PLAY,
+    /** The ads the break screen covered today before now, and where each break screen's time goes when it closes. */
+    adsDodgedTodayMs: Long = 0,
+    onAdsDodged: (Long) -> Unit = {},
 ) {
     val state = rememberPlayerState(lineup.channels, startIndex, previousGuideId, zapScope, captionsEnabled, attended = !unattended, keyLegendShown)
     val captionSync = player.captionSync
@@ -181,6 +185,7 @@ fun PlayerScreen(
     val inPictureInPicture = LocalInPictureInPicture.current
     val volume = LocalPlayerVolume.current
     val now by rememberMinuteNow()
+    val timeFormat = rememberTimeFormatter()
     val scope = rememberCoroutineScope()
     val tuneJob = remember { TuneJob() }
 
@@ -586,7 +591,16 @@ fun PlayerScreen(
         KeepScreenOn(playing && state.attended)
         // Picture-in-picture shows the picture and its captions, which scale with the window, and nothing else.
         if (inPictureInPicture) return@Box
-        if (breakScreen) BreakScreen(Modifier.fillMaxSize(), remainingMs = { adBreakLeftMs })
+        if (breakScreen) {
+            val next = state.currentChannel?.let { lineup.nowAndNext(it, now).second }
+            BreakScreen(
+                Modifier.fillMaxSize(),
+                remainingMs = { adBreakLeftMs },
+                upNext = next?.let { stringResource(Res.string.break_up_next, it.title, timeFormat.format(it.start)) },
+                dodgedBeforeMs = adsDodgedTodayMs,
+                onCovered = onAdsDodged,
+            )
+        }
 
         val channel = state.currentChannel
         if (channel == null) {

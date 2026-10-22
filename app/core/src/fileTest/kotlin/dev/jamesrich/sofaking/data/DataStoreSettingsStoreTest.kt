@@ -163,6 +163,18 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `ads dodged add up through the day and start again the next`() = runTest {
+        val store = newStore()
+        assertEquals(0L, store.settings.first().adsDodged.on("2026-10-22"))
+        store.addAdsDodged("2026-10-22", 90_000)
+        store.addAdsDodged("2026-10-22", 30_000)
+        assertEquals(120_000L, store.settings.first().adsDodged.on("2026-10-22"))
+        assertEquals(0L, store.settings.first().adsDodged.on("2026-10-23"))
+        store.addAdsDodged("2026-10-23", 15_000)
+        assertEquals(AdsDodged("2026-10-23", 15_000), store.settings.first().adsDodged)
+    }
+
+    @Test
     fun `the tracks picked in a show are kept per show and the newest pick replaces the last`() = runTest {
         val store = newStore()
         assertTrue(store.settings.first().trackChoices.isEmpty())

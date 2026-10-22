@@ -11,6 +11,10 @@ import java.util.TreeMap
  * passes through [annotate], which keeps each segment's place on a timeline of the playlist's own; [served] notes each
  * segment the player finished fetching. The player plays the last segment it fetched once the media it has loaded
  * ahead of the picture has played, so [at] counts that much back from the segment's end.
+ *
+ * Whale and LG put a single `#EXT-X-CUE-OUT:<duration>` before a break and `#EXT-X-CUE-IN` after it, with nothing on
+ * the segments between, so a refresh whose window starts inside the break holds no cue at all. The timeline keeps a
+ * cue open across refreshes until a `#EXT-X-CUE-IN`, its planned end, or [OPEN_CUE_LIMIT_MS] without one.
  */
 class AdClock(private val segmentLimit: Int = 1024) {
     private class Mark(val playlist: Timeline, val sequence: Long)
@@ -23,6 +27,8 @@ class AdClock(private val segmentLimit: Int = 1024) {
         val runs = TreeMap<Long, Run>()
         var lastServed: Long? = null
         var servedAt = 0L
+        /** The first segment of a cue break the last refresh left open. */
+        var openCue: Long? = null
     }
 
     private class Run(val first: Long, var last: Long, var plannedEndMs: Long?)
@@ -38,12 +44,46 @@ class AdClock(private val segmentLimit: Int = 1024) {
     /** [text] with its ad runs marked (see [AdBreaks.annotate]), after noting its segments for [at]. */
     @Synchronized
     fun annotate(text: String, base: URI): String {
-        val parsed = AdBreaks.parse(text, base) ?: return text
-        val runs = AdBreaks.runs(parsed)
+        val read = AdBreaks.parse(text, base) ?: return text
         val timeline = timelines.getOrPut(base.toString()) { Timeline() }
-        place(timeline, parsed.segments)
+        place(timeline, read.segments)
+        val parsed = carry(timeline, read)
+        val runs = AdBreaks.runs(parsed)
         for (run in runs) remember(timeline, run)
+        timeline.openCue = when {
+            read.cueOpenAtEnd -> parsed.segments.lastOrNull()?.takeIf { it.ad }?.let { last -> timeline.runs.floorEntry(last.sequence)?.key }
+            parsed.segments.lastOrNull()?.ad == true && parsed.segments.none { it.cueIn } -> timeline.openCue
+            else -> null
+        }
         return AdBreaks.annotate(text, runs)
+    }
+
+    /**
+     * [parsed] with the segments of a cue break the previous refresh left open marked as ads: from the break's first
+     * segment up to a `#EXT-X-CUE-IN`, the break's planned end, or [OPEN_CUE_LIMIT_MS] without either.
+     */
+    private fun carry(timeline: Timeline, parsed: AdBreaks.Parsed): AdBreaks.Parsed {
+        val first = timeline.openCue ?: return parsed
+        val run = timeline.runs[first] ?: return parsed
+        val runStart = timeline.starts[first] ?: return parsed
+        val end = run.plannedEndMs ?: (runStart + OPEN_CUE_LIMIT_MS)
+        var open = true
+        var changed = false
+        val plannedEnd = HashMap(parsed.plannedEndMs)
+        val segments = ArrayList<AdBreaks.Segment>(parsed.segments.size)
+        for ((index, segment) in parsed.segments.withIndex()) {
+            if (segment.cueIn) open = false
+            val at = timeline.starts[segment.sequence]
+            if (!open || segment.ad || segment.sequence < first || at == null || at >= end) {
+                segments += segment
+                continue
+            }
+            // A run that starts here in this window counts down to the end the cue planned.
+            if (segments.lastOrNull()?.ad != true) run.plannedEndMs?.let { plannedEnd[index] = it - at }
+            segments += segment.copy(ad = true)
+            changed = true
+        }
+        return if (changed) AdBreaks.Parsed(segments, plannedEnd, parsed.cueOpenAtEnd) else parsed
     }
 
     /** The player finished fetching [url]; a segment of a playlist seen here becomes the one it plays last. */
@@ -113,5 +153,7 @@ class AdClock(private val segmentLimit: Int = 1024) {
 
 /** The playlists a session keeps a timeline for: its variants and renditions, and a few it switched away from. */
 private const val TIMELINE_LIMIT = 16
+/** How long a cue break with neither a planned end nor a `#EXT-X-CUE-IN` stays open across refreshes. */
+private const val OPEN_CUE_LIMIT_MS = 240_000L
 /** How many segments of other playlists may have been served since a marked playlist's last one for it to still be playing. */
 private const val RECENT_SERVES = 6

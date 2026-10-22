@@ -8,13 +8,15 @@ import kotlin.math.roundToLong
 
 /**
  * The ad segments of a live HLS media playlist, the way the free streaming services mark them: SCTE-35 cue tags
- * (`#EXT-X-CUE-OUT`, `-CUE-OUT-CONT`, `-CUE-IN`, as Tubi sends), `#EXT-X-DATERANGE` with `SCTE35-OUT` in a dated
- * playlist, and Pluto's stitched ads, which come from its ad muxer or its bumper clips. Nothing is guessed from the
- * picture, and a `#EXT-X-DISCONTINUITY` alone means nothing: Pluto puts one between episodes too.
+ * (`#EXT-X-CUE-OUT`, `-CUE-OUT-CONT`, `-CUE-IN`, as Tubi, Whale and LG send), `#EXT-X-DATERANGE` with `SCTE35-OUT` in
+ * a dated playlist, Pluto's stitched ads, which come from its ad muxer or its bumper clips, and the ads AWS
+ * MediaTailor stitches for Xumo and Plex. Nothing is guessed from the picture, and a `#EXT-X-DISCONTINUITY` alone
+ * means nothing: Pluto puts one between episodes too. A cue whose `#EXT-X-CUE-OUT` has left the window is carried on
+ * by [AdClock], which sees every refresh.
  */
 internal object AdBreaks {
-    /** One media segment: its media sequence number, length, whether it is an ad, and its absolute URL. */
-    data class Segment(val sequence: Long, val durationMs: Long, val ad: Boolean, val url: String = "")
+    /** One media segment: its media sequence number, length, whether it is an ad, its absolute URL, and whether a `#EXT-X-CUE-IN` comes before it in this window. */
+    data class Segment(val sequence: Long, val durationMs: Long, val ad: Boolean, val url: String = "", val cueIn: Boolean = false)
 
     private val ATTRIBUTE = Regex("""([A-Za-z0-9-]+)=("[^"]*"|[^,]*)""")
 
@@ -52,8 +54,11 @@ internal object AdBreaks {
         return runs
     }
 
-    /** A parsed media playlist: its segments, and the planned end of a break, in ms after the segment it begins at, by segment index. */
-    class Parsed(val segments: List<Segment>, val plannedEndMs: Map<Int, Long>)
+    /**
+     * A parsed media playlist: its segments, the planned end of a break, in ms after the segment it begins at, by segment
+     * index, and whether a cue is still open after the last segment.
+     */
+    class Parsed(val segments: List<Segment>, val plannedEndMs: Map<Int, Long>, val cueOpenAtEnd: Boolean = false)
 
     /** Reads [text], resolving segment URIs against [base]; null for a multivariant playlist, which has no segments. */
     fun parse(text: String, base: URI): Parsed? {
@@ -63,6 +68,7 @@ internal object AdBreaks {
         var date: Long? = null
         var cueOpen = false
         var pendingEnd: Long? = null
+        var cueIn = false
         val ranges = ArrayList<LongRange>()
         val segments = ArrayList<Segment>()
         val plannedEnd = HashMap<Int, Long>()
@@ -83,24 +89,46 @@ internal object AdBreaks {
                     pendingEnd = seconds(line.substringAfter(':', "").substringAfter("DURATION=").substringBefore(','))
                     cueOpen = true
                 }
-                line.startsWith("#EXT-X-CUE-IN") -> { cueOpen = false; pendingEnd = null }
+                line.startsWith("#EXT-X-CUE-IN") -> { cueOpen = false; pendingEnd = null; cueIn = true }
                 line.startsWith("#EXT-X-DATERANGE:") -> dateRange(line.substringAfter(':'))?.let(ranges::add)
                 line.startsWith("#") -> Unit
                 else -> {
                     val at = date
-                    val ad = cueOpen || pluto(base, line) || (at != null && ranges.any { at in it })
+                    val ad = cueOpen || pluto(base, line) || mediaTailor(base, line) || (at != null && ranges.any { at in it })
                     if (pendingEnd != null) plannedEnd[segments.size] = pendingEnd
-                    segments += Segment(sequence + segments.size, durationMs, ad, absolute(base, line))
+                    segments += Segment(sequence + segments.size, durationMs, ad, absolute(base, line), cueIn)
                     pendingEnd = null
+                    cueIn = false
                     date = at?.plus(durationMs)
                     durationMs = 0L
                 }
             }
         }
-        return Parsed(segments, plannedEnd)
+        // Plex alternates its own part segments with the stream's, so a stitched break reads ad, part, ad: a single
+        // segment between two MediaTailor ads, with no cue-in before it, belongs to the break.
+        for (index in 1 until segments.size - 1) {
+            val segment = segments[index]
+            if (!segment.ad && !segment.cueIn && mediaTailor(base, segments[index - 1].url) && mediaTailor(base, segments[index + 1].url)) {
+                segments[index] = segment.copy(ad = true)
+            }
+        }
+        return Parsed(segments, plannedEnd, cueOpen)
     }
 
     private fun absolute(base: URI, reference: String): String = try { base.resolve(reference).toString() } catch (_: IllegalArgumentException) { reference }
+
+    /**
+     * MediaTailor serves the ads it stitches through its segment route, `/v1/segment/<hash>/<configuration>/<session>/<n>/<sequence>`
+     * on `*.mediatailor.<region>.amazonaws.com` or a CDN in front of it (Xumo's NBCU channels drop the `/v1`); the show stays on
+     * its origin. Seen on 2026-10-22 as 60 to 120 s runs after a discontinuity.
+     */
+    private val MEDIATAILOR_SEGMENT = Regex("""^(?:/v1)?/segment/[0-9a-f]{32,}/[^/]+/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/\d+/\d+$""")
+
+    /** True for a segment MediaTailor stitched in. */
+    private fun mediaTailor(base: URI, reference: String): Boolean {
+        val path = try { base.resolve(reference).rawPath } catch (_: IllegalArgumentException) { return false } ?: return false
+        return MEDIATAILOR_SEGMENT.matches(path)
+    }
 
     /** True for a Pluto segment from its ad muxer or a bumper clip; other hosts never match, whatever their paths. */
     private fun pluto(base: URI, reference: String): Boolean {

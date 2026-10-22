@@ -63,4 +63,30 @@ master_5_5535913.ts
         clock.served(segment(5535913))
         assertEquals(AdBreakState(), clock.at(aheadMs = 0))
     }
+
+    /** Whale's (sofast): one cue before a two-minute break and nothing on the segments after it. */
+    private val whaleBase = URI("https://streams2.sofast.tv/sofast3/v1/master/peekflick/p1_tmpl3k_1k.m3u8")
+    private fun whale(first: Int, vararg tags: Pair<Int, String>): String {
+        val marks = tags.toMap()
+        return "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:$first\n" +
+            (first until first + 4).joinToString("") { (marks[it]?.let { tag -> "$tag\n" } ?: "") + "#EXTINF:6,\nseg-$it.ts\n" }
+    }
+
+    @Test
+    fun `a cue that left the window keeps its break marked until the cue-in`() {
+        val clock = AdClock()
+        assertTrue(clock.annotate(whale(100, 102 to "#EXT-X-CUE-OUT:DURATION=120"), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=102,LAST=103,ENDS=120.000\n"))
+        // 104 starts 24 s in, 12 s after the break began, so 108 s of it are left.
+        assertTrue(clock.annotate(whale(104), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=104,LAST=107,ENDS=108.000\n"))
+        assertTrue(clock.annotate(whale(106, 108 to "#EXT-X-CUE-IN"), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=106,LAST=107,ENDS=96.000\n"))
+        assertEquals(whale(110), clock.annotate(whale(110), whaleBase))
+    }
+
+    @Test
+    fun `a carried cue ends at its planned end without a cue-in`() {
+        val clock = AdClock()
+        clock.annotate(whale(100, 102 to "#EXT-X-CUE-OUT:12"), whaleBase)
+        assertTrue(clock.annotate(whale(103), whaleBase).endsWith("#EXT-X-SOFA-AD:FIRST=103,LAST=103,ENDS=6.000\n"))
+        assertEquals(whale(106), clock.annotate(whale(106), whaleBase))
+    }
 }

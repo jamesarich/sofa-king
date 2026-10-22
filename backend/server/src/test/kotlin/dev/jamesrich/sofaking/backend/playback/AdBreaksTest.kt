@@ -4,7 +4,7 @@ import dev.jamesrich.sofaking.contract.AdRun
 import java.net.URI
 import kotlin.test.*
 
-/** The playlists here are ones Pluto and Tubi served on 2026-10-22, with their paths shortened and their tokens removed. */
+/** The playlists here are ones Pluto, Tubi, Xumo and Plex served on 2026-10-22, with their paths shortened and their tokens removed. */
 class AdBreaksTest {
     private val plutoBase = URI("https://siloh-ns1.plutotv.net/v2/stitch/hls/channel/5f1ac1f1/master.m3u8")
     private val tubiBase = URI("https://aegis-cloudfront-1.tubi.video/b18a776e/master_5.m3u8")
@@ -164,5 +164,47 @@ d.ts
     @Test fun `a discontinuity alone is not a break`() {
         val episodes = pluto.substringBefore("#EXT-X-KEY:METHOD=NONE\n") + "#EXTINF:5,\nhttps://siloh-ns1.plutotv.net/967_pluto/clip/6a95facf/720p/hls/0.ts\n"
         assertEquals(listOf(false, false, false), ads(episodes, plutoBase))
+    }
+
+    @Test fun `MediaTailor's stitched segments are ads whether a CDN or MediaTailor serves them and the show is not`() {
+        val xumo = """#EXTM3U
+#EXT-X-TARGETDURATION:6
+#EXT-X-MEDIA-SEQUENCE:3504693
+#EXTINF:6.0,
+https://xumo-xumoent-ch827-uj0ch.fast.nbcuni.com/live/master_6/00350/master_6_04693.ts
+#EXTINF:4.06667,
+https://xumo-xumoent-ch827-uj0ch.fast.nbcuni.com/live/master_6/00350/master_6_04694.ts
+#EXT-X-DISCONTINUITY
+#EXT-X-ASSET:CAID=0x544D4E6F74696369617341686F72615F
+#EXTINF:2.0,
+../../../../segment/0123456789abcdef0123456789abcdef01234567/prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5/3504695
+#EXTINF:2.0,
+../../../../segment/0123456789abcdef0123456789abcdef01234567/prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5/3504696
+"""
+        val xumoBase = URI("https://d1example.cloudfront.net/v1/manifest/0123456789abcdef0123456789abcdef01234567/prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5.m3u8")
+        assertEquals(listOf(false, false, true, true), ads(xumo, xumoBase))
+        val plex = """#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:419891
+#EXTINF:5.27193,
+https://linear-850.frequency.stream/mt/plex/850/hls/master/playlist_384x216_154127__419891.ts
+#EXTINF:2.002,
+https://epg.provider.plex.tv/library/parts/6a1610be-66635fc0/segment?x-plex-client-identifier=x
+#EXT-X-DISCONTINUITY
+#EXTINF:2.002,
+https://0123456789abcdef0123456789abcdef.mediatailor.us-west-2.amazonaws.com/v1/segment/0123456789abcdef0123456789abcdef01234567/LINEAR-850-CWFOREVER-PLEX_US/00000000-0000-4000-8000-000000000002/4/419893
+#EXTINF:2.002,
+https://epg.provider.plex.tv/library/parts/6a1610be-66635fc0/segment?x-plex-client-identifier=x
+#EXTINF:2.002,
+https://0123456789abcdef0123456789abcdef.mediatailor.us-west-2.amazonaws.com/v1/segment/0123456789abcdef0123456789abcdef01234567/LINEAR-850-CWFOREVER-PLEX_US/00000000-0000-4000-8000-000000000002/4/419895
+"""
+        // Plex's own part segment between two stitched ones is part of the break.
+        assertEquals(listOf(false, false, true, true, true), ads(plex, URI("https://epg.provider.plex.tv/library/parts/6a1610be-66635fc0/index.m3u8")))
+    }
+
+    @Test fun `a cue-in is noted on the segment after it`() {
+        val text = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:7\n#EXTINF:6,\na.ts\n#EXT-X-CUE-IN\n#EXTINF:6,\nb.ts\n"
+        val parsed = assertNotNull(AdBreaks.parse(text, tubiBase))
+        assertEquals(listOf(false, true), parsed.segments.map { it.cueIn })
+        assertFalse(parsed.cueOpenAtEnd)
     }
 }

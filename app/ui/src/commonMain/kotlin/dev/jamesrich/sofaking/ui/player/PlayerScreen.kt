@@ -228,7 +228,9 @@ fun PlayerScreen(
             delay(wait)
         }
     }
-    val breakScreen = inAdBreak && !adBreakDismissed && state.failure == null && !inPictureInPicture
+    // A failure inside a break keeps the screen up under its card: a browser can fail at the seam between two ads, and
+    // the card should not uncover the ad while the stream reconnects.
+    val breakScreen = inAdBreak && !adBreakDismissed && !inPictureInPicture
     val breakScreenUp by rememberUpdatedState(breakScreen)
     val breakMuted by rememberUpdatedState(breakScreen && liveBreaks.muted)
     fun gain() = if (breakMuted) 0f else volume.gain
@@ -517,10 +519,10 @@ fun PlayerScreen(
     }
     /**
      * OK with nothing else on screen, or Back with no panel open, goes to the break screen, which leaves on the
-     * key-up; the info bar and zapping work over it as ever.
+     * key-up; the info bar and zapping work over it as ever. Over a failure the keys work the failure card instead.
      */
     fun breakScreenTakes(key: Key): Boolean {
-        if (!breakScreenUp || state.miniGuideOpen || state.streamCardOpen || state.buttonsFocused) return false
+        if (!breakScreenUp || state.failure != null || state.miniGuideOpen || state.streamCardOpen || state.buttonsFocused) return false
         return key == Key.Back || (key.isOk && !state.overlayVisible && !state.numbers.hasDigits)
     }
     BackHandler {

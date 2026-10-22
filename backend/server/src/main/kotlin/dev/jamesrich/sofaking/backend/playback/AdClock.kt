@@ -63,7 +63,9 @@ class AdClock(private val segmentLimit: Int = 1024) {
         val last = timeline.lastServed ?: return AdBreakState()
         val lastStart = timeline.starts[last] ?: return AdBreakState()
         val position = lastStart + (timeline.durations[last] ?: 0L) - aheadMs.coerceAtLeast(0L)
-        val (sequence, start) = timeline.starts.floorEntry(position)?.let { it.key to it.value } ?: return AdBreakState()
+        // Starts grow with the sequence number, so the segment on screen is the last one starting at or before the position.
+        val (sequence, start) = timeline.starts.descendingMap().entries.firstOrNull { it.value <= position }?.let { it.key to it.value }
+            ?: return AdBreakState()
         if (position >= start + (timeline.durations[sequence] ?: 0L)) return AdBreakState()
         val run = timeline.runs.floorEntry(sequence)?.value?.takeIf { sequence <= it.last } ?: return AdBreakState()
         val endMs = timeline.starts[run.last + 1] ?: run.plannedEndMs

@@ -24,13 +24,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -162,12 +165,18 @@ private fun GroupRow(group: ChannelGroup, expanded: Boolean, onShownChange: (Boo
     }
 }
 
-/** One favorite with its move buttons; a button that cannot move further is disabled, so focus sits on the other. */
+/** One favorite with its move buttons; a move that reaches the end of the list hands focus to the other button. */
 @Composable
 private fun FavoriteOrderRow(channel: Channel, canMoveUp: Boolean, canMoveDown: Boolean, onMove: (Int) -> Unit) {
     val label = channel.label()
     val upLabel = stringResource(Res.string.channels_move_up, label)
     val downLabel = stringResource(Res.string.channels_move_down, label)
+    val upFocus = remember { FocusRequester() }
+    val downFocus = remember { FocusRequester() }
+    var upFocused by remember { mutableStateOf(false) }
+    var downFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(canMoveUp) { if (!canMoveUp && upFocused) downFocus.requestFocus() }
+    LaunchedEffect(canMoveDown) { if (!canMoveDown && downFocused) upFocus.requestFocus() }
     Row(
         modifier = Modifier.width(FIELD_WIDTH).focusGroup(),
         verticalAlignment = Alignment.CenterVertically,
@@ -175,8 +184,16 @@ private fun FavoriteOrderRow(channel: Channel, canMoveUp: Boolean, canMoveDown: 
     ) {
         ChannelLogo(channel, 64.dp, 40.dp)
         Text(label, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-        SofaButton(onClick = { onMove(-1) }, enabled = canMoveUp, modifier = Modifier.semantics { contentDescription = upLabel }) { Icon(Icons.Filled.KeyboardArrowUp, null) }
-        SofaButton(onClick = { onMove(1) }, enabled = canMoveDown, modifier = Modifier.semantics { contentDescription = downLabel }) { Icon(Icons.Filled.KeyboardArrowDown, null) }
+        SofaButton(
+            onClick = { onMove(-1) },
+            enabled = canMoveUp,
+            modifier = Modifier.focusRequester(upFocus).onFocusChanged { upFocused = it.isFocused }.semantics { contentDescription = upLabel },
+        ) { Icon(Icons.Filled.KeyboardArrowUp, null) }
+        SofaButton(
+            onClick = { onMove(1) },
+            enabled = canMoveDown,
+            modifier = Modifier.focusRequester(downFocus).onFocusChanged { downFocused = it.isFocused }.semantics { contentDescription = downLabel },
+        ) { Icon(Icons.Filled.KeyboardArrowDown, null) }
     }
 }
 

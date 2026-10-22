@@ -228,7 +228,13 @@ internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
     val again = rememberTextFieldState()
     val firstFocus = remember { FocusRequester() }
     val againFocus = remember { FocusRequester() }
-    LaunchedEffect(setting) { if (setting) requestFocusWhenAttached(firstFocus) }
+    // Set, Remove, Confirm and Cancel each swap the section's controls, taking the focused button away; the button the
+    // section shows next takes focus, again once the stored lock catches up, since that swaps them once more.
+    val buttonFocus = remember { FocusRequester() }
+    var pressed by remember { mutableStateOf(false) }
+    LaunchedEffect(setting, locked) {
+        if (setting) requestFocusWhenAttached(firstFocus) else if (pressed) requestFocusWhenAttached(buttonFocus)
+    }
     val firstText = first.text.toString()
     val againText = again.text.toString()
     val canSet = SettingsPin.isValid(firstText) && firstText == againText
@@ -237,6 +243,7 @@ internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
             onPinChanged(firstText)
             first.clearText()
             again.clearText()
+            pressed = true
             setting = false
         }
     }
@@ -245,11 +252,13 @@ internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
         when {
             locked -> {
                 HelpText(stringResource(Res.string.settings_lock_on))
-                SofaButton(onClick = { onPinChanged(null) }) { Text(stringResource(Res.string.settings_lock_remove)) }
+                SofaButton(onClick = { pressed = true; onPinChanged(null) }, modifier = Modifier.focusRequester(buttonFocus)) {
+                    Text(stringResource(Res.string.settings_lock_remove))
+                }
             }
             !setting -> {
                 HelpText(stringResource(Res.string.settings_lock_help))
-                SofaButton(onClick = { setting = true }) { Text(stringResource(Res.string.settings_lock_set)) }
+                SofaButton(onClick = { setting = true }, modifier = Modifier.focusRequester(buttonFocus)) { Text(stringResource(Res.string.settings_lock_set)) }
             }
             else -> {
                 Text(stringResource(Res.string.settings_lock_pin), style = MaterialTheme.typography.titleSmall)
@@ -260,7 +269,7 @@ internal fun LockSection(locked: Boolean, onPinChanged: (String?) -> Unit) {
                 if (againText.isNotEmpty() && SettingsPin.isValid(firstText) && againText != firstText) ErrorText(stringResource(Res.string.settings_lock_pin_mismatch))
                 Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     SofaButton(onClick = set, enabled = canSet) { Text(stringResource(Res.string.settings_lock_confirm)) }
-                    SofaButton(onClick = { setting = false; first.clearText(); again.clearText() }) { Text(stringResource(Res.string.settings_lock_cancel)) }
+                    SofaButton(onClick = { pressed = true; setting = false; first.clearText(); again.clearText() }) { Text(stringResource(Res.string.settings_lock_cancel)) }
                 }
             }
         }

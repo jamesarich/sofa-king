@@ -38,7 +38,7 @@
     <string name="settings_live_breaks_play">Show them</string>
     <string name="settings_live_breaks_screen_muted">Logo, muted</string>
     <string name="settings_live_breaks_screen">Logo, sound on</string>
-    <string name="settings_live_breaks_help">On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. OK shows the picture again.</string>
+    <string name="settings_live_breaks_help">On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Select it to show the picture again.</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_tmdb_notice">Movie and show details and images can come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.</string>
     <string name="settings_section_general">General</string>

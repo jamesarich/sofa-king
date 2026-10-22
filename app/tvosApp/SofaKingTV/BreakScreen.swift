@@ -10,7 +10,8 @@ struct BreakScreen: View {
         GeometryReader { geometry in
             TimelineView(.animation) { context in
                 let markSize = min(max(min(geometry.size.width, geometry.size.height) * 0.22, 96), 240)
-                let unit = CGSize(width: markSize, height: markSize + 48)
+                // Wide enough for the label under the mark, which is wider than the mark itself.
+                let unit = CGSize(width: markSize * 1.6, height: markSize + 48)
                 let bounce = Bounce(
                     // Counted from a fixed date, so the mark carries on where it was whenever the countdown redraws the screen.
                     seconds: context.date.timeIntervalSinceReferenceDate,
@@ -22,6 +23,8 @@ struct BreakScreen: View {
                         .hueRotation(.degrees(bounce.hue))
                     Text(label)
                         .font(.headline)
+                        .lineLimit(1)
+                        .fixedSize()
                         .foregroundStyle(Color(red: 0.77, green: 0.73, blue: 0.85))
                 }
                 .frame(width: unit.width, height: unit.height)

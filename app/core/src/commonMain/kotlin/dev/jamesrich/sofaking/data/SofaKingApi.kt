@@ -293,9 +293,6 @@ class SofaKingApi(
         throw e
     } catch (e: Exception) {
         throw IOException(e.message ?: e.toString(), e)
-    } catch (e: Error) {
-        if (!engineFailsWithErrors) throw e
-        throw IOException(e.message ?: e.toString(), e)
     }
 
     private companion object {

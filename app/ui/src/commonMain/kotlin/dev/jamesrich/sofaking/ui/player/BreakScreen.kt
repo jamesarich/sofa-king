@@ -197,11 +197,11 @@ internal fun BreakScreen(
             delay(CORNER_LINE_MS)
             corner = null
         }
-        var coveredMs by remember { mutableLongStateOf(0L) }
+        var coveredNanos by remember { mutableLongStateOf(0L) }
         val dodgedBefore = remember { dodgedBeforeMs }
-        val dodgedMinutes by remember { derivedStateOf { (dodgedBefore + coveredMs) / 60_000 } }
+        val dodgedMinutes by remember { derivedStateOf { (dodgedBefore + coveredNanos / 1_000_000) / 60_000 } }
         val currentOnCovered by rememberUpdatedState(onCovered)
-        DisposableEffect(Unit) { onDispose { currentOnCovered(coveredMs) } }
+        DisposableEffect(Unit) { onDispose { currentOnCovered(coveredNanos / 1_000_000) } }
         LaunchedEffect(area, unit) {
             if (unit == IntSize.Zero) return@LaunchedEffect
             val roomX = (area.width - unit.width).toFloat()
@@ -214,7 +214,7 @@ internal fun BreakScreen(
                     last = now
                     // A long gap (the app in the background) moves the mark no more than one frame's worth, and does
                     // not count as covered.
-                    if (gap < MAX_COVERED_GAP_NANOS) coveredMs += gap / 1_000_000
+                    if (gap < MAX_COVERED_GAP_NANOS) coveredNanos += gap
                     val seconds = (gap / 1e9f).coerceAtMost(MAX_FRAME_SECONDS)
                     val (next, hit) = bounce.step(speedPxPerSecond * seconds, roomX, roomY, cornerSlop)
                     bounce = next

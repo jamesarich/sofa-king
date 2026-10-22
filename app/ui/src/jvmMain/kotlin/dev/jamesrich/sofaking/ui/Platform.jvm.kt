@@ -47,6 +47,8 @@ internal actual fun captionEngineName(): String = "libVLC"
 
 internal actual val supportsPlaybackPreferences: Boolean = false
 
+internal actual val platformMovesFocusOnArrows: Boolean = false
+
 internal actual val supportsCaptionSync: Boolean = false
 
 internal actual val pageServerUrl: String? = null

@@ -121,6 +121,8 @@ internal actual fun captionEngineName(): String = "Media3"
 
 internal actual val supportsPlaybackPreferences: Boolean = true
 
+internal actual val platformMovesFocusOnArrows: Boolean = true
+
 internal actual val supportsCaptionSync: Boolean = true
 
 internal actual val pageServerUrl: String? = null

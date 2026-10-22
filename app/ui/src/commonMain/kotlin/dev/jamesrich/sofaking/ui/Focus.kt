@@ -7,8 +7,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import kotlin.math.abs
@@ -27,6 +33,25 @@ internal suspend fun requestFocusWhenAttached(request: FocusRequester, frames: I
         if (request.requestFocus(FocusDirection.Enter)) return true
     }
     return false
+}
+
+/**
+ * Moves focus on an arrow key that nothing under this node took, as Android does with a D-pad's. Compose on the
+ * desktop, the web and iOS moves focus only on Tab, so without this a keyboard's arrows could not leave the guide's
+ * chips, reach the tabs or walk Settings. Off where the platform already does it ([platformMovesFocusOnArrows]).
+ */
+internal fun Modifier.arrowKeysMoveFocus(focusManager: FocusManager): Modifier =
+    if (platformMovesFocusOnArrows) this else onKeyEvent { event ->
+        val direction = event.key.arrowFocusDirection() ?: return@onKeyEvent false
+        event.type == KeyEventType.KeyDown && focusManager.moveFocus(direction)
+    }
+
+internal fun Key.arrowFocusDirection(): FocusDirection? = when (this) {
+    Key.DirectionUp -> FocusDirection.Up
+    Key.DirectionDown -> FocusDirection.Down
+    Key.DirectionLeft -> FocusDirection.Left
+    Key.DirectionRight -> FocusDirection.Right
+    else -> null
 }
 
 /**

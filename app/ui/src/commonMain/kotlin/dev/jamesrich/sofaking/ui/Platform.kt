@@ -42,6 +42,12 @@ internal expect fun captionEngineName(): String
 /** True where the engine honors [dev.jamesrich.sofaking.data.PlaybackPreferences] (Android's Media3); Settings hides the Playback section elsewhere. */
 internal expect val supportsPlaybackPreferences: Boolean
 
+/**
+ * True where the platform moves focus on the arrow keys itself (Android maps the D-pad); Compose on the desktop, the
+ * web and iOS moves it only on Tab, so the app moves it there ([arrowKeysMoveFocus]).
+ */
+internal expect val platformMovesFocusOnArrows: Boolean
+
 /** True where captions are drawn through `CaptionSync` (Android's Media3), so smoothing and timing apply; Settings hides those rows elsewhere. */
 internal expect val supportsCaptionSync: Boolean
 

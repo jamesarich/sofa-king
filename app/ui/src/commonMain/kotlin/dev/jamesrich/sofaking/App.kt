@@ -26,6 +26,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -67,6 +68,7 @@ import dev.jamesrich.sofaking.ui.sofaKingImageLoader
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import dev.jamesrich.sofaking.ui.togglesFullScreen
 import dev.jamesrich.sofaking.ui.trackLastInput
+import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -94,7 +96,8 @@ fun App(
             LocalLastInput provides lastInput,
             LocalWindowFullScreen provides windowFullScreen,
         ) {
-            Surface(modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
+            val focusManager = LocalFocusManager.current
+            Surface(modifier.fillMaxSize().trackLastInput(lastInput).arrowKeysMoveFocus(focusManager), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
         }
     }
 }

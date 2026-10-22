@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
+import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.BufferPreference
 import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.DecoderPreference
@@ -466,6 +467,10 @@ class LineupViewModel(
 
     fun setSkipCommercials(enabled: Boolean) {
         save { store.setSkipCommercials(enabled) }
+    }
+
+    fun setLiveBreaks(mode: LiveBreaks) {
+        save { store.setLiveBreaks(mode) }
     }
 
     /** Keeps the tracks picked in the show [showId] for its next episodes. */

@@ -18,6 +18,7 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.HlsManifest
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
@@ -213,6 +214,20 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
     override val positionMs: Long get() = if (isSeekable) exo.currentPosition.coerceAtLeast(0L) else 0L
 
     override val durationMs: Long? get() = exo.duration.takeIf { isSeekable && it != C.TIME_UNSET }
+
+    /** The live window counts from its playlist's first segment, which is where the segments' start times count from too. */
+    override fun adBreak(): AdBreakNow? {
+        if (seekableItem) return null
+        val playlist = (exo.currentManifest as? HlsManifest)?.mediaPlaylist ?: return null
+        val segments = playlist.segments
+        return adBreakAt(
+            tags = playlist.tags,
+            mediaSequence = playlist.mediaSequence,
+            startsMs = segments.map { it.relativeStartTimeUs / 1_000 },
+            durationsMs = segments.map { it.durationUs / 1_000 },
+            positionMs = exo.currentPosition,
+        )
+    }
 
     override fun seekTo(positionMs: Long) {
         if (!isSeekable) return

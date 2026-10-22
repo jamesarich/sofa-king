@@ -48,6 +48,8 @@ data class AppSettings(
     val zapSkipsHidden: Boolean = false,
     /** Whether a recording's playback jumps over the commercial breaks the server found. */
     val skipCommercials: Boolean = false,
+    /** What the live player does in an ad break a streaming channel marks: plays it, or covers it with the break screen. */
+    val liveBreaks: LiveBreaks = LiveBreaks.PLAY,
     /** The favorites in the order the user put them (see [orderedFavorites]); starred channels not listed follow by number. */
     val favoritesOrder: List<String> = emptyList(),
     val playback: PlaybackPreferences = PlaybackPreferences(),
@@ -75,7 +77,7 @@ data class AppSettings(
             "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
             "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, keyLegendShown=$keyLegendShown, startup=$startup, " +
             "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
-            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
+            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, liveBreaks=$liveBreaks, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, trackChoices=${trackChoices.size})"
 
     companion object {
@@ -112,6 +114,13 @@ enum class TopLevelTab { LIVE, LIBRARY, RECORDINGS }
 enum class CaptionStyle { SYSTEM, LARGE_HIGH_CONTRAST }
 
 /** [afterMs] is how long focus rests before the preview opens full screen, or null when it never does. */
+/** The live player in an ad break: [PLAY] shows it; the others cover it with the break screen, with or without its sound. */
+enum class LiveBreaks(val covers: Boolean, val muted: Boolean) {
+    PLAY(covers = false, muted = false),
+    SCREEN_MUTED(covers = true, muted = true),
+    SCREEN(covers = true, muted = false),
+}
+
 enum class AutoOpenDelay(val afterMs: Long?) {
     OFF(null),
     AFTER_10_SECONDS(10_000L),
@@ -168,6 +177,8 @@ interface SettingsStore {
     suspend fun setZapSkipsHidden(enabled: Boolean)
 
     suspend fun setSkipCommercials(enabled: Boolean)
+
+    suspend fun setLiveBreaks(mode: LiveBreaks)
 
     /** Keeps [choice] as the tracks picked in the show [showId]. */
     suspend fun setTrackChoice(showId: String, choice: TrackChoice)

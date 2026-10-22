@@ -67,6 +67,7 @@ class DataStoreSettingsStore(
                 hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
                 zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
                 skipCommercials = prefs[SKIP_COMMERCIALS] ?: false,
+                liveBreaks = prefs[LIVE_BREAKS].toEnum(LiveBreaks.PLAY),
                 trackChoices = trackChoices(prefs),
                 favoritesOrder = favoritesOrder(prefs).distinct(),
                 playback = PlaybackPreferences(
@@ -194,6 +195,10 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[SKIP_COMMERCIALS] = enabled }
     }
 
+    override suspend fun setLiveBreaks(mode: LiveBreaks) {
+        dataStore.edit { prefs -> prefs[LIVE_BREAKS] = mode.name }
+    }
+
     override suspend fun setTrackChoice(showId: String, choice: TrackChoice) {
         dataStore.edit { prefs ->
             val kept = (listOf(showId to choice) + trackChoices(prefs).filterKeys { it != showId }.toList()).take(TrackChoice.KEPT)
@@ -308,6 +313,7 @@ class DataStoreSettingsStore(
         val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")
         val ZAP_SKIPS_HIDDEN = booleanPreferencesKey("zap_skips_hidden")
         val SKIP_COMMERCIALS = booleanPreferencesKey("skip_commercials")
+        val LIVE_BREAKS = stringPreferencesKey("live_breaks")
         val FAVORITES_ORDER = stringPreferencesKey("favorites_order")
         val TRACK_CHOICES = stringPreferencesKey("track_choices")
         val MATCH_FRAME_RATE = booleanPreferencesKey("match_frame_rate")

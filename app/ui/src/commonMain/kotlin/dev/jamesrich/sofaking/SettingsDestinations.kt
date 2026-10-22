@@ -71,6 +71,7 @@ internal fun SettingsDestination(
                     onBufferChanged = vm::setBuffer,
                     onCheckForUpdate = vm::checkForUpdate,
                     onSkipCommercialsChanged = vm::setSkipCommercials,
+                    onLiveBreaksChanged = vm::setLiveBreaks,
                     onReload = {
                         vm.refresh()
                         libraryVm.refreshHome()

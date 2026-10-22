@@ -75,9 +75,10 @@ internal class ResourceMap(private val segmentLimit: Int = 4096) {
 
 /**
  * [shared] marks the live MPEG-TS root, which one upstream connection fans out to every session on the source;
- * [bytes] counts what the relay sends the player on this session.
+ * [bytes] counts what the relay sends the player on this session. [adMarks] is true for the app's own sessions, whose
+ * playlists carry the ad runs the server finds (see [AdBreaks]); players outside the app get the source's as it is.
  */
-data class MediaResource(val offering: Offering, val url: String, val shared: Boolean = false, val bytes: AtomicLong = AtomicLong())
+data class MediaResource(val offering: Offering, val url: String, val shared: Boolean = false, val bytes: AtomicLong = AtomicLong(), val adMarks: Boolean = false)
 
 class SessionManager(private val catalog: CatalogService, private val store: BackendStore, private val clock: Clock, capacity: Int = 4) {
     /** How many sessions may be open at once; the runtime settings change it without a restart. */
@@ -212,7 +213,7 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         if (session.requests.size >= 12) throw ApiFailure(429, Wire.ErrorCode.CAPACITY_EXHAUSTED, "Too many media requests", true)
         session.requests += job
         if (session.external) session.expires = clock.instant().plus(EXTERNAL_IDLE)
-        MediaResource(session.offering, url, shared, session.bytes)
+        MediaResource(session.offering, url, shared, session.bytes, adMarks = !session.external)
     }
     suspend fun finished(id: String, job: Job) = mutex.withLock {
         sessions[id]?.let { session ->

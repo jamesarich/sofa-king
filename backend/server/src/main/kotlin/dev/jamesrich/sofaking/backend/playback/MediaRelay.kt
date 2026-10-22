@@ -159,6 +159,7 @@ class MediaRelay(
                 http, feeds.upstream, call, withDeliveryDirectives(url, call), stream,
                 path = { sessions.resourcePath(id, epoch, it) },
                 sent = { resource.bytes.addAndGet(it) },
+                manifest = { text, source -> if (resource.adMarks) AdBreaks.annotate(text, source) else text },
                 sniffed = { protocol -> if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts") },
             )
         }
@@ -172,7 +173,8 @@ private const val ENCODED_LIMIT = 8 * 1024 * 1024
  * Answers [call] with one upstream resource, for a player's session or an FFmpeg lease alike. [url] is fetched with
  * [stream]'s headers, scoped to its origin, under [policy], following redirects by hand and checking every hop; the
  * call's `Range` goes along. A manifest comes back rewritten so every URI it names maps through [path] to this
- * server, a gzip-encoded small resource inflated, and anything else streamed as the upstream sent it. [sniffed] sees
+ * server, a gzip-encoded small resource inflated, and anything else streamed as the upstream sent it. [manifest] may
+ * add to a manifest's text, given the URL it came from, before the rewrite. [sniffed] sees
  * the protocol of the body's head before anything is answered, [sent] each count of bytes answered, and [refused]
  * an upstream status other than 200 or 206.
  */
@@ -186,6 +188,7 @@ internal suspend fun relayResource(
     sent: (Long) -> Unit = {},
     refused: (Int) -> Nothing = { throw ApiFailure(502, "UPSTREAM_UNAVAILABLE", "Upstream media unavailable", true) },
     sniffed: suspend (String?) -> Unit = {},
+    manifest: (String, URI) -> String = { text, _ -> text },
 ) {
     http.withUpstreamResponse(
         url,
@@ -210,7 +213,8 @@ internal suspend fun relayResource(
             val raw = head + body.readBuffer(2_097_153L - head.size).readByteArray()
             if (raw.size > 2_097_152) throw ApiFailure(502, "INVALID_MANIFEST", "Manifest too large")
             val bytes = if (isGzip(raw)) inflateHead(raw, 2_097_152) else raw
-            val rewritten = HlsRewriter.rewrite(bytes.toString(Charsets.UTF_8), URI(response.request.url.toString()), path)
+            val source = URI(response.request.url.toString())
+            val rewritten = HlsRewriter.rewrite(manifest(bytes.toString(Charsets.UTF_8), source), source, path)
             sent(rewritten.length.toLong())
             call.respondText(rewritten, ContentType.parse("application/vnd.apple.mpegurl"))
         } else {

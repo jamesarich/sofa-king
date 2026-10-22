@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
 import dev.jamesrich.sofaking.data.PublishedBuild
 import dev.jamesrich.sofaking.data.UpdateInstaller
+import kotlinx.browser.window
 
 /** A browser tab, sized by its window. */
 @Composable
@@ -48,6 +49,9 @@ internal actual fun captionEngineName(): String = "the browser's video element"
 internal actual val supportsPlaybackPreferences: Boolean = false
 
 internal actual val supportsCaptionSync: Boolean = false
+
+internal actual val pageServerUrl: String? =
+    window.location.takeIf { it.protocol == "http:" || it.protocol == "https:" }?.origin
 
 @Composable
 internal actual fun MatchDisplayFrameRate(player: LivePlayer, enabled: Boolean) = Unit

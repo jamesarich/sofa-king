@@ -9,6 +9,9 @@ import io.ktor.client.plugins.HttpTimeout
 /** The platform's HTTP engine: OkHttp on Android and the JVM, Darwin on Apple, curl on Linux, fetch on the web. */
 internal expect val httpEngine: HttpClientEngineFactory<*>
 
+/** True where the engine reports a failed request as an [Error] rather than an Exception: a browser's failed fetch. */
+internal expect val engineFailsWithErrors: Boolean
+
 /** The app's one connection pool. Every client shares it and none closes it, so it lives as long as the process. */
 internal val sharedHttpEngine: HttpClientEngine by lazy { httpEngine.create() }
 

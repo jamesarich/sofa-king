@@ -176,9 +176,9 @@ server {
 
 Both serve plain HTTP, like the server on the LAN. For HTTPS, give Caddy a public hostname, or give nginx a certificate, and enter the `https://` address; a page served over HTTPS cannot call a plain-HTTP server, so the proxy is then the only way in.
 
-Open the proxy's address in a browser. The web app does not find the server on its own: in the app's Settings, enter the proxy's own address, the origin with no path such as `http://tv.example.lan`, and the API token, which playback through the proxy needs like any client. The browser saves the address per origin in its `localStorage`. When the proxy terminates TLS, the server reads `X-Forwarded-Proto` as [reverse proxy](#reverse-proxy) describes.
+Open the proxy's address in a browser. While no server is saved, the app's Settings fills the server address with the page's own origin, the proxy's address with no path such as `http://tv.example.lan`; enter a pairing code or the API token, which playback through the proxy needs like any client. The browser saves the address per origin in its `localStorage`. When the proxy terminates TLS, the server reads `X-Forwarded-Proto` as [reverse proxy](#reverse-proxy) describes.
 
-Without a proxy, serve the bundle from any static server and add the page's origin to [`SOFA_CORS_ORIGINS`](live-tv.md#server-settings). The app's Settings then takes the server's own address.
+Without a proxy, serve the bundle from any static server and add the page's origin to [`SOFA_CORS_ORIGINS`](live-tv.md#server-settings). The app's Settings then takes the server's own address in place of the page's origin it fills in.
 
 ## Homepage dashboard
 

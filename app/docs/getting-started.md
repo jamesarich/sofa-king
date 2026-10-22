@@ -60,7 +60,7 @@ The web app is a set of static files: unzip `sofa-king-snapshot-web-wasm.zip`, o
 - Through a reverse proxy that serves the page and forwards `/api/`, `/media/` and `/logos/` at its origin root to the Sofa King server, so the page and the server share an origin. The server's [deploy guide](../../backend/docs/deploy.md#serve-the-web-app) has Caddy and nginx configurations.
 - From any static web server, with that server's origin, such as `http://192.168.1.20:8080`, in the Sofa King server's `SOFA_CORS_ORIGINS`.
 
-The web app has no default server. Open the page and enter the address in Settings: the proxy's origin with no path, such as `https://tv.example`, behind a proxy, or the Sofa King server's own address otherwise. The browser saves it in localStorage for the page's origin, so each origin that serves the app keeps its own settings.
+Open the page and Settings. While no server is saved, the server address holds the page's own origin, which is the address to keep behind a proxy, such as `https://tv.example`; from a static server, replace it with the Sofa King server's own address. Then pair as [connect to the server](#3-connect-to-the-server) describes. The browser saves the address in localStorage for the page's origin, so each origin that serves the app keeps its own settings.
 
 A sub-path does not work. The server's stream and logo URLs start at `/media/` and `/logos/`, and the app resolves them against the origin of the address you enter, so the proxy must forward those paths at its origin root and the address takes no path.
 
@@ -74,7 +74,7 @@ There is no published iOS or Apple TV build. On a Mac, build them from source as
 
 The first start opens on Connect to your Sofa King server with the header's Settings button focused. Press OK, then under Server:
 
-1. Enter the Server address: the server's address, for example `SERVER_HOST`, which the app completes as `http://SERVER_HOST:9193`, or the whole URL when the server uses another port or HTTPS. On the same network as the server, Servers on this network lists it above the field; selecting it fills the address in (Android, Android TV, desktops and Apple TV). For the web app behind a proxy, enter the proxy's origin, as [web](#web) describes.
+1. Enter the Server address: the server's address, for example `SERVER_HOST`, which the app completes as `http://SERVER_HOST:9193`, or the whole URL when the server uses another port or HTTPS. On the same network as the server, Servers on this network lists it above the field; selecting it fills the address in (Android, Android TV, desktops and Apple TV). The web app fills in its page's own origin, which is right behind a proxy, as [web](#web) describes.
 2. Enter the API token, or leave it empty when the server runs without one. The field shows only the last four characters once you leave it.
 3. Select Save & reload.
 

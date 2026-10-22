@@ -65,6 +65,7 @@ import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.captionEngineName
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.pageServerUrl
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 import dev.jamesrich.sofaking.ui.player.captionTimingText
 import dev.jamesrich.sofaking.ui.rememberSystemCaptionSettings
@@ -147,7 +148,7 @@ fun SettingsScreen(
     var captionAdvance by remember(settings.captionAdvanceMs) { mutableIntStateOf(settings.captionAdvanceMs) }
     var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
     var captionStyle by remember(settings.captionStyle) { mutableStateOf(settings.captionStyle) }
-    val serverUrl = rememberStoredFieldState(settings.serverUrl)
+    val serverUrl = rememberStoredFieldState(settings.serverUrl.ifEmpty { pageServerUrl.orEmpty() })
     val apiToken = rememberStoredFieldState(settings.apiToken)
     var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
     var autoOpen by remember(settings.autoOpenDelay) { mutableStateOf(settings.autoOpenDelay) }

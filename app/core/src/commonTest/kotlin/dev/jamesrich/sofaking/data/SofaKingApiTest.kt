@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -97,6 +98,15 @@ class SofaKingApiTest {
         val e = assertFailsWith<IOException> { http.api().catalog(etag = null) }
 
         assertTrue(e !is SofaKingException)
+    }
+
+    @Test
+    fun `a failed browser fetch is an IOException and an Error elsewhere stays one`() = runTest {
+        val http = FakeHttp(this) { throw Error("Fail to fetch") }
+
+        val e = assertFails { http.api().catalog(etag = null) }
+
+        if (engineFailsWithErrors) assertTrue(e is IOException) else assertTrue(e !is IOException)
     }
 
     @Test

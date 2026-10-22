@@ -36,7 +36,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,9 +51,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -146,20 +142,11 @@ fun VodPlayerScreen(
     val status by player.status.collectAsStateWithLifecycle()
     val paused = !status.playWhenReady
     val buffering = status.state == PlaybackState.BUFFERING
-    var failure by remember { mutableStateOf<String?>(null) }
+    val state = remember { VodPlayerState() }
     var openRequest by remember { mutableIntStateOf(0) }
-    var positionMs by remember { mutableLongStateOf(0L) }
-    var durationMs by remember { mutableStateOf<Long?>(null) }
     // The stream position to seek to once the item at a new URL is ready: a file played as it is starts at 0.
     var pendingSeek by remember { mutableStateOf<Long?>(null) }
-    var overlayVisible by remember { mutableStateOf(true) }
-    var overlayRequest by remember { mutableIntStateOf(0) }
-    val scrub = remember { VodScrub() }
-    var scrubTarget by remember { mutableStateOf<Long?>(null) }
     var skippedToast by remember { mutableStateOf(false) }
-    var ended by remember { mutableStateOf(false) }
-    var next by remember { mutableStateOf<VodUpNext?>(null) }
-    var tracksOpen by remember { mutableStateOf(false) }
     var audioTrack by remember { mutableStateOf(tracks.initialAudio) }
     var subtitleTrack by remember { mutableStateOf(tracks.initialSubtitle) }
     var subtitles by remember { mutableStateOf<Subtitles?>(null) }
@@ -171,11 +158,7 @@ fun VodPlayerScreen(
     var lastSubtitle by remember { mutableStateOf(tracks.initialSubtitle) }
     // CC's answer, or the zoom just picked, for a moment.
     var toast by remember { mutableStateOf<VodToast?>(null) }
-    // True while a button on the bar has focus, so the D-pad moves along the row instead of seeking.
-    var rowFocused by remember { mutableStateOf(false) }
     val rowEntry = remember { FocusRequester() }
-    // Set when playback runs into a break it does not skip, so Skip break takes focus and OK skips, as other players' skip pill does.
-    var focusSkip by remember { mutableStateOf(false) }
     val pointerDriven = LocalLastInput.current.kind == InputKind.POINTER
     val fullScreen = LocalWindowFullScreen.current
     val inPictureInPicture = LocalInPictureInPicture.current
@@ -191,17 +174,12 @@ fun VodPlayerScreen(
     val currentCaptionsOn by rememberUpdatedState(captionsOn)
     val currentOnToggleCaptions by rememberUpdatedState(onToggleCaptions)
     // Read from the ticking position, so the screen recomposes only when they change.
-    val breakEnd by remember(title.markers) { derivedStateOf { breakEndAt(title.markers, positionMs) } }
-    val pastStart by remember { derivedStateOf { positionMs > START_OVER_AFTER_MS } }
+    val breakEnd by remember(title.markers) { derivedStateOf { breakEndAt(title.markers, state.positionMs) } }
+    val pastStart by remember { derivedStateOf { state.positionMs > START_OVER_AFTER_MS } }
     val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
 
     var mediaSession by remember { mutableStateOf<MediaSessionHandle?>(null) }
     val focus = remember { FocusRequester() }
-
-    fun showOverlay() {
-        overlayVisible = true
-        overlayRequest++
-    }
 
     /** Moves to [targetMs] in the item: inside the stream the player holds, or a conversion restarted there. */
     fun seekItem(targetMs: Long) {
@@ -217,18 +195,18 @@ fun VodPlayerScreen(
                         throw e
                     } catch (e: Exception) {
                         log.w { "vod: restart failed: ${e.message}" }
-                        failure = failureCode(e)
+                        state.failure = failureCode(e)
                     }
                 }
             }
         }
-        positionMs = targetMs
+        state.positionMs = targetMs
     }
 
     // Open only while the app is in front, as the app stops the player behind another app.
     LifecycleStartEffect(player, lifecycleOwner = appLifecycleOwner) {
         val session = player.openMediaSession { step ->
-            seekItem(positionMs + step * if (step < 0) VodScrub.BACK_STEP_MS else VodScrub.FORWARD_STEP_MS)
+            seekItem(state.positionMs + step * if (step < 0) VodScrub.BACK_STEP_MS else VodScrub.FORWARD_STEP_MS)
         }
         mediaSession = session
         player.volume = volume.gain
@@ -240,14 +218,14 @@ fun VodPlayerScreen(
     LaunchedEffect(player, volume) { snapshotFlow { volume.gain }.collect { player.volume = it } }
     // Opens the item, again on a retry. The stream it publishes is loaded by the effect below.
     LaunchedEffect(openRequest) {
-        failure = null
+        state.failure = null
         try {
             open()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             log.w { "vod: open failed: ${e.message}" }
-            failure = failureCode(e)
+            state.failure = failureCode(e)
         }
     }
     // Each new URL for the item (the first open, a restart, a reopen) is set on the player and prepared once the
@@ -261,8 +239,8 @@ fun VodPlayerScreen(
             player.setStream(s, NowPlaying(currentTitle.title, currentTitle.subtitle.orEmpty(), currentTitle.artworkUrl))
             loadedUrl = s.url
             pendingSeek = (s.startAtMs - s.offsetMs).takeIf { it > 0 }
-            positionMs = s.startAtMs
-            durationMs = s.itemDurationMs
+            state.positionMs = s.startAtMs
+            state.durationMs = s.itemDurationMs
             player.playWhenReady = !wasPaused
             player.prepare()
         }
@@ -275,18 +253,15 @@ fun VodPlayerScreen(
         }
     }
     LaunchedEffect(player) {
-        player.errors.collect { error -> failure = error.code }
+        player.errors.collect { error -> state.failure = error.code }
     }
-    LaunchedEffect(status.state) {
-        if (status.state == PlaybackState.READY || status.isPlaying) failure = null
-        if (status.state == PlaybackState.ENDED && stream != null) ended = true
-    }
+    LaunchedEffect(status.state) { state.onStatus(status, opened = stream != null) }
     // Its own effect, so the player's next state change (the app stopping it, say) cannot cancel the lookup.
-    LaunchedEffect(ended) {
-        if (!ended) return@LaunchedEffect
-        currentOnStopped(durationMs ?: positionMs, durationMs)
-        next = currentUpNext()
-        if (next == null) currentOnEnded()
+    LaunchedEffect(state.ended) {
+        if (!state.ended) return@LaunchedEffect
+        currentOnStopped(state.durationMs ?: state.positionMs, state.durationMs)
+        state.next = currentUpNext()
+        if (state.next == null) currentOnEnded()
     }
     LaunchedEffect(Unit) {
         upcoming = try {
@@ -299,8 +274,8 @@ fun VodPlayerScreen(
         }
     }
     // The Up next card counts down once a second and then plays what it names.
-    LaunchedEffect(next) {
-        if (next == null) return@LaunchedEffect
+    LaunchedEffect(state.next) {
+        if (state.next == null) return@LaunchedEffect
         for (left in UP_NEXT_SECONDS downTo 1) {
             nextSecondsLeft = left
             delay(1_000L)
@@ -315,32 +290,27 @@ fun VodPlayerScreen(
         var lastReport = 0L
         while (true) {
             delay(TICK_MS)
-            scrub.settled(uptimeMs())?.let { target ->
-                scrubTarget = null
-                seekItem(target)
-            }
+            state.settledScrub(uptimeMs())?.let(::seekItem)
             val current = sessions.current.value?.takeIf { it.itemId == itemId } ?: continue
             if (!player.isSeekable || pendingSeek != null) continue
-            val previous = positionMs
+            val previous = state.positionMs
             val now = player.positionMs + current.offsetMs
-            positionMs = now
-            durationMs = current.itemDurationMs ?: player.durationMs?.let { it + current.offsetMs }
-            if (scrubTarget == null) {
+            state.positionMs = now
+            state.durationMs = current.itemDurationMs ?: player.durationMs?.let { it + current.offsetMs }
+            if (state.scrubTarget == null) {
                 breakToSkip(currentTitle.markers, previous, now)?.let { end ->
                     if (autoSkipBreaks) {
                         seekItem(end)
                         skippedToast = true
                     } else {
-                        // The bar comes up with Skip break on it, focused for the remote.
-                        showOverlay()
-                        focusSkip = true
+                        state.ranIntoBreak()
                     }
                 }
             }
             val clock = uptimeMs()
             if (status.isPlaying && clock - lastReport >= REPORT_MS) {
                 lastReport = clock
-                currentOnPosition(positionMs, durationMs)
+                currentOnPosition(state.positionMs, state.durationMs)
             }
         }
     }
@@ -371,18 +341,18 @@ fun VodPlayerScreen(
     }
     // The bar stays up while paused or scrubbing, and leaves a few seconds after the last key, tap or mouse movement
     // otherwise; a button that had focus hands it back to the picture.
-    LaunchedEffect(overlayVisible, overlayRequest, paused, scrubTarget, failure) {
-        if (!overlayVisible || paused || scrubTarget != null || failure != null) return@LaunchedEffect
+    LaunchedEffect(state.overlayVisible, state.overlayRequest, paused, state.scrubTarget, state.failure) {
+        if (!state.overlayVisible || paused || state.scrubTarget != null || state.failure != null) return@LaunchedEffect
         delay(BAR_IDLE_MS)
-        overlayVisible = false
+        state.overlayVisible = false
     }
     // The app stops the player and releases the session while another app is in front (see App); the screen
     // saves where it was and, back in front, reopens the item there, which the effect above loads and seeks.
     var backgrounded by remember { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP, appLifecycleOwner) {
-        if (ended || stream == null) return@LifecycleEventEffect
+        if (state.ended || stream == null) return@LifecycleEventEffect
         backgrounded = true
-        currentOnStopped(positionMs, durationMs)
+        currentOnStopped(state.positionMs, state.durationMs)
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START, appLifecycleOwner) {
         if (!backgrounded) return@LifecycleEventEffect
@@ -394,13 +364,13 @@ fun VodPlayerScreen(
                 throw e
             } catch (e: Exception) {
                 log.w { "vod: reopen failed: ${e.message}" }
-                failure = failureCode(e)
+                state.failure = failureCode(e)
             }
         }
     }
     DisposableEffect(Unit) {
         onDispose {
-            if (!ended) currentOnStopped(positionMs, durationMs)
+            if (!state.ended) currentOnStopped(state.positionMs, state.durationMs)
             // Stopped only on this page's stream, or on nothing yet while no other item holds the session.
             val other = sessions.current.value?.itemId?.let { it != itemId } == true
             if (if (loadedUrl == null) !other else player.currentStreamUrl == loadedUrl) player.stop()
@@ -413,18 +383,17 @@ fun VodPlayerScreen(
 
     fun togglePause() {
         if (player.playWhenReady) player.pause() else player.play()
-        showOverlay()
     }
 
-    fun retry() {
-        failure = null
+    fun retryItem() {
+        state.failure = null
         player.stop()
         // A file played as it is picks up where it failed; a converted one restarts there.
         if (stream?.mode == Wire.VodMode.DIRECT) {
-            pendingSeek = (positionMs - stream.offsetMs).takeIf { it > 0 }
+            pendingSeek = (state.positionMs - stream.offsetMs).takeIf { it > 0 }
             player.prepare()
         } else if (stream != null) {
-            seekItem(positionMs)
+            seekItem(state.positionMs)
             if (player.currentStreamUrl == stream.url) player.prepare()
         } else {
             openRequest++
@@ -438,18 +407,18 @@ fun VodPlayerScreen(
         player.stop()
         scope.launch {
             try {
-                tracks.select(audio, picture, positionMs)
+                tracks.select(audio, picture, state.positionMs)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 log.w { "vod: track switch failed: ${e.message}" }
-                failure = failureCode(e)
+                state.failure = failureCode(e)
             }
         }
     }
 
     fun pickAudio(index: Int) {
-        tracksOpen = false
+        state.closeTracks()
         if (index == audioTrack) return
         audioTrack = index
         tracks.onPicked(audioTrack, subtitleTrack)
@@ -458,7 +427,7 @@ fun VodPlayerScreen(
 
     // A text subtitle is drawn here over the same stream; a picture one, on or off, needs a new stream.
     fun pickSubtitle(index: Int?) {
-        tracksOpen = false
+        state.closeTracks()
         if (index == subtitleTrack) return
         if (index != null) lastSubtitle = index
         val restream = tracks.isPicture(index) || tracks.isPicture(subtitleTrack)
@@ -467,14 +436,8 @@ fun VodPlayerScreen(
         if (restream) reopenWithTracks()
     }
 
-    // The card stands in for the bar, which would otherwise run under it; the next key brings the bar back.
-    fun openTracks() {
-        tracksOpen = true
-        overlayVisible = false
-    }
-
     // CC and C: a recording's captions on or off; a library item's subtitles off, or back on with the last ones shown.
-    fun toggleCaptions() {
+    fun switchCaptions() {
         val captions = currentCaptionsOn
         if (captions != null) {
             currentOnToggleCaptions()
@@ -496,13 +459,13 @@ fun VodPlayerScreen(
     }
 
     fun stepZoom() {
-        val next = zoom.next()
-        onZoom(next)
-        toast = VodToast(Res.string.player_zoom_notice, next.label)
+        val zoomed = zoom.next()
+        onZoom(zoomed)
+        toast = VodToast(Res.string.player_zoom_notice, zoomed.label)
     }
 
     val buttons = vodButtons(
-        failed = failure != null,
+        failed = state.failure != null,
         inBreak = breakEnd != null,
         tracksPickable = tracks.pickable,
         captions = captionsOn != null,
@@ -510,89 +473,48 @@ fun VodPlayerScreen(
         hasNext = upcoming != null,
     )
 
-    fun handleKeyEvent(event: KeyEvent): Boolean {
-        // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
-        if (tracksOpen) return false
-        if (next != null) {
-            // With the Up next card up, OK and play/pause play it now; Back leaves through the BackHandler.
-            if (event.key !in UP_NEXT_PLAY_KEYS) return false
-            if (event.type == KeyEventType.KeyUp) onPlayNext()
-            return true
+    val controls = object : VodControls {
+        override fun seek(targetMs: Long) {
+            seekItem(targetMs)
         }
-        if (rowFocused) {
-            showOverlay()
-            when (event.key.inButtonRow()) {
-                ButtonRowKey.ROW -> return false
-                // Up, Back and Escape hand focus back to the picture on key-up, so the key-up cannot act there too.
-                ButtonRowKey.LEAVE -> {
-                    if (event.type == KeyEventType.KeyUp) focus.requestFocus()
-                    return true
-                }
-                ButtonRowKey.PLAYER -> focus.requestFocus()
-            }
+        override fun playPause() {
+            togglePause()
         }
-        val action = event.key.vodAction() ?: return false
-        if (event.type != KeyEventType.KeyDown) return true
-        when (action) {
-            VodAction.BACK, VodAction.FORWARD -> {
-                if (failure != null) return true
-                showOverlay()
-                val direction = if (action == VodAction.BACK) -1 else 1
-                scrubTarget = scrub.press(direction, positionMs, durationMs, event.repeatCountOrNull ?: 0, uptimeMs())
-            }
-            VodAction.PLAY_PAUSE -> when {
-                failure != null -> retry()
-                scrubTarget != null -> {
-                    scrubTarget = null
-                    scrub.commit()?.let(::seekItem)
-                    showOverlay()
-                }
-                else -> togglePause()
-            }
-            VodAction.PLAY -> if (!player.playWhenReady) togglePause()
-            VodAction.PAUSE -> if (player.playWhenReady) togglePause()
-            VodAction.SHOW_INFO -> when {
-                overlayVisible && !paused && event.key == Key.Info -> overlayVisible = false
-                else -> showOverlay()
-            }
-            // Down shows the bar, and on the bar moves into its buttons.
-            VodAction.BUTTONS -> {
-                if (overlayVisible && buttons.isNotEmpty()) rowEntry.requestFocus()
-                showOverlay()
-            }
-            VodAction.CAPTIONS -> toggleCaptions()
-            VodAction.TRACKS -> if (tracks.pickable && failure == null) openTracks() else showOverlay()
-            VodAction.ZOOM -> stepZoom()
-            VodAction.STOP -> onExit()
+        override fun retry() {
+            retryItem()
         }
-        return true
+        override fun toggleCaptions() {
+            switchCaptions()
+        }
+        override fun zoom() {
+            stepZoom()
+        }
+        override fun focusButtons() {
+            rowEntry.requestFocus()
+        }
+        override fun focusPicture() {
+            focus.requestFocus()
+        }
+        override fun playNext() {
+            onPlayNext()
+        }
+        override fun exit() {
+            onExit()
+        }
     }
 
     LaunchedEffect(Unit) { focus.requestFocus() }
     // A button that had focus when the bar left, or when it was removed, hands it back to the picture.
-    LaunchedEffect(overlayVisible, buttons.size) { if (rowFocused && (!overlayVisible || buttons.isEmpty())) focus.requestFocus() }
-    LaunchedEffect(focusSkip, overlayVisible, buttons.firstOrNull()) {
-        if (!focusSkip) return@LaunchedEffect
-        focusSkip = false
-        if (!overlayVisible || pointerDriven || buttons.firstOrNull() != VodButton.SKIP_BREAK) return@LaunchedEffect
+    LaunchedEffect(state.overlayVisible, buttons.size) { if (state.buttonsFocused && (!state.overlayVisible || buttons.isEmpty())) focus.requestFocus() }
+    LaunchedEffect(state.focusSkip, state.overlayVisible, buttons.firstOrNull()) {
+        if (!state.focusSkip) return@LaunchedEffect
+        state.focusSkip = false
+        if (!state.overlayVisible || pointerDriven || buttons.firstOrNull() != VodButton.SKIP_BREAK) return@LaunchedEffect
         // The bar's row is laid out once the frame that shows it is drawn.
         withFrameNanos {}
         rowEntry.requestFocus()
     }
-    BackHandler {
-        // Where Back skips the key path (Android with predictive back), a focused bar button hands focus back here.
-        if (rowFocused) {
-            focus.requestFocus()
-        } else if (tracksOpen) {
-            tracksOpen = false
-            focus.requestFocus()
-        } else if (scrubTarget != null) {
-            scrub.cancel()
-            scrubTarget = null
-        } else {
-            onExit()
-        }
-    }
+    BackHandler { if (state.back(controls)) onExit() }
     val density = LocalDensity.current
     // The info bar's height as last drawn, so a subtitle sits just above it while it shows.
     var barHeight by remember { mutableStateOf(0.dp) }
@@ -604,7 +526,12 @@ fun VodPlayerScreen(
             .focusRequester(focus)
             .focusable()
             .semantics { contentDescription = title.title }
-            .onPreviewKeyEvent(::handleKeyEvent)
+            .onPreviewKeyEvent { event ->
+                state.onKeyEvent(
+                    event.key, event.type, controls, paused,
+                    hasButtons = buttons.isNotEmpty(), tracksPickable = tracks.pickable, repeatCount = event.repeatCountOrNull,
+                )
+            }
             // A double click switches a window the app can make full screen; on a phone or tablet a double tap on the
             // picture's left or right third steps back or forward, as the buttons do.
             .pointerInput(fullScreen) {
@@ -614,16 +541,16 @@ fun VodPlayerScreen(
                             fullScreen.toggle()
                         } else {
                             when (doubleTapSeek(offset.x, size.width.toFloat())) {
-                                -1 -> seekItem(positionMs - VodScrub.BACK_STEP_MS)
-                                1 -> seekItem(positionMs + VodScrub.FORWARD_STEP_MS)
+                                -1 -> seekItem(state.positionMs - VodScrub.BACK_STEP_MS)
+                                1 -> seekItem(state.positionMs + VodScrub.FORWARD_STEP_MS)
                             }
-                            showOverlay()
+                            state.showInfo()
                         }
                     },
-                    onTap = { if (overlayVisible) overlayVisible = false else showOverlay() },
+                    onTap = { state.tap() },
                 )
             }
-            .showBarOnMouseMove(LocalLastInput.current, ::showOverlay),
+            .showBarOnMouseMove(LocalLastInput.current, state::showInfo),
     ) {
         player.Video(Modifier.fillMaxSize(), zoom) { Box(Modifier.fillMaxSize().background(SofaScrim)) }
         // A recording's captions are the stream's own, drawn by the player as on live TV.
@@ -632,15 +559,15 @@ fun VodPlayerScreen(
         // Picture-in-picture shows only the picture: the subtitles are drawn at the full screen's size.
         if (inPictureInPicture) return@Box
 
-        val barVisible = (overlayVisible || failure != null) && next == null
+        val barVisible = (state.overlayVisible || state.failure != null) && state.next == null
         Column(Modifier.align(Alignment.TopStart).screenPadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             AnimatedVisibility(barVisible && pointerDriven, enter = PopIn, exit = PopOut) {
                 PlayerBackControl(onExit)
             }
-            AnimatedVisibility(rememberSettled((buffering || stream == null) && failure == null), enter = PopIn, exit = PopOut) {
+            AnimatedVisibility(rememberSettled((buffering || stream == null) && state.failure == null), enter = PopIn, exit = PopOut) {
                 StatusPill(stringResource(Res.string.vod_starting), busy = true)
             }
-            AnimatedVisibility(paused && failure == null && stream != null, enter = PopIn, exit = PopOut) {
+            AnimatedVisibility(paused && state.failure == null && stream != null, enter = PopIn, exit = PopOut) {
                 StatusPill(stringResource(Res.string.player_paused))
             }
             AnimatedVisibility(skippedToast, enter = PopIn, exit = PopOut) {
@@ -656,8 +583,8 @@ fun VodPlayerScreen(
             }
             VolumeToast()
         }
-        failure?.let { FailureCard(it, live = false) }
-        next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit) }
+        state.failure?.let { FailureCard(it, live = false) }
+        state.next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit) }
 
         InfoBar(barVisible) {
             Column(
@@ -680,27 +607,24 @@ fun VodPlayerScreen(
                     }
                     stream?.mode?.let { mode -> modeLabel(mode)?.let { Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                 }
-                val length = durationMs?.takeIf { it > 0 }
+                val length = state.durationMs?.takeIf { it > 0 }
                 if (pointerDriven && length != null) {
                     VodSeekSlider(
-                        positionMs = { positionMs },
+                        positionMs = { state.positionMs },
                         lengthMs = length,
                         markers = title.markers,
-                        onScrub = { target ->
-                            scrubTarget = target
-                            showOverlay()
-                        },
+                        onScrub = state::dragTo,
                         onSeek = { target ->
-                            scrubTarget = null
+                            state.endScrub()
                             seekItem(target)
-                            showOverlay()
+                            state.showInfo()
                             focus.requestFocus()
                         },
                     )
                 } else {
-                    VodSeekBar(positionMs = { positionMs }, durationMs = durationMs, scrubMs = scrubTarget, markers = title.markers)
+                    VodSeekBar(positionMs = { state.positionMs }, durationMs = state.durationMs, scrubMs = state.scrubTarget, markers = title.markers)
                 }
-                VodTimes(positionMs = { positionMs }, scrubMs = scrubTarget, durationMs = durationMs)
+                VodTimes(positionMs = { state.positionMs }, scrubMs = state.scrubTarget, durationMs = state.durationMs)
                 val items = buttons.map { button ->
                     vodButtonItem(
                         button,
@@ -709,13 +633,13 @@ fun VodPlayerScreen(
                         onClick = {
                             when (button) {
                                 VodButton.SKIP_BREAK -> breakEnd?.let(::seekItem)
-                                VodButton.TRACKS -> if (tracksOpen) tracksOpen = false else openTracks()
-                                VodButton.CAPTIONS -> toggleCaptions()
+                                VodButton.TRACKS -> if (state.tracksOpen) state.closeTracks() else state.openTracks()
+                                VodButton.CAPTIONS -> switchCaptions()
                                 VodButton.ZOOM -> stepZoom()
                                 VodButton.START_OVER -> seekItem(0)
                                 VodButton.NEXT -> onPlayNext()
                             }
-                            showOverlay()
+                            state.showInfo()
                             // A seek moves on and the picture takes the keys again; Captions and Zoom stay for another press.
                             if (button !in STAYING_BUTTONS) focus.requestFocus()
                         },
@@ -728,26 +652,26 @@ fun VodPlayerScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
-                        ControlIcon(SofaIcons.Replay10, stringResource(Res.string.vod_control_back), { seekItem(positionMs - VodScrub.BACK_STEP_MS); showOverlay() })
-                        PlayPauseControl(paused, failed = failure != null, onPlayPause = ::togglePause, onRetry = ::retry, primary = true)
-                        ControlIcon(SofaIcons.Forward30, stringResource(Res.string.vod_control_forward), { seekItem(positionMs + VodScrub.FORWARD_STEP_MS); showOverlay() })
-                        PlayerButtonRow(items, entry = rowEntry, onFocused = { rowFocused = it }, showLabel = false)
-                        VolumeControl(onAdjust = ::showOverlay, onDone = { showOverlay(); focus.requestFocus() })
+                        ControlIcon(SofaIcons.Replay10, stringResource(Res.string.vod_control_back), { seekItem(state.positionMs - VodScrub.BACK_STEP_MS); state.showInfo() })
+                        PlayPauseControl(paused, failed = state.failure != null, onPlayPause = { togglePause(); state.showInfo() }, onRetry = ::retryItem, primary = true)
+                        ControlIcon(SofaIcons.Forward30, stringResource(Res.string.vod_control_forward), { seekItem(state.positionMs + VodScrub.FORWARD_STEP_MS); state.showInfo() })
+                        PlayerButtonRow(items, entry = rowEntry, onFocused = { state.buttonsFocused = it }, showLabel = false)
+                        VolumeControl(onAdjust = state::showInfo, onDone = { state.showInfo(); focus.requestFocus() })
                         FullScreenControl()
                     }
                 } else if (items.isNotEmpty()) {
-                    PlayerButtonRow(items, entry = rowEntry, onFocused = { rowFocused = it }, showLabel = true)
-                    if (!rowFocused) {
+                    PlayerButtonRow(items, entry = rowEntry, onFocused = { state.buttonsFocused = it }, showLabel = true)
+                    if (!state.buttonsFocused) {
                         Text(stringResource(Res.string.vod_options_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         }
         // Drawn over the bar and clear of its top edge; it waits while a card would cover it.
-        if (!tracksOpen && failure == null && next == null) {
-            subtitles?.let { cues -> VodSubtitle(cues, { positionMs }, bottom = if (barVisible) barHeight + SUBTITLE_GAP else SUBTITLE_GAP) }
+        if (!state.tracksOpen && state.failure == null && state.next == null) {
+            subtitles?.let { cues -> VodSubtitle(cues, { state.positionMs }, bottom = if (barVisible) barHeight + SUBTITLE_GAP else SUBTITLE_GAP) }
         }
-        if (tracksOpen) {
+        if (state.tracksOpen) {
             TracksCard(tracks, audioTrack, subtitleTrack, onAudio = { pickAudio(it); focus.requestFocus() }, onSubtitle = { pickSubtitle(it); focus.requestFocus() })
         }
     }
@@ -875,7 +799,6 @@ private fun modeLabel(mode: String): String? = when (mode) {
     else -> null
 }
 
-private val UP_NEXT_PLAY_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)
 private val BarShape = RoundedCornerShape(8.dp)
 private val SUBTITLE_GAP = 24.dp
 private val log = Logger.withTag("SofaKing")

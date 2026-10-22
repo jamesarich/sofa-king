@@ -45,6 +45,9 @@ internal expect val supportsPlaybackPreferences: Boolean
 /** True where captions are drawn through `CaptionSync` (Android's Media3), so smoothing and timing apply; Settings hides those rows elsewhere. */
 internal expect val supportsCaptionSync: Boolean
 
+/** The address Settings offers while none is saved: the web page's own origin, which serves the API beside it; null elsewhere. */
+internal expect val pageServerUrl: String?
+
 /**
  * What Get the update opens for a published [latest] build: the Android package on Android, the release page on a
  * desktop or in a browser, or null where no package is published (iOS), so Settings says so instead.

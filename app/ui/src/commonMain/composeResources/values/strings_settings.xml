@@ -8,6 +8,8 @@
     <string name="settings_server_reloading">Reloading</string>
     <string name="settings_section_captions">Captions</string>
     <string name="settings_server_connected">Connected to %1$s</string>
+    <string name="settings_server_unreachable">Couldn't reach %1$s</string>
+    <string name="settings_server_use_page">Use this page's address</string>
     <string name="settings_server_change">Change</string>
     <string name="settings_server_cancel">Cancel</string>
     <string name="settings_server_url">Server address</string>

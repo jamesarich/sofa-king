@@ -65,6 +65,7 @@ import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.captionEngineName
 import dev.jamesrich.sofaking.ui.label
+import dev.jamesrich.sofaking.ui.pageServerUrl
 import dev.jamesrich.sofaking.ui.player.CaptionPolicy
 import dev.jamesrich.sofaking.ui.player.captionTimingText
 import dev.jamesrich.sofaking.ui.rememberSystemCaptionSettings
@@ -135,6 +136,8 @@ fun SettingsScreen(
     recordingsOffered: Boolean = false,
     /** True while a reload asked for here is running. */
     reloading: Boolean = false,
+    /** True when the last lineup load from the saved server failed. */
+    serverUnreachable: Boolean = false,
     actions: SettingsActions = SettingsActions(),
     pairing: PairingUi = PairingUi(),
     /** The update check's answer, or null while none has run. */
@@ -147,7 +150,7 @@ fun SettingsScreen(
     var captionAdvance by remember(settings.captionAdvanceMs) { mutableIntStateOf(settings.captionAdvanceMs) }
     var smoothCaptions by remember(settings.smoothCaptions) { mutableStateOf(settings.smoothCaptions) }
     var captionStyle by remember(settings.captionStyle) { mutableStateOf(settings.captionStyle) }
-    val serverUrl = rememberStoredFieldState(settings.serverUrl)
+    val serverUrl = rememberStoredFieldState(settings.serverUrl.ifEmpty { pageServerUrl.orEmpty() })
     val apiToken = rememberStoredFieldState(settings.apiToken)
     var captionsOn by remember(settings.captionsEnabled) { mutableStateOf(settings.captionsEnabled) }
     var autoOpen by remember(settings.autoOpenDelay) { mutableStateOf(settings.autoOpenDelay) }
@@ -205,8 +208,17 @@ fun SettingsScreen(
         item { SectionHeader(stringResource(Res.string.settings_section_server)) }
         if (!serverOpen) {
             item {
-                SettingRow(label = stringResource(Res.string.settings_server_connected, settings.serverUrl)) {
+                val status = if (serverUnreachable) Res.string.settings_server_unreachable else Res.string.settings_server_connected
+                SettingRow(label = stringResource(status, settings.serverUrl)) {
                     SofaButton(onClick = { changingServer = true }) { Text(stringResource(Res.string.settings_server_change)) }
+                    // A web page that cannot reach a server elsewhere most likely sits behind the proxy that serves it.
+                    val page = pageServerUrl?.takeIf { serverUnreachable && it != ServerAddress.normalizeUrl(settings.serverUrl) }
+                    if (page != null) {
+                        SofaButton(onClick = {
+                            serverUrl.setTextAndPlaceCursorAtEnd(page)
+                            changingServer = true
+                        }) { Text(stringResource(Res.string.settings_server_use_page)) }
+                    }
                     // Stays enabled while it runs, so the D-pad focus never drops.
                     SofaButton(onClick = { if (!reloading) actions.onReload() }) {
                         Text(stringResource(if (reloading) Res.string.settings_server_reloading else Res.string.settings_server_reload))

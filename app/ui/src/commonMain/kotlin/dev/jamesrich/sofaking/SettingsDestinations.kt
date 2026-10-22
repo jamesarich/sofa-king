@@ -54,6 +54,7 @@ internal fun SettingsDestination(
                 libraryOffered = offered.library,
                 recordingsOffered = offered.recordings,
                 reloading = loading,
+                serverUnreachable = state is LineupState.Failed,
                 actions = SettingsActions(
                     onCaptionsChanged = vm::setCaptionsEnabled,
                     onCaptionAdvanceChanged = vm::setCaptionAdvanceMs,

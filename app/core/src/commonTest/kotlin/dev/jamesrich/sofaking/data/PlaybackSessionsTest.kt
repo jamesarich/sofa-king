@@ -276,6 +276,20 @@ class PlaybackSessionsTest {
     }
 
     @Test
+    fun `a closing page releases the held session with its own request`() = runTest {
+        val (_, sessions) = fixture()
+        sessions.tune("c1", PlaybackIntent.PREVIEW)
+
+        val release = sessions.exitRelease()!!
+
+        assertEquals("${FAKE_BASE}api/v1/playback-sessions/s1", release.url)
+        assertEquals("secret", release.token)
+        assertEquals("c1", sessions.current.value?.channelId)
+        sessions.release()
+        assertNull(sessions.exitRelease())
+    }
+
+    @Test
     fun `reopen after release opens the released channel with its intent`() = runTest {
         val (fake, sessions) = fixture()
         sessions.tune("c1", PlaybackIntent.PREVIEW)

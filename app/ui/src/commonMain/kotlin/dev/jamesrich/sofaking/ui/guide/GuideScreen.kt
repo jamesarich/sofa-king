@@ -26,6 +26,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.key
@@ -247,6 +248,7 @@ fun GuideScreen(
     val searchChip = remember { FocusRequester() }
     val searchField = remember { FocusRequester() }
     val initialFocus = remember { FocusRequester() }
+    val grid = remember { FocusRequester() }
 
     // Scrolls the timeline so [minute] is inside the visible strip, leaving a half hour of room on the left.
     // Kept after focus leaves so the preview holds the last programme while focus is on the chips.
@@ -278,7 +280,12 @@ fun GuideScreen(
             state.showAll()
             return@LaunchedEffect
         }
-        if (visible.isEmpty()) return@LaunchedEffect
+        if (visible.isEmpty()) {
+            // A filter with no channels (no favorites yet): the selected chip holds focus until it has some.
+            chipsState.scrollToItem(selectedChipIndex(filters, activeFilter))
+            requestFocusWhenAttached(selectedChip)
+            return@LaunchedEffect
+        }
         val nowAt = nowMinute ?: nowClamped
         if (startAtNow) state.cursor = nowAt else if (returnedFrom != null) state.cursor = cursorOnReturn(state.cursor, nowAt)
         val row = initialGuideRow(visible, returnedFrom, state.lastFocusedGuideId, initialChannelId)
@@ -452,7 +459,13 @@ fun GuideScreen(
                 state.filter = it
                 onFilterChanged(it.key())
             },
-            modifier = chipModifier.onFocusChanged { state.chipsFocused = it.hasFocus },
+            // Down returns to the cell focus left, wherever the chip is. Searched geometrically, it could land on a
+            // rail item below and left of the chips rather than the grid.
+            modifier = chipModifier
+                .focusProperties {
+                    onExit = { if (requestedFocusDirection == FocusDirection.Down && !state.searchOpen) grid.requestFocus(FocusDirection.Enter) }
+                }
+                .onFocusChanged { state.chipsFocused = it.hasFocus },
         )
     }
     val searchBar: @Composable (Modifier) -> Unit = { barModifier ->
@@ -580,6 +593,7 @@ fun GuideScreen(
                 nowMinute = nowMinute,
                 env = env,
                 initialFocus = initialFocus,
+                focusRequester = grid,
                 laterFocus = laterFocus,
                 onGridKey = onGridKey,
                 onJumpHandled = onJumpHandled,

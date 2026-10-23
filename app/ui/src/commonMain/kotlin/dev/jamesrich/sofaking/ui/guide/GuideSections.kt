@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEvent
@@ -160,6 +161,7 @@ internal fun GuideTimeHeader(
 /**
  * The channel rows, with a Later line under each channel search found later in the window, or [emptyMessage]
  * when the filter or search leaves none. Focus never scrolls the list: [onGridKey] and the guide's own moves do.
+ * [focusRequester] enters the rows at the cell focus last left.
  */
 @Composable
 internal fun ColumnScope.GuideGrid(
@@ -174,6 +176,7 @@ internal fun ColumnScope.GuideGrid(
     nowMinute: Long?,
     env: GuideRowEnv,
     initialFocus: FocusRequester,
+    focusRequester: FocusRequester,
     laterFocus: Map<String, FocusRequester>,
     onGridKey: (KeyEvent) -> Boolean,
     onJumpHandled: (Boolean) -> Unit,
@@ -188,7 +191,7 @@ internal fun ColumnScope.GuideGrid(
         CompositionLocalProvider(LocalBringIntoViewSpec provides NoBringIntoView) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f).focusRestorer().onFocusChanged { state.gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),
+                modifier = Modifier.weight(1f).focusRequester(focusRequester).focusRestorer().onFocusChanged { state.gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 itemsIndexed(items, key = { _, item -> item.key }) { index, item ->

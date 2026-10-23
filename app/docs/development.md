@@ -24,14 +24,18 @@ Then build and test:
 
 Unit tests cover the API client, catalog and guide mapping, the server connection's bootstrap backoff and server changes, the playback session lifecycle, cache, settings, the Apple TV's settings storage and its move out of Caches (`tvosTest`, which only macOS runs), captions, remote-control key mapping, the launch and focus decisions, channel re-resolution, the preview's rest timers and network cancellation. Server interactions run against Ktor's `MockEngine` in common code on every target, and against MockWebServer on the JVM where a real socket matters, so no server is needed. Screen tests in `ui`'s `jvmTest` drive the composables with Compose's ui-test (`runSkikoComposeUiTest`), pressing keys and finding nodes by semantics on a virtual clock. `RenderSmokeTest` draws the guide, settings, the settings lock page, the player's info bar and its channel list headless at TV size and writes them to `ui/build/screenshots`.
 
-`AppKeyFuzzTest` runs the whole app, paired through a pairing link to a fake server on loopback, and presses 300 random remote keys, weighted toward the D-pad. It fails when a key throws, focus is lost for more than 3 seconds, or the app holds more than one playback session, and names the seed and the last keys pressed; the screen and its semantics tree go to `ui/build/fuzz`, beside a trace of every key and what it left focused. Replay a failure or run a longer soak with the seed and the number of keys, or press a fixed list of keys by the names the trace uses:
+`AppKeyFuzzTest` and `AppJourneyTest` run the whole app, paired through a pairing link to `FakeServer`, a server on loopback with a lineup, a day of guide, a movie and a show library and a few recordings, whose streams go nowhere. `AppDriver` presses the remote's keys and reads what they left focused. Keys go through the scene as a window sends them, so an open popup, menu or sheet takes them first, and an Escape, or a Back, that nothing took is a back event; a held key repeats. Each test starts the app in the desktop layout or, with the `sofaking.tv` system property, the TV layout, and leaves libVLC out, so the player shows its failure card.
+
+`AppJourneyTest` walks the focus items of the [checks on a TV](#test-on-a-tv) key by key: the guide's Back ladder, Info and a held OK on a cell and on the chips, the Library tab and a card's page, a card's menu, the empty Recordings tab, Menu into a guide whose filter has no channels, Settings, and Down from the guide's chips on a desktop. Each step names where focus must land; a failure's screen and semantics tree go to `ui/build/journeys`.
+
+`AppKeyFuzzTest` presses 300 random remote keys, weighted toward the D-pad, once in each layout. It fails when a key throws, focus is lost for more than 3 seconds, or the app holds more than one playback session, live or library, and names the seed and the last keys pressed; the screen and its semantics tree go to `ui/build/fuzz/desktop` or `ui/build/fuzz/tv`, beside a trace of every key and what it left focused. Replay a failure or run a longer soak with the seed and the number of keys, or press a fixed list of keys by the names the trace uses:
 
 ```sh
 SOFAKING_FUZZ_SEED=7 SOFAKING_FUZZ_STEPS=2000 ./gradlew :ui:jvmTest --tests 'dev.jamesrich.sofaking.AppKeyFuzzTest' --rerun
-SOFAKING_FUZZ_KEYS=Down,Back,Down,Up ./gradlew :ui:jvmTest --tests 'dev.jamesrich.sofaking.AppKeyFuzzTest' --rerun
+SOFAKING_FUZZ_KEYS=Down,Back,Down,Up ./gradlew :ui:jvmTest --tests 'dev.jamesrich.sofaking.AppKeyFuzzTest.random remote*' --rerun
 ```
 
-Keys go through the scene as a window sends them, so an open popup, menu or sheet takes them first and an Escape nothing took is a back event; a held key repeats. The JVM lays the app out as a desktop window, not a TV, and the test leaves libVLC out, so the player shows its failure card.
+To look at the TV layout without a TV, run the desktop app with `./gradlew :ui:run -Psofaking.tv=true`; the keyboard's arrows, Enter and Escape are the remote's.
 
 ## Android Studio
 
@@ -63,7 +67,7 @@ Both Swift hosts take their version from the catalog's `sofaking` through `tools
 
 ## Test on a TV
 
-The tests cannot see focus, the remote's keys or a real decoder. Check these on a real Android TV or Google TV device before a change that touches playback, focus or the remote:
+The journeys and the fuzz walk focus in the TV layout on the JVM, but not Android's own key dispatch, how focus looks, a remote's extra keys or a real decoder. Check these on a real Android TV or Google TV device before a change that touches playback, focus or the remote:
 
 - [ ] Cold start opens the last watched channel, and Back shows the guide focused on it. Leave the app from the Library tab and start it again: it opens on Library with nothing playing.
 - [ ] The Guide, Menu and Search keys work (the launcher may claim Guide on some devices), and voice search finds a channel.

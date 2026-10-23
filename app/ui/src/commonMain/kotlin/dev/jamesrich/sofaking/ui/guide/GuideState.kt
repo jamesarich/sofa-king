@@ -346,15 +346,18 @@ internal class GuideState(
                 controls.search()
             }
             GuideShortcut.DETAILS -> {
-                if (details != null) controls.closeDetails() else focused?.let { openDetails(it.channel, it.cell) }
+                // Only from a cell: the one kept for the preview after focus left may not be on screen to return to.
+                if (details != null) controls.closeDetails() else focused?.takeIf { gridFocused }?.let { openDetails(it.channel, it.cell) }
             }
             GuideShortcut.DAY_FORWARD, GuideShortcut.DAY_BACK -> {
-                details = null
+                // Closed the way Back closes them, so focus returns to the cell even where there is no day to move to.
+                if (details != null) controls.closeDetails()
                 if (!searchOpen) controls.dayJump(shortcut)
             }
             null -> {
                 val digit = key.digitValue()
-                if (digit == null || searchOpen) return false
+                // A number typed over the details would tune from under them.
+                if (digit == null || searchOpen || details != null) return false
                 numbers.append(digit)
             }
         }

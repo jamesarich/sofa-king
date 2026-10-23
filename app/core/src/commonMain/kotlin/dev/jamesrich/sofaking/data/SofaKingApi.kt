@@ -47,6 +47,9 @@ internal sealed interface CatalogResult {
     data object NotModified : CatalogResult
 }
 
+/** A DELETE to [url] that frees a playback session, with the bearer [token] unless it is empty. */
+class SessionRelease(val url: String, val token: String)
+
 /**
  * The Sofa King server's JSON API under `/api/v1`. Every call carries the bearer [token] unless it is empty;
  * media URLs from a descriptor are resolved against the base and carry no token. Transport failures surface as
@@ -56,7 +59,7 @@ internal sealed interface CatalogResult {
  */
 class SofaKingApi(
     baseUrl: String,
-    token: String,
+    private val token: String,
     engine: HttpClientEngine = sharedHttpEngine,
     private val background: CoroutineDispatcher = Dispatchers.Default,
 ) : AutoCloseable {
@@ -230,6 +233,10 @@ class SofaKingApi(
     internal suspend fun deleteRecordingRule(id: String) = call {
         http.delete("recording-rules/" + id.encodeURLPathPart()).checkSuccess()
     }
+
+    /** The DELETE that frees the session [id], a library item's when [vod], for a closing page that sends it itself. */
+    internal fun releaseRequest(id: String, vod: Boolean) =
+        SessionRelease(url = "$base/api/v1/" + (if (vod) vodPath(id) else sessionPath(id)), token = token)
 
     /** The absolute media URL for a descriptor, whose [PlaybackDescriptorDto.url] is relative to the server. */
     internal fun mediaUrl(descriptor: PlaybackDescriptorDto): String =

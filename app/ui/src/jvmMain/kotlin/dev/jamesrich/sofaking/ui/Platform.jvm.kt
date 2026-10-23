@@ -5,6 +5,8 @@ import androidx.compose.runtime.DisposableEffect
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.KeyEvent
+import androidx.lifecycle.LifecycleOwner
+import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PublishedBuild
 import dev.jamesrich.sofaking.data.UpdateInstaller
 
@@ -69,3 +71,9 @@ internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = latest.
 
 @Composable
 internal actual fun rememberUpdateInstaller(): UpdateInstaller? = null
+
+@Composable
+internal actual fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner = host
+
+@Composable
+internal actual fun ReleaseOnPageExit(sessions: PlaybackSessions) = Unit

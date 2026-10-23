@@ -309,6 +309,23 @@ class GuideStateTest {
         assertEquals(GuideTimeline.offsetMinutes(rolled.liveStart, later), rolled.cursor)
     }
 
+    @Test
+    fun `the guide comes back to now after half an hour away`() {
+        assertFalse(state.cameBack(base), "never stopped")
+        state.left(base)
+        assertFalse(state.cameBack(base + 29.minutes))
+        state.left(base)
+        assertTrue(state.cameBack(base + 30.minutes))
+        assertFalse(state.cameBack(base + 60.minutes), "each stop counts once")
+    }
+
+    @Test
+    fun `a day picked with Fast Forward stays however long the app was away`() {
+        state.dayOffset = 1
+        state.left(base)
+        assertFalse(state.cameBack(base + 120.minutes))
+    }
+
     // Typed numbers
 
     @Test

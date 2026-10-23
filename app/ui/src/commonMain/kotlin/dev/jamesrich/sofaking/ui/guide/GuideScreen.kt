@@ -62,6 +62,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlin.time.Clock
 import kotlin.time.Instant
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.rememberScreenReaderActive
@@ -485,7 +486,16 @@ fun GuideScreen(
     LifecycleEventEffect(Lifecycle.Event.ON_START, appLifecycleOwner) {
         dwell.restart(uptimeMs())
         state.dwellNonce++
+        // Back after half an hour or more, the grid shows now again: the window rolls on if it must and the
+        // focused row jumps to the programme on now.
+        val at = Clock.System.now()
+        if (state.cameBack(at)) {
+            state.rollWindow(at)
+            val guideId = state.focused?.channel?.guideId ?: items.getOrNull(listState.firstVisibleItemIndex)?.channel?.guideId
+            if (guideId != null) requestJump(guideId, GuideTimeline.offsetMinutes(state.liveStart, at))
+        }
     }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP, appLifecycleOwner) { state.left(Clock.System.now()) }
     LaunchedEffect(dwell) {
         snapshotFlow {
             DwellInput(state.focused?.channel?.guideId?.takeIf { state.gridFocused && !state.searchOpen }, state.dwellNonce, state.previewFailed, currentPreviewSound)

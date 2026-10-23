@@ -487,7 +487,7 @@ fun GuideScreen(
         dwell.restart(uptimeMs())
         state.dwellNonce++
         // Back after half an hour or more, the grid shows now again: the window rolls on if it must and the
-        // focused row jumps to the programme on now.
+        // focused row jumps to the program on now.
         val at = Clock.System.now()
         if (state.cameBack(at)) {
             state.rollWindow(at)

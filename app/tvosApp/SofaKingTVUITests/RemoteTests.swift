@@ -131,7 +131,6 @@ final class RemoteTests: XCTestCase {
                 pressed.append(key)
                 RunLoop.current.run(until: Date().addingTimeInterval(1))
                 XCTAssertEqual(app.state, .runningForeground, "The app stopped on \(name) after \(pressed.joined(separator: " "))")
-                print("[remote] \(name) after \(pressed.joined(separator: " ")):\n\(outline())")
             }
             // Back to Settings from a keyboard still open.
             for _ in 0..<2 where !field.exists || app.keyboards.firstMatch.exists {

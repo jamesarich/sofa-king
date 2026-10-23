@@ -1,8 +1,13 @@
 {
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
   "permissions": {
     "allow": [
-      "Bash(git fetch *)",
-      "Bash(git grep *)",
+      "Bash(git fetch origin main)",
+      "Bash(git fetch --unshallow origin main)",
       "Bash(git merge-base *)",
       "Bash(git rev-list *)",
       "Bash(git ls-tree *)",

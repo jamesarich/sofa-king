@@ -53,9 +53,10 @@ jobs:
   check:
     name: Test and build (Linux)
     runs-on: ubuntu-24.04
-    # The build takes about ten minutes; the limit bounds a hung cache save, which once ran for 42 minutes until canceled
-    # by hand and kept the next main run queued behind it.
-    timeout-minutes: 35
+    # The build takes about ten minutes and the web key fuzz about five more; the limit bounds a hung cache save, which
+    # once ran for 42 minutes until canceled by hand and kept the next main run queued behind it. FFmpeg's packages
+    # once took 19 minutes from the runner's mirror.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -88,6 +89,25 @@ jobs:
           :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
           :androidApp:lintDebug :androidApp:assembleRelease :androidApp:testDebugScreenshotTestDefaultTestSuite
           :ui:wasmJsBrowserDistribution :ui:jsBrowserDistribution
+      # Random keys on both production web builds in Google Chrome, which the runner has and which plays the fixture
+      # channels' H.264 where Playwright's own Chromium does not, against the server's distribution, as on the TV.
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Build the server distribution
+        working-directory: backend
+        run: ./gradlew --console=plain :server:installDist
+      - name: Install Playwright
+        run: |
+          python3 -m venv build/playwright
+          build/playwright/bin/pip install playwright==1.56.0
+      - name: Press random keys on the web app
+        run: |
+          status=0
+          for target in wasmJs js; do
+            build/playwright/bin/python scripts/web-fuzz.py --channel chrome \
+              --dist "ui/build/dist/$target/productionExecutable" --out "build/web-fuzz/$target" || status=1
+          done
+          exit "$status"
       # A restored older distribution would otherwise be saved again under the new key, and the entry would grow.
       - name: Keep only the current Kotlin/Native distribution
         if: github.ref == 'refs/heads/main'
@@ -104,6 +124,7 @@ jobs:
             app/*/build/test-results/
             app/ui/build/fuzz/
             app/ui/build/journeys/
+            app/build/web-fuzz/
       - name: Upload render screenshots
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

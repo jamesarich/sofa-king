@@ -63,6 +63,14 @@ TEST_RUNNER_SOFAKING_SERVER=$SOFAKING_SERVER TEST_RUNNER_SOFAKING_TOKEN=$SOFAKIN
   xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -destination 'platform=tvOS Simulator,name=Apple TV' CODE_SIGNING_ALLOWED=NO test
 ```
 
+### Web key fuzz
+
+[`scripts/web-fuzz.py`](../scripts/web-fuzz.py) serves a production web build to a headless browser through [Playwright for Python](https://playwright.dev/python/), with the page paired to the same fixture server, and presses 400 random keys 150 ms apart, weighted as `AppKeyFuzzTest` weighs the remote's. It fails when the page keeps the focus on its body (the app then takes no keys until a click), on an uncaught error, a console error, a failed request (but the 404 for a new device's preferences and the 410 for a released session's media), a crashed page, or two blank screens in a row; the summary also counts the sessions left open after the page closed. The Linux CI job runs it on both web builds in Google Chrome, which plays the fixture's H.264 where Playwright's own Chromium does not, and uploads the console, server log, keys and last screen when it fails. Locally, with the server's distribution, FFmpeg, Playwright and a web build:
+
+```sh
+SOFAKING_WEB_FUZZ_SEED=1234 python3 scripts/web-fuzz.py --channel chrome --dist ui/build/dist/wasmJs/productionExecutable --out build/web-fuzz
+```
+
 ## Android Studio
 
 Open the repository root, not `app/`. The root `settings.gradle.kts` imports the app, the server and the contract as one composite build named `sofa-king-monorepo`, and the root `gradle.properties` holds the Gradle settings the IDE's sync uses. Use an Android Studio release that supports the catalog's `agp` version, with its bundled Kotlin Multiplatform plugin enabled, and the SDK in `app/local.properties` as above. A preview `agp` (an alpha or beta) syncs only in the Android Studio Canary or Beta built with it; a stable Studio stops at the last stable plugin, and a nightly expects a plugin preview that Google Maven may not have published yet. Either refuses the sync with "The project is using an incompatible version" (or "incompatible preview version") of the Android Gradle plugin, under Gradle Sync issues in the Build window. To see which plugin a Studio build accepts, read `buildVersion` in `com/android/version.properties` inside the app's `plugins/android/lib/libagp-version.jar`.
@@ -122,6 +130,7 @@ The journeys and the fuzz walk focus in the TV layout on the JVM, but not Androi
 - [ ] A show's page opens with its title in view and on the season with the next episode; Down from the buttons lands on that season's chip, the chips switch the episode rows, and OK on an episode plays it, resuming where it stopped.
 - [ ] Playing an episode whose intro the server found (the Jobs page's Intro detection lists the shows), the bar comes up with Skip intro focused as the intro starts, from the beginning or a resume inside it; OK jumps past it, and going back into it leaves Skip intro on the bar unfocused.
 - [ ] After stopping an episode part way, the home screen's Watch Next row (a Google TV or Shield launcher; the emulator's launcher has none) shows it with its artwork and progress; selecting it plays it from there, with the app closed and with it open on another tab, and Back returns to the Library tab. Finishing it moves the row on to the next episode.
+- [ ] Sleep timer on the live bar steps through Sleep in 15, 30, 60 and 90 min, Sleep after this program and Sleep timer (off); set to 15 minutes, the player returns to the guide on time with no preview playing. In a library episode, Sleep after this one leaves for the page as the episode ends, with no Up next. Let three episodes play into each other untouched: the third Up next card asks Still watching? and returns to the page after 30 seconds. On an Apple TV, the transport bar's Sleep timer menu does the same.
 - [ ] In the library player, Left and Right scrub and apply once released, holding them jumps further, OK applies at once, Back cancels a scrub and then returns to the page with the episode focused; Home and back resumes where it was, and a far jump in a converted file restarts there.
 
 On an Apple TV (the simulator does not show the Top Shelf of a sideloaded app reliably):

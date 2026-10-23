@@ -68,6 +68,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Clock
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import dev.jamesrich.sofaking.ui.uptimeMs
@@ -84,6 +85,7 @@ private const val MINI_GUIDE_IDLE_MS = 8_000L
 private const val STREAM_CARD_IDLE_MS = 15_000L
 private const val LIVE_TOAST_MS = 1_500L
 private const val NOTICE_MS = 3_000L
+private const val SLEEP_CHECK_MS = 1_000L
 /** A swipe up this far on a touch screen opens the channel list. */
 private const val SWIPE_UP_DP = 80
 /** The server's answer when a session is asked for a channel id its lineup no longer has. */
@@ -158,6 +160,8 @@ fun PlayerScreen(
     /** The ads the break screen covered today before now, and where each break screen's time goes when it closes. */
     adsDodgedTodayMs: Long = 0,
     onAdsDodged: (Long) -> Unit = {},
+    /** The sleep timer, which leaves the player as Back does once it runs out. */
+    sleep: SleepTimer = remember { SleepTimer() },
 ) {
     val state = rememberPlayerState(lineup.channels, startIndex, previousGuideId, zapScope, captionsEnabled, attended = !unattended, keyLegendShown)
     val captionSync = player.captionSync
@@ -173,6 +177,7 @@ fun PlayerScreen(
     val currentOnCaptionAdvanceChanged by rememberUpdatedState(onCaptionAdvanceChanged)
     val currentOnKeyLegendShown by rememberUpdatedState(onKeyLegendShown)
     val currentOnToggleFavorite by rememberUpdatedState(onToggleFavorite)
+    val currentOnExit by rememberUpdatedState(onExit)
     val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
     val captionBottomFraction = CaptionPolicy.bottomPaddingFraction(windowHeightDp)
     // The shared player may arrive already playing the channel from the guide preview.
@@ -189,6 +194,17 @@ fun PlayerScreen(
     val timeFormat = rememberTimeFormatter()
     val scope = rememberCoroutineScope()
     val tuneJob = remember { TuneJob() }
+
+    LaunchedEffect(sleep) {
+        while (true) {
+            delay(SLEEP_CHECK_MS)
+            if (sleep.due(Clock.System.now().toEpochMilliseconds())) {
+                sleep.cancel()
+                currentOnExit()
+                break
+            }
+        }
+    }
 
     // The server marks the ad segments of a streaming channel's playlist; while Settings asks, the break screen covers
     // them. Media3 reads the marks itself; the other engines ask the server, which knows the segments they fetched.
@@ -640,6 +656,8 @@ fun PlayerScreen(
                 paused = paused,
                 hasAudioChoice = audioTracks.isNotEmpty(),
                 record = recordFor(lineup.nowAndNext(channel, now).first),
+                sleep = sleep,
+                programEnd = lineup.nowAndNext(channel, now).first?.stop,
                 zoom = zoom,
                 favorite = if (onToggleFavorite != null) channel.guideId in favorites else null,
                 onToggleFavorite = { currentOnToggleFavorite?.invoke(channel) },

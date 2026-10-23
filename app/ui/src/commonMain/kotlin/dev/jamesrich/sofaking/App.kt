@@ -161,6 +161,10 @@ private fun SofaKingApp(
     LaunchedEffect(libraryHome) {
         watchNextItems(libraryHome)?.let(appGraph.watchNext::publish)
     }
+    // The sleep timer runs only while a full-screen player is open; leaving for any other page turns it off.
+    LaunchedEffect(top.playsFullScreen) {
+        if (!top.playsFullScreen) shell.sleep.cancel()
+    }
     // A short word from the player on its way back to the guide: the channel it was asked for is gone.
     LaunchedEffect(shell.notice) {
         if (shell.notice == null) return@LaunchedEffect

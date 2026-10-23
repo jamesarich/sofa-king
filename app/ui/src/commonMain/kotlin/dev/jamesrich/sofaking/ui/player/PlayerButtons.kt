@@ -32,6 +32,7 @@ import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.StringResource
+import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
 
 /** How long a player's bar stays up after the last key, tap or mouse movement, unless something holds it. */
@@ -56,6 +57,9 @@ internal enum class VodButton {
 
     /** The picture's [VideoZoom], one step on. */
     ZOOM,
+
+    /** The [SleepTimer], one step on. */
+    SLEEP,
     START_OVER,
 
     /** The next episode, without waiting for this one to end. */
@@ -64,8 +68,8 @@ internal enum class VodButton {
 
 /**
  * The library and recordings player's buttons, in the bar's order. A break or an intro being played leads, so Down
- * and OK skip it; a library item with tracks to pick offers them and a recording its captions; then Zoom; Start over once
- * [pastStart]; and the next episode when there is one. A failed stream offers none: OK retries it.
+ * and OK skip it; a library item with tracks to pick offers them and a recording its captions; then Zoom and the sleep
+ * timer; Start over once [pastStart]; and the next episode when there is one. A failed stream offers none: OK retries it.
  */
 internal fun vodButtons(
     failed: Boolean,
@@ -81,6 +85,7 @@ internal fun vodButtons(
     if (tracksPickable) add(VodButton.TRACKS)
     if (captions) add(VodButton.CAPTIONS)
     add(VodButton.ZOOM)
+    add(VodButton.SLEEP)
     if (pastStart) add(VodButton.START_OVER)
     if (hasNext) add(VodButton.NEXT)
 }
@@ -102,6 +107,9 @@ internal enum class LiveButton {
     /** The picture's [VideoZoom], one step on. */
     ZOOM,
 
+    /** The [SleepTimer], one step on. */
+    SLEEP,
+
     /** Records the program on now, or cancels its recording. */
     RECORD,
     FAVORITE,
@@ -110,7 +118,7 @@ internal enum class LiveButton {
 
 /**
  * The live player's buttons, in the bar's order: the channel list first, the previous channel once there is one
- * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, Record where the server records and there is a program on, the star where favorites can change, and the guide.
+ * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Record where the server records and there is a program on, the star where favorites can change, and the guide.
  * A finger or a mouse has play and pause beside the channel buttons instead ([pointer]).
  */
 internal fun liveButtons(pointer: Boolean, canRecord: Boolean, canFavorite: Boolean, hasPrevious: Boolean = false): List<LiveButton> = buildList {
@@ -120,6 +128,7 @@ internal fun liveButtons(pointer: Boolean, canRecord: Boolean, canFavorite: Bool
     add(LiveButton.CAPTIONS)
     add(LiveButton.STREAM_INFO)
     add(LiveButton.ZOOM)
+    add(LiveButton.SLEEP)
     if (canRecord) add(LiveButton.RECORD)
     if (canFavorite) add(LiveButton.FAVORITE)
     add(LiveButton.GUIDE)
@@ -178,6 +187,23 @@ internal val VideoZoom.label: StringResource
 @Composable
 internal fun zoomButtonItem(zoom: VideoZoom, onClick: () -> Unit): PlayerButtonItem =
     PlayerButtonItem(SofaIcons.AspectRatio, stringResource(Res.string.player_zoom_notice, stringResource(zoom.label)), onClick)
+
+/**
+ * The sleep timer on either bar, named with what it is set to, as "Sleep in 24 min"; a press steps it on as
+ * [SleepTimer.step] says. The minutes are read from the clock as the bar composes, which a press or the bar coming
+ * up again does, so they are right as they are pressed rather than up to a minute behind.
+ */
+@Composable
+internal fun sleepButtonItem(sleep: SleepTimer, onClick: () -> Unit): PlayerButtonItem {
+    val nowMs = Clock.System.now().toEpochMilliseconds()
+    val label = when {
+        sleep.choice == SleepChoice.OFF -> stringResource(Res.string.player_control_sleep)
+        sleep.atEndOfItem -> stringResource(Res.string.player_sleep_end_item)
+        sleep.choice == SleepChoice.END -> stringResource(Res.string.player_sleep_end_program)
+        else -> stringResource(Res.string.player_sleep_minutes, sleep.minutesLeft(nowMs) ?: 0)
+    }
+    return PlayerButtonItem(SofaIcons.Bedtime, label, onClick)
+}
 
 /**
  * The bar's row of buttons, the same for the D-pad and for a finger or mouse. [entry] focuses the first button,

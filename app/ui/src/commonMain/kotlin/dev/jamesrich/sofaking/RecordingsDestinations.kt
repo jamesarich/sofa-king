@@ -61,6 +61,7 @@ internal fun RecordingDestination(route: Route.Recording, shell: AppShellState, 
             captionStyle = settings?.captionStyle ?: CaptionStyle.SYSTEM,
             zoom = shell.videoZoom,
             onZoom = { shell.videoZoom = it },
+            sleep = shell.sleep,
         )
         recordings is RecordingsState.Ready || recordings is RecordingsState.Failed -> LaunchedEffect(Unit) { shell.back() }
         else -> MessageScreen(stringResource(Res.string.recordings_loading), loading = true)

@@ -58,6 +58,10 @@ internal class VodPlayerState {
     var ended by mutableStateOf(false)
         private set
 
+    /** Bumped when the stream ends well short of the item, so the screen opens it again where it stopped. */
+    var reopenRequest by mutableIntStateOf(0)
+        private set
+
     /** What the Up next card counts down to, once the item has ended and there is one. */
     var next by mutableStateOf<VodUpNext?>(null)
 
@@ -86,6 +90,10 @@ internal class VodPlayerState {
 
     private val scrub = VodScrub()
 
+    // Ends short of the item's end since playback last moved on, and where the last one was.
+    private var earlyEnds = 0
+    private var earlyEndAtMs = 0L
+
     fun showInfo() {
         overlayVisible = true
         overlayRequest++
@@ -106,10 +114,23 @@ internal class VodPlayerState {
         if (overlayVisible) overlayVisible = false else showInfo()
     }
 
-    /** The stream's state moved on: playing clears a failure, and the end of an opened item ends it. */
+    /**
+     * The stream's state moved on: playing clears a failure, and the end of an opened item ends it. A stream that ends
+     * more than [EARLY_END_MS] short of the item's length dropped rather than finished (a connection or a conversion
+     * that died), so it opens again where it stopped, up to [EARLY_END_REOPENS] times until playback moves on by
+     * [EARLY_END_PROGRESS_MS], and then fails, so Up next never plays over an episode cut short.
+     */
     fun onStatus(status: PlayerStatus, opened: Boolean) {
         if (status.state == PlaybackState.READY || status.isPlaying) failure = null
-        if (status.state == PlaybackState.ENDED && opened) ended = true
+        if (status.state != PlaybackState.ENDED || !opened) return
+        val duration = durationMs
+        if (duration == null || positionMs + EARLY_END_MS >= duration) {
+            ended = true
+            return
+        }
+        if (positionMs >= earlyEndAtMs + EARLY_END_PROGRESS_MS) earlyEnds = 0
+        earlyEndAtMs = positionMs
+        if (earlyEnds++ < EARLY_END_REOPENS) reopenRequest++ else failure = STREAM_ENDED_EARLY
     }
 
     /** Playback ran into a break it does not skip: the bar comes up with Skip break on it, focused for the remote. */
@@ -228,5 +249,11 @@ internal class VodPlayerState {
         showInfo()
     }
 }
+
+/** How far short of the item's length an end may come and still be the end: a conversion can stop a little short. */
+internal const val EARLY_END_MS = 10_000L
+private const val EARLY_END_REOPENS = 2
+private const val EARLY_END_PROGRESS_MS = 30_000L
+internal const val STREAM_ENDED_EARLY = "STREAM_ENDED_EARLY"
 
 private val UP_NEXT_PLAY_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)

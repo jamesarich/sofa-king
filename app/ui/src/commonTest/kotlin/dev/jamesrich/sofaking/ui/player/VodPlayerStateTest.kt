@@ -234,7 +234,7 @@ class VodPlayerStateTest {
 
     @Test
     fun `playing clears a failure and the end of an opened item ends it`() {
-        val state = playing()
+        val state = playing(positionMs = 595_000L)
         state.failure = "ERROR_CODE_IO_NETWORK_CONNECTION_FAILED"
         state.onStatus(PlayerStatus(PlaybackState.READY), opened = true)
         assertNull(state.failure)
@@ -242,6 +242,41 @@ class VodPlayerStateTest {
         assertFalse(state.ended)
         state.onStatus(PlayerStatus(PlaybackState.ENDED), opened = true)
         assertTrue(state.ended)
+    }
+
+    @Test
+    fun `an end short of the item reopens it twice and then fails`() {
+        val state = playing(positionMs = 120_000L)
+        state.onStatus(PlayerStatus(PlaybackState.ENDED), opened = true)
+        assertFalse(state.ended)
+        assertEquals(1, state.reopenRequest)
+        state.onStatus(PlayerStatus(PlaybackState.ENDED), opened = true)
+        assertEquals(2, state.reopenRequest)
+        state.onStatus(PlayerStatus(PlaybackState.ENDED), opened = true)
+        assertEquals(2, state.reopenRequest)
+        assertEquals(STREAM_ENDED_EARLY, state.failure)
+        assertFalse(state.ended)
+    }
+
+    @Test
+    fun `an end short of the item after playback moved on reopens it again`() {
+        val state = playing(positionMs = 120_000L)
+        repeat(2) { state.onStatus(PlayerStatus(PlaybackState.ENDED), opened = true) }
+        state.positionMs = 180_000L
+        state.onStatus(PlayerStatus(PlaybackState.ENDED), opened = true)
+        assertEquals(3, state.reopenRequest)
+        assertNull(state.failure)
+    }
+
+    @Test
+    fun `an end within the tolerance or with no known length ends the item`() {
+        val near = playing(positionMs = 600_000L - EARLY_END_MS)
+        near.onStatus(PlayerStatus(PlaybackState.ENDED), opened = true)
+        assertTrue(near.ended)
+        val unknown = playing(positionMs = 1_000L, durationMs = null)
+        unknown.onStatus(PlayerStatus(PlaybackState.ENDED), opened = true)
+        assertTrue(unknown.ended)
+        assertEquals(0, unknown.reopenRequest)
     }
 
     @Test

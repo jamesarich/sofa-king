@@ -209,6 +209,22 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
         exo.pause()
     }
 
+    // Until when a pause from the system media session is ignored; see [ignoreSystemPauseForModeSwitch].
+    @Volatile
+    private var systemPauseIgnoredUntil = 0L
+
+    /**
+     * The display is switching modes for the picture's frame rate. Shield-class boxes send a media-session pause as
+     * HDMI renegotiates, which would leave a channel or film paused after it starts, so such a pause is ignored for
+     * a few seconds. Remote keys reach the player screens directly, so a real press still pauses.
+     */
+    fun ignoreSystemPauseForModeSwitch() {
+        systemPauseIgnoredUntil = uptimeMs() + MODE_SWITCH_PAUSE_WINDOW_MS
+    }
+
+    /** Whether a media-session pause now is the display switching modes rather than the viewer. */
+    internal fun ignoresSystemPause(): Boolean = uptimeMs() < systemPauseIgnoredUntil
+
     override val playbackProfile: PlaybackProfile by lazy { media3Profile(context) }
 
     override val isSeekable: Boolean get() = seekableItem && exo.isCurrentMediaItemSeekable
@@ -318,3 +334,6 @@ internal fun mediaItemFor(stream: PlaybackStream, metadata: MediaMetadata = Medi
         .setMimeType(stream.mimeType)
         .setMediaMetadata(metadata)
         .build()
+
+/** How long after a display mode switch a media-session pause is taken for HDMI renegotiating. */
+private const val MODE_SWITCH_PAUSE_WINDOW_MS = 4_000L

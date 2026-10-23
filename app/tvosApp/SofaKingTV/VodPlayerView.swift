@@ -59,6 +59,9 @@ struct VodPlayerView: View {
     @State private var positionMs: Int64 = 0
     @State private var durationMs: Int64 = 0
     @State private var ended = false
+    /// Ends short of the item since playback last moved on, and where the last one was; see `endedEarly`.
+    @State private var earlyEnds = 0
+    @State private var earlyEndAtMs: Int64 = 0
     @State private var backgrounded = false
     @State private var next: MediaItem?
     @State private var detail: MediaItemDetail?
@@ -192,11 +195,13 @@ struct VodPlayerView: View {
         }
     }
 
-    /// Plays `s`, titled for the transport bar; once it is ready a stream that starts before the asked-for point seeks there.
-    private func load(_ s: PlaybackStream) {
+    /// Plays `s`, titled for the transport bar; once it is ready a stream that starts before the asked-for point (or
+    /// `startMs`) seeks there.
+    private func load(_ s: PlaybackStream, at startMs: Int64? = nil) {
         guard let url = URL(string: s.url) else { return }
+        let start = startMs ?? s.startAtMs
         stream = s
-        positionMs = s.startAtMs
+        positionMs = start
         durationMs = s.itemDurationMs?.int64Value ?? 0
         let item = AVPlayerItem(url: url)
         item.externalMetadata = metadata()
@@ -204,8 +209,8 @@ struct VodPlayerView: View {
             let start = CMTime(value: b.startMs - s.offsetMs, timescale: 1000)
             return AVInterstitialTimeRange(timeRange: CMTimeRange(start: start, duration: CMTime(value: b.endMs - b.startMs, timescale: 1000)))
         }
-        lastPositionMs = s.startAtMs
-        let seekMs = s.startAtMs - s.offsetMs
+        lastPositionMs = start
+        let seekMs = start - s.offsetMs
         var sought = seekMs <= 0
         itemObservers = [
             item.publisher(for: \.status).filter { $0 == .readyToPlay }.sink { _ in
@@ -217,7 +222,10 @@ struct VodPlayerView: View {
             item.publisher(for: \.status).filter { $0 == .failed }.sink { _ in
                 failure = item.error?.localizedDescription ?? "The item stopped playing"
             },
-            NotificationCenter.default.publisher(for: .AVPlayerItemDidPlayToEndTime, object: item).sink { _ in finished() },
+            NotificationCenter.default.publisher(for: .AVPlayerItemDidPlayToEndTime, object: item).sink { _ in
+                if durationMs > 0 && positionMs + earlyEndMs < durationMs { endedEarly() } else { finished() }
+            },
+            NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime, object: item).sink { _ in endedEarly() },
         ]
         player.replaceCurrentItem(with: item)
         player.play()
@@ -378,6 +386,27 @@ struct VodPlayerView: View {
         }
     }
 
+    /// The stream stopped well short of the item: a dropped connection or conversion rather than the end, so it plays
+    /// again from where it stopped, up to twice until playback moves on by 30 seconds, and then fails, so Up next never
+    /// plays over an episode cut short.
+    private func endedEarly() {
+        if positionMs >= earlyEndAtMs + 30_000 { earlyEnds = 0 }
+        earlyEndAtMs = positionMs
+        earlyEnds += 1
+        guard earlyEnds <= 2 else {
+            failure = "The item stopped playing"
+            return
+        }
+        let at = positionMs
+        Task {
+            do {
+                if let restarted = try await model.core.restartItemAt(positionMs: at) { load(restarted, at: at) } else { await open() }
+            } catch {
+                failure = error.localizedDescription
+            }
+        }
+    }
+
     private func finished() {
         guard !ended else { return }
         ended = true
@@ -493,3 +522,6 @@ private struct VodController: UIViewControllerRepresentable {
         controller.contextualActions = actions
     }
 }
+
+/// How far short of the item's length an end may come and still be the end: a conversion can stop a little short.
+private let earlyEndMs: Int64 = 10_000

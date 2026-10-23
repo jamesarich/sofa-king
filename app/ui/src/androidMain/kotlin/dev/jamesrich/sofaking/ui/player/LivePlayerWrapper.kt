@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.ui.player
 
 import androidx.annotation.OptIn
+import co.touchlab.kermit.Logger
 import androidx.media3.common.ForwardingSimpleBasePlayer
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -39,7 +40,11 @@ internal class LivePlayerWrapper(private val live: ExoLivePlayer) : ForwardingSi
     }
 
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
-        if (playWhenReady) live.play() else live.pause()
+        when {
+            playWhenReady -> live.play()
+            live.ignoresSystemPause() -> log.i { "player: ignored a media-session pause during a display mode switch" }
+            else -> live.pause()
+        }
         return Futures.immediateVoidFuture()
     }
 
@@ -57,3 +62,5 @@ private val ZAP_COMMANDS = intArrayOf(
     Player.COMMAND_SEEK_TO_PREVIOUS,
     Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
 )
+
+private val log = Logger.withTag("SofaKing")

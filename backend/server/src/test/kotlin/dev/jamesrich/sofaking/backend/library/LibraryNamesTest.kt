@@ -64,12 +64,19 @@ class LibraryNamesTest {
         assertNull(seasonOfFolder("Extras"))
     }
 
-    @Test fun `extras, samples and hidden files are not videos`() {
+    @Test fun `samples and hidden files are not videos, and extras are known by folder or suffix`() {
         assertTrue(isVideoFile("Alien (1979).mkv"))
-        assertFalse(isVideoFile("Alien (1979)-trailer.mkv"))
+        assertTrue(isVideoFile("Alien (1979)-trailer.mkv"))
+        assertFalse(isVideoFile("Alien (1979)-sample.mkv"))
         assertFalse(isVideoFile(".Alien.mkv"))
         assertFalse(isVideoFile("Alien.nfo"))
-        assertTrue(skippedFolder("Featurettes"))
+        assertEquals(ExtraKind.TRAILER to "Alien (1979)", extraSuffix("Alien (1979)-Trailer.mkv"))
+        assertNull(extraSuffix("Alien (1979).mkv"))
+        assertEquals(ExtraKind.FEATURETTE, extraFolderKind("Featurettes"))
+        assertEquals(ExtraKind.OTHER, extraFolderKind("Extras"))
+        assertNull(extraFolderKind("Season 01"))
+        assertFalse(skippedFolder("Featurettes"))
+        assertTrue(skippedFolder("Samples"))
         assertTrue(skippedFolder(".inprogress"))
         assertFalse(skippedFolder("Season 01"))
     }

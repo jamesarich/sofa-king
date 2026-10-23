@@ -33,6 +33,9 @@ CHANNELS = 8
 # Back on the Live tab leaves the app, as it should; the keys go in short scripts, and the app comes back between them.
 CHUNK = 25
 ACTIVITY = PACKAGE + '/.MainActivity'
+# The fixture clip's length, and the MPEG-TS packets the endless channels send at a time.
+CLIP_SECONDS = 10
+PIECE = 188 * 64
 
 # The remote's keys, weighted as AppDriver.REMOTE weighs them for the JVM fuzz; LongPress() is a held OK.
 KEYS = [
@@ -45,20 +48,26 @@ KEYS = [
 
 
 class Upstream(http.server.SimpleHTTPRequestHandler):
-    """Serves the fixture files, and /endless/<n>.ts as a live MPEG-TS stream that repeats one clip until the reader goes."""
+    """Serves the fixture files, and /endless/<n>.ts as a live MPEG-TS stream that repeats one clip until the reader goes,
+    at the clip's own pace as a broadcast arrives (a whole clip at once overflows the server's buffer for a new reader)."""
 
     def do_GET(self):
         if not self.path.startswith('/endless/'):
             return super().do_GET()
-        chunk = (Path(self.directory) / 'clip.ts').read_bytes()
+        clip = (Path(self.directory) / 'clip.ts').read_bytes()
+        pieces = [clip[at:at + PIECE] for at in range(0, len(clip), PIECE)]
+        every = CLIP_SECONDS / len(pieces)
         try:
             self.send_response(200)
             self.send_header('Content-Type', 'video/mp2t')
             self.end_headers()
+            due = time.monotonic()
             while True:
-                self.wfile.write(chunk)
-                self.wfile.flush()
-                time.sleep(8)
+                for piece in pieces:
+                    self.wfile.write(piece)
+                    self.wfile.flush()
+                    due += every
+                    time.sleep(max(0.0, due - time.monotonic()))
         except (BrokenPipeError, ConnectionResetError):
             pass
 
@@ -96,7 +105,7 @@ def adb(*args, **kwargs):
 def fixtures(media, upstream):
     """A ten-second clip for the TS channels, the same clip as HLS for channel 2, an M3U and six hours of guide."""
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25',
-                    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', '10', '-c:v', 'libx264',
+                    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', str(CLIP_SECONDS), '-c:v', 'libx264',
                     '-preset', 'ultrafast', '-g', '25', '-c:a', 'aac', '-f', 'mpegts', str(media / 'clip.ts')],
                    check=True, timeout=60)
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', str(media / 'clip.ts'), '-c', 'copy',

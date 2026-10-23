@@ -277,6 +277,11 @@ class SofaKingTv {
         viewModel.setAutoSkipIntros(enabled)
     }
 
+    /** Whether an episode not started yet keeps its overview back and its still blurred. */
+    fun setHideSpoilers(enabled: Boolean) {
+        viewModel.setHideSpoilers(enabled)
+    }
+
     /** Whether the break screen covers the ads a streaming channel marks, and whether their sound plays under it. */
     fun setLiveBreaks(mode: LiveBreaks) {
         viewModel.setLiveBreaks(mode)

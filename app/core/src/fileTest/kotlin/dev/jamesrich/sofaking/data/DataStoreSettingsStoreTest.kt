@@ -163,6 +163,14 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `episodes show their overviews until Hide spoilers is turned on`() = runTest {
+        val store = newStore()
+        assertFalse(store.settings.first().hideSpoilers)
+        store.setHideSpoilers(true)
+        assertTrue(store.settings.first().hideSpoilers)
+    }
+
+    @Test
     fun `live ad breaks play until the break screen is chosen`() = runTest {
         val store = newStore()
         assertEquals(LiveBreaks.PLAY, store.settings.first().liveBreaks)

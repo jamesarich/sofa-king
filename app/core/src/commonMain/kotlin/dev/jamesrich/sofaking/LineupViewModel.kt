@@ -473,6 +473,10 @@ class LineupViewModel(
         save { store.setAutoSkipIntros(enabled) }
     }
 
+    fun setHideSpoilers(enabled: Boolean) {
+        save { store.setHideSpoilers(enabled) }
+    }
+
     fun setLiveBreaks(mode: LiveBreaks) {
         save { store.setLiveBreaks(mode) }
     }

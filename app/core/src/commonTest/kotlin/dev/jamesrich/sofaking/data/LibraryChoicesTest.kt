@@ -2,7 +2,9 @@ package dev.jamesrich.sofaking.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class LibraryChoicesTest {
     private fun item(id: String, kind: ItemKind, progress: PlayProgress? = null, parentId: String? = null, unwatched: Int = 0, season: Int? = null) =
@@ -16,6 +18,15 @@ class LibraryChoicesTest {
         assertEquals(PrimaryAction.Resume(rewatch, 120_000), primaryAction(MediaItemDetail(rewatch)))
         val watched = item("m", ItemKind.MOVIE, PlayProgress(0, 600_000, watched = true))
         assertEquals(PrimaryAction.Play(watched), primaryAction(MediaItemDetail(watched)))
+    }
+
+    @Test
+    fun `spoilers are hidden only on episodes not started yet`() {
+        assertTrue(hidesSpoilers(item("e", ItemKind.EPISODE)))
+        assertTrue(hidesSpoilers(item("e", ItemKind.EPISODE, PlayProgress(0, 600_000, watched = false))))
+        assertFalse(hidesSpoilers(item("e", ItemKind.EPISODE, PlayProgress(30_000, 600_000, watched = false))), "started")
+        assertFalse(hidesSpoilers(item("e", ItemKind.EPISODE, PlayProgress(0, 600_000, watched = true))), "watched")
+        assertFalse(hidesSpoilers(item("m", ItemKind.MOVIE)), "a movie's overview is what it is about")
     }
 
     @Test

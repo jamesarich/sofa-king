@@ -224,6 +224,7 @@ class LiveRuntime(
                     metadata = config.tmdb?.let { LibraryMetadata(store, TmdbClient(http, it), clock, it.region) },
                     artwork = LibraryArtwork(http, config.dataDirectory.resolve("artwork"), ffmpeg = config.ffmpeg),
                     intros = IntroDetector(store, clock, jobs, FfmpegFingerprinter(config.ffmpeg, config.dataDirectory.resolve("intros"))).also { it.start(scope) },
+                    scrub = ScrubSheets(store, clock, jobs, FfmpegSheetMaker(config.ffmpeg), config.dataDirectory.resolve("scrub")).also { it.start(scope) },
                 )
                 libraries.start(scope)
                 val vod = VodSessions(

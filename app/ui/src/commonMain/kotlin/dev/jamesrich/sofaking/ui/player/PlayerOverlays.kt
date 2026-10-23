@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.data.ScrubTiles
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.ui.ChannelLogo
@@ -608,7 +609,7 @@ internal fun BoxScope.TransportDisc(hint: TransportHint?, pulse: Int) {
  * picture, so the bar does not cover it.
  */
 @Composable
-internal fun BoxScope.SeekBadge(targetMs: Long?, positionMs: () -> Long) {
+internal fun BoxScope.SeekBadge(targetMs: Long?, positionMs: () -> Long, scrub: ScrubTiles? = null) {
     AnimatedVisibility(targetMs != null, Modifier.align(Alignment.BottomCenter).screenPadding(), enter = PopIn, exit = PopOut) {
         val target = targetMs ?: return@AnimatedVisibility
         val delta = target - positionMs()
@@ -617,7 +618,10 @@ internal fun BoxScope.SeekBadge(targetMs: Long?, positionMs: () -> Long) {
         } else {
             formatPlayTime(abs(delta))
         }
-        StatusPill(stringResource(Res.string.vod_seek_badge, if (delta < 0) "−" else "+", amount, formatPlayTime(target)))
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            scrub?.let { ScrubThumbnail(it, target) }
+            StatusPill(stringResource(Res.string.vod_seek_badge, if (delta < 0) "−" else "+", amount, formatPlayTime(target)))
+        }
     }
 }
 

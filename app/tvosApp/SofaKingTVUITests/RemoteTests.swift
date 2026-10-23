@@ -69,6 +69,32 @@ final class RemoteTests: XCTestCase {
         }
     }
 
+    /// A start reopens Recordings when the viewer left the app from there, before the server says it records; moving
+    /// along the tab bar then keeps the app up. The bar used to gain the tab and select it at once, which left it
+    /// selected under another tab's title and stopped the app on the next move with a navigation bar assertion.
+    @MainActor
+    func testStartOnRecordings() throws {
+        try launchToList()
+        let recordings = app.tabBars.buttons["Recordings"]
+        focus(app.tabBars.buttons["Live"], pressing: .up)
+        XCTAssertTrue(recordings.waitForExistence(timeout: 10), "No Recordings tab\n\(screen)")
+        focus(recordings, pressing: .right, presses: 3)
+        // Settings is not remembered, so the next start reopens Recordings.
+        focus(app.tabBars.buttons["Settings"], pressing: .right, presses: 3)
+        app.terminate()
+        app.launch()
+        eventually("the start to reopen Recordings", timeout: 60) { row("Skip commercials").exists }
+        focus(recordings, pressing: .up)
+        let moves: [(XCUIRemote.Button, String)] = [(.right, "Right"), (.left, "Left"), (.left, "Left"), (.right, "Right"), (.right, "Right"), (.left, "Left")]
+        var pressed: [String] = []
+        for (button, key) in moves {
+            remote.press(button)
+            pressed.append(key)
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+            XCTAssertEqual(app.state, .runningForeground, "The app stopped after \(pressed.joined(separator: " ")) on the tab bar")
+        }
+    }
+
     /// Weighted random remote presses: fails if the app stops, and checks that it releases its playback session in
     /// the background. SOFAKING_WALK_SEED replays a walk; SOFAKING_WALK_KEYS sets its length.
     @MainActor

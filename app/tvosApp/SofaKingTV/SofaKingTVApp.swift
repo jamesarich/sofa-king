@@ -73,11 +73,12 @@ final class AppModel {
         }
     }
 
-    /// The Library tab shows when the server serves libraries and has at least one.
+    /// The Library tab shows when the server serves libraries and has at least one. It waits for the first list, so
+    /// a server without libraries never shows the tab only to take it away again.
     var libraryShown: Bool {
         guard capabilities?.library == true else { return false }
         switch libraryHome {
-        case is LibraryHomeStateUnavailable: return false
+        case is LibraryHomeStateUnavailable, is LibraryHomeStateLoading: return false
         case let ready as LibraryHomeStateReady: return !ready.home.libraries.isEmpty
         default: return true
         }
@@ -85,6 +86,12 @@ final class AppModel {
 
     /// The Recordings tab shows when the server records.
     var recordingsShown: Bool { capabilities?.recordings == true }
+
+    /// Whether the server has said yet if [tab] belongs in the tab bar; Library also waits for the first list.
+    func offerKnown(_ tab: AppTab) -> Bool {
+        guard let capabilities else { return false }
+        return tab != .library || capabilities.library != true || !(libraryHome is LibraryHomeStateLoading)
+    }
 
     /// The tab a cold start opens instead of Live, as the Compose app decides: where the viewer left off when that
     /// was Library or Recordings, or Library when Open on start says so. Nothing plays by itself there.
@@ -140,42 +147,19 @@ struct ContentView: View {
     @State private var tab = AppTab.live
     /// Whether the start has picked its tab, once the settings are in.
     @State private var tabRestored = false
+    /// The tab the start reopened, which stays in the bar until the server says whether it offers it.
+    @State private var restored: AppTab?
 
     var body: some View {
-        TabView(selection: $tab) {
-            live.tabItem { Label("Live", systemImage: "tv") }.tag(AppTab.live)
-            // A start on Library or Recordings shows the tab before the server says it offers it.
-            if model.libraryShown || tab == .library {
-                LibraryHomeView().tabItem { Label("Library", systemImage: "film.stack") }.tag(AppTab.library)
-            }
-            if model.recordingsShown || tab == .recordings {
-                RecordingsView().tabItem { Label("Recordings", systemImage: "record.circle") }.tag(AppTab.recordings)
-            }
-            NavigationStack { SettingsView() }.tabItem { Label("Settings", systemImage: "gear") }.tag(AppTab.settings)
-        }
-        .onChange(of: model.requestedChannel) { _, requested in
-            // A Top Shelf channel plays from the Live tab.
-            if requested != nil { tab = .live }
+        // The tab bar waits for the start's tab: UIKit can fail on a bar that gains a tab and selects it at once, or
+        // loses the tab it is leaving, with a navigation bar assertion.
+        Group {
+            if tabRestored { tabs } else { ProgressView() }
         }
         .onChange(of: model.settings == nil, initial: true) { _, missing in
             guard !missing, !tabRestored else { return }
+            if let start = model.startTab, model.requestedChannel == nil { tab = start; restored = start }
             tabRestored = true
-            if let start = model.startTab { tab = start }
-        }
-        .onChange(of: tab) { _, picked in
-            if let remembered = picked.remembered { model.core.setLastTab(tab: remembered) }
-        }
-        .onChange(of: model.libraryShown) { _, shown in
-            if !shown && tab == .library { tab = .live }
-        }
-        .onChange(of: model.libraryHome is LibraryHomeStateUnavailable) { _, gone in
-            if gone && tab == .library { tab = .live }
-        }
-        .onChange(of: model.recordingsShown) { _, shown in
-            if !shown && tab == .recordings { tab = .live }
-        }
-        .onChange(of: model.recordings is RecordingsStateUnavailable) { _, gone in
-            if gone && tab == .recordings { tab = .live }
         }
         .onOpenURL { url in
             if let guideId = TopShelfChannels.guideId(from: url) {
@@ -188,6 +172,45 @@ struct ContentView: View {
             Button("OK") {}
         } message: {
             Text(model.pairingFailure ?? "")
+        }
+    }
+
+    private var libraryInBar: Bool { model.libraryShown || (restored == .library && !model.offerKnown(.library)) }
+    private var recordingsInBar: Bool { model.recordingsShown || (restored == .recordings && !model.offerKnown(.recordings)) }
+
+    private var tabs: some View {
+        TabView(selection: $tab) {
+            live.tabItem { Label("Live", systemImage: "tv") }.tag(AppTab.live)
+            if libraryInBar {
+                LibraryHomeView().tabItem { Label("Library", systemImage: "film.stack") }.tag(AppTab.library)
+            }
+            if recordingsInBar {
+                RecordingsView().tabItem { Label("Recordings", systemImage: "record.circle") }.tag(AppTab.recordings)
+            }
+            NavigationStack { SettingsView() }.tabItem { Label("Settings", systemImage: "gear") }.tag(AppTab.settings)
+        }
+        .onChange(of: model.requestedChannel) { _, requested in
+            // A Top Shelf channel plays from the Live tab.
+            if requested != nil { tab = .live }
+        }
+        .onChange(of: tab) { _, picked in
+            if let remembered = picked.remembered { model.core.setLastTab(tab: remembered) }
+        }
+        // Once the server has answered, the start's tab stays only if the server offers it, as after any other start.
+        .onChange(of: restored.map { model.offerKnown($0) } ?? false) { _, known in
+            if known { restored = nil }
+        }
+        .onChange(of: libraryInBar) { _, shown in
+            if !shown && tab == .library { tab = .live }
+        }
+        .onChange(of: model.libraryHome is LibraryHomeStateUnavailable) { _, gone in
+            if gone && tab == .library { tab = .live }
+        }
+        .onChange(of: recordingsInBar) { _, shown in
+            if !shown && tab == .recordings { tab = .live }
+        }
+        .onChange(of: model.recordings is RecordingsStateUnavailable) { _, gone in
+            if gone && tab == .recordings { tab = .live }
         }
     }
 

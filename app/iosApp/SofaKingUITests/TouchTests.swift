@@ -72,19 +72,18 @@ final class TouchTests: XCTestCase {
         eventually("the guide to load", timeout: 60) { labeled("All ").exists }
     }
 
-    /// Opens `channel` full screen from the guide: a tap on its row previews it, a second opens it.
+    /// Opens `channel` full screen from the guide with one tap on the program it airs now. The channel's name beside
+    /// the row takes no taps, so the cell is found by its label, which starts with the channel and says "airing now".
     @MainActor
     private func play(_ channel: String) {
-        let row = labeled(channel)
-        if !row.waitForExistence(timeout: 30) {
+        let cell = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", channel + ", ", ", airing now")).firstMatch
+        if !cell.waitForExistence(timeout: 30) {
             search(channel)
         }
-        XCTAssertTrue(row.waitForExistence(timeout: 30), "No \(channel) in the guide\n\(screen)")
-        row.tap()
-        RunLoop.current.run(until: Date().addingTimeInterval(1))
-        if !labeled("Commercial break").exists && row.exists && row.isHittable {
-            row.tap()
-        }
+        XCTAssertTrue(cell.waitForExistence(timeout: 30), "No \(channel) on now in the guide\n\(screen)")
+        cell.tap()
+        eventually("\(channel) to open full screen") { !cell.exists }
     }
 
     /// Searches the guide for `text`, for a channel too far down to be on screen.

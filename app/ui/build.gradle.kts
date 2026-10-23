@@ -130,6 +130,7 @@ kotlin {
         // Desktop only: in commonTest it would reach the Android host tests, which have no Compose host.
         jvmTest.dependencies {
             implementation(libs.compose.ui.test)
+            implementation(libs.ktor.client.mock)
         }
         webMain.dependencies {
             implementation(libs.kotlinx.browser)

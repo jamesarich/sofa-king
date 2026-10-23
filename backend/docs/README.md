@@ -19,7 +19,7 @@ The Sofa King server keeps live TV, recordings and media libraries for the app a
 | --- | --- |
 | [Server configuration and live TV](live-tv.md) | Every environment variable, source files, source identity, the lineup, logos, player outputs, Plex Live TV and upstream addresses |
 | [Recordings](recordings.md) | Recording a program or a series, the schedule, what happens while a recording runs, playing recordings, commercial breaks, cleanup and the recording states |
-| [Media libraries](libraries.md) | The media folder, how to name movies, shows and other videos, `.nfo` files and artwork, details from TMDB, scans, playback and hardware transcoding |
+| [Media libraries](libraries.md) | The media folder, how to name movies, shows and other videos, `.nfo` files and artwork, details from TMDB, scans, intros, playback and hardware transcoding |
 | [Native providers](providers.md) | The built-in clients for free streaming services, their options and their failure modes |
 | [Lineup policy](lineup-policy.md) | The policy file that rebuilds the whole lineup, its fields, runs, required stations, findings, API and the generator |
 | [Source health](source-health.md) | Probes, failure classes, quarantine and recovery, source selection, and manual disables |

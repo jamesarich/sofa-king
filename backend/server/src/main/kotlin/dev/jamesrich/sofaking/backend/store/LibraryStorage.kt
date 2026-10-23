@@ -54,6 +54,7 @@ suspend fun BackendStore.deleteLibrary(id: String): Boolean = query {
     itemIds.chunked(500).forEach { chunk ->
         PlayStates.deleteWhere { itemId inList chunk }
         LibraryMetadataRows.deleteWhere { itemId inList chunk }
+        LibraryIntroRows.deleteWhere { itemId inList chunk }
     }
     LibraryItems.deleteWhere { libraryId eq id }
     Libraries.deleteWhere { Libraries.id eq id } > 0
@@ -99,6 +100,7 @@ suspend fun BackendStore.deleteLibraryItems(ids: Collection<String>) = query {
     ids.chunked(500).forEach { chunk ->
         PlayStates.deleteWhere { itemId inList chunk }
         LibraryMetadataRows.deleteWhere { itemId inList chunk }
+        LibraryIntroRows.deleteWhere { itemId inList chunk }
         LibraryItems.deleteWhere { id inList chunk }
     }
 }

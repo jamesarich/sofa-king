@@ -25,6 +25,9 @@ data class VodMarker(val startMs: Long, val endMs: Long, val kind: VodMarkerKind
 enum class VodMarkerKind {
     /** A commercial break, which playback can skip on its own. */
     BREAK,
+
+    /** An episode's intro, which the bar offers to skip; it is not drawn on the seek bar. */
+    INTRO,
 }
 
 /** Where a seek lands: in the stream the player holds, at its own time, or in a conversion restarted there. */
@@ -59,6 +62,10 @@ internal fun breakToSkip(markers: List<VodMarker>, previousMs: Long, nowMs: Long
 /** The end of the commercial break [positionMs] is in, to skip to; null outside one. */
 internal fun breakEndAt(markers: List<VodMarker>, positionMs: Long): Long? =
     markers.firstOrNull { it.kind == VodMarkerKind.BREAK && positionMs >= it.startMs && positionMs < it.endMs }?.endMs
+
+/** The intro [positionMs] is in; null outside one. */
+internal fun introAt(markers: List<VodMarker>, positionMs: Long): VodMarker? =
+    markers.firstOrNull { it.kind == VodMarkerKind.INTRO && positionMs >= it.startMs && positionMs < it.endMs }
 
 /** What a key does in the seekable player. */
 internal enum class VodAction { PLAY_PAUSE, PLAY, PAUSE, BACK, FORWARD, SHOW_INFO, BUTTONS, CAPTIONS, TRACKS, ZOOM, STOP }

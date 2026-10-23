@@ -45,6 +45,9 @@ internal enum class VodButton {
     /** Jumps over the commercial break playback is in. */
     SKIP_BREAK,
 
+    /** Jumps over the intro playback is in. */
+    SKIP_INTRO,
+
     /** A library item's Audio and subtitles card. */
     TRACKS,
 
@@ -60,8 +63,8 @@ internal enum class VodButton {
 }
 
 /**
- * The library and recordings player's buttons, in the bar's order. A break being played leads, so Down and OK skip
- * it; a library item with tracks to pick offers them and a recording its captions; then Zoom; Start over once
+ * The library and recordings player's buttons, in the bar's order. A break or an intro being played leads, so Down
+ * and OK skip it; a library item with tracks to pick offers them and a recording its captions; then Zoom; Start over once
  * [pastStart]; and the next episode when there is one. A failed stream offers none: OK retries it.
  */
 internal fun vodButtons(
@@ -71,8 +74,10 @@ internal fun vodButtons(
     captions: Boolean,
     pastStart: Boolean,
     hasNext: Boolean,
+    inIntro: Boolean = false,
 ): List<VodButton> = if (failed) emptyList() else buildList {
     if (inBreak) add(VodButton.SKIP_BREAK)
+    if (inIntro) add(VodButton.SKIP_INTRO)
     if (tracksPickable) add(VodButton.TRACKS)
     if (captions) add(VodButton.CAPTIONS)
     add(VodButton.ZOOM)

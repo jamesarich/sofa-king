@@ -73,6 +73,12 @@ object Wire {
         const val TRANSCODE = "transcode"
     }
 
+    /** What a [MediaSegment] of a library item holds. */
+    object SegmentKind {
+        /** The opening titles and theme an episode shares with others of its show. */
+        const val INTRO = "intro"
+    }
+
     /** The library home's rows. */
     object ShelfId {
         const val CONTINUE = "continue"

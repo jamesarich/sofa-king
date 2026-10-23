@@ -207,6 +207,20 @@ internal object LibraryMetadataRows : Table("library_metadata") {
     override val primaryKey = PrimaryKey(itemId)
 }
 
+/**
+ * One episode's audio fingerprint and the intro found from it. [fileKey] is the file's size and change time when it
+ * was read, so a replaced file is read again; [fingerprint] is null when the file had no audio to read.
+ */
+internal object LibraryIntroRows : Table("library_intro") {
+    val itemId = text("item_id")
+    val fileKey = text("file_key")
+    val fingerprint = binary("fingerprint").nullable()
+    val introStartMs = long("intro_start_ms").nullable()
+    val introEndMs = long("intro_end_ms").nullable()
+    val readAt = text("read_at")
+    override val primaryKey = PrimaryKey(itemId)
+}
+
 internal object RecordingRules : Table("recording_rule") {
     val id = text("id")
     val title = text("title")

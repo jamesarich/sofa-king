@@ -70,6 +70,7 @@ import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.tvFocus
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /** What an item's page does. [onPlay] resumes an item in progress unless [fromStart] is set. */
@@ -253,8 +254,8 @@ private fun MetaLine(detail: MediaItemDetail) {
     val parts = buildList {
         item.year?.let { add(it.toString()) }
         when {
-            seasons > 0 -> add(stringResource(Res.string.library_seasons, seasons))
-            item.kind == ItemKind.SEASON -> add(stringResource(Res.string.library_episodes, detail.children.size))
+            seasons > 0 -> add(pluralStringResource(Res.plurals.library_seasons, seasons, seasons))
+            item.kind == ItemKind.SEASON -> add(pluralStringResource(Res.plurals.library_episodes, detail.children.size, detail.children.size))
             else -> runtime(item.durationMs)?.let { add(it.hoursAndMinutes()) }
         }
         item.rating?.let { add(stringResource(Res.string.library_rating, oneDecimal(it))) }

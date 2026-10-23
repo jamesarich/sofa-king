@@ -94,6 +94,7 @@ class VodIntroSkipTest {
 
     private fun ComposeUiTest.show(player: FakeVodPlayer, markers: List<VodMarker>, upNext: VodUpNext? = null, onPlayNext: () -> Unit = {}) {
         val sessions = sessions()
+        val before = player.currentStreamUrl
         setContent {
             SofaKingTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -112,7 +113,7 @@ class VodIntroSkipTest {
                 }
             }
         }
-        waitUntil(timeoutMillis = 5_000) { player.currentStreamUrl != null }
+        waitUntil(timeoutMillis = 5_000) { player.currentStreamUrl.let { it != null && it != before } }
     }
 
     private fun ComposeUiTest.awaitFocused(label: String) {
@@ -167,6 +168,16 @@ class VodIntroSkipTest {
         onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         waitForIdle()
         assertEquals(listOf(1_380_000L), player.seeks)
+    }
+
+    @Test
+    fun `an item opened after another was left paused plays`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+        val player = FakeVodPlayer()
+        player.currentStreamUrl = "http://server.test:8080/media/vod/v0/1/token/file"
+        player.playWhenReady = false
+        show(player, emptyList())
+        waitForIdle()
+        assertEquals(true, player.playWhenReady)
     }
 
     @Test

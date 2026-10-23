@@ -15,7 +15,7 @@ compose-material3-adaptive = "1.3.0"
 # is not used: the Kotlin/JS production build spent over twenty minutes minifying it (PlayerIcons.kt holds the rest).
 compose-material-icons = "1.7.3"
 coroutines = "1.11.0"
-serialization = "1.12.0-RC"
+serialization = "1.12.0"
 ktor = "3.6.0"
 okhttp = "5.5.0"
 kotlinx-io = "0.9.1"

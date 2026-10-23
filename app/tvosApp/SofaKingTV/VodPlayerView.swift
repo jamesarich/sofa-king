@@ -90,6 +90,8 @@ struct VodPlayerView: View {
     /// The episode after this one, looked up once as the credits start, for Next episode.
     @State private var creditsNext: MediaItem?
     @State private var creditsNextAsked = false
+    /// The server has every converter busy, and `waitForConverter` is asking it again.
+    @State private var waitingForConverter = false
 
     var body: some View {
         ZStack {
@@ -103,6 +105,15 @@ struct VodPlayerView: View {
                     .background(.black.opacity(0.6), in: .rect(cornerRadius: 8))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, 60)
+                    .allowsHitTesting(false)
+            }
+            if waitingForConverter && failure == nil {
+                Label("Waiting for a free converter", systemImage: "hourglass")
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(.thinMaterial, in: .capsule)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(60)
                     .allowsHitTesting(false)
             }
             if let failure {
@@ -184,7 +195,7 @@ struct VodPlayerView: View {
                 backgrounded = false
                 Task {
                     do {
-                        if let s = try await model.core.reopen() { load(s) } else { await open() }
+                        if let s = try await waitForConverter({ try await model.core.reopen() }) { load(s) } else { await open() }
                     } catch {
                         failure = error.localizedDescription
                     }
@@ -201,9 +212,9 @@ struct VodPlayerView: View {
             let s: PlaybackStream
             switch request.source {
             case .item(let item):
-                s = try await model.core.playItem(item: item, fromStart: request.fromStart)
+                s = try await waitForConverter { try await model.core.playItem(item: item, fromStart: request.fromStart) }
             case .recording(let recording):
-                s = try await model.core.playRecording(recording: recording, fromStart: request.fromStart)
+                s = try await waitForConverter { try await model.core.playRecording(recording: recording, fromStart: request.fromStart) }
             }
             // Left while the session opened: the view is gone, and leaving released the session.
             guard !Task.isCancelled else { return }
@@ -212,6 +223,26 @@ struct VodPlayerView: View {
             guard !Task.isCancelled else { return }
             failure = error.localizedDescription
         }
+    }
+
+    /// Runs `open`, asking again every 5 seconds for up to 20 while the server answers that every converter is busy, as
+    /// the other apps do, and then throws as `open` did; any other failure throws at once.
+    private func waitForConverter<T>(_ open: () async throws -> T) async throws -> T {
+        defer { waitingForConverter = false }
+        var waited = 0
+        while true {
+            do {
+                return try await open()
+            } catch let error where waited < 20 && converterBusy(error) {
+                waitingForConverter = true
+                try await Task.sleep(for: .seconds(5))
+                waited += 5
+            }
+        }
+    }
+
+    private func converterBusy(_ error: Error) -> Bool {
+        ((error as NSError).userInfo["KotlinException"] as? KotlinThrowable).map { model.core.isConverterBusy(error: $0) } ?? false
     }
 
     /// Plays `s`, titled for the transport bar; once it is ready a stream that starts before the asked-for point (or
@@ -439,7 +470,7 @@ struct VodPlayerView: View {
         let picture = subtitleIndex.flatMap { isPicture($0) ? $0 : nil } ?? -1
         Task {
             do {
-                load(try await model.core.switchItemTracks(item: item, positionMs: at, audioIndex: audio, subtitleIndex: picture))
+                load(try await waitForConverter { try await model.core.switchItemTracks(item: item, positionMs: at, audioIndex: audio, subtitleIndex: picture) })
             } catch {
                 failure = error.localizedDescription
             }
@@ -471,7 +502,7 @@ struct VodPlayerView: View {
         let at = positionMs
         Task {
             do {
-                if let restarted = try await model.core.restartItemAt(positionMs: at) { load(restarted, at: at) } else { await open() }
+                if let restarted = try await waitForConverter({ try await model.core.restartItemAt(positionMs: at) }) { load(restarted, at: at) } else { await open() }
             } catch {
                 failure = error.localizedDescription
             }

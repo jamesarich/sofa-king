@@ -53,3 +53,18 @@ targets:
         script: |
           cd "$SRCROOT/.."
           ./gradlew :ui:embedAndSignAppleFrameworkForXcode
+    # `xcodebuild test` runs the touch tests; they skip without the fixture server (docs/development.md).
+    scheme:
+      testTargets: [SofaKingUITests]
+  # The app driven by touch against app/scripts/fixture_server.py, and against a real server for the break check.
+  SofaKingUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [SofaKingUITests]
+    dependencies:
+      - target: SofaKing
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.jamesrich.sofaking.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64

@@ -5,6 +5,15 @@ import SofaKingUi
 struct SofaKingApp: App {
     init() {
         MainViewControllerKt.startSofaKingIos()
+        #if DEBUG
+        // `xcrun simctl launch booted dev.jamesrich.sofaking -serverUrl http://host:port -apiToken TOKEN -muted YES`
+        // saves a server and mutes the player without touching the simulator; the UI tests launch the app this way.
+        let args = UserDefaults.standard
+        let serverUrl = args.string(forKey: "serverUrl")
+        if serverUrl != nil || args.bool(forKey: "muted") {
+            MainViewControllerKt.applySofaKingLaunchSettings(serverUrl: serverUrl, apiToken: args.string(forKey: "apiToken"), muted: args.bool(forKey: "muted"))
+        }
+        #endif
     }
 
     var body: some Scene {

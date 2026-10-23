@@ -11,6 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 
 /**
  * The app's objects over a platform's [storage]: one settings store per file and one connection to the server it
@@ -38,6 +39,15 @@ internal class AppGraph(private val storage: AppStorage, private val discovery: 
 
     /** The Recordings tab reads the same list as the guide's record marks, from the connection. */
     fun recordingsViewModel(): RecordingsViewModel = RecordingsViewModel(connection.recordings, connection.sessions)
+
+    /**
+     * Saves what a launch passed in before anything reads the settings: a server, as Settings would save it, and the
+     * player muted. A debug host's launch arguments use it, for UI tests and checks that cannot type on a simulator.
+     */
+    suspend fun applyLaunchSettings(serverUrl: String?, apiToken: String?, muted: Boolean) {
+        if (serverUrl != null) settings.setServer(serverUrl, apiToken.orEmpty())
+        if (muted) settings.setVolume(settings.settings.first().volume, muted = true)
+    }
 
     /** Ends the connection's work; only a test that starts the app again in the same process needs it. */
     fun close() = scope.cancel()

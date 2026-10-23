@@ -173,15 +173,6 @@ jobs:
           :core:compileKotlinIosArm64 :core:compileKotlinTvosArm64 :core:compileKotlinWatchosArm64
           :ui:compileKotlinIosArm64
           :ui:linkDebugFrameworkIosSimulatorArm64
-      # A fresh iPhone simulator's first boot takes about four minutes; it boots while the host and the server build,
-      # and xcodebuild waits for it. The newest iOS runtime's first iPhone.
-      - name: Start the iPhone simulator
-        run: |
-          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
-          devices = json.load(sys.stdin)["devices"]
-          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime for d in devices[runtime] if d["name"].startswith("iPhone")))')
-          echo "SIMULATOR=$device" >> "$GITHUB_ENV"
-          xcrun simctl boot "$device"
       # The SwiftUI host compiles against the framework linked above; its pre-build script reuses that Gradle work.
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -210,8 +201,12 @@ jobs:
           done
           set -a; . "$out/server.env"; set +a
           export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
+          # The newest iOS runtime's first iPhone.
+          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime for d in devices[runtime] if d["name"].startswith("iPhone")))')
           cd iosApp
-          xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$SIMULATOR" \
+          xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$device" \
             CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/ios-ui/TouchTests.xcresult" test
       # A failure's screenshots, as PNG files beside the result bundle in the artifact.
       - name: Export the touch tests' screenshots
@@ -273,15 +268,6 @@ jobs:
           restore-keys: konan-${{ runner.os }}-
       - name: Link the tvOS framework
         run: ./gradlew :core:linkDebugFrameworkTvosSimulatorArm64
-      # The simulator boots while the host and the server build, and xcodebuild waits for it. The newest tvOS
-      # runtime's first device.
-      - name: Start the Apple TV simulator
-        run: |
-          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
-          devices = json.load(sys.stdin)["devices"]
-          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".tvOS-" in runtime for d in devices[runtime]))')
-          echo "SIMULATOR=$device" >> "$GITHUB_ENV"
-          xcrun simctl boot "$device"
       # The SwiftUI host compiles against the framework linked above; its pre-build script reuses that Gradle work.
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -312,8 +298,12 @@ jobs:
           [ -f "$out/server.env" ] || { echo "The fixture server wrote no server.env in 3 minutes"; cat "$out/fixture.log"; exit 1; }
           set -a; . "$out/server.env"; set +a
           export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
+          # The newest tvOS runtime's first device.
+          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".tvOS-" in runtime for d in devices[runtime]))')
           cd tvosApp
-          xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug -destination "id=$SIMULATOR" \
+          xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug -destination "id=$device" \
             CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/tvos-ui/RemoteTests.xcresult" test
       # A failure's screenshots, as PNG files beside the result bundle in the artifact.
       - name: Export the remote tests' screenshots

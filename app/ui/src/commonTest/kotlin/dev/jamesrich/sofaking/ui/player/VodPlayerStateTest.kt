@@ -61,13 +61,53 @@ class VodPlayerStateTest {
         assertTrue(state.down(Key.DirectionRight))
         assertTrue(state.down(Key.DirectionRight))
         assertEquals(120_000L, state.scrubTarget)
-        assertTrue(state.overlayVisible)
+        // The bar stays down; the seek badge shows the scrub instead.
+        assertFalse(state.overlayVisible)
         assertTrue(state.down(Key.DirectionLeft))
         assertEquals(110_000L, state.scrubTarget)
 
         state.down(Key.DirectionCenter)
         assertEquals(listOf("seek 110000"), controls.calls)
         assertNull(state.scrubTarget)
+    }
+
+    @Test
+    fun `with the bar up a scrub keeps it up`() {
+        val state = playing()
+        val request = state.overlayRequest
+        state.down(Key.DirectionRight)
+        assertTrue(state.overlayVisible)
+        assertTrue(state.overlayRequest > request)
+    }
+
+    @Test
+    fun `media play and pause keys leave the bar down and confirm in the middle`() {
+        val state = playing()
+        state.overlayVisible = false
+        state.down(Key.MediaPlayPause)
+        assertEquals(listOf("playPause"), controls.calls)
+        assertFalse(state.overlayVisible)
+        assertEquals(TransportHint.PAUSE, state.transport)
+        assertEquals(1, state.transportPulse)
+        state.down(Key.MediaPlay, paused = true)
+        assertEquals(TransportHint.PLAY, state.transport)
+        assertEquals(2, state.transportPulse)
+        state.down(Key.Spacebar, paused = false)
+        assertEquals(3, state.transportPulse)
+        assertFalse(state.overlayVisible)
+    }
+
+    @Test
+    fun `OK pauses with the bar up and media keys keep a shown bar up`() {
+        val state = playing()
+        state.overlayVisible = false
+        state.down(Key.DirectionCenter)
+        assertTrue(state.overlayVisible)
+        assertEquals(0, state.transportPulse)
+        state.down(Key.MediaPlayPause, paused = true)
+        assertTrue(state.overlayVisible)
+        assertEquals(0, state.transportPulse)
+        assertEquals(listOf("playPause", "playPause"), controls.calls)
     }
 
     @Test

@@ -90,6 +90,12 @@ import dev.jamesrich.sofaking.ui.theme.tvFocus
 import androidx.compose.material3.ripple
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import dev.jamesrich.sofaking.ui.formatPlayTime
+import kotlin.math.abs
 
 internal val OverlayShape = RoundedCornerShape(8.dp)
 
@@ -568,3 +574,51 @@ internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, mod
         Text(label, style = MaterialTheme.typography.bodyMedium, color = if (focused) colors.onPrimary else colors.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
+
+/**
+ * The centre of the picture confirming a play or pause the bar did not come up for: a disc with the icon, shown for
+ * a moment on each [pulse]. Icon only, so it never covers subtitles at the top or bottom of the frame.
+ */
+@Composable
+internal fun BoxScope.TransportDisc(hint: TransportHint?, pulse: Int) {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(pulse) {
+        if (pulse == 0 || hint == null) return@LaunchedEffect
+        shown = true
+        delay(TRANSPORT_DISC_MS)
+        shown = false
+    }
+    AnimatedVisibility(shown, Modifier.align(Alignment.Center), enter = PopIn, exit = PopOut) {
+        Box(
+            Modifier.size(72.dp).background(SofaOverlayScrim, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (hint == TransportHint.PAUSE) SofaIcons.Pause else Icons.Filled.PlayArrow,
+                contentDescription = stringResource(if (hint == TransportHint.PAUSE) Res.string.player_paused else Res.string.player_control_play),
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(40.dp),
+            )
+        }
+    }
+}
+
+/**
+ * A scrub the remote builds with the bar down: how far it moves, and the time it lands on, low in the middle of the
+ * picture, so the bar does not cover it.
+ */
+@Composable
+internal fun BoxScope.SeekBadge(targetMs: Long?, positionMs: () -> Long) {
+    AnimatedVisibility(targetMs != null, Modifier.align(Alignment.BottomCenter).screenPadding(), enter = PopIn, exit = PopOut) {
+        val target = targetMs ?: return@AnimatedVisibility
+        val delta = target - positionMs()
+        val amount = if (abs(delta) < 60_000L) {
+            stringResource(Res.string.vod_seek_seconds, abs(delta) / 1000)
+        } else {
+            formatPlayTime(abs(delta))
+        }
+        StatusPill(stringResource(Res.string.vod_seek_badge, if (delta < 0) "−" else "+", amount, formatPlayTime(target)))
+    }
+}
+
+private const val TRANSPORT_DISC_MS = 650L

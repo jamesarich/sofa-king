@@ -69,6 +69,32 @@ final class RemoteTests: XCTestCase {
         }
     }
 
+    /// A start reopens Recordings when the viewer left the app from there, before the server says it records; moving
+    /// along the tab bar then keeps the app up. The bar used to gain the tab and select it at once, which left it
+    /// selected under another tab's title and stopped the app on the next move with a navigation bar assertion.
+    @MainActor
+    func testStartOnRecordings() throws {
+        try launchToList()
+        let recordings = app.tabBars.buttons["Recordings"]
+        focus(app.tabBars.buttons["Live"], pressing: .up)
+        XCTAssertTrue(recordings.waitForExistence(timeout: 10), "No Recordings tab\n\(screen)")
+        focus(recordings, pressing: .right, presses: 3)
+        // Settings is not remembered, so the next start reopens Recordings.
+        focus(app.tabBars.buttons["Settings"], pressing: .right, presses: 3)
+        app.terminate()
+        app.launch()
+        eventually("the start to reopen Recordings", timeout: 60) { row("Skip commercials").exists }
+        focus(recordings, pressing: .up)
+        let moves: [(XCUIRemote.Button, String)] = [(.right, "Right"), (.left, "Left"), (.left, "Left"), (.right, "Right"), (.right, "Right"), (.left, "Left")]
+        var pressed: [String] = []
+        for (button, key) in moves {
+            remote.press(button)
+            pressed.append(key)
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+            XCTAssertEqual(app.state, .runningForeground, "The app stopped after \(pressed.joined(separator: " ")) on the tab bar")
+        }
+    }
+
     /// Weighted random remote presses: fails if the app stops, and checks that it releases its playback session in
     /// the background. SOFAKING_WALK_SEED replays a walk; SOFAKING_WALK_KEYS sets its length.
     @MainActor
@@ -103,6 +129,41 @@ final class RemoteTests: XCTestCase {
             remote.press(.menu)
         }
         eventually("the app to release its sessions in the background, seed \(seed)") { server.sessions().isEmpty }
+    }
+
+    /// Play/Pause on each of Settings' text fields leaves the app running: before opening it, after typing in it, and
+    /// after reopening it and taking what it offers first. On the server address it once ended the app with an
+    /// NSRangeException inside UIKit (a random walk, seed 1792765030), after tvOS's list of the field's recent values.
+    @MainActor
+    func testPlayPauseOnSettingsFields() throws {
+        try launchToList()
+        let settings = app.tabBars.buttons["Settings"]
+        focus(settings, by: Array(repeating: XCUIRemote.Button.up, count: 6) + Array(repeating: XCUIRemote.Button.right, count: 3))
+        let fields: [(String, XCUIElement)] = [
+            ("the server address", app.textFields.element(boundBy: 0)),
+            ("the API token", app.secureTextFields.element(boundBy: 0)),
+            ("the pairing code", app.textFields.element(boundBy: 1)),
+        ]
+        let keys: [(XCUIRemote.Button, String)] = [
+            (.playPause, "PlayPause"), (.select, "Select"), (.select, "Select"), (.menu, "Menu"), (.playPause, "PlayPause"),
+            (.select, "Select"), (.select, "Select"), (.playPause, "PlayPause"), (.menu, "Menu"), (.playPause, "PlayPause"),
+        ]
+        for (name, field) in fields {
+            XCTAssertTrue(field.waitForExistence(timeout: 10), "No field for \(name)\n\(screen)")
+            focus(field, pressing: .down, presses: 6)
+            var pressed: [String] = []
+            for (button, key) in keys {
+                remote.press(button)
+                pressed.append(key)
+                RunLoop.current.run(until: Date().addingTimeInterval(1))
+                XCTAssertEqual(app.state, .runningForeground, "The app stopped on \(name) after \(pressed.joined(separator: " "))")
+            }
+            // Back to Settings from a keyboard still open.
+            for _ in 0..<2 where !field.exists || app.keyboards.firstMatch.exists {
+                remote.press(.menu)
+                RunLoop.current.run(until: Date().addingTimeInterval(1))
+            }
+        }
     }
 
     // MARK: - Driving

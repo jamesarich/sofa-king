@@ -126,7 +126,7 @@ curl --fail -X DELETE \
   http://SERVER_HOST:9193/api/v1/playback-sessions/SESSION_ID
 ```
 
-Release is idempotent and cancels active upstream requests. Repeating an open request with the same key returns the same session while it remains active, and `410 SESSION_EXPIRED` once it has ended; open a new session with a new key. A reused key with different parameters returns `409 IDEMPOTENCY_CONFLICT`.
+Release is idempotent and cancels active upstream requests; a media request still waiting for its stream to start answers `410 SESSION_EXPIRED`. Repeating an open request with the same key returns the same session while it remains active, and `410 SESSION_EXPIRED` once it has ended; open a new session with a new key. A reused key with different parameters returns `409 IDEMPOTENCY_CONFLICT`.
 
 ## Pair a client
 

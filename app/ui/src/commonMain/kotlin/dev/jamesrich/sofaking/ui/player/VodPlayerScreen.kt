@@ -620,6 +620,8 @@ fun VodPlayerScreen(
         }
         state.failure?.let { FailureCard(it, live = false) }
         state.next?.let { UpNextCard(it, nextSecondsLeft, pointerDriven, onPlay = onPlayNext, onCancel = onExit) }
+        TransportDisc(state.transport, state.transportPulse)
+        SeekBadge(state.scrubTarget.takeIf { !barVisible && state.failure == null }, positionMs = { state.positionMs })
 
         InfoBar(barVisible) {
             Column(

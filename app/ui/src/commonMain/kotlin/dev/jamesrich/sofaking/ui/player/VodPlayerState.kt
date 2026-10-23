@@ -74,6 +74,16 @@ internal class VodPlayerState {
     var tracksOpen by mutableStateOf(false)
         private set
 
+    /**
+     * What a play or pause from the remote's media keys just did while the bar was down, which the centre of the
+     * picture confirms for a moment instead of bringing the bar up; [transportPulse] counts each one, so a repeat of
+     * the same one shows again.
+     */
+    var transport by mutableStateOf<TransportHint?>(null)
+        private set
+    var transportPulse by mutableIntStateOf(0)
+        private set
+
     // True while a button on the bar has focus, so the D-pad moves along the row instead of seeking.
     var buttonsFocused by mutableStateOf(false)
 
@@ -253,7 +263,8 @@ internal class VodPlayerState {
         when (action) {
             VodAction.BACK, VodAction.FORWARD -> {
                 if (failure != null) return true
-                showInfo()
+                // With the bar down a scrub builds under a badge instead, so the picture stays clear.
+                if (overlayVisible) showInfo()
                 val direction = if (action == VodAction.BACK) -1 else 1
                 scrubTarget = scrub.press(direction, positionMs, durationMs, repeatCount ?: 0, nowMs)
             }
@@ -264,10 +275,11 @@ internal class VodPlayerState {
                     scrub.commit()?.let(controls::seek)
                     showInfo()
                 }
+                key in QUIET_PLAY_KEYS -> mediaPlayPause(controls, paused)
                 else -> playPause(controls)
             }
-            VodAction.PLAY -> if (paused) playPause(controls)
-            VodAction.PAUSE -> if (!paused) playPause(controls)
+            VodAction.PLAY -> if (paused) mediaPlayPause(controls, paused)
+            VodAction.PAUSE -> if (!paused) mediaPlayPause(controls, paused)
             VodAction.SHOW_INFO -> if (overlayVisible && !paused && key == Key.Info) overlayVisible = false else showInfo()
             // Down shows the bar, and on the bar moves into its buttons.
             VodAction.BUTTONS -> {
@@ -286,6 +298,17 @@ internal class VodPlayerState {
         controls.playPause()
         showInfo()
     }
+
+    /**
+     * A media key's play or pause: with the bar up it stays up for another while, and with it down it stays down and
+     * the picture's centre confirms the press.
+     */
+    private fun mediaPlayPause(controls: VodControls, paused: Boolean) {
+        if (overlayVisible) return playPause(controls)
+        controls.playPause()
+        transport = if (paused) TransportHint.PLAY else TransportHint.PAUSE
+        transportPulse++
+    }
 }
 
 /** How far short of the item's length an end may come and still be the end: a conversion can stop a little short. */
@@ -296,5 +319,14 @@ internal const val STREAM_ENDED_EARLY = "STREAM_ENDED_EARLY"
 
 /** How long Skip intro counts down before the intro skips itself, with auto skip on. */
 internal const val AUTO_SKIP_MS = 5_000L
+
+/** What [VodPlayerState.transport] confirms. */
+internal enum class TransportHint { PLAY, PAUSE }
+
+/**
+ * The play and pause keys that leave the bar down: the remote's media keys, and Space and K on a keyboard. OK still
+ * brings the bar up, as Up and Down do.
+ */
+private val QUIET_PLAY_KEYS = setOf(Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause, Key.Spacebar, Key.K)
 
 private val UP_NEXT_PLAY_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)

@@ -25,54 +25,54 @@ private const val PHONE = "spec:width=411dp,height=891dp,dpi=420"
 @PreviewTest
 @Preview(device = TV)
 @Composable
-fun GuideTv() = GuidePreview(tv = true)
+private fun GuideTv() = GuidePreview(tv = true)
 
 @PreviewTest
 @Preview(device = PHONE)
 @Composable
-fun GuidePhone() = GuidePreview(tv = false)
+private fun GuidePhone() = GuidePreview(tv = false)
 
 @PreviewTest
 @Preview(device = TV)
 @Composable
-fun ProgramDetailsTv() = ProgramDetailsPreview(tv = true)
+private fun ProgramDetailsTv() = ProgramDetailsPreview(tv = true)
 
 @PreviewTest
 @Preview(device = TV)
 @Composable
-fun PlayerInfoTv() = PlayerInfoPreview(tv = true)
+private fun PlayerInfoTv() = PlayerInfoPreview(tv = true)
 
 @PreviewTest
 @Preview(device = PHONE)
 @Composable
-fun PlayerInfoPhone() = PlayerInfoPreview(tv = false)
+private fun PlayerInfoPhone() = PlayerInfoPreview(tv = false)
 
 @PreviewTest
 @Preview(device = TV)
 @Composable
-fun LibraryHomeTv() = LibraryHomePreview(tv = true)
+private fun LibraryHomeTv() = LibraryHomePreview(tv = true)
 
 @PreviewTest
 @Preview(device = PHONE)
 @Composable
-fun LibraryHomePhone() = LibraryHomePreview(tv = false)
+private fun LibraryHomePhone() = LibraryHomePreview(tv = false)
 
 @PreviewTest
 @Preview(device = TV)
 @Composable
-fun ShowPageTv() = ShowPagePreview(tv = true)
+private fun ShowPageTv() = ShowPagePreview(tv = true)
 
 @PreviewTest
 @Preview(device = PHONE)
 @Composable
-fun ShowPagePhone() = ShowPagePreview(tv = false)
+private fun ShowPagePhone() = ShowPagePreview(tv = false)
 
 @PreviewTest
 @Preview(device = TV)
 @Composable
-fun SettingsTv() = SettingsPreview(tv = true)
+private fun SettingsTv() = SettingsPreview(tv = true)
 
 @PreviewTest
 @Preview(device = PHONE)
 @Composable
-fun SettingsPhone() = SettingsPreview(tv = false)
+private fun SettingsPhone() = SettingsPreview(tv = false)

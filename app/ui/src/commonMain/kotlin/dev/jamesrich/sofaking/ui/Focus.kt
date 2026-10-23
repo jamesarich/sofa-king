@@ -7,8 +7,18 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.KeyInputModifierNode
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.currentValueOf
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import kotlin.math.abs
@@ -30,12 +40,47 @@ internal suspend fun requestFocusWhenAttached(request: FocusRequester, frames: I
 }
 
 /**
+ * Moves focus on an arrow key that nothing under this node took, as Android does with a D-pad's. Compose on the
+ * desktop, the web and iOS moves focus only on Tab, so without this a keyboard's arrows could not leave the guide's
+ * chips, reach the tabs or walk Settings. A popup, menu or dialog is a layer of its own that the app's root does not
+ * reach, so each one's content takes this modifier too. Off where the platform already does it
+ * ([platformMovesFocusOnArrows]).
+ */
+internal fun Modifier.arrowKeysMoveFocus(): Modifier = if (platformMovesFocusOnArrows) this else this then ArrowKeysMoveFocusElement
+
+internal fun Key.arrowFocusDirection(): FocusDirection? = when (this) {
+    Key.DirectionUp -> FocusDirection.Up
+    Key.DirectionDown -> FocusDirection.Down
+    Key.DirectionLeft -> FocusDirection.Left
+    Key.DirectionRight -> FocusDirection.Right
+    else -> null
+}
+
+private data object ArrowKeysMoveFocusElement : ModifierNodeElement<ArrowKeysMoveFocusNode>() {
+    override fun create() = ArrowKeysMoveFocusNode()
+
+    override fun update(node: ArrowKeysMoveFocusNode) = Unit
+}
+
+/** Reads the focus manager where it is placed, so inside a popup it moves focus in the popup's layer. */
+private class ArrowKeysMoveFocusNode : Modifier.Node(), KeyInputModifierNode, CompositionLocalConsumerModifierNode {
+    override fun onKeyEvent(event: KeyEvent): Boolean {
+        val direction = event.key.arrowFocusDirection() ?: return false
+        return event.type == KeyEventType.KeyDown && currentValueOf(LocalFocusManager).moveFocus(direction)
+    }
+
+    override fun onPreKeyEvent(event: KeyEvent): Boolean = false
+}
+
+/**
  * Keeps a held OK from reaching what opens under it. A held OK opens the program details, which focus Watch while the
  * key is still down; its repeats and key-up would then press Watch and play the channel. [arm] when something opens on
  * a held OK, and the rest of that press, repeats and key-up, is swallowed.
  */
 internal class HeldOkGuard {
-    private var held = false
+    /** Whether OK is down. */
+    var held = false
+        private set
     private var swallowing = false
 
     /** OK went down; true when this key-down is a repeat of a press already swallowed. */

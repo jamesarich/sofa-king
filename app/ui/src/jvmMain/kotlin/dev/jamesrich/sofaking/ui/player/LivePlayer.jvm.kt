@@ -46,11 +46,17 @@ import androidx.compose.ui.draw.clipToBounds
 
 private val log = Logger.withTag("SofaKing")
 
+/**
+ * Makes the desktop player. Tests that run the whole app swap in one without libVLC: where it is not installed, its
+ * discovery walks the library directories on the UI thread, which on a CI runner takes many minutes.
+ */
+internal var newDesktopLivePlayer: (CaptionSync) -> LivePlayer = ::VlcLivePlayer
+
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
     val player = remember(captionSync) {
         try {
-            VlcLivePlayer(captionSync)
+            newDesktopLivePlayer(captionSync)
         } catch (e: Throwable) {
             // libVLC is a system install on desktops; without it every tune fails with a clear code.
             log.w(e) { "libVLC not found; playback is unavailable" }

@@ -67,6 +67,7 @@ import dev.jamesrich.sofaking.ui.sofaKingImageLoader
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import dev.jamesrich.sofaking.ui.togglesFullScreen
 import dev.jamesrich.sofaking.ui.trackLastInput
+import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -94,7 +95,7 @@ fun App(
             LocalLastInput provides lastInput,
             LocalWindowFullScreen provides windowFullScreen,
         ) {
-            Surface(modifier.fillMaxSize().trackLastInput(lastInput), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
+            Surface(modifier.fillMaxSize().trackLastInput(lastInput).arrowKeysMoveFocus(), color = MaterialTheme.colorScheme.background) { SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled) }
         }
     }
 }
@@ -322,6 +323,7 @@ private fun SofaKingApp(pairing: PairingRequest? = null, onPairingHandled: () ->
             settingsOpen = top.isSettings,
             onSettings = openSettings,
             settingsFocus = settingsFocus,
+            tabFocus = tabFocus,
         ) {
             NavDisplay(
                 entries = entries.getValue(Tab.LIVE) + if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),

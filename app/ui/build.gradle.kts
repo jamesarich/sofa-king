@@ -1,3 +1,4 @@
+import java.time.Duration
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -234,4 +235,9 @@ compose.desktop {
 // The player is libVLC, which the package cannot bundle; the .deb has apt install VLC with it.
 tasks.withType<AbstractJPackageTask>().configureEach {
     if (targetFormat == TargetFormat.Deb) freeArgs.addAll("--linux-package-deps", "vlc")
+}
+
+// A hung UI test fails its task instead of running into the CI job's timeout, so the reports still upload.
+tasks.withType<Test>().configureEach {
+    timeout.set(Duration.ofMinutes(15))
 }

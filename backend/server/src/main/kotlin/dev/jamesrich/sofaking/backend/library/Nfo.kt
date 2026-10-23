@@ -54,9 +54,7 @@ internal fun readNfo(path: Path): Nfo? = try {
 internal fun parseNfo(input: InputStream): Nfo? {
     val root = try {
         factory.newDocumentBuilder().apply { setErrorHandler(null) }.parse(input).documentElement
-    } catch (
-        _: Exception,
-    ) {
+    } catch (_: Exception) {
         return null
     }
     if (root.tagName !in setOf("movie", "tvshow", "episodedetails", "musicvideo")) return null

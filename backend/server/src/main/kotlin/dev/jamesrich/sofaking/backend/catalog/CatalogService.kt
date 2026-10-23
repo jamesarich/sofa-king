@@ -106,16 +106,12 @@ class CatalogService(
         }
         val from = try {
             Instant.parse(query.from)
-        } catch (
-            _: Exception,
-        ) {
+        } catch (_: Exception) {
             throw ApiFailure(400, "INVALID_QUERY", "Invalid from timestamp")
         }
         val to = try {
             Instant.parse(query.to)
-        } catch (
-            _: Exception,
-        ) {
+        } catch (_: Exception) {
             throw ApiFailure(400, "INVALID_QUERY", "Invalid to timestamp")
         }
         if (to <= from || Duration.between(from, to) > Duration.ofHours(Wire.GUIDE_MAX_HOURS.toLong())) {

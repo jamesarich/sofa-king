@@ -124,9 +124,7 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
             if (trimmed.startsWith("{")) return lenientJson.parseToJsonElement(trimmed)
             val compressed = try {
                 Base64.getDecoder().decode(trimmed)
-            } catch (
-                e: IllegalArgumentException,
-            ) {
+            } catch (e: IllegalArgumentException) {
                 throw ProviderFailure("LG schedulelist is neither JSON nor base64", cause = e)
             }
             val inflater = Inflater()

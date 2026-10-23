@@ -75,9 +75,7 @@ class Recorder internal constructor(
             failure =
                 try {
                     attempt(channelId, file, until)
-                } catch (
-                    e: CancellationException,
-                ) {
+                } catch (e: CancellationException) {
                     throw e
                 } catch (e: ApiFailure) {
                     e.code

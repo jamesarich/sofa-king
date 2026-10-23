@@ -208,9 +208,7 @@ class PlexSync(
             for (dvr in touched) {
                 try {
                     send(HttpMethod.Post, "/livetv/dvrs/${dvr.encodeURLPathPart()}/reloadGuide")
-                } catch (
-                    e: CancellationException,
-                ) {
+                } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     errors += "DVR $dvr: ${message(e)}"

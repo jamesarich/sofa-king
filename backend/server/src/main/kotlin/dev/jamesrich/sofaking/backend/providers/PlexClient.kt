@@ -97,9 +97,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         val target = if (answer.status in 300..399 && answer.location != null) {
             val location = try {
                 URI(answer.url).resolve(answer.location).toString()
-            } catch (
-                _: IllegalArgumentException,
-            ) {
+            } catch (_: IllegalArgumentException) {
                 throw ProviderFailure("Invalid Plex redirect", transient = false)
             }
             httpOrNull(location) ?: throw ProviderFailure("Plex redirect is not HTTP", transient = false)

@@ -48,9 +48,7 @@ internal fun readSecretFiles(
         val value =
             try {
                 read(Path.of(file))
-            } catch (
-                e: IOException,
-            ) {
+            } catch (e: IOException) {
                 throw IllegalArgumentException(
                     "${name}_FILE names $file, which cannot be read (${e.javaClass.simpleName})",
                 )
@@ -92,9 +90,7 @@ internal class SecretsFile(val path: Path, private val random: SecureRandom = Se
         val text =
             try {
                 Files.readString(path)
-            } catch (
-                e: IOException,
-            ) {
+            } catch (e: IOException) {
                 throw IllegalArgumentException(
                     "$path cannot be read (${e.javaClass.simpleName}); it must belong to the user the server runs as",
                 )

@@ -58,9 +58,7 @@ class SegmentAudio(private val ffmpeg: String, parallelism: Int = 2, private val
                 launch(Dispatchers.IO) {
                     try {
                         process.outputStream.use { it.write(input) }
-                    } catch (
-                        _: IOException,
-                    ) { /* FFmpeg stopped reading */ }
+                    } catch (_: IOException) { /* FFmpeg stopped reading */ }
                 }
                 val output = runInterruptible(Dispatchers.IO) { process.inputStream.readBytes() }
                 val exit = process.onExit().await().exitValue()

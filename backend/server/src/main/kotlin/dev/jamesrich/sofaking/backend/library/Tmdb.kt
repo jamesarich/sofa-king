@@ -202,9 +202,7 @@ internal class TmdbClient(
         }
         return try {
             tmdbJson.decodeFromString(response.bodyAsText())
-        } catch (
-            e: kotlinx.coroutines.CancellationException,
-        ) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (_: Exception) {
             throw TmdbFailure("TMDB_BAD_RESPONSE")

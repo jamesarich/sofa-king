@@ -278,9 +278,7 @@ internal object AdBreaks {
 
     private fun amagiHost(base: URI, reference: String): Boolean = try {
         base.resolve(reference).host?.lowercase()?.endsWith(".amagi.tv") == true
-    } catch (
-        _: IllegalArgumentException,
-    ) {
+    } catch (_: IllegalArgumentException) {
         false
     }
 
@@ -306,9 +304,7 @@ internal object AdBreaks {
                 it.readNBytes(FUEL_TOKEN_LIMIT)
             }.decodeToString()
             ((Json.parseToJsonElement(text) as? JsonArray)?.firstOrNull() as? JsonObject)?.get("SegTag") as? JsonObject
-        } catch (
-            _: IllegalArgumentException,
-        ) {
+        } catch (_: IllegalArgumentException) {
             null
         } catch (_: IOException) {
             null

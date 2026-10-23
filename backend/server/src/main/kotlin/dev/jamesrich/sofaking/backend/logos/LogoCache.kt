@@ -147,9 +147,7 @@ class LogoCache(
             trigger.receive()
             try {
                 sweep()
-            } catch (
-                e: CancellationException,
-            ) {
+            } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 log.warn("logo sweep failed class={}", e.javaClass.simpleName)

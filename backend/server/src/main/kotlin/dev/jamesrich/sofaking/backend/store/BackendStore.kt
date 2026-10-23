@@ -133,9 +133,7 @@ class BackendStore internal constructor(
         if (closed.get()) return false
         return try {
             query { exec("SELECT 1") { it.next() && it.getInt(1) == 1 } == true }
-        } catch (
-            e: CancellationException,
-        ) {
+        } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
             false

@@ -152,9 +152,7 @@ class Dvr(
                     store.recordings().filter {
                         it.commercials == Wire.CommercialScan.SCANNING
                     }.forEach { scans.trySend(it.id) }
-                } catch (
-                    e: CancellationException,
-                ) {
+                } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     log.warn("interrupted commercial scans not resumed class={}", e.javaClass.simpleName)
@@ -722,9 +720,7 @@ class Dvr(
 
     private fun instant(text: String, field: String): Instant = try {
         Instant.parse(text)
-    } catch (
-        _: Exception,
-    ) {
+    } catch (_: Exception) {
         throw ApiFailure(400, "INVALID_REQUEST", "Invalid $field timestamp")
     }
 

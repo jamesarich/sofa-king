@@ -103,9 +103,7 @@ class ProviderHttp(private val http: HttpClient, private val policy: UpstreamPol
     ): Fetched {
         val start = try {
             URI(url)
-        } catch (
-            _: Exception,
-        ) {
+        } catch (_: Exception) {
             throw ProviderFailure("Invalid provider URL", transient = false)
         }
         return followRedirects(start, reject = { problem ->
@@ -281,9 +279,7 @@ internal fun nextData(html: String, what: String): JsonElement {
     val match = NEXT_DATA.find(html) ?: throw ProviderFailure("$what has no __NEXT_DATA__")
     return try {
         lenientJson.parseToJsonElement(match.groupValues[1])
-    } catch (
-        e: Exception,
-    ) {
+    } catch (e: Exception) {
         throw ProviderFailure("$what's __NEXT_DATA__ is not JSON", cause = e)
     }
 }

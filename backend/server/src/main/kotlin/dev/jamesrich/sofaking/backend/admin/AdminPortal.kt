@@ -580,9 +580,7 @@ class AdminPortal(
                         java.time.LocalDateTime.parse(
                             form["start"].orEmpty(),
                         ).atZone(java.time.ZoneId.systemDefault()).toInstant()
-                    } catch (
-                        _: java.time.format.DateTimeParseException,
-                    ) {
+                    } catch (_: java.time.format.DateTimeParseException) {
                         throw ApiFailure(400, "INVALID_REQUEST", "Pick a start date and time")
                     }
                     val minutes = formInt(form, "minutes", "Minutes")
@@ -611,9 +609,7 @@ class AdminPortal(
                 try {
                     dvr.deleteRule(call.parameters["id"]!!)
                     session.flash.set(Flash("Deleted the rule and its scheduled recordings; what it recorded stays."))
-                } catch (
-                    e: ApiFailure,
-                ) {
+                } catch (e: ApiFailure) {
                     session.flash.set(Flash("That rule is already gone.", Tone.WARN))
                 }
                 seeOther(call, "/admin/recordings#rules")
@@ -948,9 +944,7 @@ class AdminPortal(
      */
     private suspend fun ApplicationCall.formOrEmpty(): Parameters = try {
         receiveParameters()
-    } catch (
-        e: CancellationException,
-    ) {
+    } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {
         Parameters.Empty
@@ -1257,9 +1251,7 @@ class AdminPortal(
         }
         val candidate = try {
             parsePolicy(next)
-        } catch (
-            e: Exception,
-        ) {
+        } catch (e: Exception) {
             refuse(listOf("The edit does not fit the policy schema"))
             return
         }

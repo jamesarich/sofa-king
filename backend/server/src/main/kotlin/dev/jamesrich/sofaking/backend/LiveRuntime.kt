@@ -99,9 +99,7 @@ internal fun CoroutineScope.launchEvery(
     while (isActive) {
         try {
             action()
-        } catch (
-            e: CancellationException,
-        ) {
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             report("$name failed class=${e.javaClass.simpleName}")
@@ -258,13 +256,9 @@ class LiveRuntime(
                         delay(LIBRARY_FLUSH_MS)
                         try {
                             library.flush()
-                        } catch (
-                            e: CancellationException,
-                        ) {
+                        } catch (e: CancellationException) {
                             throw e
-                        } catch (
-                            e: Exception,
-                        ) {
+                        } catch (e: Exception) {
                             runtimeLog.warn("ad library save failed: {}", e.toString())
                         }
                     }

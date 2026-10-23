@@ -42,9 +42,7 @@ object HlsRewriter {
         val resolved = base.resolve(reference).toString()
         try {
             httpUri(resolved)
-        } catch (
-            _: Exception,
-        ) {
+        } catch (_: Exception) {
             throw ApiFailure(422, "FORMAT_UNSUPPORTED", "Only HTTP(S) HLS resources are supported")
         }
         return resolved

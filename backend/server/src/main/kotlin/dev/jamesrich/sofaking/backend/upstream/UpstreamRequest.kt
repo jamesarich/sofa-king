@@ -144,9 +144,7 @@ internal suspend fun <T> followRedirects(
                 if (++redirects > max) reject(RedirectProblem.TOO_MANY)
                 val next = try {
                     target.resolve(hop.location)
-                } catch (
-                    _: IllegalArgumentException,
-                ) {
+                } catch (_: IllegalArgumentException) {
                     reject(RedirectProblem.INVALID)
                 }
                 if (target.scheme == "https" && next.scheme != "https") reject(RedirectProblem.INSECURE)

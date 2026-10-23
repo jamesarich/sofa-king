@@ -13,7 +13,9 @@ Platforms and what each needs besides FFmpeg and the server's distribution (`./g
 - android-tv, android-phone, android-tablet: adb with one booted emulator of that kind and the debug APK (`--app`),
   which it installs over any earlier one; the settings go in with `run-as`, which only a debug build allows.
 - ios, tvos: one booted simulator (`xcrun simctl`) and the app the Debug build writes (`--app`, a `.app` folder). The
-  simulators take no keys from a script, so these show the guide or channel list, a channel playing and the Library tab.
+  simulators take no keys from a script, so these show the guide or channel list, a channel playing (iOS only: Apple
+  TV asks before a link opens the app) and the Library tab. The iOS app runs in landscape on a simulator that boots
+  upright, so its pictures are turned or cropped to the app.
 """
 import argparse
 import contextlib
@@ -294,11 +296,21 @@ def apple(args, out):
                 data.mkdir(parents=True, exist_ok=True)
                 (data / 'settings.preferences_pb').write_bytes(settings)
             simctl('launch', 'booted', bundle)
-            if tv and extra.get('startup') == 'CHANNEL':
-                # The Apple TV app has no channel to start on; the Top Shelf's link opens one.
-                time.sleep(5)
-                simctl('openurl', 'booted', f'sofaking://channel/{extra["startup_channel"]}')
-            shoot = lambda name: simctl('io', 'booted', 'screenshot', str(out / f'{args.name}-{name}.png'))
+
+            def shoot(name):
+                path = out / f'{args.name}-{name}.png'
+                simctl('io', 'booted', 'screenshot', str(path))
+                if tv:
+                    return
+                # The simulator stands upright and the app lies across it: an iPhone's picture is turned a quarter,
+                # an iPad's shows the app across its width between black bands.
+                size = subprocess.run(['sips', '-g', 'pixelWidth', '-g', 'pixelHeight', str(path)], capture_output=True, text=True, check=True).stdout
+                width, height = map(int, re.findall(r'pixel(?:Width|Height): (\d+)', size))
+                if args.name == 'iphone':
+                    subprocess.run(['sips', '-r', '270', str(path)], capture_output=True, check=True)
+                elif height > width:
+                    subprocess.run(['sips', '-c', str(width * width // height), str(width), str(path)], capture_output=True, check=True)
+
             try:
                 # Nothing has focus on a touch screen, and the Apple TV's channel list has no preview.
                 yield App(shoot, preview=False)
@@ -308,7 +320,8 @@ def apple(args, out):
             finally:
                 simctl('terminate', 'booted', bundle)
 
-        tour(base, start, out)
+        # The Apple TV app has no channel to start on, and Apple TV asks before the Top Shelf's link opens one.
+        tour(base, start, out, channel=not tv)
     if not tv:
         simctl('status_bar', 'booted', 'clear')
 
@@ -329,18 +342,20 @@ def wait_served(out, path, before, seconds=90):
         time.sleep(0.5)
 
 
-def tour(base, start, out):
+def tour(base, start, out, channel=True):
     """The guide with its preview, a channel full screen, the Library tab, a show's page and a movie's page: by keys
-    where the platform is driven by keys, by taps where it takes them, and otherwise as far as settings reach."""
+    where the platform is driven by keys, by taps where it takes them, and otherwise as far as settings reach; without
+    [channel], a platform that cannot start on a channel skips it."""
     before = served(out, '/api/v1/guide/query')
     with start(startup='GUIDE') as app:
         wait_served(out, '/api/v1/guide/query', before)
         if app.logged:
-            # An emulator without a GPU decodes the programs for some seconds after the server sends them.
+            # An emulator without a GPU decodes the programs for some seconds after the server sends them, and draws
+            # them some seconds after that.
             wait_for('the listings', lambda: app.logged('SofaKing: guide: '), 60)
         if app.preview:
             wait_for_session(base)
-        time.sleep(PREVIEW_SECONDS if app.preview else 3)
+        time.sleep(PREVIEW_SECONDS if app.preview or app.logged else 3)
         app.shoot('guide')
         by_keys = app.keys and not app.touch
         if by_keys:
@@ -351,9 +366,9 @@ def tour(base, start, out):
             app.keys('Enter')
             time.sleep(1.5)
             app.shoot('player')
-    if not by_keys:
-        channel = request(base, '/api/v1/channels')['channels'][0]['id']
-        with start(startup='CHANNEL', startup_channel=channel) as app:
+    if not by_keys and channel:
+        first = request(base, '/api/v1/channels')['channels'][0]['id']
+        with start(startup='CHANNEL', startup_channel=first) as app:
             wait_for_session(base)
             time.sleep(PREVIEW_SECONDS)
             if app.touch:

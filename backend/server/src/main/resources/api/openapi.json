@@ -86,7 +86,7 @@
         "type": "object",
         "properties": {
           "channelId": { "type": "string" }, "status": { "type": "string", "description": "ok, or removed for an entry the lineup no longer has" },
-          "programmes": { "type": "array", "items": { "$ref": "#/components/schemas/Program" } }
+          "programs": { "type": "array", "items": { "$ref": "#/components/schemas/Program" } }
         }
       },
       "Program": {

@@ -64,7 +64,7 @@ def main():
                 programs = 0
                 if args.guide:
                     guide = smoke.request(base, '/api/v1/guide/query', 'POST', {'channelIds': [c['id'] for c in candidates], 'from': now.isoformat(), 'to': (now + timedelta(hours=6)).isoformat()})
-                    programs = sum(len(c['programmes']) for c in guide['channels'])
+                    programs = sum(len(c['programs']) for c in guide['channels'])
                     assert programs > 0, 'Bounded guide query has no programs'
                 decoded = False
                 if args.decode_channel:

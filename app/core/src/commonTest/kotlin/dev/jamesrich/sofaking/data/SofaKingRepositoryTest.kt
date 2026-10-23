@@ -43,8 +43,8 @@ class SofaKingRepositoryTest {
                         return@FakeHttp json("""{"code":"RESYNC_REQUIRED","message":"Guide revision changed","retryable":true}""", status = 409)
                     }
                     val channels = query.channelIds().joinToString(",") { id ->
-                        if (id in removed) return@joinToString """{"channelId":"$id","status":"removed","programmes":[]}"""
-                        """{"channelId":"$id","status":"available","programmes":[{"id":"p-$id","channelId":"$id","startsAt":"2026-10-10T10:00:00Z","endsAt":"2026-10-10T11:00:00Z","title":"Show $id"}]}"""
+                        if (id in removed) return@joinToString """{"channelId":"$id","status":"removed","programs":[]}"""
+                        """{"channelId":"$id","status":"available","programs":[{"id":"p-$id","channelId":"$id","startsAt":"2026-10-10T10:00:00Z","endsAt":"2026-10-10T11:00:00Z","title":"Show $id"}]}"""
                     }
                     json("""{"revision":"$guideRevision","from":"x","to":"y","channels":[$channels]}""")
                 }

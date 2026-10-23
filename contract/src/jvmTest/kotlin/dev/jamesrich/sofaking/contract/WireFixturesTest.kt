@@ -83,7 +83,7 @@ class WireFixturesTest {
         val catalog = client.decodeFromString<Catalog>("""{"channels":[{"id":"c","displayNumber":"2","name":"PBS"}]}""")
         assertEquals(Wire.GuideStatus.AVAILABLE, catalog.channels.single().guideStatus)
         val window = client.decodeFromString<GuideWindow>(
-            """{"revision":"r","channels":[{"channelId":"c","programmes":[{"startsAt":"a","endsAt":"b","title":"News"}]}]}""",
+            """{"revision":"r","channels":[{"channelId":"c","programs":[{"startsAt":"a","endsAt":"b","title":"News"}]}]}""",
         )
         assertEquals("News", window.channels.single().programs.single().title)
         val session = client.decodeFromString<PlaybackSession>(

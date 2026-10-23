@@ -74,8 +74,8 @@ class LineupViewModelTest {
                     val from = Regex(""""from":"([^"]+)"""").find(request.body)?.groupValues?.get(1)
                     val start = from?.let { Instant.parse(it) } ?: Instant.parse("2026-10-10T10:00:00Z")
                     val rows = channelIds.joinToString(",") { id ->
-                        if (id in removed) """{"channelId":"$id","status":"removed","programmes":[]}"""
-                        else """{"channelId":"$id","status":"available","programmes":[{"id":"p-$id","channelId":"$id","startsAt":"$start","endsAt":"${start + 1.hours}","title":"Show $id"}]}"""
+                        if (id in removed) """{"channelId":"$id","status":"removed","programs":[]}"""
+                        else """{"channelId":"$id","status":"available","programs":[{"id":"p-$id","channelId":"$id","startsAt":"$start","endsAt":"${start + 1.hours}","title":"Show $id"}]}"""
                     }
                     json("""{"revision":"r","from":"x","to":"y","channels":[$rows]}""")
                 }

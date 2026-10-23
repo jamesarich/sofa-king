@@ -2,18 +2,23 @@ import SwiftUI
 import SofaKingCore
 
 /// What is on the channel now, in full, and what follows it, with Watch and the favorite toggle, and on a server
-/// that records, Record and Record series for each.
+/// that records, Record and Record series for each. More airings lists the program's other airings on any channel:
+/// one on now plays its channel, and a later one opens its details, which show that airing in place of now and next.
 struct ProgramDetailView: View {
     @Environment(AppModel.self) private var model
     let lineup: Lineup
     let channel: Channel
+    /// A later airing to show in place of what is on now.
+    var airing: Program? = nil
     let watch: () -> Void
+    @State private var opened: Airing?
 
     var body: some View {
         let nowNext = model.core.nowAndNext(lineup: lineup, channel: channel)
+        let shown = airing ?? nowNext.now
         ScrollView {
             HStack(alignment: .top, spacing: 48) {
-                if let icon = nowNext.now?.icon, let url = URL(string: icon) {
+                if let icon = shown?.icon, let url = URL(string: icon) {
                     AsyncImage(url: url) { image in
                         image.resizable().scaledToFit()
                     } placeholder: {
@@ -24,20 +29,20 @@ struct ProgramDetailView: View {
                 }
                 VStack(alignment: .leading, spacing: 20) {
                     Text("\(channel.number.formatted()) \(channel.name)").font(.headline).foregroundStyle(.secondary)
-                    if let now = nowNext.now {
-                        Text(now.title).font(.title)
-                        if let line = episodeLine(now) {
+                    if let shown {
+                        Text(shown.title).font(.title)
+                        if let line = episodeLine(shown) {
                             Text(line).foregroundStyle(.secondary)
                         }
-                        Text(airing(now)).foregroundStyle(.secondary)
-                        if let summary = model.core.summary(program: now), !summary.isEmpty {
+                        Text(timing(shown)).foregroundStyle(.secondary)
+                        if let summary = model.core.summary(program: shown), !summary.isEmpty {
                             Text(summary).font(.body)
                         }
-                        RecordButtons(program: now)
+                        RecordButtons(program: shown)
                     } else {
                         Text("No program information").font(.title2)
                     }
-                    if let next = nowNext.next {
+                    if airing == nil, let next = nowNext.next {
                         Divider()
                         Text("Next").font(.headline)
                         Text("\(next.title) at \(model.core.startTime(of: next))").foregroundStyle(.secondary)
@@ -51,12 +56,26 @@ struct ProgramDetailView: View {
                         FavoriteButton(channel: channel)
                     }
                     .padding(.top, 16)
+                    if let shown {
+                        MoreAirings(airings: model.core.airings(lineup: lineup, program: shown)) { other in
+                            if model.core.start(of: other.program) <= .now {
+                                model.requestedChannel = other.channel.guideId
+                            } else {
+                                opened = other
+                            }
+                        }
+                    }
                 }
                 Spacer()
             }
             .padding(48)
         }
         .navigationTitle(channel.name)
+        .navigationDestination(item: $opened) { other in
+            ProgramDetailView(lineup: lineup, channel: other.channel, airing: other.program) {
+                model.requestedChannel = other.channel.guideId
+            }
+        }
     }
 
     /// The episode title, its number, a first-airing mark and the rating, those that the guide gave.
@@ -69,10 +88,11 @@ struct ProgramDetailView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    /// `7:00 – 8:00 PM · 25 min left`
-    private func airing(_ program: Program) -> String {
+    /// `7:00 – 8:00 PM · 25 min left`, or for a later airing its day and times.
+    private func timing(_ program: Program) -> String {
         let start = model.core.start(of: program)
         let end = model.core.end(of: program)
+        if start > .now { return (start..<end).formatted(.interval.weekday().hour().minute()) }
         let range = (start..<end).formatted(.interval.hour().minute())
         let left = max(0, Int(end.timeIntervalSinceNow / 60))
         return "\(range) · \(left) min left"
@@ -113,5 +133,35 @@ private struct RecordButtons: View {
             failed = !((try? await action())?.boolValue ?? false)
             busy = false
         }
+    }
+}
+
+/// The program's other airings, soonest first, each with its day, time and channel; a press hands it to [pick].
+private struct MoreAirings: View {
+    @Environment(AppModel.self) private var model
+    let airings: [Airing]
+    let pick: (Airing) -> Void
+
+    var body: some View {
+        if !airings.isEmpty {
+            Divider()
+            Text("More airings").font(.headline)
+            ForEach(airings, id: \.self) { other in
+                Button { pick(other) } label: {
+                    HStack(spacing: 24) {
+                        Text(when(other.program)).monospacedDigit()
+                        Text("\(other.channel.number.formatted()) \(other.channel.name)").foregroundStyle(.secondary)
+                        if other.program.isNew { Text("New").font(.caption).foregroundStyle(.secondary) }
+                    }
+                }
+            }
+        }
+    }
+
+    /// "On now", or the day and time it starts.
+    private func when(_ program: Program) -> String {
+        let start = model.core.start(of: program)
+        if start <= .now { return "On now" }
+        return start.formatted(.dateTime.weekday().hour().minute())
     }
 }

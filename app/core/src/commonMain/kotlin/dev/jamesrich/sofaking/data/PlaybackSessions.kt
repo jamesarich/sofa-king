@@ -176,6 +176,17 @@ class PlaybackSessions(
     }
 
     /**
+     * The DELETE that frees the held session, for a page being closed: it cannot wait for [release], whose request
+     * would never leave, so it sends this itself as the page goes. Null when nothing is held. Nothing here changes; a
+     * page the browser keeps and shows again finds its session gone and reopens it as after any dropped session.
+     */
+    fun exitRelease(): SessionRelease? {
+        val api = api ?: return null
+        val held = _current.value ?: return null
+        return api.releaseRequest(held.sessionId, vod = held.itemId != null)
+    }
+
+    /**
      * Opens a fresh session for what was released last: the channel with its intent, or the library item where
      * the player last was in it. Null when there is nothing to return to.
      */

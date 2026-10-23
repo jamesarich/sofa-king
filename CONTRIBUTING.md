@@ -61,7 +61,7 @@ Versions are pinned exactly in the shared catalog, with no lockfiles or verifica
 
 `ci.yml` runs up to four jobs:
 
-- `check` runs the app's tests, lint, the Native test compile, the release APK and both production web builds on Ubuntu, then presses random keys on both web builds in Chrome against fixture channels. It uploads the test reports when it fails and the `RenderSmokeTest` screenshots every time.
+- `check` runs the app's tests, lint, the Native test compile, the release APK, the Android screenshot tests and both production web builds on Ubuntu, then presses random keys on both web builds in Chrome against fixture channels. It uploads the test reports when it fails and the `RenderSmokeTest` screenshots every time.
 - `apple` runs the data layer's tests on iOS, macOS, tvOS and watchOS simulators and the UI's iOS tests, links the iOS and tvOS frameworks, and builds the two SwiftUI hosts in `app/iosApp` and `app/tvosApp` with XcodeGen and `xcodebuild`, on macOS.
 - `snapshot` runs for a push to `main`, alongside the two checks. It calls `snapshot.yml`, which builds every platform but iOS and Apple TV as [CI and snapshots](app/docs/development.md#ci-and-snapshots) describes. `snapshot.yml` also runs on its own from the Actions tab, where it publishes by itself.
 - `publish` runs once the checks and the packages are all green. It calls `publish-snapshot.yml`, which replaces the [`snapshot` prerelease](https://github.com/jamesarich/sofa-king/releases/tag/snapshot) with the packages the run uploaded, signed as a flat apt repository when the `APT_SIGNING_KEY` secret is set.
@@ -70,7 +70,7 @@ Every Gradle job restores the Gradle user home that the same job last saved from
 
 `backend.yml` runs three jobs:
 
-- `test` runs `./gradlew test :server:installDist` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. Each test fails after a minute unless it sets a longer `@Timeout`. The job then runs `shellcheck` over `backend/deploy`, the unit tests in `backend/scripts`, and both [smoke scripts](backend/docs/development.md#build-and-test) against the installed distribution, which need no network.
+- `test` runs `./gradlew test :server:installDist` on Ubuntu 24.04 with its FFmpeg 6.1, the version the image ships. FFmpeg's output differs between major versions, so a test that passes against a newer local FFmpeg can still fail there. Each test fails after a minute unless it sets a longer `@Timeout`. The job then runs `shellcheck` over `backend/deploy`, the unit tests in `backend/scripts`, and both [smoke scripts](backend/docs/development.md#build-and-test) against the installed distribution, which need no network, then fuzzes every documented route with Schemathesis.
 - `image` builds the image from the tested distribution for `linux/amd64` and `linux/arm64`, each on a runner of its own architecture, then starts it and checks `/readyz`, `/healthz` and a clean stop. A pull request builds both without pushing them.
 - `publish` runs for `main`, on a push or a manual run, once both images are built. It tags them together as `ghcr.io/jamesarich/sofa-king:main` and `:sha-<commit>`, with a BuildKit SBOM and max-mode build provenance, which [deploy](backend/docs/deploy.md#inspect-the-published-image) shows how to inspect. Hosts with [automatic updates](backend/docs/deploy.md#update-automatically) install that image.
 

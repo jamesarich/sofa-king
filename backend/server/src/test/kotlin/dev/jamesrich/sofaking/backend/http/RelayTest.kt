@@ -13,6 +13,7 @@ import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlin.test.*
@@ -79,6 +80,32 @@ class RelayTest {
                 for (session in opened) client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }
                 pollUntil(20_000, 50) { fixture.tsClosed.get() >= 1 }
                 assertEquals(0, runtime.relay.shared.active())
+            } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+        }
+    }
+
+    @Test fun `a request waiting on a shared stream when its session is released answers 410, not 502`() = testApplication {
+        val dir = Files.createTempDirectory("sofa-relay-release-")
+        val token = "secret".repeat(8)
+        Fixture().use { fixture ->
+            fixture.tsStartDelayMs = 3_000
+            val sources = dir.resolve("sources.json"); Files.writeString(sources, Json.encodeToString(listOf(fixture.tsFeed)))
+            val store = openStore(dir)
+            val runtime = LiveRuntime.create(store, ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true), MutableClock())
+            try {
+                runtime.feeds.refresh(fixture.tsFeed); runtime.adoptAll()
+                application { backendModule(store, MutableClock(), runtime, token) }
+                val channel = Json.decodeFromString<Catalog>(client.get("/api/v1/channels") { bearerAuth(token) }.bodyAsText()).channels.single()
+                val session = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(OpenPlayback(channel.id, "watch", "release"))) }.bodyAsText())
+                val answered = coroutineScope {
+                    val media = async { client.get(session.descriptor.url) }
+                    // The player zaps away while the upstream has yet to answer.
+                    pollUntil(20_000, 20) { fixture.tsConnections.get() >= 1 }
+                    assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/playback-sessions/${session.id}") { bearerAuth(token) }.status)
+                    withTimeout(20_000) { media.await() }
+                }
+                assertEquals(HttpStatusCode.Gone, answered.status)
+                assertEquals(Wire.ErrorCode.SESSION_EXPIRED, Json.decodeFromString<ApiError>(answered.bodyAsText()).code)
             } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
         }
     }

@@ -191,6 +191,14 @@ class LibraryPlaybackTest {
     }
 
     @Test
+    fun `a closing page releases the held item at its own endpoint`() = runTest {
+        val (_, sessions) = fixture()
+        sessions.play("m1", tv)
+
+        assertEquals("${FAKE_BASE}api/v1/vod-sessions/v1", sessions.exitRelease()?.url)
+    }
+
+    @Test
     fun `a released item reopens where the player last was`() = runTest {
         val (fake, sessions) = fixture()
         sessions.play("m1", tv, startMs = 10_000, audioIndex = 2, subtitleIndex = 1000)

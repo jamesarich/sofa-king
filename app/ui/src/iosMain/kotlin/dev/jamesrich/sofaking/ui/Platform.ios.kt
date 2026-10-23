@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.KeyEvent
+import androidx.lifecycle.LifecycleOwner
+import dev.jamesrich.sofaking.data.PlaybackSessions
 import platform.Foundation.NSDateFormatter
 import platform.Foundation.NSLocale
 import platform.Foundation.NSNotificationCenter
@@ -94,3 +96,9 @@ internal actual fun updateDownloadUrl(latest: PublishedBuild): String? = null
 
 @Composable
 internal actual fun rememberUpdateInstaller(): UpdateInstaller? = null
+
+@Composable
+internal actual fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner = host
+
+@Composable
+internal actual fun ReleaseOnPageExit(sessions: PlaybackSessions) = Unit

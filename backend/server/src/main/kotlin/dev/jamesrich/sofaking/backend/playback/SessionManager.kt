@@ -188,6 +188,11 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     /** Where the session's player is among the ads, given [aheadMs] of media it has loaded past the picture. */
     suspend fun adBreak(id: String, aheadMs: Long): AdBreakState = mutex.withLock { active(id) }.ads?.at(aheadMs) ?: AdBreakState()
     suspend fun release(id: String): Boolean = mutex.withLock { sessions.remove(id)?.cancel() != null }
+    /** What a media request the session let go of answers: what the player's next request would, if the session is gone. */
+    suspend fun letGo(id: String): ApiFailure = mutex.withLock {
+        if (id in sessions) ApiFailure(410, Wire.ErrorCode.STREAM_CHANGED, "Fetch the current session descriptor", true)
+        else ApiFailure(410, Wire.ErrorCode.SESSION_EXPIRED, "Session was released or expired")
+    }
     suspend fun healthChanged(offeringId: String) = mutex.withLock {
         if (store.health(offeringId)?.let(::eligible) != true) {
             sessions.values.filter { it.offering.id == offeringId }.forEach {

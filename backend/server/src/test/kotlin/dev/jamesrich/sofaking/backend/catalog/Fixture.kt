@@ -67,6 +67,8 @@ class Fixture : AutoCloseable {
     @Volatile var gzipEncoded = false
     val tsConnections = AtomicInteger()
     val tsClosed = AtomicInteger()
+    /** How long `/live.ts` waits after a connection before it answers. */
+    @Volatile var tsStartDelayMs = 0L
     /** Raw query string of the last media playlist request, for delivery-directive checks. */
     @Volatile var lastMediaQuery: String? = null
     /** While set, the guide's `Morning` program carries a sub-title, season and episode numbering, a rating and `<new/>`. */
@@ -93,6 +95,7 @@ class Fixture : AutoCloseable {
             }
             if (path == "/live.ts" || path == "/fake.m3u8") {
                 tsConnections.incrementAndGet()
+                if (tsStartDelayMs > 0) Thread.sleep(tsStartDelayMs)
                 exchange.responseHeaders.set("Content-Type", "video/mp2t")
                 exchange.sendResponseHeaders(200, 0)
                 try {

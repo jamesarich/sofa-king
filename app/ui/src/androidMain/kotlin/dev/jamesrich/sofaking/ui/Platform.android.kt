@@ -16,6 +16,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.KeyEvent
+import androidx.lifecycle.LifecycleOwner
+import dev.jamesrich.sofaking.data.PlaybackSessions
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.getSystemService
@@ -137,3 +139,9 @@ internal actual fun rememberUpdateInstaller(): UpdateInstaller? {
     val context = LocalContext.current
     return remember(context) { appUpdateInstaller(context) }
 }
+
+@Composable
+internal actual fun rememberAppLifecycleOwner(host: LifecycleOwner): LifecycleOwner = host
+
+@Composable
+internal actual fun ReleaseOnPageExit(sessions: PlaybackSessions) = Unit

@@ -164,15 +164,24 @@ jobs:
           key: konan-${{ runner.os }}-${{ steps.kotlin.outputs.version }}
           restore-keys: konan-${{ runner.os }}-
       # The device targets cannot run tests here, so they only compile.
-      - name: Test Apple targets, compile the device targets and link the iOS and tvOS frameworks
+      - name: Test Apple targets, compile the device targets and link the iOS framework
         run: >-
           ./gradlew --continue
           :core:iosSimulatorArm64Test :core:macosArm64Test :core:tvosSimulatorArm64Test
           :core:watchosSimulatorArm64Test :ui:iosSimulatorArm64Test
           :core:compileKotlinIosArm64 :core:compileKotlinTvosArm64 :core:compileKotlinWatchosArm64
           :ui:compileKotlinIosArm64
-          :ui:linkDebugFrameworkIosSimulatorArm64 :core:linkDebugFrameworkTvosSimulatorArm64
-      # The SwiftUI hosts compile against the frameworks linked above; their pre-build script reuses that Gradle work.
+          :ui:linkDebugFrameworkIosSimulatorArm64
+      # A fresh iPhone simulator's first boot takes about four minutes; it boots while the host and the server build,
+      # and xcodebuild waits for it. The newest iOS runtime's first iPhone.
+      - name: Start the iPhone simulator
+        run: |
+          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime for d in devices[runtime] if d["name"].startswith("iPhone")))')
+          echo "SIMULATOR=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+      # The SwiftUI host compiles against the framework linked above; its pre-build script reuses that Gradle work.
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Build the iOS host
@@ -180,13 +189,108 @@ jobs:
         run: >-
           xcodegen && xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug
           -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build
+      # The touch tests run against the server's installed distribution serving fixture channels, which FFmpeg makes.
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+      - name: Build the server distribution
+        working-directory: backend
+        run: ./gradlew --console=plain :server:installDist
+      # The touch tests drive the iOS app in an iPhone simulator against a fresh fixture server.
+      - name: Test the iOS app by touch
+        run: |
+          out=build/ios-ui
+          mkdir -p "$out"
+          python3 scripts/fixture_server.py --out "$out" > "$out/fixture.log" 2>&1 &
+          fixture=$!
+          trap 'kill "$fixture"' EXIT
+          until [ -f "$out/server.env" ]; do
+            kill -0 "$fixture" 2>/dev/null || { cat "$out/fixture.log"; exit 1; }
+            sleep 1
+          done
+          set -a; . "$out/server.env"; set +a
+          export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
+          cd iosApp
+          xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$SIMULATOR" \
+            CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/ios-ui/TouchTests.xcresult" test
+      # A failure's screenshots, as PNG files beside the result bundle in the artifact.
+      - name: Export the touch tests' screenshots
+        if: failure()
+        run: |
+          result=build/ios-ui/TouchTests.xcresult
+          [ ! -d "$result" ] || xcrun xcresulttool export attachments --path "$result" --output-path "$(dirname "$result")/attachments"
+      # A simulator app's crash report, with its stack, lands on the host rather than in the result bundle.
+      - name: Collect the app's crash reports
+        if: failure()
+        run: |
+          mkdir -p build/ios-ui/crashes
+          find ~/Library/Logs/DiagnosticReports -name 'SofaKing-*' -exec cp {} build/ios-ui/crashes/ \; || true
+      # A restored older distribution would otherwise be saved again under the new key, and the entry would grow.
+      - name: Keep only the current Kotlin/Native distribution
+        if: github.ref == 'refs/heads/main'
+        env:
+          VERSION: ${{ steps.kotlin.outputs.version }}
+        run: find ~/.konan -maxdepth 1 -name 'kotlin-native-prebuilt-*' -not -name "*-$VERSION" -exec rm -rf {} +
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reports-apple
+          path: |
+            app/*/build/reports/
+            app/*/build/test-results/
+            app/build/ios-ui/
+
+  # The Apple TV remote tests, beside the Apple job rather than after it: in one job they made it the slowest check.
+  apple-tv:
+    name: Test (Apple TV)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          # The key encrypts configuration-cache data, which setup-gradle 6 stores only for a Develocity trial; until
+          # then every run configures from scratch.
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # The Kotlin/Native distribution and its toolchains, kept per Kotlin version. Keyed on the whole catalog, any
+      # dependency bump restarted it cold, which cost the Apple job ten extra minutes per pull request until main saved.
+      - name: Read the Kotlin version
+        id: kotlin
+        working-directory: gradle
+        run: echo "version=$(sed -n 's/^kotlin = "\(.*\)"$/\1/p' libs.versions.toml)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ steps.kotlin.outputs.version }}
+          restore-keys: konan-${{ runner.os }}-
+      - name: Link the tvOS framework
+        run: ./gradlew :core:linkDebugFrameworkTvosSimulatorArm64
+      # The simulator boots while the host and the server build, and xcodebuild waits for it. The newest tvOS
+      # runtime's first device.
+      - name: Start the Apple TV simulator
+        run: |
+          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".tvOS-" in runtime for d in devices[runtime]))')
+          echo "SIMULATOR=$device" >> "$GITHUB_ENV"
+          xcrun simctl boot "$device"
+      # The SwiftUI host compiles against the framework linked above; its pre-build script reuses that Gradle work.
+      - name: Install XcodeGen
+        run: brew install xcodegen
       - name: Build the Apple TV host
         working-directory: app/tvosApp
         run: >-
           xcodegen && xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug
           -destination 'generic/platform=tvOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build
-      # The remote tests drive the Apple TV app in a simulator against the server's installed distribution serving
-      # fixture channels, which FFmpeg makes.
+      # The remote tests drive the Apple TV app against the server's installed distribution serving fixture channels,
+      # which FFmpeg makes.
       - name: Install FFmpeg
         run: brew install ffmpeg
       - name: Build the server distribution
@@ -207,49 +311,21 @@ jobs:
           [ -f "$out/server.env" ] || { echo "The fixture server wrote no server.env in 3 minutes"; cat "$out/fixture.log"; exit 1; }
           set -a; . "$out/server.env"; set +a
           export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
-          # The newest tvOS runtime's first device.
-          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
-          devices = json.load(sys.stdin)["devices"]
-          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".tvOS-" in runtime for d in devices[runtime]))')
           cd tvosApp
-          xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug -destination "id=$device" \
+          xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug -destination "id=$SIMULATOR" \
             CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/tvos-ui/RemoteTests.xcresult" test
-      # The touch tests drive the iOS app in an iPhone simulator against a fresh fixture server.
-      - name: Test the iOS app by touch
-        run: |
-          out=build/ios-ui
-          mkdir -p "$out"
-          python3 scripts/fixture_server.py --out "$out" > "$out/fixture.log" 2>&1 &
-          fixture=$!
-          trap 'kill "$fixture"' EXIT
-          until [ -f "$out/server.env" ]; do
-            kill -0 "$fixture" 2>/dev/null || { cat "$out/fixture.log"; exit 1; }
-            sleep 1
-          done
-          set -a; . "$out/server.env"; set +a
-          export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
-          # The newest iOS runtime's first iPhone.
-          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
-          devices = json.load(sys.stdin)["devices"]
-          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".iOS-" in runtime for d in devices[runtime] if d["name"].startswith("iPhone")))')
-          cd iosApp
-          xcodebuild -project SofaKing.xcodeproj -scheme SofaKing -configuration Debug -destination "id=$device" \
-            CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/ios-ui/TouchTests.xcresult" test
       # A failure's screenshots, as PNG files beside the result bundle in the artifact.
-      - name: Export the remote and touch tests' screenshots
+      - name: Export the remote tests' screenshots
         if: failure()
         run: |
-          for result in build/tvos-ui/RemoteTests.xcresult build/ios-ui/TouchTests.xcresult; do
-            [ ! -d "$result" ] || xcrun xcresulttool export attachments --path "$result" --output-path "$(dirname "$result")/attachments"
-          done
+          result=build/tvos-ui/RemoteTests.xcresult
+          [ ! -d "$result" ] || xcrun xcresulttool export attachments --path "$result" --output-path "$(dirname "$result")/attachments"
       # A simulator app's crash report, with its stack, lands on the host rather than in the result bundle.
       - name: Collect the app's crash reports
         if: failure()
         run: |
           mkdir -p build/tvos-ui/crashes
           find ~/Library/Logs/DiagnosticReports -name 'SofaKingTV*' -exec cp {} build/tvos-ui/crashes/ \; || true
-          mkdir -p build/ios-ui/crashes
-          find ~/Library/Logs/DiagnosticReports -name 'SofaKing-*' -exec cp {} build/ios-ui/crashes/ \; || true
       # A restored older distribution would otherwise be saved again under the new key, and the entry would grow.
       - name: Keep only the current Kotlin/Native distribution
         if: github.ref == 'refs/heads/main'
@@ -260,12 +336,8 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: reports-apple
-          path: |
-            app/*/build/reports/
-            app/*/build/test-results/
-            app/build/tvos-ui/
-            app/build/ios-ui/
+          name: reports-apple-tv
+          path: app/build/tvos-ui/
 
   # The packages build while the checks run, so a main push is done when its slowest job is; nothing publishes
   # until every check and every package is green.
@@ -284,7 +356,7 @@ jobs:
 
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [check, apple, snapshot]
+    needs: [check, apple, apple-tv, snapshot]
     permissions:
       contents: write
     uses: ./.github/workflows/publish-snapshot.yml

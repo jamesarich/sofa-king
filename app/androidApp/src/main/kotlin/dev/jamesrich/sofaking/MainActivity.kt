@@ -2,9 +2,11 @@ package dev.jamesrich.sofaking
 
 import android.app.Application
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.StrictMode
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +27,20 @@ import dev.jamesrich.sofaking.ui.isTelevision
 class SofaKingApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        // A debuggable build logs disk and network work on the main thread and leaked resources, which the TV emulator
+        // monkey (app/scripts/tv-monkey.py) collects.
+        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build())
+            StrictMode.setVmPolicy(
+                StrictMode.VmPolicy.Builder()
+                    .detectLeakedClosableObjects()
+                    .detectLeakedSqlLiteObjects()
+                    .detectLeakedRegistrationObjects()
+                    .detectActivityLeaks()
+                    .penaltyLog()
+                    .build(),
+            )
+        }
         val client = ClientInfo(platform = if (isTelevision()) "android-tv" else "android", deviceName = Build.MODEL)
         initSofaKing(AppStorage.inDirectory(filesDir.absolutePath, client), NsdServerDiscovery(this))
     }

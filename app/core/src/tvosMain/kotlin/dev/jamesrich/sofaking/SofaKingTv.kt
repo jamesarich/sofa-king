@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.AdBreakNow
+import dev.jamesrich.sofaking.data.Airing
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AppStorage
 import dev.jamesrich.sofaking.data.Channel
@@ -25,6 +26,7 @@ import dev.jamesrich.sofaking.data.TopLevelTab
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.TrackChoice
 import dev.jamesrich.sofaking.data.ViewerSync
+import dev.jamesrich.sofaking.data.airingsOf
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
 import dev.jamesrich.sofaking.data.initialSubtitle
@@ -316,6 +318,9 @@ class SofaKingTv {
 
     fun nowAndNext(lineup: Lineup, channel: Channel): NowNext =
         lineup.nowAndNext(channel, Clock.System.now()).let { (now, next) -> NowNext(now, next) }
+
+    /** The other airings of [programme] in [lineup], from the one on now onwards, soonest first. */
+    fun airings(lineup: Lineup, programme: Programme): List<Airing> = lineup.airingsOf(programme, Clock.System.now())
 
     /** The program's start in milliseconds since the epoch, which Swift turns into a `Date`. */
     fun epochMs(programme: Programme): Long = programme.start.toEpochMilliseconds()

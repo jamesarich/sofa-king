@@ -45,10 +45,22 @@ To look at the TV layout without a TV, run the desktop app with `./gradlew :ui:r
 
 ### TV emulator monkey
 
-[`tv-monkey.yml`](../../.github/workflows/tv-monkey.yml) runs [`scripts/tv-monkey.py`](../scripts/tv-monkey.py) every night in a headless Android TV 36 emulator on a GitHub runner. The script starts the server's installed distribution with eight fixture channels (one HLS, seven endless MPEG-TS streams of a clip FFmpeg makes) and six hours of guide, pairs the debug app through a `sofaking://pair` link to `10.0.2.2`, waits for the guide's preview to open a session, then presses 1,500 random remote keys a quarter second apart, weighted as `AppKeyFuzzTest` weighs them, through `monkey` key scripts of 25 keys. Back on the Live tab leaves the app, as it should, so the app is brought back to the front before each script; the summary counts how often. It fails when the app crashes or stops responding, or when a playback session is still open once the app is behind the home screen. A debuggable build turns StrictMode on with logging only, so the job's summary counts the violations and `strictmode.txt` lists them; the artifact also holds the logcat, the server log, the key scripts and the last screen. Replay a run from the Actions tab with its key count and seed, or locally against a booted emulator, with the server's distribution and the debug APK built:
+[`tv-monkey.yml`](../../.github/workflows/tv-monkey.yml) runs [`scripts/tv-monkey.py`](../scripts/tv-monkey.py) every night in a headless Android TV 36 emulator on a GitHub runner. The script starts the server's installed distribution through [`scripts/fixture_server.py`](../scripts/fixture_server.py), with eight fixture channels (one HLS, seven endless MPEG-TS streams of a clip FFmpeg makes, sent at the clip's pace) and six hours of guide, pairs the debug app through a `sofaking://pair` link to `10.0.2.2`, waits for the guide's preview to open a session, then presses 1,500 random remote keys a quarter second apart, weighted as `AppKeyFuzzTest` weighs them, through `monkey` key scripts of 25 keys. Back on the Live tab leaves the app, as it should, so the app is brought back to the front before each script; the summary counts how often. It fails when the app crashes or stops responding, or when a playback session is still open once the app is behind the home screen. A debuggable build turns StrictMode on with logging only, so the job's summary counts the violations and `strictmode.txt` lists them; the artifact also holds the logcat, the server log, the key scripts and the last screen. Replay a run from the Actions tab with its key count and seed, or locally against a booted emulator, with the server's distribution and the debug APK built:
 
 ```sh
 SOFAKING_MONKEY_SEED=1234 python3 scripts/tv-monkey.py --apk androidApp/build/outputs/apk/debug/androidApp-debug.apk --out build/tv-monkey
+```
+
+### Apple TV remote tests
+
+`tvosApp/SofaKingTVUITests` drives the Apple TV app with the Siri Remote (`XCUIRemote`) in a tvOS simulator, against the same fixture server, and checks what the remote did through the server's API. `testPlayerTransportMenu` plays Sofa Sports from the list, presses Record in the player's transport bar until the DVR holds the recording, switches to Movies through Channels › All channels, and leaves with Menu, which must release the session. `testTabs` moves along the tab bar, into each tab and back. `testWalkWithRandomKeys` presses 200 weighted random buttons, brings the app back when Menu leaves it, fails if the app stops, and checks that the session is released once the app is in the background. A failure's message holds what had focus and the element tree. The macOS CI job runs them after building the Apple TV host. On a Mac, with the server's distribution built and FFmpeg installed, start the fixture server and pass its address to the test runner; without it the tests skip:
+
+```sh
+python3 scripts/fixture_server.py --out build/tvos-ui &
+set -a; . build/tvos-ui/server.env; set +a
+cd tvosApp && xcodegen
+TEST_RUNNER_SOFAKING_SERVER=$SOFAKING_SERVER TEST_RUNNER_SOFAKING_TOKEN=$SOFAKING_TOKEN TEST_RUNNER_SOFAKING_WALK_SEED=1234 \
+  xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -destination 'platform=tvOS Simulator,name=Apple TV' CODE_SIGNING_ALLOWED=NO test
 ```
 
 ## Android Studio

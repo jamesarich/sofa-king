@@ -164,6 +164,39 @@ jobs:
         run: >-
           xcodegen && xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug
           -destination 'generic/platform=tvOS Simulator' CODE_SIGNING_ALLOWED=NO -quiet build
+      # The remote tests drive the Apple TV app in a simulator against the server's installed distribution serving
+      # fixture channels, which FFmpeg makes.
+      - name: Install FFmpeg
+        run: brew install ffmpeg
+      - name: Build the server distribution
+        working-directory: backend
+        run: ./gradlew --console=plain :server:installDist
+      - name: Test the Apple TV app with the remote
+        run: |
+          out=build/tvos-ui
+          mkdir -p "$out"
+          python3 scripts/fixture_server.py --out "$out" > "$out/fixture.log" 2>&1 &
+          fixture=$!
+          trap 'kill "$fixture"' EXIT
+          until [ -f "$out/server.env" ]; do
+            kill -0 "$fixture" 2>/dev/null || { cat "$out/fixture.log"; exit 1; }
+            sleep 1
+          done
+          set -a; . "$out/server.env"; set +a
+          export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
+          # The newest tvOS runtime's first device.
+          device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          print(next(d["udid"] for runtime in sorted(devices, reverse=True) if ".tvOS-" in runtime for d in devices[runtime]))')
+          cd tvosApp
+          xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug -destination "id=$device" \
+            CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/tvos-ui/RemoteTests.xcresult" test
+      # A failure's screenshots, as PNG files beside the result bundle in the artifact.
+      - name: Export the remote tests' screenshots
+        if: failure()
+        run: >-
+          [ ! -d build/tvos-ui/RemoteTests.xcresult ] ||
+          xcrun xcresulttool export attachments --path build/tvos-ui/RemoteTests.xcresult --output-path build/tvos-ui/attachments
       # A restored older distribution would otherwise be saved again under the new key, and the entry would grow.
       - name: Keep only the current Kotlin/Native distribution
         if: github.ref == 'refs/heads/main'
@@ -178,6 +211,7 @@ jobs:
           path: |
             app/*/build/reports/
             app/*/build/test-results/
+            app/build/tvos-ui/
 
   # The packages build while the checks run, so a main push is done when its slowest job is; nothing publishes
   # until every check and every package is green.

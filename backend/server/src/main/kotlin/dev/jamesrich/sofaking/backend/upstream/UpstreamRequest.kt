@@ -120,10 +120,22 @@ internal suspend fun <T> followRedirects(start: URI, max: Int = 5, reject: (Redi
                 if (++redirects > max) reject(RedirectProblem.TOO_MANY)
                 val next = try { target.resolve(hop.location) } catch (_: IllegalArgumentException) { reject(RedirectProblem.INVALID) }
                 if (target.scheme == "https" && next.scheme != "https") reject(RedirectProblem.INSECURE)
-                target = next
+                target = rawGitHub(next)
             }
         }
     }
+}
+
+/**
+ * A github.com `/{owner}/{repo}/raw/{ref}/{path}` address as the raw.githubusercontent.com one it redirects to.
+ * github.com's own answer carries a Content-Security-Policy line longer than the 8 KB the client reads, so the
+ * request fails before the redirect is seen; mirrors such as i.mjh.nz send their files there.
+ */
+internal fun rawGitHub(uri: URI): URI {
+    if (uri.scheme != "https" || !uri.host.equals("github.com", ignoreCase = true) || uri.rawQuery != null) return uri
+    val parts = uri.rawPath.split('/')
+    if (parts.size < 6 || parts[3] != "raw") return uri
+    return URI("https://raw.githubusercontent.com/${parts[1]}/${parts[2]}/${parts.drop(4).joinToString("/")}")
 }
 
 private val portableHeaders = setOf("user-agent", "accept", "accept-language", "origin", "referer")

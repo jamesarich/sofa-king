@@ -263,6 +263,11 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
         exo.seekTo(clampSeek(positionMs, durationMs))
     }
 
+    /** Media3 keeps the speed across items and stretches the audio without changing its pitch. */
+    override val speedAdjustable: Boolean get() = true
+
+    override fun setSpeed(rate: Float) = exo.setPlaybackSpeed(rate)
+
     private val mediaSessions = NewestMediaSession(::openSystemSession)
 
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = mediaSessions.open(onZapStep)

@@ -316,6 +316,14 @@ internal object SofaIcons {
     /** Next episode. */
     val SkipNext: ImageVector by lazy { pathIcon("Filled.SkipNext", "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z") }
 
+    /** Playback speed, on the library player's bar. */
+    val Speed: ImageVector by lazy {
+        pathIcon(
+            "Filled.Speed",
+            "M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z",
+        )
+    }
+
     /** Skip a commercial break. */
     val FastForward: ImageVector by lazy { pathIcon("Filled.FastForward", "M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z") }
 

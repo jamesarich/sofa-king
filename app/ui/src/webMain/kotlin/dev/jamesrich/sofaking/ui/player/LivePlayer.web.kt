@@ -229,6 +229,14 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         video.currentTime = target / 1000.0
     }
 
+    override val speedAdjustable: Boolean get() = true
+
+    /** The default rate is what each new source starts at; browsers keep the pitch. */
+    override fun setSpeed(rate: Float) {
+        video.defaultPlaybackRate = rate.toDouble()
+        video.playbackRate = rate.toDouble()
+    }
+
     /**
      * The page title and the browser's Media Session: its metadata reaches the OS media controls, and their media
      * keys come back here. Browsers without the API keep the title alone.

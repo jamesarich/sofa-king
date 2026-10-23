@@ -807,6 +807,7 @@ internal fun requiredPage(chrome: Chrome, view: RequiredView?): String = layout(
 internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() -> Unit)? = null): String = layout("Sources", chrome, "/admin/providers") {
     val now = chrome.now
     pageHead("Sources", "Where channels and guides come from, and whether their last import worked." + if (view.entries != null) " The policy takes channels from its provider entries in priority order." else "")
+    tabs(chrome, "/admin/providers", SOURCE_TABS)
     extra?.invoke(this)
     view.setup?.let { setup ->
         servicesPanel(chrome, setup)

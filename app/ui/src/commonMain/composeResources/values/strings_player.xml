@@ -77,6 +77,10 @@
     <string name="vod_control_next">Next episode</string>
     <string name="vod_control_skip_break">Skip break</string>
     <string name="vod_control_skip_intro">Skip intro</string>
+    <string name="vod_tracks_timing">Subtitle timing</string>
+    <string name="vod_tracks_earlier">Earlier</string>
+    <string name="vod_tracks_later">Later</string>
+    <string name="vod_control_speed">Speed %1$s×</string>
     <string name="vod_control_skip_credits">Skip credits</string>
     <string name="vod_control_skip_intro_countdown">Skip intro (%1$d)</string>
     <string name="vod_subtitles_on">Subtitles on</string>

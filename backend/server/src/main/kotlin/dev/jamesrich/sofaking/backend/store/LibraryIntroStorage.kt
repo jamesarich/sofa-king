@@ -84,10 +84,10 @@ private fun ResultRow.intro(withFingerprint: Boolean): IntroRecord {
 }
 
 /** Chromaprint's points as little-endian 32-bit words, as FFmpeg writes them. */
-private fun bytes(points: IntArray): ByteArray =
+internal fun bytes(points: IntArray): ByteArray =
     ByteBuffer.allocate(points.size * 4).order(ByteOrder.LITTLE_ENDIAN).apply { asIntBuffer().put(points) }.array()
 
-private fun points(bytes: ByteArray): IntArray {
+internal fun points(bytes: ByteArray): IntArray {
     val words = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer()
     return IntArray(words.remaining()).also(words::get)
 }

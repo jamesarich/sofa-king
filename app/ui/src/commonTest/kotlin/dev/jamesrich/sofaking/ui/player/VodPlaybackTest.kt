@@ -131,5 +131,6 @@ class VodPlaybackTest {
         assertEquals(Instant.parse("2026-10-19T20:52:30Z"), vodEndsAt(now, positionMs = 1_800_000L, durationMs = 4_950_000L))
         assertEquals(now, vodEndsAt(now, positionMs = 9_000L, durationMs = 5_000L))
         assertNull(vodEndsAt(now, positionMs = 0, durationMs = null))
+        assertEquals(Instant.parse("2026-10-19T20:26:15Z"), vodEndsAt(now, positionMs = 1_800_000L, durationMs = 4_950_000L, speed = 2f), "at twice the speed it ends in half the time")
     }
 }

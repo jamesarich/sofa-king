@@ -160,7 +160,7 @@ class LibraryCatalog internal constructor(
     /**
      * The movies, shows or videos of [libraryId], sorted by [sort] (`title`, `added`, `year`, `rating`, or `watched`
      * for the most recently watched first), with [genre] only when given, [limit] after [cursor]. The page lists every
-     * genre in the library, for the filter.
+     * genre in the library, for the filter, and the first page in title order counts the items under each first letter.
      */
     suspend fun items(libraryId: String, sort: String?, unwatched: Boolean, cursor: String?, limit: Int, genre: String? = null): LibraryPage {
         val snapshot = snapshot()
@@ -194,7 +194,8 @@ class LibraryCatalog internal constructor(
         val page = all.drop(from).take(limit)
         val next = (from + page.size).takeIf { it < all.size }?.toString()
         val genres = tops.flatMap { it.item.genres }.distinctBy { it.lowercase() }.sortedBy { it.lowercase() }
-        return LibraryPage(page.map { it.second }, all.size, next, genres)
+        val letters = if ((sort ?: "title") == "title" && cursor == null) letterRuns(all.map { it.first.item.title }) else null
+        return LibraryPage(page.map { it.second }, all.size, next, genres, letters)
     }
 
     suspend fun item(id: String): LibraryItemDetail {

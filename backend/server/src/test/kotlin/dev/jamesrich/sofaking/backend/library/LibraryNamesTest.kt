@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.library
 
+import dev.jamesrich.sofaking.contract.LetterCount
 import java.time.LocalDate
 import kotlin.test.*
 
@@ -11,6 +12,14 @@ class LibraryNamesTest {
         assertEquals(TitleYear("Alien", 1979), titleYear("Alien.1979.1080p.BluRay.x264"))
         assertEquals(TitleYear("Blade Runner 2049", 2017), titleYear("Blade Runner 2049 (2017)"))
         assertEquals(TitleYear("Home movie", null), titleYear("Home movie"))
+    }
+
+    @Test fun `title runs count each first letter, articles aside, with digits and symbols under #`() {
+        assertEquals(
+            listOf(LetterCount("#", 2), LetterCount("A", 2), LetterCount("B", 1)),
+            letterRuns(listOf("12 Monkeys", "(500) Days of Summer", "Alien", "The Abyss", "Brazil")),
+        )
+        assertEquals(emptyList(), letterRuns(emptyList()))
     }
 
     @Test fun `episode numbers read in the Plex, scene and cross forms`() {

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibraryRepository
+import dev.jamesrich.sofaking.data.LetterJump
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaHome
 import dev.jamesrich.sofaking.data.MediaItem
@@ -54,6 +55,8 @@ data class LibraryGrid(
     val items: List<MediaItem> = emptyList(),
     /** Every genre in the library, from the first page. */
     val genres: List<String> = emptyList(),
+    /** Where each first letter starts, in title order; empty in any other order. */
+    val letters: List<LetterJump> = emptyList(),
     val total: Int = 0,
     val next: String? = null,
     val loading: Boolean = true,
@@ -158,6 +161,7 @@ class LibraryViewModel(
         // A grid whose next page failed keeps its pages, and loadMore retries that page; only a failed first page loads afresh.
         if (open != null && open.sameQuery(wanted) && (open.error == null || open.items.isNotEmpty())) return
         gridJob?.cancel()
+        loadTarget = null
         _grid.value = wanted
         loadPage(null)
     }
@@ -170,18 +174,43 @@ class LibraryViewModel(
         loadPage(grid.next)
     }
 
+    /**
+     * Loads pages until the grid holds the item at [offset], for a jump to a letter: as few requests as the server's
+     * largest page allows. Nothing when it is in already.
+     */
+    fun loadThrough(offset: Int) {
+        val grid = _grid.value ?: return
+        if (grid.items.size > offset || grid.next == null) return
+        loadTarget = offset
+        if (grid.loading && gridJob?.isActive == true) return
+        loadPage(grid.next)
+    }
+
+    // The item a letter jump waits for; pages load one after another until it is in.
+    private var loadTarget: Int? = null
+
     private fun loadPage(cursor: String?) {
         val repository = repository ?: return
         val grid = _grid.value ?: return
         _grid.value = grid.copy(loading = true, error = null)
         gridJob = viewModelScope.launch {
             try {
-                val page = repository.page(grid.libraryId, grid.sort, grid.unwatched, cursor, genre = grid.genre)
+                val target = loadTarget
+                val limit = target?.let { (it + 1 - grid.items.size + LibraryRepository.PAGE_SIZE).coerceIn(LibraryRepository.PAGE_SIZE, MAX_PAGE) }
+                    ?: LibraryRepository.PAGE_SIZE
+                val page = repository.page(grid.libraryId, grid.sort, grid.unwatched, cursor, limit, grid.genre)
                 _grid.update { current ->
                     if (current == null || !current.sameQuery(grid)) return@update current
                     // A page can repeat an item that moved between requests; the first place it showed wins.
                     val items = (current.items + page.items).distinctBy { it.id }
-                    current.copy(items = items, genres = page.genres, total = page.total, next = page.next, loading = false)
+                    current.copy(
+                        items = items, genres = page.genres, letters = page.letters ?: current.letters,
+                        total = page.total, next = page.next, loading = false,
+                    )
+                }
+                val loaded = _grid.value
+                if (target != null && loaded != null && loaded.sameQuery(grid)) {
+                    if (loaded.items.size > target || loaded.next == null) loadTarget = null else loadPage(loaded.next)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -349,6 +378,8 @@ class LibraryViewModel(
     }
 
     private companion object {
+        /** The most items the server sends in one page. */
+        const val MAX_PAGE = 500
         val log = Logger.withTag("SofaKing")
     }
 }

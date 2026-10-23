@@ -63,8 +63,14 @@ kotlin {
             commonWebpackConfig { outputFileName = "sofaking.js" }
             testTask { enabled = false }
         }
-        // Coil's JS decoder loads skiko, whose glue writes to `window`; give Node one so the test binary loads.
-        nodejs { testTask { nodeJsArgs += listOf("--import", "data:text/javascript,globalThis.window ??= globalThis") } }
+        // Coil's JS decoder loads skiko, whose glue writes to `window`; give Node one so the test binary loads. Mocha's
+        // 2-second default is too short on a busy CI runner, as in core.
+        nodejs {
+            testTask {
+                nodeJsArgs += listOf("--import", "data:text/javascript,globalThis.window ??= globalThis")
+                useMocha { timeout = "30s" }
+            }
+        }
         binaries.executable()
     }
     @OptIn(ExperimentalWasmDsl::class)

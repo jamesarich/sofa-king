@@ -33,10 +33,11 @@ kotlin {
     watchosSimulatorArm64()
     linuxX64()
     linuxArm64()
-    // Tests run on Node; browsers get the same klibs through the ui module's web apps.
-    js { nodejs() }
+    // Tests run on Node; browsers get the same klibs through the ui module's web apps. Mocha's 2-second default failed
+    // a 90 ms test on a busy CI runner, where the first logged stack trace waits for its source maps.
+    js { nodejs { testTask { useMocha { timeout = "30s" } } } }
     @OptIn(ExperimentalWasmDsl::class)
-    wasmJs { nodejs() }
+    wasmJs { nodejs { testTask { useMocha { timeout = "30s" } } } }
 
     // `fileMain` holds the stores that live in files, which need okio's system file system; the web targets keep theirs in
     // the browser's storage instead (BrowserStorage), and have no file system to test against on Node. The default

@@ -242,6 +242,7 @@ internal class VlcLivePlayer(
             }
             opened = opening
             if (start) vlc.media().play(url) else vlc.media().startPaused(url)
+            if (speed != 1f) vlc.controls().setRate(speed)
         }
     }
 
@@ -279,6 +280,17 @@ internal class VlcLivePlayer(
         if (!isSeekable) return
         val target = clampSeek(positionMs, durationMs)
         command { vlc.controls().setTime(target) }
+    }
+
+    /** Set again on each new stream, which libVLC would start at normal speed; it keeps the pitch. */
+    @Volatile
+    private var speed = 1f
+
+    override val speedAdjustable: Boolean get() = true
+
+    override fun setSpeed(rate: Float) {
+        speed = rate
+        command { vlc.controls().setRate(rate) }
     }
 
     override fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle = NoMediaSession

@@ -158,6 +158,8 @@ fun VodPlayerScreen(
     var introSkippedToast by remember { mutableStateOf(false) }
     var audioTrack by remember { mutableStateOf(tracks.initialAudio) }
     var subtitleTrack by remember { mutableStateOf(tracks.initialSubtitle) }
+    // How much later than the file says the text subtitles show (earlier when negative); each item starts at 0.
+    var subtitleOffsetMs by remember { mutableStateOf(0L) }
     var subtitles by remember { mutableStateOf<Subtitles?>(null) }
     var subtitlesFailed by remember { mutableStateOf(false) }
     var nextSecondsLeft by remember { mutableIntStateOf(UP_NEXT_SECONDS) }
@@ -195,6 +197,8 @@ fun VodPlayerScreen(
     val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
 
     var mediaSession by remember { mutableStateOf<MediaSessionHandle?>(null) }
+    // Each item starts at normal speed; the Speed button steps it on, and leaving puts the shared player back.
+    var speed by remember { mutableStateOf(1f) }
     val focus = remember { FocusRequester() }
 
     /** Moves to [targetMs] in the item: inside the stream the player holds, or a conversion restarted there. */
@@ -261,6 +265,7 @@ fun VodPlayerScreen(
             player.prepare()
         }
     }
+    LaunchedEffect(speed) { player.setSpeed(speed) }
     LaunchedEffect(status.state, pendingSeek) {
         val target = pendingSeek ?: return@LaunchedEffect
         if (status.state == PlaybackState.READY && player.isSeekable) {
@@ -421,6 +426,7 @@ fun VodPlayerScreen(
     }
     DisposableEffect(Unit) {
         onDispose {
+            player.setSpeed(1f)
             if (!state.ended) currentOnStopped(state.positionMs, state.durationMs)
             // Stopped only on this page's stream, or on nothing yet while no other item holds the session.
             val other = sessions.current.value?.itemId?.let { it != itemId } == true
@@ -534,6 +540,7 @@ fun VodPlayerScreen(
         inIntro = intro != null,
         inCredits = credits != null,
         creditsToNext = creditsToNext,
+        speedAdjustable = player.speedAdjustable,
     )
 
     val controls = object : VodControls {
@@ -694,7 +701,7 @@ fun VodPlayerScreen(
                 } else {
                     VodSeekBar(positionMs = { state.positionMs }, durationMs = state.durationMs, scrubMs = state.scrubTarget, markers = title.markers)
                 }
-                VodTimes(positionMs = { state.positionMs }, scrubMs = state.scrubTarget, durationMs = state.durationMs)
+                VodTimes(positionMs = { state.positionMs }, scrubMs = state.scrubTarget, durationMs = state.durationMs, speed = speed)
                 val items = buttons.map { button ->
                     vodButtonItem(
                         button,
@@ -703,6 +710,7 @@ fun VodPlayerScreen(
                         autoSkipSeconds = state.autoSkipSeconds,
                         creditsToNext = creditsToNext,
                         sleep = sleep,
+                        speed = speed,
                         onClick = {
                             when (button) {
                                 VodButton.SKIP_BREAK -> breakEnd?.let(::seekItem)
@@ -712,11 +720,12 @@ fun VodPlayerScreen(
                                 VodButton.CAPTIONS -> switchCaptions()
                                 VodButton.ZOOM -> stepZoom()
                                 VodButton.SLEEP -> sleep.step(Clock.System.now().toEpochMilliseconds(), endOfItem = true)
+                                VodButton.SPEED -> speed = nextSpeed(speed)
                                 VodButton.START_OVER -> seekItem(0)
                                 VodButton.NEXT -> onPlayNext()
                             }
                             state.showInfo()
-                            // A seek moves on and the picture takes the keys again; Captions, Zoom and Sleep stay for another press.
+                            // A seek moves on and the picture takes the keys again; Captions, Zoom, Sleep and Speed stay for another press.
                             if (button !in STAYING_BUTTONS) focus.requestFocus()
                         },
                     )
@@ -745,10 +754,18 @@ fun VodPlayerScreen(
         }
         // Drawn over the bar and clear of its top edge; it waits while a card would cover it.
         if (!state.tracksOpen && state.failure == null && state.next == null) {
-            subtitles?.let { cues -> VodSubtitle(cues, { state.positionMs }, bottom = if (barVisible) barHeight + SUBTITLE_GAP else SUBTITLE_GAP) }
+            subtitles?.let { cues -> VodSubtitle(cues, { state.positionMs - subtitleOffsetMs }, bottom = if (barVisible) barHeight + SUBTITLE_GAP else SUBTITLE_GAP) }
         }
         if (state.tracksOpen) {
-            TracksCard(tracks, audioTrack, subtitleTrack, onAudio = { pickAudio(it); focus.requestFocus() }, onSubtitle = { pickSubtitle(it); focus.requestFocus() })
+            TracksCard(
+                tracks,
+                audioTrack,
+                subtitleTrack,
+                onAudio = { pickAudio(it); focus.requestFocus() },
+                onSubtitle = { pickSubtitle(it); focus.requestFocus() },
+                offsetMs = subtitleOffsetMs.takeIf { subtitles != null },
+                onOffset = { subtitleOffsetMs = it },
+            )
         }
     }
 }
@@ -758,12 +775,12 @@ fun VodPlayerScreen(
 
 /** Where the item is, when it ends and how long it is, under the seek bar. */
 @Composable
-private fun VodTimes(positionMs: () -> Long, scrubMs: Long?, durationMs: Long?) {
+private fun VodTimes(positionMs: () -> Long, scrubMs: Long?, durationMs: Long?, speed: Float) {
     val positionText = formatPlayTime(scrubMs ?: positionMs())
     val durationText = durationMs?.let(::formatPlayTime)
     val now by rememberMinuteNow()
     val timeFormat = rememberTimeFormatter()
-    val endsText = vodEndsAt(now, scrubMs ?: positionMs(), durationMs)?.let { stringResource(Res.string.vod_ends_at, timeFormat.format(it)) }
+    val endsText = vodEndsAt(now, scrubMs ?: positionMs(), durationMs, speed)?.let { stringResource(Res.string.vod_ends_at, timeFormat.format(it)) }
     val description = if (durationText != null) stringResource(Res.string.vod_position_description, positionText, durationText) else positionText
     Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = description }) {
         Text(positionText, style = MaterialTheme.typography.titleMedium, color = if (scrubMs != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
@@ -844,7 +861,7 @@ private fun DrawScope.drawSeekTrack(playedFraction: Float, lengthMs: Long?, mark
     }
 }
 
-/** The row's button for [button], with a recording's captions shown as [captionsOn], the picture at [zoom] and the [sleep] timer. */
+/** The row's button for [button], with a recording's captions shown as [captionsOn], the picture at [zoom], the [sleep] timer and the [speed]. */
 @Composable
 private fun vodButtonItem(
     button: VodButton,
@@ -853,6 +870,7 @@ private fun vodButtonItem(
     autoSkipSeconds: Int?,
     creditsToNext: Boolean,
     sleep: SleepTimer,
+    speed: Float,
     onClick: () -> Unit,
 ): PlayerButtonItem = when (button) {
     VodButton.SKIP_BREAK -> PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_break), onClick)
@@ -873,6 +891,7 @@ private fun vodButtonItem(
     )
     VodButton.ZOOM -> zoomButtonItem(zoom, onClick)
     VodButton.SLEEP -> sleepButtonItem(sleep, onClick)
+    VodButton.SPEED -> speedButtonItem(speed, onClick)
     VodButton.START_OVER -> PlayerButtonItem(SofaIcons.Replay, stringResource(Res.string.vod_control_start_over), onClick)
     VodButton.NEXT -> PlayerButtonItem(SofaIcons.SkipNext, stringResource(Res.string.vod_control_next), onClick)
 }
@@ -881,7 +900,7 @@ private fun vodButtonItem(
 private val SKIP_BUTTONS = setOf(VodButton.SKIP_BREAK, VodButton.SKIP_INTRO, VodButton.SKIP_CREDITS)
 
 /** The buttons that keep focus after a press, as each press steps them on (the track card takes it itself). */
-private val STAYING_BUTTONS = setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP, VodButton.TRACKS)
+private val STAYING_BUTTONS = setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP, VodButton.SPEED, VodButton.TRACKS)
 
 /** A CC or Zoom press's answer, [text] with [arg] in it if any, shown for a moment; compared by identity so a repeated press restarts it. */
 private class VodToast(val text: StringResource, val arg: StringResource? = null)

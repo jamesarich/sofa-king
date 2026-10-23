@@ -161,9 +161,9 @@ internal class VodScrub {
     }
 }
 
-/** When the item ends if it plays on from [positionMs] at [now]; null while its length is unknown. */
-internal fun vodEndsAt(now: Instant, positionMs: Long, durationMs: Long?): Instant? =
-    durationMs?.takeIf { it > 0 }?.let { now + (it - positionMs).coerceAtLeast(0).milliseconds }
+/** When the item ends if it plays on from [positionMs] at [now] at [speed]; null while its length is unknown. */
+internal fun vodEndsAt(now: Instant, positionMs: Long, durationMs: Long?, speed: Float = 1f): Instant? =
+    durationMs?.takeIf { it > 0 }?.let { now + ((it - positionMs).coerceAtLeast(0) / speed).toLong().milliseconds }
 
 /** How far short of a known end a seek may land. */
 internal const val END_GUARD_MS = 2_000L

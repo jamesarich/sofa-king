@@ -210,6 +210,12 @@ interface LivePlayer {
     /** Moves a seekable item to [positionMs], clamped to its length; does nothing otherwise. */
     fun seekTo(positionMs: Long) = Unit
 
+    /** True where the engine plays faster than normal through [setSpeed], keeping the voices' pitch. */
+    val speedAdjustable: Boolean get() = false
+
+    /** Plays at [rate] times normal speed (1 is normal) until set again, across new streams too; ignored where not [speedAdjustable]. */
+    fun setSpeed(rate: Float) = Unit
+
     /**
      * The ad break playing now, read by the engine itself from the marks the server adds to a live playlist (`AdRun`);
      * null outside one. Only engines with [readsAdMarks] answer.

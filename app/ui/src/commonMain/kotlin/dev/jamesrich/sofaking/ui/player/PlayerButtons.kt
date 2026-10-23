@@ -63,6 +63,9 @@ internal enum class VodButton {
 
     /** The [SleepTimer], one step on. */
     SLEEP,
+
+    /** The playback speed, one step along [PLAYBACK_SPEEDS]. */
+    SPEED,
     START_OVER,
 
     /** The next episode, without waiting for this one to end. */
@@ -85,6 +88,7 @@ internal fun vodButtons(
     inIntro: Boolean = false,
     inCredits: Boolean = false,
     creditsToNext: Boolean = false,
+    speedAdjustable: Boolean = false,
 ): List<VodButton> = if (failed) emptyList() else buildList {
     if (inBreak) add(VodButton.SKIP_BREAK)
     if (inIntro) add(VodButton.SKIP_INTRO)
@@ -93,6 +97,7 @@ internal fun vodButtons(
     if (captions) add(VodButton.CAPTIONS)
     add(VodButton.ZOOM)
     add(VodButton.SLEEP)
+    if (speedAdjustable) add(VodButton.SPEED)
     if (pastStart) add(VodButton.START_OVER)
     if (hasNext && !(inCredits && creditsToNext)) add(VodButton.NEXT)
 }
@@ -194,6 +199,20 @@ internal val VideoZoom.label: StringResource
 @Composable
 internal fun zoomButtonItem(zoom: VideoZoom, onClick: () -> Unit): PlayerButtonItem =
     PlayerButtonItem(SofaIcons.AspectRatio, stringResource(Res.string.player_zoom_notice, stringResource(zoom.label)), onClick)
+
+/** The library player's speeds, which its Speed button steps through and back to the first. */
+internal val PLAYBACK_SPEEDS = listOf(1f, 1.25f, 1.5f, 2f)
+
+/** The speed after [speed] on the Speed button; one not in [PLAYBACK_SPEEDS] goes back to normal. */
+internal fun nextSpeed(speed: Float): Float = PLAYBACK_SPEEDS.getOrNull(PLAYBACK_SPEEDS.indexOf(speed) + 1) ?: PLAYBACK_SPEEDS.first()
+
+/** [speed] as the Speed button names it, as "1.25" or "2". */
+internal fun speedText(speed: Float): String = speed.toString().removeSuffix(".0")
+
+/** The Speed button, named with the speed playing now, as "Speed 1.5×". */
+@Composable
+internal fun speedButtonItem(speed: Float, onClick: () -> Unit): PlayerButtonItem =
+    PlayerButtonItem(SofaIcons.Speed, stringResource(Res.string.vod_control_speed, speedText(speed)), onClick)
 
 /**
  * The sleep timer on either bar, named with what it is set to, as "Sleep in 24 min"; a press steps it on as

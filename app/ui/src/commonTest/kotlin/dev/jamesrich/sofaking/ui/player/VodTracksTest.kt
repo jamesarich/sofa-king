@@ -39,4 +39,13 @@ class VodTracksTest {
         assertEquals(2, VodTracks(subtitles = listOf(picture)).subtitleToTurnOn(last = null))
         assertNull(VodTracks().subtitleToTurnOn(last = null))
     }
+
+    @Test
+    fun `subtitle timing moves a quarter second a press up to ten seconds either way`() {
+        assertEquals(250L, stepSubtitleOffset(0, 1))
+        assertEquals(-500L, stepSubtitleOffset(-250, -1))
+        assertEquals(SUBTITLE_OFFSET_MAX_MS, stepSubtitleOffset(SUBTITLE_OFFSET_MAX_MS, 1))
+        assertEquals(-SUBTITLE_OFFSET_MAX_MS, stepSubtitleOffset(-9_900, -1))
+        assertEquals(listOf("0 s", "+0.25 s", "\u22121.5 s", "+10 s"), listOf(0L, 250L, -1_500L, 10_000L).map(::subtitleOffsetText))
+    }
 }

@@ -54,12 +54,15 @@ final class RemoteTests: XCTestCase {
     func testTabs() throws {
         try launchToList()
         focus(app.tabBars.buttons["Live"], pressing: .up)
-        let moves: [(String, XCUIRemote.Button)] = [("Recordings", .right), ("Settings", .right), ("Live", .left)]
-        for (name, move) in moves {
+        // Accessibility does not mark the open tab, so each is told by what it shows.
+        let moves: [(String, XCUIRemote.Button, XCUIElement)] = [
+            ("Recordings", .right, row("Skip commercials")), ("Settings", .right, control("Pair")), ("Live", .left, row("News Now")),
+        ]
+        for (name, move, content) in moves {
             let tab = app.tabBars.buttons[name]
             XCTAssertTrue(tab.waitForExistence(timeout: 10), "No \(name) tab\n\(screen)")
             focus(tab, pressing: move, presses: 3)
-            eventually("\(name) to open") { tab.isSelected }
+            eventually("\(name) to open") { content.exists }
             remote.press(.down)
             eventually("Down to move focus into \(name)", timeout: 5) { focused.exists && !tab.hasFocus }
             focus(tab, pressing: .up, presses: 8)
@@ -201,7 +204,7 @@ final class RemoteTests: XCTestCase {
 
     // MARK: - Finding things
 
-    /// A channel's row in the list, whose label starts with its number and name.
+    /// A channel's row in the list, whose label holds its number and name, or another row by part of its label.
     @MainActor
     private func row(_ name: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "elementType IN %@ AND label CONTAINS %@", Self.pressable, name)).firstMatch

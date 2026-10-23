@@ -145,7 +145,7 @@ private fun SofaKingApp(
     val offered = tabsOffered(capabilities, nav.tab, libraryHome, recordingsState)
     // A tab the server turns out not to offer, or no longer offers, gives way to Live.
     LaunchedEffect(nav.tab, offered) {
-        if (nav.tab == Tab.LIBRARY && !offered.library || nav.tab == Tab.RECORDINGS && !offered.recordings) {
+        if ((nav.tab == Tab.LIBRARY && !offered.library) || (nav.tab == Tab.RECORDINGS && !offered.recordings)) {
             shell.nav = shell.nav.open(Tab.LIVE)
         }
     }

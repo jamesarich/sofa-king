@@ -115,7 +115,10 @@ class Fixture : AutoCloseable {
                     out.flush()
                     Thread.sleep(100)
                     out.write(
-                        "TM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:7\n#EXTINF:4,\nsegment.ts\n".toByteArray(),
+                        (
+                            "TM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:7\n#EXTINF:4," +
+                                "\nsegment.ts\n"
+                            ).toByteArray(),
                     )
                 }
                 return@createContext
@@ -240,27 +243,40 @@ class Fixture : AutoCloseable {
                         "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/master.m3u8\n"
                     }
 
-                "/alt-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" group-title=\"News\",Station\n$base/alt.m3u8\n"
+                "/alt-feed.m3u" ->
+                    "#EXTM3U\n#EXTINF:-1 tvg-id=\"station\" tvg-chno=\"5\" " +
+                        "group-title=\"News\",Station\n$base/alt.m3u8\n"
 
                 "/ts-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ts-station\" tvg-chno=\"6\",TS Station\n$base/live.ts\n"
 
-                "/twin-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"twin-station\" tvg-chno=\"5\" group-title=\"US: News\",STATION\n$base/twin.m3u8\n#EXTINF:-1 tvg-id=\"twin-sports\" tvg-chno=\"12\" group-title=\"US: Sports\",Twin Sports\n$base/twin-sports.m3u8\n"
+                "/twin-feed.m3u" ->
+                    "#EXTM3U\n#EXTINF:-1 tvg-id=\"twin-station\" tvg-chno=\"5\" group-title=\"US: " +
+                        "News\",STATION\n$base/twin.m3u8\n#EXTINF:-1 tvg-id=\"twin-sports\" tvg-chno=\"12\" group-title=\"US: Sports\",Twin Sports\n$base/twin-sports.m3u8\n"
 
-                "/ext-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"ext-station\" tvg-chno=\"7\",Extensionless\n$base/resolve?id=1\n"
+                "/ext-feed.m3u" ->
+                    "#EXTM3U\n#EXTINF:-1 tvg-id=\"ext-station\" tvg-chno=\"7\",Extensionless\n$base/resolve?id=1\n"
 
-                "/fake-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"fake-station\" tvg-chno=\"8\",Mislabeled\n$base/fake.m3u8\n"
+                "/fake-feed.m3u" ->
+                    "#EXTM3U\n#EXTINF:-1 tvg-id=\"fake-station\" tvg-chno=\"8\",Mislabeled\n$base/fake.m3u8\n"
 
-                "/proxy-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"proxy-station\" tvg-chno=\"9\",Proxied\n$proxyStreamUrl\n"
+                "/proxy-feed.m3u" ->
+                    "#EXTM3U\n#EXTINF:-1 tvg-id=\"proxy-station\" tvg-chno=\"9\",Proxied\n$proxyStreamUrl\n"
 
-                "/branded-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"logo-station\" tvg-chno=\"11\" tvg-logo=\"$logoUrl\" group-title=\"News\",Logo Station\n$base/master.m3u8\n"
+                "/branded-feed.m3u" ->
+                    "#EXTM3U\n#EXTINF:-1 tvg-id=\"logo-station\" tvg-chno=\"11\" " +
+                        "tvg-logo=\"$logoUrl\" group-title=\"News\",Logo Station\n$base/master.m3u8\n"
 
                 "/resolve" -> "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=100000\nmedia.m3u8\n"
 
                 "/guide.xml" -> guideXml(false)
 
-                "/learn-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"learn-show\" tvg-chno=\"30\",Learn Show\n$base/learn-show.m3u8\n#EXTINF:-1 tvg-id=\"nfl-network\" tvg-chno=\"31\",NFL Network\n$base/nfl-network.m3u8\n"
+                "/learn-feed.m3u" ->
+                    "#EXTM3U\n#EXTINF:-1 tvg-id=\"learn-show\" tvg-chno=\"30\",Learn " +
+                        "Show\n$base/learn-show.m3u8\n#EXTINF:-1 tvg-id=\"nfl-network\" tvg-chno=\"31\",NFL Network\n$base/nfl-network.m3u8\n"
 
-                "/learn2-feed.m3u" -> "#EXTM3U\n#EXTINF:-1 tvg-id=\"show-tv\" tvg-chno=\"40\",Learn Show TV\n$base/show-tv.m3u8\n#EXTINF:-1 tvg-id=\"nfl-channel\" tvg-chno=\"41\",NFL Channel\n$base/nfl-channel.m3u8\n"
+                "/learn2-feed.m3u" ->
+                    "#EXTM3U\n#EXTINF:-1 tvg-id=\"show-tv\" tvg-chno=\"40\",Learn Show " +
+                        "TV\n$base/show-tv.m3u8\n#EXTINF:-1 tvg-id=\"nfl-channel\" tvg-chno=\"41\",NFL Channel\n$base/nfl-channel.m3u8\n"
 
                 "/learn-guide.xml" -> scheduleXml(
                     mapOf(
@@ -277,9 +293,13 @@ class Fixture : AutoCloseable {
                     ),
                 )
 
-                "/master.m3u8" -> "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\",URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,AUDIO=\"audio\"\nmedia.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200000\nloop\n"
+                "/master.m3u8" ->
+                    "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"audio\",NAME=\"English\"," +
+                        "URI=\"audio.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=100000,AUDIO=\"audio\"\nmedia.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=200000\nloop\n"
 
-                "/media.m3u8", "/audio.m3u8" -> "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n#EXTINF:4,\nsegment.ts\n#EXT-X-ENDLIST\n"
+                "/media.m3u8", "/audio.m3u8" ->
+                    "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-KEY:METHOD=AES-128," +
+                        "URI=\"key\"\n#EXTINF:4,\nsegment.ts\n#EXT-X-ENDLIST\n"
 
                 "/key" -> "0123456789abcdef"
 
@@ -323,7 +343,8 @@ class Fixture : AutoCloseable {
             )
         }
         val metadata = if (guideMetadata) {
-            "<sub-title>Pilot &amp; Plans</sub-title><category lang=\"en\">Sports</category><episode-num system=\"xmltv_ns\">1.4.</episode-num>" +
+            "<sub-title>Pilot &amp; Plans</sub-title><category lang=\"en\">Sports</category><episode-num " +
+                "system=\"xmltv_ns\">1.4.</episode-num>" +
                 "<episode-num system=\"onscreen\">S02E05</episode-num><new/><rating system=\"VCHIP\"><value>TV-PG</value></rating>"
         } else {
             ""
@@ -362,7 +383,8 @@ class Fixture : AutoCloseable {
         )
 
         /** An SVG with a script element, which the server must store and serve byte for byte and never run. */
-        const val SVG = "<?xml version=\"1.0\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"><script>alert(1)</script><rect width=\"1\" height=\"1\"/></svg>"
+        const val SVG = "<?xml version=\"1.0\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" " +
+            "height=\"1\"><script>alert(1)</script><rect width=\"1\" height=\"1\"/></svg>"
 
         /** A PID 0x100 packet whose payload is the packet number. */
         fun tsPacket(number: Int): ByteArray = ByteArray(188) { index ->

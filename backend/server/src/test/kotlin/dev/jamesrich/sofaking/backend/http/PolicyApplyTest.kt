@@ -68,7 +68,8 @@ class PolicyApplyTest {
     private val json = Json { encodeDefaults = true }
     private val token = "secret".repeat(8)
     private val admin = "curator".repeat(6)
-    private val basePolicy = """{"names":{"version":1},"health":{"requireVerified":false},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
+    private val basePolicy = """{"names":{"version":1},"health":{"requireVerified":false},""" +
+        """"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
 
     private class Setup(val dir: Path, val policyFile: Path, val runtime: LiveRuntime, val fixture: Fixture)
 
@@ -249,7 +250,8 @@ class PolicyApplyTest {
                 },
             )
 
-            val edited = """{"providers":[{"id":"alt"},{"id":"fixture"}],"stations":{"station":{"number":"7","group":"Local"}}}"""
+            val edited = """{"providers":[{"id":"alt"},{"id":"fixture"}],"stations":{"station":{"number":"7",""" +
+                """"group":"Local"}}}"""
             val response = client.put("/api/v1/admin/policy") {
                 asAdmin()
                 header(HttpHeaders.IfMatch, "W/\"$revision\"")
@@ -421,9 +423,13 @@ class PolicyApplyTest {
 
     @Test fun `matching schedules teach an alias that is written back once, and different schedules never merge`() =
         testApplication {
-            withPolicy("""{"health":{"requireVerified":false},"providers":[{"id":"learn"},{"id":"learn2"}]}""", feeds = {
-                listOf(it.learnFeed, it.learnTwinFeed)
-            }) {
+            withPolicy(
+                """{"health":{"requireVerified":false},"providers":[{"id":"learn"},""" +
+                    """{"id":"learn2"}]}""",
+                feeds = {
+                    listOf(it.learnFeed, it.learnTwinFeed)
+                },
+            ) {
                 for (guide in runtime.guides.configs) runtime.guides.refresh(guide)
                 val first = runtime.policy!!.apply("test")
                 assertTrue(first.learned.isEmpty(), "no programmes are kept before the lineup maps the guides")
@@ -469,7 +475,8 @@ class PolicyApplyTest {
             }
         }
 
-    @Test fun `an unverified station's floor number is never written, and its block number is written once it verifies`() =
+    @Test
+    fun `an unverified station's floor number is never written, and its block number is written once it verifies`() =
         testApplication {
             withPolicy("""{"providers":[{"id":"fixture"},{"id":"alt"}]}""", feeds = { listOf(it.feed, it.altFeed) }) {
                 val before = Files.readString(policyFile)
@@ -502,10 +509,12 @@ class PolicyApplyTest {
             }
         }
 
-    @Test fun `a server-assigned number leaves the file once its station has been gone for keepMissingDays, a human one stays`() =
+    @Test
+    fun `a server-assigned number leaves the file once its station is gone keepMissingDays, a human one stays`() =
         testApplication {
             val long = MutableClock().now.minus(Duration.ofDays(8))
-            val policy = """{"names":{"version":1},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"health":{"requireVerified":false},"numbering":{"floor":100,"keepProviderNumbers":false,"assigned":["gone"]},"stations":{"gone":{"number":"50"},"human":{"number":"51"}}}"""
+            val policy = """{"names":{"version":1},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},""" +
+                """{"id":"ts"}],"health":{"requireVerified":false},"numbering":{"floor":100,"keepProviderNumbers":false,"assigned":["gone"]},"stations":{"gone":{"number":"50"},"human":{"number":"51"}}}"""
             withPolicy(policy) {
                 runtime.store.saveStationAvailability(
                     mapOf(
@@ -526,7 +535,8 @@ class PolicyApplyTest {
             }
         }
 
-    @Test fun `a PATCH that sets a number takes the key out of the assigned list, so later runs keep it`() = testApplication {
+    @Test
+    fun `a PATCH that sets a number takes the key out of the assigned list, so later runs keep it`() = testApplication {
         withPolicy {
             runtime.policy!!.apply("test")
             assertEquals(setOf("station", "ts station", "twin sports"), assignedIn(policyFile))
@@ -569,11 +579,14 @@ class PolicyApplyTest {
             }
         }
 
-    @Test fun `with followGroup a server-numbered station moves into its group's block and the file follows, a hand-set one stays`() =
+    @Test
+    fun `with followGroup a server-numbered station joins its group's block, the file follows, a hand-set one stays`() =
         testApplication {
             val policy =
-                """{"names":{"version":1},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"health":{"requireVerified":false},""" +
-                    """"numbering":{"floor":1000,"groups":{"News":10,"Sports":500},"followGroup":true,"assigned":["station"]},""" +
+                """{"names":{"version":1},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],""" +
+                    """"health":{"requireVerified":false},""" +
+                    """"numbering":{"floor":1000,"groups":{"News":10,"Sports":500},"followGroup":true,""" +
+                    """"assigned":["station"]},""" +
                     """"stations":{"station":{"number":"501","group":"News"},"ts station":{"number":"502","group":"News"}}}"""
             withPolicy(policy) {
                 val applied = runtime.policy!!.apply("test")

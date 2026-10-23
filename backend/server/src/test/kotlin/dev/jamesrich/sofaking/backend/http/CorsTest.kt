@@ -44,7 +44,8 @@ class CorsTest {
         }
     }
 
-    @Test fun `a listed origin may call the API, preflights pass before auth, and others get no grant`() = testApplication {
+    @Test
+    fun `a listed origin may call the API, preflights pass before auth, and others get no grant`() = testApplication {
         val dir = Files.createTempDirectory("sofa-cors-")
         val store = openStore(dir)
         try {

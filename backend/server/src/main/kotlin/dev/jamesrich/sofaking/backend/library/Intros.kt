@@ -104,7 +104,8 @@ class FfmpegFingerprinter(
             val out = Files.createTempFile(work, "fingerprint-", ".raw")
             try {
                 val exit = ProcessBuilder(
-                    ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-ss", fromSeconds.toString(), "-t", seconds.toString(), "-i", file.toString(),
+                    ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-ss", fromSeconds.toString(), "-t",
+                    seconds.toString(), "-i", file.toString(),
                     "-map", "0:a:0", "-ac", "1", "-f", "chromaprint", "-fp_format", "raw", "-y", out.toString(),
                 ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(timeout)
                     ?: throw IllegalStateException("ffmpeg ran past $timeout")

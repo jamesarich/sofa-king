@@ -336,7 +336,8 @@ class DvrTest {
         dir.toFile().deleteRecursively()
     }
 
-    @Test fun `a recording that runs the disk low makes cleanup free space, then stops with DISK_FULL`() = runBlocking<Unit> {
+    @Test
+    fun `a recording that runs the disk low makes cleanup free space, then stops with DISK_FULL`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-dvr-full-")
         val start = Instant.now().truncatedTo(ChronoUnit.SECONDS)
         val guide = guideServer(listOf(Triple("Long Show", start.minusSeconds(5), start.plusSeconds(600))))
@@ -375,7 +376,8 @@ class DvrTest {
                                     1800,
                                 ),
                                 java.time.Duration.ZERO, java.time.Duration.ZERO, "Old",
-                                state = Wire.RecordingState.COMPLETED, path = "TV/Old/old.ts", bytes = 1, createdAt = old, updatedAt = old,
+                                state = Wire.RecordingState.COMPLETED, path = "TV/Old/old.ts", bytes = 1,
+                                createdAt = old, updatedAt = old,
                             ),
                         )
                         val running = dvr.schedule(
@@ -412,7 +414,8 @@ class DvrTest {
         dir.toFile().deleteRecursively()
     }
 
-    @Test fun `cleanup deletes past the keep count, past the keep days, then oldest first until the space floor holds`() =
+    @Test
+    fun `cleanup deletes past the keep count, past the keep days, then oldest first until the space floor holds`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-dvr-cull-")
             val guide = guideServer(emptyList())
@@ -456,7 +459,8 @@ class DvrTest {
                                 1800,
                             ),
                             java.time.Duration.ZERO, java.time.Duration.ZERO, id,
-                            state = Wire.RecordingState.COMPLETED, path = path, bytes = 1, protected = protected, watched = watched, createdAt = start, updatedAt = start,
+                            state = Wire.RecordingState.COMPLETED, path = path, bytes = 1, protected = protected,
+                            watched = watched, createdAt = start, updatedAt = start,
                         )
                     }
                     val all = listOf(

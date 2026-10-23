@@ -82,7 +82,8 @@ class SubtitlesTest {
                 }.joinToString("\n\n")
         assertEquals(
             listOf(
-                "Woman:\nhello, you've reach.", "For comments and complaints,", "Stupid with", "Did ancient aliens really help",
+                "Woman:\nhello, you've reach.", "For comments and complaints,", "Stupid with",
+                "Did ancient aliens really help",
                 "dinosaurs, one of the most", "friend", "maya. Ma", "I <3 it so",
                 "just named it that.\nfertile.", "Yeah, that's what it is.\nwe .", "Yeah, huh.\nI can't read that .",
                 "-Yeah, no...Pun intended.", "♪ ♪\n-t.", "You had situations with her?",

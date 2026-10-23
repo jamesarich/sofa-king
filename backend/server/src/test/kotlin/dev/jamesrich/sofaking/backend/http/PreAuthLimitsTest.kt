@@ -68,7 +68,8 @@ class PreAuthLimitsTest {
         assertEquals("Request exceeds 4 MiB", tooLargeMessage(POLICY_BODY_LIMIT))
     }
 
-    @Test fun `a rejected bearer is logged with its route and address, never the token or the query`() = testApplication {
+    @Test
+    fun `a rejected bearer is logged with its route and address, never the token or the query`() = testApplication {
         val dir = Files.createTempDirectory("sofa-preauth-")
         val store = openStore(dir)
         val lines = CopyOnWriteArrayList<String>()

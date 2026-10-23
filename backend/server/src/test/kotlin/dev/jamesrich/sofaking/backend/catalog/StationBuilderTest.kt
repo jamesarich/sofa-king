@@ -260,7 +260,8 @@ class StationBuilderTest {
         )
     }
 
-    @Test fun `a required pin left with only a retained channel keeps the sources it last resolved to while the feed has them`() {
+    @Test
+    fun `a required pin left with only a retained channel keeps its last sources while the feed has them`() {
         val first = build(policy, catalog)
         val remembered = first.availability.getValue("nfl network")
         assertEquals(mapOf("masq/tvg-id:NFLNetwork.us" to listOf("m1-o1")), remembered.pinOfferings)

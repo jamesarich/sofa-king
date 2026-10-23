@@ -35,7 +35,8 @@ class ConfigLoadTest {
 
     private val hex64 = Regex("[0-9a-f]{64}")
 
-    @Test fun `a LAN bind without tokens generates both, stores them owner-only and logs where to read them, never a token`() {
+    @Test
+    fun `a LAN bind without tokens generates both, stores them owner-only and logs where they are, never a token`() {
         val first = load(lan())
         val api = assertNotNull(first.apiToken)
         val admin = assertNotNull(first.adminToken)

@@ -42,14 +42,13 @@ enum class PlaybackIntent(internal val wire: String) {
     }
 }
 
+/** The picture is in an ad break; [remainingMs] is how long the break has left, when the playlist says. */
+data class AdBreakNow(val remainingMs: Long?)
+
 /**
  * The stream the player should hold for [channelId], or for the library item [itemId]. [url] changes whenever the
  * server replaces the stream.
  */
-
-/** The picture is in an ad break; [remainingMs] is how long the break has left, when the playlist says. */
-data class AdBreakNow(val remainingMs: Long?)
-
 data class PlaybackStream(
     /** The live channel; empty for a library item. */
     val channelId: String,
@@ -144,8 +143,6 @@ class PlaybackSessions(
         open(api, Live(channelId, intent))
     }
 
-    /** Changes the held session's intent in place; nothing happens when the session is not [channelId]'s or already [intent]. */
-
     /**
      * The ad break the held live channel's player shows, as the server places it from the segments the player fetched
      * and [aheadMs], what it has loaded past the picture; null outside one, between channels and before a server is set.
@@ -157,6 +154,10 @@ class PlaybackSessions(
         return if (state.inBreak) AdBreakNow(state.remainingMs) else null
     }
 
+    /**
+     * Changes the held session's intent in place; nothing happens when the session is not [channelId]'s or already
+     * [intent].
+     */
     suspend fun setIntent(channelId: String, intent: PlaybackIntent) {
         mutex.withLock {
             val api = api ?: return

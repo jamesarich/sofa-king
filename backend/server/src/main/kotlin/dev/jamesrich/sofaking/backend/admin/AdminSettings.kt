@@ -309,7 +309,10 @@ private fun FlowContent.runtimePanel(chrome: Chrome, view: RuntimeSettingsView) 
     panel("Runtime settings", id = "runtime") {
         val values = view.proposed ?: view.current.byName()
         p("muted small") {
-            +"These apply as soon as they are saved, survive restarts and take precedence over the environment. Saving the environment's own value puts the setting back to following the environment."
+            +(
+                "These apply as soon as they are saved, survive restarts and take precedence over the environment. " +
+                    "Saving the environment's own value puts the setting back to following the environment."
+                )
         }
         if (view.errors.isNotEmpty()) notice("Not saved:", view.errors)
         form(action = "/admin/settings/runtime", method = FormMethod.post, classes = "stack") {
@@ -484,7 +487,11 @@ private fun FlowContent.runtimePanel(chrome: Chrome, view: RuntimeSettingsView) 
                 }
             }
             p("muted small") {
-                +"Plex reads a device's tuner count when it adds the device, so a change here shows in Plex after the device is re-added; the server enforces it at once. Streams per device cannot exceed the sessions at once. Learned ad breaks are ones the server finds in a stream with no ad markers, such as a long silent slate: shadow only logs them (ADDETECT), on also shows the break screen over them. The ad listener plays channels nobody is watching, headless, so the server learns their ads."
+                +(
+                    "Plex reads a device's tuner count when it adds the device, so a change here shows in Plex after " +
+                        "the " +
+                        "device is re-added; the server enforces it at once. Streams per device cannot exceed the sessions at once. Learned ad breaks are ones the server finds in a stream with no ad markers, such as a long silent slate: shadow only logs them (ADDETECT), on also shows the break screen over them. The ad listener plays channels nobody is watching, headless, so the server learns their ads."
+                    )
             }
             runtimeSave(view.proposed != null && runtimeChanged(view.current, view.proposed))
         }
@@ -500,7 +507,10 @@ internal fun FlowContent.sourceFilePanel(providers: List<SourceSummary>, guides:
     }) {
         if (providers.isEmpty() && guides.isEmpty()) {
             p("muted") {
-                +"No providers or guides. Add sources.json to the data directory, or set SOFA_SOURCES to a source file, and restart."
+                +(
+                    "No providers or guides. Add sources.json to the data directory, or set SOFA_SOURCES to a source " +
+                        "file, and restart."
+                    )
             }
             return@panel
         }
@@ -603,7 +613,10 @@ private fun FlowContent.policyPanel(chrome: Chrome, policy: PolicySummary?, now:
     panel("Lineup policy", id = "policy") {
         if (policy == null) {
             p("muted") {
-                +"No lineup policy. Add policy.json to the data directory, or set SOFA_POLICY to a policy file in a writable directory, and restart; the server then builds the lineup from it."
+                +(
+                    "No lineup policy. Add policy.json to the data directory, or set SOFA_POLICY to a policy file in " +
+                        "a writable directory, and restart; the server then builds the lineup from it."
+                    )
             }
             return@panel
         }
@@ -650,7 +663,10 @@ private fun FlowContent.policyPanel(chrome: Chrome, policy: PolicySummary?, now:
                 button(type = ButtonType.submit, classes = "primary") { +"Apply now" }
             }
             span("muted small") {
-                +"Runs the policy over the current feeds and writes the lineup. Runs also follow every import and every 15 minutes."
+                +(
+                    "Runs the policy over the current feeds and writes the lineup. Runs also follow every import and " +
+                        "every 15 minutes."
+                    )
             }
         }
     }

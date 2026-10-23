@@ -83,7 +83,8 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
             }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         val session = session()
-        val url = "${session.stitcher}/v2$path?${session.params}&jwt=${session.token}&masterJWTPassthrough=true&includeExtendedEvents=true"
+        val url = "${session.stitcher}/v2$path?${session.params}&jwt=${session.token}&masterJWTPassthrough=true&" +
+            "includeExtendedEvents=true"
         return ResolvedStream(url, STREAM_HEADERS, context.clock.instant().plus(URL_LIFETIME))
     }
 
@@ -145,9 +146,10 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
         val now = context.clock.instant()
         val clientId = URLEncoder.encode(context.deviceId(), Charsets.UTF_8)
         val query =
-            "appName=web&appVersion=$APP_VERSION&deviceVersion=122.0.0&deviceModel=web&deviceMake=chrome&deviceType=web" +
-                "&clientModelNumber=1.0.0&serverSideAds=false&drmCapabilities=&blockingMode=&notificationVersion=1&appLaunchCount=&lastAppLaunchDate=" +
-                "&clientID=$clientId&clientTime=${URLEncoder.encode(
+            "appName=web&appVersion=$APP_VERSION&deviceVersion=122.0.0&deviceModel=web&deviceMake=chrome&" +
+                "deviceType=web" +
+                "&clientModelNumber=1.0.0&serverSideAds=false&drmCapabilities=&blockingMode=&notificationVersion=1&" +
+                "appLaunchCount=&lastAppLaunchDate=&clientID=$clientId&clientTime=${URLEncoder.encode(
                     now.truncatedTo(ChronoUnit.SECONDS).toString(),
                     Charsets.UTF_8,
                 )}"
@@ -186,7 +188,8 @@ class PlutoClient(private val context: ProviderContext) : ProviderClient {
         private const val GUIDE_MINUTES = 720
         private val SESSION_LIFETIME = Duration.ofHours(4)
         private val URL_LIFETIME = Duration.ofHours(1)
-        private const val USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        private const val USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Chrome/122.0.0.0 Safari/537.36"
         private val STREAM_HEADERS = mapOf(
             "User-Agent" to USER_AGENT,
             "Origin" to "https://pluto.tv",

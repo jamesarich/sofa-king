@@ -93,7 +93,8 @@ internal fun rememberGuideRowEnv(
     val detailsLabel = stringResource(Res.string.guide_details)
     val laterLabel = stringResource(if (dayOffset == 0) Res.string.guide_later else Res.string.guide_later_day)
     return remember(
-        cellAiring, cellLater, cellNone, timeFormat, noListing, listingLoading, guideLoading, noGuide, guideOutOfDate, favoriteLabel,
+        cellAiring, cellLater, cellNone, timeFormat, noListing, listingLoading, guideLoading, noGuide, guideOutOfDate,
+        favoriteLabel,
         toggleFavoriteLabel, detailsLabel, laterLabel,
         minutePx, minStickyTextPx, scrollState, onCellFocused, onPlay, onToggleFavorite, onOpenDetails, onJumpTo,
     ) {

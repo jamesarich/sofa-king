@@ -425,7 +425,10 @@ class AdminPortal(
                 setupWrite(call, session, form, "the services", starter) { document ->
                     applyServicesForm(document, form).map { next ->
                         val lines = servicesChanges(document, next) + listOfNotNull(
-                            "Builds the starter lineup from them: one station per channel, grouped and numbered in blocks".takeIf {
+                            (
+                                "Builds the starter lineup from them: one station per channel, grouped and numbered " +
+                                    "in blocks"
+                                ).takeIf {
                                 starter && next.providers.isNotEmpty()
                             },
                         )
@@ -624,7 +627,11 @@ class AdminPortal(
                     val recording = dvr.update(id, UpdateRecording(protected = form["protected"] == "true"))
                     session.flash.set(
                         Flash(
-                            if (recording.protected) "Protected ${recording.title}; cleanup keeps it." else "Cleanup may delete ${recording.title} again.",
+                            if (recording.protected) {
+                                "Protected ${recording.title}; cleanup keeps it."
+                            } else {
+                                "Cleanup may delete ${recording.title} again."
+                            },
                             target = id,
                         ),
                     )
@@ -990,7 +997,8 @@ class AdminPortal(
             service.folderChoices().map { it.toString() },
             runtime.jobs.snapshot().any { it.id == LIBRARY_SCAN_JOB && it.running }, errors, proposed, removing,
             service.metadata?.enabled == true,
-            tmdbSettable = runtime.setup?.tmdbFromEnvironment == false, tmdbError = tmdbError, suggestions = service.suggestions(),
+            tmdbSettable = runtime.setup?.tmdbFromEnvironment == false, tmdbError = tmdbError,
+            suggestions = service.suggestions(),
         )
     }
 
@@ -1560,7 +1568,8 @@ class AdminPortal(
             attention = attention, ignored = hidden,
             stations = entries.size, enabled = enabled.size, guide = guide,
             required = stations?.count { it.required }, requiredOff = requiredOff,
-            suggestions = applied?.result?.suggestedAliases?.size, findings = applied?.result?.findings?.size, unverified = unverified,
+            suggestions = applied?.result?.suggestedAliases?.size, findings = applied?.result?.findings?.size,
+            unverified = unverified,
             providersOk = providers.count {
                 it.errorCode == null && it.lastSuccessAt != null
             },

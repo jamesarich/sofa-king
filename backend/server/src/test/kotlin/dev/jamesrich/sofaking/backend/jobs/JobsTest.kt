@@ -37,7 +37,8 @@ class JobsTest {
         assertFalse(jobs.runNow("nothing"))
     }
 
-    @Test fun `a thrown run is recorded as failed by class and rethrown, and a job registers on first record`() = runTest {
+    @Test
+    fun `a thrown run is recorded as failed by class and rethrown, and a job registers on first record`() = runTest {
         val jobs = Jobs(MutableClock())
         assertFailsWith<IllegalStateException> { jobs.record("policy") { error("boom") } }
         val job = jobs.snapshot().single()

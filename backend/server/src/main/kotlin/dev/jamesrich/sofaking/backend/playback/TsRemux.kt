@@ -119,6 +119,9 @@ internal fun remuxCommand(ffmpeg: String, source: FfmpegSource): List<String> {
     // FFmpeg's own selection takes one video (highest resolution) and one audio (most channels) and skips the
     // other variants' downloads; subtitles and data have no reliable MPEG-TS mapping and are left out.
     command +=
-        listOf("-i", source.url, "-sn", "-dn", "-c", "copy", "-f", "mpegts", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "pipe:1")
+        listOf(
+            "-i", source.url, "-sn", "-dn", "-c", "copy", "-f", "mpegts", "-mpegts_flags", "+resend_headers",
+            "-flush_packets", "1", "pipe:1",
+        )
     return command
 }

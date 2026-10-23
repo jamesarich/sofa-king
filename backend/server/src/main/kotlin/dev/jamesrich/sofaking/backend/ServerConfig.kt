@@ -195,7 +195,8 @@ data class ServerConfig(
                     if ("adminToken" in generated) {
                         log(
                             "secrets: generated SOFA_ADMIN_TOKEN and stored it in ${file.path}. To read it: " +
-                                "docker compose exec sofa-king-backend cat /config/secrets.json (outside Docker: cat ${file.path}). " +
+                                "docker compose exec sofa-king-backend cat /config/secrets.json (outside Docker: cat " +
+                                "${file.path}). " +
                                 "Sign in at /admin with adminToken; Settings there reveals the API token",
                         )
                     } else {

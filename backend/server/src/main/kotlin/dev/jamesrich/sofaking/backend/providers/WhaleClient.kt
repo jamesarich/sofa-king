@@ -141,7 +141,8 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
 
     companion object {
         private const val API_BASE = "https://rlaxx.zeasn.tv/livetv/api"
-        private const val LOGO_BASE = "https://d3b6luslimvglo.cloudfront.net/images/79/rlaxximages/channels-rescaled/icon-white"
+        private const val LOGO_BASE = "https://d3b6luslimvglo.cloudfront.net/images/79/rlaxximages/channels-rescaled/" +
+            "icon-white"
 
         /** The key the public web client at watch.whaletvplus.com sends; it identifies the client, not a user. */
         private const val API_KEY = "4ef13b5f3d2744e3b0a569feb8dde298"

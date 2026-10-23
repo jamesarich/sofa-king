@@ -280,7 +280,8 @@ class LoopbackRelayTest {
         while (runtime.remux.active() > 0 || runtime.sessions.count() > 0 || runtime.loopback.active() > 0) delay(50)
     }
 
-    @Test fun `the remux, the recorder and the probe reach the upstream only through the loopback relay, which sends the provider's headers`() =
+    @Test
+    fun `the remux, recorder and probe reach the upstream only through the loopback relay, with provider headers`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-loopback-reads-")
             try {
@@ -413,7 +414,8 @@ class LoopbackRelayTest {
             }
         }
 
-    @Test fun `the relay credential is in no log line, session or job note, even when FFmpeg fails`() = runBlocking<Unit> {
+    @Test
+    fun `the relay credential is in no log line, session or job note, even when FFmpeg fails`() = runBlocking<Unit> {
         val context = LoggerFactory.getILoggerFactory() as LoggerContext
         val root = context.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME)
         val ours = context.getLogger("dev.jamesrich.sofaking")

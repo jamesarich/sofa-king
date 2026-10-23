@@ -109,7 +109,11 @@ internal fun ToggleRow(
         trailingContent = { Switch(checked = checked, onCheckedChange = null) },
         supportingContent = help?.let { { Text(it, style = MaterialTheme.typography.bodySmall) } },
         colors = ListItemDefaults.colors(
-            containerColor = if (focused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
+            containerColor = if (focused) {
+                MaterialTheme.colorScheme.surfaceVariant
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
         ),
     ) { Text(label, style = MaterialTheme.typography.titleSmall) }
 }

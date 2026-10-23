@@ -185,8 +185,12 @@ internal enum class ButtonRowKey {
  * picture; Down stays put; every other key (media keys, digits) goes back to the picture and acts there.
  */
 internal fun Key.inButtonRow(): ButtonRowKey = when (this) {
-    Key.DirectionLeft, Key.DirectionRight, Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.DirectionDown -> ButtonRowKey.ROW
+    Key.DirectionLeft, Key.DirectionRight, Key.DirectionCenter, Key.Enter, Key.NumPadEnter,
+    Key.DirectionDown,
+    -> ButtonRowKey.ROW
+
     Key.DirectionUp, Key.Back, Key.Escape -> ButtonRowKey.LEAVE
+
     else -> ButtonRowKey.PLAYER
 }
 

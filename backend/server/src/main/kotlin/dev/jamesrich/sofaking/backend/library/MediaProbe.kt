@@ -86,7 +86,10 @@ class MediaProbe(private val ffprobe: String, private val timeoutSeconds: Int = 
         val output = Files.createTempFile("sofa-ffprobe-", ".json")
         try {
             val command =
-                listOf(ffprobe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", "--", file.toString())
+                listOf(
+                    ffprobe, "-v", "error", "-print_format", "json", "-show_format", "-show_streams", "--",
+                    file.toString(),
+                )
             val exit = ProcessBuilder(
                 command,
             ).redirectOutput(

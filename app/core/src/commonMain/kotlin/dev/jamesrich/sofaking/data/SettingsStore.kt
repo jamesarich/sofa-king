@@ -77,13 +77,19 @@ data class AppSettings(
 
     /** Keeps the token out of logs and crash reports; everything else prints as a data class would. */
     override fun toString(): String =
-        "AppSettings(serverUrl=$serverUrl, apiToken=${if (apiToken.isEmpty()) "unset" else "set"}, favorites=$favorites, " +
-            "lastChannel=$lastChannel, recentChannels=$recentChannels, guideFilter=$guideFilter, captionsEnabled=$captionsEnabled, " +
-            "captionAdvanceMs=$captionAdvanceMs, " +
-            "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, captionStyle=$captionStyle, " +
-            "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, keyLegendShown=$keyLegendShown, startup=$startup, " +
-            "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, hiddenChannels=$hiddenChannels, " +
-            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, autoSkipIntros=$autoSkipIntros, hideSpoilers=$hideSpoilers, liveBreaks=$liveBreaks, adsDodged=$adsDodged, favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
+        "AppSettings(serverUrl=$serverUrl, apiToken=${if (apiToken.isEmpty()) "unset" else "set"}, " +
+            "favorites=$favorites, " +
+            "lastChannel=$lastChannel, recentChannels=$recentChannels, guideFilter=$guideFilter, " +
+            "captionsEnabled=$captionsEnabled, captionAdvanceMs=$captionAdvanceMs, " +
+            "captionAdvanceByChannel=$captionAdvanceByChannel, smoothCaptions=$smoothCaptions, " +
+            "captionStyle=$captionStyle, " +
+            "autoOpenDelay=$autoOpenDelay, previewSound=$previewSound, volume=$volume, volumeMuted=$volumeMuted, " +
+            "keyLegendShown=$keyLegendShown, startup=$startup, " +
+            "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, " +
+            "hiddenChannels=$hiddenChannels, " +
+            "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, autoSkipIntros=$autoSkipIntros, " +
+            "hideSpoilers=$hideSpoilers, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
+            "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, trackChoices=${trackChoices.size})"
 
     companion object {

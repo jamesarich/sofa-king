@@ -39,7 +39,9 @@ internal object WatchNextArtwork {
      */
     fun contentUri(context: Context, artworkUrl: String): Uri? {
         val source = artworkUrl.toUri()
-        if (source.scheme != "http" && source.scheme != "https" || source.encodedAuthority == null || !valid(source)) {
+        if ((source.scheme != "http" && source.scheme != "https") || source.encodedAuthority == null ||
+            !valid(source)
+        ) {
             return null
         }
         val server = "${source.scheme}://${source.encodedAuthority}"

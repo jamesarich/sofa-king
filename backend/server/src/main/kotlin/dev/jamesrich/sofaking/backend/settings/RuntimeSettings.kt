@@ -50,7 +50,10 @@ data class RuntimeValues(
         const val LEARNED_BREAKS = "SOFA_LEARNED_BREAKS"
         const val AD_LISTENERS = "SOFA_AD_LISTENERS"
         val NAMES =
-            listOf(LOG_LEVEL, GUIDE_DAYS, PLEX_SYNC_MINUTES, HDHR_TUNERS, MAX_SESSIONS, RECORDINGS_FREE_GIB, RECORDINGS_KEEP_DAYS, LEARNED_BREAKS, AD_LISTENERS)
+            listOf(
+                LOG_LEVEL, GUIDE_DAYS, PLEX_SYNC_MINUTES, HDHR_TUNERS, MAX_SESSIONS, RECORDINGS_FREE_GIB,
+                RECORDINGS_KEEP_DAYS, LEARNED_BREAKS, AD_LISTENERS,
+            )
         val AD_LISTENERS_RANGE = 0..24
         val FREE_GIB_RANGE = 0..100_000
         val KEEP_DAYS_RANGE = 0..3650
@@ -61,7 +64,8 @@ data class RuntimeValues(
         /** What the environment set, the values the server starts with until a saved setting replaces one. */
         fun of(config: ServerConfig) = RuntimeValues(
             config.logging.level, config.outputs.guideDays,
-            config.plex?.syncMinutes ?: 60, config.hdhr.tuners, config.maxSessions, config.recordingsFreeGib, config.recordingsKeepDays, config.learnedBreaks.setting, config.adListeners,
+            config.plex?.syncMinutes ?: 60, config.hdhr.tuners, config.maxSessions, config.recordingsFreeGib,
+            config.recordingsKeepDays, config.learnedBreaks.setting, config.adListeners,
         )
 
         /**

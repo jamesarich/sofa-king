@@ -695,8 +695,10 @@ class Dvr(
         val name = RecordingTitle.of(programme)
         val now = clock.instant()
         return StoredRecording(
-            UUID.randomUUID().toString(), ruleId, airing.channelId, airing.channelName, programme.startsAt, programme.endsAt, startPadding, endPadding,
-            programme.title, name.episodeTitle, programme.description, name.numbering?.season, name.numbering?.episode, name.movie, name.year, programme.icon,
+            UUID.randomUUID().toString(), ruleId, airing.channelId, airing.channelName, programme.startsAt,
+            programme.endsAt, startPadding, endPadding,
+            programme.title, name.episodeTitle, programme.description, name.numbering?.season, name.numbering?.episode,
+            name.movie, name.year, programme.icon,
             Wire.RecordingState.SCHEDULED, createdAt = now, updatedAt = now,
         )
     }

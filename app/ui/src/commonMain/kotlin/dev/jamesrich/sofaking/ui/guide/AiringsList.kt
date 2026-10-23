@@ -130,7 +130,11 @@ private fun AiringRow(
             )
         },
         colors = ListItemDefaults.colors(
-            containerColor = if (focused) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
+            containerColor = if (focused) {
+                MaterialTheme.colorScheme.surfaceVariant
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
         ),
     ) { Text(whenText, style = MaterialTheme.typography.titleSmall, maxLines = 1) }
 }

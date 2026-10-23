@@ -397,7 +397,11 @@ private fun RecordButtons(
             SofaButton(onClick = { run(onRecord) }) {
                 Text(
                     stringResource(
-                        if (mark.recording) Res.string.guide_details_cancel_recording else Res.string.guide_details_record,
+                        if (mark.recording) {
+                            Res.string.guide_details_cancel_recording
+                        } else {
+                            Res.string.guide_details_record
+                        },
                     ),
                     maxLines = 1,
                 )
@@ -405,7 +409,11 @@ private fun RecordButtons(
             SofaButton(onClick = { run(onRecordSeries) }) {
                 Text(
                     stringResource(
-                        if (mark.series) Res.string.guide_details_stop_series else Res.string.guide_details_record_series,
+                        if (mark.series) {
+                            Res.string.guide_details_stop_series
+                        } else {
+                            Res.string.guide_details_record_series
+                        },
                     ),
                     maxLines = 1,
                 )

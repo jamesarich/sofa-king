@@ -344,7 +344,11 @@ fun SettingsScreen(
         item { SectionHeader(stringResource(Res.string.settings_section_server)) }
         if (!serverOpen) {
             item {
-                val status = if (serverUnreachable) Res.string.settings_server_unreachable else Res.string.settings_server_connected
+                val status = if (serverUnreachable) {
+                    Res.string.settings_server_unreachable
+                } else {
+                    Res.string.settings_server_connected
+                }
                 SettingRow(label = stringResource(status, settings.serverUrl)) {
                     SofaButton(onClick = {
                         changingServer = true
@@ -363,7 +367,11 @@ fun SettingsScreen(
                     SofaButton(onClick = { if (!reloading) actions.onReload() }) {
                         Text(
                             stringResource(
-                                if (reloading) Res.string.settings_server_reloading else Res.string.settings_server_reload,
+                                if (reloading) {
+                                    Res.string.settings_server_reloading
+                                } else {
+                                    Res.string.settings_server_reload
+                                },
                             ),
                         )
                     }

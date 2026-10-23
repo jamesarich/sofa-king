@@ -22,7 +22,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class FeedServiceTest {
-    @Test fun `atomic last good import persists across failure and restart without resetting disables`() = runBlocking<Unit> {
+    @Test
+    fun `atomic last good import persists across failure and restart without resetting disables`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-feed-")
         try {
             Fixture().use { fixture ->
@@ -71,7 +72,8 @@ class FeedServiceTest {
         }
     }
 
-    @Test fun `source withdrawal preserves channel identity and rediscovery preserves manual disable`() = runBlocking<Unit> {
+    @Test
+    fun `source withdrawal preserves channel identity and rediscovery preserves manual disable`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-withdrawal-")
         try {
             Fixture().use { fixture ->
@@ -228,7 +230,8 @@ class FeedServiceTest {
         }
     }
 
-    @Test fun `an import that changes nothing rewrites nothing and wakes nothing after the first`() = runBlocking<Unit> {
+    @Test
+    fun `an import that changes nothing rewrites nothing and wakes nothing after the first`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-feed-unchanged-")
         try {
             Fixture().use { fixture ->

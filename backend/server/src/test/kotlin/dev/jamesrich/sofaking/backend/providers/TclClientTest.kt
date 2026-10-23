@@ -35,7 +35,8 @@ class TclClientTest {
         )
     }
 
-    @Test fun `lists channels from the themed rows first and keeps their programmes for the guide`() = runBlocking<Unit> {
+    @Test
+    fun `lists channels from the themed rows first and keeps their programmes for the guide`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-tcl-")
         try {
             ProviderFixture().use { fixture ->

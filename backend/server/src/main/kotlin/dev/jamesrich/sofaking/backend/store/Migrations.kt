@@ -8,9 +8,13 @@ internal data class Migration(val version: Int, val sql: String)
 
 /** Versions come from the `Vnnn__` file prefix and need not be contiguous. */
 internal fun foundationMigrations(): List<Migration> = listOf(
-    "V001__foundation.sql", "V002__offering_health.sql", "V003__probe_attempt_and_indexes.sql", "V004__offering_protocol.sql",
-    "V010__lineup_and_guides.sql", "V030__logo_cache.sql", "V040__lineup_entry_curation.sql", "V041__curation.sql", "V050__provider_state.sql",
-    "V060__station_availability.sql", "V070__drop_curation.sql", "V080__programme_details.sql", "V090__attention_ignore.sql", "V100__runtime_setting.sql", "V110__viewer.sql",
+    "V001__foundation.sql", "V002__offering_health.sql", "V003__probe_attempt_and_indexes.sql",
+    "V004__offering_protocol.sql",
+    "V010__lineup_and_guides.sql", "V030__logo_cache.sql", "V040__lineup_entry_curation.sql", "V041__curation.sql",
+    "V050__provider_state.sql",
+    "V060__station_availability.sql", "V070__drop_curation.sql", "V080__programme_details.sql",
+    "V090__attention_ignore.sql",
+    "V100__runtime_setting.sql", "V110__viewer.sql",
     "V120__recordings.sql", "V121__recording_breaks.sql",
     "V200__library.sql", "V201__library_metadata.sql", "V202__guide_generations.sql", "V203__admin_session.sql",
     "V204__library_intro.sql", "V205__library_credits.sql", "V206__ad_channel.sql", "V207__ad_break.sql",

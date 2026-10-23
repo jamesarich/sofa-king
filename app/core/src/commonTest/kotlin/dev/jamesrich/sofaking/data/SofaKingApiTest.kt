@@ -107,7 +107,8 @@ class SofaKingApiTest {
 
     @Test
     fun `session requests encode the id as one path segment and the body as JSON`() = runTest {
-        val session = """{"id":"s 1/2","channelId":"c1","intent":"watch","expiresAt":"2026-10-10T10:00:00Z","descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/sessions/s1/1/root.m3u8","epoch":1}}"""
+        val session = """{"id":"s 1/2","channelId":"c1","intent":"watch","expiresAt":"2026-10-10T10:00:00Z",""" +
+            """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/sessions/s1/1/root.m3u8","epoch":1}}"""
         val http = FakeHttp(this) { request ->
             if (request.method == "DELETE") {
                 respond("", HttpStatusCode.NoContent)

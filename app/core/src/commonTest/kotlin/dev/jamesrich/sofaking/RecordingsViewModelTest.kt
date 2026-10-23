@@ -32,7 +32,8 @@ class RecordingsViewModelTest {
     fun tearDown() = fixture.tearDown()
 
     private fun recording(id: String, state: String, extra: String = "") =
-        """{"id":"$id","channelId":"c1","channelName":"News 4","title":"Evening News","startsAt":"2026-10-18T18:00:00Z",""" +
+        """{"id":"$id","channelId":"c1","channelName":"News 4","title":"Evening """ +
+            """News","startsAt":"2026-10-18T18:00:00Z",""" +
             """"endsAt":"2026-10-18T18:30:00Z","state":"$state"$extra}"""
 
     /** A recording server answering [handler]; every one has rules, so a test that does not answer them sees none. */
@@ -105,7 +106,8 @@ class RecordingsViewModelTest {
 
     @Test
     fun `series rules load with the list and change in place and stop and the guide follows`() = fixture.viewModelTest {
-        var rules = """{"id":"s1","title":"Evening News","channelId":"c1","newOnly":true,"keep":0,"startPaddingSeconds":60,"endPaddingSeconds":120,"priority":0,"createdAt":"2026-10-18T00:00:00Z"}"""
+        var rules = """{"id":"s1","title":"Evening """ +
+            """News","channelId":"c1","newOnly":true,"keep":0,"startPaddingSeconds":60,"endPaddingSeconds":120,"priority":0,"createdAt":"2026-10-18T00:00:00Z"}"""
         val server = recordingServer { method, path, body ->
             when {
                 method == "GET" && path == "/api/v1/recordings" -> 200 to """{"recordings":[]}"""
@@ -212,7 +214,8 @@ class RecordingsViewModelTest {
 
                 method == "POST" && path == "/api/v1/vod-sessions" ->
                     201 to
-                        """{"id":"v1","itemId":"","recordingId":"r1","mode":"remux","startMs":120000,"durationMs":1800000,""" +
+                        """{"id":"v1","itemId":"","recordingId":"r1","mode":"remux","startMs":120000,""" +
+                        """"durationMs":1800000,""" +
                         """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/vod/v1/1/k/index.m3u8","epoch":1}}"""
 
                 method == "PATCH" && path == "/api/v1/recordings/r1" ->

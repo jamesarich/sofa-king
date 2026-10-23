@@ -75,7 +75,7 @@ class PlayerButtonsTest {
     }
 
     @Test
-    fun `an episode in its credits leads with their button which stands in for Next episode when they run to the end`() {
+    fun `in the credits their button leads and stands in for Next episode when they run to the end`() {
         fun buttons(toNext: Boolean) = vodButtons(
             failed = false,
             inBreak = false,
@@ -112,7 +112,7 @@ class PlayerButtonsTest {
     }
 
     @Test
-    fun `the live bar keeps zoom and the sleep timer beside the stream card and Previous and Record only where they apply`() {
+    fun `the live bar keeps zoom and sleep by the stream card and Previous and Record only where they apply`() {
         assertEquals(
             listOf(
                 LiveButton.CHANNELS,

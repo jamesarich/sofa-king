@@ -113,7 +113,8 @@ class PlexClientTest {
         }
     }
 
-    @Test fun `a rejected token is replaced once and resolve returns the part master with its token`() = runBlocking<Unit> {
+    @Test
+    fun `a rejected token is replaced once and resolve returns the part master with its token`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-plex-")
         try {
             ProviderFixture().use { fixture ->
@@ -243,7 +244,8 @@ class PlexClientTest {
         }
     }
 
-    @Test fun `a part Plex answers 400 for fails resolve for good, and resolve never waits out a 429`() = runBlocking<Unit> {
+    @Test
+    fun `a part Plex answers 400 for fails resolve for good, and resolve never waits out a 429`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-plex-")
         try {
             ProviderFixture().use { fixture ->

@@ -256,7 +256,11 @@ private fun HeaderTab(label: String, selected: Boolean, tabFocus: FocusRequester
         onClick = onClick,
         shape = CircleShape,
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-        contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
         modifier = Modifier.semantics {
             this.selected = selected
         }.then(if (selected) Modifier.focusRequester(tabFocus) else Modifier).tvFocus(CircleShape),

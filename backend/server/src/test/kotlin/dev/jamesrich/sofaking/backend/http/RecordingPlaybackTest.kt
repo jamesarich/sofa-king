@@ -52,8 +52,10 @@ class RecordingPlaybackTest {
         Files.createDirectories(file.parent)
         val process = ProcessBuilder(
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-            "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
-            "-t", "6", "-pix_fmt", "yuv420p", "-g", "15", "-c:v", "mpeg2video", "-c:a", "aac", "-f", "mpegts", file.toString(),
+            "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15", "-f", "lavfi", "-i",
+            "sine=frequency=440:sample_rate=48000",
+            "-t", "6", "-pix_fmt", "yuv420p", "-g", "15", "-c:v", "mpeg2video", "-c:a", "aac", "-f", "mpegts",
+            file.toString(),
         ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
         check(process.waitFor(60, TimeUnit.SECONDS) && process.exitValue() == 0) { "FFmpeg could not write the clip" }
     }
@@ -85,7 +87,9 @@ class RecordingPlaybackTest {
                             3600,
                         ),
                         now.minusSeconds(1800), Duration.ZERO, Duration.ZERO, "News",
-                        state = Wire.RecordingState.COMPLETED, path = "TV/News/News (2026-10-10).ts", createdAt = now, updatedAt = now,
+                        state = Wire.RecordingState.COMPLETED,
+                        path = "TV/News/News (2026-10-10).ts",
+                        createdAt = now, updatedAt = now,
                     ),
                 )
                 application { backendModule(store, clock, runtime, token, config = config) }
@@ -122,7 +126,8 @@ class RecordingPlaybackTest {
             }
         }
 
-    @Test fun `a recording still being made plays as HLS that follows the file, once it holds something`() = runBlocking {
+    @Test
+    fun `a recording still being made plays as HLS that follows the file, once it holds something`() = runBlocking {
         val dir = Files.createTempDirectory("sofa-rec-live-")
         val store = openStore(dir)
         val clock = MutableClock()

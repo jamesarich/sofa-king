@@ -161,7 +161,8 @@ class RelayTest {
         }
     }
 
-    @Test fun `a request waiting on a shared stream when its session is released answers 410, not 502`() = testApplication {
+    @Test
+    fun `a request waiting on a shared stream when its session is released answers 410, not 502`() = testApplication {
         val dir = Files.createTempDirectory("sofa-relay-release-")
         val token = "secret".repeat(8)
         Fixture().use { fixture ->
@@ -215,7 +216,8 @@ class RelayTest {
         }
     }
 
-    @Test fun `a recording of an MPEG-TS channel someone watches reads the viewer's upstream connection`() = testApplication {
+    @Test
+    fun `a recording of an MPEG-TS channel someone watches reads the viewer's upstream connection`() = testApplication {
         val dir = Files.createTempDirectory("sofa-relay-record-")
         val token = "secret".repeat(8)
         Fixture().use { fixture ->
@@ -458,7 +460,8 @@ class RelayTest {
         }
     }
 
-    @Test fun `a chunked HLS media playlist behind an unprobed proxy path answers 410 on the TS path and is stored as hls`() =
+    @Test
+    fun `a chunked HLS media playlist behind an unprobed proxy path answers 410 on the TS path and is stored as hls`() =
         testApplication {
             val dir = Files.createTempDirectory("sofa-relay-proxy-protocol-")
             val token = "secret".repeat(8)

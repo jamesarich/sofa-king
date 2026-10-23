@@ -38,7 +38,8 @@ class MediaFixture : AutoCloseable {
             val (type, bytes) = when {
                 path == "/feed.m3u" ->
                     "audio/x-mpegurl" to (
-                        "#EXTM3U\n#EXTINF:-1 tvg-id=\"vod\" tvg-chno=\"1\",VOD\n$base/vod.m3u8\n#EXTINF:-1 tvg-id=\"live\" tvg-chno=\"2\",Live\n$base/live.m3u8\n" +
+                        "#EXTM3U\n#EXTINF:-1 tvg-id=\"vod\" tvg-chno=\"1\",VOD\n$base/vod.m3u8\n#EXTINF:-1 " +
+                            "tvg-id=\"live\" tvg-chno=\"2\",Live\n$base/live.m3u8\n" +
                             "#EXTINF:-1 tvg-id=\"missing\" tvg-chno=\"3\",Missing\n$base/missing.m3u8\n"
                         ).toByteArray()
 
@@ -72,10 +73,14 @@ class MediaFixture : AutoCloseable {
         fun run(codec: List<String>): Boolean {
             val command = listOf(
                 "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
-                "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+                "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15", "-f", "lavfi", "-i",
+                "sine=frequency=440:sample_rate=48000",
                 "-t", "24", "-pix_fmt", "yuv420p", "-g", "30",
             ) + codec +
-                listOf("-c:a", "aac", "-f", "hls", "-hls_time", "2", "-hls_list_size", "0", "-hls_playlist_type", "vod", "-hls_segment_filename", "seg%d.ts", "vod.m3u8")
+                listOf(
+                    "-c:a", "aac", "-f", "hls", "-hls_time", "2", "-hls_list_size", "0", "-hls_playlist_type", "vod",
+                    "-hls_segment_filename", "seg%d.ts", "vod.m3u8",
+                )
             val process = ProcessBuilder(
                 command,
             ).directory(

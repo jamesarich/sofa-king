@@ -99,7 +99,7 @@ internal fun Bounce.step(distance: Float, roomX: Float, roomY: Float, cornerSlop
     val (nextY, down, hitY) = reflect(y, down, distance, roomY)
     fun nearEdge(position: Float, room: Float) = position <= cornerSlop || position >= room - cornerSlop
     val hit = when {
-        hitX && (hitY || nearEdge(nextY, roomY)) || hitY && nearEdge(nextX, roomX) -> BounceHit.CORNER
+        (hitX && (hitY || nearEdge(nextY, roomY))) || (hitY && nearEdge(nextX, roomX)) -> BounceHit.CORNER
         hitX || hitY -> BounceHit.EDGE
         else -> BounceHit.NONE
     }
@@ -129,9 +129,12 @@ internal fun hueRotation(degrees: Float): ColorMatrix {
     val s = sin(radians)
     return ColorMatrix(
         floatArrayOf(
-            0.213f + c * 0.787f - s * 0.213f, 0.715f - c * 0.715f - s * 0.715f, 0.072f - c * 0.072f + s * 0.928f, 0f, 0f,
-            0.213f - c * 0.213f + s * 0.143f, 0.715f + c * 0.285f + s * 0.140f, 0.072f - c * 0.072f - s * 0.283f, 0f, 0f,
-            0.213f - c * 0.213f - s * 0.787f, 0.715f - c * 0.715f + s * 0.715f, 0.072f + c * 0.928f + s * 0.072f, 0f, 0f,
+            0.213f + c * 0.787f - s * 0.213f, 0.715f - c * 0.715f - s * 0.715f, 0.072f - c * 0.072f + s * 0.928f, 0f,
+            0f,
+            0.213f - c * 0.213f + s * 0.143f, 0.715f + c * 0.285f + s * 0.140f, 0.072f - c * 0.072f - s * 0.283f, 0f,
+            0f,
+            0.213f - c * 0.213f - s * 0.787f, 0.715f - c * 0.715f + s * 0.715f, 0.072f + c * 0.928f + s * 0.072f, 0f,
+            0f,
             0f, 0f, 0f, 1f, 0f,
         ),
     )

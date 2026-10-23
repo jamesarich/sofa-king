@@ -225,7 +225,8 @@ class LiveRuntime(
                                 HdhrDevice(n, hdhrDeviceId(config.hdhr, serverId, n), ports[n])
                             }
                         },
-                        plexDebounceMillis, settings.current.plexSyncMinutes * 60_000L, initial = store.plexStatus(), persist = store::savePlexStatus, jobs = jobs,
+                        plexDebounceMillis, settings.current.plexSyncMinutes * 60_000L, initial = store.plexStatus(),
+                        persist = store::savePlexStatus, jobs = jobs,
                     )
                 }
                 val catalog = CatalogService(feeds, guides, lineup, store, clock)

@@ -107,7 +107,7 @@ class PlayerKeysTest {
     }
 
     @Test
-    fun `in the channel list Up and Down go to the list while Left and Right are swallowed and the rest reach the player`() {
+    fun `in the channel list Up and Down move the list and Left and Right are eaten while the rest reach the player`() {
         assertEquals(MiniGuideKey.LIST, Key.DirectionUp.inMiniGuide())
         assertEquals(MiniGuideKey.LIST, Key.DirectionDown.inMiniGuide())
         assertEquals(MiniGuideKey.SWALLOWED, Key.DirectionLeft.inMiniGuide())

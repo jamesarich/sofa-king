@@ -299,7 +299,8 @@ https://example.com/osbt/v1/bas/use2/1/2/3/5
 
     @Test fun `fuelmedia segments whose token flags an ad break are ads`() {
         fun token(type: String, adBreak: Boolean): String {
-            val json = """[{"SessionId":"x","SegTag":{"ContentType":"$type","IsAd":false,"IsAdFiller":$adBreak,"IsAdBreak":$adBreak}}]"""
+            val json = """[{"SessionId":"x","SegTag":{"ContentType":"$type","IsAd":false,"IsAdFiller":$adBreak,""" +
+                """"IsAdBreak":$adBreak}}]"""
             val gzip = ByteArrayOutputStream().also { out ->
                 GZIPOutputStream(out).use { it.write(json.toByteArray()) }
             }.toByteArray()

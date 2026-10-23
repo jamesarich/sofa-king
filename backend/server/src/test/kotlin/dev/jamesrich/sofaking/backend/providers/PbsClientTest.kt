@@ -129,7 +129,8 @@ class PbsClientTest {
         }
     }
 
-    @Test fun `a station that fails for now fails the import, and one PBS no longer lists is skipped`() = runBlocking<Unit> {
+    @Test
+    fun `a station that fails for now fails the import, and one PBS no longer lists is skipped`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-pbs-")
         try {
             ProviderFixture().use { fixture ->

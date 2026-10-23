@@ -150,7 +150,9 @@ class SofaKingMapperTest {
                 "a",
                 programme(
                     "2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Show",
-                    subTitle = " The Pilot ", episode = "S1 E1", isNew = true, rating = "TV-PG", icon = "https://img/x.jpg",
+                    subTitle = " The Pilot ", episode = "S1 E1", isNew = true, rating = "TV-PG",
+                    icon = "https://img/" +
+                        "x.jpg",
                     categories = listOf("Feature Film", "Drama", "Children"),
                 ),
                 programme(

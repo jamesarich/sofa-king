@@ -116,7 +116,11 @@ fun ChannelManagerScreen(
             item {
                 HelpText(
                     stringResource(
-                        if (ordered.isEmpty()) Res.string.channels_favorites_none else Res.string.channels_favorites_help,
+                        if (ordered.isEmpty()) {
+                            Res.string.channels_favorites_none
+                        } else {
+                            Res.string.channels_favorites_help
+                        },
                     ),
                 )
             }

@@ -25,7 +25,8 @@ class TubiClientTest {
         "epgUrl" to "${fixture.base}/oz/epg/programming",
     )
 
-    @Test fun `lists the page's linear channels without login or DRM ones and keeps their programmes`() = runBlocking<Unit> {
+    @Test
+    fun `lists the page's linear channels without login or DRM ones and keeps their programmes`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-tubi-")
         try {
             ProviderFixture().use { fixture ->

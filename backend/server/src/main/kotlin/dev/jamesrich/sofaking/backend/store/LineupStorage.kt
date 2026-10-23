@@ -257,7 +257,8 @@ private val programmeJson = Json {
 
 private fun detailsJson(programme: GuideProgramme): String? {
     val details = StoredDetails(
-        programme.subTitle, programme.episodeNumbers, programme.icon, programme.categories, programme.rating, programme.isNew,
+        programme.subTitle, programme.episodeNumbers, programme.icon, programme.categories, programme.rating,
+        programme.isNew,
         programme.previouslyShown, programme.date, programme.language,
     )
     return if (details == StoredDetails()) null else programmeJson.encodeToString(details)
@@ -273,7 +274,8 @@ private fun programmeAt(row: ResultRow): GuideProgramme {
             row[GuideProgrammes.startsAt],
         ),
         Instant.ofEpochSecond(row[GuideProgrammes.endsAt]),
-        row[GuideProgrammes.title], row[GuideProgrammes.description], details.subTitle, details.episodeNumbers, details.icon, details.categories,
+        row[GuideProgrammes.title], row[GuideProgrammes.description], details.subTitle, details.episodeNumbers,
+        details.icon, details.categories,
         details.rating, details.isNew, details.previouslyShown, details.date, details.language,
     )
 }

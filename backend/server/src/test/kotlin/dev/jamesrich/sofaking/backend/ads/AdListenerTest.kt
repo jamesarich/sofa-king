@@ -18,7 +18,7 @@ class AdListenerTest {
         )
 
     @Test
-    fun `channels watched lately without markers come first, then watched with markers, then unheard, then least recently heard`() {
+    fun `recent channels without markers come first, then recent ones with markers, unheard, least recently heard`() {
         val known = listOf(
             record("old-unmarked", watchedDaysAgo = 30, marked = false, heardMinutesAgo = 600),
             record("unmarked-yesterday", watchedDaysAgo = 1, marked = false),

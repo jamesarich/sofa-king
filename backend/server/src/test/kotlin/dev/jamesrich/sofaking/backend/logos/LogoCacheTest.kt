@@ -124,7 +124,8 @@ class LogoCacheTest {
         }
     }
 
-    @Test fun `a sweep fetches what is missing, refreshes weekly, keeps the old file when the refresh fails, and drops the unwanted`() =
+    @Test
+    fun `a sweep fetches what is missing, refreshes weekly, keeps the old file on a failed refresh, drops the rest`() =
         withFixture {
                 fixture,
                 http,
@@ -187,7 +188,7 @@ class LogoCacheTest {
         assertNull(LogoCache.rasterType("RIFF\u0000\u0000\u0000\u0000WAVE".toByteArray(Charsets.ISO_8859_1)))
         assertNull(LogoCache.rasterType(Fixture.SVG.toByteArray()))
         assertTrue(LogoCache.looksLikeMarkup(Fixture.SVG.toByteArray()))
-        assertTrue(LogoCache.looksLikeMarkup("  <svg/>".toByteArray()))
+        assertTrue(LogoCache.looksLikeMarkup("\uFEFF  <svg/>".toByteArray()))
         assertFalse(LogoCache.looksLikeMarkup(Fixture.PNG))
         assertFalse(LogoCache.looksLikeMarkup(ByteArray(0)))
     }

@@ -67,7 +67,8 @@ class DirectClientTest {
         }
     }
 
-    @Test fun `a CBS News feed plays the event URL its live page names, read once per six hours, else the table's URL`() =
+    @Test
+    fun `a CBS News feed plays the event URL its live page names, read once per six hours, else the table's URL`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-direct-")
             try {

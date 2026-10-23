@@ -10,7 +10,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class HlsRewriterTest {
-    @Test fun `rewrites variants audio subtitles keys maps and relative segments preserving timing`() = runBlocking<Unit> {
+    @Test
+    fun `rewrites variants audio subtitles keys maps and relative segments preserving timing`() = runBlocking<Unit> {
         val urls = mutableListOf<String>()
         val output = HlsRewriter.rewrite(
             """#EXTM3U

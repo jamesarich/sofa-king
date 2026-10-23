@@ -58,7 +58,7 @@ fun openSofaKingLink(link: String) {
 }
 
 /** The whole app as one view controller for the SwiftUI host. */
-fun MainViewController(): UIViewController = ComposeUIViewController {
+fun mainViewController(): UIViewController = ComposeUIViewController {
     val pairing by pendingPairing.collectAsState()
     App(pairing = pairing, onPairingHandled = { pendingPairing.value = null })
 }

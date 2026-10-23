@@ -437,6 +437,9 @@ internal fun rememberGuideState(
     val lastFocusedGuideId = rememberSaveable { mutableStateOf<String?>(null) }
     val numbers = rememberChannelNumberInput()
     return remember {
-        GuideState(liveStartSecond, dayOffset, cursor, filter, searchOpen, lastFocusedGuideId, searchText, startSearch, startInHeader, numbers)
+        GuideState(
+            liveStartSecond, dayOffset, cursor, filter, searchOpen, lastFocusedGuideId, searchText, startSearch,
+            startInHeader, numbers,
+        )
     }
 }

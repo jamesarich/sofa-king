@@ -331,7 +331,8 @@ class LibraryScanner(
                     4,
                 )?.toIntOrNull(),
                 season = seasonNumber,
-                episode = nfo?.episode ?: parsed.episode, episodeEnd = parsed.episodeEnd, aired = aired, overview = nfo?.plot,
+                episode = nfo?.episode ?: parsed.episode, episodeEnd = parsed.episodeEnd, aired = aired,
+                overview = nfo?.plot,
                 durationMs = nfo?.runtimeMinutes?.let {
                     it * 60_000L
                 },

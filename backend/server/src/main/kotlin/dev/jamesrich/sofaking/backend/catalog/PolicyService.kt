@@ -260,7 +260,11 @@ class PolicyService(
             it.lastSuccessAt == null && it.errorCode == null
         }.map { it.id }.sorted()
         if (waiting.isNotEmpty() || feeds.channels().none { feeds.offeringsOf(it.id).isNotEmpty() }) {
-            val reason = if (waiting.isNotEmpty()) "waiting for the first import of ${waiting.joinToString()}" else "no feed has a live channel yet"
+            val reason = if (waiting.isNotEmpty()) {
+                "waiting for the first import of ${waiting.joinToString()}"
+            } else {
+                "no feed has a live channel yet"
+            }
             log.info("lineup policy run skipped: {}", reason)
             return PolicyApplyResult(
                 started.toString(),
@@ -287,7 +291,8 @@ class PolicyService(
             reasonById[station.id] = station.disabledReason
             val unavailable = station.disabledReason == "unavailable"
             val record = LineupEntryRecord(
-                station.id, station.number, station.name, station.group, station.logo, station.enabled, station.guide, station.offeringIds,
+                station.id, station.number, station.name, station.group, station.logo, station.enabled, station.guide,
+                station.offeringIds,
                 createdBy = "policy",
                 autoDisabledAt = if (unavailable) result.availability[station.key]?.unavailableSince else null,
                 autoDisabledReason = if (unavailable) "unavailable" else null,
@@ -326,7 +331,8 @@ class PolicyService(
         val blocked = names.learned.filter { (from, to) -> neverMerges(names.never, from, to) }.keys
         var revision = loaded.revision
         if (numbers.isNotEmpty() || reclaim.isNotEmpty() || result.learned.isNotEmpty() || blocked.isNotEmpty()) {
-            val what = "${numbers.size} assigned numbers, ${reclaim.size} reclaimed numbers and ${result.learned.size} learned aliases"
+            val what = "${numbers.size} assigned numbers, ${reclaim.size} reclaimed numbers and " +
+                "${result.learned.size} learned aliases"
             try {
                 val learned = mergeLearned(names.learned, result.learned, blocked)
                 revision =

@@ -254,7 +254,10 @@ class VodSessions(
                     Files.createDirectories(dir)
                     val partial = dir.resolve("$name.part")
                     val command =
-                        listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", file.toString(), "-map", map, "-c:s", "webvtt", "-f", "webvtt", partial.toString())
+                        listOf(
+                            ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", file.toString(),
+                            "-map", map, "-c:s", "webvtt", "-f", "webvtt", partial.toString(),
+                        )
                     // A client that gives up mid-conversion ends FFmpeg; what it wrote goes with it.
                     try {
                         if (!extractions.withPermit {
@@ -380,7 +383,8 @@ class VodSessions(
                 )
             }
             val state = VodState(
-                UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs, audio?.index, burn, media, secret(), epoch = 1,
+                UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs, audio?.index, burn,
+                media, secret(), epoch = 1,
                 startMs = if (mode == Wire.VodMode.DIRECT || whole) {
                     0
                 } else {
@@ -542,9 +546,15 @@ class VodSessions(
             if (state.whole) Files.writeString(dir.resolve("index.m3u8"), wholePlaylist(state.durationMs!!))
         }
         val command = if (state.whole) {
-            vodCommand(ffmpeg, state.file, dir, state.mode, state.runStart * SEGMENT_MS, state.media, state.audioIndex, encoder = encoder, burn = state.burn, firstSegment = state.runStart)
+            vodCommand(
+                ffmpeg, state.file, dir, state.mode, state.runStart * SEGMENT_MS, state.media, state.audioIndex,
+                encoder = encoder, burn = state.burn, firstSegment = state.runStart,
+            )
         } else {
-            vodCommand(ffmpeg, state.file, dir, state.mode, state.startMs, state.media, state.audioIndex, follow = state.growing, encoder = encoder, burn = state.burn)
+            vodCommand(
+                ffmpeg, state.file, dir, state.mode, state.startMs, state.media, state.audioIndex,
+                follow = state.growing, encoder = encoder, burn = state.burn,
+            )
         }
         state.process = try {
             ProcessBuilder(command).redirectErrorStream(true).redirectOutput(dir.resolve("ffmpeg.log").toFile()).start()
@@ -675,8 +685,13 @@ internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStre
             (container == "mkv" && "webm" in profile.containers && video.codec in setOf("vp8", "vp9", "av1"))
     return when {
         videoFits && audioFits && containerFits && track?.index == default?.index -> Wire.VodMode.DIRECT
-        videoFits && video.codec in TS_VIDEO && (track == null || (audioFits && track.codec in TS_AUDIO)) -> Wire.VodMode.REMUX
+
+        videoFits && video.codec in TS_VIDEO && (
+            track == null || (audioFits && track.codec in TS_AUDIO)
+            ) -> Wire.VodMode.REMUX
+
         videoFits && video.codec in TS_VIDEO -> Wire.VodMode.AUDIO
+
         else -> Wire.VodMode.TRANSCODE
     }
 }

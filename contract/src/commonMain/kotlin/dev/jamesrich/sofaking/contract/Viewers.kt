@@ -9,7 +9,8 @@ import kotlinx.serialization.Serializable
  * who is claiming it. [clientId] is the client's own stable id (see [ViewerPreferences]); [name] and [platform]
  * only label the viewer in the portal.
  */
-@Serializable data class PairingClaim(val code: String, val clientId: String = "", val name: String = "", val platform: String = "")
+@Serializable
+data class PairingClaim(val code: String, val clientId: String = "", val name: String = "", val platform: String = "")
 
 /** A claimed code's answer: the API token the client stores, and the id of the server it opens. */
 @Serializable data class PairingResult(val apiToken: String, val serverId: String = "")

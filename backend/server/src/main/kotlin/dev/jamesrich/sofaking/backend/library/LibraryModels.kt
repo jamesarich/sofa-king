@@ -95,7 +95,11 @@ data class ScanResult(
     val files: Int,
     val unavailable: Boolean = false,
 ) {
-    val note: String get() = if (unavailable) "LIBRARY_UNAVAILABLE" else "$files files, $added new, $updated changed, $missing missing, $removed removed"
+    val note: String get() = if (unavailable) {
+        "LIBRARY_UNAVAILABLE"
+    } else {
+        "$files files, $added new, $updated changed, $missing missing, $removed removed"
+    }
 }
 
 /** What TMDB says about a movie, show, season or episode; [poster] and [backdrop] are TMDB image paths such as `/abc.jpg`. */

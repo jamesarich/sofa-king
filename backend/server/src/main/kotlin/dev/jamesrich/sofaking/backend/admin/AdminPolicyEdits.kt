@@ -115,7 +115,11 @@ internal fun groupsEdit(form: Parameters): PolicyEdit = when (val op = form["op"
     "default" -> {
         val group = form["group"]?.trim().orEmpty()
         PolicyEdit(
-            if (group.isEmpty()) "let ungrouped stations keep their raw category" else "put ungrouped stations in $group",
+            if (group.isEmpty()) {
+                "let ungrouped stations keep their raw category"
+            } else {
+                "put ungrouped stations in $group"
+            },
             "blocks",
         ) { tree ->
             tree.withObject("groups") { g ->
@@ -683,7 +687,10 @@ internal fun groupsPage(
             return@panel
         }
         p("muted small") {
-            +"Categories no map entry or pattern names, from the last run, most stations first. Map one to give its stations a vote, or mark it weak when it names no genre."
+            +(
+                "Categories no map entry or pattern names, from the last run, most stations first. Map one to give " +
+                    "its stations a vote, or mark it weak when it names no genre."
+                )
         }
         div("scroll") {
             table {
@@ -740,7 +747,10 @@ internal fun groupsPage(
     }) {
         sectionErrors(errors, "map")
         p("muted small") {
-            +"A provider's category votes for the group it maps to; the group with the most providers' votes wins. Keys are lowercase, or provider:category for one provider."
+            +(
+                "A provider's category votes for the group it maps to; the group with the most providers' votes " +
+                    "wins. Keys are lowercase, or provider:category for one provider."
+                )
         }
         val byGroup = p.groups.map.entries.groupBy({ it.value }, { it.key }).toSortedMap()
         if (byGroup.isEmpty()) {
@@ -840,7 +850,10 @@ internal fun groupsPage(
         panel("Name patterns", id = "patterns") {
             sectionErrors(errors, "patterns")
             p("muted small") {
-                +"Case-insensitive regexes, first match wins. A name pattern groups a station ahead of any vote; a category pattern turns a category into a vote."
+                +(
+                    "Case-insensitive regexes, first match wins. A name pattern groups a station ahead of any vote; " +
+                        "a category pattern turns a category into a vote."
+                    )
             }
             if (p.groups.patterns.isEmpty()) {
                 p("muted") { +"None." }
@@ -946,7 +959,13 @@ internal fun MAIN.providerEntries(chrome: Chrome, view: ProvidersView, errors: E
                                         if (entry.enabled) chip("On", Tone.OK) else chip("Hidden", Tone.OFF)
                                         button(type = ButtonType.submit, classes = "small quiet") {
                                             attributes["aria-label"] =
-                                                (if (entry.enabled) "Hide the stations entry ${index + 1} leads" else "Show the stations entry ${index + 1} leads")
+                                                (
+                                                    if (entry.enabled) {
+                                                        "Hide the stations entry ${index + 1} leads"
+                                                    } else {
+                                                        "Show the stations entry ${index + 1} leads"
+                                                    }
+                                                    )
                                             +(if (entry.enabled) "Hide" else "Show")
                                         }
                                     }

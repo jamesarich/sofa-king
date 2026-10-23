@@ -110,7 +110,8 @@ class LibraryMetadataTest {
         assertEquals(2, calls.size)
     }
 
-    @Test fun `removing a library does not wait for its TMDB pass, which then leaves no details behind`() = runBlocking {
+    @Test
+    fun `removing a library does not wait for its TMDB pass, which then leaves no details behind`() = runBlocking {
         val root = Files.createTempDirectory("sofa-media-")
         root.file("movies/Alien (1979)/Alien (1979).mkv")
         val asked = CompletableDeferred<Unit>()

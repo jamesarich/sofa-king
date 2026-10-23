@@ -21,7 +21,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class BackgroundTest {
-    @Test fun `a failing background coroutine is logged by name and class, and its siblings keep running`() = runBlocking {
+    @Test
+    fun `a failing background coroutine is logged by name and class, and its siblings keep running`() = runBlocking {
         val lines = CopyOnWriteArrayList<String>()
         val scope = backgroundScope { lines += it }
         try {

@@ -67,7 +67,8 @@ import kotlinx.serialization.Serializable
 )
 
 /** `PATCH /api/v1/recordings/{id}`: each set field replaces the stored one. */
-@Serializable data class UpdateRecording(val protected: Boolean? = null, val positionMs: Long? = null, val watched: Boolean? = null)
+@Serializable
+data class UpdateRecording(val protected: Boolean? = null, val positionMs: Long? = null, val watched: Boolean? = null)
 
 /**
  * A series rule: record every airing whose title is [title] (ignoring case), on [channelId] or on any channel when

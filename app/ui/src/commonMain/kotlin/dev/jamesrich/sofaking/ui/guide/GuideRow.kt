@@ -167,7 +167,11 @@ internal fun ChannelRow(
                 if (!profile.compactWidth) {
                     Text(
                         channel.name,
-                        style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+                        style = if (compact) {
+                            MaterialTheme.typography.bodyMedium
+                        } else {
+                            MaterialTheme.typography.bodyLarge
+                        },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

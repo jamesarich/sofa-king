@@ -51,7 +51,8 @@ class FeedParserTest {
         assertTrue(distinct.skipped.isEmpty())
     }
 
-    private val distro = "http://restream.lan:3000/api/ext/v1/distro/https%3A%2F%2Fstream-us-east-1.example.com%2Fplaylist.m3u8%3Flivestream%3D1%26live%3D1%26channel%3D"
+    private val distro = "http://restream.lan:3000/api/ext/v1/distro/" +
+        "https%3A%2F%2Fstream-us-east-1.example.com%2Fplaylist.m3u8%3Flivestream%3D1%26live%3D1%26channel%3D"
     private val dlhd = "http://restream.lan:3000/api/ext/v1/dlhd/https%3A%2F%2Fupstream.example%2Fwatch.php%3Fid%3D"
 
     private fun idless(name: String, url: String, group: String = "Sports") =
@@ -270,7 +271,7 @@ class FeedParserTest {
         )
 
         val utf16 = (
-            "" +
+            "\uFEFF" +
                 """<?xml version="1.0" encoding="UTF-16"?><tv><channel id="ü"><display-name>Ünïcode</display-name></channel></tv>"""
             ).toByteArray(Charsets.UTF_16BE)
         val wide = FeedParser.guide(java.io.ByteArrayInputStream(utf16)) { true }
@@ -479,8 +480,8 @@ class FeedParserTest {
             "<category>C$it</category><episode-num system=\"s$it\">$it</episode-num>"
         }
         val xml =
-            "<tv><programme channel=\"a\" start=\"20261010080000 +0000\" stop=\"20261010090000 +0000\"><title>T</title>" +
-                "<sub-title>${"s".repeat(
+            "<tv><programme channel=\"a\" start=\"20261010080000 +0000\" stop=\"20261010090000 " +
+                "+0000\"><title>T</title><sub-title>${"s".repeat(
                     5000,
                 )}</sub-title><episode-num system=\"onscreen\">${"9".repeat(65)}</episode-num>$many</programme></tv>"
         val programme = FeedParser.guide(xml).programmes.single()

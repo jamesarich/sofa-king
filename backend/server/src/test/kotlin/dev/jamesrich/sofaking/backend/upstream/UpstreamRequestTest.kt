@@ -78,7 +78,8 @@ class UpstreamRequestTest {
         }
     }
 
-    @Test fun `loopback link-local and unspecified upstreams are refused while LAN hosts are served`() = runBlocking<Unit> {
+    @Test
+    fun `loopback link-local and unspecified upstreams are refused while LAN hosts are served`() = runBlocking<Unit> {
         HttpClient(MockEngine { respond("ok") }) { followRedirects = false }.use { http ->
             suspend fun fetch(url: String, policy: UpstreamPolicy = UpstreamPolicy()) =
                 http.withUpstreamResponse(url, url, emptyMap(), policy = policy) { it.bodyAsText() }
@@ -86,9 +87,14 @@ class UpstreamRequestTest {
             assertEquals("ok", fetch("http://10.0.0.7/live.ts"))
             assertEquals("ok", fetch("https://provider.test/live.m3u8"))
             for (url in listOf(
-                "http://127.0.0.1:8080/healthz", "http://localhost/x", "http://api.localhost/x", "http://[::1]/x", "http://169.254.169.254/latest", "http://[fe80::1]/x", "http://0.0.0.0/x", "http://[::]/x", "http://user:pw@provider.test/x", "ftp://provider.test/x",
+                "http://127.0.0.1:8080/healthz", "http://localhost/x", "http://api.localhost/x",
+                "http://[::1]/" +
+                    "x",
+                "http://169.254.169.254/latest", "http://[fe80::1]/x", "http://0.0.0.0/x", "http://[::]/x",
+                "http://user:pw@provider.test/x", "ftp://provider.test/x",
                 // Spellings the C resolver reads as loopback.
-                "http://localhost./x", "http://127.0.0.1./x", "http://0x7f000001/x", "http://0177.0.0.1/x", "http://2130706433/x", "http://127.1/x",
+                "http://localhost./x", "http://127.0.0.1./x", "http://0x7f000001/x", "http://0177.0.0.1/x",
+                "http://2130706433/x", "http://127.1/x",
             )) {
                 assertFailsWith<UpstreamRejectedException>(url) { fetch(url) }
             }

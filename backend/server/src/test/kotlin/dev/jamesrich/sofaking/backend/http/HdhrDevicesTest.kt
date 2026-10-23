@@ -164,7 +164,8 @@ class HdhrDevicesTest {
                         .jsonArray.map { it.jsonObject["GuideNumber"]!!.jsonPrimitive.content }
                     assertEquals(listOf(listOf("5"), listOf("6", "12")), ports.map(::numbers))
                     assertTrue(
-                        "hdhr: 3 enabled stations need 3 devices of 1 channels, 2 configured; add ports to SOFA_HDHR_EXTRA_PORTS" in
+                        "hdhr: 3 enabled stations need 3 devices of 1 channels, 2 configured; add ports to " +
+                            "SOFA_HDHR_EXTRA_PORTS" in
                             runtime.policy.findings().findings,
                     )
                 } finally {

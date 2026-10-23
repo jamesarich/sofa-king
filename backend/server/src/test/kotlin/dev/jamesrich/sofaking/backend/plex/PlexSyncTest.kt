@@ -185,7 +185,8 @@ class PlexSyncTest {
             assertNotNull(status.lastSyncAt)
         }
 
-    @Test fun `with a tuner base a missing device is added to the first DVR holding ours, then mapped`() = runBlocking<Unit> {
+    @Test
+    fun `with a tuner base a missing device is added to the first DVR holding ours, then mapped`() = runBlocking<Unit> {
         val plex = FakePlex()
         val status = plex.sync(tunerBase = "http://192.168.1.3").sync("test")
 
@@ -282,7 +283,8 @@ class PlexSyncTest {
         assertEquals(0, plex.calls(HttpMethod.Put, "/media/grabbers/devices/20/channelmap").size)
         assertEquals(1, plex.calls(HttpMethod.Put, "/media/grabbers/devices/22/channelmap").size)
         assertTrue(
-            "plex: device ABCDEF01 has 400 channels, too many for Plex to save; lower SOFA_HDHR_DEVICE_SIZE or add ports" in
+            "plex: device ABCDEF01 has 400 channels, too many for Plex to save; lower SOFA_HDHR_DEVICE_SIZE or add " +
+                "ports" in
                 status.findings,
         )
         assertEquals(0, status.devices.single { it.deviceId == "ABCDEF01" }.mapped)

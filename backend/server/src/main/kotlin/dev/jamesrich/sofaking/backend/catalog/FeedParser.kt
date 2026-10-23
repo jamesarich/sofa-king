@@ -144,7 +144,7 @@ object FeedParser {
         /** The playlist's own URL; relative `tvg-logo` references resolve against it. */
         baseUrl: String? = null,
     ): ParsedPlaylist {
-        require(text.trimStart('', ' ', '\r', '\n').startsWith("#EXTM3U")) { "Not an extended M3U playlist" }
+        require(text.trimStart('\uFEFF', ' ', '\r', '\n').startsWith("#EXTM3U")) { "Not an extended M3U playlist" }
         val channels = linkedMapOf<String, Channel>()
         val offerings = mutableListOf<Offering>()
         val offeringIds = HashSet<String>()
@@ -454,7 +454,8 @@ object FeedParser {
             }
         }
         return GuideProgramme(
-            "", Instant.EPOCH, Instant.EPOCH, title, description, subTitle, numbers, icon, categories, rating, isNew, previouslyShown, date,
+            "", Instant.EPOCH, Instant.EPOCH, title, description, subTitle, numbers, icon, categories, rating, isNew,
+            previouslyShown, date,
             titleLanguage ?: descLanguage ?: languageElement,
         )
     }

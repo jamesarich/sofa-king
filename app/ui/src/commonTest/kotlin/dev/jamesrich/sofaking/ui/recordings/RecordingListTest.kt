@@ -17,13 +17,15 @@ class RecordingListTest {
         episode: Int? = null,
         episodeTitle: String? = null,
     ) = DvrRecording(
-        id = id, channelId = "c1", channelName = "News 4", title = "Title", episodeTitle = episodeTitle, description = null,
+        id = id, channelId = "c1", channelName = "News 4", title = "Title", episodeTitle = episodeTitle,
+        description = null,
         season = season, episode = episode, imageUrl = null,
         startsAt = Instant.parse(
             startsAt,
         ),
         endsAt = Instant.parse(startsAt),
-        state = state, reason = null, bytes = 0, protected = false, positionMs = 0, watched = false, breaks = emptyList(),
+        state = state, reason = null, bytes = 0, protected = false, positionMs = 0, watched = false,
+        breaks = emptyList(),
     )
 
     @Test

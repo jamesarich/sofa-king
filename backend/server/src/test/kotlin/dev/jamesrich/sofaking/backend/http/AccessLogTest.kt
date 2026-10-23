@@ -26,7 +26,8 @@ import kotlin.test.assertTrue
 class AccessLogTest {
     private val apiToken = "api".repeat(12)
 
-    @Test fun `each request gets an id in X-Request-Id and one access line with it, without the query or media paths`() =
+    @Test
+    fun `each request gets an id in X-Request-Id and one access line with it, without the query or media paths`() =
         testApplication {
             val dir = Files.createTempDirectory("sofa-access-")
             val store = openStore(dir)

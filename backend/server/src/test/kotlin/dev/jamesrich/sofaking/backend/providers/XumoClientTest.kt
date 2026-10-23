@@ -75,7 +75,8 @@ class XumoClientTest {
         }
     }
 
-    @Test fun `resolve fills the stitched template, or the live asset's HLS source when there is none`() = runBlocking<Unit> {
+    @Test
+    fun `resolve fills the stitched template, or the live asset's HLS source when there is none`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-xumo-")
         try {
             ProviderFixture().use { fixture ->
@@ -111,7 +112,8 @@ class XumoClientTest {
         }
     }
 
-    @Test fun `guide reads the six-hour blocks from the current one and stops at an unpublished block`() = runBlocking<Unit> {
+    @Test
+    fun `guide reads the six-hour blocks from the current one and stops at an unpublished block`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-xumo-")
         try {
             ProviderFixture().use { fixture ->

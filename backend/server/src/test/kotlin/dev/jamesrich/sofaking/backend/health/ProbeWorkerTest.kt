@@ -117,7 +117,8 @@ class ProbeWorkerTest {
         }
     }
 
-    @Test fun `a resolve that throws outside the provider contract is recorded against the source`() = runBlocking<Unit> {
+    @Test
+    fun `a resolve that throws outside the provider contract is recorded against the source`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-probe-resolve-")
         try {
             HttpClient(CIO).use { http ->
@@ -146,7 +147,8 @@ class ProbeWorkerTest {
         }
     }
 
-    @Test fun `FFmpeg 8 HTTP errors classify auth rate limit provider outage and local decoder errors`() = runBlocking<Unit> {
+    @Test
+    fun `FFmpeg 8 HTTP errors classify auth rate limit provider outage and local decoder errors`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-probe-classification-")
         try {
             HttpClient(CIO).use { http ->
@@ -203,7 +205,7 @@ class ProbeWorkerTest {
         val engine = MockEngine { request ->
             when (request.url.encodedPath) {
                 "/ts" -> respond(ts)
-                "/m3u" -> respond("#EXTM3U\n#EXT-X-TARGETDURATION:4\n")
+                "/m3u" -> respond("\uFEFF#EXTM3U\n#EXT-X-TARGETDURATION:4\n")
                 "/html" -> respond("<html>not a stream</html>")
                 "/502" -> respond("", HttpStatusCode.BadGateway)
                 "/503" -> respond("", HttpStatusCode.ServiceUnavailable)
@@ -297,7 +299,8 @@ class ProbeWorkerTest {
             }
         }
 
-    @Test fun `suspect sources are rechecked before unverified ones and healthy rechecks come last`() = runBlocking<Unit> {
+    @Test
+    fun `suspect sources are rechecked before unverified ones and healthy rechecks come last`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-probe-order-")
         try {
             HttpClient(CIO).use { http ->
@@ -537,7 +540,8 @@ class ProbeWorkerTest {
             }
         }
 
-    @Test fun `a healthy recheck copies the video instead of decoding it, and both qualify real media`() = runBlocking<Unit> {
+    @Test
+    fun `a healthy recheck copies the video instead of decoding it, and both qualify real media`() = runBlocking<Unit> {
         val source = FfmpegSource("http://127.0.0.1:9/relay/lease/root.m3u8", "credential")
         val decodeArgs = decodeCommand("ffmpeg", source, "hls", 30, copy = false)
         val copyArgs = decodeCommand("ffmpeg", source, "hls", 30, copy = true)

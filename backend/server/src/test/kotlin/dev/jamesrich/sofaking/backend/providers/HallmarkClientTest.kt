@@ -63,7 +63,9 @@ class HallmarkClientTest {
                                 fixture.hits("/catalog/channels/Linear-1187-Non-Stop-Christmas-DRM/schedule"),
                             )
                             assertTrue(
-                                fixture.lastQuery["/catalog/channels/Linear-1187-Non-Stop-Christmas-DRM/schedule"]!!.startsWith(
+                                fixture.lastQuery[
+                                    "/catalog/channels/Linear-1187-Non-Stop-Christmas-DRM/schedule",
+                                ]!!.startsWith(
                                     "from=2026-10-10T12:00:00.000Z&until=2026-10-12T12:00:00.000Z&locale=en",
                                 ),
                             )

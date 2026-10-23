@@ -47,7 +47,10 @@ fun main(): Unit = runBlocking<Unit> {
                 }
             }
         }) {
-            backendModule(store, clock, runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr, plexStatus, config)
+            backendModule(
+                store, clock, runtime, config.apiToken, config.adminToken, config.outputs, config.hdhr, plexStatus,
+                config,
+            )
             // Ktor's own shutdown hook stops the server, which raises this before the hook returns and the JVM halts.
             monitor.subscribe(ApplicationStopped) {
                 log.info("shutdown: server stopped")

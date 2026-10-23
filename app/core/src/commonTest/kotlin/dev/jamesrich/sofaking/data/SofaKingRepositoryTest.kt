@@ -19,7 +19,8 @@ class SofaKingRepositoryTest {
 
     /** Answers the catalog with an ETag and the guide per chunk; [guideRevision] is what each guide answer reports. */
     private class FakeServer(scope: TestScope) {
-        var catalogBody = """{"revision":"r1","channels":[{"id":"c1","displayNumber":"1","name":"One","playbackEligible":true}]}"""
+        var catalogBody = """{"revision":"r1","channels":[{"id":"c1","displayNumber":"1","name":"One",""" +
+            """"playbackEligible":true}]}"""
         var catalogEtag = "\"r1\""
         var guideRevision = "r1"
 

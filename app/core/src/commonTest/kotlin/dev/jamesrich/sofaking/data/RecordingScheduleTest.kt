@@ -90,7 +90,12 @@ class RecordingScheduleTest {
                 }
 
                 seen.path == "/api/v1/recordings" -> json(
-                    if (scheduled) """{"recordings":[{"id":"r9","channelId":"c1","title":"Film","startsAt":"2026-10-18T20:00:00Z","endsAt":"2026-10-18T22:00:00Z","state":"scheduled"}]}""" else "{}",
+                    if (scheduled) {
+                        """{"recordings":[{"id":"r9","channelId":"c1","title":"Film",""" +
+                            """"startsAt":"2026-10-18T20:00:00Z","endsAt":"2026-10-18T22:00:00Z","state":"scheduled"}]}"""
+                    } else {
+                        "{}"
+                    },
                 )
 
                 else -> json("{}")

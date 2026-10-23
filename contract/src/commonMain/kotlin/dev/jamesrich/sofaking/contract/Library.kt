@@ -70,7 +70,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class LetterCount(val letter: String, val count: Int)
 
 /** A row of the library home ([id] is a [Wire.ShelfId] value), for one library when [libraryId] is set. */
-@Serializable data class LibraryShelf(val id: String, val title: String, val items: List<LibraryItem>, val libraryId: String? = null)
+@Serializable
+data class LibraryShelf(val id: String, val title: String, val items: List<LibraryItem>, val libraryId: String? = null)
 
 /** The library home: Continue watching, then Recently added per library, and every library. */
 @Serializable data class LibraryHome(val shelves: List<LibraryShelf>, val libraries: List<Library> = emptyList())
@@ -114,7 +115,8 @@ import kotlinx.serialization.Serializable
 )
 
 /** `PUT /api/v1/library/items/{id}/play-state`: where playback stopped; [watched] set by hand wins over the position. */
-@Serializable data class UpdatePlayState(val positionMs: Long = 0, val durationMs: Long? = null, val watched: Boolean? = null)
+@Serializable
+data class UpdatePlayState(val positionMs: Long = 0, val durationMs: Long? = null, val watched: Boolean? = null)
 
 /**
  * What a player can play as is: containers (`mp4`, `mkv`, `webm`, `ts`), video codecs (`h264`, `hevc`, `vp9`, `av1`)

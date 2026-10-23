@@ -90,7 +90,19 @@ internal fun creditsRunToEnd(credits: VodMarker, durationMs: Long?): Boolean =
 private const val CREDITS_END_SLACK_MS = 1_000L
 
 /** What a key does in the seekable player. */
-internal enum class VodAction { PLAY_PAUSE, PLAY, PAUSE, BACK, FORWARD, SHOW_INFO, BUTTONS, CAPTIONS, TRACKS, ZOOM, STOP }
+internal enum class VodAction {
+    PLAY_PAUSE,
+    PLAY,
+    PAUSE,
+    BACK,
+    FORWARD,
+    SHOW_INFO,
+    BUTTONS,
+    CAPTIONS,
+    TRACKS,
+    ZOOM,
+    STOP,
+}
 
 /**
  * Left, Rewind and a gamepad's left shoulder step back, Right, Fast Forward and the right shoulder step forward, OK,

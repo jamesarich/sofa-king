@@ -34,7 +34,8 @@ class SamsungClientTest {
                             fixture.route("/stvp-USBA370000104") {
                                 Canned(
                                     status = 302,
-                                    location = "${fixture.base}/sis/sc-xv9.m3u8?ads.device_did=%7BPSID%7D&ads.device_dnt=%7BTARGETOPT%7D&ads.us_privacy=%7BUS_PRIVACY%7D&ads.app_name=%7BAPP_NAME%7D&ads.service_id=USBA370000104",
+                                    location = "${fixture.base}/sis/sc-xv9.m3u8?ads.device_did=%7BPSID%7D&" +
+                                        "ads.device_dnt=%7BTARGETOPT%7D&ads.us_privacy=%7BUS_PRIVACY%7D&ads.app_name=%7BAPP_NAME%7D&ads.service_id=USBA370000104",
                                 )
                             }
                             fixture.route("/stvp-USBC39000171G") { Canned(status = 404) }

@@ -81,7 +81,8 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
     val now = chrome.now
     pageHead(
         "Library",
-        "Your movies, shows and other videos, from folders mounted into the server. The server only reads them; the app's Library tab plays them, " +
+        "Your movies, shows and other videos, from folders mounted into the server. The server only reads them; the " +
+            "app's Library tab plays them, " +
             "direct or transcoded to suit each device. Each library is scanned every six hours and when you ask.",
     )
     panel("Libraries", id = "libraries", aside = if (view.scanning) ({ chip("Scanning", Tone.WARN) }) else null) {
@@ -194,18 +195,29 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
             danger = true,
         ) {
             p {
-                +"The app stops showing it, and its watch progress is forgotten. The files in ${library.path} stay where they are; add the folder again to bring it back."
+                +(
+                    "The app stops showing it, and its watch progress is forgotten. The files in ${library.path} " +
+                        "stay where they are; add the folder again to bring it back."
+                    )
             }
         }
     }
     panel("Details and artwork", id = "tmdb") {
         if (view.tmdb) {
             p("mt-0") {
-                +"Movies and shows get their titles, plots, genres, ratings, cast, posters and backdrops from TMDB after each scan; episodes get their names, plots and stills. A .nfo file beside a video, or local artwork, wins over TMDB. A {tmdb-123} tag in a folder name pins the match."
+                +(
+                    "Movies and shows get their titles, plots, genres, ratings, cast, posters and backdrops from " +
+                        "TMDB " +
+                        "after each scan; episodes get their names, plots and stills. A .nfo file beside a video, or local artwork, wins over TMDB. A {tmdb-123} tag in a folder name pins the match."
+                    )
             }
         } else {
             p("mt-0") {
-                +"Details come from file names, .nfo files and local artwork only. Add a TMDB API read access token to fill in plots, ratings, cast, posters and backdrops: it is free from themoviedb.org, under Settings, then API."
+                +(
+                    "Details come from file names, .nfo files and local artwork only. Add a TMDB API read access " +
+                        "token " +
+                        "to fill in plots, ratings, cast, posters and backdrops: it is free from themoviedb.org, under Settings, then API."
+                    )
             }
         }
         if (view.tmdbSettable) {
@@ -229,7 +241,10 @@ internal fun libraryPage(chrome: Chrome, view: LibraryView): String = layout("Li
                 }
             }
             p("muted small") {
-                +"The server asks TMDB whether it takes the token, keeps it in secrets.json beside the generated tokens, and restarts."
+                +(
+                    "The server asks TMDB whether it takes the token, keeps it in secrets.json beside the generated " +
+                        "tokens, and restarts."
+                    )
             }
         }
         p("muted small") { +TMDB_NOTICE }

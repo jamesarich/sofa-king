@@ -81,7 +81,8 @@ class PlutoClientTest {
             }
         }
 
-    @Test fun `a refused session boots again and resolve builds the stitcher URL from the boot answer`() = runBlocking<Unit> {
+    @Test
+    fun `a refused session boots again and resolve builds the stitcher URL from the boot answer`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-pluto-")
         try {
             ProviderFixture().use { fixture ->
@@ -89,13 +90,15 @@ class PlutoClientTest {
                     openStore(dir).use { store ->
                         fixture.pluto()
                         val clock = MutableClock()
-                        val stale = """{"token":"stale","channels":"${fixture.base}/channels","stitcher":"${fixture.base}/old","params":"appName=web"}"""
+                        val stale = """{"token":"stale","channels":"${fixture.base}/channels",""" +
+                            """"stitcher":"${fixture.base}/old","params":"appName=web"}"""
                         store.saveProviderState("pluto", "session", stale, clock.now.plusSeconds(600), clock.now)
                         val client = PlutoClient(ProviderFixture.context("pluto", options(fixture), http, store, clock))
                         val resolved = client.resolve(trending)
                         assertEquals(1, fixture.hits("/boot"))
                         assertEquals(
-                            "${fixture.base}/stitcher/v2/stitch/hls/channel/$trending/master.m3u8?appName=web&clientID=fixture-client&country=US&deviceType=web&serverSideAds=false" +
+                            "${fixture.base}/stitcher/v2/stitch/hls/channel/$trending/master.m3u8?appName=web&" +
+                                "clientID=fixture-client&country=US&deviceType=web&serverSideAds=false" +
                                 "&jwt=fixture-jwt&masterJWTPassthrough=true&includeExtendedEvents=true",
                             resolved.url,
                         )

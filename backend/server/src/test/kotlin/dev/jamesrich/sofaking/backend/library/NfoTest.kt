@@ -27,7 +27,10 @@ class NfoTest {
 
     @Test fun `an episode nfo gives its numbers and air date`() {
         val nfo = parseNfo(
-            "<episodedetails><title>Pilot</title><season>1</season><episode>2</episode><aired>2026-10-17</aired></episodedetails>".byteInputStream(),
+            (
+                "<episodedetails><title>Pilot</title><season>1</season><episode>2</episode><aired>2026-10-17</" +
+                    "aired></episodedetails>"
+                ).byteInputStream(),
         )!!
         assertEquals(1, nfo.season)
         assertEquals(2, nfo.episode)
@@ -37,7 +40,10 @@ class NfoTest {
     @Test fun `a doctype, a bare url and another root are refused`() {
         assertNull(
             parseNfo(
-                """<?xml version="1.0"?><!DOCTYPE movie [<!ENTITY x SYSTEM "file:///etc/passwd">]><movie><title>&x;</title></movie>""".byteInputStream(),
+                (
+                    """<?xml version="1.0"?><!DOCTYPE movie [<!ENTITY x SYSTEM """ +
+                        """"file:///etc/passwd">]><movie><title>&x;</title></movie>"""
+                    ).byteInputStream(),
             ),
         )
         assertNull(parseNfo("https://www.themoviedb.org/movie/348".byteInputStream()))

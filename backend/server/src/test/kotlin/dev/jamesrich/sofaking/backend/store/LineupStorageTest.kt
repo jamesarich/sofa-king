@@ -113,7 +113,8 @@ class LineupStorageTest {
         }
     }
 
-    @Test fun `an import shows readers the old guide until it completes, and the next import clears a failed one's rows`() =
+    @Test
+    fun `an import shows readers the old guide until it completes, and the next import clears a failed one's rows`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-guide-generation-")
             try {

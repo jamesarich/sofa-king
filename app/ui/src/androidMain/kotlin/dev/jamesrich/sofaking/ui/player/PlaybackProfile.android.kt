@@ -19,7 +19,11 @@ import dev.jamesrich.sofaking.data.PlaybackProfile
 @OptIn(UnstableApi::class)
 internal fun media3Profile(context: Context): PlaybackProfile {
     fun decoders(mime: String): List<MediaCodecInfo> = try {
-        MediaCodecUtil.getDecoderInfos(mime, /* secure= */ false, /* tunneling= */ false)
+        MediaCodecUtil.getDecoderInfos(
+            mime,
+            false, // secure
+            false, // tunneling
+        )
     } catch (_: MediaCodecUtil.DecoderQueryException) {
         emptyList()
     }

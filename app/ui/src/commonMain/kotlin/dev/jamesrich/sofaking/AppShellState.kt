@@ -176,5 +176,5 @@ internal fun tabsOffered(
         is LibraryHomeState.Ready -> libraryHome.home.libraries.isNotEmpty()
         else -> true
     },
-    recordings = capabilities.recordings || open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable,
+    recordings = capabilities.recordings || (open == Tab.RECORDINGS && recordings != RecordingsState.Unavailable),
 )

@@ -53,7 +53,10 @@ class SofaKingApiSocketTest {
                         }
                         client.getOutputStream().apply {
                             write(
-                                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{\"revision\":".toByteArray(),
+                                (
+                                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " +
+                                        "1000\r\n\r\n{\"revision\":"
+                                    ).toByteArray(),
                             )
                             flush()
                         }

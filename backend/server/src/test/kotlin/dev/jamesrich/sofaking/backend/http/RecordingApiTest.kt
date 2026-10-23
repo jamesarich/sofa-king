@@ -351,8 +351,11 @@ class RecordingApiTest {
                         1800,
                     ),
                     Duration.ofSeconds(60), Duration.ofSeconds(120), "Evening News",
-                    episodeTitle = "Late Edition", description = "The day's headlines.", season = 3, episode = 12, year = 2026, image = "/logos/news",
-                    state = Wire.RecordingState.COMPLETED, reason = "STOPPED", path = "TV/Evening News/Season 03/Evening News - S03E12 - Late Edition.ts", bytes = 18_800,
+                    episodeTitle = "Late Edition", description = "The day's headlines.", season = 3, episode = 12,
+                    year = 2026, image = "/logos/news",
+                    state = Wire.RecordingState.COMPLETED, reason = "STOPPED",
+                    path = "TV/Evening News/Season 03/Evening News - S03E12 - Late Edition.ts",
+                    bytes = 18_800,
                     protected = true, positionMs = 60_000, watched = true, createdAt = start, updatedAt = start,
                     commercials = Wire.CommercialScan.DONE, breaks = listOf(RecordingBreak(1_000, 2_500)),
                 ),
@@ -363,7 +366,8 @@ class RecordingApiTest {
         }
     }
 
-    @Test fun `deleting a running recording stops it and keeps what it wrote, with the reason STOPPED`() = testApplication {
+    @Test
+    fun `deleting a running recording stops it and keeps what it wrote, with the reason STOPPED`() = testApplication {
         dvrApi {
             val now = Instant.now().truncatedTo(ChronoUnit.SECONDS)
             val created = send(

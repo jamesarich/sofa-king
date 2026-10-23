@@ -106,7 +106,8 @@ class LibraryPlaybackTest {
                 """{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/vod/$id/$epoch/k/index.m3u8","epoch":$epoch}"""
             }
             val recording = recordingId?.let { ""","recordingId":"$it"""" }.orEmpty()
-            return """{"id":"$id","itemId":"$itemId","mode":"$mode","descriptor":$descriptor,"startMs":$startMs,"durationMs":3600000,"expiresAt":"2026-10-10T10:05:00Z"$recording}"""
+            return """{"id":"$id","itemId":"$itemId","mode":"$mode","descriptor":$descriptor,"startMs":$startMs,""" +
+                """"durationMs":3600000,"expiresAt":"2026-10-10T10:05:00Z"$recording}"""
         }
     }
 

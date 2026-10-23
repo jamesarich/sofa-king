@@ -92,7 +92,10 @@ internal fun adsPage(chrome: Chrome, view: AdsView): String = layout("Ads", chro
             }
         }
         p("muted small") {
-            +"Exact markers always win. A learned break only blanks with SOFA_LEARNED_BREAKS on; in shadow the server logs what it would have blanked. Change both in "
+            +(
+                "Exact markers always win. A learned break only blanks with SOFA_LEARNED_BREAKS on; in shadow the " +
+                    "server logs what it would have blanked. Change both in "
+                )
             a("/admin/settings") { +"Settings" }
             +"."
         }

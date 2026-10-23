@@ -8,7 +8,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class AdChannelStorageTest {
-    @Test fun `plays add up per channel, viewers and listener apart, and the last marker seen is kept`() = runBlocking<Unit> {
+    @Test
+    fun `plays add up per channel, viewers and listener apart, and the last marker seen is kept`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-ad-channel-test-")
         try {
             openStore(dir).use { store ->

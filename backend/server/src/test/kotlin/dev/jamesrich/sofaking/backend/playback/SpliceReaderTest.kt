@@ -29,7 +29,8 @@ class SpliceReaderTest {
     private fun pes(pts: Long): ByteArray {
         val header = byteArrayOf(
             0, 0, 1, 0xE0.toByte(), 0, 0, 0x80.toByte(), 0x80.toByte(), 5,
-            (0x21 or ((pts shr 29).toInt() and 0x0E)).toByte(), (pts shr 22).toByte(), ((pts shr 14).toInt() or 1).toByte(),
+            (0x21 or ((pts shr 29).toInt() and 0x0E)).toByte(), (pts shr 22).toByte(),
+            ((pts shr 14).toInt() or 1).toByte(),
             (pts shr 7).toByte(), ((pts shl 1).toInt() or 1).toByte(),
         )
         return packet(0x100, true, header + ByteArray(170))

@@ -109,11 +109,15 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     override val audioTracks: StateFlow<List<AudioTrack>> = MutableStateFlow(emptyList<AudioTrack>()).asStateFlow()
 
     init {
-        video.addEventListener("playing") { _status.update { it.copy(state = PlaybackState.READY, isPlaying = true) } }
-        video.addEventListener("pause") { _status.update { it.copy(isPlaying = false) } }
-        video.addEventListener("waiting") { _status.update { it.copy(state = PlaybackState.BUFFERING) } }
-        video.addEventListener("canplay") { _status.update { it.copy(state = PlaybackState.READY) } }
-        video.addEventListener("ended") { _status.update { it.copy(state = PlaybackState.ENDED, isPlaying = false) } }
+        video.addEventListener("playing") {
+            mutableStatus.update { it.copy(state = PlaybackState.READY, isPlaying = true) }
+        }
+        video.addEventListener("pause") { mutableStatus.update { it.copy(isPlaying = false) } }
+        video.addEventListener("waiting") { mutableStatus.update { it.copy(state = PlaybackState.BUFFERING) } }
+        video.addEventListener("canplay") { mutableStatus.update { it.copy(state = PlaybackState.READY) } }
+        video.addEventListener("ended") {
+            mutableStatus.update { it.copy(state = PlaybackState.ENDED, isPlaying = false) }
+        }
         // The element shows its first frame itself; in the canvas it is on screen once drawn.
         video.addEventListener("loadeddata") { if (!drawsInCanvas.value) hasFrame.value = true }
         video.addEventListener("loadedmetadata") {
@@ -136,9 +140,9 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
                 prepare()
                 return@addEventListener
             }
-            _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+            mutableStatus.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
             val playable = current != null && video.canPlayType(current.mimeType) != CanPlayTypeResult.EMPTY
-            _errors.tryEmit(mediaElementError(video.error?.code?.toInt(), playable, loaded))
+            mutableErrors.tryEmit(mediaElementError(video.error?.code?.toInt(), playable, loaded))
         }
     }
 
@@ -156,9 +160,9 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     override val drawsVolumeControl: Boolean get() = true
 
     override var playWhenReady: Boolean
-        get() = _status.value.playWhenReady
+        get() = mutableStatus.value.playWhenReady
         set(value) {
-            _status.update { it.copy(playWhenReady = value) }
+            mutableStatus.update { it.copy(playWhenReady = value) }
             if (value) startPlayback() else video.pause()
         }
 
@@ -179,7 +183,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
 
     override fun prepare() {
         val url = stream?.url ?: return
-        _status.update { it.copy(state = PlaybackState.BUFFERING) }
+        mutableStatus.update { it.copy(state = PlaybackState.BUFFERING) }
         loaded = false
         hasFrame.value = false
         video.src = url
@@ -194,7 +198,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         cueTrack = null
         _cues.value = emptyList()
         hasFrame.value = false
-        _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+        mutableStatus.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
     }
 
     /** What current browsers' video elements all play: MP4 and WebM with H.264, VP8 or VP9. */

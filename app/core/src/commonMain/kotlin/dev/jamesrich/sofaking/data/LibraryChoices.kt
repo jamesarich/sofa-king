@@ -205,7 +205,8 @@ private val TEXT_SUBTITLE_CODECS = setOf("subrip", "srt", "ass", "ssa", "mov_tex
 private val LANGUAGES = mapOf(
     "eng" to "English", "spa" to "Spanish", "fre" to "French", "ger" to "German", "ita" to "Italian",
     "por" to "Portuguese",
-    "jpn" to "Japanese", "chi" to "Chinese", "kor" to "Korean", "rus" to "Russian", "dut" to "Dutch", "swe" to "Swedish",
+    "jpn" to "Japanese", "chi" to "Chinese", "kor" to "Korean", "rus" to "Russian", "dut" to "Dutch",
+    "swe" to "Swedish",
     "nor" to "Norwegian", "dan" to "Danish", "fin" to "Finnish", "pol" to "Polish", "tur" to "Turkish",
     "ara" to "Arabic",
     "hin" to "Hindi", "heb" to "Hebrew", "gre" to "Greek", "cze" to "Czech", "hun" to "Hungarian", "tha" to "Thai",

@@ -36,7 +36,10 @@ class SegmentAudio(private val ffmpeg: String, parallelism: Int = 2, private val
      */
     suspend fun points(pcm: ByteArray): IntArray? {
         val raw =
-            run(pcm, "-f", "s16le", "-ar", AUDIO_RATE.toString(), "-ac", "1", "-i", "pipe:0", "-f", "chromaprint", "-fp_format", "raw", "pipe:1")
+            run(
+                pcm, "-f", "s16le", "-ar", AUDIO_RATE.toString(), "-ac", "1", "-i", "pipe:0", "-f", "chromaprint",
+                "-fp_format", "raw", "pipe:1",
+            )
                 ?: return null
         val words = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer()
         return IntArray(words.remaining()).also(words::get)

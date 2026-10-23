@@ -77,7 +77,8 @@ class BuildResult(
     /** This result with [learning] applied: its aliases recorded, its suggestions and findings added. */
     fun with(learning: Learning): BuildResult = BuildResult(
         stations, assigned, (findings + learning.findings).sorted(), availability, candidates, keys,
-        (suggestedAliases + learning.suggestions).distinct().sorted(), learning.learned, unmappedCategories, reclaimed, renumbered,
+        (suggestedAliases + learning.suggestions).distinct().sorted(), learning.learned, unmappedCategories, reclaimed,
+        renumbered,
     )
 }
 
@@ -244,12 +245,19 @@ object StationBuilder {
                 }
                 if (kept.isNotEmpty()) sticky.getOrPut(key) { mutableListOf() } += identity to kept
                 val tail = when {
-                    kept.isNotEmpty() -> "; keeping ${kept.size} last known sources of retained channel ${retained.first()}"
+                    kept.isNotEmpty() ->
+                        "; keeping ${kept.size} last known sources of retained channel ${retained.first()}"
+
                     retained.isNotEmpty() -> "; retained channel ${retained.first()} has no last known source left"
+
                     else -> ""
                 }
                 findings +=
-                    if (override.required) "$key: required source missing: $identity$tail" else "$key: pinned source missing: $identity$tail"
+                    if (override.required) {
+                        "$key: required source missing: $identity$tail"
+                    } else {
+                        "$key: pinned source missing: $identity$tail"
+                    }
             }
         }
 
@@ -521,8 +529,12 @@ object StationBuilder {
             val block = if (draft.baseEnabled) numbering.groups[groupFor(draft)] else null
             val number = when {
                 temporary -> nextFree(used, numbering.floor)
+
                 block != null -> nextFreeIn(used, block, blockEnd(block)) ?: nextFree(used, numbering.floor)
-                numbering.groups.isEmpty() && numbering.keepProviderNumbers && provider != null && provider !in used -> provider
+
+                numbering.groups.isEmpty() && numbering.keepProviderNumbers && provider != null && provider !in used ->
+                    provider
+
                 else -> nextFree(used, numbering.floor)
             }
             used += number

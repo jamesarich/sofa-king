@@ -100,7 +100,8 @@ private val snapshotJson = Json {
 }
 
 internal fun JobStatus.report() = JobReport(
-    id, label, every?.seconds, running, lastStartedAt?.toString(), lastDurationMs, lastOk, lastNote, nextDueAt?.toString(),
+    id, label, every?.seconds, running, lastStartedAt?.toString(), lastDurationMs, lastOk, lastNote,
+    nextDueAt?.toString(),
 )
 
 internal fun SupportSnapshot.toJson(): String = snapshotJson.encodeToString(this)
@@ -264,7 +265,10 @@ internal fun jobsPage(chrome: Chrome, view: JobsView): String = layout("Jobs", c
         }
     }
     p("muted small") {
-        +"Imports and guide imports start at once. A policy run or a Plex sync asked for here skips its usual quiet time. Each row's result is the job's own summary; the Events page has the lines it logged."
+        +(
+            "Imports and guide imports start at once. A policy run or a Plex sync asked for here skips its usual " +
+                "quiet time. Each row's result is the job's own summary; the Events page has the lines it logged."
+            )
     }
 }
 
@@ -528,7 +532,10 @@ internal fun aboutPage(chrome: Chrome, view: AboutView): String = layout("About"
         }
     }) {
         p("muted") {
-            +"The status API's answer with the facts above, every job's last run and what the overview lists. It holds no token, URL or secret; copy it into a bug report."
+            +(
+                "The status API's answer with the facts above, every job's last run and what the overview lists. It " +
+                    "holds no token, URL or secret; copy it into a bug report."
+                )
         }
         textArea(classes = "snapshot") {
             attributes["readonly"] = "readonly"
@@ -621,17 +628,27 @@ private fun FlowContent.updatePanel(chrome: Chrome, update: UpdateState) = panel
                 report == null -> {
                     +"Has not reported. "
                     span("muted") {
-                        +"Install the host's updater to apply updates; its timer checks every 15 minutes and writes its result here."
+                        +(
+                            "Install the host's updater to apply updates; its timer checks every 15 minutes and " +
+                                "writes its result here."
+                            )
                     }
                 }
 
                 else -> {
                     +when (report.outcome) {
                         "up-to-date" -> "Checked and found nothing new"
+
                         "updated" -> "Installed ${report.candidate ?: "a new image"}"
-                        "rolled-back" -> "Tried ${report.candidate ?: "a new image"} and went back to ${report.running ?: "the previous one"}"
+
+                        "rolled-back" ->
+                            "Tried ${report.candidate ?: "a new image"} and went back to " +
+                                "${report.running ?: "the previous one"}"
+
                         "skipped" -> "Skipped ${report.candidate ?: "the published image"}; it failed before"
+
                         "failed" -> "Failed"
+
                         else -> report.outcome
                     }
                     +" "
@@ -678,9 +695,16 @@ private fun FlowContent.updatePanel(chrome: Chrome, update: UpdateState) = panel
         span("muted small") {
             +when {
                 report == null -> "Update now needs the host's updater; see the deploy guide."
+
                 requested != null -> "Update now is waiting for the updater."
-                update.current == false -> "Update now backs up the database, swaps to the published image and comes back to this one if the new one is not healthy."
-                else -> "Update now makes the updater pull and compare at once; it changes nothing while the published image is the one running."
+
+                update.current == false ->
+                    "Update now backs up the database, swaps to the published image and comes " +
+                        "back to this one if the new one is not healthy."
+
+                else ->
+                    "Update now makes the updater pull and compare at once; it changes nothing while the " +
+                        "published image is the one running."
             }
         }
     }
@@ -699,7 +723,10 @@ internal fun MAIN.updateConfirm(chrome: Chrome, update: UpdateState) {
             +"The host's updater backs up the database, pulls "
             code { +(update.image ?: "the published image") }
             +" and recreates the container. "
-            +"Streams stop for about half a minute while it restarts; you stay signed in. If the new image is not healthy within three minutes, the previous image and its database come back."
+            +(
+                "Streams stop for about half a minute while it restarts; you stay signed in. If the new image is not " +
+                    "healthy within three minutes, the previous image and its database come back."
+                )
         }
         if (update.current != false) {
             p("muted") { +"The published image looks like the one running, so this most likely changes nothing." }

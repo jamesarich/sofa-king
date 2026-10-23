@@ -217,7 +217,10 @@ internal fun servicesChanges(document: SourceDocument, next: SourceDocument): Li
 }
 
 private fun FlowContent.restartNote() = p("muted small") {
-    +"Saving writes the source file and restarts the server, which takes a few seconds. Anyone watching loses the stream and can open the channel again; you stay signed in."
+    +(
+        "Saving writes the source file and restarts the server, which takes a few seconds. Anyone watching loses the " +
+            "stream and can open the channel again; you stay signed in."
+        )
 }
 
 /** The services as switches, with the options the checked ones take, and one Save. */
@@ -225,7 +228,13 @@ internal fun FlowContent.servicesPanel(chrome: Chrome, view: SetupView) = panel(
     span("muted") { +"${view.services.count { it.on }} of ${view.services.size} on" }
 }) {
     p("muted small") {
-        +(if (view.hasSources) "Every free service the server can read. Tick the ones you want; each brings its channels and guide." else "No source file yet. Tick the services you want and save; the server then imports their channels and guides.")
+        +(
+            if (view.hasSources) {
+                "Every free service the server can read. Tick the ones you want; each brings its channels and guide."
+            } else {
+                "No source file yet. Tick the services you want and save; the server then imports their channels and guides."
+            }
+            )
     }
     if (view.errors.isNotEmpty()) notice("Not saved:", view.errors)
     form(action = "/admin/sources/services", method = FormMethod.post, classes = "stack") {
@@ -278,7 +287,10 @@ internal fun FlowContent.servicesPanel(chrome: Chrome, view: SetupView) = panel(
                 }
                 span("name") { +"Build the starter lineup too" }
                 span("muted small") {
-                    +"One station per channel across these services, grouped and numbered in blocks; channels come on as the server verifies them. Untick to write a lineup policy yourself."
+                    +(
+                        "One station per channel across these services, grouped and numbered in blocks; channels " +
+                            "come on as the server verifies them. Untick to write a lineup policy yourself."
+                        )
                 }
             }
         }
@@ -393,7 +405,10 @@ internal fun FlowContent.setupConfirm(chrome: Chrome, confirm: SetupConfirm, bac
         for ((name, values) in confirm.fields) for (value in values) hiddenInput(name = name) { this.value = value }
         if (confirm.lines.isNotEmpty()) ul { for (line in confirm.lines) li { +line } }
         p {
-            +"The server writes the file and restarts; it is back in a few seconds, and you stay signed in. Anyone watching loses the stream until then."
+            +(
+                "The server writes the file and restarts; it is back in a few seconds, and you stay signed in. " +
+                    "Anyone watching loses the stream until then."
+                )
         }
     }
 
@@ -418,7 +433,10 @@ internal fun FlowContent.setupCards(chrome: Chrome, setup: SetupService, provide
                     span("muted") { +" The lineup policy runs after every import." }
                 } else {
                     span("muted") {
-                        +" One station per channel across every service, grouped and numbered in blocks; channels come on as the server verifies them."
+                        +(
+                            " One station per channel across every service, grouped and numbered in blocks; channels " +
+                                "come on as the server verifies them."
+                            )
                     }
                     if (setup.hasSources) {
                         div("actions") {
@@ -441,7 +459,10 @@ internal fun restartingPage(theme: String?, what: String): String =
             h1("mt-0") { +"Restarting" }
             p { +"$what Hang tight: the server is restarting to read it and is back in a few seconds." }
             p("muted") {
-                +"This page opens the portal again in 20 seconds, still signed in. If the server does not come back, its log says why, and the file it wrote is at the path the Sources page showed."
+                +(
+                    "This page opens the portal again in 20 seconds, still signed in. If the server does not come " +
+                        "back, its log says why, and the file it wrote is at the path the Sources page showed."
+                    )
             }
             a("/admin", classes = "btn primary") { +"Open the portal" }
         }

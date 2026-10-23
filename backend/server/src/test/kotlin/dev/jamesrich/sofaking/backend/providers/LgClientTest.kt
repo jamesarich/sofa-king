@@ -14,7 +14,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class LgClientTest {
-    @Test fun `decodes the base64 zlib schedulelist into channels, programmes and filled stream URLs`() = runBlocking<Unit> {
+    @Test
+    fun `decodes the base64 zlib schedulelist into channels, programmes and filled stream URLs`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-lg-")
         try {
             ProviderFixture().use { fixture ->

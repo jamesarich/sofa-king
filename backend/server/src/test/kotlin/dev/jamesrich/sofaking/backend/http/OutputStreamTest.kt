@@ -126,7 +126,8 @@ class OutputStreamTest {
         dir.toFile().deleteRecursively()
     }
 
-    @Test fun `a TS player holds the last slot while an idle HLS player session is replaced by a zap`() = runBlocking<Unit> {
+    @Test
+    fun `a TS player holds the last slot while an idle HLS player session is replaced by a zap`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-output-slots-")
         Fixture().use { fixture ->
             stack(dir, listOf(fixture.feed, fixture.tsFeed), maxSessions = 1).use { stack ->
@@ -170,7 +171,10 @@ class OutputStreamTest {
             stack(dir, listOf(media.feed)).use { stack ->
                 val vod = stack.channels.single { it.displayNumber == "1" }
                 val url = "${stack.server.base}/output/stream/${vod.id}.m3u8?token=$output"
-                val process = ProcessBuilder("ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-i", url, "-t", "4", "-map", "0:v:0", "-progress", "pipe:1", "-f", "null", "-")
+                val process = ProcessBuilder(
+                    "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-i", url, "-t", "4", "-map", "0:v:0",
+                    "-progress", "pipe:1", "-f", "null", "-",
+                )
                     .redirectError(dir.resolve("ffmpeg.err").toFile()).start()
                 val progress = process.inputStream.bufferedReader().readText()
                 assertTrue(process.waitFor(30, TimeUnit.SECONDS), "ffmpeg did not finish")

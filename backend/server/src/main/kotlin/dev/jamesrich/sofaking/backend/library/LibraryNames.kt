@@ -9,13 +9,17 @@ internal val VIDEO_EXTENSIONS =
 
 /** Folders Plex and Jellyfin treat as extras or NAS housekeeping; a scan skips them and what they hold. */
 private val SKIPPED_FOLDERS = setOf(
-    "extras", "featurettes", "behind the scenes", "deleted scenes", "interviews", "scenes", "shorts", "trailers", "samples", "sample",
+    "extras", "featurettes", "behind the scenes", "deleted scenes", "interviews", "scenes", "shorts", "trailers",
+    "samples", "sample",
     "other", "@eadir", "#recycle", "#snapshot", "lost+found", "\$recycle.bin", "system volume information",
 )
 
 /** File-name suffixes Plex reads as extras of the movie beside them. */
 private val EXTRA_SUFFIXES =
-    listOf("-trailer", "-sample", "-featurette", "-behindthescenes", "-deleted", "-interview", "-scene", "-short", "-other")
+    listOf(
+        "-trailer", "-sample", "-featurette", "-behindthescenes", "-deleted", "-interview", "-scene", "-short",
+        "-other",
+    )
 
 internal fun skippedFolder(name: String): Boolean = name.startsWith('.') || name.lowercase() in SKIPPED_FOLDERS
 

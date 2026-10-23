@@ -100,7 +100,8 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
 
     /** The video's `/live/` HLS asset; the API answers for the video id the page lists. */
     private suspend fun asset(videoId: String): String {
-        val url = "$siteBase/api/shows/v1/videos/$videoId?fields=title,type,duration,collection_title,poster,stream,title_id,auth,media_id,launch_date,auth_launch_date,disable_ads,season_number,episode_number"
+        val url = "$siteBase/api/shows/v1/videos/$videoId?fields=title,type,duration,collection_title,poster,stream," +
+            "title_id,auth,media_id,launch_date,auth_launch_date,disable_ads,season_number,episode_number"
         val assets = context.http.get(
             url,
             HEADERS,

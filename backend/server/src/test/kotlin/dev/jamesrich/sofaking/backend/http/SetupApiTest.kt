@@ -28,7 +28,8 @@ import kotlin.test.assertTrue
 class SetupApiTest {
     private val json = Json { encodeDefaults = false }
 
-    @Test fun `the source file is read and replaced, and the starter policy written, under the admin token, each write restarting`() =
+    @Test
+    fun `the source file is read and replaced and the starter policy written under the admin token, each restarting`() =
         testApplication {
             val dir = Files.createTempDirectory("sofa-setup-api-")
             val token = "secret".repeat(8)
@@ -49,9 +50,14 @@ class SetupApiTest {
                         updateImage = null,
                     )
                 var restarts = 0
-                val runtime = LiveRuntime.create(store, config, MutableClock(), policyDebounceMillis = 3_600_000, probes = false, restart = {
-                    restarts++
-                })
+                val runtime = LiveRuntime.create(
+                    store,
+                    config,
+                    MutableClock(),
+                    policyDebounceMillis = 3_600_000,
+                    probes = false,
+                    restart = { restarts++ },
+                )
                 try {
                     application { backendModule(store, MutableClock(), runtime, token, admin) }
                     assertEquals(

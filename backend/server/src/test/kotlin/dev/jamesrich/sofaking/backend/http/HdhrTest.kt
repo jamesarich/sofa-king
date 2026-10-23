@@ -163,7 +163,8 @@ class HdhrTest {
         }
     }
 
-    @Test fun `the device ID derives from the server identity, the allow-list gates every route, and disabling removes them`() =
+    @Test
+    fun `the device ID derives from the server identity, the allow-list gates every route, disabling removes them`() =
         testApplication {
             val dir = Files.createTempDirectory("sofa-hdhr-gates-")
             val store = openStore(dir)
@@ -234,7 +235,8 @@ class HdhrTest {
             }
         }
 
-    @Test fun `a closed bind refuses and remembers the address, and a portal allow admits it at once and survives a restart`() =
+    @Test
+    fun `a closed bind refuses and remembers the address, a portal allow admits it at once and survives restarts`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-hdhr-access-")
             val store = openStore(dir)

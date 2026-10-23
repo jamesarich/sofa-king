@@ -143,7 +143,8 @@ import kotlinx.serialization.Serializable
  * A raw category no `groups.map` entry or pattern names, for the stations that fall to the default group or keep the
  * raw one. [category] is the lowercase key `groups.map` takes; [example] is the first station name in sorted order.
  */
-@Serializable data class PolicyUnmappedCategory(val provider: String, val category: String, val stations: Int, val example: String)
+@Serializable
+data class PolicyUnmappedCategory(val provider: String, val category: String, val stations: Int, val example: String)
 
 /** One field that differs between a current lineup entry and the station it maps to. */
 @Serializable data class PolicyFieldChange(

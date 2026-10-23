@@ -135,7 +135,8 @@ class SetupServiceTest {
         )
     }
 
-    @Test fun `replacing the sources validates like the start, writes the file where the server reads it and restarts once`() =
+    @Test
+    fun `replacing the sources validates like the start, writes the file where the server reads it, restarts once`() =
         runTest {
             val dir = Files.createTempDirectory("sofa-setup-")
             try {
@@ -198,7 +199,8 @@ class SetupServiceTest {
             }
         }
 
-    @Test fun `the starter policy takes the configured services in order, with the shipped groups and blocks, and loads at start`() =
+    @Test
+    fun `the starter policy takes the services in order, with the shipped groups and blocks, and loads at start`() =
         runTest {
             val dir = Files.createTempDirectory("sofa-setup-")
             try {
@@ -266,7 +268,8 @@ class SetupServiceTest {
             }
         }
 
-    @Test fun `a fresh server ticks the services that list channels without an option, and a server with a file ticks what the file has`() {
+    @Test
+    fun `a fresh server ticks the services that list channels without an option, one with a file ticks the file's`() {
         val dir = Files.createTempDirectory("sofa-setup-")
         try {
             val fresh = SetupView.of(SourceDocument(), SetupService(config(dir), restart = {}))

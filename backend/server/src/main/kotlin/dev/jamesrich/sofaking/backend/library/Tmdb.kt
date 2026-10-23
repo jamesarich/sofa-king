@@ -56,7 +56,8 @@ private val tmdbJson = Json {
 
 @Serializable internal data class TmdbPerson(val name: String = "", val job: String? = null)
 
-@Serializable internal data class TmdbCredits(val cast: List<TmdbPerson> = emptyList(), val crew: List<TmdbPerson> = emptyList())
+@Serializable
+internal data class TmdbCredits(val cast: List<TmdbPerson> = emptyList(), val crew: List<TmdbPerson> = emptyList())
 
 @Serializable internal data class TmdbReleaseDate(val certification: String = "")
 

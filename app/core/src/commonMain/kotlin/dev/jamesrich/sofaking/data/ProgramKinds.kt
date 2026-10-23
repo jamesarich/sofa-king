@@ -31,7 +31,8 @@ fun programKinds(categories: List<String>): Set<ProgramKind> {
 
 private val FILM_GENRES = listOf(
     "drama", "thriller", "horror", "comed", "action", "crime", "romanc", "romantic", "mystery", "fantasy", "adventure",
-    "western", "sci-fi", "science fiction", "war", "musical", "biograph", "histor", "family", "animation", "documentary",
+    "western", "sci-fi", "science fiction", "war", "musical", "biograph", "histor", "family", "animation",
+    "documentary",
     "suspense",
 )
 

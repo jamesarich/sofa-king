@@ -73,10 +73,15 @@ class StationKeysTest {
         assertEquals("espn 8", aliased.normalize("ESPN 8"))
     }
 
-    @Test fun `suggested aliases pair a bare name with its tv or channel spelling and spellings that differ by spaces`() {
+    @Test
+    fun `suggested aliases pair a bare name with its tv or channel spelling and spellings that differ by spaces`() {
         val suggested =
             suggestedAliases(
-                listOf("bob ross", "bob ross channel", "espn 8", "espn8", "grio", "thegrio", "cheddar tv", "tennis channel", "tennis tv", "cbs news"),
+                listOf(
+                    "bob ross", "bob ross channel", "espn 8", "espn8", "grio", "thegrio", "cheddar tv",
+                    "tennis channel",
+                    "tennis tv", "cbs news",
+                ),
             )
         assertEquals(
             listOf(

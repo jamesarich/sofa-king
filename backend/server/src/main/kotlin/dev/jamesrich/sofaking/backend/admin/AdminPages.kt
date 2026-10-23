@@ -162,8 +162,10 @@ internal class OverviewView(
 ) {
     /** [view] with a stop confirmation, or asking to confirm the starter lineup. */
     constructor(view: OverviewView, stop: StopConfirm? = null, confirmStarter: Boolean = false) : this(
-        view.attention, view.ignored, view.stations, view.enabled, view.guide, view.required, view.requiredOff, view.suggestions, view.findings, view.unverified,
-        view.providersOk, view.providersTotal, view.plex, view.sessions, view.playing, view.lastRun, view.policy, stop, view.setup, confirmStarter,
+        view.attention, view.ignored, view.stations, view.enabled, view.guide, view.required, view.requiredOff,
+        view.suggestions, view.findings, view.unverified,
+        view.providersOk, view.providersTotal, view.plex, view.sessions, view.playing, view.lastRun, view.policy, stop,
+        view.setup, confirmStarter,
     )
 }
 
@@ -193,7 +195,8 @@ internal class LineupView(
         selected: Set<String> = view.selected,
         confirm: Confirm? = view.confirm,
     ) : this(
-        view.filter, view.rows, view.matches, view.total, view.pages, view.groups, view.revision, view.groupChoices, view.enabled, selectAll, selected, confirm,
+        view.filter, view.rows, view.matches, view.total, view.pages, view.groups, view.revision, view.groupChoices,
+        view.enabled, selectAll, selected, confirm,
     )
 }
 
@@ -222,7 +225,10 @@ internal class StationView(
     constructor(
         view: StationView,
         disableConfirm: SourceLine?,
-    ) : this(view.row, view.sources, view.guideName, view.filter, view.revision, view.groupChoices, view.error, view.probes, disableConfirm)
+    ) : this(
+        view.row, view.sources, view.guideName, view.filter, view.revision, view.groupChoices, view.error,
+        view.probes, disableConfirm,
+    )
 }
 
 internal class MergesView(
@@ -296,7 +302,10 @@ internal fun signInPage(enabled: Boolean, error: String? = null, theme: String? 
             h1("mt-0") { +"Sign in" }
             if (!enabled) {
                 p {
-                    +"The portal needs a token to sign in with. Set SOFA_ADMIN_TOKEN (or SOFA_API_TOKEN) and restart the server."
+                    +(
+                        "The portal needs a token to sign in with. Set SOFA_ADMIN_TOKEN (or SOFA_API_TOKEN) and " +
+                            "restart the server."
+                        )
                 }
                 return@div
             }
@@ -315,7 +324,10 @@ internal fun signInPage(enabled: Boolean, error: String? = null, theme: String? 
                             "current-password"
                     }
                     span("hint") {
-                        +"SOFA_ADMIN_TOKEN, or SOFA_API_TOKEN when no admin token is set. A token the server generated is in secrets.json in the data directory: "
+                        +(
+                            "SOFA_ADMIN_TOKEN, or SOFA_API_TOKEN when no admin token is set. A token the server " +
+                                "generated is in secrets.json in the data directory: "
+                            )
                         code { +"docker compose exec sofa-king-backend cat /config/secrets.json" }
                     }
                 }
@@ -383,7 +395,13 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
     panel("Needs attention", id = "attention") {
         if (view.attention.isEmpty()) {
             p("allgood") {
-                +(if (view.ignored.isEmpty()) "All clear: every provider imported, Plex is in step and every required channel is on." else "Nothing new. Ignored items come back when they change.")
+                +(
+                    if (view.ignored.isEmpty()) {
+                        "All clear: every provider imported, Plex is in step and every required channel is on."
+                    } else {
+                        "Nothing new. Ignored items come back when they change."
+                    }
+                    )
             }
         } else {
             ul("attention") { items(view.attention, ignored = false) }
@@ -641,7 +659,11 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
                 }
             }
             p("muted small") {
-                +"Sent counts the bytes relayed to the player over a live session. Direct play serves the file as it is; remux and transcode run FFmpeg, and transcodes count toward the conversion limit. Stop ends the session; the player sees its stream end and may open a new one."
+                +(
+                    "Sent counts the bytes relayed to the player over a live session. Direct play serves the file as " +
+                        "it " +
+                        "is; remux and transcode run FFmpeg, and transcodes count toward the conversion limit. Stop ends the session; the player sees its stream end and may open a new one."
+                    )
             }
         }
         if (view.policy) {
@@ -649,7 +671,10 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
                 val run = view.lastRun
                 if (run == null) {
                     p("muted") {
-                        +"The policy has not built the lineup since the server started; runs follow imports and every 15 minutes."
+                        +(
+                            "The policy has not built the lineup since the server started; runs follow imports and " +
+                                "every 15 minutes."
+                            )
                     }
                 } else {
                     dl("kv") {
@@ -679,9 +704,9 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
             danger = true,
         ) {
             p {
-                +"The ${if (stop.row.active.external) "M3U or Plex player" else "Sofa King app"}${stop.row.active.client?.let {
-                    " at $it"
-                } ?: ""} loses its stream. It can open the channel again."
+                val player = if (stop.row.active.external) "M3U or Plex player" else "Sofa King app"
+                val where = stop.row.active.client?.let { " at $it" } ?: ""
+                +"The $player$where loses its stream. It can open the channel again."
             }
         }
     }
@@ -694,7 +719,11 @@ internal fun overviewPage(chrome: Chrome, view: OverviewView): String = layout("
             "Build and restart",
         ) {
             p {
-                +"Writes a lineup policy: one station per channel, the first service that carries a channel leading it and the others as fallbacks, the channels grouped and numbered in blocks, each coming on once a source of it has played. Then the server restarts and is back in a few seconds; you stay signed in."
+                +(
+                    "Writes a lineup policy: one station per channel, the first service that carries a channel " +
+                        "leading " +
+                        "it and the others as fallbacks, the channels grouped and numbered in blocks, each coming on once a source of it has played. Then the server restarts and is back in a few seconds; you stay signed in."
+                    )
             }
             p("muted small") { +"The policy is a file you can edit later, and the Channels pages change it for you." }
         }
@@ -1214,7 +1243,10 @@ internal fun stationPage(chrome: Chrome, view: StationView): String =
                     }
                     if (view.revision != null) {
                         p("muted small") {
-                            +"Saving writes these fields into the station's override in the policy, then applies it. Pick \"Policy decides\" to let the group map and patterns choose."
+                            +(
+                                "Saving writes these fields into the station's override in the policy, then applies " +
+                                    "it. Pick \"Policy decides\" to let the group map and patterns choose."
+                                )
                         }
                     }
                     div("actions") {
@@ -1225,7 +1257,13 @@ internal fun stationPage(chrome: Chrome, view: StationView): String =
             }
             panel("Visibility") {
                 p("muted") {
-                    +(if (entry.enabled) "On: viewers see this channel in the app, the M3U playlist and Plex." else "Off: hidden from the app, the M3U playlist and Plex.")
+                    +(
+                        if (entry.enabled) {
+                            "On: viewers see this channel in the app, the M3U playlist and Plex."
+                        } else {
+                            "Off: hidden from the app, the M3U playlist and Plex."
+                        }
+                        )
                 }
                 form(action = "/admin/lineup/${entry.id}/visibility", method = FormMethod.post) {
                     hiddenInput(name = "csrf") { value = chrome.session.csrf }
@@ -1344,8 +1382,18 @@ internal fun stationPage(chrome: Chrome, view: StationView): String =
                 }
             }
             p("muted small") {
-                +"A disabled source is never selected or probed until it is enabled again; a session playing it moves to the next source. "
-                +(if (view.probes) "Probe now puts the source at the front of the probe queue; its health updates within a minute or so." else "Probes are off on this server, so there is no Probe now.")
+                +(
+                    "A disabled source is never selected or probed until it is enabled again; a session playing it " +
+                        "moves to the next source. "
+                    )
+                +(
+                    if (view.probes) {
+                        "Probe now puts the source at the front of the probe queue; its health updates " +
+                            "within a minute or so."
+                    } else {
+                        "Probes are off on this server, so there is no Probe now."
+                    }
+                    )
             }
         }
         view.disableConfirm?.let { source ->
@@ -1360,7 +1408,10 @@ internal fun stationPage(chrome: Chrome, view: StationView): String =
                 filterFields(view.filter)
                 hiddenInput(name = "disabled") { value = "true" }
                 p {
-                    +"The channel stops using this source until you enable it again. Anyone watching it now moves to the next source, or loses the channel when this is the only one."
+                    +(
+                        "The channel stops using this source until you enable it again. Anyone watching it now moves " +
+                            "to the next source, or loses the channel when this is the only one."
+                        )
                 }
             }
         }
@@ -1376,7 +1427,10 @@ internal fun goneStationPage(chrome: Chrome): String = layout("Channel not found
 
 private fun MAIN.noPolicy(what: String) {
     div("notice warn") {
-        +"$what needs a lineup policy. Add policy.json to the data directory, or set SOFA_POLICY, and restart; without one the lineup is edited entry by entry through the admin API."
+        +(
+            "$what needs a lineup policy. Add policy.json to the data directory, or set SOFA_POLICY, and restart; " +
+                "without one the lineup is edited entry by entry through the admin API."
+            )
     }
 }
 
@@ -1408,7 +1462,10 @@ internal fun mergesPage(chrome: Chrome, view: MergesView?, error: String? = null
         }) {
             if (view.suggestions.isEmpty()) {
                 p("muted") {
-                    +"No suggestions. Runs suggest a pair when two live stations' names differ only by a trailing TV or Channel, or match loosely without a schedule to compare."
+                    +(
+                        "No suggestions. Runs suggest a pair when two live stations' names differ only by a trailing " +
+                            "TV or Channel, or match loosely without a schedule to compare."
+                        )
                 }
             } else {
                 div("scroll") {
@@ -1507,7 +1564,10 @@ internal fun requiredPage(chrome: Chrome, view: RequiredView?): String = layout(
     if (view.rows.isEmpty()) {
         div("panel") {
             p("muted") {
-                +"No station is marked required in the policy. Set \"required\": true in a station override to keep it whatever its sources do."
+                +(
+                    "No station is marked required in the policy. Set \"required\": true in a station override to " +
+                        "keep it whatever its sources do."
+                    )
             }
         }
         return@layout
@@ -1727,7 +1787,10 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", c
         val status = view.status
         if (status == null) {
             p("muted") {
-                +"Off. Plex sync keeps Plex's channel maps in step with the lineup: set SOFA_PLEX_URL and SOFA_PLEX_TOKEN in .env and restart."
+                +(
+                    "Off. Plex sync keeps Plex's channel maps in step with the lineup: set SOFA_PLEX_URL and " +
+                        "SOFA_PLEX_TOKEN in .env and restart."
+                    )
             }
             return@panel
         }
@@ -1861,7 +1924,10 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", c
     panel("Set up Plex", id = "setup") {
         ol {
             li {
-                +"Allow the Plex server's address under Tuner access, or allow it there after Plex first tries the tuner."
+                +(
+                    "Allow the Plex server's address under Tuner access, or allow it there after Plex first tries " +
+                        "the tuner."
+                    )
             }
             li {
                 +"In Plex Web, open Settings, Live TV & DVR, Set Up Plex DVR, and enter the device address by hand: "
@@ -1870,7 +1936,10 @@ internal fun plexPage(chrome: Chrome, view: PlexView): String = layout("Plex", c
             }
             li { +"At the guide step, choose the XMLTV option and enter the guide URL above." }
             li {
-                +"Map the channels; Plex pairs most by name and number. Add each extra device to the same DVR with its own address and the same guide URL."
+                +(
+                    "Map the channels; Plex pairs most by name and number. Add each extra device to the same DVR " +
+                        "with its own address and the same guide URL."
+                    )
             }
             li { +"After a lineup change, run Scan channels for the DVR in Plex, or let Plex sync do it." }
         }
@@ -1970,6 +2039,9 @@ private fun DIV.tunerAccess(access: HdhrAccessStatus, chrome: Chrome) {
         div { button(type = ButtonType.submit) { +"Allow" } }
     }
     p("muted small") {
-        +"The tuners take no token, so only these addresses reach them. A change applies at once; Plex in Docker on a bridge network asks from its container address."
+        +(
+            "The tuners take no token, so only these addresses reach them. A change applies at once; Plex in Docker " +
+                "on a bridge network asks from its container address."
+            )
     }
 }

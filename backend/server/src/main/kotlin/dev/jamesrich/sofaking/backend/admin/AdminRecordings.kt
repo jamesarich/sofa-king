@@ -118,7 +118,10 @@ internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String =
         panel("Upcoming", id = "upcoming") {
             if (upcoming.isEmpty()) {
                 p("muted mt-0") {
-                    +"Nothing is scheduled. Add a series rule below, record a program from the app's program details, or record a time window here."
+                    +(
+                        "Nothing is scheduled. Add a series rule below, record a program from the app's program " +
+                            "details, or record a time window here."
+                        )
                 }
             } else {
                 div("scroll") {
@@ -163,7 +166,10 @@ internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String =
                 }
             ) {
                 p("muted small") {
-                    +"A conflict has no playback slot when it is due: more recordings overlap than SOFA_MAX_SESSIONS allows. One-offs win over series rules, then the higher rule priority."
+                    +(
+                        "A conflict has no playback slot when it is due: more recordings overlap than " +
+                            "SOFA_MAX_SESSIONS allows. One-offs win over series rules, then the higher rule priority."
+                        )
                 }
             }
             details("advanced") {
@@ -223,7 +229,10 @@ internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String =
                     div("actions") { button(type = ButtonType.submit, classes = "primary") { +"Record" } }
                 }
                 p("muted small") {
-                    +"Records the channel for exactly that window, with no padding, whether or not it has a guide. Use it for a channel without one, or a program the guide has wrong."
+                    +(
+                        "Records the channel for exactly that window, with no padding, whether or not it has a " +
+                            "guide. Use it for a channel without one, or a program the guide has wrong."
+                        )
                 }
             }
         }
@@ -323,7 +332,10 @@ internal fun recordingsPage(chrome: Chrome, view: RecordingsView): String =
                 div("actions") { button(type = ButtonType.submit, classes = "primary") { +"Add the rule" } }
             }
             p("muted small") {
-                +"A rule records every guide airing whose title matches, ignoring case, and skips an episode it already holds. Keep deletes the rule's oldest recordings beyond that count. Padding starts early and runs late, in minutes; when recordings conflict, the higher priority gets the slot."
+                +(
+                    "A rule records every guide airing whose title matches, ignoring case, and skips an episode it " +
+                        "already holds. Keep deletes the rule's oldest recordings beyond that count. Padding starts early and runs late, in minutes; when recordings conflict, the higher priority gets the slot."
+                    )
             }
         }
         val past = view.list.recordings - upcoming.toSet()

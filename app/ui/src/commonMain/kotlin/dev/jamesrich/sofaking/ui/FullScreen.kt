@@ -26,7 +26,7 @@ val LocalWindowFullScreen = staticCompositionLocalOf<WindowFullScreen?> { null }
 internal val LocalInPictureInPicture = compositionLocalOf { false }
 
 /** F in a player, or F11 on any page, switches the window's full screen; F elsewhere may be typed into a search. */
-internal fun Key.togglesFullScreen(inPlayer: Boolean): Boolean = this == Key.F11 || inPlayer && this == Key.F
+internal fun Key.togglesFullScreen(inPlayer: Boolean): Boolean = this == Key.F11 || (inPlayer && this == Key.F)
 
 /**
  * The window around the players while [active], a full screen player on top: on Android the system bars hide (a

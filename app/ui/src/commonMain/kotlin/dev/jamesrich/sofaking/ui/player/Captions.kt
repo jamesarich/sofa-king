@@ -46,7 +46,9 @@ internal data class CaptionAppearance(
     companion object {
         /** White on black, what the platform shows when the viewer has set nothing. */
         val DEFAULT =
-            CaptionAppearance(Color.White, Color.Black, Color.Transparent, CaptionEdge.NONE, Color.White, null, false, 1f, true)
+            CaptionAppearance(
+                Color.White, Color.Black, Color.Transparent, CaptionEdge.NONE, Color.White, null, false, 1f, true,
+            )
         val LARGE_HIGH_CONTRAST = DEFAULT.copy(scale = 1.3f, embeddedStyles = false)
     }
 }

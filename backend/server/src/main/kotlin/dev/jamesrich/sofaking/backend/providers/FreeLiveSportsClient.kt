@@ -88,7 +88,8 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
     }
 
     companion object {
-        private const val CATALOG_URL = "https://epg.unreel.me/v2/sites/freelivesports/live-channels/public/081f73704b56aaceb6b459804761ec54?__site=freelivesports&__source=web"
+        private const val CATALOG_URL = "https://epg.unreel.me/v2/sites/freelivesports/live-channels/public/" +
+            "081f73704b56aaceb6b459804761ec54?__site=freelivesports&__source=web"
         private const val CATALOG = "catalog"
         private val URL_LIFETIME = Duration.ofHours(1)
         private val HEADERS = mapOf(

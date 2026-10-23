@@ -188,7 +188,8 @@ private object Samples {
                     start = start + (slot * 45).minutes,
                     stop = start + ((slot + 1) * 45).minutes,
                     title = "${channel.name} show ${slot + 1}",
-                    description = "A night shift at the harbor turns into a search for a missing ship before the storm comes in.",
+                    description = "A night shift at the harbor turns into a search for a missing ship before the " +
+                        "storm comes in.",
                     subTitle = "Part ${slot + 1}".takeIf { slot % 2 == 0 },
                     episode = "S1 E${slot + 1}".takeIf { slot % 2 == 0 },
                     isNew = slot == 0,

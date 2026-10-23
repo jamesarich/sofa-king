@@ -459,7 +459,8 @@ class LibraryCatalog internal constructor(
         val item = LibraryItem(
             id = record.id, libraryId = record.libraryId, kind = record.kind, title = title, parentId = record.parentId,
             showId = show?.id, showTitle = showView?.item?.title ?: show?.title,
-            year = record.year ?: facts?.year, season = record.season, episode = record.episode, episodeEnd = record.episodeEnd,
+            year = record.year ?: facts?.year, season = record.season, episode = record.episode,
+            episodeEnd = record.episodeEnd,
             aired = record.aired ?: facts?.aired, overview = record.overview ?: facts?.overview,
             durationMs = record.durationMs ?: facts?.runtimeMinutes?.let { it * 60_000L },
             poster = poster?.let {

@@ -62,7 +62,8 @@ class VodApiTest {
         fun run(codec: List<String>): Boolean {
             val command = listOf(
                 "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-                "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+                "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15", "-f", "lavfi", "-i",
+                "sine=frequency=440:sample_rate=48000",
                 "-t", "8", "-pix_fmt", "yuv420p", "-g", "15",
             ) + codec + listOf("-c:a", "aac", file.toString())
             val process = ProcessBuilder(
@@ -292,7 +293,8 @@ class VodApiTest {
         Files.createDirectories(movie.parent)
         // The clip's video, its audio twice and the subtitles: streams 0, 1, 2 and 3.
         val mux = ProcessBuilder(
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", source.toString(), "-i", srt.toString(),
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", source.toString(), "-i",
+            srt.toString(),
             "-map", "0:v", "-map", "0:a", "-map", "0:a", "-map", "1:s", "-c", "copy", "-c:s", "srt", movie.toString(),
         ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
         assertTrue(mux.waitFor(60, TimeUnit.SECONDS) && mux.exitValue() == 0, "FFmpeg muxed the subtitles")
@@ -382,7 +384,8 @@ class VodApiTest {
             Files.createDirectories(movie.parent)
             // The clip's video and audio, and PGS subtitles as stream 2.
             val mux = ProcessBuilder(
-                "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", source.toString(), "-i", sup.toString(),
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", source.toString(), "-i",
+                sup.toString(),
                 "-map", "0:v", "-map", "0:a", "-map", "1:s", "-c", "copy", movie.toString(),
             ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
             assertTrue(mux.waitFor(60, TimeUnit.SECONDS) && mux.exitValue() == 0, "FFmpeg muxed the subtitles")
@@ -486,7 +489,8 @@ class VodApiTest {
             }
         }
 
-    @Test fun `a video with no picture shows a frame and the portal lists what plays from the libraries`() = testApplication {
+    @Test
+    fun `a video with no picture shows a frame and the portal lists what plays from the libraries`() = testApplication {
         val dir = Files.createTempDirectory("sofa-vod-portal-")
         val admin = "admin".repeat(8)
         val episode = dir.resolve("media/tv/Show (2020)/Season 01/Show - S01E01 - Pilot.mkv")

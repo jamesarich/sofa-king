@@ -251,7 +251,10 @@ class SessionManager(
     suspend fun snapshot(): List<ActiveSession> = mutex.withLock {
         reap()
         sessions.values.map {
-            ActiveSession(it.id, it.request.channelId, it.intent, it.external, it.busy, it.offering.providerId, it.expires.toString(), it.startedAt.toString(), it.client, it.bytes.get())
+            ActiveSession(
+                it.id, it.request.channelId, it.intent, it.external, it.busy, it.offering.providerId,
+                it.expires.toString(), it.startedAt.toString(), it.client, it.bytes.get(),
+            )
         }
     }
 
@@ -314,11 +317,12 @@ class SessionManager(
     } else {
         Duration.ofSeconds(45)
     }
-    /** Ends the session; true when it was open. */
 
     /** Where the session's player is among the ads, given [aheadMs] of media it has loaded past the picture. */
     suspend fun adBreak(id: String, aheadMs: Long): AdBreakState =
         mutex.withLock { active(id) }.ads?.at(aheadMs) ?: AdBreakState()
+
+    /** Ends the session; true when it was open. */
     suspend fun release(id: String): Boolean = mutex.withLock {
         sessions.remove(id)?.also {
             it.cancel()
@@ -406,7 +410,6 @@ class SessionManager(
 
     /** The channels sessions are playing now. */
     suspend fun watching(): Set<String> = mutex.withLock { sessions.values.mapTo(HashSet()) { it.request.channelId } }
-    /** The source a session opened on [channelId] now would play, for the ad listener; null when none is eligible. */
 
     /** The first [count] of [channels], in order, whose chosen source [usable] accepts, each with that source. */
     suspend fun listenable(channels: List<String>, count: Int, usable: (Offering) -> Boolean): Map<String, Offering> {

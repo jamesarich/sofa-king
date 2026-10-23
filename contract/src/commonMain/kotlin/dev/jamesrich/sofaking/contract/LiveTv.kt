@@ -42,7 +42,8 @@ import kotlinx.serialization.Serializable
     val categories: List<String> = emptyList(),
 )
 
-@Serializable data class GuideQuery(val channelIds: List<String>, val from: String, val to: String, val revision: String? = null)
+@Serializable
+data class GuideQuery(val channelIds: List<String>, val from: String, val to: String, val revision: String? = null)
 
 @Serializable data class ChannelGuide(val channelId: String, val status: String = "", val programmes: List<Programme>)
 

@@ -156,7 +156,8 @@ class GuideServiceTest {
         assertEquals(300, redactedMessage(RuntimeException("y".repeat(1000))).length)
     }
 
-    @Test fun `a new mapping triggers one coalesced refresh that retains the newly wanted channel`() = runBlocking<Unit> {
+    @Test
+    fun `a new mapping triggers one coalesced refresh that retains the newly wanted channel`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-guides-trigger-")
         try {
             Fixture().use { fixture ->

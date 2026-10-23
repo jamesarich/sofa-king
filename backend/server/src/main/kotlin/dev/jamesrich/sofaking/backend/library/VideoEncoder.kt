@@ -76,7 +76,9 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
     /** The encoder and its key frames, after [outputArgs]' filter or [overlayGraph]. */
     fun codecArgs(keyFrameSeconds: Int): List<String> {
         val encoder = when (accel) {
-            HardwareAccel.NONE, HardwareAccel.AUTO -> listOf("-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-maxrate", "10M", "-bufsize", "20M")
+            HardwareAccel.NONE,
+            HardwareAccel.AUTO,
+            -> listOf("-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-maxrate", "10M", "-bufsize", "20M")
 
             HardwareAccel.VAAPI -> listOf("-c:v", "h264_vaapi", "-b:v", "8M", "-maxrate", "10M", "-bufsize", "20M")
 
@@ -91,7 +93,10 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
                 "1",
             )
 
-            HardwareAccel.NVENC -> listOf("-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0", "-maxrate", "10M", "-bufsize", "20M", "-forced-idr", "1")
+            HardwareAccel.NVENC -> listOf(
+                "-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0", "-maxrate", "10M",
+                "-bufsize", "20M", "-forced-idr", "1",
+            )
         }
         return encoder + listOf("-force_key_frames", "expr:gte(t,n_forced*$keyFrameSeconds)")
     }
@@ -163,7 +168,8 @@ class VideoEncoder(val accel: HardwareAccel = HardwareAccel.NONE, val device: St
         const val NVIDIA_DEVICE = "/dev/nvidiactl"
 
         /** HDR10 or HLG to SDR BT.709 with zimg and the Hable curve, as most media servers do. */
-        private const val TONE_MAP = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
+        private const val TONE_MAP = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709," +
+            "tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
 
         private fun succeeds(command: List<String>): Boolean = try {
             val process = ProcessBuilder(

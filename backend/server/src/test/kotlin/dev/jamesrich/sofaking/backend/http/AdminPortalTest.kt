@@ -80,7 +80,8 @@ class AdminPortalTest {
     private val admin = "curator".repeat(6)
     private val outputToken = "output".repeat(6)
     private val plexToken = "plexsecret".repeat(3)
-    private val basePolicy = """{"names":{"version":1},"health":{"requireVerified":false},"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
+    private val basePolicy = """{"names":{"version":1},"health":{"requireVerified":false},""" +
+        """"providers":[{"id":"fixture"},{"id":"alt"},{"id":"twin"},{"id":"ts"}],"numbering":{"floor":100}}"""
 
     private class Setup(
         val policyFile: Path?,
@@ -115,7 +116,10 @@ class AdminPortalTest {
             val store = openStore(dir)
             // No update image: the registry is never asked from a test; the update check itself is tested over a mock registry.
             val config =
-                ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin, policyFile = policyFile, updateImage = null)
+                ServerConfig(
+                    "127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin,
+                    policyFile = policyFile, updateImage = null,
+                )
             val runtime = LiveRuntime.create(
                 store,
                 config,
@@ -268,7 +272,8 @@ class AdminPortalTest {
         )
     }
 
-    @Test fun `sign-in attempts are limited per address, and each refusal is logged without the token`() = testApplication {
+    @Test
+    fun `sign-in attempts are limited per address, and each refusal is logged without the token`() = testApplication {
         val lines = java.util.concurrent.CopyOnWriteArrayList<String>()
         application { attributes.put(AuthFailureLogKey, AuthFailureLog(MutableClock(), sink = { lines += it })) }
         portal {
@@ -606,7 +611,8 @@ class AdminPortalTest {
         }
     }
 
-    @Test fun `the services form asks before it writes the source file, then restarts and answers the restarting page`() =
+    @Test
+    fun `the services form asks before it writes the source file, then restarts and answers the restarting page`() =
         testApplication {
             var restarts = 0
             portal(restart = { restarts++ }) {
@@ -809,7 +815,8 @@ class AdminPortalTest {
         }
     }
 
-    @Test fun `the stylesheet is served without a session and every page links it by content version`() = testApplication {
+    @Test
+    fun `the stylesheet is served without a session and every page links it by content version`() = testApplication {
         portal {
             val signIn = client.get("/admin").bodyAsText()
             val href = Regex("""href="(/admin/static/admin\.css\?v=[0-9a-f]{16})"""").find(signIn)?.groupValues?.get(1)
@@ -970,7 +977,8 @@ class AdminPortalTest {
         }
     }
 
-    @Test fun `settings say which tokens were generated, read from a file or set in the environment`() = testApplication {
+    @Test
+    fun `settings say which tokens were generated, read from a file or set in the environment`() = testApplication {
         val origins = mapOf(
             "SOFA_API_TOKEN" to SecretOrigin.GENERATED,
             "SOFA_ADMIN_TOKEN" to SecretOrigin.GENERATED,
@@ -1237,7 +1245,8 @@ class AdminPortalTest {
         }
     }
 
-    @Test fun `an edit against a stale revision is held for confirmation against the current policy`() = testApplication {
+    @Test
+    fun `an edit against a stale revision is held for confirmation against the current policy`() = testApplication {
         portal(basePolicy) {
             runtime.policy!!.apply("test")
             browser.signIn()
@@ -1498,7 +1507,8 @@ class AdminPortalTest {
         }
     }
 
-    @Test fun `the about page shows the update picture and Update now hands the host's updater a request after a confirmation`() =
+    @Test
+    fun `the about page shows the update picture and Update now sends the host's updater a request once confirmed`() =
         testApplication {
             portal {
                 browser.signIn()
@@ -1579,7 +1589,8 @@ class AdminPortalTest {
         }
     }
 
-    @Test fun `watching now lists each session with its player, and Stop ends it after a confirmation`() = testApplication {
+    @Test
+    fun `watching now lists each session with its player, and Stop ends it after a confirmation`() = testApplication {
         portal {
             runtime.adoptAll()
             browser.signIn()
@@ -1695,7 +1706,8 @@ class AdminPortalTest {
             }
         }
 
-    @Test fun `a bulk edit writes every selected station's override in one policy edit, once confirmed`() = testApplication {
+    @Test
+    fun `a bulk edit writes every selected station's override in one policy edit, once confirmed`() = testApplication {
         portal(basePolicy) {
             runtime.policy!!.apply("test")
             browser.signIn()
@@ -1798,7 +1810,8 @@ class AdminPortalTest {
         }
     }
 
-    @Test fun `runtime settings are saved from the settings page, apply at once and refuse bad values`() = testApplication {
+    @Test
+    fun `runtime settings are saved from the settings page, apply at once and refuse bad values`() = testApplication {
         portal(basePolicy) {
             browser.signIn()
             val page = browser.get("/admin/settings").bodyAsText()
@@ -1937,7 +1950,8 @@ class AdminPortalTest {
         }
     }
 
-    @Test fun `the viewers page issues a pairing code with its QR code, lists devices and forgets one`() = testApplication {
+    @Test
+    fun `the viewers page issues a pairing code with its QR code, lists devices and forgets one`() = testApplication {
         portal {
             assertEquals(HttpStatusCode.SeeOther, browser.get("/admin/viewers").status)
             browser.signIn()
@@ -1999,7 +2013,8 @@ class AdminPortalTest {
         }
     }
 
-    @Test fun `the library page adds, scans, renames and removes a library without touching its files`() = testApplication {
+    @Test
+    fun `the library page adds, scans, renames and removes a library without touching its files`() = testApplication {
         portal {
             val movies = Files.createDirectories(dataDirectory.resolve("media/movies/Alien (1979)")).parent
             Files.writeString(movies.resolve("Alien (1979)/Alien (1979).mkv"), "not really a movie")
@@ -2171,7 +2186,9 @@ class AdminPortalTest {
                             1800,
                         ),
                         java.time.Duration.ZERO, java.time.Duration.ZERO, "Old Movie",
-                        state = Wire.RecordingState.COMPLETED, path = "Movies/Old Movie (1950)/Old Movie (1950).ts", bytes = 2_000_000, createdAt = now, updatedAt = now,
+                        state = Wire.RecordingState.COMPLETED,
+                        path = "Movies/Old Movie (1950)/Old Movie (1950).ts",
+                        bytes = 2_000_000, createdAt = now, updatedAt = now,
                     ),
                 )
                 val listed = browser.get("/admin/recordings").bodyAsText()

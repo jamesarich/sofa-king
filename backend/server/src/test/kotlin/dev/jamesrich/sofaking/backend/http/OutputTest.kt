@@ -159,14 +159,16 @@ class OutputTest {
                     )
                     assertTrue(
                         xml.contains(
-                            "<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" channel=\"${hls.id}\"><title>Morning</title>" +
+                            "<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" " +
+                                "channel=\"${hls.id}\"><title>Morning</title>" +
                                 "<category lang=\"en\">News</category><episode-num system=\"original-air-date\">2026-10-10 13:00:00</episode-num></programme>",
                         ),
                     )
                     assertFalse(xml.contains("Elsewhere"))
                     assertTrue(
                         xml.contains(
-                            "<programme start=\"20261010100000 +0000\" stop=\"20261010110000 +0000\" channel=\"${ts.id}\"><title>TS Station</title>" +
+                            "<programme start=\"20261010100000 +0000\" stop=\"20261010110000 +0000\" " +
+                                "channel=\"${ts.id}\"><title>TS Station</title>" +
                                 "<category lang=\"en\">Series</category><episode-num system=\"original-air-date\">2026-10-10 10:00:00</episode-num></programme>",
                         ),
                         "a channel with no programmes gets hourly placeholders",
@@ -210,7 +212,8 @@ class OutputTest {
             }
         }
 
-    @Test fun `a guide's own numbering and metadata reach the XMLTV and the JSON guide without a synthesized air date`() =
+    @Test
+    fun `a guide's own numbering and metadata reach the XMLTV and the JSON guide without a synthesized air date`() =
         testApplication {
             val dir = Files.createTempDirectory("sofa-output-metadata-")
             Fixture().use { fixture ->
@@ -221,9 +224,11 @@ class OutputTest {
                     val xml = client.get("/output/guide.xml?token=$output&days=2").bodyAsText()
                     assertTrue(
                         xml.contains(
-                            "<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" channel=\"${hls.id}\"><title>Morning</title>" +
+                            "<programme start=\"20261010130000 +0000\" stop=\"20261010140000 +0000\" " +
+                                "channel=\"${hls.id}\"><title>Morning</title>" +
                                 "<sub-title>Pilot &amp; Plans</sub-title><category>Sports</category>" +
-                                "<episode-num system=\"xmltv_ns\">1.4.</episode-num><episode-num system=\"onscreen\">S02E05</episode-num>" +
+                                "<episode-num system=\"xmltv_ns\">1.4.</episode-num><episode-num " +
+                                "system=\"onscreen\">S02E05</episode-num>" +
                                 "<new/><rating system=\"VCHIP\"><value>TV-PG</value></rating></programme>",
                         ),
                         xml,

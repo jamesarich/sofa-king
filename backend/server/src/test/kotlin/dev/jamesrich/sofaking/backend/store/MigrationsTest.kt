@@ -73,7 +73,8 @@ class MigrationsTest {
         }
     }
 
-    @Test fun `a lineup written before the created-by and auto-disable columns opens with defaults after the upgrade`() =
+    @Test
+    fun `a lineup written before the created-by and auto-disable columns opens with defaults after the upgrade`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-migration-upgrade-")
             try {
@@ -136,7 +137,10 @@ class MigrationsTest {
                     connection.createStatement().use { stmt ->
                         stmt.executeQuery("SELECT version FROM schema_version ORDER BY version").use { rows ->
                             assertEquals(
-                                listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202, 203, 204, 205, 206, 207),
+                                listOf(
+                                    1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202,
+                                    203, 204, 205, 206, 207,
+                                ),
                                 buildList {
                                     while (rows.next()) add(rows.getInt(1))
                                 },
@@ -149,7 +153,8 @@ class MigrationsTest {
             }
         }
 
-    @Test fun `the upgrade drops the curation tables and keeps the lineup and the policy changes`() = runBlocking<Unit> {
+    @Test
+    fun `the upgrade drops the curation tables and keeps the lineup and the policy changes`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-migration-curation-")
         try {
             val db = databaseAt(dir)
@@ -305,7 +310,10 @@ class MigrationsTest {
         try {
             applyMigrations(db, foundationMigrations())
             assertEquals(
-                listOf(1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202, 203, 204, 205, 206, 207),
+                listOf(
+                    1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202, 203, 204, 205,
+                    206, 207,
+                ),
                 foundationMigrations().map {
                     it.version
                 },

@@ -22,8 +22,10 @@ class LibraryChoicesTest {
         unwatched: Int = 0,
         season: Int? = null,
         episode: Int? = null,
-    ) =
-        MediaItem(id, "lib", kind, "Title $id", parentId = parentId, progress = progress, unwatched = unwatched, season = season, episode = episode)
+    ) = MediaItem(
+        id, "lib", kind, "Title $id", parentId = parentId, progress = progress, unwatched = unwatched, season = season,
+        episode = episode,
+    )
 
     @Test
     fun `continue watching and episode rows are wide and the rest are posters`() {

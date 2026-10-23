@@ -265,7 +265,11 @@ private fun SeriesRow(
             SofaButton(onClick = { run { onChange(rule, !rule.newOnly, rule.keep) } }) {
                 Text(
                     stringResource(
-                        if (rule.newOnly) Res.string.recordings_series_take_all else Res.string.recordings_series_take_new,
+                        if (rule.newOnly) {
+                            Res.string.recordings_series_take_all
+                        } else {
+                            Res.string.recordings_series_take_new
+                        },
                     ),
                 )
             }
@@ -288,7 +292,11 @@ private fun SeriesRow(
             }) {
                 Text(
                     stringResource(
-                        if (confirming) Res.string.recordings_series_confirm_stop else Res.string.recordings_series_stop,
+                        if (confirming) {
+                            Res.string.recordings_series_confirm_stop
+                        } else {
+                            Res.string.recordings_series_stop
+                        },
                     ),
                 )
             }

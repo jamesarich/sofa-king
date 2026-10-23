@@ -119,7 +119,8 @@ data class SourceConfig(val providers: List<FeedConfig> = emptyList(), val guide
 const val NATIVE_GUIDE_REFRESH: Long = 3600
 
 /** The source file as written: providers and guides, with `${NAME}` references left as they are. */
-@Serializable data class SourceDocument(val providers: List<FeedConfig> = emptyList(), val guides: List<GuideConfig> = emptyList())
+@Serializable
+data class SourceDocument(val providers: List<FeedConfig> = emptyList(), val guides: List<GuideConfig> = emptyList())
 
 private val configJson = Json { ignoreUnknownKeys = false }
 

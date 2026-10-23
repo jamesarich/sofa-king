@@ -54,7 +54,9 @@ class PlexSyncApiTest {
     private val token = "secret".repeat(8)
     private val admin = "curator".repeat(6)
     private val plexToken = "plex-Secret-Token-42"
-    private val policy = """{"names":{"version":1},"health":{"requireVerified":false},"providers":[{"id":"fixture"},{"id":"ts"}],"numbering":{"floor":100}}"""
+    private val policy =
+        """{"names":{"version":1},"health":{"requireVerified":false},"providers":[{"id":"fixture"},""" +
+            """{"id":"ts"}],"numbering":{"floor":100}}"""
 
     /** A Plex server holding device ABCDEF01 in DVR 10; records each request's method, URI and token header. */
     private class FakePlex : AutoCloseable {
@@ -141,7 +143,8 @@ class PlexSyncApiTest {
         }
     }
 
-    @Test fun `an apply that changes the lineup syncs Plex after the debounce, and the status and findings report it`() =
+    @Test
+    fun `an apply that changes the lineup syncs Plex after the debounce, and the status and findings report it`() =
         testApplication {
             FakePlex().use { plex ->
                 withRuntime(plex) { runtime ->

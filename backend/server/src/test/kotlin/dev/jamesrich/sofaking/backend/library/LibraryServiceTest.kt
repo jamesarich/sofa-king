@@ -117,7 +117,8 @@ class LibraryServiceTest {
         assertEquals(2026, news.season)
     }
 
-    @Test fun `a missing file keeps its row for the grace period, and an emptied folder changes nothing`() = runBlocking {
+    @Test
+    fun `a missing file keeps its row for the grace period, and an emptied folder changes nothing`() = runBlocking {
         val s = setup()
         val videos = Files.createDirectories(s.root.resolve("videos"))
         val kept = videos.file("Birthday.mp4")
@@ -140,7 +141,8 @@ class LibraryServiceTest {
         assertEquals(false, s.service.library(library.id).scanOk)
     }
 
-    @Test fun `folders right under the media directory named for what they hold are suggested until a library takes them`() =
+    @Test
+    fun `folders right under the media directory named for what they hold are suggested until a library takes them`() =
         runBlocking {
             val s = setup()
             val movies = Files.createDirectories(s.root.resolve("Movies"))

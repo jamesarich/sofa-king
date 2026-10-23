@@ -99,7 +99,10 @@ class IntroDetectorTest {
         val wav = Files.createTempFile("episode-", ".wav")
         Files.write(wav, wav(pcm))
         Files.createDirectories(file.parent)
-        val exit = ProcessBuilder("ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", wav.toString(), "-c:a", "aac", "-b:a", "96k", file.toString())
+        val exit = ProcessBuilder(
+            "ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", wav.toString(), "-c:a", "aac", "-b:a", "96k",
+            file.toString(),
+        )
             .inheritIO().start().waitFor()
         Files.delete(wav)
         assertEquals(0, exit, "ffmpeg encodes the test episode")

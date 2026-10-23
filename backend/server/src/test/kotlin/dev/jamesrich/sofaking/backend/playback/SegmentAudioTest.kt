@@ -75,14 +75,16 @@ class SegmentAudioTest {
     fun `segment by segment the follower gives the points of the whole stream, each placed on the timeline`() =
         inTemp { dir ->
             ffmpeg(
-                "-f", "lavfi", "-i", "anoisesrc=d=24:c=pink:a=0.3:seed=3,lowpass=3000", "-f", "lavfi", "-i", "sine=f=330:d=24", "-filter_complex", "[0][1]amix=inputs=2",
+                "-f", "lavfi", "-i", "anoisesrc=d=24:c=pink:a=0.3:seed=3,lowpass=3000", "-f", "lavfi", "-i",
+                "sine=f=330:d=24", "-filter_complex", "[0][1]amix=inputs=2",
                 "-c:a", "mp2", "-f", "segment", "-segment_time", "6", "-segment_format", "mpegts",
                 dir.resolve(
                     "s%d.ts",
                 ).toString(),
             )
             ffmpeg(
-                "-f", "lavfi", "-i", "anoisesrc=d=24:c=pink:a=0.3:seed=3,lowpass=3000", "-f", "lavfi", "-i", "sine=f=330:d=24", "-filter_complex", "[0][1]amix=inputs=2",
+                "-f", "lavfi", "-i", "anoisesrc=d=24:c=pink:a=0.3:seed=3,lowpass=3000", "-f", "lavfi", "-i",
+                "sine=f=330:d=24", "-filter_complex", "[0][1]amix=inputs=2",
                 "-ar", AUDIO_RATE.toString(), "-ac", "1", "-f", "s16le", dir.resolve("whole.pcm").toString(),
             )
             val audio = SegmentAudio("ffmpeg")

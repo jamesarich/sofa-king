@@ -108,7 +108,8 @@ private fun UpdateBuilder<*>.write(r: StoredRecording) {
 }
 
 private fun ResultRow.rule() = StoredRule(
-    this[RecordingRules.id], this[RecordingRules.title], this[RecordingRules.channelId], this[RecordingRules.newOnly], this[RecordingRules.keep],
+    this[RecordingRules.id], this[RecordingRules.title], this[RecordingRules.channelId], this[RecordingRules.newOnly],
+    this[RecordingRules.keep],
     Duration.ofSeconds(
         this[RecordingRules.startPadding].toLong(),
     ),

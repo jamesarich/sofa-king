@@ -59,7 +59,10 @@ internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("De
         val pairing = view.pairing
         if (pairing == null) {
             p("mt-0") {
-                +"A pairing code stands in for the API token for ten minutes. In the app's Settings, enter the server address and the code; a phone can scan the QR code instead."
+                +(
+                    "A pairing code stands in for the API token for ten minutes. In the app's Settings, enter the " +
+                        "server address and the code; a phone can scan the QR code instead."
+                    )
             }
             div("actions") {
                 postForm("/admin/viewers/pair", chrome.session) {
@@ -88,7 +91,10 @@ internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("De
                     p("muted small") {
                         +"Valid until "
                         ago(pairing.code.expiresAt.toString(), now)
-                        +", for one device. A phone with the app installed can scan the QR code with its camera instead."
+                        +(
+                            ", for one device. A phone with the app installed can scan the QR code with its camera " +
+                                "instead."
+                            )
                     }
                     div("actions") {
                         postForm("/admin/viewers/pair", chrome.session) {
@@ -105,7 +111,10 @@ internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("De
     panel("Devices", id = "devices") {
         if (view.viewers.isEmpty()) {
             p("muted mt-0") {
-                +"No device has paired or saved preferences yet. Devices set up with the token appear here once they run an app that saves its preferences."
+                +(
+                    "No device has paired or saved preferences yet. Devices set up with the token appear here once " +
+                        "they run an app that saves its preferences."
+                    )
             }
             return@panel
         }
@@ -176,7 +185,11 @@ internal fun viewersPage(chrome: Chrome, view: ViewersView): String = layout("De
             }
         }
         p("muted small") {
-            +"Hidden channels, the favorites order and the recent list are the device's own; the lineup every device sees is on the Channels page. Forget drops what the server keeps for a device; the device keeps its settings and saves them again on its next change."
+            +(
+                "Hidden channels, the favorites order and the recent list are the device's own; the lineup every " +
+                    "device " +
+                    "sees is on the Channels page. Forget drops what the server keeps for a device; the device keeps its settings and saves them again on its next change."
+                )
         }
     }
 }

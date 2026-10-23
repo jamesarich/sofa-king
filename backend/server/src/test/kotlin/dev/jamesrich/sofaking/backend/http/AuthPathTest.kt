@@ -139,7 +139,8 @@ class AuthPathTest {
         }
     }
 
-    @Test fun `without a token the API answers only this machine, not another site's page, a rebound name or a proxy`() =
+    @Test
+    fun `without a token the API answers only this machine, not another site's page, a rebound name or a proxy`() =
         testApplication {
             val dir = Files.createTempDirectory("sofa-auth-open-")
             val store = openStore(dir)

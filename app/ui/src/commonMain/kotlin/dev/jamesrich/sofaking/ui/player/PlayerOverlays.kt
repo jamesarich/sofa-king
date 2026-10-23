@@ -417,7 +417,11 @@ internal fun InfoOverlay(
                 val late = CaptionPolicy.timingDirection(captionAdvanceMs) == CaptionTiming.LATER
                 val advanceDescription =
                     stringResource(
-                        if (late) Res.string.captions_indicator_timing_late_description else Res.string.captions_indicator_timing_description,
+                        if (late) {
+                            Res.string.captions_indicator_timing_late_description
+                        } else {
+                            Res.string.captions_indicator_timing_description
+                        },
                         advance,
                     )
                 Text(
@@ -591,7 +595,11 @@ internal fun FullScreenControl(size: Dp = CONTROL_SIZE) {
     ControlIcon(
         if (fullScreen.isFullScreen) SofaIcons.FullscreenExit else SofaIcons.Fullscreen,
         stringResource(
-            if (fullScreen.isFullScreen) Res.string.player_control_exit_full_screen else Res.string.player_control_full_screen,
+            if (fullScreen.isFullScreen) {
+                Res.string.player_control_exit_full_screen
+            } else {
+                Res.string.player_control_full_screen
+            },
         ),
         fullScreen::toggle,
         size = size,

@@ -101,7 +101,7 @@ internal class VlcLivePlayer(
     /**
      * libVLC's stop and release block until its input thread ends, hundreds of milliseconds on a stalled stream,
      * and the app stops on every zap from the UI thread. Every libVLC command runs on this one thread, in order,
-     * while [_status] moves at once.
+     * while [mutableStatus] moves at once.
      */
     private val commands = Executors.newSingleThreadExecutor { task ->
         Thread(task, "libvlc-commands").apply {
@@ -192,9 +192,9 @@ internal class VlcLivePlayer(
     }
 
     override var playWhenReady: Boolean
-        get() = _status.value.playWhenReady
+        get() = mutableStatus.value.playWhenReady
         set(value) {
-            _status.update { it.copy(playWhenReady = value) }
+            mutableStatus.update { it.copy(playWhenReady = value) }
             command { if (vlc.status().isPlayable) vlc.controls().setPause(!value) }
         }
 
@@ -247,14 +247,14 @@ internal class VlcLivePlayer(
 
     override fun prepare() {
         val url = stream?.url ?: return
-        _status.update { it.copy(state = PlaybackState.BUFFERING) }
+        mutableStatus.update { it.copy(state = PlaybackState.BUFFERING) }
         val start = playWhenReady
         val opening = generation.incrementAndGet()
         execute {
             if (player == null) {
                 if (generation.get() != opening) return@execute
-                _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
-                _errors.tryEmit(PlayerError(VLC_NOT_INSTALLED))
+                mutableStatus.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+                mutableErrors.tryEmit(PlayerError(VLC_NOT_INSTALLED))
                 return@execute
             }
             opened = opening
@@ -268,7 +268,7 @@ internal class VlcLivePlayer(
         command { vlc.controls().stop() }
         hasFrame = false
         _audioTracks.value = emptyList()
-        _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+        mutableStatus.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
     }
 
     // libVLC answers these from its own state without blocking, so they are read on the caller's thread.
@@ -421,7 +421,7 @@ internal class VlcLivePlayer(
     private inner class Events : MediaPlayerEventAdapter() {
         override fun playing(mediaPlayer: MediaPlayer) {
             if (!isCurrent) return
-            _status.update { it.copy(state = PlaybackState.READY, isPlaying = true) }
+            mutableStatus.update { it.copy(state = PlaybackState.READY, isPlaying = true) }
             command {
                 applyCaptions()
                 readAudioTracks()
@@ -447,13 +447,13 @@ internal class VlcLivePlayer(
 
         override fun paused(mediaPlayer: MediaPlayer) {
             if (!isCurrent) return
-            _status.update { it.copy(state = PlaybackState.READY, isPlaying = false) }
+            mutableStatus.update { it.copy(state = PlaybackState.READY, isPlaying = false) }
         }
 
         /** libVLC reports its cache filling throughout playback; only a cache short of full before playing is buffering. */
         override fun buffering(mediaPlayer: MediaPlayer, newCache: Float) {
             if (!isCurrent) return
-            _status.update {
+            mutableStatus.update {
                 when {
                     newCache >= 100f -> it.copy(state = PlaybackState.READY)
                     it.isPlaying -> it
@@ -464,13 +464,13 @@ internal class VlcLivePlayer(
 
         override fun finished(mediaPlayer: MediaPlayer) {
             if (!isCurrent) return
-            _status.update { it.copy(state = PlaybackState.ENDED, isPlaying = false) }
+            mutableStatus.update { it.copy(state = PlaybackState.ENDED, isPlaying = false) }
         }
 
         override fun error(mediaPlayer: MediaPlayer) {
             if (!isCurrent) return
-            _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
-            _errors.tryEmit(PlayerError(PlayerErrorCodes.NETWORK_CONNECTION_FAILED))
+            mutableStatus.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+            mutableErrors.tryEmit(PlayerError(PlayerErrorCodes.NETWORK_CONNECTION_FAILED))
         }
     }
 }

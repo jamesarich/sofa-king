@@ -224,7 +224,9 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
     override fun streamInfo(): StreamInfo {
         val item = av.currentItem ?: return StreamInfo()
         val (width, height) = item.presentationSize.useContents { width.toInt() to height.toInt() }
-        val bitrate = (item.accessLog()?.events?.lastOrNull() as? AVPlayerItemAccessLogEvent)?.indicatedBitrate?.takeIf {
+        val bitrate = (
+            item.accessLog()?.events?.lastOrNull() as? AVPlayerItemAccessLogEvent
+            )?.indicatedBitrate?.takeIf {
             it > 0
         }?.toInt()
         return StreamInfo(width = width.takeIf { it > 0 }, height = height.takeIf { it > 0 }, bitrateBps = bitrate)
@@ -467,9 +469,9 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         if (item != null && item.status == AVPlayerItemStatusFailed && reportedFailure != item) {
             reportedFailure = item
             val httpStatus = (item.errorLog()?.events?.lastOrNull() as? AVPlayerItemErrorLogEvent)?.errorStatusCode
-            _errors.tryEmit(playerErrorFor(item.error, httpStatus))
+            mutableErrors.tryEmit(playerErrorFor(item.error, httpStatus))
         }
-        _status.value = PlayerStatus(state, playing, playWhenReady)
+        mutableStatus.value = PlayerStatus(state, playing, playWhenReady)
         // Like Android's shutter, it covers only from a reset until the first frame, not each rebuffer.
         val shown = item != null && playerLayer.readyForDisplay
         hasFrame.value = shown

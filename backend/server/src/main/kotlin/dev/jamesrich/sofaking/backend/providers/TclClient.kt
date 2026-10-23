@@ -66,7 +66,8 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
                 .require("TCL stream format").json().str("stream_url")
                 ?: throw ProviderFailure("TCL answered no stream URL")
         val values = mapOf(
-            "IFA" to deviceId, "DID" to deviceId, "DEVICE_ID" to deviceId, "US_PRIVACY" to "1---", "UsPrivacy" to "1---",
+            "IFA" to deviceId, "DID" to deviceId, "DEVICE_ID" to deviceId, "US_PRIVACY" to "1---",
+            "UsPrivacy" to "1---",
             "LMT" to "0", "DNT" to "0", "GDPR" to "0", "COPPA" to "0", "PLAYER_WIDTH" to "1920",
             "PLAYER_HEIGHT" to "1080",
             "playerWidth" to "1920", "playerHeight" to "1080", "LANGUAGE" to "en",
@@ -82,7 +83,8 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetch(): Snapshot {
         val deviceId = URLEncoder.encode(context.deviceId(), Charsets.UTF_8)
-        val common = "userId=$deviceId&device_type=web&device_model=web&device_id=$deviceId&app_version=1.0&country_code=US&state_code=OH"
+        val common = "userId=$deviceId&device_type=web&device_model=web&device_id=$deviceId&app_version=1.0&" +
+            "country_code=US&state_code=OH"
         val lines = context.http.get(
             "$apiBase/api/metadata/v2/livetab?$common",
             HEADERS,

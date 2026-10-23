@@ -79,7 +79,9 @@ class SteadyPlaylistsTest {
 
     @Test fun `a source's own discontinuities keep counting across a restart`() {
         val playlists = SteadyPlaylists()
-        val before = "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-DISCONTINUITY-SEQUENCE:13\n#EXT-X-MEDIA-SEQUENCE:390\n#EXTINF:5,\na390.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:5,\na391.ts\n"
+        val before =
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-DISCONTINUITY-SEQUENCE:13\n#EXT-X-MEDIA-SEQUENCE:390\n#" +
+                "EXTINF:5,\na390.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:5,\na391.ts\n"
         playlists.steady(before, source)
 
         val restarted = playlists.steady(

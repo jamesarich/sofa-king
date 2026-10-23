@@ -52,7 +52,8 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
             }
             ?: throw ProviderFailure("Channel is no longer listed", transient = false)
         val page = URLEncoder.encode("https://localnow.com/channels/${listed.slug ?: ""}", Charsets.UTF_8)
-        val query = "page_url=$page&device_devicetype=desktop_web&app_version=0.0.0&app_bundle=web.localnow&ccpa_us_privacy=1YNY"
+        val query = "page_url=$page&device_devicetype=desktop_web&app_version=0.0.0&app_bundle=web.localnow&" +
+            "ccpa_us_privacy=1YNY"
         val play = authorized { runtime ->
             context.http.get("${runtime.host}/video/play/$channelId/1920/1080?$query", headers(runtime))
         }.json()

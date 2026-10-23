@@ -44,7 +44,8 @@ class CommercialsTest {
         assertEquals(listOf(RecordingBreak(1000, 2000)), Commercials.parseEdl("1 2"))
     }
 
-    @Test fun `breaks are kept beside the recording, none leave no EDL, and a failing run throws`() = runBlocking<Unit> {
+    @Test
+    fun `breaks are kept beside the recording, none leave no EDL, and a failing run throws`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-comskip-")
         try {
             val recording = Files.createDirectories(dir.resolve("TV/Show")).resolve("Show - S01E01.ts").also {
@@ -125,7 +126,8 @@ class CommercialsTest {
                 ProcessBuilder(listOf("ffmpeg", "-loglevel", "error", "-y") + args).inheritIO().start().waitFor(),
             )
             fun segment(name: String, video: String, seconds: Int, tone: Int) = ffmpeg(
-                "-f", "lavfi", "-i", "$video=size=320x240:rate=25:duration=$seconds", "-f", "lavfi", "-i", "sine=frequency=$tone:duration=$seconds",
+                "-f", "lavfi", "-i", "$video=size=320x240:rate=25:duration=$seconds", "-f", "lavfi", "-i",
+                "sine=frequency=$tone:duration=$seconds",
                 "-c:v", "mpeg2video", "-b:v", "1M", "-c:a", "mp2", "-ar", "48000", "-f", "mpegts",
                 dir.resolve(
                     name,
@@ -137,7 +139,9 @@ class CommercialsTest {
             segment("a3.ts", "testsrc2", 30, 660)
             segment("p2.ts", "testsrc", 180, 440)
             ffmpeg(
-                "-f", "lavfi", "-i", "color=black:size=320x240:rate=25:duration=0.6", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "0.6",
+                "-f", "lavfi", "-i", "color=black:size=320x240:rate=25:duration=0.6", "-f", "lavfi", "-i",
+                "anullsrc=r=48000:cl=mono",
+                "-t", "0.6",
                 "-c:v", "mpeg2video", "-b:v", "1M", "-c:a", "mp2", "-ar", "48000", "-f", "mpegts",
                 dir.resolve(
                     "b.ts",

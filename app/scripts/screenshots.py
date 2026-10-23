@@ -229,9 +229,11 @@ def android(args, out):
                     adb('shell', 'input', 'keyevent', ANDROID_KEYS.get(name, name))
                     time.sleep(0.4)
 
-            log = out / 'logcat.txt'
-            since = log.stat().st_size
-            logged = lambda text: text in log.read_bytes()[since:].decode(errors='replace')
+            # The app's own lines, read afresh each time: a long-running logcat can stop on an emulator. Each line
+            # carries its time, so the ones from earlier starts are told apart.
+            app_log = lambda: adb('logcat', '-d', '-s', 'SofaKing:I').decode(errors='replace').splitlines()
+            earlier = set(app_log())
+            logged = lambda text: any(text in line and line not in earlier for line in app_log())
 
             def tap(text):
                 if text is None:

@@ -20,11 +20,11 @@ import kotlinx.serialization.json.booleanOrNull
  * The ad segments of a live HLS media playlist, the way the free streaming services mark them: SCTE-35 cue tags
  * (`#EXT-X-CUE-OUT`, `-CUE-OUT-CONT`, `-CUE-IN`, as Tubi, Whale and LG send), `#EXT-X-DATERANGE` with `SCTE35-OUT` in
  * a dated playlist, Pluto's stitched ads, which come from its ad muxer or its bumper clips, the ads AWS
- * MediaTailor stitches for Xumo and Plex, the ads and promos Roku stitches from its ad servers, and the flags two
- * origins write into their segment URLs: Amagi's ad insertion (Whale, Plex and other Amagi channels) and the
- * fuelmedia.io origin behind some Stirr stations. Nothing is guessed from the picture, and a `#EXT-X-DISCONTINUITY` alone
- * means nothing: Pluto puts one between episodes too. A cue whose `#EXT-X-CUE-OUT` has left the window is carried on
- * by [AdClock], which sees every refresh.
+ * MediaTailor stitches for Xumo and Plex, the ads and promos Roku stitches from its ad servers, Ottera's ad host,
+ * Wurl's `tag=ad` segment titles, and the flags two origins write into their segment URLs: Amagi's ad insertion (Whale,
+ * Plex and other Amagi channels) and the fuelmedia.io origin behind some Stirr stations. Nothing is guessed from the
+ * picture, and a `#EXT-X-DISCONTINUITY` alone means nothing: Pluto puts one between episodes too. A cue whose
+ * `#EXT-X-CUE-OUT` has left the window is carried on by [AdClock], which sees every refresh.
  */
 internal object AdBreaks {
     /** One media segment: its media sequence number, length, whether it is an ad, its absolute URL, and whether a `#EXT-X-CUE-IN` comes before it in this window. */
@@ -77,12 +77,14 @@ internal object AdBreaks {
         if (!text.contains("#EXTINF")) return null
         var sequence = 0L
         var durationMs = 0L
+        var taggedAd = false
         var date: Long? = null
         var cueOpen = false
         var pendingEnd: Long? = null
         var cueIn = false
         val ranges = ArrayList<LongRange>()
         val segments = ArrayList<Segment>()
+        val stitched = ArrayList<Boolean>()
         val plannedEnd = HashMap<Int, Long>()
         for (raw in text.lineSequence()) {
             val line = raw.trim()
@@ -90,7 +92,10 @@ internal object AdBreaks {
                 line.isEmpty() -> Unit
                 line.startsWith("#EXT-X-MEDIA-SEQUENCE:") -> sequence = line.substringAfter(':').trim().toLongOrNull() ?: 0L
                 line.startsWith("#EXT-X-PROGRAM-DATE-TIME:") -> date = instantMs(line.substringAfter(':'))
-                line.startsWith("#EXTINF:") -> durationMs = seconds(line.substringAfter(':').substringBefore(',')) ?: 0L
+                line.startsWith("#EXTINF:") -> {
+                    durationMs = seconds(line.substringAfter(':').substringBefore(',')) ?: 0L
+                    taggedAd = wurl(line.substringAfter(',', ""))
+                }
                 line.startsWith("#EXT-X-CUE-OUT-CONT") -> {
                     // Each ad segment carries one; when the CUE-OUT has left the window, the first is where the break shows.
                     val (elapsed, planned) = contValues(line.substringAfter(':', ""))
@@ -106,21 +111,24 @@ internal object AdBreaks {
                 line.startsWith("#") -> Unit
                 else -> {
                     val at = date
-                    val ad = cueOpen || pluto(base, line) || mediaTailor(base, line) || roku(base, line) || amagi(base, line) || fuelmedia(base, line) || (at != null && ranges.any { at in it })
+                    val stitchedAd = taggedAd || mediaTailor(base, line) || amagi(base, line) || ottera(base, line)
+                    val ad = stitchedAd || cueOpen || pluto(base, line) || roku(base, line) || fuelmedia(base, line) || (at != null && ranges.any { at in it })
                     if (pendingEnd != null) plannedEnd[segments.size] = pendingEnd
                     segments += Segment(sequence + segments.size, durationMs, ad, absolute(base, line), cueIn)
+                    stitched += stitchedAd
                     pendingEnd = null
                     cueIn = false
+                    taggedAd = false
                     date = at?.plus(durationMs)
                     durationMs = 0L
                 }
             }
         }
         // Plex alternates its own part segments with the stream's, so a stitched break reads ad, part, ad: a single
-        // segment between two MediaTailor or Amagi ads, with no cue-in before it, belongs to the break.
+        // segment between two stitched ads (MediaTailor, Amagi, Ottera or Wurl), with no cue-in before it, belongs to the break.
         for (index in 1 until segments.size - 1) {
             val segment = segments[index]
-            if (!segment.ad && !segment.cueIn && stitched(base, segments[index - 1].url) && stitched(base, segments[index + 1].url)) {
+            if (!segment.ad && !segment.cueIn && stitched[index - 1] && stitched[index + 1]) {
                 segments[index] = segment.copy(ad = true)
             }
         }
@@ -154,7 +162,21 @@ internal object AdBreaks {
         return host.startsWith("osm-ads") || (host.startsWith("osm-") && uri.rawPath?.startsWith("/osbt/") == true)
     }
 
-    private fun stitched(base: URI, reference: String): Boolean = mediaTailor(base, reference) || amagi(base, reference)
+    /**
+     * Ottera stitches its breaks from `stream.ads.ottera.tv` (`/mf2/<rendition>?u=<creative>&…&d=<break seconds>`) between
+     * its channels' own segments on `*.otteravision.com`. Seen on 2026-10-23 on Plex's Bassmaster as a 120 s break.
+     */
+    private fun ottera(base: URI, reference: String): Boolean {
+        val host = try { base.resolve(reference).host } catch (_: IllegalArgumentException) { return false } ?: return false
+        return host.lowercase().endsWith(".ads.ottera.tv")
+    }
+
+    /**
+     * Wurl's own stitcher (`*.wurl.tv`, as on Plex) labels every segment in its `#EXTINF` title, colon-separated:
+     * `epid=…:ct=M:tag=ad:aid=…` for an ad and `tag=content` otherwise; its picture-in-picture overlay opportunities
+     * (`#EXT-X-TRANSMIT-CUE-OUT:AdFormat=pip`) leave the show playing and are not breaks.
+     */
+    private fun wurl(title: String): Boolean = "tag=ad" in title && title.split(':', ',').any { it.trim() == "tag=ad" }
 
     /**
      * Amagi's ad insertion serves every segment through a beacon URL on its `*.amagi.tv` playout,

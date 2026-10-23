@@ -250,7 +250,7 @@ def main():
                 assert channel['id'] == entry['id'] and channel['legacyGuideId'] == 'fixture'
                 assert entry['logo'] == f'{upstream}/logo.png', entry
                 guide = request(base, '/api/v1/guide/query', 'POST', {'channelIds': [channel['id']], 'from': now.isoformat(), 'to': (now + timedelta(hours=1)).isoformat()})
-                assert guide['channels'][0]['programs'][0]['title'] == 'Real fixture program'
+                assert guide['channels'][0]['programmes'][0]['title'] == 'Real fixture program'
                 session = request(base, '/api/v1/playback-sessions', 'POST', {'channelId': channel['id'], 'intent': 'preview', 'idempotencyKey': 'smoke'})
                 manifest = request(base, session['descriptor']['url'])
                 assert upstream not in manifest and '/media/sessions/' in manifest

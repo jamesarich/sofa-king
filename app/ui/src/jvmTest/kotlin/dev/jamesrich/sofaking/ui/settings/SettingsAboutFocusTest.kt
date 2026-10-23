@@ -33,7 +33,8 @@ import kotlin.test.assertTrue
 
 /**
  * About, the last block of Settings, as a TV reaches it: focus on its last button scrolls only as far as that button,
- * so the TMDB notice sits above it, and Check again turned itself off while checking, which dropped focus to another row.
+ * so the TMDB notice sits above it, and Check again turned itself off while checking,
+ * which dropped focus to another row.
  */
 @OptIn(ExperimentalTestApi::class)
 class SettingsAboutFocusTest {

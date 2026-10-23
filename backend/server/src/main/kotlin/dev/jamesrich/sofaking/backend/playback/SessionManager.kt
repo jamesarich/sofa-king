@@ -262,6 +262,10 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         if (session.epoch != epoch) throw ApiFailure(410, Wire.ErrorCode.STREAM_CHANGED, "Fetch current descriptor", true)
         "/media/sessions/$id/$epoch/${session.resource(url)}"
     }
+    /** The channels sessions are playing now. */
+    suspend fun watching(): Set<String> = mutex.withLock { sessions.values.mapTo(HashSet()) { it.request.channelId } }
+    /** The source a session opened on [channelId] now would play, for the ad listener; null when none is eligible. */
+    suspend fun listenable(channelId: String): Offering? = catalog.offeringsFor(channelId)?.let { choose(it, store.allHealth()) }
     /** Lineup order within each health rank: a healthy second choice beats an unverified first choice. */
     private suspend fun select(channelId: String): Offering {
         val candidates = catalog.offeringsFor(channelId) ?: throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")

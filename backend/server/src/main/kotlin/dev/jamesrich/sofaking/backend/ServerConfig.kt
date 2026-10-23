@@ -112,6 +112,8 @@ data class ServerConfig(
     val recordingsKeepDays: Int = 0,
     /** `SOFA_LEARNED_BREAKS`: what live sessions do with breaks the server learns from the stream itself. */
     val learnedBreaks: LearnedBreaks = LearnedBreaks.SHADOW,
+    /** `SOFA_AD_LISTENERS`: how many channels nobody watches the ad listener plays at once; 0 turns it off. */
+    val adListeners: Int = 6,
     /** `SOFA_COMSKIP`: the Comskip executable that finds commercial breaks in recordings; null when set to `none`. */
     val comskip: String? = "comskip",
     /** `SOFA_MDNS`: advertise the server on the LAN over mDNS, so apps find it; on by default off loopback. */
@@ -251,6 +253,8 @@ data class ServerConfig(
             require(keepDays != null && keepDays in 0..3650) { "SOFA_RECORDINGS_KEEP_DAYS must be between 0 and 3650" }
             val learnedBreaks = LearnedBreaks.of(environment["SOFA_LEARNED_BREAKS"] ?: "shadow")
                 ?: throw IllegalArgumentException("SOFA_LEARNED_BREAKS must be one of off, shadow, on")
+            val adListeners = (environment["SOFA_AD_LISTENERS"] ?: "6").toIntOrNull()
+            require(adListeners != null && adListeners in 0..24) { "SOFA_AD_LISTENERS must be between 0 and 24" }
             val comskip = (environment["SOFA_COMSKIP"] ?: "comskip").trim()
             require(comskip.isNotEmpty()) { "SOFA_COMSKIP must not be blank; set it to none to turn commercial detection off" }
             val hdhrEnabled = flag(environment, "SOFA_HDHR_ENABLED", true)
@@ -309,6 +313,7 @@ data class ServerConfig(
                 recordingsFreeGib = freeGib,
                 recordingsKeepDays = keepDays,
                 learnedBreaks = learnedBreaks,
+                adListeners = adListeners,
                 comskip = comskip.takeUnless { it == "none" },
                 mdns = flag(environment, "SOFA_MDNS", !isLoopback(host)),
             )

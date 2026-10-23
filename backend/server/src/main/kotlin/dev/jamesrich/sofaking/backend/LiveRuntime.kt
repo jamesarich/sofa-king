@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
+import dev.jamesrich.sofaking.backend.ads.AdListener
 import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.*
@@ -97,6 +98,8 @@ class LiveRuntime(
     val loopback: LoopbackRelay = LoopbackRelay(http, feeds.upstream, relay.permits),
     /** Who may reach the HDHomeRun emulation; the default admits everyone, as a loopback bind with no allow-list does. */
     val hdhrAccess: HdhrAccess = HdhrAccess(emptyList(), openWhenEmpty = true, store, Clock.systemUTC()),
+    /** The background ad listener, for the portal's Ads page; null for a runtime built without a config. */
+    val listener: AdListener? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -188,6 +191,10 @@ class LiveRuntime(
                 plex?.requestSync("startup")
                 val audio = SegmentAudio(config.ffmpeg)
                 val relay = MediaRelay(http, feeds, sessions, scope, audio = audio)
+                val listener = AdListener(
+                    http, feeds, sessions, store, library, audio, relay.permits, clock,
+                    channels = { lineup.entries().filter { it.enabled }.map { it.id } }, slots = { settings.current.adListeners }, mode = { sessions.learnedBreaks },
+                ).also { it.start(scope) }
                 val loopback = LoopbackRelay(http, policy, relay.permits)
                 // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.
                 val service = policyService
@@ -227,7 +234,7 @@ class LiveRuntime(
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, relay, TsRemux(config.ffmpeg, loopback), logos, http, scope,
                     policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart, checkTmdb = { TmdbClient(http, it).check() }), libraries, vod, dvr, loopback,
-                    HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() },
+                    HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() }, listener,
                 )
                 dvr.start(scope)
                 dvr.requestSchedule("startup")

@@ -63,7 +63,7 @@ internal class Tab(val href: String, val label: String, val badge: String? = nul
 internal val NAV: List<Section> = listOf(
     Section("/admin", "Home"),
     Section("/admin/lineup", "Channels", "channels", listOf("/admin/lineup", "/admin/required", "/admin/merges", "/admin/groups")),
-    Section("/admin/providers", "Sources", "sources"),
+    Section("/admin/providers", "Sources", "sources", listOf("/admin/providers", "/admin/ads")),
     Section("/admin/recordings", "Recordings", "recordings"),
     Section("/admin/viewers", "Players", "players", listOf("/admin/viewers", "/admin/plex")),
     Section("/admin/library", "Library"),
@@ -73,6 +73,7 @@ internal val NAV: List<Section> = listOf(
 
 /** The Channels section's tabs; Required, Merges and Groups exist only under a lineup policy. */
 internal val CHANNEL_TABS = listOf(Tab("/admin/lineup", "Channels"), Tab("/admin/required", "Required", "required"), Tab("/admin/merges", "Merges", "merges"), Tab("/admin/groups", "Groups"))
+internal val SOURCE_TABS = listOf(Tab("/admin/providers", "Sources", "sources"), Tab("/admin/ads", "Ads"))
 internal val PLAYER_TABS = listOf(Tab("/admin/viewers", "Devices"), Tab("/admin/plex", "Plex", "plex"))
 internal val SYSTEM_TABS = listOf(Tab("/admin/system/about", "About"), Tab("/admin/system/jobs", "Jobs", "jobs"), Tab("/admin/system/events", "Events"), Tab("/admin/api", "API"))
 

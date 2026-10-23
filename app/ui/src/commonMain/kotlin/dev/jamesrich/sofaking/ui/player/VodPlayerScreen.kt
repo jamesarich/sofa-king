@@ -403,6 +403,13 @@ fun VodPlayerScreen(
         }
     }
 
+    // A stream that ended well short of the item opens again where it stopped (see VodPlayerState.onStatus).
+    LaunchedEffect(state.reopenRequest) {
+        if (state.reopenRequest == 0) return@LaunchedEffect
+        log.w { "vod: stream ended at ${state.positionMs} of ${state.durationMs} ms, reopening" }
+        retryItem()
+    }
+
     // Plays the item again from here with the picked audio and, when the subtitle is pictures, that subtitle drawn in.
     fun reopenWithTracks() {
         val audio = audioTrack

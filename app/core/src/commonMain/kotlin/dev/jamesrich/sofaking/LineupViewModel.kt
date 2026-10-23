@@ -469,6 +469,10 @@ class LineupViewModel(
         save { store.setSkipCommercials(enabled) }
     }
 
+    fun setAutoSkipIntros(enabled: Boolean) {
+        save { store.setAutoSkipIntros(enabled) }
+    }
+
     fun setLiveBreaks(mode: LiveBreaks) {
         save { store.setLiveBreaks(mode) }
     }

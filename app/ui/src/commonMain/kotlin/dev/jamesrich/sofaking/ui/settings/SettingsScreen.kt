@@ -113,6 +113,7 @@ class SettingsActions(
     /** Compares the running [version] with the published snapshot; [again] repeats a check already made. */
     val onCheckForUpdate: (version: String, again: Boolean) -> Unit = { _, _ -> },
     val onSkipCommercialsChanged: (Boolean) -> Unit = {},
+    val onAutoSkipIntrosChanged: (Boolean) -> Unit = {},
     val onLiveBreaksChanged: (LiveBreaks) -> Unit = {},
     /** Loads the lineup and the library home again from the server. */
     val onReload: () -> Unit = {},
@@ -169,6 +170,7 @@ fun SettingsScreen(
     var decoder by remember(settings.playback.decoder) { mutableStateOf(settings.playback.decoder) }
     var buffer by remember(settings.playback.buffer) { mutableStateOf(settings.playback.buffer) }
     var skipCommercials by remember(settings.skipCommercials) { mutableStateOf(settings.skipCommercials) }
+    var autoSkipIntros by remember(settings.autoSkipIntros) { mutableStateOf(settings.autoSkipIntros) }
     var liveBreaks by remember(settings.liveBreaks) { mutableStateOf(settings.liveBreaks) }
     val pairingCode = rememberTextFieldState()
     val serverFocus = remember { FocusRequester() }
@@ -485,6 +487,20 @@ fun SettingsScreen(
                     onCheckedChange = {
                         skipCommercials = it
                         actions.onSkipCommercialsChanged(it)
+                    },
+                )
+            }
+        }
+        if (libraryOffered) {
+            item { SectionHeader(stringResource(Res.string.settings_section_library)) }
+            item {
+                ToggleRow(
+                    label = stringResource(Res.string.settings_auto_skip_intros),
+                    help = stringResource(Res.string.settings_auto_skip_intros_help),
+                    checked = autoSkipIntros,
+                    onCheckedChange = {
+                        autoSkipIntros = it
+                        actions.onAutoSkipIntrosChanged(it)
                     },
                 )
             }

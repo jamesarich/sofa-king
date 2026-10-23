@@ -76,6 +76,10 @@ struct VodPlayerView: View {
     @State private var breakEndMs: Int64?
     /// The end of the episode's intro while the player is in it, for Skip intro; nil outside it.
     @State private var introEndMs: Int64?
+    /// With Skip intros automatically on: the intro end the countdown is for, offered once per intro, and the seconds
+    /// left on it; nil when it waits for a press. Pausing stops it.
+    @State private var autoSkipIntroEndMs: Int64?
+    @State private var autoSkipSeconds: Int?
 
     var body: some View {
         ZStack {
@@ -246,10 +250,33 @@ struct VodPlayerView: View {
         lastPositionMs = positionMs
         breakEndMs = breaks.first(where: { positionMs >= $0.startMs && positionMs < $0.endMs })?.endMs
         introEndMs = detail?.intro.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
+        countDownIntro(in: s)
         guard player.rate > 0 else { return }
         switch request.source {
         case .item(let item): model.core.itemProgress(itemId: item.id, positionMs: positionMs, durationMs: durationMs)
         case .recording(let recording): model.core.recordingProgress(recordingId: recording.id, positionMs: positionMs, durationMs: durationMs)
+        }
+    }
+
+    /// Skips the intro after 5 seconds' countdown on Skip intro, once per intro, while it plays; a pause stops it.
+    private func countDownIntro(in s: PlaybackStream) {
+        guard let end = introEndMs, model.settings?.autoSkipIntros == true else {
+            autoSkipSeconds = nil
+            return
+        }
+        if player.rate == 0 { autoSkipSeconds = nil }
+        if autoSkipIntroEndMs != end {
+            guard player.rate > 0 else { return }
+            autoSkipIntroEndMs = end
+            autoSkipSeconds = 5
+        } else if let left = autoSkipSeconds {
+            if left > 1 {
+                autoSkipSeconds = left - 1
+            } else {
+                autoSkipSeconds = nil
+                introEndMs = nil
+                jump(to: end, in: s)
+            }
         }
     }
 
@@ -292,7 +319,9 @@ struct VodPlayerView: View {
             }]
         }
         if let end = introEndMs {
-            return [UIAction(title: "Skip intro", image: UIImage(systemName: "forward.end")) { _ in
+            let title = autoSkipSeconds.map { "Skip intro (\($0))" } ?? "Skip intro"
+            return [UIAction(title: title, image: UIImage(systemName: "forward.end")) { _ in
+                autoSkipSeconds = nil
                 introEndMs = nil
                 jump(to: end, in: s)
             }]

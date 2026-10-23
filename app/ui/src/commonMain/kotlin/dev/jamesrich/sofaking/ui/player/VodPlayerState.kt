@@ -88,6 +88,11 @@ internal class VodPlayerState {
     /** The starts of the intros the bar has offered to skip, each once, so a viewer who goes back into one stays there. */
     private val offeredIntros = mutableSetOf<Long>()
 
+    /** Whole seconds until the intro skips itself, counting down on Skip intro; null while it waits for a press. */
+    var autoSkipSeconds by mutableStateOf<Int?>(null)
+        private set
+    private var autoSkipAtMs = 0L
+
     private val scrub = VodScrub()
 
     // Ends short of the item's end since playback last moved on, and where the last one was.
@@ -111,6 +116,7 @@ internal class VodPlayerState {
 
     /** A tap on the picture: the bar toggles. */
     fun tap() {
+        cancelAutoSkip()
         if (overlayVisible) overlayVisible = false else showInfo()
     }
 
@@ -133,16 +139,46 @@ internal class VodPlayerState {
         if (earlyEnds++ < EARLY_END_REOPENS) reopenRequest++ else failure = STREAM_ENDED_EARLY
     }
 
-    /** Playback ran into a break it does not skip: the bar comes up with Skip break on it, focused for the remote. */
+    /**
+     * Playback ran into a break it does not skip: the bar comes up with Skip break on it, focused for the remote. Not
+     * while the track card is open, which keeps the remote.
+     */
     fun ranIntoBreak() {
+        if (tracksOpen) return
         showInfo()
         focusSkip = true
     }
 
-    /** Playback is in [intro]: the first time, the bar comes up with Skip intro on it, focused for the remote. */
-    fun inIntro(intro: VodMarker) {
-        if (offeredIntros.add(intro.startMs)) ranIntoBreak()
+    /**
+     * Playback is in [intro]: the first time, the bar comes up with Skip intro on it, focused for the remote, and with
+     * [autoSkip] a countdown of [AUTO_SKIP_MS] starts on it. While the track card is open the offer waits for it to close.
+     */
+    fun inIntro(intro: VodMarker, autoSkip: Boolean = false, nowMs: Long = uptimeMs()) {
+        if (tracksOpen || !offeredIntros.add(intro.startMs)) return
+        ranIntoBreak()
+        if (autoSkip) {
+            autoSkipAtMs = nowMs + AUTO_SKIP_MS
+            autoSkipSeconds = secondsUntil(autoSkipAtMs, nowMs)
+        }
     }
+
+    /** Moves the countdown on to [nowMs]; true when it ran out, so the intro is skipped now. */
+    fun autoSkipDue(nowMs: Long): Boolean {
+        if (autoSkipSeconds == null) return false
+        if (nowMs >= autoSkipAtMs) {
+            autoSkipSeconds = null
+            return true
+        }
+        autoSkipSeconds = secondsUntil(autoSkipAtMs, nowMs)
+        return false
+    }
+
+    /** The countdown stops and Skip intro waits for a press: any key or tap, or playback leaving the intro. */
+    fun cancelAutoSkip() {
+        autoSkipSeconds = null
+    }
+
+    private fun secondsUntil(atMs: Long, nowMs: Long): Int = ((atMs - nowMs + 999) / 1000).toInt()
 
     /** A finger or a mouse dragging the slider: the times follow [targetMs] until [endScrub]. */
     fun dragTo(targetMs: Long) {
@@ -159,6 +195,7 @@ internal class VodPlayerState {
 
     /** The system Back: a focused button hands focus to the picture, the track card closes, a scrub is dropped; true when the player is left. */
     fun back(controls: VodControls): Boolean {
+        cancelAutoSkip()
         when {
             // Where Back skips the key path (Android with predictive back), a focused bar button hands focus back here.
             buttonsFocused -> controls.focusPicture()
@@ -190,6 +227,7 @@ internal class VodPlayerState {
         repeatCount: Int? = null,
         nowMs: Long = uptimeMs(),
     ): Boolean {
+        if (type == KeyEventType.KeyDown) cancelAutoSkip()
         // The card's rows take the D-pad and OK; Back closes it through the BackHandler.
         if (tracksOpen) return false
         if (next != null) {
@@ -255,5 +293,8 @@ internal const val EARLY_END_MS = 10_000L
 private const val EARLY_END_REOPENS = 2
 private const val EARLY_END_PROGRESS_MS = 30_000L
 internal const val STREAM_ENDED_EARLY = "STREAM_ENDED_EARLY"
+
+/** How long Skip intro counts down before the intro skips itself, with auto skip on. */
+internal const val AUTO_SKIP_MS = 5_000L
 
 private val UP_NEXT_PLAY_KEYS = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.MediaPlay, Key.Spacebar)

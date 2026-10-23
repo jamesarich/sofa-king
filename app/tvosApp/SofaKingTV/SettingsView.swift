@@ -68,6 +68,16 @@ struct SettingsView: View {
             } footer: {
                 Text("On streaming channels that mark their ads, such as Pluto TV and Tubi, a bouncing logo covers them. Show picture brings the picture back.")
             }
+            Section {
+                Toggle("Skip intros automatically", isOn: Binding(
+                    get: { model.settings?.autoSkipIntros ?? false },
+                    set: { model.core.setAutoSkipIntros(enabled: $0) }
+                ))
+            } header: {
+                Text("Library")
+            } footer: {
+                Text("Skip intro counts down 5 seconds and then skips; pausing stops it. Off, an intro waits for a press.")
+            }
             Section("About") {
                 // TMDB's terms ask apps that show its data to say so.
                 Text("Movie and show details and images can come from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.")

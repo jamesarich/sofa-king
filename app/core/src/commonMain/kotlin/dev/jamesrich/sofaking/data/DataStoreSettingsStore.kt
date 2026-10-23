@@ -68,6 +68,7 @@ class DataStoreSettingsStore(
                 hiddenChannels = prefs[HIDDEN_CHANNELS] ?: emptySet(),
                 zapSkipsHidden = prefs[ZAP_SKIPS_HIDDEN] ?: false,
                 skipCommercials = prefs[SKIP_COMMERCIALS] ?: false,
+                autoSkipIntros = prefs[AUTO_SKIP_INTROS] ?: false,
                 liveBreaks = prefs[LIVE_BREAKS].toEnum(LiveBreaks.PLAY),
                 adsDodged = AdsDodged(prefs[ADS_DODGED_DAY].orEmpty(), prefs[ADS_DODGED_MS] ?: 0L),
                 trackChoices = trackChoices(prefs),
@@ -197,6 +198,10 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[SKIP_COMMERCIALS] = enabled }
     }
 
+    override suspend fun setAutoSkipIntros(enabled: Boolean) {
+        dataStore.edit { prefs -> prefs[AUTO_SKIP_INTROS] = enabled }
+    }
+
     override suspend fun setLiveBreaks(mode: LiveBreaks) {
         dataStore.edit { prefs -> prefs[LIVE_BREAKS] = mode.name }
     }
@@ -323,6 +328,7 @@ class DataStoreSettingsStore(
         val HIDDEN_CHANNELS = stringSetPreferencesKey("hidden_channels")
         val ZAP_SKIPS_HIDDEN = booleanPreferencesKey("zap_skips_hidden")
         val SKIP_COMMERCIALS = booleanPreferencesKey("skip_commercials")
+        val AUTO_SKIP_INTROS = booleanPreferencesKey("auto_skip_intros")
         val LIVE_BREAKS = stringPreferencesKey("live_breaks")
         val ADS_DODGED_DAY = stringPreferencesKey("ads_dodged_day")
         val ADS_DODGED_MS = longPreferencesKey("ads_dodged_ms")

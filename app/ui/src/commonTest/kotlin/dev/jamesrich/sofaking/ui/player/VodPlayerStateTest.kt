@@ -245,6 +245,57 @@ class VodPlayerStateTest {
     }
 
     @Test
+    fun `with auto skip an intro counts down and skips once`() {
+        val state = playing()
+        val intro = VodMarker(60_000L, 90_000L, VodMarkerKind.INTRO)
+        state.inIntro(intro, autoSkip = true, nowMs = 0L)
+        assertEquals(5, state.autoSkipSeconds)
+        assertTrue(state.focusSkip)
+        assertFalse(state.autoSkipDue(1_500L))
+        assertEquals(4, state.autoSkipSeconds)
+        assertTrue(state.autoSkipDue(5_000L))
+        assertNull(state.autoSkipSeconds)
+        // Offered once: going back into the same intro neither counts down nor raises the bar again.
+        state.focusSkip = false
+        state.inIntro(intro, autoSkip = true, nowMs = 10_000L)
+        assertNull(state.autoSkipSeconds)
+        assertFalse(state.focusSkip)
+    }
+
+    @Test
+    fun `any key stops the intro countdown and leaves the button`() {
+        val state = playing()
+        state.inIntro(VodMarker(60_000L, 90_000L, VodMarkerKind.INTRO), autoSkip = true, nowMs = 0L)
+        state.down(Key.DirectionDown)
+        assertNull(state.autoSkipSeconds)
+        assertFalse(state.autoSkipDue(6_000L))
+    }
+
+    @Test
+    fun `without auto skip an intro waits for a press`() {
+        val state = playing()
+        state.inIntro(VodMarker(60_000L, 90_000L, VodMarkerKind.INTRO), nowMs = 0L)
+        assertTrue(state.focusSkip)
+        assertNull(state.autoSkipSeconds)
+        assertFalse(state.autoSkipDue(10_000L))
+    }
+
+    @Test
+    fun `an intro waits while the track card has the remote`() {
+        val state = playing()
+        val intro = VodMarker(60_000L, 90_000L, VodMarkerKind.INTRO)
+        state.openTracks()
+        state.inIntro(intro, autoSkip = true, nowMs = 0L)
+        assertFalse(state.focusSkip)
+        assertFalse(state.overlayVisible)
+        assertNull(state.autoSkipSeconds)
+        state.closeTracks()
+        state.inIntro(intro, autoSkip = true, nowMs = 1_000L)
+        assertTrue(state.focusSkip)
+        assertEquals(5, state.autoSkipSeconds)
+    }
+
+    @Test
     fun `an end short of the item reopens it twice and then fails`() {
         val state = playing(positionMs = 120_000L)
         state.onStatus(PlayerStatus(PlaybackState.ENDED), opened = true)

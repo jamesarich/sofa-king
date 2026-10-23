@@ -122,6 +122,8 @@ fun VodPlayerScreen(
     onEnded: () -> Unit = onExit,
     /** Jump over a [VodMarkerKind.BREAK] when playback runs into it. */
     autoSkipBreaks: Boolean = false,
+    /** Skip an intro after a countdown on Skip intro, rather than waiting for a press. */
+    autoSkipIntros: Boolean = false,
     /** What plays after this item, asked for when it ends; null ends as [onEnded] says. */
     upNext: suspend () -> VodUpNext? = { null },
     onPlayNext: () -> Unit = {},
@@ -148,6 +150,7 @@ fun VodPlayerScreen(
     // The stream position to seek to once the item at a new URL is ready: a file played as it is starts at 0.
     var pendingSeek by remember { mutableStateOf<Long?>(null) }
     var skippedToast by remember { mutableStateOf(false) }
+    var introSkippedToast by remember { mutableStateOf(false) }
     var audioTrack by remember { mutableStateOf(tracks.initialAudio) }
     var subtitleTrack by remember { mutableStateOf(tracks.initialSubtitle) }
     var subtitles by remember { mutableStateOf<Subtitles?>(null) }
@@ -174,6 +177,7 @@ fun VodPlayerScreen(
     val currentTitle by rememberUpdatedState(title)
     val currentCaptionsOn by rememberUpdatedState(captionsOn)
     val currentOnToggleCaptions by rememberUpdatedState(onToggleCaptions)
+    val currentAutoSkipIntros by rememberUpdatedState(autoSkipIntros)
     // Read from the ticking position, so the screen recomposes only when they change.
     val breakEnd by remember(title.markers) { derivedStateOf { breakEndAt(title.markers, state.positionMs) } }
     val intro by remember(title.markers) { derivedStateOf { introAt(title.markers, state.positionMs) } }
@@ -308,7 +312,17 @@ fun VodPlayerScreen(
                         state.ranIntoBreak()
                     }
                 }
-                introAt(currentTitle.markers, now)?.let(state::inIntro)
+                // Offered once playing, so a start inside the intro does not count down while it buffers.
+                val inIntro = introAt(currentTitle.markers, now)
+                if (inIntro == null) {
+                    state.cancelAutoSkip()
+                } else if (status.isPlaying) {
+                    state.inIntro(inIntro, currentAutoSkipIntros)
+                    if (state.autoSkipDue(uptimeMs())) {
+                        seekItem(inIntro.endMs)
+                        introSkippedToast = true
+                    }
+                }
             }
             val clock = uptimeMs()
             if (status.isPlaying && clock - lastReport >= REPORT_MS) {
@@ -342,10 +356,15 @@ fun VodPlayerScreen(
         delay(TOAST_MS)
         skippedToast = false
     }
+    LaunchedEffect(introSkippedToast) {
+        if (!introSkippedToast) return@LaunchedEffect
+        delay(TOAST_MS)
+        introSkippedToast = false
+    }
     // The bar stays up while paused or scrubbing, and leaves a few seconds after the last key, tap or mouse movement
     // otherwise; a button that had focus hands it back to the picture.
-    LaunchedEffect(state.overlayVisible, state.overlayRequest, paused, state.scrubTarget, state.failure) {
-        if (!state.overlayVisible || paused || state.scrubTarget != null || state.failure != null) return@LaunchedEffect
+    LaunchedEffect(state.overlayVisible, state.overlayRequest, paused, state.scrubTarget, state.failure, state.autoSkipSeconds != null) {
+        if (!state.overlayVisible || paused || state.scrubTarget != null || state.failure != null || state.autoSkipSeconds != null) return@LaunchedEffect
         delay(BAR_IDLE_MS)
         state.overlayVisible = false
     }
@@ -586,6 +605,9 @@ fun VodPlayerScreen(
             AnimatedVisibility(skippedToast, enter = PopIn, exit = PopOut) {
                 StatusPill(stringResource(Res.string.vod_break_skipped))
             }
+            AnimatedVisibility(introSkippedToast, enter = PopIn, exit = PopOut) {
+                StatusPill(stringResource(Res.string.vod_intro_skipped))
+            }
             AnimatedVisibility(subtitlesFailed, enter = PopIn, exit = PopOut) {
                 StatusPill(stringResource(Res.string.vod_subtitles_failed))
             }
@@ -643,6 +665,7 @@ fun VodPlayerScreen(
                         button,
                         captionsOn = captionsOn == true,
                         zoom = zoom,
+                        autoSkipSeconds = state.autoSkipSeconds,
                         onClick = {
                             when (button) {
                                 VodButton.SKIP_BREAK -> breakEnd?.let(::seekItem)
@@ -784,9 +807,13 @@ private fun DrawScope.drawSeekTrack(playedFraction: Float, lengthMs: Long?, mark
 
 /** The row's button for [button], with a recording's captions shown as [captionsOn] and the picture at [zoom]. */
 @Composable
-private fun vodButtonItem(button: VodButton, captionsOn: Boolean, zoom: VideoZoom, onClick: () -> Unit): PlayerButtonItem = when (button) {
+private fun vodButtonItem(button: VodButton, captionsOn: Boolean, zoom: VideoZoom, autoSkipSeconds: Int?, onClick: () -> Unit): PlayerButtonItem = when (button) {
     VodButton.SKIP_BREAK -> PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_break), onClick)
-    VodButton.SKIP_INTRO -> PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_intro), onClick)
+    VodButton.SKIP_INTRO -> PlayerButtonItem(
+        SofaIcons.FastForward,
+        autoSkipSeconds?.let { stringResource(Res.string.vod_control_skip_intro_countdown, it) } ?: stringResource(Res.string.vod_control_skip_intro),
+        onClick,
+    )
     VodButton.TRACKS -> PlayerButtonItem(SofaIcons.Subtitles, stringResource(Res.string.vod_tracks_title), onClick)
     VodButton.CAPTIONS -> PlayerButtonItem(
         if (captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,

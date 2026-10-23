@@ -43,6 +43,14 @@ The screenshot tests are Google's [Compose Preview Screenshot Testing](https://d
 
 To look at the TV layout without a TV, run the desktop app with `./gradlew :ui:run -Psofaking.tv=true`; the keyboard's arrows, Enter and Escape are the remote's.
 
+### TV emulator monkey
+
+[`tv-monkey.yml`](../../.github/workflows/tv-monkey.yml) runs [`scripts/tv-monkey.py`](../scripts/tv-monkey.py) every night in a headless Android TV 36 emulator on a GitHub runner. The script starts the server's installed distribution with eight fixture channels (one HLS, seven endless MPEG-TS streams of a clip FFmpeg makes) and six hours of guide, pairs the debug app through a `sofaking://pair` link to `10.0.2.2`, waits for the guide's preview to open a session, then presses 1,500 random remote keys a quarter second apart, weighted as `AppKeyFuzzTest` weighs them, through `monkey` key scripts of 25 keys. Back on the Live tab leaves the app, as it should, so the app is brought back to the front before each script; the summary counts how often. It fails when the app crashes or stops responding, or when a playback session is still open once the app is behind the home screen. A debuggable build turns StrictMode on with logging only, so the job's summary counts the violations and `strictmode.txt` lists them; the artifact also holds the logcat, the server log, the key scripts and the last screen. Replay a run from the Actions tab with its key count and seed, or locally against a booted emulator, with the server's distribution and the debug APK built:
+
+```sh
+SOFAKING_MONKEY_SEED=1234 python3 scripts/tv-monkey.py --apk androidApp/build/outputs/apk/debug/androidApp-debug.apk --out build/tv-monkey
+```
+
 ## Android Studio
 
 Open the repository root, not `app/`. The root `settings.gradle.kts` imports the app, the server and the contract as one composite build named `sofa-king-monorepo`, and the root `gradle.properties` holds the Gradle settings the IDE's sync uses. Use an Android Studio release that supports the catalog's `agp` version, with its bundled Kotlin Multiplatform plugin enabled, and the SDK in `app/local.properties` as above. A preview `agp` (an alpha or beta) syncs only in the Android Studio Canary or Beta built with it; a stable Studio stops at the last stable plugin, and a nightly expects a plugin preview that Google Maven may not have published yet. Either refuses the sync with "The project is using an incompatible version" (or "incompatible preview version") of the Android Gradle plugin, under Gradle Sync issues in the Build window. To see which plugin a Studio build accepts, read `buildVersion` in `com/android/version.properties` inside the app's `plugins/android/lib/libagp-version.jar`.

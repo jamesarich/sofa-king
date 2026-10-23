@@ -87,9 +87,14 @@ private struct ChannelRow: View {
     let channel: Channel
     let favorite: Bool
 
+    // Read again each minute, so a list left on screen, or found again after standby, shows what is on now.
     var body: some View {
+        TimelineView(.everyMinute) { _ in row }
+    }
+
+    private var row: some View {
         let nowNext = model.core.nowAndNext(lineup: lineup, channel: channel)
-        HStack(spacing: 24) {
+        return HStack(spacing: 24) {
             Text(channel.number.formatted()).monospacedDigit().frame(width: 120, alignment: .trailing)
             VStack(alignment: .leading, spacing: 4) {
                 Text(channel.name).font(.headline)

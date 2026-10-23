@@ -28,6 +28,9 @@ import dev.jamesrich.sofaking.ui.player.rememberChannelNumberInput
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
+/** How long the app is away before the guide comes back to now. */
+internal val REALIGN_AFTER = 30.minutes
+
 /** Asks the row for [guideId] to focus the cell covering window [minute]. [nonce] keeps each request distinct. */
 internal data class GuideJump(val guideId: String, val minute: Long, val nonce: Int)
 
@@ -178,6 +181,24 @@ internal class GuideState(
             dayOffset = 0
             cursor = GuideTimeline.offsetMinutes(next, now)
         }
+    }
+
+    // When the app last stopped, on the wall clock, which keeps counting through standby.
+    private var leftAt: Instant? = null
+
+    /** The app stopped at [at]: Home, the screen off or the TV in standby. */
+    fun left(at: Instant) {
+        leftAt = at
+    }
+
+    /**
+     * The app started again at [at]. True once it was away [REALIGN_AFTER] or longer on the live window: the grid
+     * then goes back to now, rather than to listings long over. A day picked with Fast Forward stays.
+     */
+    fun cameBack(at: Instant): Boolean {
+        val away = leftAt?.let { at - it } ?: return false
+        leftAt = null
+        return away >= REALIGN_AFTER && dayOffset == 0
     }
 
     /** A cell took focus: the preview shows it, the first focus has landed, and a cursor outside it moves to its start. */

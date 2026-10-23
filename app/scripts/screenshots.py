@@ -322,7 +322,7 @@ def tour(base, start):
             time.sleep(1.5)
             app.shoot('player')
     if not by_keys:
-        channel = request(base, '/api/v1/channels')['channels'][0]['guideId']
+        channel = request(base, '/api/v1/channels')['channels'][0]['id']
         with start(startup='CHANNEL', startup_channel=channel) as app:
             wait_for_session(base)
             time.sleep(PREVIEW_SECONDS)

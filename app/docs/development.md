@@ -103,7 +103,7 @@ When a sync fails, read the error in the Build window's Sync tab; Studio's `idea
 
 ## Code
 
-Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Put code in `commonMain` unless it needs a platform API, keep `core` free of Compose, preserve coroutine cancellation, and close the sessions, players and HTTP calls you own. [Architecture](architecture.md) describes how the code is organized. Every Kotlin compile fails on a compiler warning (`sofaking.warningsAsErrors` in `gradle.properties`), so fix a warning or opt in to the API it names rather than leaving it.
+Follow the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html) and the constraints in [AGENTS.md](../AGENTS.md). Put code in `commonMain` unless it needs a platform API, keep `core` free of Compose, preserve coroutine cancellation, and close the sessions, players and HTTP calls you own. [Architecture](architecture.md) describes how the code is organized. Every Kotlin compile fails on a compiler warning (`sofaking.warningsAsErrors` in `gradle.properties`), so fix a warning or opt in to the API it names rather than leaving it. Run `./gradlew spotlessApply` before you commit; CI fails on code ktlint would change, as [formatting and static analysis](../../CONTRIBUTING.md#formatting-and-static-analysis) describes.
 
 ## Run each platform
 

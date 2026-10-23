@@ -92,7 +92,8 @@ class LibraryMetadataTest {
                     """{"id":348,"title":"Alien","release_date":"1979-05-25","overview":"In space.","genres":[{"name":"Horror"}],"vote_average":8.149,
                 "poster_path":"/poster.jpg","backdrop_path":"/back.jpg",
                 "credits":{"cast":[{"name":"Sigourney Weaver"}],"crew":[{"name":"Ridley Scott","job":"Director"}]},
-                "release_dates":{"results":[{"iso_3166_1":"US","release_dates":[{"certification":""},{"certification":"R"}]}]}}""",
+                "release_dates":{"results":[
+                  {"iso_3166_1":"US","release_dates":[{"certification":""},{"certification":"R"}]}]}}""",
             ),
         )
         val (store, service) = service(root, http)

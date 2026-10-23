@@ -73,6 +73,10 @@ FFmpeg reads a [Chromaprint](https://acoustid.org/chromaprint) fingerprint of ea
 
 Credits are found the same way from a second fingerprint of each episode's last tenth, at most its last five minutes, which needs the episode's length from the scan: the credits are the stretch of 15 seconds to 5 minutes the end shares with the nearest episodes'. A show whose credits play over different music each week has none found. Episodes read before credits detection have their ends read on the next pass, without reading their starts again.
 
+## Scrub thumbnails
+
+After each scan the server makes the thumbnails the app's library player shows over its seek bar while you scrub, the way Jellyfin's trickplay images do: one picture every ten seconds, 240 pixels wide, tiled ten by ten onto JPEG sheets. Movies, episodes and videos of five minutes or more get them; FFmpeg decodes only the key frames, so a two-hour film takes a minute or two. The Jobs page lists the pass as Scrub thumbnails; it runs one file at a time, apart from the scan, and Run now starts it for every library. An unchanged file (same size and change time) is never read again, a file FFmpeg cannot read is noted and not tried again until it changes, and the sheets of a file that is gone are deleted with the next pass. The sheets are kept under `SOFA_DATA_DIR/scrub`, a few megabytes for a two-hour film; deleting the folder makes them again.
+
 ## Browse and watch
 
 Clients read the libraries through the [library API](api.md#media-libraries): a home with Continue watching and Recently added for each library, each library's movies, shows or videos, a show's seasons and episodes, and search. Watch progress is the household's: an episode finished on the TV is watched on the phone too, and a show's next episode is the one after the last finished. A client plays a file through a [library playback session](api.md#play-library-files): as it is when the player takes its format, otherwise remuxed or converted to HLS by FFmpeg. The app's Library tab, on the TV, phones, desktops, the web and the Apple TV, is the client; see the [app's usage](../../app/docs/usage.md#library).

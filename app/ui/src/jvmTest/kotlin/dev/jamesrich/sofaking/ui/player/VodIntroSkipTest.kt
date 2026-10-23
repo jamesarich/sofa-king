@@ -13,6 +13,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -20,6 +21,7 @@ import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.data.ScrubTiles
 import dev.jamesrich.sofaking.data.SofaKingApi
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import io.ktor.client.engine.mock.MockEngine
@@ -35,8 +37,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
-/** The library and recordings player as a remote drives it: an intro or a break brings up its skip button, focused, and OK skips it. */
+/** The library and recordings player as a remote drives it: an intro or a break brings up its skip button, focused, and OK skips it; a scrub shows its thumbnail. */
 @OptIn(ExperimentalTestApi::class)
 class VodIntroSkipTest {
     /** A file played as it is, whose position the test moves on as playback would. */
@@ -92,14 +95,14 @@ class VodIntroSkipTest {
         return PlaybackSessions().also { runBlocking { it.configure(SofaKingApi("http://server.test:8080", "token", engine)) } }
     }
 
-    private fun ComposeUiTest.show(player: FakeVodPlayer, markers: List<VodMarker>, upNext: VodUpNext? = null, onPlayNext: () -> Unit = {}) {
+    private fun ComposeUiTest.show(player: FakeVodPlayer, markers: List<VodMarker>, upNext: VodUpNext? = null, onPlayNext: () -> Unit = {}, scrub: ScrubTiles? = null) {
         val sessions = sessions()
         val before = player.currentStreamUrl
         setContent {
             SofaKingTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     VodPlayerScreen(
-                        title = VodTitle("Chapter 1", markers = markers),
+                        title = VodTitle("Chapter 1", markers = markers, scrub = scrub),
                         player = player,
                         sessions = sessions,
                         itemId = "e1",
@@ -191,5 +194,30 @@ class VodIntroSkipTest {
         onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         waitForIdle()
         assertEquals(listOf(180_000L), player.seeks)
+    }
+
+    @Test
+    fun `a scrub shows the thumbnail of where it would land under the badge and over the bar`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+        val player = FakeVodPlayer()
+        val tiles = ScrubTiles(10_000, 240, 136, 10, 10, 150, listOf("http://server.test:8080/artwork/e1/scrub/0?v=1", "http://server.test:8080/artwork/e1/scrub/1?v=1"))
+        show(player, emptyList(), scrub = tiles)
+        player.positionMs = 600_000
+        mainClock.advanceTimeBy(1_000)
+        assertEquals(0, onAllNodesWithTag(SCRUB_THUMBNAIL_TAG).fetchSemanticsNodes().size)
+
+        // Held still, so the scrub does not settle while the test looks.
+        mainClock.autoAdvance = false
+
+        // With the bar down the thumbnail stands over the badge.
+        onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        mainClock.advanceTimeBy(400)
+        assertEquals(1, onAllNodesWithTag(SCRUB_THUMBNAIL_TAG).fetchSemanticsNodes().size)
+
+        // Brought up, the bar carries it over the scrub's place, left of the middle at 610 of 1,500 seconds.
+        onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        mainClock.advanceTimeBy(400)
+        val shown = onAllNodesWithTag(SCRUB_THUMBNAIL_TAG).fetchSemanticsNodes()
+        assertEquals(1, shown.size)
+        assertTrue(shown.single().boundsInRoot.center.x in 400f..900f, "centered at ${shown.single().boundsInRoot.center.x}")
     }
 }

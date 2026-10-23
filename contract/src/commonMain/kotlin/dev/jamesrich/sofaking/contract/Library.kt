@@ -98,6 +98,23 @@ import kotlinx.serialization.Serializable
     val container: String? = null,
     val videoCodec: String? = null,
     val segments: List<MediaSegment> = emptyList(),
+    /** Thumbnails to show over the seek bar while scrubbing; null until the server has made them, or for a short file. */
+    val scrub: ScrubThumbnails? = null,
+)
+
+/**
+ * A playable item's scrub thumbnails: JPEG [sheets] (URLs, as `poster` is) of [columns] by [rows] tiles, each
+ * [tileWidth] by [tileHeight] pixels, left to right and then down. Tile `n` overall, on sheet `n / (columns * rows)`,
+ * shows the file at `n * intervalMs`; there are [frames] in all.
+ */
+@Serializable data class ScrubThumbnails(
+    val intervalMs: Long,
+    val tileWidth: Int,
+    val tileHeight: Int,
+    val columns: Int,
+    val rows: Int,
+    val frames: Int,
+    val sheets: List<String>,
 )
 
 /** `PUT /api/v1/library/items/{id}/play-state`: where playback stopped; [watched] set by hand wins over the position. */

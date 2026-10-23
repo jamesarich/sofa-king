@@ -14,6 +14,7 @@ The config folder holds everything the server keeps across restarts:
 | `transcode/` | The HLS output of library playback sessions, deleted when each session ends, and the subtitles extracted from library files |
 | `dvr/` | Comskip's working files while it scans a recording |
 | `intros/` | FFmpeg's fingerprint of the episode the intro pass is reading, deleted once it is read |
+| `scrub/` | The library player's [scrub thumbnails](libraries.md#scrub-thumbnails), one folder of JPEG sheets per file; deleting it makes them again on the pass after the next scan |
 | `recordings/` | The recordings, when `SOFA_RECORDINGS_DIR` is unset. Compose mounts its own `deploy/recordings` folder instead, as [the recordings folder](deploy.md#the-recordings-folder) describes |
 | `backups/` | Database backups taken by the [updater](deploy.md#update-automatically) and by hand. The updater's fallback backups and its `failed-image` record are in `backups/` in the Compose directory instead |
 | `secrets.json` | The generated API, admin and output tokens, and the TMDB token the Library page saved |
@@ -23,7 +24,7 @@ Playback sessions, library playback sessions, the live pairing code and resolved
 
 ## Backups
 
-Back up the whole config folder. The database needs a consistent copy, either from SQLite's backup API while the server runs or from a stopped server; a plain copy of a running database can miss what is still in its write-ahead log. The logo cache is a cache: a restore without `logos/` fetches the logos again on the first sweep. `artwork/` and `transcode/` can be left out the same way. The recordings folder sits outside the config folder in Compose, so back it up on its own if you keep recordings; the media folder is yours and the server never writes to it.
+Back up the whole config folder. The database needs a consistent copy, either from SQLite's backup API while the server runs or from a stopped server; a plain copy of a running database can miss what is still in its write-ahead log. The logo cache is a cache: a restore without `logos/` fetches the logos again on the first sweep. `artwork/`, `scrub/` and `transcode/` can be left out the same way. The recordings folder sits outside the config folder in Compose, so back it up on its own if you keep recordings; the media folder is yours and the server never writes to it.
 
 Online, without stopping the server. The image includes `sqlite3`, so one line copies the database into `config/backups/`:
 
@@ -36,7 +37,7 @@ docker compose exec sofa-king-backend sqlite3 /config/backend.sqlite ".backup '/
 
 ```sh
 mkdir -p backup
-tar czf backup/config-$(date +%F).tgz --exclude='backend.sqlite*' --exclude=logos --exclude=artwork --exclude=transcode -C config .
+tar czf backup/config-$(date +%F).tgz --exclude='backend.sqlite*' --exclude=logos --exclude=artwork --exclude=scrub --exclude=transcode -C config .
 ```
 
 Stopped, which copies everything in one step, from `backend/deploy`:

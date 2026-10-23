@@ -14,8 +14,8 @@ import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RecordingScheduleTest {
-    private val news = Programme("c1", Instant.parse("2026-10-18T18:00:00Z"), Instant.parse("2026-10-18T18:30:00Z"), "Evening News", null)
-    private val film = Programme("c1", Instant.parse("2026-10-18T20:00:00Z"), Instant.parse("2026-10-18T22:00:00Z"), "Film", null)
+    private val news = Program("c1", Instant.parse("2026-10-18T18:00:00Z"), Instant.parse("2026-10-18T18:30:00Z"), "Evening News", null)
+    private val film = Program("c1", Instant.parse("2026-10-18T20:00:00Z"), Instant.parse("2026-10-18T22:00:00Z"), "Film", null)
 
     private val recordings = """{"recordings":[
         {"id":"r1","channelId":"c1","title":"Evening News","startsAt":"2026-10-18T18:00:00Z","endsAt":"2026-10-18T18:30:00Z","state":"scheduled"},
@@ -23,7 +23,7 @@ class RecordingScheduleTest {
     ]}"""
 
     @Test
-    fun `a scheduled recording and a series rule mark the programmes they take`() = runTest {
+    fun `a scheduled recording and a series rule mark the programs they take`() = runTest {
         val http = FakeHttp(this) { seen ->
             when (seen.path) {
                 "/api/v1/recordings" -> json(recordings)
@@ -55,7 +55,7 @@ class RecordingScheduleTest {
     }
 
     @Test
-    fun `record schedules the programme and a second press cancels it`() = runTest {
+    fun `record schedules the program and a second press cancels it`() = runTest {
         var scheduled = false
         val http = FakeHttp(this) { seen ->
             when {

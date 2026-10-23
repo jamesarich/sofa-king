@@ -53,7 +53,7 @@ jobs:
   check:
     name: Test and build (Linux)
     runs-on: ubuntu-24.04
-    # The build takes about ten minutes; the limit bounds a hung cache save, which once ran for 42 minutes until cancelled
+    # The build takes about ten minutes; the limit bounds a hung cache save, which once ran for 42 minutes until canceled
     # by hand and kept the next main run queued behind it.
     timeout-minutes: 35
     steps:

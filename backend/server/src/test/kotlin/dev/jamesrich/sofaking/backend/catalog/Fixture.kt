@@ -69,7 +69,7 @@ class Fixture : AutoCloseable {
     val tsClosed = AtomicInteger()
     /** Raw query string of the last media playlist request, for delivery-directive checks. */
     @Volatile var lastMediaQuery: String? = null
-    /** While set, the guide's `Morning` programme carries a sub-title, season and episode numbering, a rating and `<new/>`. */
+    /** While set, the guide's `Morning` program carries a sub-title, season and episode numbering, a rating and `<new/>`. */
     @Volatile var guideMetadata = false
     init {
         server.executor = executor
@@ -221,7 +221,7 @@ class Fixture : AutoCloseable {
         append("<programme channel=\"other\" start=\"20261010080000 -0500\" stop=\"20261010090000 -0500\"><title>Elsewhere</title></programme>")
         append("</tv>")
     }
-    /** Hourly programmes from 2026-10-10T13:00Z, one list of titles per channel. */
+    /** Hourly programs from 2026-10-10T13:00Z, one list of titles per channel. */
     private fun scheduleXml(channels: Map<String, List<String>>): String = buildString {
         append("<tv>")
         for ((channel, titles) in channels) titles.forEachIndexed { hour, title ->

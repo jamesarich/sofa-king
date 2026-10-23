@@ -99,13 +99,13 @@ def fixtures(media, upstream):
     (media / 'feed.m3u').write_text('\n'.join(playlist) + '\n')
     start = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
     stamp = lambda t: t.strftime('%Y%m%d%H%M%S +0000')
-    programmes = []
+    programs = []
     for i in range(CHANNELS):
         for slot in range(12):
             begin = start + timedelta(minutes=30 * slot)
-            programmes.append(f'<programme channel="c{i}" start="{stamp(begin)}" stop="{stamp(begin + timedelta(minutes=30))}">'
-                              f'<title>{NAMES[i]} show {slot + 1}</title><desc>A fixture programme.</desc></programme>')
-    (media / 'guide.xml').write_text('<tv>' + ''.join(programmes) + '</tv>')
+            programs.append(f'<programme channel="c{i}" start="{stamp(begin)}" stop="{stamp(begin + timedelta(minutes=30))}">'
+                              f'<title>{NAMES[i]} show {slot + 1}</title><desc>A fixture program.</desc></programme>')
+    (media / 'guide.xml').write_text('<tv>' + ''.join(programs) + '</tv>')
 
 
 @contextlib.contextmanager

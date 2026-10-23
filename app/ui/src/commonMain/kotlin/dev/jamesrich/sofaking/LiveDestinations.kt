@@ -12,7 +12,7 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.visibleChannels
 import dev.jamesrich.sofaking.resources.*
@@ -180,8 +180,8 @@ private fun GuideOrEmpty(
     autoOpenDelay: AutoOpenDelay,
     previewSound: Boolean,
     recordingMarks: RecordingMarks?,
-    onRecord: suspend (Programme) -> Boolean,
-    onRecordSeries: suspend (Programme) -> Boolean,
+    onRecord: suspend (Program) -> Boolean,
+    onRecordSeries: suspend (Program) -> Boolean,
     headerFocus: FocusRequester?,
     startInHeader: Boolean,
     shown: Boolean,

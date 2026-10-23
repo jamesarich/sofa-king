@@ -32,10 +32,10 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideStatus
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
-import dev.jamesrich.sofaking.ui.guide.ProgrammeDetails
-import dev.jamesrich.sofaking.ui.guide.ProgrammeSheet
+import dev.jamesrich.sofaking.ui.guide.ProgramDetails
+import dev.jamesrich.sofaking.ui.guide.ProgramSheet
 import dev.jamesrich.sofaking.ui.player.BreakScreen
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.InfoBar
@@ -106,7 +106,7 @@ class RenderSmokeTest {
         channels = channels,
         guide = channels.filter { it.guideStatus == GuideStatus.AVAILABLE }.associate { channel ->
             channel.guideId to List(6) { slot ->
-                Programme(
+                Program(
                     channelId = channel.guideId,
                     start = start + (slot * 45).minutes,
                     stop = start + ((slot + 1) * 45).minutes,
@@ -181,15 +181,15 @@ class RenderSmokeTest {
 
     @Test
     fun `the program details panel fits its buttons and description`() {
-        val programme = lineup.guide.getValue("c0").first().copy(
+        val program = lineup.guide.getValue("c0").first().copy(
             title = "Sailor Moon",
             description = List(12) { "Usagi and the girls are excited to attend the school festival." }.joinToString(" "),
         )
         val image = render("guide-details") {
             // The guide sits under the app's header, so the panel gets the height below it.
             Box(Modifier.fillMaxSize().padding(top = 75.dp)) {
-                ProgrammeSheet(
-                    details = ProgrammeDetails(channels[0], programme),
+                ProgramSheet(
+                    details = ProgramDetails(channels[0], program),
                     now = now,
                     isFavorite = true,
                     guideLoading = false,

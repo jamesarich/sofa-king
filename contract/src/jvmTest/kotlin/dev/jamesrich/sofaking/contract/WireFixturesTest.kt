@@ -25,7 +25,7 @@ class WireFixturesTest {
     fun `every v1 fixture decodes with a client's settings`() {
         assertEquals(true, client.decodeFromString<Bootstrap>(fixture("v1/bootstrap.json")).capabilities.playback)
         assertEquals("available", client.decodeFromString<Catalog>(fixture("v1/catalog.json")).channels.single().guideStatus)
-        assertEquals("Morning", client.decodeFromString<GuideWindow>(fixture("v1/guide-window.json")).channels.single().programmes.single().title)
+        assertEquals("Morning", client.decodeFromString<GuideWindow>(fixture("v1/guide-window.json")).channels.single().programs.single().title)
         assertEquals("hls", client.decodeFromString<PlaybackSession>(fixture("v1/playback-session.json")).descriptor.protocol)
         assertEquals(Wire.ErrorCode.AUTH_REQUIRED, client.decodeFromString<ApiError>(fixture("v1/api-error.json")).code)
         assertEquals(64, client.decodeFromString<PairingResult>(fixture("v1/pairing-result.json")).apiToken.length)
@@ -85,7 +85,7 @@ class WireFixturesTest {
         val window = client.decodeFromString<GuideWindow>(
             """{"revision":"r","channels":[{"channelId":"c","programmes":[{"startsAt":"a","endsAt":"b","title":"News"}]}]}""",
         )
-        assertEquals("News", window.channels.single().programmes.single().title)
+        assertEquals("News", window.channels.single().programs.single().title)
         val session = client.decodeFromString<PlaybackSession>(
             """{"id":"s","channelId":"c","intent":"watch","descriptor":{"protocol":"hls","mimeType":"m","url":"/u","epoch":1}}""",
         )

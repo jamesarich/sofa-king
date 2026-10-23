@@ -27,7 +27,7 @@ import dev.jamesrich.sofaking.contract.PairingClaim
 import dev.jamesrich.sofaking.contract.PairingResult
 import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.PlaybackSession
-import dev.jamesrich.sofaking.contract.Programme
+import dev.jamesrich.sofaking.contract.Program
 import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingList
 import dev.jamesrich.sofaking.contract.RecordingRule
@@ -46,13 +46,13 @@ internal val wireJson = Json {
     encodeDefaults = false
 }
 
-// The contract's wire types under names that stay clear of the app's own Channel and Programme models.
+// The contract's wire types under names that stay clear of the app's own Channel and Program models.
 internal typealias CatalogDto = Catalog
 internal typealias CatalogChannelDto = Channel
 internal typealias GuideQueryDto = GuideQuery
 internal typealias GuideWindowDto = GuideWindow
 internal typealias ChannelGuideDto = ChannelGuide
-internal typealias ProgrammeDto = Programme
+internal typealias ProgramDto = Program
 internal typealias OpenPlaybackDto = OpenPlayback
 internal typealias UpdatePlaybackDto = UpdatePlayback
 internal typealias PlaybackDescriptorDto = PlaybackDescriptor

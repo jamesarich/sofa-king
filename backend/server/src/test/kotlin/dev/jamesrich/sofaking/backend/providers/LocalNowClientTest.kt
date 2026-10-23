@@ -25,7 +25,7 @@ class LocalNowClientTest {
     private fun options(fixture: ProviderFixture, extra: Map<String, String> = emptyMap()) =
         mapOf("pageUrl" to "${fixture.base}/", "apiBase" to "${fixture.base}/dsp") + extra
 
-    @Test fun `lists unlocked channels once for the configured market with their programmes`() = runBlocking<Unit> {
+    @Test fun `lists unlocked channels once for the configured market with their programs`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-localnow-")
         try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
             fixture.localNow()
@@ -38,7 +38,7 @@ class LocalNowClientTest {
             assertEquals(1, fixture.hits("/"))
             val guide = client.guide(setOf(desMoines))
             assertEquals(2, guide.channels.size)
-            assertEquals(listOf("Local Now Tonight", "Your News & Weather"), guide.programmes.map { it.title })
+            assertEquals(listOf("Local Now Tonight", "Your News & Weather"), guide.programs.map { it.title })
             assertEquals(1, fixture.hits("/dsp/live/epg/US/website"), "the guide reuses the listing")
         } } } } finally { dir.toFile().deleteRecursively() }
     }

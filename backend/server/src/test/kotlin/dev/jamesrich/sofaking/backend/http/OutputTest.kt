@@ -81,8 +81,8 @@ class OutputTest {
                 assertTrue(xml.contains(
                     "<programme start=\"20261010100000 +0000\" stop=\"20261010110000 +0000\" channel=\"${ts.id}\"><title>TS Station</title>" +
                         "<category lang=\"en\">Series</category><episode-num system=\"original-air-date\">2026-10-10 10:00:00</episode-num></programme>",
-                ), "a channel with no programmes gets hourly placeholders")
-                assertFalse(xml.contains("channel=\"${hls.id}\"><title>Station</title>"), "a channel with programmes gets none")
+                ), "a channel with no programs gets hourly placeholders")
+                assertFalse(xml.contains("channel=\"${hls.id}\"><title>Station</title>"), "a channel with programs gets none")
                 assertTrue(xml.trimEnd().endsWith("</tv>"))
                 for (path in listOf("/output/guide.xml?token=$output", "/output/playlist.m3u?token=$output")) {
                     val gzipped = client.get(path) { header(HttpHeaders.AcceptEncoding, "gzip") }
@@ -115,18 +115,18 @@ class OutputTest {
                         "<episode-num system=\"xmltv_ns\">1.4.</episode-num><episode-num system=\"onscreen\">S02E05</episode-num>" +
                         "<new/><rating system=\"VCHIP\"><value>TV-PG</value></rating></programme>",
                 ), xml)
-                assertFalse(xml.contains("original-air-date\">2026-10-10 13:00:00"), "a numbered programme keeps the source's numbering only")
+                assertFalse(xml.contains("original-air-date\">2026-10-10 13:00:00"), "a numbered program keeps the source's numbering only")
 
                 val query = GuideQuery(listOf(hls.id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")
                 val window = client.post("/api/v1/guide/query") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(query)) }
-                val programme = Json.decodeFromString<GuideWindow>(window.bodyAsText()).channels.single().programmes.single()
-                assertEquals("Morning", programme.title)
-                assertEquals("Pilot & Plans", programme.subTitle)
-                assertEquals("S2 E5", programme.episode)
-                assertTrue(programme.isNew)
-                assertEquals("TV-PG", programme.rating)
-                assertEquals(listOf("Sports"), programme.categories)
-                assertNull(programme.icon)
+                val program = Json.decodeFromString<GuideWindow>(window.bodyAsText()).channels.single().programs.single()
+                assertEquals("Morning", program.title)
+                assertEquals("Pilot & Plans", program.subTitle)
+                assertEquals("S2 E5", program.episode)
+                assertTrue(program.isNew)
+                assertEquals("TV-PG", program.rating)
+                assertEquals(listOf("Sports"), program.categories)
+                assertNull(program.icon)
             } finally { served.runtime.close(); served.store.close(); dir.toFile().deleteRecursively() }
         }
     }
@@ -240,7 +240,7 @@ class OutputTest {
         assertFalse(compressible(null))
     }
 
-    @Test fun `a station's group gives its programmes the kind Plex sorts by, then the group itself`() {
+    @Test fun `a station's group gives its programs the kind Plex sorts by, then the group itself`() {
         assertEquals(listOf("Movie", "Movies"), xmltvCategories("Movies"))
         assertEquals(listOf("Sports"), xmltvCategories("Sports"))
         assertEquals(listOf("News", "Local News (US)"), xmltvCategories("Local News (US)"))

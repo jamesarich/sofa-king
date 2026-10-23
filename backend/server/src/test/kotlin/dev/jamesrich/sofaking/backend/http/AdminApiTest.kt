@@ -77,7 +77,7 @@ class AdminApiTest {
                     bearerAuth(token); contentType(ContentType.Application.Json)
                     setBody(json.encodeToString(GuideQuery(listOf(entry.id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")))
                 }.bodyAsText())
-                assertEquals("Morning", window.channels.single().programmes.single().title)
+                assertEquals("Morning", window.channels.single().programs.single().title)
                 val session = Json.decodeFromString<PlaybackSession>(client.post("/api/v1/playback-sessions") {
                     bearerAuth(token); contentType(ContentType.Application.Json); setBody(json.encodeToString(OpenPlayback(entry.id, "preview", "admin-test")))
                 }.bodyAsText())

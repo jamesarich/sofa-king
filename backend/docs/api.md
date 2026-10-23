@@ -381,7 +381,7 @@ The [admin portal](admin.md) is HTML under `/admin`. Every route but the sign-in
 | POST | `/admin/sources/playlist`, `/admin/sources/remove` | Add an M3U playlist (`id`, `url`, `guide`) or remove a provider (`id`), after `confirm=yes`; each writes the source file and restarts |
 | POST | `/admin/policy/starter` | Write the starter policy, after `confirm=yes`, and restart |
 | POST | `/admin/attention/ignore`, `/admin/attention/show` | Ignore an overview item (`key`, `fingerprint`) until its text changes; show it again (`key`) |
-| POST | `/admin/theme` | Pin the colour scheme: `theme` of `light`, `dark` or `auto`, then back to the portal path in `back` |
+| POST | `/admin/theme` | Pin the color scheme: `theme` of `light`, `dark` or `auto`, then back to the portal path in `back` |
 | GET | `/admin/system/jobs` | Background jobs with their last run and next due time |
 | POST | `/admin/system/jobs/{id}/run` | Run a job now |
 | GET | `/admin/system/events?level=&q=` | The newest 500 log lines at INFO and above; `level` of `warn` or `error` narrows them, `q` matches the logger or message |

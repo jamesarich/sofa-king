@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.time.Duration
 import java.time.Instant
@@ -22,7 +22,7 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
         val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         for (channel in channels.filter { it.channel.id in wanted }) {
             val rows = context.http.get("$siteBase/api/schedule/marathons/${channel.marathonId}", HEADERS).require("Adult Swim schedule").json()["data"].array
             for (row in rows) {
@@ -32,13 +32,13 @@ class AdultSwimClient(private val context: ProviderContext) : ProviderClient {
                 val episode = row.str("name") ?: row.str("episodeName")
                 val series = row.str("seriesName")
                 val title = series ?: episode ?: channel.channel.name
-                programmes += GuideProgramme(
+                programs += GuideProgram(
                     channel.channel.id, start, start.plusMillis((seconds * 1000).toLong()), title,
                     subTitle = if (series != null) episode else null,
                 )
             }
         }
-        return ParsedGuide(index, programmes)
+        return ParsedGuide(index, programs)
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {

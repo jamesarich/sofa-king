@@ -86,10 +86,10 @@
         "type": "object",
         "properties": {
           "channelId": { "type": "string" }, "status": { "type": "string", "description": "ok, or removed for an entry the lineup no longer has" },
-          "programmes": { "type": "array", "items": { "$ref": "#/components/schemas/Programme" } }
+          "programmes": { "type": "array", "items": { "$ref": "#/components/schemas/Program" } }
         }
       },
-      "Programme": {
+      "Program": {
         "type": "object",
         "properties": {
           "id": { "type": "string" }, "channelId": { "type": "string" }, "startsAt": { "type": "string", "format": "date-time" }, "endsAt": { "type": "string", "format": "date-time" },
@@ -650,7 +650,7 @@
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Catalog" } } } }, "304": { "description": "Unchanged" } } }
     },
     "/api/v1/guide/query": {
-      "post": { "tags": ["Live TV"], "summary": "Programmes overlapping a window for up to 200 channels", "security": [{ "apiToken": [] }],
+      "post": { "tags": ["Live TV"], "summary": "Programs overlapping a window for up to 200 channels", "security": [{ "apiToken": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideQuery" } } } },
         "responses": { "200": { "description": "", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuideWindow" } } } }, "409": { "description": "RESYNC_REQUIRED: the revision changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } } } }
     },
@@ -695,7 +695,7 @@
         "responses": { "200": { "description": "" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
     "/output/guide.xml": {
-      "get": { "tags": ["Outputs"], "summary": "The lineup's programmes as XMLTV", "description": "From three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
+      "get": { "tags": ["Outputs"], "summary": "The lineup's programs as XMLTV", "description": "From three hours ago to days ahead; the server's runtime setting applies when days is absent.", "security": [{ "outputToken": [] }, { "apiToken": [] }],
         "parameters": [{ "name": "days", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 14 } }],
         "responses": { "200": { "description": "application/xml" }, "400": { "$ref": "#/components/responses/Error" }, "401": { "$ref": "#/components/responses/Error" } } }
     },
@@ -1008,7 +1008,7 @@
       "delete": {
         "tags": ["Recordings"],
         "summary": "Cancel, stop or delete a recording",
-        "description": "Cancels a scheduled recording, stops a running one and keeps what it recorded, or deletes a finished one and its file. A cancelled airing of a rule is not scheduled again.",
+        "description": "Cancels a scheduled recording, stops a running one and keeps what it recorded, or deletes a finished one and its file. A canceled airing of a rule is not scheduled again.",
         "security": [{ "apiToken": [] }],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {

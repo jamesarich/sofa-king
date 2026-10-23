@@ -30,10 +30,10 @@ struct ProgramDetailView: View {
                             Text(line).foregroundStyle(.secondary)
                         }
                         Text(airing(now)).foregroundStyle(.secondary)
-                        if let summary = model.core.summary(programme: now), !summary.isEmpty {
+                        if let summary = model.core.summary(program: now), !summary.isEmpty {
                             Text(summary).font(.body)
                         }
-                        RecordButtons(programme: now)
+                        RecordButtons(program: now)
                     } else {
                         Text("No program information").font(.title2)
                     }
@@ -44,7 +44,7 @@ struct ProgramDetailView: View {
                         if let line = episodeLine(next) {
                             Text(line).font(.caption).foregroundStyle(.tertiary)
                         }
-                        RecordButtons(programme: next)
+                        RecordButtons(program: next)
                     }
                     HStack(spacing: 24) {
                         Button("Watch", systemImage: "play.fill", action: watch)
@@ -60,19 +60,19 @@ struct ProgramDetailView: View {
     }
 
     /// The episode title, its number, a first-airing mark and the rating, those that the guide gave.
-    private func episodeLine(_ programme: Programme) -> String? {
+    private func episodeLine(_ program: Program) -> String? {
         var parts: [String] = []
-        if let subTitle = programme.subTitle, !subTitle.isEmpty { parts.append(subTitle) }
-        if let episode = programme.episode, !episode.isEmpty { parts.append(episode) }
-        if programme.isNew { parts.append("New") }
-        if let rating = programme.rating, !rating.isEmpty { parts.append(rating) }
+        if let subTitle = program.subTitle, !subTitle.isEmpty { parts.append(subTitle) }
+        if let episode = program.episode, !episode.isEmpty { parts.append(episode) }
+        if program.isNew { parts.append("New") }
+        if let rating = program.rating, !rating.isEmpty { parts.append(rating) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// `7:00 – 8:00 PM · 25 min left`
-    private func airing(_ programme: Programme) -> String {
-        let start = model.core.start(of: programme)
-        let end = model.core.end(of: programme)
+    private func airing(_ program: Program) -> String {
+        let start = model.core.start(of: program)
+        let end = model.core.end(of: program)
         let range = (start..<end).formatted(.interval.hour().minute())
         let left = max(0, Int(end.timeIntervalSinceNow / 60))
         return "\(range) · \(left) min left"
@@ -83,20 +83,20 @@ struct ProgramDetailView: View {
 /// on a server that records; a line says when the server did not take the change.
 private struct RecordButtons: View {
     @Environment(AppModel.self) private var model
-    let programme: Programme
+    let program: Program
     @State private var busy = false
     @State private var failed = false
 
     var body: some View {
-        if model.recordingsShown, model.core.recordable(programme: programme), let marks = model.recordingMarks {
-            let mark = model.core.recordingMark(marks: marks, programme: programme)
+        if model.recordingsShown, model.core.recordable(program: program), let marks = model.recordingMarks {
+            let mark = model.core.recordingMark(marks: marks, program: program)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 24) {
                     Button(mark.recording ? "Cancel recording" : "Record", systemImage: mark.recording ? "xmark.circle" : "record.circle") {
-                        change { try await model.core.toggleRecording(programme: programme) }
+                        change { try await model.core.toggleRecording(program: program) }
                     }
                     Button(mark.series ? "Stop series" : "Record series", systemImage: mark.series ? "xmark.circle" : "repeat.circle") {
-                        change { try await model.core.toggleSeries(programme: programme) }
+                        change { try await model.core.toggleSeries(program: program) }
                     }
                 }
                 if failed {

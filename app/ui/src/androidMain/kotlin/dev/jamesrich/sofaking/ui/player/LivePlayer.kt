@@ -215,7 +215,7 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
 
     /**
      * The display is switching modes for the picture's frame rate. Shield-class boxes send a media-session pause as
-     * HDMI renegotiates, which would leave a channel or film paused after it starts, so such a pause is ignored for
+     * HDMI renegotiates, which would leave a channel or movie paused after it starts, so such a pause is ignored for
      * a few seconds. Remote keys reach the player screens directly, so a real press still pauses.
      */
     fun ignoreSystemPauseForModeSwitch() {
@@ -317,7 +317,7 @@ internal class ExoLivePlayer(private val context: Context, override val captionS
 /** Numbers the process's media sessions, as each needs its own id. */
 private val sessionIds = AtomicInteger()
 
-/** Film and TV sound, so the system treats the stream as media with speech and music, not as an unknown sound. */
+/** Movie and TV sound, so the system treats the stream as media with speech and music, not as an unknown sound. */
 private val MEDIA_AUDIO: AudioAttributes = AudioAttributes.Builder()
     .setUsage(C.USAGE_MEDIA)
     .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)

@@ -190,14 +190,14 @@ struct PlayerView: View {
     private var recordAction: UIAction? {
         guard model.recordingsShown, let marks = model.recordingMarks, let lineup = model.lineup,
               let now = model.core.nowAndNext(lineup: lineup, channel: channel).now,
-              model.core.recordable(programme: now)
+              model.core.recordable(program: now)
         else { return nil }
-        let recording = model.core.recordingMark(marks: marks, programme: now).recording
+        let recording = model.core.recordingMark(marks: marks, program: now).recording
         return UIAction(
             title: recording ? "Cancel recording" : "Record",
             image: UIImage(systemName: recording ? "xmark.circle" : "record.circle")
         ) { _ in
-            Task { _ = try? await model.core.toggleRecording(programme: now) }
+            Task { _ = try? await model.core.toggleRecording(program: now) }
         }
     }
 

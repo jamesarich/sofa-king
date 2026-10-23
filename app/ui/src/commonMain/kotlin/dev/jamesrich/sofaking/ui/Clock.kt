@@ -27,7 +27,7 @@ internal val LocalClock = staticCompositionLocalOf<Clock> { Clock.System }
 
 /**
  * The current instant, refreshed on every wall-clock minute, so the guide and the player turn over together
- * and with the programmes' start times; reading it in composition never calls the clock. It is read again each
+ * and with the programs' start times; reading it in composition never calls the clock. It is read again each
  * time the app comes to the front, since a delay pending through standby can wake long after its minute.
  */
 @Composable

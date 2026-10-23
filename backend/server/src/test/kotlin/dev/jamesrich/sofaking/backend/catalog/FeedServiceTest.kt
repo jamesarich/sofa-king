@@ -33,7 +33,7 @@ class FeedServiceTest {
                 val stack = lineupStack(feeds, store, clock, http, guides = listOf(fixture.gzipGuide), adopt = false)
                 assertEquals(id, stack.catalog.catalog().channels.single().id, "the lineup is persisted, not re-adopted")
                 assertTrue(store.health(offering)!!.manuallyDisabled)
-                assertEquals(1, stack.catalog.guide(GuideQuery(listOf(id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single().programmes.size)
+                assertEquals(1, stack.catalog.guide(GuideQuery(listOf(id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single().programs.size)
             }
         } } } finally { dir.toFile().deleteRecursively() }
     }
@@ -109,16 +109,16 @@ class FeedServiceTest {
             val catalog = lineupStack(feeds, store, clock, http, guides = listOf(fixture.gzipGuide)).catalog
             val id = catalog.catalog().channels.single().id
             val query = GuideQuery(listOf(id), "2026-10-10T14:00:00Z", "2026-10-10T15:00:00Z")
-            assertTrue(catalog.guide(query).channels.single().programmes.isEmpty())
+            assertTrue(catalog.guide(query).channels.single().programs.isEmpty())
             val overlapping = catalog.guide(query.copy(from = "2026-10-10T13:30:00Z")).channels.single()
-            assertEquals("Morning", overlapping.programmes.single().title); assertEquals(id, overlapping.programmes.single().channelId)
+            assertEquals("Morning", overlapping.programs.single().title); assertEquals(id, overlapping.programs.single().channelId)
             assertEquals("RESYNC_REQUIRED", assertFailsWith<ApiFailure> { catalog.guide(query.copy(revision = "old")) }.code)
             assertFailsWith<ApiFailure> { catalog.guide(query.copy(to = "2026-10-12T14:00:00Z")) }
             assertFailsWith<ApiFailure> { catalog.guide(query.copy(channelIds = List(201) { id })) }
             val withRemoved = catalog.guide(query.copy(from = "2026-10-10T13:30:00Z", channelIds = listOf(id, "unknown"))).channels
             assertEquals(listOf(id, "unknown"), withRemoved.map { it.channelId })
-            assertEquals("Morning", withRemoved.first().programmes.single().title)
-            assertEquals(Wire.GuideStatus.REMOVED, withRemoved.last().status); assertTrue(withRemoved.last().programmes.isEmpty())
+            assertEquals("Morning", withRemoved.first().programs.single().title)
+            assertEquals(Wire.GuideStatus.REMOVED, withRemoved.last().status); assertTrue(withRemoved.last().programs.isEmpty())
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 

@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-/** How much a focused control grows, as TV focus does; a guide cell passes 1 so it never covers its neighbours. */
+/** How much a focused control grows, as TV focus does; a guide cell passes 1 so it never covers its neighbors. */
 const val TV_FOCUS_SCALE = 1.1f
 
 /**

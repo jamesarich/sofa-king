@@ -26,9 +26,9 @@ object IntroMatch {
     const val MIN_INTRO_MS = 15_000L
     const val MAX_INTRO_MS = 120_000L
 
-    /** How many of the most voted shifts are tried, each with its neighbours. */
+    /** How many of the most voted shifts are tried, each with its neighbors. */
     private const val SHIFTS = 8
-    private const val NEIGHBOURS = 2
+    private const val NEIGHBORS = 2
 
     /** The longest stretch of audio [a] and [b] share within the bounds above; null when they share none. */
     fun shared(a: IntArray, b: IntArray): SharedSpan? {
@@ -37,7 +37,7 @@ object IntroMatch {
         val votes = HashMap<Int, Int>()
         a.forEachIndexed { i, word -> positions[word]?.forEach { j -> votes.merge(j - i, 1, Int::plus) } }
         val shifts = votes.entries.sortedByDescending { it.value }.take(SHIFTS)
-            .flatMap { (shift, _) -> (shift - NEIGHBOURS)..(shift + NEIGHBOURS) }.distinct()
+            .flatMap { (shift, _) -> (shift - NEIGHBORS)..(shift + NEIGHBORS) }.distinct()
         var best: Run? = null
         for (shift in shifts) {
             val run = longestRun(a, b, shift) ?: continue

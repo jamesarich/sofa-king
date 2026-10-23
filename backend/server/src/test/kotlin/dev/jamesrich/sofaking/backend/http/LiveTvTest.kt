@@ -37,7 +37,7 @@ class LiveTvTest {
                 val query = GuideQuery(listOf(catalog.channels.single().id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")
                 val guideResponse = client.post("/api/v1/guide/query") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(query)) }
                 assertKeepsWireFixture("v1/guide-window.json", guideResponse.bodyAsText())
-                assertEquals("Morning", Json.decodeFromString<GuideWindow>(guideResponse.bodyAsText()).channels.single().programmes.single().title)
+                assertEquals("Morning", Json.decodeFromString<GuideWindow>(guideResponse.bodyAsText()).channels.single().programs.single().title)
                 val request = OpenPlayback(catalog.channels.single().id, "preview", "api-test")
                 val opened = client.post("/api/v1/playback-sessions") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(Json.encodeToString(request)) }
                 assertEquals(HttpStatusCode.Created, opened.status)

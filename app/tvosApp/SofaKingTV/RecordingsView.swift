@@ -230,7 +230,7 @@ private enum RecordingGroup: Hashable {
 extension DvrRecording: @retroactive Identifiable {}
 
 extension DvrRecording {
-    /// What ending it is called: a running one stops, a scheduled one is cancelled, anything else is deleted.
+    /// What ending it is called: a running one stops, a scheduled one is canceled, anything else is deleted.
     var deleteLabel: String {
         switch state {
         case .recording: "Stop"

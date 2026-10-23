@@ -91,7 +91,7 @@ class SofaKingRepositoryTest {
     fun `the guide is queried in chunks of 200 over the half-hour-aligned 24 hour window`() = runTest {
         val fake = fake()
 
-        val guide = fake.repository().loadGuide(channels(450)).programmes
+        val guide = fake.repository().loadGuide(channels(450)).programs
 
         assertEquals(450, guide.size)
         assertEquals("Show c449", guide["c449"]!!.single().title)
@@ -119,7 +119,7 @@ class SofaKingRepositoryTest {
         val fake = fake()
         fake.conflictsLeft = 1
 
-        val guide = fake.repository().loadGuide(channels(250)).programmes
+        val guide = fake.repository().loadGuide(channels(250)).programs
 
         assertEquals(250, guide.size)
         assertEquals(listOf(null, "r1", null, null), fake.revisions)
@@ -129,7 +129,7 @@ class SofaKingRepositoryTest {
     fun `every chunk after the first pins the revision the first returned`() = runTest {
         val fake = fake()
 
-        val guide = fake.repository().loadGuide(channels(1_585)).programmes
+        val guide = fake.repository().loadGuide(channels(1_585)).programs
 
         assertEquals(1_585, guide.size)
         assertEquals(listOf(null) + List(7) { "r1" }, fake.revisions)
@@ -140,7 +140,7 @@ class SofaKingRepositoryTest {
         val fake = fake()
         fake.conflictsLeft = 1
 
-        val guide = fake.repository().loadGuide(channels(1_000)).programmes
+        val guide = fake.repository().loadGuide(channels(1_000)).programs
 
         assertEquals(1_000, guide.size)
         // The first attempt's opening chunk, then all five chunks of the restart, unpinned.
@@ -148,14 +148,14 @@ class SofaKingRepositoryTest {
     }
 
     @Test
-    fun `a channel the server removed since the catalog loads as removed with no programmes`() = runTest {
+    fun `a channel the server removed since the catalog loads as removed with no programs`() = runTest {
         val fake = fake()
         fake.removed += "c1"
 
         val guide = fake.repository().loadGuide(channels(3))
 
         assertEquals(setOf("c1"), guide.removed)
-        assertEquals(setOf("c0", "c2"), guide.programmes.keys)
+        assertEquals(setOf("c0", "c2"), guide.programs.keys)
     }
 
     @Test

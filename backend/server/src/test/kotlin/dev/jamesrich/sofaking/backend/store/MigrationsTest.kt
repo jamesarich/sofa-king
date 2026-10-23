@@ -2,10 +2,10 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.PreviouslyShown
-import dev.jamesrich.sofaking.backend.catalog.ProgrammeRating
+import dev.jamesrich.sofaking.backend.catalog.ProgramRating
 import java.nio.file.Files
 import java.sql.DriverManager
 import kotlinx.coroutines.runBlocking
@@ -126,7 +126,7 @@ class MigrationsTest {
         } finally { dir.toFile().deleteRecursively() }
     }
 
-    @Test fun `programmes stored before the details column read with no metadata, and new ones keep theirs`() = runBlocking<Unit> {
+    @Test fun `programs stored before the details column read with no metadata, and new ones keep theirs`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-migration-details-")
         try {
             val db = databaseAt(dir)
@@ -140,21 +140,21 @@ class MigrationsTest {
             val start = java.time.Instant.ofEpochSecond(1791640800)
             val end = java.time.Instant.ofEpochSecond(1791644400)
             openStore(dir).use { store ->
-                assertEquals(GuideProgramme("c", start, end, "Old", "Kept"), store.programmes("g", listOf("c"), start, end).getValue("c").single())
-                val rich = GuideProgramme(
+                assertEquals(GuideProgram("c", start, end, "Old", "Kept"), store.programs("g", listOf("c"), start, end).getValue("c").single())
+                val rich = GuideProgram(
                     "c", start, end, "New", subTitle = "Part One", episodeNumbers = listOf(EpisodeNumber("xmltv_ns", "0.1.")),
-                    icon = "https://img.test/p.jpg", categories = listOf("News"), rating = ProgrammeRating("TV-G", "VCHIP"), isNew = true,
+                    icon = "https://img.test/p.jpg", categories = listOf("News"), rating = ProgramRating("TV-G", "VCHIP"), isNew = true,
                     previouslyShown = PreviouslyShown(), date = "2026", language = "en",
                 )
-                val plain = GuideProgramme("c", end, end.plusSeconds(3600), "Plain")
+                val plain = GuideProgram("c", end, end.plusSeconds(3600), "Plain")
                 store.saveGuide("g", java.time.Instant.parse("2026-10-11T00:00:00Z"), emptyList(), listOf(rich, plain))
-                assertEquals(listOf(rich, plain), store.programmes("g", listOf("c"), start, end.plusSeconds(3600)).getValue("c"))
+                assertEquals(listOf(rich, plain), store.programs("g", listOf("c"), start, end.plusSeconds(3600)).getValue("c"))
             }
             DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                 connection.createStatement().use { stmt ->
                     stmt.executeQuery("SELECT title, details_json FROM guide_programme ORDER BY starts_at").use { rows ->
                         assertTrue(rows.next()); assertEquals("New", rows.getString(1)); assertTrue(rows.getString(2).startsWith("{"))
-                        assertTrue(rows.next()); assertEquals("Plain", rows.getString(1)); assertNull(rows.getString(2), "a programme without metadata stores none")
+                        assertTrue(rows.next()); assertEquals("Plain", rows.getString(1)); assertNull(rows.getString(2), "a program without metadata stores none")
                     }
                 }
             }

@@ -48,7 +48,7 @@ class LineupViewModelTest {
         override fun now() = now
     }
 
-    /** A server with a catalog of [channelIds], a one-programme guide per channel, and switches to fail either. */
+    /** A server with a catalog of [channelIds], a one-program guide per channel, and switches to fail either. */
     private class FakeServer(scope: TestScope) {
         var channelIds = listOf("c1", "c2")
         var failCatalog = false
@@ -70,7 +70,7 @@ class LineupViewModelTest {
                 "/api/v1/guide/query" -> {
                     if (failGuide) return@FakeHttp apiError(503, "NOT_READY")
                     guideRequests++
-                    // One programme per channel at the start of the window asked for, so a second day reads apart from the first.
+                    // One program per channel at the start of the window asked for, so a second day reads apart from the first.
                     val from = Regex(""""from":"([^"]+)"""").find(request.body)?.groupValues?.get(1)
                     val start = from?.let { Instant.parse(it) } ?: Instant.parse("2026-10-10T10:00:00Z")
                     val rows = channelIds.joinToString(",") { id ->
@@ -170,14 +170,14 @@ class LineupViewModelTest {
         val server = FakeServer(this)
         val viewModel = start(server)
 
-        // The channels show first, while the cached programmes decode.
+        // The channels show first, while the cached programs decode.
         assertEquals(cached.channels, viewModel.state.first { it is LineupState.Ready }.lineup.channels)
         val fresh = viewModel.state.first { it is LineupState.Ready && it.lineup.channels.first().guideId == "c1" }.lineup
         assertEquals(listOf("c1", "c2"), fresh.channels.map { it.guideId })
     }
 
     @Test
-    fun `a cached lineup without programmes still on is loading until the network answers`() = viewModelTest {
+    fun `a cached lineup without programs still on is loading until the network answers`() = viewModelTest {
         val cached = Lineup(listOf(Channel("old", 9.0, "Old", null, listOf("Other"))), emptyMap())
         LineupCache(cacheStore, "http://sofa.test") { now }.write(cached)
         val server = FakeServer(this)

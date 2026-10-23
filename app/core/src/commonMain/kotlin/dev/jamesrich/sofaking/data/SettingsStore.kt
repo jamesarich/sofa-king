@@ -88,6 +88,7 @@ data class AppSettings(
 
     companion object {
         const val DEFAULT_CAPTION_ADVANCE_MS = 0
+
         /** Negative shows captions later, positive earlier; the per-channel values keep the same range. */
         val CAPTION_ADVANCE_RANGE_MS = -8_000..8_000
         const val CAPTION_ADVANCE_STEP_MS = 500
@@ -227,7 +228,12 @@ interface SettingsStore {
      * starred set and their order, [recent] the recent list (its first entry becomes the last channel when the
      * device has none), and [syncedAt] is remembered as the document taken.
      */
-    suspend fun applyServerPreferences(hidden: Set<String>, favorites: List<String>, recent: List<String>, syncedAt: String)
+    suspend fun applyServerPreferences(
+        hidden: Set<String>,
+        favorites: List<String>,
+        recent: List<String>,
+        syncedAt: String,
+    )
 
     /** Remembers the server document's stamp after this device pushed its preferences. */
     suspend fun setPreferencesSyncedAt(syncedAt: String)

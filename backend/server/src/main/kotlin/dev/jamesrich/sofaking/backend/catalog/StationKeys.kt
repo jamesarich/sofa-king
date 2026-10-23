@@ -14,7 +14,10 @@ private val separators = Regex("[^\\p{L}\\p{Nd}\\p{Mc}]+")
  * to one space, then a leading `the` and a trailing `hd` dropped. Depends on [name] alone, never on the catalog.
  */
 fun baseName(name: String): String {
-    val decomposed = combiningMarks.replace(Normalizer.normalize(name, Normalizer.Form.NFKD), "").lowercase(java.util.Locale.ROOT)
+    val decomposed = combiningMarks.replace(
+        Normalizer.normalize(name, Normalizer.Form.NFKD),
+        "",
+    ).lowercase(java.util.Locale.ROOT)
     val spelled = decomposed.replace("&", " and ").replace("+", " plus ")
     var words = separators.replace(spelled, " ").trim().split(' ').filter { it.isNotEmpty() }
     if (words.size > 1 && words.first() == "the") words = words.drop(1)
@@ -23,13 +26,23 @@ fun baseName(name: String): String {
 }
 
 /** The normalized name under [version]: version 1 is [baseName]; version 2 is [baseName] without spaces. */
-fun normalizedName(name: String, version: Int): String = baseName(name).let { if (version >= 2) it.replace(" ", "") else it }
+fun normalizedName(name: String, version: Int): String = baseName(name).let {
+    if (version >= 2) {
+        it.replace(" ", "")
+    } else {
+        it
+    }
+}
 
 /**
  * Station keys: the normalized name through [aliases], then through [learned]. A learned target that is itself an
  * alias resolves through it, so an alias added later still holds.
  */
-class StationKeys(private val aliases: Map<String, String> = emptyMap(), val version: Int = 1, private val learned: Map<String, String> = emptyMap()) {
+class StationKeys(
+    private val aliases: Map<String, String> = emptyMap(),
+    val version: Int = 1,
+    private val learned: Map<String, String> = emptyMap(),
+) {
     init {
         require(version in NAME_VERSIONS) { "Unknown names.version $version" }
     }
@@ -47,7 +60,9 @@ class StationKeys(private val aliases: Map<String, String> = emptyMap(), val ver
 }
 
 /** True when [never] lists the pair [a], [b] in either order. */
-fun neverMerges(never: List<List<String>>, a: String, b: String): Boolean = never.any { it.size == 2 && ((it[0] == a && it[1] == b) || (it[0] == b && it[1] == a)) }
+fun neverMerges(never: List<List<String>>, a: String, b: String): Boolean = never.any {
+    it.size == 2 && ((it[0] == a && it[1] == b) || (it[0] == b && it[1] == a))
+}
 
 /** The learned aliases a run applies: those a [PolicyNames.never] pair does not block and an alias does not override. */
 fun effectiveLearned(names: PolicyNames): Map<String, String> =
@@ -79,10 +94,19 @@ private val ALIAS_SUFFIXES = listOf(" tv", " channel")
 fun suggestedAliases(keys: Collection<String>, never: List<List<String>> = emptyList()): List<String> {
     val present = keys.toSortedSet()
     val suggestions = sortedSetOf<String>()
-    fun suggest(key: String, other: String) { if (!neverMerges(never, key, other)) suggestions += "$key: possible alias of $other" }
+    fun suggest(key: String, other: String) {
+        if (!neverMerges(never, key, other)) {
+            suggestions +=
+                "$key: possible alias of $other"
+        }
+    }
     for (key in present) {
         for (suffix in ALIAS_SUFFIXES) {
-            if (key.endsWith(suffix)) key.removeSuffix(suffix).takeIf { it.isNotEmpty() && it in present }?.let { suggest(key, it) }
+            if (key.endsWith(suffix)) {
+                key.removeSuffix(suffix).takeIf {
+                    it.isNotEmpty() && it in present
+                }?.let { suggest(key, it) }
+            }
         }
     }
     val byCompact = present.groupBy { it.replace(" ", "") }

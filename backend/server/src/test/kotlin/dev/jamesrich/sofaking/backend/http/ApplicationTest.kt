@@ -1,10 +1,10 @@
 package dev.jamesrich.sofaking.backend.http
 
+import dev.jamesrich.sofaking.backend.store.IdentityStore
+import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.contract.ApiError
 import dev.jamesrich.sofaking.contract.Bootstrap
 import dev.jamesrich.sofaking.contract.Capabilities
-import dev.jamesrich.sofaking.backend.store.IdentityStore
-import dev.jamesrich.sofaking.backend.store.openStore
 import io.ktor.client.request.get
 import io.ktor.client.request.host
 import io.ktor.client.statement.bodyAsBytes
@@ -52,8 +52,12 @@ class ApplicationTest {
             assertEquals("1970-01-01T00:00:00Z", body.serverTime)
             assertEquals(Capabilities(), body.capabilities)
             assertEquals(store.serverId(), body.serverId)
-        } finally { store.close(); dir.toFile().deleteRecursively() }
+        } finally {
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
     }
+
     @Test fun `liveness does not require ready storage`() = testApplication {
         application { backendModule(unreadyStore(), Clock.systemUTC()) }
         assertEquals(HttpStatusCode.OK, client.get("/healthz").status)
@@ -62,12 +66,14 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.ServiceUnavailable, bootstrap.status)
         assertEquals("NOT_READY", Json.decodeFromString<ApiError>(bootstrap.bodyAsText()).code)
     }
+
     @Test fun `unknown API route has structured error`() = testApplication {
         application { backendModule(unreadyStore(), Clock.systemUTC()) }
         val response = client.get("/api/v1/missing")
         assertEquals(HttpStatusCode.NotFound, response.status)
         assertEquals("RESOURCE_NOT_FOUND", Json.decodeFromString<ApiError>(response.bodyAsText()).code)
     }
+
     @Test fun `a client hanging up is a debug line while other failures stay errors`() {
         assertTrue(clientAbort(ClosedByteChannelException()))
         assertTrue(clientAbort(ClosedWriteChannelException()))
@@ -98,7 +104,12 @@ class ApplicationTest {
             runCatching { client.get("/abort").bodyAsBytes() }
             val logged = events.map { "${it.level}: ${it.message}" }
             assertTrue(events.none { it.level == Level.ERROR }, "client abort logged as $logged")
-            assertTrue(events.any { it.level == Level.DEBUG && it.message.startsWith("Client closed the connection") }, "client abort logged as $logged")
+            assertTrue(
+                events.any {
+                    it.level == Level.DEBUG && it.message.startsWith("Client closed the connection")
+                },
+                "client abort logged as $logged",
+            )
             events.clear()
             val broken = client.get("/broken")
             assertEquals(HttpStatusCode.InternalServerError, broken.status)

@@ -1,10 +1,10 @@
 package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Programme
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.test.Test
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
 
@@ -64,7 +64,13 @@ class GuideSearchTest {
 
     @Test
     fun `upcoming matches titles and episode titles after now in start order`() {
-        val programmes = listOf(show("Jeopardy!", 4), show("News", 1, subTitle = "Jeopardy champions"), show("Jeopardy!", 0), show("Jeopardy!", -1))
+        val programmes =
+            listOf(
+                show("Jeopardy!", 4),
+                show("News", 1, subTitle = "Jeopardy champions"),
+                show("Jeopardy!", 0),
+                show("Jeopardy!", -1),
+            )
         val later = GuideSearch.upcoming("jeopardy", programmes, after = now, before = now + 24.hours)
         assertEquals(listOf(1, 4), later.map { ((it.start - now).inWholeHours).toInt() })
     }

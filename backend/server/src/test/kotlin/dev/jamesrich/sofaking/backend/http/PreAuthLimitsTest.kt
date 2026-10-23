@@ -35,12 +35,25 @@ class PreAuthLimitsTest {
             application { backendModule(store, MutableClock(), apiToken = apiToken, adminToken = adminToken) }
             val big = "x".repeat(70_000)
             for (token in listOf(null, apiToken)) {
-                val response = client.post("/api/v1/playback-sessions") { token?.let { bearerAuth(it) }; contentType(ContentType.Application.Json); setBody(big) }
+                val response = client.post("/api/v1/playback-sessions") {
+                    token?.let { bearerAuth(it) }
+                    contentType(ContentType.Application.Json)
+                    setBody(big)
+                }
                 assertEquals(HttpStatusCode.PayloadTooLarge, response.status, "token: $token")
                 assertTrue(response.bodyAsText().contains("REQUEST_TOO_LARGE"))
             }
-            assertEquals(HttpStatusCode.PayloadTooLarge, client.post("/admin/login") { contentType(ContentType.Application.FormUrlEncoded); setBody("token=$big") }.status)
-        } finally { store.close(); dir.toFile().deleteRecursively() }
+            assertEquals(
+                HttpStatusCode.PayloadTooLarge,
+                client.post("/admin/login") {
+                    contentType(ContentType.Application.FormUrlEncoded)
+                    setBody("token=$big")
+                }.status,
+            )
+        } finally {
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
     }
 
     @Test fun `only the policy writes may send more than 64 KiB`() {
@@ -66,12 +79,20 @@ class PreAuthLimitsTest {
                 routing { get("/api/v1/channels") { call.respondText("channels") } }
             }
             val wrong = apiToken.reversed()
-            assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/channels?token=$apiToken") { bearerAuth(wrong) }.status)
+            assertEquals(
+                HttpStatusCode.Unauthorized,
+                client.get("/api/v1/channels?token=$apiToken") {
+                    bearerAuth(wrong)
+                }.status,
+            )
             assertEquals(HttpStatusCode.OK, client.get("/api/v1/channels") { bearerAuth(apiToken) }.status)
             assertEquals(1, lines.size, "$lines")
             assertTrue(lines.single().matches(Regex("auth failed route=/api/v1/channels remote=\\S+")), lines.single())
             assertTrue(lines.none { wrong in it || apiToken in it || "token=" in it }, "$lines")
-        } finally { store.close(); dir.toFile().deleteRecursively() }
+        } finally {
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
     }
 
     @Test fun `auth failure lines are capped each minute and the next one counts what was dropped`() {

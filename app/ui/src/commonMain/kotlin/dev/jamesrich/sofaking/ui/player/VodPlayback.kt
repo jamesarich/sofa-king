@@ -46,7 +46,8 @@ internal sealed interface VodSeekPlan {
  * the conversion there. The target stays [END_GUARD_MS] short of a known end, so a seek never lands on the last frame.
  */
 internal fun vodSeekPlan(stream: PlaybackStream, targetMs: Long, writtenMs: Long?, itemDurationMs: Long?): VodSeekPlan {
-    val target = itemDurationMs?.let { targetMs.coerceIn(0, (it - END_GUARD_MS).coerceAtLeast(0)) } ?: targetMs.coerceAtLeast(0)
+    val target =
+        itemDurationMs?.let { targetMs.coerceIn(0, (it - END_GUARD_MS).coerceAtLeast(0)) } ?: targetMs.coerceAtLeast(0)
     if (stream.mode == Wire.VodMode.DIRECT) return VodSeekPlan.InStream(target)
     val streamMs = target - stream.offsetMs
     val edge = (writtenMs ?: 0) - EDGE_MARGIN_MS
@@ -59,7 +60,9 @@ internal fun vodSeekPlan(stream: PlaybackStream, targetMs: Long, writtenMs: Long
  */
 internal fun breakToSkip(markers: List<VodMarker>, previousMs: Long, nowMs: Long): Long? {
     if (nowMs <= previousMs || nowMs - previousMs > SKIP_WINDOW_MS) return null
-    return markers.firstOrNull { it.kind == VodMarkerKind.BREAK && it.startMs > previousMs && it.startMs <= nowMs && nowMs < it.endMs }?.endMs
+    return markers.firstOrNull {
+        it.kind == VodMarkerKind.BREAK && it.startMs > previousMs && it.startMs <= nowMs && nowMs < it.endMs
+    }?.endMs
 }
 
 /** The end of the commercial break [positionMs] is in, to skip to; null outside one. */
@@ -67,10 +70,12 @@ internal fun breakEndAt(markers: List<VodMarker>, positionMs: Long): Long? =
     markers.firstOrNull { it.kind == VodMarkerKind.BREAK && positionMs >= it.startMs && positionMs < it.endMs }?.endMs
 
 /** The intro [positionMs] is in; null outside one. */
-internal fun introAt(markers: List<VodMarker>, positionMs: Long): VodMarker? = segmentAt(markers, positionMs, VodMarkerKind.INTRO)
+internal fun introAt(markers: List<VodMarker>, positionMs: Long): VodMarker? =
+    segmentAt(markers, positionMs, VodMarkerKind.INTRO)
 
 /** The credits [positionMs] is in; null outside them. */
-internal fun creditsAt(markers: List<VodMarker>, positionMs: Long): VodMarker? = segmentAt(markers, positionMs, VodMarkerKind.CREDITS)
+internal fun creditsAt(markers: List<VodMarker>, positionMs: Long): VodMarker? =
+    segmentAt(markers, positionMs, VodMarkerKind.CREDITS)
 
 private fun segmentAt(markers: List<VodMarker>, positionMs: Long, kind: VodMarkerKind): VodMarker? =
     markers.firstOrNull { it.kind == kind && positionMs >= it.startMs && positionMs < it.endMs }

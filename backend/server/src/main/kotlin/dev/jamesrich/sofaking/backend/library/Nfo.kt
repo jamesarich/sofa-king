@@ -1,11 +1,11 @@
 package dev.jamesrich.sofaking.backend.library
 
+import org.w3c.dom.Element
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
-import org.w3c.dom.Element
 
 /**
  * What a Kodi `.nfo` sidecar says about a movie (`<movie>`), a show (`<tvshow>`) or an episode (`<episodedetails>`).
@@ -47,15 +47,28 @@ private val factory: DocumentBuilderFactory = DocumentBuilderFactory.newInstance
 /** The `.nfo` at [path], or null when it is missing, too large or not XML (some tools write a bare URL instead). */
 internal fun readNfo(path: Path): Nfo? = try {
     if (!Files.isRegularFile(path) || Files.size(path) > NFO_LIMIT) null else Files.newInputStream(path).use(::parseNfo)
-} catch (_: Exception) { null }
+} catch (_: Exception) {
+    null
+}
 
 internal fun parseNfo(input: InputStream): Nfo? {
-    val root = try { factory.newDocumentBuilder().apply { setErrorHandler(null) }.parse(input).documentElement } catch (_: Exception) { return null }
+    val root = try {
+        factory.newDocumentBuilder().apply { setErrorHandler(null) }.parse(input).documentElement
+    } catch (
+        _: Exception,
+    ) {
+        return null
+    }
     if (root.tagName !in setOf("movie", "tvshow", "episodedetails", "musicvideo")) return null
     fun text(name: String): String? = root.child(name)?.textContent?.trim()?.ifEmpty { null }
     fun all(name: String): List<String> = root.children(name).mapNotNull { it.textContent?.trim()?.ifEmpty { null } }
     val rating = text("rating")?.toDoubleOrNull()
-        ?: root.child("ratings")?.children("rating")?.let { ratings -> (ratings.firstOrNull { it.getAttribute("default") == "true" } ?: ratings.firstOrNull()) }
+        ?: root.child("ratings")?.children("rating")?.let { ratings ->
+            (
+                ratings.firstOrNull { it.getAttribute("default") == "true" }
+                    ?: ratings.firstOrNull()
+                )
+        }
             ?.child("value")?.textContent?.trim()?.toDoubleOrNull()
     val aired = text("aired") ?: text("premiered")
     return Nfo(
@@ -74,7 +87,10 @@ internal fun parseNfo(input: InputStream): Nfo? {
         rating = rating,
         cast = root.children("actor").mapNotNull { it.child("name")?.textContent?.trim()?.ifEmpty { null } }.take(20),
         directors = all("director"),
-        tmdbId = root.children("uniqueid").firstOrNull { it.getAttribute("type").equals("tmdb", ignoreCase = true) }?.textContent?.trim()?.toIntOrNull()
+        tmdbId =
+        root.children("uniqueid").firstOrNull {
+            it.getAttribute("type").equals("tmdb", ignoreCase = true)
+        }?.textContent?.trim()?.toIntOrNull()
             ?: text("tmdbid")?.toIntOrNull(),
     )
 }

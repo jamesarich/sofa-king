@@ -1,42 +1,42 @@
 package dev.jamesrich.sofaking
 
+import androidx.datastore.core.DataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
+import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.AppSettings
 import dev.jamesrich.sofaking.data.AutoOpenDelay
-import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.BufferPreference
-import dev.jamesrich.sofaking.data.ClockFormat
-import dev.jamesrich.sofaking.data.DecoderPreference
-import dev.jamesrich.sofaking.data.GuideDensity
-import dev.jamesrich.sofaking.data.StartupTarget
-import dev.jamesrich.sofaking.data.TopLevelTab
-import androidx.datastore.core.DataStore
 import dev.jamesrich.sofaking.data.CachedLineup
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.ClientInfo
+import dev.jamesrich.sofaking.data.ClockFormat
+import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.DiscoveredServer
-import dev.jamesrich.sofaking.data.PairingClaimDto
-import dev.jamesrich.sofaking.contract.Wire
+import dev.jamesrich.sofaking.data.GuideDensity
+import dev.jamesrich.sofaking.data.GuideWindow
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
-import dev.jamesrich.sofaking.data.GuideWindow
+import dev.jamesrich.sofaking.data.LiveBreaks
+import dev.jamesrich.sofaking.data.PairingClaimDto
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.RecordingSchedule
+import dev.jamesrich.sofaking.data.Server
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.ServerCapabilities
-import dev.jamesrich.sofaking.data.Server
 import dev.jamesrich.sofaking.data.ServerConnection
 import dev.jamesrich.sofaking.data.ServerDiscovery
 import dev.jamesrich.sofaking.data.SettingsPin
 import dev.jamesrich.sofaking.data.SettingsStore
+import dev.jamesrich.sofaking.data.SofaKingException
+import dev.jamesrich.sofaking.data.SofaKingRepository
+import dev.jamesrich.sofaking.data.StartupTarget
+import dev.jamesrich.sofaking.data.TopLevelTab
 import dev.jamesrich.sofaking.data.TrackChoice
 import dev.jamesrich.sofaking.data.UpdateChecker
 import dev.jamesrich.sofaking.data.UpdateState
-import dev.jamesrich.sofaking.data.SofaKingException
-import dev.jamesrich.sofaking.data.SofaKingRepository
 import dev.jamesrich.sofaking.data.describe
 import dev.jamesrich.sofaking.data.logFailures
 import kotlinx.coroutines.CancellationException
@@ -46,8 +46,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -61,10 +61,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.time.TimeSource
 
@@ -87,7 +87,11 @@ enum class PairingOutcome { PAIRED, FAILED }
  * Pairing as the screens show it: [busy] while a code is being claimed; [failure], why the last attempt failed, which
  * Settings shows until the next one; and [outcome], the last attempt's end until the screen that asked has acted on it.
  */
-data class PairingState(val busy: Boolean = false, val failure: PairingFailure? = null, val outcome: PairingOutcome? = null)
+data class PairingState(
+    val busy: Boolean = false,
+    val failure: PairingFailure? = null,
+    val outcome: PairingOutcome? = null,
+)
 
 /** How long browsing outlives Settings closing its server fields, so a quick reopen keeps what was found. */
 private const val DISCOVERY_LINGER_MS = 5_000L
@@ -173,7 +177,8 @@ class LineupViewModel(
     }
 
     /** [pair] for a host that awaits the answer, as the Apple TV app does: null once paired, else why it failed. */
-    suspend fun pairAndWait(url: String, code: String): PairingFailure? = viewModelScope.async { claim(url, code) }.await()
+    suspend fun pairAndWait(url: String, code: String): PairingFailure? =
+        viewModelScope.async { claim(url, code) }.await()
 
     /** The screen that asked has acted on [PairingState.outcome]; the failure stays for Settings to show. */
     fun pairingHandled() {
@@ -188,7 +193,15 @@ class LineupViewModel(
     private suspend fun claim(url: String, code: String): PairingFailure? {
         _pairing.value = PairingState(busy = true)
         val failure = claimCode(url, code)
-        _pairing.value = PairingState(failure = failure, outcome = if (failure == null) PairingOutcome.PAIRED else PairingOutcome.FAILED)
+        _pairing.value =
+            PairingState(
+                failure = failure,
+                outcome = if (failure == null) {
+                    PairingOutcome.PAIRED
+                } else {
+                    PairingOutcome.FAILED
+                },
+            )
         return failure
     }
 
@@ -197,7 +210,9 @@ class LineupViewModel(
         val digits = ServerAddress.normalizeCode(code) ?: return PairingFailure.INVALID_CODE
         return try {
             val clientId = store.ensureClientId()
-            val result = connection.newApi(server, "").use { it.pair(PairingClaimDto(digits, clientId, client.deviceName, client.platform)) }
+            val result = connection.newApi(server, "").use {
+                it.pair(PairingClaimDto(digits, clientId, client.deviceName, client.platform))
+            }
             store.setServer(server, result.apiToken)
             null
         } catch (e: CancellationException) {
@@ -216,10 +231,23 @@ class LineupViewModel(
     }
 
     /** One repository per server, so its catalog ETag survives every refresh; rebuilt only when the server changes. */
-    private val serverRepository = connection.server.map { s -> s?.let { it to SofaKingRepository(it.api, background, clock::now) } }
+    private val serverRepository = connection.server.map { s ->
+        s?.let {
+            it to
+                SofaKingRepository(it.api, background, clock::now)
+        }
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val liveState: StateFlow<LineupState> = combine(serverRepository, reloads.onStart { emit(null) }) { found, request -> found to request }
+    private val liveState: StateFlow<LineupState> = combine(
+        serverRepository,
+        reloads.onStart {
+            emit(null)
+        },
+    ) { found, request ->
+        found to
+            request
+    }
         .transformLatest { (found, request) ->
             // The request, if any, is answered by the first load below; a server change or another reload that
             // cancels this transform answers it with nothing.
@@ -231,7 +259,10 @@ class LineupViewModel(
                 extraDaysServer = serverKey
             }
             try {
-                load(found, onCatalog = { lineup -> pending?.complete(lineup); pending = null })
+                load(found, onCatalog = { lineup ->
+                    pending?.complete(lineup)
+                    pending = null
+                })
             } finally {
                 pending?.complete(null)
             }
@@ -239,8 +270,17 @@ class LineupViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
 
     val state: StateFlow<LineupState> = combine(liveState, extraDays) { live, extra ->
-        if (live !is LineupState.Ready || extra.isEmpty()) live
-        else LineupState.Ready(live.lineup.copy(guide = withContext(background) { mergeGuides(live.lineup.guide, extra.values) }))
+        if (live !is LineupState.Ready || extra.isEmpty()) {
+            live
+        } else {
+            LineupState.Ready(
+                live.lineup.copy(
+                    guide = withContext(background) {
+                        mergeGuides(live.lineup.guide, extra.values)
+                    },
+                ),
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
 
     /**
@@ -259,13 +299,17 @@ class LineupViewModel(
             try {
                 val started = TimeSource.Monotonic.markNow()
                 val guide = repository.loadGuide(lineup.channels, windowStart)
-                log.i { "guide: day ${windowStart} ${guide.programmes.values.sumOf { it.size }} programmes in ${started.elapsedNow()}" }
+                log.i {
+                    "guide: day $windowStart ${guide.programmes.values.sumOf {
+                        it.size
+                    }} programmes in ${started.elapsedNow()}"
+                }
                 // A day that arrives after Settings named another server is the old server's, so it is dropped.
                 if (extraDaysServer == server) extraDays.update { it + (windowStart to guide.programmes) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                log.w(e) { "guide: day ${windowStart} failed" }
+                log.w(e) { "guide: day $windowStart failed" }
             } finally {
                 daysLoading.remove(windowStart)
             }
@@ -273,7 +317,10 @@ class LineupViewModel(
     }
 
     /** Loads [found]'s lineup, cache first, then from the network every [REFRESH_INTERVAL]; [onCatalog] gets the first load's catalog, or null when it fails. */
-    private suspend fun FlowCollector<LineupState>.load(found: Pair<Server, SofaKingRepository>?, onCatalog: (Lineup?) -> Unit) {
+    private suspend fun FlowCollector<LineupState>.load(
+        found: Pair<Server, SofaKingRepository>?,
+        onCatalog: (Lineup?) -> Unit,
+    ) {
         if (found == null) {
             emit(LineupState.Unconfigured)
             return
@@ -318,7 +365,11 @@ class LineupViewModel(
                 }
                 onCatalog(interim ?: last)
                 val guide = repository.loadGuide(channels)
-                log.i { "guide: ${guide.programmes.values.sumOf { it.size }} programmes for ${guide.programmes.size} channels in ${started.elapsedNow()}" }
+                log.i {
+                    "guide: ${guide.programmes.values.sumOf {
+                        it.size
+                    }} programmes for ${guide.programmes.size} channels in ${started.elapsedNow()}"
+                }
                 // The lineup changed between the catalog and the guide: drop what left and read the catalog again soon.
                 lineupMoved = guide.removed.isNotEmpty()
                 if (lineupMoved) log.i { "guide: ${guide.removed.size} channels left the lineup" }
@@ -358,7 +409,9 @@ class LineupViewModel(
                         last = kept
                         emit(LineupState.Ready(kept))
                     }
+
                     last == null -> emit(LineupState.Failed(it.describe()))
+
                     last.guideLoading -> {
                         val kept = last.copy(guideLoading = false)
                         last = kept
@@ -542,12 +595,20 @@ class LineupViewModel(
     }
 
     /** [live] plus every day in [extra], per channel in start order without repeats, so a day loaded twice reads once. */
-    private fun mergeGuides(live: Map<String, List<Programme>>, extra: Collection<Map<String, List<Programme>>>): Map<String, List<Programme>> {
+    private fun mergeGuides(
+        live: Map<String, List<Programme>>,
+        extra: Collection<Map<String, List<Programme>>>,
+    ): Map<String, List<Programme>> {
         val merged = HashMap<String, List<Programme>>(live)
         for (day in extra) {
             for ((channel, programmes) in day) {
                 val current = merged[channel]
-                merged[channel] = if (current == null) programmes else (current + programmes).distinctBy { it.start }.sortedBy { it.start }
+                merged[channel] =
+                    if (current == null) {
+                        programmes
+                    } else {
+                        (current + programmes).distinctBy { it.start }.sortedBy { it.start }
+                    }
             }
         }
         return merged

@@ -9,8 +9,15 @@ import kotlin.test.assertNull
 import kotlin.time.Instant
 
 class ChannelMetadataTest {
-    private fun programme(episode: String? = null, subTitle: String? = null) =
-        Programme("c", Instant.fromEpochSeconds(0), Instant.fromEpochSeconds(60), "Show", null, subTitle = subTitle, episode = episode)
+    private fun programme(episode: String? = null, subTitle: String? = null) = Programme(
+        "c",
+        Instant.fromEpochSeconds(0),
+        Instant.fromEpochSeconds(60),
+        "Show",
+        null,
+        subTitle = subTitle,
+        episode = episode,
+    )
 
     @Test
     fun `the episode line puts the label before the episode title`() {

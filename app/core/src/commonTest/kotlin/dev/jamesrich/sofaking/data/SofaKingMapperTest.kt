@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.data
 
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.Test
 import kotlin.time.Instant
 
 class SofaKingMapperTest {
@@ -19,7 +19,8 @@ class SofaKingMapperTest {
 
     private fun guide(vararg channels: ChannelGuideDto) = GuideWindowDto("r1", channels = channels.toList())
 
-    private fun channelGuide(id: String, vararg programmes: ProgrammeDto) = ChannelGuideDto(id, programmes = programmes.toList())
+    private fun channelGuide(id: String, vararg programmes: ProgrammeDto) =
+        ChannelGuideDto(id, programmes = programmes.toList())
 
     private fun programme(
         startsAt: String,
@@ -104,8 +105,20 @@ class SofaKingMapperTest {
         assertEquals(setOf("a"), guide.keys)
         assertEquals(
             listOf(
-                Programme("a", Instant.parse("2026-10-10T10:00:00Z"), Instant.parse("2026-10-10T11:00:00Z"), "Earlier", null),
-                Programme("a", Instant.parse("2026-10-10T11:00:00Z"), Instant.parse("2026-10-10T12:00:00Z"), "Later", "Second"),
+                Programme(
+                    "a",
+                    Instant.parse("2026-10-10T10:00:00Z"),
+                    Instant.parse("2026-10-10T11:00:00Z"),
+                    "Earlier",
+                    null,
+                ),
+                Programme(
+                    "a",
+                    Instant.parse("2026-10-10T11:00:00Z"),
+                    Instant.parse("2026-10-10T12:00:00Z"),
+                    "Later",
+                    "Second",
+                ),
             ),
             guide["a"],
         )
@@ -140,13 +153,23 @@ class SofaKingMapperTest {
                     subTitle = " The Pilot ", episode = "S1 E1", isNew = true, rating = "TV-PG", icon = "https://img/x.jpg",
                     categories = listOf("Feature Film", "Drama", "Children"),
                 ),
-                programme("2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Plain", subTitle = "", episode = " ", rating = ""),
+                programme(
+                    "2026-10-10T11:00:00Z",
+                    "2026-10-10T12:00:00Z",
+                    "Plain",
+                    subTitle = "",
+                    episode = " ",
+                    rating = "",
+                ),
             ),
         )
 
         val (show, plain) = SofaKingMapper.programmes(window).getValue("a")
 
-        assertEquals(listOf("The Pilot", "S1 E1", "TV-PG", "https://img/x.jpg"), listOf(show.subTitle, show.episode, show.rating, show.icon))
+        assertEquals(
+            listOf("The Pilot", "S1 E1", "TV-PG", "https://img/x.jpg"),
+            listOf(show.subTitle, show.episode, show.rating, show.icon),
+        )
         assertEquals(true, show.isNew)
         assertEquals(setOf(ProgramKind.MOVIE, ProgramKind.KIDS), show.kinds)
         assertEquals(emptySet(), plain.kinds)
@@ -157,12 +180,20 @@ class SofaKingMapperTest {
     @Test
     fun `guide status maps from the wire and an unknown one reads as available`() {
         val statuses = listOf("unassigned", "empty", "available", "stale", "future")
-        val catalog = CatalogDto(channels = statuses.mapIndexed { i, status -> channel("$i", "${i + 1}").copy(guideStatus = status) })
+        val catalog =
+            CatalogDto(
+                channels = statuses.mapIndexed { i, status ->
+                    channel("$i", "${i + 1}").copy(guideStatus = status)
+                },
+            )
 
         assertEquals(
             listOf(
-                GuideStatus.UNASSIGNED, GuideStatus.EMPTY, GuideStatus.AVAILABLE,
-                GuideStatus.STALE, GuideStatus.AVAILABLE,
+                GuideStatus.UNASSIGNED,
+                GuideStatus.EMPTY,
+                GuideStatus.AVAILABLE,
+                GuideStatus.STALE,
+                GuideStatus.AVAILABLE,
             ),
             SofaKingMapper.channels(catalog).map { it.guideStatus },
         )
@@ -172,7 +203,9 @@ class SofaKingMapperTest {
     fun `logos go through the resolver and one it rejects reads as none`() {
         val catalog = catalog(channel("a", "1", logo = "http://x/logos/k"), channel("b", "2", logo = "bad"))
 
-        val channels = SofaKingMapper.channels(catalog) { raw -> raw.takeIf { "logos" in it }?.replace("http://x", "https://y") }
+        val channels = SofaKingMapper.channels(catalog) { raw ->
+            raw.takeIf { "logos" in it }?.replace("http://x", "https://y")
+        }
 
         assertEquals(listOf("https://y/logos/k", null), channels.map { it.logo })
     }

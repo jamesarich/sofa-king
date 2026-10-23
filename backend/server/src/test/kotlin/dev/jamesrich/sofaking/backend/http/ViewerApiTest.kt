@@ -25,8 +25,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
-import java.nio.file.Files
 import kotlinx.serialization.json.Json
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -44,22 +44,44 @@ class ViewerApiTest {
             val sources = dir.resolve("sources.json")
             Files.writeString(sources, json.encodeToString(listOf(fixture.feed)))
             val clock = MutableClock()
-            val config = ServerConfig("127.0.0.1", 8080, dir, sources, token, allowLoopbackUpstreams = true, adminToken = admin, hdhr = HdhrConfig(enabled = false))
+            val config =
+                ServerConfig(
+                    "127.0.0.1",
+                    8080,
+                    dir,
+                    sources,
+                    token,
+                    allowLoopbackUpstreams = true,
+                    adminToken = admin,
+                    hdhr = HdhrConfig(enabled = false),
+                )
             val store = openStore(dir)
             val runtime = LiveRuntime.create(store, config, clock, probes = false)
             try {
                 application { backendModule(store, clock, runtime, token, admin, config = config) }
-                val bootstrap = Json.decodeFromString<Bootstrap>(client.get("/api/v1/bootstrap") { bearerAuth(token) }.bodyAsText())
+                val bootstrap = Json.decodeFromString<Bootstrap>(
+                    client.get("/api/v1/bootstrap") {
+                        bearerAuth(token)
+                    }.bodyAsText(),
+                )
                 assertTrue(bootstrap.capabilities.viewers)
 
                 // No code is live: a claim is refused, with no token leaking, and needs no bearer token to be heard.
-                val cold = client.post("/api/v1/pair") { contentType(ContentType.Application.Json); setBody(json.encodeToString(PairingClaim("123456", "tv-1"))) }
+                val cold = client.post("/api/v1/pair") {
+                    contentType(ContentType.Application.Json)
+                    setBody(json.encodeToString(PairingClaim("123456", "tv-1")))
+                }
                 assertEquals(HttpStatusCode.Forbidden, cold.status)
                 assertEquals(Wire.ErrorCode.PAIRING_INVALID, Json.decodeFromString<ApiError>(cold.bodyAsText()).code)
                 assertFalse(cold.bodyAsText().contains(token))
 
                 // The admin API issues a code; the API token does not open that route.
-                assertEquals(HttpStatusCode.Unauthorized, client.post("/api/v1/admin/pairing-codes") { bearerAuth(token) }.status)
+                assertEquals(
+                    HttpStatusCode.Unauthorized,
+                    client.post("/api/v1/admin/pairing-codes") {
+                        bearerAuth(token)
+                    }.status,
+                )
                 val issued = client.post("/api/v1/admin/pairing-codes") { bearerAuth(admin) }
                 assertEquals(HttpStatusCode.Created, issued.status)
                 val code = Json.decodeFromString<PairingCode>(issued.bodyAsText())
@@ -67,7 +89,13 @@ class ViewerApiTest {
                 assertEquals(clock.now.plusSeconds(600).toString(), code.expiresAt)
 
                 val wrong = if (code.code == "000000") "111111" else "000000"
-                assertEquals(HttpStatusCode.Forbidden, client.post("/api/v1/pair") { contentType(ContentType.Application.Json); setBody(json.encodeToString(PairingClaim(wrong))) }.status)
+                assertEquals(
+                    HttpStatusCode.Forbidden,
+                    client.post("/api/v1/pair") {
+                        contentType(ContentType.Application.Json)
+                        setBody(json.encodeToString(PairingClaim(wrong)))
+                    }.status,
+                )
                 val paired = client.post("/api/v1/pair") {
                     contentType(ContentType.Application.Json)
                     setBody(json.encodeToString(PairingClaim(code.code, "tv-1", "Living room", "android-tv")))
@@ -77,21 +105,53 @@ class ViewerApiTest {
                 val result = Json.decodeFromString<PairingResult>(paired.bodyAsText())
                 assertEquals(token, result.apiToken)
                 assertEquals(store.serverId(), result.serverId)
-                assertEquals(HttpStatusCode.Forbidden, client.post("/api/v1/pair") { contentType(ContentType.Application.Json); setBody(json.encodeToString(PairingClaim(code.code))) }.status, "a code works once")
+                assertEquals(
+                    HttpStatusCode.Forbidden,
+                    client.post("/api/v1/pair") {
+                        contentType(ContentType.Application.Json)
+                        setBody(json.encodeToString(PairingClaim(code.code)))
+                    }.status,
+                    "a code works once",
+                )
 
                 // The paired device is listed, without preferences until it saves some.
-                val listed = Json.decodeFromString<List<Viewer>>(client.get("/api/v1/admin/viewers") { bearerAuth(admin) }.bodyAsText())
+                val listed = Json.decodeFromString<List<Viewer>>(
+                    client.get("/api/v1/admin/viewers") {
+                        bearerAuth(admin)
+                    }.bodyAsText(),
+                )
                 assertEquals(listOf("tv-1"), listed.map { it.clientId })
                 assertEquals("Living room", listed.single().name)
                 assertEquals("android-tv", listed.single().platform)
                 assertNull(listed.single().preferences)
-                assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/preferences/tv-1") { bearerAuth(result.apiToken) }.status)
+                assertEquals(
+                    HttpStatusCode.NotFound,
+                    client.get("/api/v1/preferences/tv-1") {
+                        bearerAuth(result.apiToken)
+                    }.status,
+                )
 
                 // Preferences need the token, are stamped by the server, and read back as saved.
-                val body = ViewerPreferences(hidden = listOf("h1", "h1"), favorites = listOf("f2", "f1"), recent = listOf("f1"), name = "Living room TV")
-                assertEquals(HttpStatusCode.Unauthorized, client.put("/api/v1/preferences/tv-1") { contentType(ContentType.Application.Json); setBody(json.encodeToString(body)) }.status)
+                val body =
+                    ViewerPreferences(
+                        hidden = listOf("h1", "h1"),
+                        favorites = listOf("f2", "f1"),
+                        recent = listOf("f1"),
+                        name = "Living room TV",
+                    )
+                assertEquals(
+                    HttpStatusCode.Unauthorized,
+                    client.put("/api/v1/preferences/tv-1") {
+                        contentType(ContentType.Application.Json)
+                        setBody(json.encodeToString(body))
+                    }.status,
+                )
                 clock.now = clock.now.plusSeconds(60)
-                val saved = client.put("/api/v1/preferences/tv-1") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(json.encodeToString(body)) }
+                val saved = client.put("/api/v1/preferences/tv-1") {
+                    bearerAuth(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(json.encodeToString(body))
+                }
                 assertEquals(HttpStatusCode.OK, saved.status)
                 assertKeepsWireFixture("v1/viewer-preferences.json", saved.bodyAsText())
                 val stored = Json.decodeFromString<ViewerPreferences>(saved.bodyAsText())
@@ -100,22 +160,83 @@ class ViewerApiTest {
                 assertEquals("Living room TV", stored.name)
                 assertEquals("android-tv", stored.platform, "an empty label keeps the stored one")
                 assertEquals(clock.now.toString(), stored.updatedAt)
-                assertEquals(stored, Json.decodeFromString<ViewerPreferences>(client.get("/api/v1/preferences/tv-1") { bearerAuth(token) }.bodyAsText()))
-                assertEquals(1, Json.decodeFromString<List<Viewer>>(client.get("/api/v1/admin/viewers") { bearerAuth(admin) }.bodyAsText()).single().preferences?.hidden?.size)
+                assertEquals(
+                    stored,
+                    Json.decodeFromString<ViewerPreferences>(
+                        client.get("/api/v1/preferences/tv-1") {
+                            bearerAuth(token)
+                        }.bodyAsText(),
+                    ),
+                )
+                assertEquals(
+                    1,
+                    Json.decodeFromString<List<Viewer>>(
+                        client.get("/api/v1/admin/viewers") {
+                            bearerAuth(admin)
+                        }.bodyAsText(),
+                    ).single().preferences?.hidden?.size,
+                )
 
                 // A device that never paired appears once it saves, newest first; bad ids and oversized lists are refused.
                 clock.now = clock.now.plusSeconds(60)
-                assertEquals(HttpStatusCode.OK, client.put("/api/v1/preferences/phone.2") { bearerAuth(token); contentType(ContentType.Application.Json); setBody("{}") }.status)
-                assertEquals(HttpStatusCode.BadRequest, client.put("/api/v1/preferences/bad%20id") { bearerAuth(token); contentType(ContentType.Application.Json); setBody("{}") }.status)
+                assertEquals(
+                    HttpStatusCode.OK,
+                    client.put("/api/v1/preferences/phone.2") {
+                        bearerAuth(token)
+                        contentType(ContentType.Application.Json)
+                        setBody("{}")
+                    }.status,
+                )
+                assertEquals(
+                    HttpStatusCode.BadRequest,
+                    client.put("/api/v1/preferences/bad%20id") {
+                        bearerAuth(token)
+                        contentType(ContentType.Application.Json)
+                        setBody("{}")
+                    }.status,
+                )
                 val tooMany = """{"hidden":[${(1..1001).joinToString(",") { "\"c$it\"" }}]}"""
-                assertEquals(HttpStatusCode.BadRequest, client.put("/api/v1/preferences/tv-1") { bearerAuth(token); contentType(ContentType.Application.Json); setBody(tooMany) }.status)
-                assertEquals(listOf("phone.2", "tv-1"), Json.decodeFromString<List<Viewer>>(client.get("/api/v1/admin/viewers") { bearerAuth(admin) }.bodyAsText()).map { it.clientId })
+                assertEquals(
+                    HttpStatusCode.BadRequest,
+                    client.put("/api/v1/preferences/tv-1") {
+                        bearerAuth(token)
+                        contentType(ContentType.Application.Json)
+                        setBody(tooMany)
+                    }.status,
+                )
+                assertEquals(
+                    listOf("phone.2", "tv-1"),
+                    Json.decodeFromString<List<Viewer>>(
+                        client.get("/api/v1/admin/viewers") {
+                            bearerAuth(admin)
+                        }.bodyAsText(),
+                    ).map { it.clientId },
+                )
 
                 // Forgetting drops the record; the next save brings it back.
-                assertEquals(HttpStatusCode.NoContent, client.delete("/api/v1/admin/viewers/tv-1") { bearerAuth(admin) }.status)
-                assertEquals(HttpStatusCode.NotFound, client.delete("/api/v1/admin/viewers/tv-1") { bearerAuth(admin) }.status)
-                assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/preferences/tv-1") { bearerAuth(token) }.status)
-            } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+                assertEquals(
+                    HttpStatusCode.NoContent,
+                    client.delete("/api/v1/admin/viewers/tv-1") {
+                        bearerAuth(admin)
+                    }.status,
+                )
+                assertEquals(
+                    HttpStatusCode.NotFound,
+                    client.delete("/api/v1/admin/viewers/tv-1") {
+                        bearerAuth(admin)
+                    }.status,
+                )
+                assertEquals(
+                    HttpStatusCode.NotFound,
+                    client.get("/api/v1/preferences/tv-1") {
+                        bearerAuth(token)
+                    }.status,
+                )
+            } finally {
+                runtime.close()
+                store.close()
+                dir.toFile().deleteRecursively()
+            }
         }
     }
 
@@ -124,19 +245,43 @@ class ViewerApiTest {
         Fixture().use { fixture ->
             val sources = dir.resolve("sources.json")
             Files.writeString(sources, json.encodeToString(listOf(fixture.feed)))
-            val config = ServerConfig("127.0.0.1", 8080, dir, sources, null, allowLoopbackUpstreams = true, adminToken = admin, hdhr = HdhrConfig(enabled = false))
+            val config =
+                ServerConfig(
+                    "127.0.0.1",
+                    8080,
+                    dir,
+                    sources,
+                    null,
+                    allowLoopbackUpstreams = true,
+                    adminToken = admin,
+                    hdhr = HdhrConfig(enabled = false),
+                )
             val store = openStore(dir)
             val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
             try {
                 application { backendModule(store, MutableClock(), runtime, null, admin, config = config) }
-                val code = Json.decodeFromString<PairingCode>(client.post("/api/v1/admin/pairing-codes") { bearerAuth(admin) }.bodyAsText())
+                val code = Json.decodeFromString<PairingCode>(
+                    client.post("/api/v1/admin/pairing-codes") {
+                        bearerAuth(admin)
+                    }.bodyAsText(),
+                )
                 // A bad client id is refused before the code is spent.
-                val badId = client.post("/api/v1/pair") { contentType(ContentType.Application.Json); setBody(json.encodeToString(PairingClaim(code.code, "tv 1!"))) }
+                val badId = client.post("/api/v1/pair") {
+                    contentType(ContentType.Application.Json)
+                    setBody(json.encodeToString(PairingClaim(code.code, "tv 1!")))
+                }
                 assertEquals(HttpStatusCode.BadRequest, badId.status)
-                val paired = client.post("/api/v1/pair") { contentType(ContentType.Application.Json); setBody(json.encodeToString(PairingClaim(code.code, "tv-1"))) }
+                val paired = client.post("/api/v1/pair") {
+                    contentType(ContentType.Application.Json)
+                    setBody(json.encodeToString(PairingClaim(code.code, "tv-1")))
+                }
                 assertEquals(HttpStatusCode.OK, paired.status)
                 assertEquals("", Json.decodeFromString<PairingResult>(paired.bodyAsText()).apiToken)
-            } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+            } finally {
+                runtime.close()
+                store.close()
+                dir.toFile().deleteRecursively()
+            }
         }
     }
 }

@@ -28,10 +28,11 @@ import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingBreak
 import dev.jamesrich.sofaking.contract.RecordingList
 import dev.jamesrich.sofaking.contract.RecordingRuleList
-import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.UpdatePlayState
+import dev.jamesrich.sofaking.contract.UpdatePlayback
 import dev.jamesrich.sofaking.contract.VodSession
 import dev.jamesrich.sofaking.contract.Wire
+import kotlinx.serialization.json.Json
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.util.Collections
@@ -42,7 +43,6 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
-import kotlinx.serialization.json.Json
 
 /**
  * A server on loopback with a lineup, a day of guide, a movie library and a show library, and, unless [recordings] is
@@ -63,7 +63,9 @@ internal class FakeServer(private val recordings: Boolean = true) {
     val openSessions: Int get() = liveSessions.size + vodSessions.size
 
     /** Whether a live session is open to watch full screen rather than to preview. */
-    val watching: Boolean get() = synchronized(liveSessions) { liveSessions.values.any { it.second == Wire.Intent.WATCH } }
+    val watching: Boolean get() = synchronized(liveSessions) {
+        liveSessions.values.any { it.second == Wire.Intent.WATCH }
+    }
 
     private val started = Clock.System.now()
     private val channels = List(CHANNELS) { i ->
@@ -80,17 +82,61 @@ internal class FakeServer(private val recordings: Boolean = true) {
     private val shows = Library(SHOWS, "TV", Wire.LibraryKind.SHOWS)
     private val items: Map<String, LibraryItem> = buildMap {
         repeat(MOVIE_COUNT) { i ->
-            put("movie$i", item("movie$i", MOVIES, Wire.ItemKind.MOVIE, "Movie ${i + 1}", year = 1990 + i, durationMs = 90.minutes.inWholeMilliseconds, genres = listOf(GENRES[i % GENRES.size])))
+            put(
+                "movie$i",
+                item(
+                    "movie$i",
+                    MOVIES,
+                    Wire.ItemKind.MOVIE,
+                    "Movie ${i + 1}",
+                    year = 1990 + i,
+                    durationMs = 90.minutes.inWholeMilliseconds,
+                    genres = listOf(
+                        GENRES[
+                            i %
+                                GENRES.size,
+                        ],
+                    ),
+                ),
+            )
         }
         repeat(SHOW_COUNT) { s ->
             val show = "show$s"
-            put(show, item(show, SHOWS, Wire.ItemKind.SHOW, "Show ${s + 1}", year = 2010 + s, children = SEASONS, unwatched = SEASONS * EPISODES))
+            put(
+                show,
+                item(
+                    show,
+                    SHOWS,
+                    Wire.ItemKind.SHOW,
+                    "Show ${s + 1}",
+                    year = 2010 + s,
+                    children = SEASONS,
+                    unwatched =
+                    SEASONS * EPISODES,
+                ),
+            )
             repeat(SEASONS) { n ->
                 val season = "$show-s${n + 1}"
-                put(season, item(season, SHOWS, Wire.ItemKind.SEASON, "Season ${n + 1}", parent = show, show = show, season = n + 1, children = EPISODES, unwatched = EPISODES))
+                put(
+                    season,
+                    item(
+                        season, SHOWS, Wire.ItemKind.SEASON, "Season ${n + 1}", parent = show, show = show,
+                        season =
+                        n + 1,
+                        children = EPISODES, unwatched = EPISODES,
+                    ),
+                )
                 repeat(EPISODES) { e ->
                     val episode = "$season-e${e + 1}"
-                    put(episode, item(episode, SHOWS, Wire.ItemKind.EPISODE, "Episode ${e + 1}", parent = season, show = show, season = n + 1, episode = e + 1, durationMs = 30.minutes.inWholeMilliseconds))
+                    put(
+                        episode,
+                        item(
+                            episode, SHOWS, Wire.ItemKind.EPISODE, "Episode ${e + 1}", parent = season, show = show,
+                            season =
+                            n + 1,
+                            episode = e + 1, durationMs = 30.minutes.inWholeMilliseconds,
+                        ),
+                    )
                 }
             }
         }
@@ -117,22 +163,43 @@ internal class FakeServer(private val recordings: Boolean = true) {
         val body = exchange.requestBody.readBytes().decodeToString()
         when {
             path == "pair" -> exchange.json(200, PairingResult("f".repeat(64), "fuzz"))
+
             path == "bootstrap" -> exchange.json(
                 200,
                 Bootstrap(
                     serverId = "fuzz",
                     serverTime = Clock.System.now().toString(),
-                    capabilities = Capabilities(catalog = true, guide = true, playback = true, viewers = true, library = true, recordings = true),
+                    capabilities = Capabilities(
+                        catalog = true,
+                        guide = true,
+                        playback = true,
+                        viewers = true,
+                        library = true,
+                        recordings = true,
+                    ),
                 ),
             )
+
             path == "channels" -> exchange.json(200, Catalog("r1", channels))
+
             path == "guide/query" -> {
                 guideQueries.incrementAndGet()
                 exchange.json(200, guide(JSON.decodeFromString(body)))
             }
-            path.startsWith("preferences/") -> if (method == "PUT") exchange.text(200, body) else exchange.text(200, "{}")
-            path == "recordings" && method == "GET" -> exchange.json(200, RecordingList(if (recordings) recordingList() else emptyList()))
+
+            path.startsWith("preferences/") -> if (method == "PUT") {
+                exchange.text(200, body)
+            } else {
+                exchange.text(200, "{}")
+            }
+
+            path == "recordings" && method == "GET" -> exchange.json(
+                200,
+                RecordingList(if (recordings) recordingList() else emptyList()),
+            )
+
             path == "recording-rules" && method == "GET" -> exchange.json(200, RecordingRuleList())
+
             path == "playback-sessions" -> {
                 val open = JSON.decodeFromString<OpenPlayback>(body)
                 val id = UUID.randomUUID().toString()
@@ -140,7 +207,9 @@ internal class FakeServer(private val recordings: Boolean = true) {
                 sessionsOpened.incrementAndGet()
                 exchange.json(201, session(id, open.channelId, open.intent))
             }
+
             path.endsWith("/ad-break") -> exchange.json(200, AdBreakState())
+
             path.startsWith("playback-sessions/") -> {
                 val id = path.removePrefix("playback-sessions/")
                 val open = liveSessions[id]
@@ -149,30 +218,65 @@ internal class FakeServer(private val recordings: Boolean = true) {
                         liveSessions -= id
                         exchange.sendResponseHeaders(204, -1)
                     }
+
                     open == null -> exchange.json(410, ApiError(Wire.ErrorCode.SESSION_EXPIRED, "gone"))
+
                     else -> {
-                        val now = JSON.decodeFromString<UpdatePlayback>(body.ifEmpty { "{}" }).intent?.let { open.first to it } ?: open
+                        val now =
+                            JSON.decodeFromString<UpdatePlayback>(
+                                body.ifEmpty {
+                                    "{}"
+                                },
+                            ).intent?.let { open.first to it }
+                                ?: open
                         liveSessions[id] = now
                         exchange.json(200, session(id, now.first, now.second))
                     }
                 }
             }
+
             path == "library/home" -> exchange.json(200, home())
+
             path == "library/search" -> {
                 val q = query["q"].orEmpty()
-                exchange.json(200, LibraryPage(items.values.filter { it.parentId == null && it.title.contains(q, ignoreCase = true) }))
+                exchange.json(
+                    200,
+                    LibraryPage(
+                        items.values.filter { it.parentId == null && it.title.contains(q, ignoreCase = true) },
+                    ),
+                )
             }
+
             path.startsWith("libraries/") && path.endsWith("/items") -> {
                 val library = path.removePrefix("libraries/").removeSuffix("/items")
                 exchange.json(200, page(library, query))
             }
+
             path.startsWith("library/items/") && path.endsWith("/play-state") -> {
                 val item = items[path.removePrefix("library/items/").removeSuffix("/play-state")]
                 val update = JSON.decodeFromString<UpdatePlayState>(body)
-                if (item == null) exchange.notFound(path)
-                else exchange.json(200, item.copy(playState = PlayState(update.positionMs, update.durationMs, update.watched ?: false, Clock.System.now().toString())))
+                if (item == null) {
+                    exchange.notFound(path)
+                } else {
+                    exchange.json(
+                        200,
+                        item.copy(
+                            playState = PlayState(
+                                update.positionMs,
+                                update.durationMs,
+                                update.watched ?: false,
+                                Clock.System.now().toString(),
+                            ),
+                        ),
+                    )
+                }
             }
-            path.startsWith("library/items/") -> detail(path.removePrefix("library/items/"))?.let { exchange.json(200, it) } ?: exchange.notFound(path)
+
+            path.startsWith("library/items/") -> detail(path.removePrefix("library/items/"))?.let {
+                exchange.json(200, it)
+            }
+                ?: exchange.notFound(path)
+
             path == "vod-sessions" -> {
                 val open = JSON.decodeFromString<OpenVodPlayback>(body)
                 val id = UUID.randomUUID().toString()
@@ -180,6 +284,7 @@ internal class FakeServer(private val recordings: Boolean = true) {
                 sessionsOpened.incrementAndGet()
                 exchange.json(201, vod(id, open.itemId, open.startMs))
             }
+
             path.startsWith("vod-sessions/") -> {
                 val id = path.removePrefix("vod-sessions/")
                 val item = vodSessions[id]
@@ -188,10 +293,13 @@ internal class FakeServer(private val recordings: Boolean = true) {
                         vodSessions -= id
                         exchange.sendResponseHeaders(204, -1)
                     }
+
                     item == null -> exchange.json(410, ApiError(Wire.ErrorCode.SESSION_EXPIRED, "gone"))
+
                     else -> exchange.json(200, vod(id, item, 0))
                 }
             }
+
             else -> exchange.notFound(path)
         }
     }
@@ -263,7 +371,9 @@ internal class FakeServer(private val recordings: Boolean = true) {
             LibraryShelf(
                 Wire.ShelfId.CONTINUE,
                 "Continue watching",
-                listOf(items.getValue("show0-s1-e2"), items.getValue("movie3")).map { it.copy(playState = PlayState(600_000, it.durationMs)) },
+                listOf(items.getValue("show0-s1-e2"), items.getValue("movie3")).map {
+                    it.copy(playState = PlayState(600_000, it.durationMs))
+                },
             ),
             LibraryShelf(Wire.ShelfId.RECENT, "Recently added in Movies", topLevel(MOVIES).take(SHELF), MOVIES),
             LibraryShelf(Wire.ShelfId.RECENT, "Recently added in TV", topLevel(SHOWS).take(SHELF), SHOWS),

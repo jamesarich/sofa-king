@@ -67,7 +67,13 @@ import kotlin.time.Instant
  * button above them while the bar shows ([onBack]). [notice] is a short answer to a button, such as Record's.
  */
 @Composable
-internal fun BoxScope.StatusPills(state: PlayerState, buffering: Boolean, paused: Boolean, notice: String?, onBack: (() -> Unit)?) {
+internal fun BoxScope.StatusPills(
+    state: PlayerState,
+    buffering: Boolean,
+    paused: Boolean,
+    notice: String?,
+    onBack: (() -> Unit)?,
+) {
     val popIn = PopIn
     val popOut = PopOut
     Column(
@@ -93,7 +99,9 @@ internal fun BoxScope.StatusPills(state: PlayerState, buffering: Boolean, paused
         ) { toast ->
             if (toast != null) CaptionToastPill(toast.outcome, toast.timingMs)
         }
-        AnimatedContent(targetState = notice, transitionSpec = { popIn togetherWith popOut }, label = "notice") { text ->
+        AnimatedContent(targetState = notice, transitionSpec = {
+            popIn togetherWith popOut
+        }, label = "notice") { text ->
             if (text != null) StatusPill(text)
         }
         VolumeToast()
@@ -102,7 +110,12 @@ internal fun BoxScope.StatusPills(state: PlayerState, buffering: Boolean, paused
 
 /** The stream card, on Info held: its figures are read again every second while it is open. */
 @Composable
-internal fun StreamCardPanel(state: PlayerState, player: LivePlayer, sessions: PlaybackSessions, audioTracks: List<AudioTrack>) {
+internal fun StreamCardPanel(
+    state: PlayerState,
+    player: LivePlayer,
+    sessions: PlaybackSessions,
+    audioTracks: List<AudioTrack>,
+) {
     val heldStream by sessions.current.collectAsStateWithLifecycle()
     AnimatedVisibility(state.streamCardOpen, enter = PopIn, exit = ExitTransition.None) {
         Box(Modifier.fillMaxSize()) {
@@ -194,12 +207,36 @@ internal fun BoxScope.InfoBarPanel(
     }
 
     val failed = state.failure != null
-    val items = liveButtons(pointerDriven, canRecord = record != null, canFavorite = favorite != null, hasPrevious = state.previousIndex != null).map { button ->
+    val items = liveButtons(
+        pointerDriven,
+        canRecord = record != null,
+        canFavorite = favorite != null,
+        hasPrevious =
+        state.previousIndex != null,
+    ).map { button ->
         when (button) {
-            LiveButton.CHANNELS -> PlayerButtonItem(Icons.AutoMirrored.Filled.List, stringResource(Res.string.player_control_channels), state::openMiniGuide)
-            LiveButton.PREVIOUS -> PlayerButtonItem(SofaIcons.SwapHoriz, stringResource(Res.string.player_control_previous), control(toPicture = true) { state.recallLastChannel() })
+            LiveButton.CHANNELS -> PlayerButtonItem(
+                Icons.AutoMirrored.Filled.List,
+                stringResource(Res.string.player_control_channels),
+                state::openMiniGuide,
+            )
+
+            LiveButton.PREVIOUS -> PlayerButtonItem(
+                SofaIcons.SwapHoriz,
+                stringResource(Res.string.player_control_previous),
+                control(toPicture = true) {
+                    state.recallLastChannel()
+                },
+            )
+
             LiveButton.PLAY_PAUSE -> if (failed) {
-                PlayerButtonItem(Icons.Filled.Refresh, stringResource(Res.string.player_control_retry), control { controls.retry() })
+                PlayerButtonItem(
+                    Icons.Filled.Refresh,
+                    stringResource(Res.string.player_control_retry),
+                    control {
+                        controls.retry()
+                    },
+                )
             } else {
                 PlayerButtonItem(
                     if (paused) Icons.Filled.PlayArrow else SofaIcons.Pause,
@@ -207,6 +244,7 @@ internal fun BoxScope.InfoBarPanel(
                     control { controls.playPause() },
                 )
             }
+
             // Captions hand the D-pad back to the picture, so Left and Right set the timing while the toast shows.
             LiveButton.CAPTIONS -> PlayerButtonItem(
                 if (state.captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
@@ -214,27 +252,52 @@ internal fun BoxScope.InfoBarPanel(
                 control(toPicture = true) { controls.toggleCaptions() },
                 state = stringResource(if (state.captionsOn) Res.string.captions_on else Res.string.captions_off),
             )
+
             LiveButton.STREAM_INFO -> PlayerButtonItem(
                 if (hasAudioChoice) SofaIcons.Audiotrack else Icons.Filled.Info,
                 stringResource(Res.string.player_control_stream),
                 state::openStreamCard,
             )
+
             LiveButton.ZOOM -> zoomButtonItem(zoom, control { controls.zoom() })
+
             LiveButton.SLEEP -> sleepButtonItem(sleep) {
-                sleep.step(Clock.System.now().toEpochMilliseconds(), programmeEndMs = programmeEnd?.toEpochMilliseconds())
+                sleep.step(
+                    Clock.System.now().toEpochMilliseconds(),
+                    programmeEndMs = programmeEnd?.toEpochMilliseconds(),
+                )
                 state.keepInfo()
             }
+
             LiveButton.RECORD -> PlayerButtonItem(
                 if (record?.recording == true) SofaIcons.Recordings else SofaIcons.Record,
-                stringResource(if (record?.recording == true) Res.string.guide_details_cancel_recording else Res.string.guide_details_record),
+                stringResource(
+                    if (record?.recording == true) {
+                        Res.string.guide_details_cancel_recording
+                    } else {
+                        Res.string.guide_details_record
+                    },
+                ),
                 control { record?.onClick?.invoke() },
             )
+
             LiveButton.FAVORITE -> PlayerButtonItem(
                 if (favorite == true) Icons.Filled.Star else Icons.Outlined.Star,
-                stringResource(if (favorite == true) Res.string.guide_details_remove_favorite else Res.string.guide_details_add_favorite),
+                stringResource(
+                    if (favorite == true) {
+                        Res.string.guide_details_remove_favorite
+                    } else {
+                        Res.string.guide_details_add_favorite
+                    },
+                ),
                 control(action = onToggleFavorite),
             )
-            LiveButton.GUIDE -> PlayerButtonItem(SofaIcons.GridView, stringResource(Res.string.player_control_guide), onGuide)
+
+            LiveButton.GUIDE -> PlayerButtonItem(
+                SofaIcons.GridView,
+                stringResource(Res.string.player_control_guide),
+                onGuide,
+            )
         }
     }
 
@@ -256,9 +319,29 @@ internal fun BoxScope.InfoBarPanel(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 itemVerticalAlignment = Alignment.CenterVertically,
             ) {
-                ControlIcon(Icons.Filled.KeyboardArrowDown, stringResource(Res.string.player_control_channel_down), control { state.zapStep(PlayerAction.CHANNEL_DOWN.zapStep()!!) })
-                PlayPauseControl(paused, failed, control { controls.playPause() }, control { controls.retry() }, primary = true)
-                ControlIcon(Icons.Filled.KeyboardArrowUp, stringResource(Res.string.player_control_channel_up), control { state.zapStep(PlayerAction.CHANNEL_UP.zapStep()!!) })
+                ControlIcon(
+                    Icons.Filled.KeyboardArrowDown,
+                    stringResource(Res.string.player_control_channel_down),
+                    control {
+                        state.zapStep(PlayerAction.CHANNEL_DOWN.zapStep()!!)
+                    },
+                )
+                PlayPauseControl(
+                    paused,
+                    failed,
+                    control {
+                        controls.playPause()
+                    },
+                    control { controls.retry() },
+                    primary = true,
+                )
+                ControlIcon(
+                    Icons.Filled.KeyboardArrowUp,
+                    stringResource(Res.string.player_control_channel_up),
+                    control {
+                        state.zapStep(PlayerAction.CHANNEL_UP.zapStep()!!)
+                    },
+                )
                 PlayerButtonRow(items, entry, onFocused = { state.buttonsFocused = it }, showLabel = false)
                 VolumeControl(onAdjust = state::keepInfo, onDone = control {})
                 FullScreenControl()

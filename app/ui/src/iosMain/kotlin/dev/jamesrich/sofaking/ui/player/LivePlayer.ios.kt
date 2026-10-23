@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import platform.AVFAudio.*
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryAmbient
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
@@ -116,11 +115,15 @@ actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
 @OptIn(ExperimentalForeignApi::class)
 internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLivePlayer() {
     private val av = AVPlayer()
-    private val playerLayer = AVPlayerLayer.playerLayerWithPlayer(av).apply { videoGravity = AVLayerVideoGravityResizeAspect }
+    private val playerLayer = AVPlayerLayer.playerLayerWithPlayer(av).apply {
+        videoGravity =
+            AVLayerVideoGravityResizeAspect
+    }
     private val scope = MainScope()
     private var captionsOn = false
     private var ended = false
     private var reportedFailure: AVPlayerItem? = null
+
     // The item whose caption track was chosen, and its legible group. Both are read once the item is ready to play:
     // the asset has no group to report before then, and asking for it blocks the main thread while it loads.
     private var captionsAppliedTo: AVPlayerItem? = null
@@ -139,7 +142,11 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         AVPlayerItemPlaybackStalledNotification,
         AVPlayerRateDidChangeNotification,
     ).map { name ->
-        NSNotificationCenter.defaultCenter.addObserverForName(name = name, `object` = null, queue = NSOperationQueue.mainQueue) { note ->
+        NSNotificationCenter.defaultCenter.addObserverForName(
+            name = name,
+            `object` = null,
+            queue = NSOperationQueue.mainQueue,
+        ) { note ->
             if (note?.name == AVPlayerItemDidPlayToEndTimeNotification) ended = true
             refresh()
         }
@@ -156,7 +163,8 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
     override val bufferedMs: Long get() = 0L
     override val supportsCaptionLead: Boolean get() = false
     override val hasTextTrack: Boolean
-        get() = av.currentItem?.takeIf { it === captionsAppliedTo } != null && legibleGroup?.options?.isNotEmpty() == true
+        get() = av.currentItem?.takeIf { it === captionsAppliedTo } != null &&
+            legibleGroup?.options?.isNotEmpty() == true
 
     /**
      * The audio session follows the volume, as audio focus does on Android: audible playback takes the Playback
@@ -172,10 +180,20 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
             audibleSession = audible
             val session = AVAudioSession.sharedInstance()
             if (audible) {
-                session.setCategory(AVAudioSessionCategoryPlayback, mode = AVAudioSessionModeMoviePlayback, options = 0u, error = null)
+                session.setCategory(
+                    AVAudioSessionCategoryPlayback,
+                    mode = AVAudioSessionModeMoviePlayback,
+                    options = 0u,
+                    error = null,
+                )
                 session.setActive(true, error = null)
             } else {
-                session.setCategory(AVAudioSessionCategoryAmbient, mode = AVAudioSessionModeDefault, options = 0u, error = null)
+                session.setCategory(
+                    AVAudioSessionCategoryAmbient,
+                    mode = AVAudioSessionModeDefault,
+                    options = 0u,
+                    error = null,
+                )
             }
         }
 
@@ -206,7 +224,9 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
     override fun streamInfo(): StreamInfo {
         val item = av.currentItem ?: return StreamInfo()
         val (width, height) = item.presentationSize.useContents { width.toInt() to height.toInt() }
-        val bitrate = (item.accessLog()?.events?.lastOrNull() as? AVPlayerItemAccessLogEvent)?.indicatedBitrate?.takeIf { it > 0 }?.toInt()
+        val bitrate = (item.accessLog()?.events?.lastOrNull() as? AVPlayerItemAccessLogEvent)?.indicatedBitrate?.takeIf {
+            it > 0
+        }?.toInt()
         return StreamInfo(width = width.takeIf { it > 0 }, height = height.takeIf { it > 0 }, bitrateBps = bitrate)
     }
 
@@ -218,7 +238,18 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         val group = audibleGroup(item)
         val options = group?.options.orEmpty().filterIsInstance<AVMediaSelectionOption>()
         val selected = group?.let { item.selectedMediaOptionInMediaSelectionGroup(it) }
-        _audioTracks.value = if (options.size > 1) options.mapIndexed { index, option -> AudioTrack(index.toString(), option.displayName, option == selected) } else emptyList()
+        _audioTracks.value =
+            if (options.size > 1) {
+                options.mapIndexed { index, option ->
+                    AudioTrack(
+                        index.toString(),
+                        option.displayName,
+                        option == selected,
+                    )
+                }
+            } else {
+                emptyList()
+            }
     }
 
     override fun prepare() {
@@ -248,10 +279,16 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
         deepColor = listOf("hevc"),
     )
 
-    override val isSeekable: Boolean get() = stream?.seekable == true && av.currentItem?.status == AVPlayerItemStatusReadyToPlay
+    override val isSeekable: Boolean get() = stream?.seekable == true &&
+        av.currentItem?.status == AVPlayerItemStatusReadyToPlay
 
     override val positionMs: Long
-        get() = if (isSeekable) (CMTimeGetSeconds(av.currentTime()) * 1000).takeIf { it.isFinite() }?.toLong()?.coerceAtLeast(0L) ?: 0L else 0L
+        get() = if (isSeekable) {
+            (CMTimeGetSeconds(av.currentTime()) * 1000).takeIf { it.isFinite() }?.toLong()?.coerceAtLeast(0L)
+                ?: 0L
+        } else {
+            0L
+        }
 
     /** A finished file reports its duration; a growing recording's is indefinite, so the end of its seekable range stands in. */
     override val durationMs: Long?
@@ -368,7 +405,8 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
             modifier.onSizeChanged { size ->
                 CATransaction.begin()
                 CATransaction.setDisableActions(true)
-                playerLayer.frame = CGRectMake(0.0, 0.0, size.width / density.toDouble(), size.height / density.toDouble())
+                playerLayer.frame =
+                    CGRectMake(0.0, 0.0, size.width / density.toDouble(), size.height / density.toDouble())
                 CATransaction.commit()
             },
         ) {
@@ -448,15 +486,23 @@ internal class AvLivePlayer(override val captionSync: CaptionSync) : StreamLiveP
  * status of a failed segment or playlist; 410 is the relay closing the session.
  */
 private fun playerErrorFor(error: NSError?, httpStatus: Long?): PlayerError {
-    if (httpStatus != null && httpStatus >= 400) return PlayerError(PlayerErrorCodes.BAD_HTTP_STATUS, streamGone = httpStatus == 410L)
+    if (httpStatus != null && httpStatus >= 400) {
+        return PlayerError(PlayerErrorCodes.BAD_HTTP_STATUS, streamGone = httpStatus == 410L)
+    }
     if (error == null) return PlayerError(PlayerErrorCodes.UNSPECIFIED)
     val code = when (error.domain) {
-        NSURLErrorDomain -> if (error.code == NSURLErrorTimedOut) PlayerErrorCodes.NETWORK_CONNECTION_TIMEOUT else PlayerErrorCodes.NETWORK_CONNECTION_FAILED
+        NSURLErrorDomain -> if (error.code == NSURLErrorTimedOut) {
+            PlayerErrorCodes.NETWORK_CONNECTION_TIMEOUT
+        } else {
+            PlayerErrorCodes.NETWORK_CONNECTION_FAILED
+        }
+
         AVFoundationErrorDomain -> when (error.code) {
             AVErrorFileFormatNotRecognized, AVErrorFailedToParse -> PlayerErrorCodes.PARSING_CONTAINER_UNSUPPORTED
             AVErrorDecoderNotFound, AVErrorDecodeFailed -> PlayerErrorCodes.DECODING_FAILED
             else -> PlayerErrorCodes.UNSPECIFIED
         }
+
         else -> PlayerErrorCodes.UNSPECIFIED
     }
     return PlayerError(code)

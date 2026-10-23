@@ -11,7 +11,10 @@ class ChannelNumberInputTest {
     fun `commit hands over the digits and clears them first`() {
         val input = ChannelNumberInput()
         var committed: String? = null
-        input.onCommit = { committed = it.digits; assertFalse(input.hasDigits) }
+        input.onCommit = {
+            committed = it.digits
+            assertFalse(input.hasDigits)
+        }
         input.append(1)
         input.append(2)
         input.commit()

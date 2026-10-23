@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.backend.store
 
-import java.time.Clock
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.Clock
 
 internal data class Migration(val version: Int, val sql: String)
 
@@ -24,7 +24,9 @@ internal fun foundationMigrations(): List<Migration> = listOf(
 /** Our migration files contain simple SQL statements, with no embedded semicolons. */
 internal fun applyMigrations(database: Database, migrations: List<Migration>, clock: Clock = Clock.systemUTC()) {
     val versions = migrations.map { it.version }
-    require(versions == versions.sorted() && versions.distinct().size == versions.size) { "Migrations must be unique and in order" }
+    require(versions == versions.sorted() && versions.distinct().size == versions.size) {
+        "Migrations must be unique and in order"
+    }
     transaction(database) {
         maxAttempts = 1
         exec("CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)")

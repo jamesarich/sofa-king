@@ -45,7 +45,8 @@ internal data class CaptionAppearance(
 ) {
     companion object {
         /** White on black, what the platform shows when the viewer has set nothing. */
-        val DEFAULT = CaptionAppearance(Color.White, Color.Black, Color.Transparent, CaptionEdge.NONE, Color.White, null, false, 1f, true)
+        val DEFAULT =
+            CaptionAppearance(Color.White, Color.Black, Color.Transparent, CaptionEdge.NONE, Color.White, null, false, 1f, true)
         val LARGE_HIGH_CONTRAST = DEFAULT.copy(scale = 1.3f, embeddedStyles = false)
     }
 }
@@ -91,8 +92,11 @@ internal object CaptionGeometry {
     fun top(line: Float, lineType: Int, lineAnchor: Int, lineHeight: Float, textHeight: Int, parentHeight: Int): Int {
         val top = when {
             line == CaptionCue.DIMEN_UNSET -> (parentHeight - textHeight).toFloat()
+
             lineType == CaptionCue.LINE_TYPE_NUMBER && line >= 0 -> line * lineHeight
+
             lineType == CaptionCue.LINE_TYPE_NUMBER -> parentHeight + (line + 1) * lineHeight - textHeight
+
             else -> {
                 val anchor = line * parentHeight
                 when (lineAnchor) {
@@ -138,11 +142,20 @@ internal fun Captions(player: LivePlayer, style: CaptionStyle, bottomFraction: F
             Layout(
                 content = { CueText(cueString(cue.text, appearance), textStyle, appearance, fontPx) },
             ) { measurables, constraints ->
-                val placeable = measurables.first().measure(Constraints(maxWidth = parentWidth, maxHeight = parentHeight))
+                val placeable = measurables.first().measure(
+                    Constraints(maxWidth = parentWidth, maxHeight = parentHeight),
+                )
                 layout(constraints.maxWidth, constraints.maxHeight) {
                     placeable.place(
                         CaptionGeometry.left(cue.position, cue.positionAnchor, placeable.width, parentWidth),
-                        inset + CaptionGeometry.top(cue.line, cue.lineType, cue.lineAnchor, lineHeightPx, placeable.height, parentHeight),
+                        inset + CaptionGeometry.top(
+                            cue.line,
+                            cue.lineType,
+                            cue.lineAnchor,
+                            lineHeightPx,
+                            placeable.height,
+                            parentHeight,
+                        ),
                     )
                 }
             }

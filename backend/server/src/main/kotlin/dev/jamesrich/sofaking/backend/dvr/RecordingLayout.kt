@@ -65,7 +65,9 @@ object RecordingLayout {
     fun path(title: RecordingTitle, start: Instant, zone: ZoneId, taken: (Path) -> Boolean = { false }): Path {
         val local = start.atZone(zone)
         val (folder, name) = folderAndName(title, local.toLocalDate())
-        val candidates = sequenceOf(name, "$name (${TIME.format(local)})") + generateSequence(2) { it + 1 }.map { "$name (${TIME.format(local)}) ($it)" }
+        val candidates =
+            sequenceOf(name, "$name (${TIME.format(local)})") +
+                generateSequence(2) { it + 1 }.map { "$name (${TIME.format(local)}) ($it)" }
         return candidates.map { folder.resolve("$it.$EXTENSION") }.first { !taken(it) }
     }
 
@@ -74,7 +76,9 @@ object RecordingLayout {
 
     private fun folderAndName(title: RecordingTitle, date: LocalDate): Pair<Path, String> {
         val show = clean(title.show).ifEmpty { "Unknown" }
-        val episode = title.episodeTitle?.let(::clean)?.takeIf { it.isNotEmpty() && !it.equals(show, ignoreCase = true) }
+        val episode = title.episodeTitle?.let(::clean)?.takeIf {
+            it.isNotEmpty() && !it.equals(show, ignoreCase = true)
+        }
         if (title.movie) {
             val named = title.year?.let { "$show ($it)" } ?: show
             return Path.of(MOVIES, named) to named
@@ -82,7 +86,11 @@ object RecordingLayout {
         val season = title.numbering?.season
         val number = title.numbering?.episode
         if (season != null && number != null) {
-            val name = listOfNotNull(show, "S%02dE%02d".format(Locale.ROOT, season, number), episode).joinToString(" - ")
+            val name = listOfNotNull(
+                show,
+                "S%02dE%02d".format(Locale.ROOT, season, number),
+                episode,
+            ).joinToString(" - ")
             return Path.of(TV, show, "Season %02d".format(Locale.ROOT, season)) to name
         }
         val name = listOfNotNull(show, DATE.format(date), episode).joinToString(" - ")

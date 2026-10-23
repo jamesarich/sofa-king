@@ -52,16 +52,17 @@ import dev.jamesrich.sofaking.ui.LocalWindowFullScreen
 import dev.jamesrich.sofaking.ui.MatchDisplayFrameRate
 import dev.jamesrich.sofaking.ui.ReleaseOnPageExit
 import dev.jamesrich.sofaking.ui.WindowFullScreen
+import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.guide.GuideShortcut
 import dev.jamesrich.sofaking.ui.guide.LocalGuideDensity
 import dev.jamesrich.sofaking.ui.guide.guideShortcut
 import dev.jamesrich.sofaking.ui.player.CaptionSync
 import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.LocalPlayerVolume
-import dev.jamesrich.sofaking.ui.player.PlayerVolume
-import dev.jamesrich.sofaking.ui.player.volumeKey
 import dev.jamesrich.sofaking.ui.player.PlaybackState
+import dev.jamesrich.sofaking.ui.player.PlayerVolume
 import dev.jamesrich.sofaking.ui.player.rememberLivePlayer
+import dev.jamesrich.sofaking.ui.player.volumeKey
 import dev.jamesrich.sofaking.ui.rememberAppLifecycleOwner
 import dev.jamesrich.sofaking.ui.rememberLastInput
 import dev.jamesrich.sofaking.ui.rememberLayoutProfile
@@ -70,7 +71,6 @@ import dev.jamesrich.sofaking.ui.sofaKingImageLoader
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import dev.jamesrich.sofaking.ui.togglesFullScreen
 import dev.jamesrich.sofaking.ui.trackLastInput
-import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -102,8 +102,16 @@ fun App(
             LocalLastInput provides lastInput,
             LocalWindowFullScreen provides windowFullScreen,
         ) {
-            Surface(modifier.fillMaxSize().trackLastInput(lastInput).arrowKeysMoveFocus(), color = MaterialTheme.colorScheme.background) {
-                SofaKingApp(pairing = pairing, onPairingHandled = onPairingHandled, playItem = playItem, onPlayItemHandled = onPlayItemHandled)
+            Surface(
+                modifier.fillMaxSize().trackLastInput(lastInput).arrowKeysMoveFocus(),
+                color = MaterialTheme.colorScheme.background,
+            ) {
+                SofaKingApp(
+                    pairing = pairing,
+                    onPairingHandled = onPairingHandled,
+                    playItem = playItem,
+                    onPlayItemHandled = onPlayItemHandled,
+                )
             }
         }
     }
@@ -137,7 +145,9 @@ private fun SofaKingApp(
     val offered = tabsOffered(capabilities, nav.tab, libraryHome, recordingsState)
     // A tab the server turns out not to offer, or no longer offers, gives way to Live.
     LaunchedEffect(nav.tab, offered) {
-        if (nav.tab == Tab.LIBRARY && !offered.library || nav.tab == Tab.RECORDINGS && !offered.recordings) shell.nav = shell.nav.open(Tab.LIVE)
+        if (nav.tab == Tab.LIBRARY && !offered.library || nav.tab == Tab.RECORDINGS && !offered.recordings) {
+            shell.nav = shell.nav.open(Tab.LIVE)
+        }
     }
     // A scanned QR code pairs at once. Pairing runs in the ViewModel; its outcome comes back as state, and the shell
     // acts on it once: a new server starts over on its guide, a refused code lands in Settings with the reason.
@@ -213,7 +223,9 @@ private fun SofaKingApp(
         sessions.replaced.collect { stream ->
             if (stream.itemId != null) return@collect
             lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
-                if (player.currentChannelId != stream.channelId || player.currentStreamUrl == stream.url) return@withStateAtLeast
+                if (player.currentChannelId != stream.channelId || player.currentStreamUrl == stream.url) {
+                    return@withStateAtLeast
+                }
                 captionSync.effectiveUs = captionSync.advanceUs
                 player.replaceStream(stream)
                 player.prepare()
@@ -240,16 +252,20 @@ private fun SofaKingApp(
         shell.relockUnlessInSettings()
         when (top) {
             Route.Guide -> captionSync.advanceUs = 0L
+
             Route.Settings -> {
                 player.stop()
                 sessions.release(forget = true)
             }
+
             is Route.Player, is Route.Vod, is Route.Recording -> Unit
+
             // The library and the recordings play nothing until one is picked, so the guide's preview stops on the way in.
             Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, is Route.LibraryItem, Route.Recordings -> {
                 player.stop()
                 sessions.release(forget = true)
             }
+
             // Reached from Settings, which already stopped the stream.
             Route.Channels, Route.StartupChannel -> Unit
         }
@@ -295,11 +311,30 @@ private fun SofaKingApp(
     val page by rememberUpdatedState<@Composable (Route) -> Unit> { route ->
         val arrival = if (route == shell.nav.top) shell.nav.arrival else Arrival()
         when (route) {
-            Route.Settings, Route.Channels, Route.StartupChannel -> SettingsDestination(route, arrival, shell, vm, libraryVm, offered)
+            Route.Settings, Route.Channels, Route.StartupChannel -> SettingsDestination(
+                route,
+                arrival,
+                shell,
+                vm,
+                libraryVm,
+                offered,
+            )
+
             is Route.Player -> PlayerDestination(route, shell, vm, player)
+
             is Route.Vod -> VodDestination(route, shell, vm, libraryVm, player)
+
             is Route.Recording -> RecordingDestination(route, shell, vm, recordingsVm, player)
-            is Route.LibraryItem -> LibraryItemDestination(route, arrival, shell, libraryVm, hideSpoilers = settings?.hideSpoilers ?: false)
+
+            is Route.LibraryItem -> LibraryItemDestination(
+                route,
+                arrival,
+                shell,
+                libraryVm,
+                hideSpoilers =
+                settings?.hideSpoilers ?: false,
+            )
+
             Route.Guide, Route.Library, is Route.LibraryGrid, is Route.LibrarySearch, Route.Recordings -> TabPage(
                 tv = tv,
                 tabs = tabs,
@@ -311,13 +346,27 @@ private fun SofaKingApp(
                 notice = shell.notice,
                 onSettings = openSettings,
                 onBackToLive = shell::backToLive,
-                focusHeaderIfIdle = (route == Route.Library || route == Route.Recordings) && arrival.returnedFrom == null,
+                focusHeaderIfIdle =
+                (route == Route.Library || route == Route.Recordings) && arrival.returnedFrom == null,
             ) { showsTabs, tabBack, headerFocused ->
                 when (route) {
-                    Route.Guide -> GuideDestination(arrival, shell, vm, player, settingsFocus, headerFocus = tabFocus.takeIf { showsTabs })
+                    Route.Guide -> GuideDestination(
+                        arrival,
+                        shell,
+                        vm,
+                        player,
+                        settingsFocus,
+                        headerFocus = tabFocus.takeIf {
+                            showsTabs
+                        },
+                    )
+
                     Route.Library -> LibraryHomeDestination(arrival, shell, libraryVm, tabBack, headerFocused)
+
                     Route.Recordings -> RecordingsDestination(arrival, shell, recordingsVm, tabBack, headerFocused)
+
                     is Route.LibrarySearch -> LibrarySearchDestination(route, arrival, shell, libraryVm)
+
                     is Route.LibraryGrid -> LibraryGridDestination(route, arrival, shell, libraryVm)
                 }
             }
@@ -329,14 +378,21 @@ private fun SofaKingApp(
     // free the stream only when the app leaves the foreground, not on every Back.
     val entryProvider: (Route) -> NavEntry<Route> = { route -> NavEntry(route, contentKey = route.id) { page(route) } }
     val entries = Tab.entries.associateWith { tab ->
-        rememberDecoratedNavEntries(nav.stack(tab), listOf(rememberSaveableStateHolderNavEntryDecorator()), entryProvider)
+        rememberDecoratedNavEntries(
+            nav.stack(tab),
+            listOf(rememberSaveableStateHolderNavEntryDecorator()),
+            entryProvider,
+        )
     }
     // A TV cuts between pages: focus lands at once and nothing slides under the remote. Elsewhere pages cross-fade
     // on the theme's effects spring.
     val fade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     val cut: AnimatedContentTransitionScope<Scene<Route>>.() -> ContentTransform = {
-        if (tv) ContentTransform(EnterTransition.None, ExitTransition.None, sizeTransform = null)
-        else ContentTransform(fadeIn(fade), fadeOut(fade), sizeTransform = null)
+        if (tv) {
+            ContentTransform(EnterTransition.None, ExitTransition.None, sizeTransform = null)
+        } else {
+            ContentTransform(fadeIn(fade), fadeOut(fade), sizeTransform = null)
+        }
     }
 
     CompositionLocalProvider(
@@ -356,9 +412,12 @@ private fun SofaKingApp(
             tabFocus = tabFocus,
         ) {
             NavDisplay(
-                entries = entries.getValue(Tab.LIVE) + if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),
+                entries =
+                entries.getValue(Tab.LIVE) + if (nav.tab == Tab.LIVE) emptyList() else entries.getValue(nav.tab),
                 modifier = Modifier.onPreviewKeyEvent { event ->
-                    if (windowFullScreen != null && event.key.togglesFullScreen(inPlayer = shell.nav.top.playsFullScreen)) {
+                    if (windowFullScreen != null &&
+                        event.key.togglesFullScreen(inPlayer = shell.nav.top.playsFullScreen)
+                    ) {
                         if (event.type == KeyEventType.KeyUp) windowFullScreen.toggle()
                         return@onPreviewKeyEvent true
                     }
@@ -369,7 +428,8 @@ private fun SofaKingApp(
                         return@onPreviewKeyEvent true
                     }
                     // Guide (or Menu) means live TV from any page a viewer browses; the players and Settings keep their keys.
-                    val browsing = shell.nav.tab != Tab.LIVE && !shell.nav.top.playsFullScreen && !shell.nav.top.isSettings
+                    val browsing =
+                        shell.nav.tab != Tab.LIVE && !shell.nav.top.playsFullScreen && !shell.nav.top.isSettings
                     if (!browsing || event.key.guideShortcut() != GuideShortcut.NOW) return@onPreviewKeyEvent false
                     if (event.type == KeyEventType.KeyDown) shell.guideFromElsewhere()
                     true
@@ -400,7 +460,9 @@ private suspend fun resume(player: LivePlayer, sessions: PlaybackSessions) {
     if (!player.hasItem) return
     when {
         stream == null || stream.itemId != null -> Unit
+
         stream.channelId == player.currentChannelId -> player.replaceStream(stream)
+
         else -> {
             player.stop()
             player.setStream(stream)
@@ -418,19 +480,23 @@ private const val VOLUME_SAVE_MS = 500L
  * small deltas add up to one step.
  */
 private fun Modifier.playerVolumeWheel(volume: PlayerVolume, inPlayer: () -> Boolean): Modifier =
-    if (!volume.adjustable) this else pointerInput(volume) {
-        var scrolled = 0f
-        awaitPointerEventScope {
-            while (true) {
-                val event = awaitPointerEvent(PointerEventPass.Final)
-                if (event.type != PointerEventType.Scroll || !inPlayer()) continue
-                val change = event.changes.firstOrNull { !it.isConsumed } ?: continue
-                scrolled += change.scrollDelta.y
-                if (abs(scrolled) >= 1f) {
-                    volume.step(if (scrolled < 0f) 1 else -1)
-                    scrolled = 0f
+    if (!volume.adjustable) {
+        this
+    } else {
+        pointerInput(volume) {
+            var scrolled = 0f
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Final)
+                    if (event.type != PointerEventType.Scroll || !inPlayer()) continue
+                    val change = event.changes.firstOrNull { !it.isConsumed } ?: continue
+                    scrolled += change.scrollDelta.y
+                    if (abs(scrolled) >= 1f) {
+                        volume.step(if (scrolled < 0f) 1 else -1)
+                        scrolled = 0f
+                    }
+                    change.consume()
                 }
-                change.consume()
             }
         }
     }

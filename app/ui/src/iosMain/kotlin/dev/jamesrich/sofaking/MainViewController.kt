@@ -8,9 +8,9 @@ import dev.jamesrich.sofaking.data.ClientInfo
 import dev.jamesrich.sofaking.data.PairingRequest
 import dev.jamesrich.sofaking.data.inDirectory
 import dev.jamesrich.sofaking.data.parsePairingLink
+import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
-import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSUserDomainMask
@@ -30,7 +30,14 @@ fun startSofaKingIos() {
         create = true,
         error = null,
     )
-    initSofaKing(AppStorage.inDirectory(requireNotNull(support?.path) { "no Application Support directory" }, ClientInfo("ios", UIDevice.currentDevice.name)))
+    initSofaKing(
+        AppStorage.inDirectory(
+            requireNotNull(support?.path) {
+                "no Application Support directory"
+            },
+            ClientInfo("ios", UIDevice.currentDevice.name),
+        ),
+    )
 }
 
 /**

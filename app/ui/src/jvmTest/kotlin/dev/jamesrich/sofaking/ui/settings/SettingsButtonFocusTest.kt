@@ -15,9 +15,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
@@ -54,27 +54,31 @@ class SettingsButtonFocusTest {
     }
 
     @Test
-    fun `a button turned off by its own press keeps focus until the D-pad moves on`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
-        var presses = 0
-        show {
-            var enabled by remember { mutableStateOf(true) }
-            Column {
-                SofaButton(onClick = { presses++; enabled = false }, enabled = enabled) { Text("Start") }
-                SofaButton(onClick = {}) { Text("Next") }
+    fun `a button turned off by its own press keeps focus until the D-pad moves on`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            var presses = 0
+            show {
+                var enabled by remember { mutableStateOf(true) }
+                Column {
+                    SofaButton(onClick = {
+                        presses++
+                        enabled = false
+                    }, enabled = enabled) { Text("Start") }
+                    SofaButton(onClick = {}) { Text("Next") }
+                }
             }
+            onNodeWithText("Start").requestFocus()
+            waitForIdle()
+            pressOk()
+            onNodeWithText("Start").assertIsFocused().assertIsNotEnabled()
+            pressOk()
+            assertEquals(1, presses, "a disabled button ignores OK")
+            onRoot().performKeyInput { pressKey(Key.Tab) }
+            waitForIdle()
+            onNodeWithText("Next").assertIsFocused()
+            // Once focus leaves, the disabled button drops out of the focus order.
+            onNodeWithText("Start").assert(SemanticsMatcher.keyNotDefined(SemanticsActions.RequestFocus))
         }
-        onNodeWithText("Start").requestFocus()
-        waitForIdle()
-        pressOk()
-        onNodeWithText("Start").assertIsFocused().assertIsNotEnabled()
-        pressOk()
-        assertEquals(1, presses, "a disabled button ignores OK")
-        onRoot().performKeyInput { pressKey(Key.Tab) }
-        waitForIdle()
-        onNodeWithText("Next").assertIsFocused()
-        // Once focus leaves, the disabled button drops out of the focus order.
-        onNodeWithText("Start").assert(SemanticsMatcher.keyNotDefined(SemanticsActions.RequestFocus))
-    }
 
     @Test
     fun `setting a PIN focuses Remove the PIN`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
@@ -97,30 +101,31 @@ class SettingsButtonFocusTest {
     }
 
     @Test
-    fun `moving a favorite to the top hands focus to its Down button`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
-        val channels = listOf(
-            Channel(guideId = "a", number = 2.0, name = "Alpha", logo = null, groups = emptyList()),
-            Channel(guideId = "b", number = 3.0, name = "Beta", logo = null, groups = emptyList()),
-        )
-        var order by mutableStateOf(listOf("a", "b"))
-        show {
-            ChannelManagerScreen(
-                channels = channels,
-                favorites = setOf("a", "b"),
-                favoritesOrder = order,
-                hidden = emptySet(),
-                zapSkipsHidden = false,
-                onFavoritesOrderChanged = { order = it },
-                onChannelHiddenChanged = { _, _ -> },
-                onChannelsHiddenChanged = { _, _ -> },
-                onZapSkipsHiddenChanged = {},
-                onBack = {},
+    fun `moving a favorite to the top hands focus to its Down button`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            val channels = listOf(
+                Channel(guideId = "a", number = 2.0, name = "Alpha", logo = null, groups = emptyList()),
+                Channel(guideId = "b", number = 3.0, name = "Beta", logo = null, groups = emptyList()),
             )
+            var order by mutableStateOf(listOf("a", "b"))
+            show {
+                ChannelManagerScreen(
+                    channels = channels,
+                    favorites = setOf("a", "b"),
+                    favoritesOrder = order,
+                    hidden = emptySet(),
+                    zapSkipsHidden = false,
+                    onFavoritesOrderChanged = { order = it },
+                    onChannelHiddenChanged = { _, _ -> },
+                    onChannelsHiddenChanged = { _, _ -> },
+                    onZapSkipsHiddenChanged = {},
+                    onBack = {},
+                )
+            }
+            onNodeWithContentDescription("Beta up", substring = true).requestFocus()
+            waitForIdle()
+            pressOk()
+            assertEquals(listOf("b", "a"), order)
+            onNodeWithContentDescription("Beta down", substring = true).assertIsFocused()
         }
-        onNodeWithContentDescription("Beta up", substring = true).requestFocus()
-        waitForIdle()
-        pressOk()
-        assertEquals(listOf("b", "a"), order)
-        onNodeWithContentDescription("Beta down", substring = true).assertIsFocused()
-    }
 }

@@ -2,6 +2,12 @@ package dev.jamesrich.sofaking.backend.dvr
 
 import dev.jamesrich.sofaking.backend.io.runFor
 import dev.jamesrich.sofaking.contract.RecordingBreak
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -9,12 +15,6 @@ import java.util.UUID
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.future.await
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Finds a recording's commercial breaks with Comskip, a separate GPL program the server runs and never links. Comskip
@@ -61,7 +61,8 @@ class Commercials(
         """.trimIndent() + "\n"
 
         /** The EDL beside [recording]: the same name with `.edl`. */
-        fun sidecar(recording: Path): Path = recording.resolveSibling(recording.fileName.toString().substringBeforeLast('.') + ".edl")
+        fun sidecar(recording: Path): Path =
+            recording.resolveSibling(recording.fileName.toString().substringBeforeLast('.') + ".edl")
 
         /** The commercial breaks in a Kodi EDL: `start end action` in seconds, action 3 for a commercial break. */
         fun parseEdl(text: String): List<RecordingBreak> = text.lineSequence().mapNotNull { line ->

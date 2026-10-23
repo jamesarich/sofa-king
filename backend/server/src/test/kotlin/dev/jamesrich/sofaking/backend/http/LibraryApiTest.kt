@@ -35,12 +35,12 @@ import io.ktor.http.contentType
 import io.ktor.http.headers
 import io.ktor.http.path
 import io.ktor.server.testing.testApplication
-import java.nio.file.Files
-import java.nio.file.Path
-import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -55,9 +55,21 @@ class LibraryApiTest {
         val show = Files.createDirectories(dir.resolve("media/tv/Show (2020)/Season 01"))
         Files.writeString(show.resolve("Show - S01E01 - Pilot.mkv"), "x")
         Files.writeString(show.resolve("Show - S01E02 - Second.mkv"), "x")
-        Files.write(show.parent.resolve("poster.jpg"), byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()))
+        Files.write(
+            show.parent.resolve("poster.jpg"),
+            byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()),
+        )
         Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
-        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null)
+        val config =
+            ServerConfig(
+                "127.0.0.1",
+                8080,
+                dir,
+                dir.resolve("sources.json"),
+                token,
+                hdhr = HdhrConfig(enabled = false),
+                updateImage = null,
+            )
         val store = openStore(dir)
         val runtime = LiveRuntime.create(store, config, MutableClock(), probes = false)
         try {
@@ -69,7 +81,10 @@ class LibraryApiTest {
 
             assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/libraries").status)
             assertTrue(json.decodeFromString<Bootstrap>(get("/api/v1/bootstrap").bodyAsText()).capabilities.library)
-            assertEquals(listOf(Library(library.id, "TV", "shows", 1)), json.decodeFromString<List<Library>>(get("/api/v1/libraries").bodyAsText()))
+            assertEquals(
+                listOf(Library(library.id, "TV", "shows", 1)),
+                json.decodeFromString<List<Library>>(get("/api/v1/libraries").bodyAsText()),
+            )
 
             val pageBody = get("/api/v1/libraries/${library.id}/items?sort=added&limit=1").bodyAsText()
             val page = json.decodeFromString<LibraryPage>(pageBody)
@@ -78,7 +93,9 @@ class LibraryApiTest {
             assertEquals(HttpStatusCode.BadRequest, get("/api/v1/libraries/${library.id}/items?sort=size").status)
             assertEquals(HttpStatusCode.NotFound, get("/api/v1/libraries/nope/items").status)
 
-            val showDetail = json.decodeFromString<LibraryItemDetail>(get("/api/v1/library/items/${page.items.single().id}").bodyAsText())
+            val showDetail = json.decodeFromString<LibraryItemDetail>(
+                get("/api/v1/library/items/${page.items.single().id}").bodyAsText(),
+            )
             val seasonBody = get("/api/v1/library/items/${showDetail.children.single().id}").bodyAsText()
             val (pilot, second) = json.decodeFromString<LibraryItemDetail>(seasonBody).children
             assertEquals("Pilot", showDetail.next?.title)
@@ -87,22 +104,34 @@ class LibraryApiTest {
             val poster = client.get(page.items.single().poster!!)
             assertEquals(HttpStatusCode.OK, poster.status)
             assertEquals(ContentType.Image.JPEG, poster.contentType())
-            assertEquals(HttpStatusCode.NotModified, client.get(page.items.single().poster!!) { header(HttpHeaders.IfNoneMatch, poster.headers[HttpHeaders.ETag]!!) }.status)
+            assertEquals(
+                HttpStatusCode.NotModified,
+                client.get(page.items.single().poster!!) {
+                    header(HttpHeaders.IfNoneMatch, poster.headers[HttpHeaders.ETag]!!)
+                }.status,
+            )
             assertEquals(HttpStatusCode.NotFound, client.get("/artwork/${pilot.id}/poster").status)
             assertEquals(HttpStatusCode.NotFound, client.get("/artwork/${page.items.single().id}/thumb").status)
 
             val put = client.put("/api/v1/library/items/${pilot.id}/play-state") {
-                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"positionMs":5700000,"durationMs":6000000}""")
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"positionMs":5700000,"durationMs":6000000}""")
             }
             assertTrue(json.decodeFromString<LibraryItem>(put.bodyAsText()).playState!!.watched)
             client.put("/api/v1/library/items/${second.id}/play-state") {
-                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"positionMs":600000,"durationMs":6000000}""")
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"positionMs":600000,"durationMs":6000000}""")
             }
             val homeBody = get("/api/v1/library/home").bodyAsText()
             val home = json.decodeFromString<LibraryHome>(homeBody)
             assertEquals(listOf(Wire.ShelfId.CONTINUE, Wire.ShelfId.RECENT), home.shelves.map { it.id })
             assertEquals(second.id, home.shelves.first().items.single().id)
-            assertEquals(1, json.decodeFromString<LibraryPage>(get("/api/v1/library/search?q=pilot").bodyAsText()).items.size)
+            assertEquals(
+                1,
+                json.decodeFromString<LibraryPage>(get("/api/v1/library/search?q=pilot").bodyAsText()).items.size,
+            )
             assertEquals(HttpStatusCode.BadRequest, get("/api/v1/library/search").status)
 
             assertKeepsWireFixture("v1/library-page.json", pageBody)
@@ -111,27 +140,59 @@ class LibraryApiTest {
             // An episode's page carries the intro and credits intro detection found in it.
             val pilotRecord = store.libraryItems(library.id).single { it.id == pilot.id }
             store.saveLibraryFingerprint(
-                IntroRecord(pilot.id, fileKey(pilotRecord), null, IntroSpan(5_000, 65_000), "2026-10-10T13:00:00Z", tailStartMs = 0, credits = IntroSpan(1_300_000, 1_380_000)),
+                IntroRecord(
+                    pilot.id,
+                    fileKey(pilotRecord),
+                    null,
+                    IntroSpan(5_000, 65_000),
+                    "2026-10-10T13:00:00Z",
+                    tailStartMs = 0,
+                    credits = IntroSpan(1_300_000, 1_380_000),
+                ),
             )
             val episodeBody = get("/api/v1/library/items/${pilot.id}").bodyAsText()
             assertEquals(
-                listOf(MediaSegment(Wire.SegmentKind.INTRO, 5_000, 65_000), MediaSegment(Wire.SegmentKind.CREDITS, 1_300_000, 1_380_000)),
+                listOf(
+                    MediaSegment(Wire.SegmentKind.INTRO, 5_000, 65_000),
+                    MediaSegment(Wire.SegmentKind.CREDITS, 1_300_000, 1_380_000),
+                ),
                 json.decodeFromString<LibraryItemDetail>(episodeBody).segments,
             )
             assertKeepsWireFixture("v1/library-episode-detail.json", episodeBody)
             assertKeepsWireFixture("v1/library-home.json", homeBody)
-        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+        } finally {
+            runtime.close()
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
     }
+
     @Test fun `a library's grid filters by genre and sorts by what was watched last`() = testApplication {
         val dir = Files.createTempDirectory("sofa-library-genre-")
         val movies = Files.createDirectories(dir.resolve("media/movies"))
-        for ((name, genres) in listOf("Alpha (2001)" to listOf("Drama"), "Bravo (2002)" to listOf("Comedy", "drama"), "Charlie (2003)" to emptyList())) {
+        for ((name, genres) in listOf(
+            "Alpha (2001)" to listOf("Drama"),
+            "Bravo (2002)" to listOf("Comedy", "drama"),
+            "Charlie (2003)" to emptyList(),
+        )) {
             val folder = Files.createDirectories(movies.resolve(name))
             Files.writeString(folder.resolve("$name.mkv"), "x")
-            Files.writeString(folder.resolve("$name.nfo"), "<movie>" + genres.joinToString("") { "<genre>$it</genre>" } + "</movie>")
+            Files.writeString(
+                folder.resolve("$name.nfo"),
+                "<movie>" + genres.joinToString("") { "<genre>$it</genre>" } + "</movie>",
+            )
         }
         Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
-        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null)
+        val config =
+            ServerConfig(
+                "127.0.0.1",
+                8080,
+                dir,
+                dir.resolve("sources.json"),
+                token,
+                hdhr = HdhrConfig(enabled = false),
+                updateImage = null,
+            )
         val store = openStore(dir)
         val clock = MutableClock()
         val runtime = LiveRuntime.create(store, config, clock, probes = false)
@@ -139,8 +200,11 @@ class LibraryApiTest {
             val library = runtime.libraries!!.create("Movies", LibraryKind.MOVIES, movies.toString())
             runtime.libraries!!.scan(library.id)
             application { backendModule(store, clock, runtime, token, config = config) }
-            suspend fun page(query: String) =
-                json.decodeFromString<LibraryPage>(client.get("/api/v1/libraries/${library.id}/items?$query") { bearerAuth(token) }.bodyAsText())
+            suspend fun page(query: String) = json.decodeFromString<LibraryPage>(
+                client.get("/api/v1/libraries/${library.id}/items?$query") {
+                    bearerAuth(token)
+                }.bodyAsText(),
+            )
 
             val all = page("sort=title")
             assertEquals(listOf("Alpha", "Bravo", "Charlie"), all.items.map { it.title })
@@ -150,61 +214,91 @@ class LibraryApiTest {
             assertEquals(listOf("Comedy", "Drama"), page("genre=drama").genres, "the filter still lists every genre")
 
             suspend fun played(item: LibraryItem) = client.put("/api/v1/library/items/${item.id}/play-state") {
-                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"positionMs":600000,"durationMs":6000000}""")
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"positionMs":600000,"durationMs":6000000}""")
             }
             assertEquals(HttpStatusCode.OK, played(all.items[2]).status)
             clock.now = clock.now.plusSeconds(60)
             assertEquals(HttpStatusCode.OK, played(all.items[1]).status)
             assertEquals(listOf("Bravo", "Charlie", "Alpha"), page("sort=watched").items.map { it.title })
-        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
+        } finally {
+            runtime.close()
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
     }
 
-    @Test fun `an episode with every fact a scan reads keeps every field of the library item and library list fixtures`() = testApplication {
-        val dir = Files.createTempDirectory("sofa-library-full-")
-        val show = Files.createDirectories(dir.resolve("media/tv/Show (2020)"))
-        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte())
-        Files.write(show.resolve("poster.jpg"), jpeg)
-        Files.write(show.resolve("fanart.jpg"), jpeg)
-        val episode = show.resolve("Season 01/Show - S01E01-E02 - Pilot.mkv")
-        hdrClip(episode)
-        Files.write(episode.resolveSibling("Show - S01E01-E02 - Pilot-thumb.jpg"), jpeg)
-        Files.writeString(episode.resolveSibling("Show - S01E01-E02 - Pilot.nfo"), """
+    @Test fun `an episode with every fact a scan reads keeps every field of the library item and library list fixtures`() =
+        testApplication {
+            val dir = Files.createTempDirectory("sofa-library-full-")
+            val show = Files.createDirectories(dir.resolve("media/tv/Show (2020)"))
+            val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte())
+            Files.write(show.resolve("poster.jpg"), jpeg)
+            Files.write(show.resolve("fanart.jpg"), jpeg)
+            val episode = show.resolve("Season 01/Show - S01E01-E02 - Pilot.mkv")
+            hdrClip(episode)
+            Files.write(episode.resolveSibling("Show - S01E01-E02 - Pilot-thumb.jpg"), jpeg)
+            Files.writeString(
+                episode.resolveSibling("Show - S01E01-E02 - Pilot.nfo"),
+                """
             <episodedetails><title>Pilot</title><season>1</season><episode>1</episode><aired>2020-01-05</aired>
             <plot>Where it starts.</plot><runtime>44</runtime><genre>Drama</genre><mpaa>TV-14</mpaa><rating>8.1</rating></episodedetails>
-        """.trimIndent())
-        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
-        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null)
-        val store = openStore(dir)
-        val clock = MutableClock()
-        val runtime = LiveRuntime.create(store, config, clock, probes = false)
-        try {
-            val libraries = runtime.libraries!!
-            val library = libraries.create("TV", LibraryKind.SHOWS, dir.resolve("media/tv").toString())
-            libraries.scan(library.id)
-            val catalog = libraries.catalog
-            val season = catalog.item(catalog.items(library.id, null, false, null, 10).items.single().id).children.single()
-            val pilot = catalog.item(season.id).children.single()
-            application { backendModule(store, clock, runtime, token, config = config) }
+                """.trimIndent(),
+            )
+            Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+            val config =
+                ServerConfig(
+                    "127.0.0.1",
+                    8080,
+                    dir,
+                    dir.resolve("sources.json"),
+                    token,
+                    hdhr = HdhrConfig(enabled = false),
+                    updateImage = null,
+                )
+            val store = openStore(dir)
+            val clock = MutableClock()
+            val runtime = LiveRuntime.create(store, config, clock, probes = false)
+            try {
+                val libraries = runtime.libraries!!
+                val library = libraries.create("TV", LibraryKind.SHOWS, dir.resolve("media/tv").toString())
+                libraries.scan(library.id)
+                val catalog = libraries.catalog
+                val season = catalog.item(
+                    catalog.items(library.id, null, false, null, 10).items.single().id,
+                ).children.single()
+                val pilot = catalog.item(season.id).children.single()
+                application { backendModule(store, clock, runtime, token, config = config) }
 
-            val put = client.put("/api/v1/library/items/${pilot.id}/play-state") {
-                bearerAuth(token); contentType(ContentType.Application.Json); setBody("""{"positionMs":600000,"durationMs":2640000}""")
+                val put = client.put("/api/v1/library/items/${pilot.id}/play-state") {
+                    bearerAuth(token)
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"positionMs":600000,"durationMs":2640000}""")
+                }
+                assertEquals(HttpStatusCode.OK, put.status, put.bodyAsText())
+                val itemBody = put.bodyAsText()
+                val item = json.decodeFromString<LibraryItem>(itemBody)
+                assertEquals(Triple(1, 1, 2), Triple(item.season, item.episode, item.episodeEnd))
+                assertEquals(180, item.videoHeight)
+                assertTrue(item.hdr, "FFprobe read the PQ transfer")
+                assertEquals(600000, item.playState?.positionMs)
+                val nulls = Json.parseToJsonElement(itemBody).jsonObject.filterValues { it is JsonNull }.keys
+                assertTrue(nulls.isEmpty(), "the item still has nulls: $nulls")
+                assertKeepsWireFixture("v1/library-item.json", itemBody)
+
+                val librariesBody = client.get("/api/v1/libraries") { bearerAuth(token) }.bodyAsText()
+                assertEquals(
+                    listOf(Library(library.id, "TV", "shows", 1)),
+                    json.decodeFromString<List<Library>>(librariesBody),
+                )
+                assertKeepsWireFixture("v1/libraries.json", librariesBody)
+            } finally {
+                runtime.close()
+                store.close()
+                dir.toFile().deleteRecursively()
             }
-            assertEquals(HttpStatusCode.OK, put.status, put.bodyAsText())
-            val itemBody = put.bodyAsText()
-            val item = json.decodeFromString<LibraryItem>(itemBody)
-            assertEquals(Triple(1, 1, 2), Triple(item.season, item.episode, item.episodeEnd))
-            assertEquals(180, item.videoHeight)
-            assertTrue(item.hdr, "FFprobe read the PQ transfer")
-            assertEquals(600000, item.playState?.positionMs)
-            val nulls = Json.parseToJsonElement(itemBody).jsonObject.filterValues { it is JsonNull }.keys
-            assertTrue(nulls.isEmpty(), "the item still has nulls: $nulls")
-            assertKeepsWireFixture("v1/library-item.json", itemBody)
-
-            val librariesBody = client.get("/api/v1/libraries") { bearerAuth(token) }.bodyAsText()
-            assertEquals(listOf(Library(library.id, "TV", "shows", 1)), json.decodeFromString<List<Library>>(librariesBody))
-            assertKeepsWireFixture("v1/libraries.json", librariesBody)
-        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
-    }
+        }
 
     /** A two-second Matroska clip whose video is tagged as HDR10 (PQ transfer, BT.2020). */
     private fun hdrClip(file: Path) {

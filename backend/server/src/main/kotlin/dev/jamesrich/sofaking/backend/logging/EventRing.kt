@@ -6,7 +6,13 @@ import ch.qos.logback.core.AppenderBase
 import java.time.Instant
 
 /** One log line as the portal's Events page shows it: the message as it was written, with the request id when there was one. */
-class LogEvent(val at: Instant, val level: String, val logger: String, val message: String, val requestId: String? = null)
+class LogEvent(
+    val at: Instant,
+    val level: String,
+    val logger: String,
+    val message: String,
+    val requestId: String? = null,
+)
 
 /**
  * The newest [capacity] log events at INFO and above, in memory, for the portal's Events page. The same lines go to
@@ -40,6 +46,14 @@ class RingAppender(private val ring: EventRing) : AppenderBase<ILoggingEvent>() 
         if (!event.level.isGreaterOrEqual(Level.INFO)) return
         val thrown = event.throwableProxy?.className?.substringAfterLast('.')
         val message = if (thrown == null) event.formattedMessage else "${event.formattedMessage} ($thrown)"
-        ring.append(LogEvent(Instant.ofEpochMilli(event.timeStamp), event.level.toString(), event.loggerName, message, event.mdcPropertyMap?.get("requestId")))
+        ring.append(
+            LogEvent(
+                Instant.ofEpochMilli(event.timeStamp),
+                event.level.toString(),
+                event.loggerName,
+                message,
+                event.mdcPropertyMap?.get("requestId"),
+            ),
+        )
     }
 }

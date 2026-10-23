@@ -19,7 +19,13 @@ import kotlinx.coroutines.test.TestScope
 internal const val FAKE_BASE = "http://sofa.test/"
 
 /** A request as the fake server saw it: `METHOD /path body`, the body only when there is one, and its encoded [query]. */
-internal data class SeenRequest(val method: String, val path: String, val body: String, val headers: Map<String, String?>, val query: String = "") {
+internal data class SeenRequest(
+    val method: String,
+    val path: String,
+    val body: String,
+    val headers: Map<String, String?>,
+    val query: String = "",
+) {
     override fun toString() = "$method $path $body".trim()
 }
 
@@ -58,7 +64,16 @@ internal class FakeHttp(
         // The body's content type travels on the content, not in the request headers.
         val headers = request.headers.names().associateWith { request.headers[it] } +
             (HttpHeaders.ContentType to request.body.contentType?.toString())
-        return SeenRequest(request.method.value, request.url.encodedPath, body, headers, request.url.encodedQuery).also { requests += it }
+        return SeenRequest(
+            request.method.value,
+            request.url.encodedPath,
+            body,
+            headers,
+            request.url.encodedQuery,
+        ).also {
+            requests +=
+                it
+        }
     }
 }
 

@@ -16,13 +16,6 @@ import dev.jamesrich.sofaking.backend.store.markLibraryItemsMissing
 import dev.jamesrich.sofaking.backend.store.recordLibraryScan
 import dev.jamesrich.sofaking.backend.store.renameLibrary
 import dev.jamesrich.sofaking.backend.store.saveLibraryItems
-import java.nio.file.Files
-import java.nio.file.Path
-import java.time.Clock
-import java.time.Duration
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -34,6 +27,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.Clock
+import java.time.Duration
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 private val log = LoggerFactory.getLogger(LibraryService::class.java)
 
@@ -48,8 +48,10 @@ data class LibrarySuggestion(val name: String, val kind: LibraryKind, val path: 
 
 /** What a folder named so holds, by its name in lower case with separators as spaces. */
 private val SUGGESTED_KINDS = mapOf(
-    "movies" to LibraryKind.MOVIES, "movie" to LibraryKind.MOVIES, "films" to LibraryKind.MOVIES, "film" to LibraryKind.MOVIES,
-    "tv" to LibraryKind.SHOWS, "tv shows" to LibraryKind.SHOWS, "shows" to LibraryKind.SHOWS, "series" to LibraryKind.SHOWS,
+    "movies" to LibraryKind.MOVIES, "movie" to LibraryKind.MOVIES, "films" to LibraryKind.MOVIES,
+    "film" to LibraryKind.MOVIES,
+    "tv" to LibraryKind.SHOWS, "tv shows" to LibraryKind.SHOWS, "shows" to LibraryKind.SHOWS,
+    "series" to LibraryKind.SHOWS,
     "tv series" to LibraryKind.SHOWS, "television" to LibraryKind.SHOWS,
     "videos" to LibraryKind.VIDEOS, "home videos" to LibraryKind.VIDEOS, "music videos" to LibraryKind.VIDEOS,
 )
@@ -82,10 +84,13 @@ class LibraryService(
 
     private val trigger = Channel<Unit>(Channel.CONFLATED)
     private val pending = ConcurrentHashMap.newKeySet<String>()
+
     /** Held while a scan writes items and while a library is removed; listing, probing and the TMDB pass run without it. */
     private val scanLock = Mutex()
+
     /** One scan at a time, TMDB pass included. */
     private val scans = Mutex()
+
     /** Held from the check that a folder is free to the insert that takes it. */
     private val creating = Mutex()
 
@@ -95,7 +100,8 @@ class LibraryService(
 
     suspend fun libraries(): List<LibraryRecord> = store.libraries()
 
-    suspend fun library(id: String): LibraryRecord = store.library(id) ?: throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+    suspend fun library(id: String): LibraryRecord =
+        store.library(id) ?: throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
 
     /** Present items by library and kind. */
     suspend fun counts(): Map<String, Map<String, Int>> = store.libraryItemCounts()
@@ -107,7 +113,10 @@ class LibraryService(
     suspend fun folderChoices(): List<Path> {
         val used = store.libraries().mapTo(HashSet()) { it.path }
         // Absolute, as create stores them, so a relative root still drops the folders in use.
-        return roots.flatMap { root -> folders(root.root.toAbsolutePath().normalize(), 2) }.filter { it.toString() !in used }
+        return roots.flatMap { root -> folders(root.root.toAbsolutePath().normalize(), 2) }.filter {
+            it.toString() !in
+                used
+        }
     }
 
     /**
@@ -127,21 +136,38 @@ class LibraryService(
 
     private fun folders(root: Path, depth: Int): List<Path> {
         if (!Files.isDirectory(root)) return emptyList()
-        val below = if (depth == 0) emptyList() else try {
-            Files.list(root).use { stream ->
-                stream.filter { Files.isDirectory(it, java.nio.file.LinkOption.NOFOLLOW_LINKS) && !skippedFolder(it.fileName.toString()) }.sorted().toList()
-            }.flatMap { folders(it, depth - 1) }
-        } catch (_: java.io.IOException) { emptyList() }
+        val below = if (depth == 0) {
+            emptyList()
+        } else {
+            try {
+                Files.list(root).use { stream ->
+                    stream.filter {
+                        Files.isDirectory(it, java.nio.file.LinkOption.NOFOLLOW_LINKS) &&
+                            !skippedFolder(it.fileName.toString())
+                    }.sorted().toList()
+                }.flatMap { folders(it, depth - 1) }
+            } catch (_: java.io.IOException) {
+                emptyList()
+            }
+        }
         return listOf(root.normalize()) + below
     }
 
     suspend fun create(name: String, kind: LibraryKind, path: String): LibraryRecord {
         val title = name.trim()
-        if (title.isEmpty() || title.length > 100) throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
+        if (title.isEmpty() || title.length > 100) {
+            throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
+        }
         val folder = allowed(path)
-        val library = LibraryRecord(UUID.randomUUID().toString(), title, kind, folder.toString(), clock.instant().toString())
+        val library =
+            LibraryRecord(UUID.randomUUID().toString(), title, kind, folder.toString(), clock.instant().toString())
         creating.withLock {
-            if (store.libraries().any { it.path == folder.toString() }) throw ApiFailure(409, "LIBRARY_EXISTS", "Another library already uses that folder")
+            if (store.libraries().any {
+                    it.path == folder.toString()
+                }
+            ) {
+                throw ApiFailure(409, "LIBRARY_EXISTS", "Another library already uses that folder")
+            }
             store.insertLibrary(library)
         }
         revision.incrementAndGet()
@@ -151,7 +177,9 @@ class LibraryService(
 
     suspend fun rename(id: String, name: String): LibraryRecord {
         val title = name.trim()
-        if (title.isEmpty() || title.length > 100) throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
+        if (title.isEmpty() || title.length > 100) {
+            throw ApiFailure(400, "INVALID_REQUEST", "A library name has 1 to 100 characters")
+        }
         if (!store.renameLibrary(id, title)) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
         revision.incrementAndGet()
         return library(id)
@@ -159,7 +187,9 @@ class LibraryService(
 
     /** Forgets the library, its items and their watch state; its files stay where they are. */
     suspend fun delete(id: String) {
-        scanLock.withLock { if (!store.deleteLibrary(id)) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library") }
+        scanLock.withLock {
+            if (!store.deleteLibrary(id)) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+        }
         revision.incrementAndGet()
     }
 
@@ -179,12 +209,19 @@ class LibraryService(
             val plan = scanner.scan(library, Path.of(library.path), store.libraryItems(library.id), now)
             scanLock.withLock {
                 // Removed since this scan began: it writes nothing.
-                if (store.libraries().none { it.id == library.id }) throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+                if (store.libraries().none {
+                        it.id == library.id
+                    }
+                ) {
+                    throw ApiFailure(404, "LIBRARY_NOT_FOUND", "No such library")
+                }
                 if (plan.save.isNotEmpty()) store.saveLibraryItems(plan.save)
                 if (plan.missing.isNotEmpty()) store.markLibraryItemsMissing(plan.missing, now)
                 if (plan.delete.isNotEmpty()) store.deleteLibraryItems(plan.delete)
                 // Clients see the files now; the TMDB pass below can take minutes on a new library.
-                if (plan.save.isNotEmpty() || plan.missing.isNotEmpty() || plan.delete.isNotEmpty()) revision.incrementAndGet()
+                if (plan.save.isNotEmpty() || plan.missing.isNotEmpty() || plan.delete.isNotEmpty()) {
+                    revision.incrementAndGet()
+                }
             }
             val items = store.libraryItems(library.id)
             // Off the scan lock, so removing a library never waits for TMDB.
@@ -192,8 +229,11 @@ class LibraryService(
             val note = listOfNotNull(plan.result.note, looked?.note).joinToString("; ")
             scanLock.withLock {
                 // Removed during the TMDB pass, which then saved details for items that are gone.
-                if (store.libraries().none { it.id == library.id }) store.deleteLibraryItems(items.map { it.id })
-                else store.recordLibraryScan(library.id, now, !plan.result.unavailable, note)
+                if (store.libraries().none { it.id == library.id }) {
+                    store.deleteLibraryItems(items.map { it.id })
+                } else {
+                    store.recordLibraryScan(library.id, now, !plan.result.unavailable, note)
+                }
             }
             revision.incrementAndGet()
             if (library.kind == LibraryKind.SHOWS && !plan.result.unavailable) intros?.request(library.id)
@@ -205,19 +245,41 @@ class LibraryService(
 
     fun start(scope: CoroutineScope): Job {
         scope.launch(CoroutineName("library-scan-timer")) {
-            while (isActive) { requestScan(null); delay(every.toMillis()) }
+            while (isActive) {
+                requestScan(null)
+                delay(every.toMillis())
+            }
         }
         return scope.launch(CoroutineName("library-scan")) {
             while (isActive) {
                 trigger.receive()
                 val wanted = pending.toList().also { pending.removeAll(it.toSet()) }
-                val ids = try { if (ALL in wanted) store.libraries().map { it.id } else wanted } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                val ids = try {
+                    if (ALL in
+                        wanted
+                    ) {
+                        store.libraries().map { it.id }
+                    } else {
+                        wanted
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
                     log.warn("library scan failed class={}", e.javaClass.simpleName)
                     emptyList()
                 }
                 for (id in ids) {
-                    try { scan(id) } catch (e: CancellationException) { throw e } catch (e: Exception) {
-                        log.warn("library scan failed library={} class={} message=\"{}\"", id, e.javaClass.simpleName, redactedMessage(e))
+                    try {
+                        scan(id)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        log.warn(
+                            "library scan failed library={} class={} message=\"{}\"",
+                            id,
+                            e.javaClass.simpleName,
+                            redactedMessage(e),
+                        )
                     }
                 }
             }
@@ -226,15 +288,28 @@ class LibraryService(
 
     /** [path] as a normalized absolute folder inside one of [roots], or a 400 naming what is wrong. */
     private fun allowed(path: String): Path {
-        val candidate = try { Path.of(path.trim()).toAbsolutePath().normalize() } catch (_: Exception) {
+        val candidate = try {
+            Path.of(path.trim()).toAbsolutePath().normalize()
+        } catch (_: Exception) {
             throw ApiFailure(400, "INVALID_REQUEST", "Not a folder path")
         }
         val root = roots.firstOrNull { candidate.startsWith(it.root.toAbsolutePath().normalize()) }
-            ?: throw ApiFailure(400, "INVALID_REQUEST", "A library folder must be inside ${roots.joinToString(" or ") { it.root.toString() }}")
+            ?: throw ApiFailure(
+                400,
+                "INVALID_REQUEST",
+                "A library folder must be inside ${roots.joinToString(" or ") {
+                    it.root.toString()
+                }}",
+            )
         if (!Files.isDirectory(candidate)) throw ApiFailure(400, "INVALID_REQUEST", "No folder at that path")
         // A link inside the root must not lead the scan outside it.
         val real = candidate.toRealPath()
-        if (!real.startsWith(root.root.toRealPath())) throw ApiFailure(400, "INVALID_REQUEST", "That folder links outside ${root.root}")
+        if (!real.startsWith(
+                root.root.toRealPath(),
+            )
+        ) {
+            throw ApiFailure(400, "INVALID_REQUEST", "That folder links outside ${root.root}")
+        }
         return candidate
     }
 

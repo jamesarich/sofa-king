@@ -65,10 +65,13 @@ object Wire {
     object VodMode {
         /** The file as is, with byte ranges. */
         const val DIRECT = "direct"
+
         /** The streams as they are, in an HLS container. */
         const val REMUX = "remux"
+
         /** The video as it is and the audio converted. */
         const val AUDIO = "audio"
+
         /** Video and audio converted. */
         const val TRANSCODE = "transcode"
     }
@@ -77,6 +80,7 @@ object Wire {
     object SegmentKind {
         /** The opening titles and theme an episode shares with others of its show. */
         const val INTRO = "intro"
+
         /** The end credits an episode shares with others of its show; an app that does not know the kind ignores it. */
         const val CREDITS = "credits"
     }

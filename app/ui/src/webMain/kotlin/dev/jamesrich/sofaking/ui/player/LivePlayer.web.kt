@@ -10,9 +10,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
-import kotlinx.coroutines.suspendCancellableCoroutine
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.webgl.WebGLRenderTarget
 import androidx.compose.ui.platform.webgl.rememberWebGLRenderTarget
@@ -21,16 +21,17 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.HtmlElementView
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.HLS_MIME_TYPE
+import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
-import org.jetbrains.compose.resources.stringResource
-import dev.jamesrich.sofaking.data.PlaybackProfile
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.suspendCancellableCoroutine
+import org.jetbrains.compose.resources.stringResource
 import org.khronos.webgl.WebGLFramebuffer
 import org.khronos.webgl.WebGLRenderingContext
 import org.khronos.webgl.WebGLRenderingContext.Companion.CLAMP_TO_EDGE
@@ -60,7 +61,6 @@ import org.w3c.dom.TextTrackMode
 import org.w3c.dom.events.Event
 import org.w3c.dom.get
 import org.w3c.dom.url.URL
-import androidx.compose.ui.draw.clipToBounds
 
 private val log = Logger.withTag("SofaKing")
 
@@ -104,6 +104,7 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
 
     private val _cues = MutableStateFlow<List<CaptionCue>>(emptyList())
     override val cues: StateFlow<List<CaptionCue>> = _cues.asStateFlow()
+
     /** Browsers expose a stream's audio tracks only behind flags, so the card never offers a choice here. */
     override val audioTracks: StateFlow<List<AudioTrack>> = MutableStateFlow(emptyList<AudioTrack>()).asStateFlow()
 
@@ -169,7 +170,12 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     override fun selectAudioTrack(id: String) = Unit
 
     /** The element reports only the picture size. */
-    override fun streamInfo(): StreamInfo = StreamInfo(width = video.videoWidth.takeIf { it > 0 }, height = video.videoHeight.takeIf { it > 0 })
+    override fun streamInfo(): StreamInfo = StreamInfo(
+        width = video.videoWidth.takeIf {
+            it > 0
+        },
+        height = video.videoHeight.takeIf { it > 0 },
+    )
 
     override fun prepare() {
         val url = stream?.url ?: return
@@ -210,7 +216,9 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
             val now = video.currentTime
             val buffered = video.buffered
             for (i in 0 until buffered.length) {
-                if (now >= buffered.start(i) && now <= buffered.end(i)) return ((buffered.end(i) - now) * 1000).toLong().coerceAtLeast(0L)
+                if (now >= buffered.start(i) && now <= buffered.end(i)) {
+                    return ((buffered.end(i) - now) * 1000).toLong().coerceAtLeast(0L)
+                }
             }
             return null
         }
@@ -219,7 +227,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     override val durationMs: Long?
         get() {
             if (!isSeekable) return null
-            val seconds = video.duration.takeIf { it.isFinite() && it > 0 } ?: video.seekable.end(video.seekable.length - 1)
+            val seconds =
+                video.duration.takeIf { it.isFinite() && it > 0 } ?: video.seekable.end(video.seekable.length - 1)
             return (seconds * 1000).toLong().takeIf { it > 0L }
         }
 
@@ -304,7 +313,12 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
         LaunchedEffect(zoom) { video.style.setProperty("object-fit", zoom.objectFit) }
         Box(modifier.background(Color.Black).clipToBounds()) {
             if (target != null) {
-                Image(target.painter, contentDescription = null, contentScale = zoom.contentScale, modifier = Modifier.matchParentSize())
+                Image(
+                    target.painter,
+                    contentDescription = null,
+                    contentScale = zoom.contentScale,
+                    modifier = Modifier.matchParentSize(),
+                )
             } else {
                 HtmlElementView(factory = { video }, modifier = Modifier.matchParentSize())
             }
@@ -345,7 +359,9 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
     }
 
     private fun updateFrameSize() {
-        if (video.videoWidth > 0 && video.videoHeight > 0) frameSize.value = IntSize(video.videoWidth, video.videoHeight)
+        if (video.videoWidth > 0 && video.videoHeight > 0) {
+            frameSize.value = IntSize(video.videoWidth, video.videoHeight)
+        }
     }
 
     /**
@@ -442,9 +458,16 @@ private const val DRAW_FRAMEBUFFER = 0x8CA9
 /** WebGL2's blit, which the WebGL 1 bindings lack; [rememberWebGLRenderTarget] only hands out WebGL2 contexts. */
 private external interface WebGL2Blit : JsAny {
     fun blitFramebuffer(
-        srcX0: Int, srcY0: Int, srcX1: Int, srcY1: Int,
-        dstX0: Int, dstY0: Int, dstX1: Int, dstY1: Int,
-        mask: Int, filter: Int,
+        srcX0: Int,
+        srcY0: Int,
+        srcX1: Int,
+        srcY1: Int,
+        dstX0: Int,
+        dstY0: Int,
+        dstX1: Int,
+        dstY1: Int,
+        mask: Int,
+        filter: Int,
     )
 }
 
@@ -485,15 +508,21 @@ private val MEDIA_ACTIONS = listOf("play", "pause", "nexttrack", "previoustrack"
 
 /** An action the browser doesn't know throws; it is skipped, as the spec advises. */
 private fun setMediaAction(action: String, handler: () -> Unit) {
-    js("if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, function () { handler(); }); } catch (e) {} }")
+    js(
+        "if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, function () { handler(); }); } catch (e) {} }",
+    )
 }
 
 private fun clearMediaAction(action: String) {
-    js("if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, null); } catch (e) {} }")
+    js(
+        "if ('mediaSession' in navigator) { try { navigator.mediaSession.setActionHandler(action, null); } catch (e) {} }",
+    )
 }
 
 private fun setMediaMetadata(title: String, artist: String, artworkUrl: String?) {
-    js("if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: title, artist: artist, artwork: artworkUrl ? [{ src: artworkUrl }] : [] }); }")
+    js(
+        "if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: title, artist: artist, artwork: artworkUrl ? [{ src: artworkUrl }] : [] }); }",
+    )
 }
 
 private fun clearMediaMetadata() {

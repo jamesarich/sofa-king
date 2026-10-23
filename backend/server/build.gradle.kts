@@ -1,4 +1,10 @@
-plugins { application; alias(libs.plugins.kotlin.jvm); alias(libs.plugins.kotlin.serialization); id("sofaking.kotlin"); id("sofaking.lint") }
+plugins {
+    application
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
+    id("sofaking.kotlin")
+    id("sofaking.lint")
+}
 group = "dev.jamesrich.sofaking"
 version = libs.versions.sofaking.get()
 application { mainClass = "dev.jamesrich.sofaking.backend.MainKt" }
@@ -38,7 +44,9 @@ dependencies {
 // Real responses must keep every field of the wire fixtures the contract's tests decode. The provider keeps the
 // absolute path out of the test task's cache key.
 abstract class WireFixtures : CommandLineArgumentProvider {
-    @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE) abstract val dir: DirectoryProperty
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val dir: DirectoryProperty
     override fun asArguments() = listOf("-Dsofaking.wireFixtures=${dir.get().asFile.absolutePath}")
 }
 tasks.test {

@@ -2,10 +2,10 @@ package dev.jamesrich.sofaking.ui.theme
 
 import androidx.compose.material.icons.materialPath
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.graphics.PathFillType.Companion.EvenOdd
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 
 /**
@@ -220,11 +220,17 @@ internal object SofaIcons {
     }
 
     val Fullscreen: ImageVector by lazy {
-        pathIcon("Filled.Fullscreen", "M7,14L5,14v5h5v-2L7,17v-3zM5,10h2L7,7h3L10,5L5,5v5zM17,17h-3v2h5v-5h-2v3zM14,5v2h3v3h2L19,5h-5z")
+        pathIcon(
+            "Filled.Fullscreen",
+            "M7,14L5,14v5h5v-2L7,17v-3zM5,10h2L7,7h3L10,5L5,5v5zM17,17h-3v2h5v-5h-2v3zM14,5v2h3v3h2L19,5h-5z",
+        )
     }
 
     val FullscreenExit: ImageVector by lazy {
-        pathIcon("Filled.FullscreenExit", "M5,16h3v3h2v-5L5,14v2zM8,8L5,8v2h5L10,5L8,5v3zM14,19h2v-3h3v-2h-5v5zM16,5v3h3v2h-5L14,5h2z")
+        pathIcon(
+            "Filled.FullscreenExit",
+            "M5,16h3v3h2v-5L5,14v2zM8,8L5,8v2h5L10,5L8,5v3zM14,19h2v-3h3v-2h-5v5zM16,5v3h3v2h-5L14,5h2z",
+        )
     }
 
     val LiveTv: ImageVector by lazy {
@@ -305,12 +311,18 @@ internal object SofaIcons {
 
     /** Start over. */
     val Replay: ImageVector by lazy {
-        pathIcon("Filled.Replay", "M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z")
+        pathIcon(
+            "Filled.Replay",
+            "M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z",
+        )
     }
 
     /** The sleep timer. */
     val Bedtime: ImageVector by lazy {
-        pathIcon("Filled.Bedtime", "M12.34,2.02C6.59,1.82,2,6.42,2,12c0,5.52,4.48,10,10,10c3.71,0,6.93-2.02,8.66-5.02C13.15,16.73,8.57,8.55,12.34,2.02z")
+        pathIcon(
+            "Filled.Bedtime",
+            "M12.34,2.02C6.59,1.82,2,6.42,2,12c0,5.52,4.48,10,10,10c3.71,0,6.93-2.02,8.66-5.02C13.15,16.73,8.57,8.55,12.34,2.02z",
+        )
     }
 
     /** Next episode. */
@@ -331,7 +343,9 @@ internal object SofaIcons {
     val Record: ImageVector by lazy { pathIcon("Filled.FiberManualRecord", "M12,4a8,8 0,1 0,0 16a8,8 0,1 0,0 -16z") }
 
     /** The previous channel, on the live bar. */
-    val SwapHoriz: ImageVector by lazy { pathIcon("Filled.SwapHoriz", "M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z") }
+    val SwapHoriz: ImageVector by lazy {
+        pathIcon("Filled.SwapHoriz", "M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z")
+    }
 
     /** Zoom, in both players. */
     val AspectRatio: ImageVector by lazy {

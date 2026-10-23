@@ -13,22 +13,16 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
-import java.nio.file.Files
-import java.nio.file.Path
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.selects.onTimeout
-import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -38,6 +32,12 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.util.concurrent.atomic.AtomicReference
 
 /** The build this process runs: the commit and the product version the image was built from, `unknown` outside the image. */
 data class RunningBuild(val revision: String, val version: String)
@@ -45,7 +45,11 @@ data class RunningBuild(val revision: String, val version: String)
 /** What the registry publishes under the image's tag: the commit and version from the index annotations, and the index digest. */
 data class PublishedBuild(val revision: String?, val version: String?, val digest: String?) {
     /** Whether [running] is this build; null when neither side names a commit. */
-    fun isCurrent(running: RunningBuild): Boolean? = if (revision == null || running.revision == "unknown") null else revision == running.revision
+    fun isCurrent(running: RunningBuild): Boolean? = if (revision == null || running.revision == "unknown") {
+        null
+    } else {
+        revision == running.revision
+    }
 }
 
 /**
@@ -53,8 +57,12 @@ data class PublishedBuild(val revision: String?, val version: String?, val diges
  * `up-to-date`, `updated`, `rolled-back`, `skipped` or `failed`; [message] is the updater's own line.
  */
 @Serializable data class UpdaterReport(
-    val checkedAt: String, val image: String? = null, val running: String? = null, val candidate: String? = null,
-    val outcome: String, val message: String? = null,
+    val checkedAt: String,
+    val image: String? = null,
+    val running: String? = null,
+    val candidate: String? = null,
+    val outcome: String,
+    val message: String? = null,
 )
 
 /** The update picture the portal shows: what runs, what is published, when that was checked, and what the updater did last. */
@@ -98,6 +106,7 @@ class UpdateChecker(
     private val checkedAt = AtomicReference<Instant?>()
     private val error = AtomicReference<String?>()
     private val requests = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
+
     /** The revision this process last asked the updater for, so each published build is asked for once. */
     private val asked = AtomicReference<String?>()
 
@@ -125,12 +134,21 @@ class UpdateChecker(
                     error.set(null)
                     checkedAt.set(clock.instant())
                     val requested = requestNewer(build)
-                    JobOutcome(true, when (build.isCurrent(running)) {
-                        true -> "up to date (${build.revision})"
-                        false -> "update available: ${build.revision}" + if (requested) "; asked the updater to install it" else ""
-                        null -> "published ${build.revision ?: build.digest ?: "unknown"}"
-                    })
-                } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                    JobOutcome(
+                        true,
+                        when (build.isCurrent(running)) {
+                            true -> "up to date (${build.revision})"
+
+                            false ->
+                                "update available: ${build.revision}" +
+                                    if (requested) "; asked the updater to install it" else ""
+
+                            null -> "published ${build.revision ?: build.digest ?: "unknown"}"
+                        },
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
                     // Ktor's timeout messages carry the request URL; the note, the flash and the stored state never do.
                     val why = "${e.javaClass.simpleName}: ${redactedMessage(e).take(120)}".trimEnd(':', ' ')
                     error.set(why)
@@ -189,7 +207,9 @@ class UpdateChecker(
     private fun updaterReport(): UpdaterReport? {
         val file = statusFile
         if (!Files.isRegularFile(file)) return null
-        return try { json.decodeFromString<UpdaterReport>(Files.readString(file)) } catch (e: Exception) {
+        return try {
+            json.decodeFromString<UpdaterReport>(Files.readString(file))
+        } catch (e: Exception) {
             log.debug("update-status.json is not readable class={}", e.javaClass.simpleName)
             null
         }
@@ -198,7 +218,8 @@ class UpdateChecker(
     private fun requestedAt(): Instant? {
         val file = requestFile
         if (!Files.isRegularFile(file)) return null
-        return runCatching { Instant.parse(Files.readString(file).trim()) }.getOrNull() ?: runCatching { Files.getLastModifiedTime(file).toInstant() }.getOrNull()
+        return runCatching { Instant.parse(Files.readString(file).trim()) }.getOrNull()
+            ?: runCatching { Files.getLastModifiedTime(file).toInstant() }.getOrNull()
     }
 
     /**
@@ -211,19 +232,35 @@ class UpdateChecker(
         var response = manifest(ref, ref.tag, null)
         var token: String? = null
         if (response.status == HttpStatusCode.Unauthorized) {
-            token = anonymousToken(response.headers[HttpHeaders.WWWAuthenticate] ?: throw IllegalStateException("the registry asked for credentials without a challenge"))
+            token =
+                anonymousToken(
+                    response.headers[HttpHeaders.WWWAuthenticate]
+                        ?: throw IllegalStateException("the registry asked for credentials without a challenge"),
+                )
             response = manifest(ref, ref.tag, token)
         }
-        if (!response.status.isSuccess()) throw IllegalStateException("the registry answered ${response.status.value} for the manifest")
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException(
+                "the registry answered ${response.status.value} for the manifest",
+            )
+        }
         val digest = response.headers["Docker-Content-Digest"]
         val document = parse(response)
         document.annotations()?.let { return PublishedBuild(it[REVISION], it[VERSION], digest) }
         // A single-platform manifest keeps its facts in the config blob's labels.
         val config = document["config"]?.jsonObject?.get("digest")?.jsonPrimitive?.content
         if (config != null) {
-            val blob = http.get("https://${ref.host}/v2/${ref.name}/blobs/$config") { token?.let { header(HttpHeaders.Authorization, "Bearer $it") } }
-            if (blob.status.isSuccess()) parse(blob)["config"]?.jsonObject?.get("Labels")?.jsonObject?.let { labels ->
-                return PublishedBuild(labels[REVISION]?.jsonPrimitive?.content, labels[VERSION]?.jsonPrimitive?.content, digest)
+            val blob = http.get("https://${ref.host}/v2/${ref.name}/blobs/$config") {
+                token?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+            }
+            if (blob.status.isSuccess()) {
+                parse(blob)["config"]?.jsonObject?.get("Labels")?.jsonObject?.let { labels ->
+                    return PublishedBuild(
+                        labels[REVISION]?.jsonPrimitive?.content,
+                        labels[VERSION]?.jsonPrimitive?.content,
+                        digest,
+                    )
+                }
             }
         }
         return PublishedBuild(null, null, digest)
@@ -244,9 +281,14 @@ class UpdateChecker(
             fields["service"]?.let { parameter("service", it) }
             fields["scope"]?.let { parameter("scope", it) }
         }
-        if (!response.status.isSuccess()) throw IllegalStateException("the registry answered ${response.status.value} for the token")
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException(
+                "the registry answered ${response.status.value} for the token",
+            )
+        }
         val body = parse(response)
-        return (body["token"] ?: body["access_token"])?.jsonPrimitive?.content ?: throw IllegalStateException("the registry's token answer holds no token")
+        return (body["token"] ?: body["access_token"])?.jsonPrimitive?.content
+            ?: throw IllegalStateException("the registry's token answer holds no token")
     }
 
     private suspend fun parse(response: HttpResponse): JsonObject {
@@ -265,12 +307,29 @@ class UpdateChecker(
                 require('@' !in image) { "the update image must be named by tag, not digest" }
                 val slash = image.indexOf('/')
                 val first = if (slash < 0) "" else image.substring(0, slash)
-                val (host, rest) = if (slash >= 0 && ('.' in first || ':' in first || first == "localhost")) first to image.substring(slash + 1) else "registry-1.docker.io" to image
+                val (host, rest) = if (slash >= 0 && ('.' in first || ':' in first || first == "localhost")) {
+                    first to image.substring(slash + 1)
+                } else {
+                    "registry-1.docker.io" to
+                        image
+                }
                 val colon = rest.lastIndexOf(':')
                 val name = if (colon < 0) rest else rest.substring(0, colon)
                 val tag = if (colon < 0) "latest" else rest.substring(colon + 1)
-                require(name.isNotEmpty() && tag.isNotEmpty() && name.none { it.isWhitespace() } && tag.matches(TAG)) { "the update image must be host/name:tag" }
-                return ImageRef(host, if (host == "registry-1.docker.io" && '/' !in name) "library/$name" else name, tag)
+                require(
+                    name.isNotEmpty() && tag.isNotEmpty() && name.none {
+                        it.isWhitespace()
+                    } && tag.matches(TAG),
+                ) { "the update image must be host/name:tag" }
+                return ImageRef(
+                    host,
+                    if (host == "registry-1.docker.io" && '/' !in name) {
+                        "library/$name"
+                    } else {
+                        name
+                    },
+                    tag,
+                )
             }
         }
     }
@@ -279,6 +338,7 @@ class UpdateChecker(
         const val JOB = "update"
         const val STATUS_FILE = "update-status.json"
         const val REQUEST_FILE = "update-requested"
+
         /** The updater's outcomes for an image it will not install again. */
         private val REFUSED = setOf("rolled-back", "skipped")
         const val REVISION = "org.opencontainers.image.revision"

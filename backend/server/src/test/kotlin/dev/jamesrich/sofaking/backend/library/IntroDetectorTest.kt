@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.saveLibraryFingerprint
 import dev.jamesrich.sofaking.contract.MediaSegment
 import dev.jamesrich.sofaking.contract.Wire
+import kotlinx.coroutines.runBlocking
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -26,11 +27,16 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlinx.coroutines.runBlocking
 
 /** Episodes made of tunes through the real FFmpeg, as CI and the image run it. */
 class IntroDetectorTest {
-    private class Setup(val root: Path, val store: BackendStore, val service: LibraryService, val detector: IntroDetector, val reads: MutableList<Path>)
+    private class Setup(
+        val root: Path,
+        val store: BackendStore,
+        val service: LibraryService,
+        val detector: IntroDetector,
+        val reads: MutableList<Path>,
+    )
 
     /** Episodes the scan takes for ten minutes long unless [durations] knows a file's length. */
     private fun setup(tailShare: Double = TAIL_SHARE, durations: Map<String, Long> = emptyMap()): Setup = runBlocking {
@@ -41,10 +47,26 @@ class IntroDetectorTest {
         val jobs = Jobs(clock)
         val reads = ArrayList<Path>()
         val ffmpeg = FfmpegFingerprinter("ffmpeg", dir.resolve("work"))
-        val detector = IntroDetector(store, clock, jobs, { file, from, seconds -> synchronized(reads) { reads.add(file) }; ffmpeg.fingerprint(file, from, seconds) }, tailShare)
+        val detector =
+            IntroDetector(store, clock, jobs, { file, from, seconds ->
+                synchronized(reads) { reads.add(file) }
+                ffmpeg.fingerprint(file, from, seconds)
+            }, tailShare)
         // Ten-minute episodes as far as the scan knows, so the whole of each short test file is read for its intro.
-        val scanner = LibraryScanner({ MediaInfo("matroska,webm", durationMs = durations[it.fileName.toString()] ?: 600_000) }, missingGrace = Duration.ofDays(7))
-        Setup(root, store, LibraryService(store, clock, listOf(MediaRoot("Media", root)), scanner, jobs, intros = detector), detector, reads)
+        val scanner = LibraryScanner({
+            MediaInfo(
+                "matroska,webm",
+                durationMs =
+                durations[it.fileName.toString()] ?: 600_000,
+            )
+        }, missingGrace = Duration.ofDays(7))
+        Setup(
+            root,
+            store,
+            LibraryService(store, clock, listOf(MediaRoot("Media", root)), scanner, jobs, intros = detector),
+            detector,
+            reads,
+        )
     }
 
     /** [seconds] of a tune of random notes with two overtones, from [seed]: unlike any other seed's to Chromaprint. */
@@ -68,7 +90,10 @@ class IntroDetectorTest {
     }
 
     /** An AAC episode in Matroska: [before] seconds of its own tune, the [theme], then a minute of its own. */
-    private fun episode(file: Path, seed: Int, before: Double, theme: ShortArray) = encode(file, tune(seed, before) + theme + tune(seed + 1_000, 60.0))
+    private fun episode(file: Path, seed: Int, before: Double, theme: ShortArray) = encode(
+        file,
+        tune(seed, before) + theme + tune(seed + 1_000, 60.0),
+    )
 
     private fun encode(file: Path, pcm: ShortArray) {
         val wav = Files.createTempFile("episode-", ".wav")
@@ -81,13 +106,28 @@ class IntroDetectorTest {
     }
 
     private fun wav(pcm: ShortArray): ByteArray {
-        val data = ByteBuffer.allocate(pcm.size * 2).order(ByteOrder.LITTLE_ENDIAN).apply { pcm.forEach(::putShort) }.array()
-        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN).apply {
-            put("RIFF".toByteArray()); putInt(36 + data.size); put("WAVE".toByteArray())
-            put("fmt ".toByteArray()); putInt(16); putShort(1); putShort(1); putInt(RATE); putInt(RATE * 2); putShort(2); putShort(16)
-            put("data".toByteArray()); putInt(data.size)
+        val data = ByteBuffer.allocate(pcm.size * 2).order(ByteOrder.LITTLE_ENDIAN).apply {
+            pcm.forEach(::putShort)
         }.array()
-        return ByteArrayOutputStream().apply { write(header); write(data) }.toByteArray()
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN).apply {
+            put("RIFF".toByteArray())
+            putInt(36 + data.size)
+            put("WAVE".toByteArray())
+            put("fmt ".toByteArray())
+            putInt(16)
+            putShort(1)
+            putShort(1)
+            putInt(RATE)
+            putInt(RATE * 2)
+            putShort(2)
+            putShort(16)
+            put("data".toByteArray())
+            putInt(data.size)
+        }.array()
+        return ByteArrayOutputStream().apply {
+            write(header)
+            write(data)
+        }.toByteArray()
     }
 
     private fun assertNear(expectedMs: Long, actualMs: Long) =
@@ -98,7 +138,9 @@ class IntroDetectorTest {
         val tv = s.root.resolve("tv")
         val theme = tune(1, 20.0)
         val starts = mapOf(1 to 5.0, 2 to 12.0, 3 to 0.0, 4 to 25.0)
-        starts.forEach { (number, before) -> episode(tv.resolve("Show/Season 01/Show - S01E0$number.mkv"), 100 + number, before, theme) }
+        starts.forEach { (number, before) ->
+            episode(tv.resolve("Show/Season 01/Show - S01E0$number.mkv"), 100 + number, before, theme)
+        }
         // A show of one episode has nothing to compare with.
         episode(tv.resolve("Lonely/Season 01/Lonely - S01E01.mkv"), 300, 5.0, theme)
         val library = s.service.create("TV", LibraryKind.SHOWS, tv.toString())
@@ -143,7 +185,9 @@ class IntroDetectorTest {
     @Test fun `episodes with no theme in common get no intro`() = runBlocking {
         val s = setup()
         val tv = s.root.resolve("tv")
-        for (number in 1..3) episode(tv.resolve("Show/Season 01/Show - S01E0$number.mkv"), 10 * number, 5.0, tune(20 * number, 20.0))
+        for (number in 1..3) {
+            episode(tv.resolve("Show/Season 01/Show - S01E0$number.mkv"), 10 * number, 5.0, tune(20 * number, 20.0))
+        }
         val library = s.service.create("TV", LibraryKind.SHOWS, tv.toString())
         s.service.scan(library.id)
         val result = assertNotNull(s.detector.run(library))
@@ -188,7 +232,11 @@ class IntroDetectorTest {
         for (episode in episodes) {
             val span = assertNotNull(found.getValue(episode.id).credits, "episode ${episode.episode}")
             assertNear(starts.getValue(episode.episode!!), span.startMs)
-            assertEquals(durations.getValue("Show - S01E0${episode.episode}.mkv"), span.endMs, "credits that end with the episode run to its end")
+            assertEquals(
+                durations.getValue("Show - S01E0${episode.episode}.mkv"),
+                span.endMs,
+                "credits that end with the episode run to its end",
+            )
         }
         val segment = s.service.catalog.item(episodes.first().id).segments.single()
         assertEquals(Wire.SegmentKind.CREDITS, segment.kind)
@@ -203,7 +251,10 @@ class IntroDetectorTest {
         s.store.saveLibraryFingerprint(found.getValue(first.id).copy(tail = null, tailStartMs = null, credits = null))
         assertEquals(1, s.detector.run(library)!!.read)
         assertEquals(listOf(s.root.resolve("tv").resolve(first.path!!)), s.reads)
-        assertTrue(s.store.libraryIntros(listOf(first.id)).getValue(first.id).credits != null, "its credits are found again")
+        assertTrue(
+            s.store.libraryIntros(listOf(first.id)).getValue(first.id).credits != null,
+            "its credits are found again",
+        )
     }
 
     private companion object {

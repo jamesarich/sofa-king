@@ -1,7 +1,5 @@
 package dev.jamesrich.sofaking.data
 
-import java.net.ServerSocket
-import java.util.concurrent.Executors
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -13,6 +11,8 @@ import mockwebserver3.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.ServerSocket
+import java.util.concurrent.Executors
 
 /** What only a real socket shows, on the JVM's OkHttp engine; request and answer handling is tested in common code. */
 class SofaKingApiSocketTest {
@@ -52,7 +52,9 @@ class SofaKingApiSocketTest {
                             // Consume the request headers before holding the response body open.
                         }
                         client.getOutputStream().apply {
-                            write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{\"revision\":".toByteArray())
+                            write(
+                                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1000\r\n\r\n{\"revision\":".toByteArray(),
+                            )
                             flush()
                         }
                         connected.complete(Unit)

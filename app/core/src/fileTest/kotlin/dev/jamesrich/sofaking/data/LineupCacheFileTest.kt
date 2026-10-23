@@ -34,7 +34,10 @@ class LineupCacheFileTest {
 
     /** A fresh store over the file, as a cold start opens one; the previous store is closed first, since DataStore allows one per file. */
     private suspend fun cache(): LineupCache {
-        scope?.let { it.cancel(); it.coroutineContext.job.join() }
+        scope?.let {
+            it.cancel()
+            it.coroutineContext.job.join()
+        }
         val fresh = CoroutineScope(ioDispatcher + SupervisorJob())
         scope = fresh
         return LineupCache(lineupCacheDataStore(file.toString(), fresh), KEY) { now }

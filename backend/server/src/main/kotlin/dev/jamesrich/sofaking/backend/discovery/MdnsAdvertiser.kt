@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.discovery
 
 import dev.jamesrich.sofaking.contract.Wire
+import org.slf4j.LoggerFactory
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -10,7 +11,6 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import javax.jmdns.JmDNS
 import javax.jmdns.ServiceInfo
-import org.slf4j.LoggerFactory
 
 /**
  * Advertises the server on the LAN as a [Wire.Discovery.SERVICE_TYPE] service named [name] on [port], so the app lists
@@ -53,7 +53,14 @@ class MdnsAdvertiser(
         failed.retainAll(found)
         for (address in found - responders.keys) {
             runCatching { responders[address] = responder(address) }
-                .onFailure { if (failed.add(address)) log.warn("mdns: cannot advertise on {} ({})", address.hostAddress, it.javaClass.simpleName) }
+                .onFailure {
+                    if (failed.add(
+                            address,
+                        )
+                    ) {
+                        log.warn("mdns: cannot advertise on {} ({})", address.hostAddress, it.javaClass.simpleName)
+                    }
+                }
         }
         val advertised = responders.keys.toSet()
         if (advertised == logged) return
@@ -61,7 +68,15 @@ class MdnsAdvertiser(
         if (advertised.isEmpty()) {
             log.info("mdns: no LAN address to advertise on; apps need the server's address")
         } else {
-            log.info("mdns: advertising {} as {} on {} port {}", name, Wire.Discovery.SERVICE_TYPE, advertised.map { it.hostAddress }, port)
+            log.info(
+                "mdns: advertising {} as {} on {} port {}",
+                name,
+                Wire.Discovery.SERVICE_TYPE,
+                advertised.map {
+                    it.hostAddress
+                },
+                port,
+            )
         }
     }
 
@@ -86,8 +101,14 @@ class MdnsAdvertiser(
             "tailscale", "zt", "wg", "tun", "tap",
         )
 
-        internal fun serviceInfo(name: String, port: Int, version: String): ServiceInfo =
-            ServiceInfo.create("${Wire.Discovery.SERVICE_TYPE}.local.", name, port, 0, 0, mapOf(Wire.Discovery.TXT_VERSION to version))
+        internal fun serviceInfo(name: String, port: Int, version: String): ServiceInfo = ServiceInfo.create(
+            "${Wire.Discovery.SERVICE_TYPE}.local.",
+            name,
+            port,
+            0,
+            0,
+            mapOf(Wire.Discovery.TXT_VERSION to version),
+        )
 
         /** A JmDNS responder on [address] with the service registered; closing it withdraws the service. */
         private fun register(address: InetAddress, name: String, port: Int, version: String): AutoCloseable {
@@ -98,18 +119,29 @@ class MdnsAdvertiser(
                 runCatching { jmdns.close() }
                 throw e
             }
-            return AutoCloseable { jmdns.unregisterAllServices(); jmdns.close() }
+            return AutoCloseable {
+                jmdns.unregisterAllServices()
+                jmdns.close()
+            }
         }
 
         /** Whether an interface named [name] can carry the advertisement to the LAN. */
-        internal fun advertisable(name: String, up: Boolean, loopback: Boolean, virtual: Boolean, multicast: Boolean): Boolean =
-            up && !loopback && !virtual && multicast && VIRTUAL_PREFIXES.none { name.startsWith(it) }
+        internal fun advertisable(
+            name: String,
+            up: Boolean,
+            loopback: Boolean,
+            virtual: Boolean,
+            multicast: Boolean,
+        ): Boolean = up && !loopback && !virtual && multicast && VIRTUAL_PREFIXES.none { name.startsWith(it) }
 
         /** The IPv4 addresses of the interfaces [advertisable] admits, in the order the system lists them. */
-        fun lanAddresses(): List<InetAddress> =
-            NetworkInterface.networkInterfaces().toList()
-                .filter { runCatching { advertisable(it.name, it.isUp, it.isLoopback, it.isVirtual, it.supportsMulticast()) }.getOrDefault(false) }
-                .flatMap { it.inetAddresses.toList() }
-                .filter { it is Inet4Address && !it.isLoopbackAddress && !it.isLinkLocalAddress }
+        fun lanAddresses(): List<InetAddress> = NetworkInterface.networkInterfaces().toList()
+            .filter {
+                runCatching {
+                    advertisable(it.name, it.isUp, it.isLoopback, it.isVirtual, it.supportsMulticast())
+                }.getOrDefault(false)
+            }
+            .flatMap { it.inetAddresses.toList() }
+            .filter { it is Inet4Address && !it.isLoopbackAddress && !it.isLinkLocalAddress }
     }
 }

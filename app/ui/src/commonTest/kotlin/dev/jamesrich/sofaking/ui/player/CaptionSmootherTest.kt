@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.ui.player
 
 import dev.jamesrich.sofaking.ui.player.CaptionSmoother.Decision
-import kotlin.test.assertEquals
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class CaptionSmootherTest {
     private fun decide(shown: String, incoming: String, sinceEmitMs: Long = 100L): Decision =

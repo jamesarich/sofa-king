@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.library
 
-import dev.jamesrich.sofaking.ui.Artwork
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +26,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,13 +57,13 @@ import dev.jamesrich.sofaking.resources.library_mark_unwatched
 import dev.jamesrich.sofaking.resources.library_mark_watched
 import dev.jamesrich.sofaking.resources.library_play_from_start
 import dev.jamesrich.sofaking.resources.library_watched
+import dev.jamesrich.sofaking.ui.Artwork
+import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayTrack
 import dev.jamesrich.sofaking.ui.theme.tvFocus
-import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
-import androidx.compose.runtime.LaunchedEffect
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -82,7 +82,10 @@ internal fun LibraryCard(
 ) {
     val play = if (item.kind.playable) ({ onPlay(item) }) else null
     when (style) {
-        CardStyle.POSTER -> PosterCard(item, onClick = { onOpen(item) }, onPlay = play, modifier = modifier, menu = menu)
+        CardStyle.POSTER -> PosterCard(item, onClick = {
+            onOpen(item)
+        }, onPlay = play, modifier = modifier, menu = menu)
+
         CardStyle.WIDE -> WideCard(item, onClick = { onOpen(item) }, onPlay = play, modifier = modifier, menu = menu)
     }
 }
@@ -102,7 +105,15 @@ private fun PosterCard(
 ) {
     val subtitle = posterSubtitle(item)
     Column(modifier.width(POSTER_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ItemCard(item, cardLabel(item.title, subtitle), onClick, onPlay, menu, aspectRatio = 2f / 3f, focusScale = null) {
+        ItemCard(
+            item,
+            cardLabel(item.title, subtitle),
+            onClick,
+            onPlay,
+            menu,
+            aspectRatio = 2f / 3f,
+            focusScale = null,
+        ) {
             // A file without a poster still has a frame from the server, cropped to the poster's shape.
             Artwork(item.poster ?: item.backdrop, label = null)
         }
@@ -126,7 +137,15 @@ private fun WideCard(
         item.year?.toString()
     }
     Column(modifier.width(WIDE_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ItemCard(item, cardLabel(title, subtitle), onClick, onPlay, menu, aspectRatio = 16f / 9f, focusScale = WIDE_FOCUS_SCALE) {
+        ItemCard(
+            item,
+            cardLabel(title, subtitle),
+            onClick,
+            onPlay,
+            menu,
+            aspectRatio = 16f / 9f,
+            focusScale = WIDE_FOCUS_SCALE,
+        ) {
             Artwork(item.backdrop ?: item.poster, label = null)
         }
         CardLabel(title, subtitle)
@@ -190,7 +209,9 @@ private fun ItemCard(
         }
         if (menu != null) {
             val first = remember { FocusRequester() }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.arrowKeysMoveFocus()) {
+            DropdownMenu(expanded = open, onDismissRequest = {
+                open = false
+            }, modifier = Modifier.arrowKeysMoveFocus()) {
                 val entries = cardMenuEntries(item, playFromStart = menu.onPlayFromStart != null)
                 entries.forEachIndexed { index, entry ->
                     DropdownMenuItem(
@@ -225,14 +246,21 @@ private fun BoxScope.ItemMarks(item: MediaItem) {
     val progress = item.progress
     when {
         progress?.watched == true -> WatchedTick(Modifier.align(Alignment.TopEnd).padding(8.dp))
+
         item.unwatched > 0 && (item.kind == ItemKind.SHOW || item.kind == ItemKind.SEASON) -> Text(
             item.unwatched.toString(),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).background(MaterialTheme.colorScheme.primary, BadgeShape).padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.align(
+                Alignment.TopEnd,
+            ).padding(
+                8.dp,
+            ).background(MaterialTheme.colorScheme.primary, BadgeShape).padding(horizontal = 8.dp, vertical = 2.dp),
         )
     }
-    if (progress != null && progress.inProgress) progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }
+    if (progress != null && progress.inProgress) {
+        progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }
+    }
 }
 
 /** How far into an item playback is, as a thin bar across the bottom of its picture. */
@@ -251,7 +279,12 @@ internal fun ProgressStrip(fraction: Float, modifier: Modifier = Modifier) {
 @Composable
 internal fun WatchedTick(modifier: Modifier = Modifier) {
     Box(modifier.size(28.dp).background(SofaOverlayScrim, CircleShape), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.Check, contentDescription = stringResource(Res.string.library_watched), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Icon(
+            Icons.Filled.Check,
+            contentDescription = stringResource(Res.string.library_watched),
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 
@@ -270,16 +303,25 @@ private fun CardLabel(title: String, subtitle: String?) {
     }
 }
 
-private fun cardLabel(title: String, subtitle: String?): String = listOfNotNull(title, subtitle?.takeIf { it.isNotEmpty() }).joinToString(", ")
+private fun cardLabel(title: String, subtitle: String?): String = listOfNotNull(
+    title,
+    subtitle?.takeIf {
+        it.isNotEmpty()
+    },
+).joinToString(", ")
 
 /** A poster's second line: a show's season or episode count would need the details, so the year, or the episode number. */
 private fun posterSubtitle(item: MediaItem): String? = item.episodeLabel ?: item.year?.toString()
 
 /** The remote's Play and Play/Pause keys start [onPlay], as Plex does on its cards; OK still opens the details. */
-internal fun Modifier.playKey(onPlay: (() -> Unit)?): Modifier = if (onPlay == null) this else onPreviewKeyEvent { event ->
-    val play = event.key == Key.MediaPlay || event.key == Key.MediaPlayPause
-    if (play && event.type == KeyEventType.KeyUp) onPlay()
-    play
+internal fun Modifier.playKey(onPlay: (() -> Unit)?): Modifier = if (onPlay == null) {
+    this
+} else {
+    onPreviewKeyEvent { event ->
+        val play = event.key == Key.MediaPlay || event.key == Key.MediaPlayPause
+        if (play && event.type == KeyEventType.KeyUp) onPlay()
+        play
+    }
 }
 
 internal val CardShape = RoundedCornerShape(12.dp)

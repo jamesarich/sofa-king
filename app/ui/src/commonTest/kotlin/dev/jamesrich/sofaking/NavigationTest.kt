@@ -68,7 +68,9 @@ class NavigationTest {
 
     @Test
     fun `the next episode takes the player's place`() {
-        val nav = start.open(Tab.LIBRARY).push(Route.LibraryItem("show")).push(Route.Vod("e1")).replaceTop(Route.Vod("e2"))
+        val nav = start.open(
+            Tab.LIBRARY,
+        ).push(Route.LibraryItem("show")).push(Route.Vod("e1")).replaceTop(Route.Vod("e2"))
         assertEquals(listOf(Route.Library, Route.LibraryItem("show"), Route.Vod("e2")), nav.stack(Tab.LIBRARY))
         assertEquals("e2", nav.pop().arrival.returnedFrom)
     }

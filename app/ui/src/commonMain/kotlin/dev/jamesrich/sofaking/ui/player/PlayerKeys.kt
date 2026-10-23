@@ -137,7 +137,8 @@ internal fun Key.inStreamCard(): StreamCardKey = when (this) {
 }
 
 /** OK on the stream card: a focused audio track row takes it; with no tracks to pick, it closes the card as Back does. */
-internal fun streamCardOk(hasTracks: Boolean): StreamCardKey = if (hasTracks) StreamCardKey.CARD else StreamCardKey.CLOSE
+internal fun streamCardOk(hasTracks: Boolean): StreamCardKey =
+    if (hasTracks) StreamCardKey.CARD else StreamCardKey.CLOSE
 
 /** What a tap or click on the video does. */
 internal enum class PlayerTap { CLOSE_CHANNEL_LIST, HIDE_INFO, SHOW_INFO }

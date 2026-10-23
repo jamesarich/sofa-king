@@ -22,12 +22,18 @@ internal fun Route.recordingRoutes(dvr: Dvr) {
         post { call.respond(HttpStatusCode.Created, dvr.schedule(call.appBody<ScheduleRecording>())) }
         get("/{id}") { call.respond(dvr.recording(call.parameters["id"]!!)) }
         patch("/{id}") { call.respond(dvr.update(call.parameters["id"]!!, call.appBody<UpdateRecording>())) }
-        delete("/{id}") { dvr.delete(call.parameters["id"]!!); call.respond(HttpStatusCode.NoContent) }
+        delete("/{id}") {
+            dvr.delete(call.parameters["id"]!!)
+            call.respond(HttpStatusCode.NoContent)
+        }
     }
     route("/api/v1/recording-rules") {
         get { call.respond(RecordingRuleList(dvr.rules())) }
         post { call.respond(HttpStatusCode.Created, dvr.createRule(call.appBody<CreateRecordingRule>())) }
         patch("/{id}") { call.respond(dvr.updateRule(call.parameters["id"]!!, call.appBody<UpdateRecordingRule>())) }
-        delete("/{id}") { dvr.deleteRule(call.parameters["id"]!!); call.respond(HttpStatusCode.NoContent) }
+        delete("/{id}") {
+            dvr.deleteRule(call.parameters["id"]!!)
+            call.respond(HttpStatusCode.NoContent)
+        }
     }
 }

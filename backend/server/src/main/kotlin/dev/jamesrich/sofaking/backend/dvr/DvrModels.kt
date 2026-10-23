@@ -44,7 +44,17 @@ data class StoredRecording(
     val recordFrom: Instant get() = startsAt.minus(startPadding)
     val recordUntil: Instant get() = endsAt.plus(endPadding)
 
-    val name: RecordingTitle get() = RecordingTitle(title, episodeTitle, if (season != null || episode != null) SeasonEpisode(season, episode) else null, movie, year)
+    val name: RecordingTitle get() = RecordingTitle(
+        title,
+        episodeTitle,
+        if (season != null || episode != null) {
+            SeasonEpisode(season, episode)
+        } else {
+            null
+        },
+        movie,
+        year,
+    )
 
     fun toWire(conflict: Boolean = false) = Recording(
         id, channelId, channelName, title, episodeTitle, description, season, episode, movie, year, image,
@@ -65,7 +75,8 @@ data class StoredRule(
     val priority: Int,
     val createdAt: Instant,
 ) {
-    fun toWire() = RecordingRule(id, title, channelId, newOnly, keep, startPadding.seconds.toInt(), endPadding.seconds.toInt(), priority, createdAt.toString())
+    fun toWire() =
+        RecordingRule(id, title, channelId, newOnly, keep, startPadding.seconds.toInt(), endPadding.seconds.toInt(), priority, createdAt.toString())
 }
 
 /** What the culler keeps: [freeGib] free on the disk, and recordings no older than [keepDays] (0 for no age limit). */

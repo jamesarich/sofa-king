@@ -39,7 +39,12 @@ internal data class GuideJump(val guideId: String, val minute: Long, val nonce: 
  * focused in the guide ([lastFocused]) or watched ([lastWatched]); -1 when none is in [visible], so the first
  * row takes focus.
  */
-internal fun initialGuideRow(visible: List<Channel>, returnedFrom: String?, lastFocused: String?, lastWatched: String?): Int {
+internal fun initialGuideRow(
+    visible: List<Channel>,
+    returnedFrom: String?,
+    lastFocused: String?,
+    lastWatched: String?,
+): Int {
     val wanted = returnedFrom ?: lastFocused ?: lastWatched ?: return -1
     return visible.indexOfFirst { it.guideId == wanted }
 }
@@ -227,7 +232,11 @@ internal class GuideState(
     /** The row answered the jump; until the first focus has landed, a miss tries it again. */
     fun jumpHandled(landed: Boolean) {
         jump = null
-        if (landed) initialFocusDone = true else if (!initialFocusDone) initialFocusAttempt++
+        if (landed) {
+            initialFocusDone = true
+        } else if (!initialFocusDone) {
+            initialFocusAttempt++
+        }
     }
 
     /** The channel the player was left on is hidden: the filter and search give way to the whole lineup. */
@@ -283,14 +292,21 @@ internal class GuideState(
      * a [visible] one, a hidden one switches to All first, and a number no channel has shows a notice. Search
      * takes digits as text instead.
      */
-    fun commitNumber(pending: ChannelNumberEntry, visible: List<Channel>, all: List<Channel>, focusRow: (Channel) -> Unit) {
+    fun commitNumber(
+        pending: ChannelNumberEntry,
+        visible: List<Channel>,
+        all: List<Channel>,
+        focusRow: (Channel) -> Unit,
+    ) {
         if (searchOpen) return
         when (val target = guideNumberTarget(pending, visible, all)) {
             is GuideNumberTarget.Row -> focusRow(visible[target.index])
+
             is GuideNumberTarget.Hidden -> {
                 filter = GuideFilter.All
                 numberJump = target.guideId
             }
+
             GuideNumberTarget.Missing -> numbers.missed(pending.digits)
         }
     }
@@ -341,12 +357,14 @@ internal class GuideState(
         }
         // OK with digits typed commits them on key-up, as the player does; the cell does not play on this press.
         val okKey = key.isOk
-        if (okKey && type == KeyEventType.KeyUp) detailsOnRelease?.let { opened ->
-            // The cell takes this key-up and ends its press; the details open after it.
-            detailsOnRelease = null
-            heldOk.onKeyUp()
-            details = opened
-            return false
+        if (okKey && type == KeyEventType.KeyUp) {
+            detailsOnRelease?.let { opened ->
+                // The cell takes this key-up and ends its press; the details open after it.
+                detailsOnRelease = null
+                heldOk.onKeyUp()
+                details = opened
+                return false
+            }
         }
         // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
         if (okKey && type == KeyEventType.KeyDown && heldOk.onKeyDown()) return true
@@ -362,19 +380,27 @@ internal class GuideState(
                 details = null
                 controls.now()
             }
+
             GuideShortcut.SEARCH -> {
                 details = null
                 controls.search()
             }
+
             GuideShortcut.DETAILS -> {
                 // Only from a cell: the one kept for the preview after focus left may not be on screen to return to.
-                if (details != null) controls.closeDetails() else focused?.takeIf { gridFocused }?.let { openDetails(it.channel, it.cell) }
+                if (details != null) {
+                    controls.closeDetails()
+                } else {
+                    focused?.takeIf { gridFocused }?.let { openDetails(it.channel, it.cell) }
+                }
             }
+
             GuideShortcut.DAY_FORWARD, GuideShortcut.DAY_BACK -> {
                 // Closed the way Back closes them, so focus returns to the cell even where there is no day to move to.
                 if (details != null) controls.closeDetails()
                 if (!searchOpen) controls.dayJump(shortcut)
             }
+
             null -> {
                 val digit = key.digitValue()
                 // A number typed over the details would tune from under them.
@@ -391,11 +417,18 @@ internal class GuideState(
  * fresh guide opens on the live window at [now], with the filter saved as [initialFilterKey].
  */
 @Composable
-internal fun rememberGuideState(now: Instant, initialFilterKey: String?, startSearch: Boolean, startInHeader: Boolean): GuideState {
+internal fun rememberGuideState(
+    now: Instant,
+    initialFilterKey: String?,
+    startSearch: Boolean,
+    startInHeader: Boolean,
+): GuideState {
     val liveStartSecond = rememberSaveable { mutableLongStateOf(GuideTimeline.windowStart(now).epochSeconds) }
     val dayOffset = rememberSaveable { mutableIntStateOf(0) }
     val cursor = rememberSaveable {
-        val windowStart = Instant.fromEpochSeconds(liveStartSecond.longValue) + (dayOffset.intValue * GuideTimeline.WINDOW_MINUTES).minutes
+        val windowStart =
+            Instant.fromEpochSeconds(liveStartSecond.longValue) +
+                (dayOffset.intValue * GuideTimeline.WINDOW_MINUTES).minutes
         mutableLongStateOf(GuideTimeline.offsetMinutes(windowStart, now))
     }
     val filter = rememberSerializable { mutableStateOf(guideFilterFromKey(initialFilterKey)) }

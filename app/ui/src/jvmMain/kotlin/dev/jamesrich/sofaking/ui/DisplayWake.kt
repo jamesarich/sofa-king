@@ -23,7 +23,9 @@ internal val displayWake: WakeHolds? = when {
 }
 
 // The execution state belongs to the thread that sets it; composition sets and clears it on the UI thread.
-private fun keepWindowsAwake() = guarded { Kernel32.INSTANCE.SetThreadExecutionState(WinBase.ES_CONTINUOUS or WinBase.ES_DISPLAY_REQUIRED) }
+private fun keepWindowsAwake() = guarded {
+    Kernel32.INSTANCE.SetThreadExecutionState(WinBase.ES_CONTINUOUS or WinBase.ES_DISPLAY_REQUIRED)
+}
 
 private fun letWindowsSleep() = guarded { Kernel32.INSTANCE.SetThreadExecutionState(WinBase.ES_CONTINUOUS) }
 
@@ -34,7 +36,9 @@ private fun keepMacAwake() = guarded {
     val name = CFStringRef.createCFString("Sofa King is playing")
     try {
         val id = IntByReference()
-        if (PowerAssertions.INSTANCE.IOPMAssertionCreateWithName(type, ASSERTION_LEVEL_ON, name, id) == 0) macAssertion = id.value
+        if (PowerAssertions.INSTANCE.IOPMAssertionCreateWithName(type, ASSERTION_LEVEL_ON, name, id) == 0) {
+            macAssertion = id.value
+        }
     } finally {
         type.release()
         name.release()

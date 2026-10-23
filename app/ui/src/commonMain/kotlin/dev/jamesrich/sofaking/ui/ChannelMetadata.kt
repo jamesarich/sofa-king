@@ -75,7 +75,14 @@ internal fun ChannelLogo(channel: Channel, width: Dp, height: Dp, modifier: Modi
 
 /** Live, New and the rating, in that order; [fill] and [onFill] color the filled badges, [outline] the rating. */
 @Composable
-internal fun ProgrammeBadges(programme: Programme, live: Boolean, fill: Color, onFill: Color, outline: Color, modifier: Modifier = Modifier) {
+internal fun ProgrammeBadges(
+    programme: Programme,
+    live: Boolean,
+    fill: Color,
+    onFill: Color,
+    outline: Color,
+    modifier: Modifier = Modifier,
+) {
     if (!live && !programme.isNew && programme.rating == null) return
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         if (live) FilledBadge(stringResource(Res.string.preview_live), fill, onFill)

@@ -64,7 +64,9 @@ internal fun runSofaKing(tv: Boolean, out: File, server: FakeServer = FakeServer
                 App(pairing = PairingRequest(server.url, "123456"))
             }
             val driver = AppDriver(this, server, backInput, uncaught, out)
-            waitUntil("the guide shows the lineup", timeoutMillis = 20_000) { server.guideQueries.get() > 0 && driver.focusedCount() > 0 }
+            waitUntil("the guide shows the lineup", timeoutMillis = 20_000) {
+                server.guideQueries.get() > 0 && driver.focusedCount() > 0
+            }
             driver.block()
         }
     } finally {
@@ -104,8 +106,19 @@ internal class AppDriver(
 
     /** Saves the screen and the semantics tree to [out], then fails with [reason]. */
     fun failWith(reason: String, cause: Throwable? = null): Nothing {
-        runCatching { ImageIO.write(ui.onAllNodes(isRoot()).onLast().captureToImage().toAwtImage(), "png", File(out, "failure.png")) }
-        runCatching { File(out, "failure-semantics.txt").writeText(ui.onAllNodes(isRoot(), useUnmergedTree = true).printToString(maxDepth = Int.MAX_VALUE)) }
+        runCatching {
+            ImageIO.write(
+                ui.onAllNodes(isRoot()).onLast().captureToImage().toAwtImage(),
+                "png",
+                File(out, "failure.png"),
+            )
+        }
+        runCatching {
+            File(
+                out,
+                "failure-semantics.txt",
+            ).writeText(ui.onAllNodes(isRoot(), useUnmergedTree = true).printToString(maxDepth = Int.MAX_VALUE))
+        }
         if (cause != null) throw AssertionError(reason, cause) else fail(reason)
     }
 
@@ -194,7 +207,9 @@ internal class EscapeBackInput : NavigationEventInput() {
     fun onKeyEvent(event: KeyEvent) {
         when {
             event.key == Key.Escape && event.type == KeyEventType.KeyDown -> dispatchOnBackCompleted()
+
             event.key == Key.Back && event.type == KeyEventType.KeyDown -> backDown = true
+
             event.key == Key.Back && event.type == KeyEventType.KeyUp && backDown -> {
                 backDown = false
                 dispatchOnBackCompleted()

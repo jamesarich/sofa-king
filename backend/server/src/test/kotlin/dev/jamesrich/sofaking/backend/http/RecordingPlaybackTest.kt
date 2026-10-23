@@ -3,8 +3,8 @@ package dev.jamesrich.sofaking.backend.http
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.ServerConfig
-import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.dvr.StoredRecording
 import dev.jamesrich.sofaking.backend.library.LibraryCatalog
 import dev.jamesrich.sofaking.backend.library.MediaProbe
@@ -32,12 +32,12 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.path
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -58,38 +58,69 @@ class RecordingPlaybackTest {
         check(process.waitFor(60, TimeUnit.SECONDS) && process.exitValue() == 0) { "FFmpeg could not write the clip" }
     }
 
-    @Test fun `a finished recording plays through a VOD session, directly when the client takes the file`() = testApplication {
-        val dir = Files.createTempDirectory("sofa-rec-play-")
-        Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
-        val config = ServerConfig("127.0.0.1", 8080, dir, dir.resolve("sources.json"), token, hdhr = HdhrConfig(enabled = false), updateImage = null)
-        val store = openStore(dir)
-        val clock = MutableClock()
-        val runtime = LiveRuntime.create(store, config, clock, probes = false)
-        try {
-            val now = clock.instant()
-            clip(config.recordingsDirectory.resolve("TV/News/News (2026-10-10).ts"))
-            store.addRecording(StoredRecording(
-                "done", null, "c", "Channel C", now.minusSeconds(3600), now.minusSeconds(1800), Duration.ZERO, Duration.ZERO, "News",
-                state = Wire.RecordingState.COMPLETED, path = "TV/News/News (2026-10-10).ts", createdAt = now, updatedAt = now,
-            ))
-            application { backendModule(store, clock, runtime, token, config = config) }
-            suspend fun open(id: String) = client.post("/api/v1/vod-sessions") {
-                bearerAuth(token); contentType(ContentType.Application.Json)
-                setBody(Json.encodeToString(OpenVodPlayback.serializer(), OpenVodPlayback(profile = tv, recordingId = id)))
-            }
+    @Test fun `a finished recording plays through a VOD session, directly when the client takes the file`() =
+        testApplication {
+            val dir = Files.createTempDirectory("sofa-rec-play-")
+            Files.writeString(dir.resolve("sources.json"), """{"providers":[]}""")
+            val config =
+                ServerConfig(
+                    "127.0.0.1",
+                    8080,
+                    dir,
+                    dir.resolve("sources.json"),
+                    token,
+                    hdhr = HdhrConfig(enabled = false),
+                    updateImage = null,
+                )
+            val store = openStore(dir)
+            val clock = MutableClock()
+            val runtime = LiveRuntime.create(store, config, clock, probes = false)
+            try {
+                val now = clock.instant()
+                clip(config.recordingsDirectory.resolve("TV/News/News (2026-10-10).ts"))
+                store.addRecording(
+                    StoredRecording(
+                        "done", null, "c", "Channel C",
+                        now.minusSeconds(
+                            3600,
+                        ),
+                        now.minusSeconds(1800), Duration.ZERO, Duration.ZERO, "News",
+                        state = Wire.RecordingState.COMPLETED, path = "TV/News/News (2026-10-10).ts", createdAt = now, updatedAt = now,
+                    ),
+                )
+                application { backendModule(store, clock, runtime, token, config = config) }
+                suspend fun open(id: String) = client.post("/api/v1/vod-sessions") {
+                    bearerAuth(token)
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        Json.encodeToString(
+                            OpenVodPlayback.serializer(),
+                            OpenVodPlayback(profile = tv, recordingId = id),
+                        ),
+                    )
+                }
 
-            val opened = open("done")
-            assertEquals(HttpStatusCode.Created, opened.status, opened.bodyAsText())
-            val direct = json.decodeFromString<VodSession>(opened.bodyAsText())
-            assertEquals(Wire.VodMode.DIRECT, direct.mode)
-            assertEquals("done", direct.recordingId)
-            assertEquals("", direct.itemId)
-            assertEquals("video/mp2t", direct.descriptor.mimeType)
-            assertTrue((direct.durationMs ?: 0) in 5_000..7_000, "the length FFprobe read: ${direct.durationMs}")
-            assertEquals(HttpStatusCode.PartialContent, client.get(direct.descriptor.url) { header(HttpHeaders.Range, "bytes=0-187") }.status)
-            assertEquals(HttpStatusCode.NotFound, open("nope").status)
-        } finally { runtime.close(); store.close(); dir.toFile().deleteRecursively() }
-    }
+                val opened = open("done")
+                assertEquals(HttpStatusCode.Created, opened.status, opened.bodyAsText())
+                val direct = json.decodeFromString<VodSession>(opened.bodyAsText())
+                assertEquals(Wire.VodMode.DIRECT, direct.mode)
+                assertEquals("done", direct.recordingId)
+                assertEquals("", direct.itemId)
+                assertEquals("video/mp2t", direct.descriptor.mimeType)
+                assertTrue((direct.durationMs ?: 0) in 5_000..7_000, "the length FFprobe read: ${direct.durationMs}")
+                assertEquals(
+                    HttpStatusCode.PartialContent,
+                    client.get(direct.descriptor.url) {
+                        header(HttpHeaders.Range, "bytes=0-187")
+                    }.status,
+                )
+                assertEquals(HttpStatusCode.NotFound, open("nope").status)
+            } finally {
+                runtime.close()
+                store.close()
+                dir.toFile().deleteRecursively()
+            }
+        }
 
     @Test fun `a recording still being made plays as HLS that follows the file, once it holds something`() = runBlocking {
         val dir = Files.createTempDirectory("sofa-rec-live-")
@@ -97,10 +128,17 @@ class RecordingPlaybackTest {
         val clock = MutableClock()
         val growing = dir.resolve("recordings/.inprogress/Live.ts").also(::clip)
         val empty = Files.createFile(dir.resolve("recordings/.inprogress/Empty.ts"))
-        val files = mapOf("live" to PlayableFile(growing, 3_600_000, growing = true), "empty" to PlayableFile(empty, 3_600_000, growing = true))
+        val files = mapOf(
+            "live" to PlayableFile(growing, 3_600_000, growing = true),
+            "empty" to PlayableFile(empty, 3_600_000, growing = true),
+        )
         val vod = VodSessions(
-            LibraryCatalog(store, clock) { 0L }, clock, "ffmpeg", dir.resolve("transcode"),
-            recordings = { files[it] }, probe = MediaProbe(ffprobeBeside("ffmpeg"))::probe,
+            LibraryCatalog(store, clock) { 0L },
+            clock,
+            "ffmpeg",
+            dir.resolve("transcode"),
+            recordings = { files[it] },
+            probe = MediaProbe(ffprobeBeside("ffmpeg"))::probe,
         )
         try {
             val live = vod.open(OpenVodPlayback(profile = tv, recordingId = "live"))
@@ -110,8 +148,17 @@ class RecordingPlaybackTest {
             val failure = assertFailsWith<ApiFailure> { vod.open(OpenVodPlayback(profile = tv, recordingId = "empty")) }
             assertEquals(409, failure.status)
             assertEquals("RECORDING_NOT_READY", failure.code)
-            assertEquals(404, assertFailsWith<ApiFailure> { vod.open(OpenVodPlayback(profile = tv, recordingId = "nope")) }.status)
-        } finally { vod.close(); store.close(); dir.toFile().deleteRecursively() }
+            assertEquals(
+                404,
+                assertFailsWith<ApiFailure> {
+                    vod.open(OpenVodPlayback(profile = tv, recordingId = "nope"))
+                }.status,
+            )
+        } finally {
+            vod.close()
+            store.close()
+            dir.toFile().deleteRecursively()
+        }
     }
 
     private val tv = ClientProfile(listOf("ts", "mkv"), listOf("mpeg2video", "h264"), listOf("aac"))

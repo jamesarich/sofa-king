@@ -225,7 +225,12 @@ class DataStoreSettingsStoreTest {
         store.setChannelDecoder("x", DecoderPreference.AUTO)
         val playback = store.settings.first().playback
         assertEquals(
-            PlaybackPreferences(matchFrameRate = true, decoder = DecoderPreference.SOFTWARE, decoderByChannel = mapOf("x" to DecoderPreference.AUTO), buffer = BufferPreference.SMOOTH),
+            PlaybackPreferences(
+                matchFrameRate = true,
+                decoder = DecoderPreference.SOFTWARE,
+                decoderByChannel = mapOf("x" to DecoderPreference.AUTO),
+                buffer = BufferPreference.SMOOTH,
+            ),
             playback,
         )
         assertEquals(DecoderPreference.AUTO, playback.decoderFor("x"))

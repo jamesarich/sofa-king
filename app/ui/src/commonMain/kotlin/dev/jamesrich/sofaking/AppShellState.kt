@@ -86,7 +86,15 @@ internal class AppShellState(
 
     /** A tab picked in the header or the navigation bar; Live comes back on the channel last watched. */
     fun openTab(picked: Tab) {
-        nav = nav.closeSettings().open(picked, if (picked == Tab.LIVE) Arrival(returnedFrom = history.watching) else Arrival())
+        nav =
+            nav.closeSettings().open(
+                picked,
+                if (picked == Tab.LIVE) {
+                    Arrival(returnedFrom = history.watching)
+                } else {
+                    Arrival()
+                },
+            )
     }
 
     /** Leaving Settings lands on the page it was opened from, with focus back on the header's Settings button. */

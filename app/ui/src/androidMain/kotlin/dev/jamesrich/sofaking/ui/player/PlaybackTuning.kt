@@ -30,8 +30,9 @@ class PlaybackTuning {
 
     /** Media3's own decoder order, or the software decoders first for the stream a hardware decoder cannot play. */
     @UnstableApi
-    val codecSelector: MediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-        val selector = if (preferSoftware) MediaCodecSelector.PREFER_SOFTWARE else MediaCodecSelector.DEFAULT
-        selector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
-    }
+    val codecSelector: MediaCodecSelector =
+        MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+            val selector = if (preferSoftware) MediaCodecSelector.PREFER_SOFTWARE else MediaCodecSelector.DEFAULT
+            selector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+        }
 }

@@ -22,10 +22,6 @@ import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
-import java.security.SecureRandom
-import java.util.Base64
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -34,6 +30,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.security.SecureRandom
+import java.util.Base64
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The relay FFmpeg reads every upstream through: the HDHomeRun remux, the recorder and the probes' decode tier. Each
@@ -54,21 +54,35 @@ class LoopbackRelay(
     private val log = LoggerFactory.getLogger(LoopbackRelay::class.java)
     private val leases = ConcurrentHashMap<String, Lease>()
     private val starting = Mutex()
+
     @Volatile private var server: EmbeddedServer<*, *>? = null
+
     @Volatile private var port = 0
+
     @Volatile private var closed = false
 
     /** One FFmpeg run's source and the resources its playlists named, by opaque token. */
     internal class Lease(val stream: ResolvedStream) {
         val id: String = UUID.randomUUID().toString()
-        val credential: String = ByteArray(32).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
+        val credential: String = ByteArray(32).also(random::nextBytes).let {
+            Base64.getUrlEncoder().withoutPadding().encodeToString(it)
+        }
         private val resources = ResourceMap()
 
-        @Synchronized fun root(protocol: String): String =
-            resourceToken(stream.url, if (protocol == "hls") "m3u8" else "ts").also { resources.put(it, stream.url, pinned = true) }
+        @Synchronized fun root(protocol: String): String = resourceToken(
+            stream.url,
+            if (protocol == "hls") {
+                "m3u8"
+            } else {
+                "ts"
+            },
+        ).also { resources.put(it, stream.url, pinned = true) }
 
-        @Synchronized fun path(url: String): String =
-            "/relay/$id/" + (resources.tokenFor(url) ?: resourceToken(url).also { resources.put(it, url, pinned = it.endsWith(".m3u8")) })
+        @Synchronized fun path(url: String): String = "/relay/$id/" +
+            (
+                resources.tokenFor(url)
+                    ?: resourceToken(url).also { resources.put(it, url, pinned = it.endsWith(".m3u8")) }
+                )
 
         @Synchronized fun url(token: String): String? = resources[token]
     }
@@ -85,7 +99,9 @@ class LoopbackRelay(
         val lease = Lease(stream)
         leases[lease.id] = lease
         try {
-            return block(FfmpegSource("http://127.0.0.1:$port/relay/${lease.id}/${lease.root(protocol)}", lease.credential))
+            return block(
+                FfmpegSource("http://127.0.0.1:$port/relay/${lease.id}/${lease.root(protocol)}", lease.credential),
+            )
         } finally {
             leases.remove(lease.id)
         }
@@ -100,10 +116,18 @@ class LoopbackRelay(
                 val engine = embeddedServer(
                     Netty,
                     environment = applicationEnvironment { log = this@LoopbackRelay.log },
-                    configure = { connector { host = "127.0.0.1"; port = 0 } },
+                    configure = {
+                        connector {
+                            host = "127.0.0.1"
+                            port = 0
+                        }
+                    },
                 ) { module() }
                 // Ktor's own shutdown hook may stop the listener before the runtime closes; no lease starts it again.
-                engine.monitor.subscribe(ApplicationStopped) { closed = true; server = null }
+                engine.monitor.subscribe(ApplicationStopped) {
+                    closed = true
+                    server = null
+                }
                 engine.start(wait = false)
                 port = engine.engine.resolvedConnectors().first().port
                 server = engine
@@ -117,10 +141,14 @@ class LoopbackRelay(
             exception<Throwable> { call, cause ->
                 when {
                     cause is CancellationException -> throw cause
+
                     cause is ApiFailure -> call.respond(HttpStatusCode.fromValue(cause.status))
+
                     // A 4xx other than 401, 403 and 429, so a probe counts a source that points at a refused address against the source.
                     cause is UpstreamRejectedException -> call.respond(HttpStatusCode.UnprocessableEntity)
+
                     clientAbort(cause) -> {}
+
                     else -> {
                         // Exception messages can carry upstream URLs; only the class is logged.
                         log.warn("relay request failed class={}", cause.javaClass.simpleName)
@@ -136,11 +164,25 @@ class LoopbackRelay(
                     call.respond(HttpStatusCode.Unauthorized)
                     return@get
                 }
-                val url = lease.url(call.parameters["token"]!!) ?: run { call.respond(HttpStatusCode.NotFound); return@get }
+                val url =
+                    lease.url(call.parameters["token"]!!) ?: run {
+                        call.respond(HttpStatusCode.NotFound)
+                        return@get
+                    }
                 permits.withPermit {
                     // FFmpeg's own messages name the status, which the probe's failure classes read; so it gets the upstream's.
                     relayResource(http, policy, call, url, lease.stream, path = lease::path, refused = { status ->
-                        throw ApiFailure(if (status in 400..599) status else 502, "UPSTREAM_STATUS", "Upstream answered $status")
+                        throw ApiFailure(
+                            if (status in
+                                400..599
+                            ) {
+                                status
+                            } else {
+                                502
+                            },
+                            "UPSTREAM_STATUS",
+                            "Upstream answered $status",
+                        )
                     })
                 }
             }

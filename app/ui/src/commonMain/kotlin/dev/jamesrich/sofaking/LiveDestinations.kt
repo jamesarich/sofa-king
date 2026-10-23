@@ -34,8 +34,8 @@ import dev.jamesrich.sofaking.ui.player.LivePlayer
 import dev.jamesrich.sofaking.ui.player.PlayerScreen
 import dev.jamesrich.sofaking.ui.player.ZapScope
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
-import kotlin.time.Instant
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Instant
 
 /**
  * The lineup as this device shows it: hidden channels leave the guide and the channel list, and the player's zapping
@@ -68,17 +68,23 @@ internal fun GuideDestination(
     val s = state
     val visibleLineup = rememberVisibleLineup((s as? LineupState.Ready)?.lineup, settings?.hiddenChannels.orEmpty())
     when {
-        s is LineupState.Loading || settings == null || !shell.launchDecided -> MessageScreen(stringResource(Res.string.loading), loading = true)
+        s is LineupState.Loading || settings == null || !shell.launchDecided -> MessageScreen(
+            stringResource(Res.string.loading),
+            loading = true,
+        )
+
         s is LineupState.Unconfigured -> MessageScreen(
             message = stringResource(Res.string.unconfigured),
             hint = stringResource(Res.string.unconfigured_hint),
         )
+
         s is LineupState.Failed -> MessageScreen(
             message = stringResource(Res.string.load_failed),
             detail = s.message,
             hint = stringResource(Res.string.load_failed_hint),
             onRetry = vm::refresh,
         )
+
         s is LineupState.Ready -> GuideOrEmpty(
             lineup = visibleLineup ?: s.lineup,
             favorites = settings?.favorites.orEmpty(),

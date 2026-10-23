@@ -16,7 +16,11 @@ class EventRingTest {
             log.debug("quiet")
             log.info("one")
             MDC.put("requestId", "abc123")
-            try { log.warn("two {}", "args") } finally { MDC.remove("requestId") }
+            try {
+                log.warn("two {}", "args")
+            } finally {
+                MDC.remove("requestId")
+            }
             log.error("three", IllegalStateException("message that stays out"))
             log.info("four")
             val events = ring.snapshot()
@@ -25,6 +29,8 @@ class EventRingTest {
             assertEquals("abc123", events[2].requestId)
             assertNull(events[0].requestId)
             assertEquals("dev.jamesrich.sofaking.backend.Test", events[0].logger)
-        } finally { context.stop() }
+        } finally {
+            context.stop()
+        }
     }
 }

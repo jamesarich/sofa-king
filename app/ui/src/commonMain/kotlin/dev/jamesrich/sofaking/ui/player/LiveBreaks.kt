@@ -9,8 +9,13 @@ import kotlin.math.abs
  * [tags]. [mediaSequence] numbers the first of the playlist's segments, which start at [startsMs] and last
  * [durationsMs], on the same clock as [positionMs]. One window only; a player keeps [AdMarks] across refreshes.
  */
-internal fun adBreakAt(tags: List<String>, mediaSequence: Long, startsMs: List<Long>, durationsMs: List<Long>, positionMs: Long): AdBreakNow? =
-    AdMarks().apply { add(tags, mediaSequence, startsMs, durationsMs) }.at(positionMs)
+internal fun adBreakAt(
+    tags: List<String>,
+    mediaSequence: Long,
+    startsMs: List<Long>,
+    durationsMs: List<Long>,
+    positionMs: Long,
+): AdBreakNow? = AdMarks().apply { add(tags, mediaSequence, startsMs, durationsMs) }.at(positionMs)
 
 /**
  * The segments and [AdRun] marks of a live playlist's recent windows, on the player's own clock. Media3 can play a

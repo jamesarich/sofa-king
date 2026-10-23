@@ -108,10 +108,29 @@ fun RecordingsScreen(
     BackHandler(onBack = onBack)
     when (state) {
         RecordingsState.Loading -> MessageScreen(stringResource(Res.string.recordings_loading), loading = true)
-        RecordingsState.Unconfigured -> MessageScreen(stringResource(Res.string.unconfigured), hint = stringResource(Res.string.unconfigured_hint))
+
+        RecordingsState.Unconfigured -> MessageScreen(
+            stringResource(Res.string.unconfigured),
+            hint = stringResource(Res.string.unconfigured_hint),
+        )
+
         RecordingsState.Unavailable -> MessageScreen(stringResource(Res.string.recordings_unavailable))
-        is RecordingsState.Failed -> MessageScreen(stringResource(Res.string.load_failed), detail = state.message, onRetry = onRetry)
-        is RecordingsState.Ready -> RecordingList(state, onPlay, onDelete, onRuleChange, onRuleDelete, returnedFrom, headerFocused)
+
+        is RecordingsState.Failed -> MessageScreen(
+            stringResource(Res.string.load_failed),
+            detail = state.message,
+            onRetry = onRetry,
+        )
+
+        is RecordingsState.Ready -> RecordingList(
+            state,
+            onPlay,
+            onDelete,
+            onRuleChange,
+            onRuleDelete,
+            returnedFrom,
+            headerFocused,
+        )
     }
 }
 
@@ -142,7 +161,11 @@ private fun RecordingList(
         if (state.space.totalBytes > 0) {
             item(key = "space") {
                 Text(
-                    stringResource(Res.string.recordings_space, formatBytes(state.space.freeBytes), formatBytes(state.space.totalBytes)),
+                    stringResource(
+                        Res.string.recordings_space,
+                        formatBytes(state.space.freeBytes),
+                        formatBytes(state.space.totalBytes),
+                    ),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),
@@ -153,7 +176,11 @@ private fun RecordingList(
             item(key = "empty") {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(stringResource(Res.string.recordings_empty), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(Res.string.recordings_empty_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        stringResource(Res.string.recordings_empty_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -161,15 +188,33 @@ private fun RecordingList(
             ?: groups.firstOrNull()?.second?.firstOrNull()?.id
         groups.forEach { (group, recordings) ->
             item(key = "group-${group.name}") {
-                Text(stringResource(group.label), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    stringResource(group.label),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
             items(recordings, key = { it.id }) { recording ->
-                RecordingRow(recording, time, onPlay, onDelete, if (recording.id == firstId) Modifier.focusRequester(firstFocus) else Modifier)
+                RecordingRow(
+                    recording,
+                    time,
+                    onPlay,
+                    onDelete,
+                    if (recording.id == firstId) {
+                        Modifier.focusRequester(firstFocus)
+                    } else {
+                        Modifier
+                    },
+                )
             }
         }
         if (state.rules.isNotEmpty()) {
             item(key = "series") {
-                Text(stringResource(Res.string.recordings_series), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    stringResource(Res.string.recordings_series),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
             items(state.rules, key = { "rule-${it.id}" }) { rule -> SeriesRow(rule, onRuleChange, onRuleDelete) }
         }
@@ -187,6 +232,7 @@ private fun SeriesRow(
     var confirming by remember(rule.id) { mutableStateOf(false) }
     var busy by remember(rule.id) { mutableStateOf(false) }
     var failed by remember(rule.id) { mutableStateOf(false) }
+
     // Buttons stay enabled while the server answers, as the recording rows do, so the D-pad focus never drops.
     fun run(action: suspend () -> Boolean) {
         if (busy) return
@@ -210,15 +256,25 @@ private fun SeriesRow(
             overflow = TextOverflow.Ellipsis,
         )
         Row(
-            modifier = Modifier.padding(top = 4.dp).focusGroup().onFocusChanged { if (!it.hasFocus) confirming = false },
+            modifier = Modifier.padding(top = 4.dp).focusGroup().onFocusChanged {
+                if (!it.hasFocus) confirming = false
+            },
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SofaButton(onClick = { run { onChange(rule, !rule.newOnly, rule.keep) } }) {
-                Text(stringResource(if (rule.newOnly) Res.string.recordings_series_take_all else Res.string.recordings_series_take_new))
+                Text(
+                    stringResource(
+                        if (rule.newOnly) Res.string.recordings_series_take_all else Res.string.recordings_series_take_new,
+                    ),
+                )
             }
             SofaButton(onClick = { run { onChange(rule, rule.newOnly, nextKeep(rule.keep)) } }) {
-                val count = if (rule.keep == 0) stringResource(Res.string.recordings_series_keep_all_short) else rule.keep.toString()
+                val count = if (rule.keep == 0) {
+                    stringResource(Res.string.recordings_series_keep_all_short)
+                } else {
+                    rule.keep.toString()
+                }
                 Text(stringResource(Res.string.recordings_series_keep_button, count))
             }
             SofaButton(onClick = {
@@ -230,11 +286,19 @@ private fun SeriesRow(
                     run { onDelete(rule) }
                 }
             }) {
-                Text(stringResource(if (confirming) Res.string.recordings_series_confirm_stop else Res.string.recordings_series_stop))
+                Text(
+                    stringResource(
+                        if (confirming) Res.string.recordings_series_confirm_stop else Res.string.recordings_series_stop,
+                    ),
+                )
             }
         }
         if (failed) {
-            Text(stringResource(Res.string.recordings_change_failed), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text(
+                stringResource(Res.string.recordings_change_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
@@ -242,8 +306,14 @@ private fun SeriesRow(
 /** What a rule takes and keeps, such as "New episodes only · Keeps 5 · Any channel". */
 @Composable
 private fun seriesSummary(rule: SeriesRule): String = listOfNotNull(
-    stringResource(if (rule.newOnly) Res.string.recordings_series_new_only else Res.string.recordings_series_all_airings),
-    if (rule.keep == 0) stringResource(Res.string.recordings_series_keep_all) else stringResource(Res.string.recordings_series_keeps, rule.keep),
+    stringResource(
+        if (rule.newOnly) Res.string.recordings_series_new_only else Res.string.recordings_series_all_airings,
+    ),
+    if (rule.keep == 0) {
+        stringResource(Res.string.recordings_series_keep_all)
+    } else {
+        stringResource(Res.string.recordings_series_keeps, rule.keep)
+    },
     stringResource(Res.string.recordings_series_any_channel).takeIf { rule.channelId == null },
 ).joinToString(" · ")
 
@@ -266,7 +336,12 @@ private fun RecordingRow(
     var busy by remember(recording.id) { mutableStateOf(false) }
     var failed by remember(recording.id) { mutableStateOf(false) }
     Column(Modifier.widthIn(max = 960.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(recording.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            recording.title,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
         Text(
             recordingSubtitle(recording, time),
             style = MaterialTheme.typography.bodyMedium,
@@ -275,21 +350,35 @@ private fun RecordingRow(
             overflow = TextOverflow.Ellipsis,
         )
         recordingStatus(recording, time)?.let { status ->
-            Text(status, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                status,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         // One focus group per row, so Left and Right stay on its buttons and Up and Down move between rows.
         Row(
-            modifier = Modifier.padding(top = 4.dp).focusGroup().onFocusChanged { if (!it.hasFocus) confirming = false },
+            modifier = Modifier.padding(top = 4.dp).focusGroup().onFocusChanged {
+                if (!it.hasFocus) confirming = false
+            },
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val deleteModifier = if (recording.playable) Modifier else firstButton
             if (recording.playable) {
                 SofaButton(onClick = { onPlay(recording, false) }, modifier = firstButton) {
-                    Text(stringResource(if (recording.inProgress) Res.string.recordings_resume else Res.string.recordings_play))
+                    Text(
+                        stringResource(
+                            if (recording.inProgress) Res.string.recordings_resume else Res.string.recordings_play,
+                        ),
+                    )
                 }
                 if (recording.inProgress) {
-                    SofaButton(onClick = { onPlay(recording, true) }) { Text(stringResource(Res.string.recordings_from_start)) }
+                    SofaButton(onClick = {
+                        onPlay(recording, true)
+                    }) { Text(stringResource(Res.string.recordings_from_start)) }
                 }
             }
             // Kept enabled while the server answers: a disabled button would drop the D-pad focus.
@@ -298,10 +387,12 @@ private fun RecordingRow(
                 onClick = {
                     when {
                         busy -> {}
+
                         !confirming -> {
                             confirming = true
                             failed = false
                         }
+
                         else -> {
                             confirming = false
                             busy = true
@@ -320,7 +411,11 @@ private fun RecordingRow(
             }
         }
         if (failed) {
-            Text(stringResource(Res.string.recordings_change_failed), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            Text(
+                stringResource(Res.string.recordings_change_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
@@ -346,27 +441,49 @@ internal fun recordingGroups(recordings: List<DvrRecording>): List<Pair<Recordin
     }
     return RecordingGroup.entries.mapNotNull { group ->
         val list = byGroup[group].orEmpty()
-        val sorted = if (group == RecordingGroup.SCHEDULED) list.sortedBy { it.startsAt } else list.sortedByDescending { it.startsAt }
+        val sorted = if (group == RecordingGroup.SCHEDULED) {
+            list.sortedBy { it.startsAt }
+        } else {
+            list.sortedByDescending { it.startsAt }
+        }
         sorted.takeIf { it.isNotEmpty() }?.let { group to it }
     }
 }
 
 /** The episode, when the guide gave one, then the channel and when it aired, such as "S2 E5 · News 4 · Sun Oct 18, 6:00 PM". */
 internal fun recordingSubtitle(recording: DvrRecording, time: TimeFormatter): String {
-    val number = listOfNotNull(recording.season?.let { "S$it" }, recording.episode?.let { "E$it" }).joinToString(" ").ifEmpty { null }
+    val number = listOfNotNull(
+        recording.season?.let {
+            "S$it"
+        },
+        recording.episode?.let { "E$it" },
+    ).joinToString(" ").ifEmpty { null }
     val local = recording.startsAt.toLocalDateTime(time.zone)
-    val aired = "${time.day(recording.startsAt)} ${MonthNames.ENGLISH_ABBREVIATED.names[local.month.ordinal]} ${local.day}, ${time.format(recording.startsAt)}"
-    return listOfNotNull(number, recording.episodeTitle, recording.channelName.ifBlank { null }, aired).joinToString(" · ")
+    val aired = "${time.day(
+        recording.startsAt,
+    )} ${MonthNames.ENGLISH_ABBREVIATED.names[local.month.ordinal]} ${local.day}, ${time.format(recording.startsAt)}"
+    return listOfNotNull(
+        number,
+        recording.episodeTitle,
+        recording.channelName.ifBlank {
+            null
+        },
+        aired,
+    ).joinToString(" · ")
 }
 
 @Composable
 private fun recordingStatus(recording: DvrRecording, time: TimeFormatter): String? = when (recording.state) {
     RecordingState.RECORDING -> stringResource(Res.string.recordings_until, time.format(recording.endsAt))
-    RecordingState.FAILED -> recording.reason?.let { stringResource(Res.string.recordings_failed_reason, it) } ?: stringResource(Res.string.recordings_failed)
+
+    RecordingState.FAILED -> recording.reason?.let { stringResource(Res.string.recordings_failed_reason, it) }
+        ?: stringResource(Res.string.recordings_failed)
+
     RecordingState.COMPLETED -> listOfNotNull(
         stringResource(Res.string.recordings_watched).takeIf { recording.watched },
         recording.bytes.takeIf { it > 0 }?.let(::formatBytes),
     ).joinToString(" · ").ifEmpty { null }
+
     else -> null
 }
 

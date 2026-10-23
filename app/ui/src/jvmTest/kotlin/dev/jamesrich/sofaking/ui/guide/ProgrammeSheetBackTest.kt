@@ -31,7 +31,14 @@ import kotlin.time.Duration.Companion.minutes
 class ProgrammeSheetBackTest {
     private val now = Clock.System.now()
     private val channel = Channel(guideId = "c0", number = 2.0, name = "News Now", logo = null, groups = listOf("News"))
-    private val programme = Programme(channelId = "c0", start = now - 10.minutes, stop = now + 20.minutes, title = "Evening News", description = null)
+    private val programme =
+        Programme(
+            channelId = "c0",
+            start = now - 10.minutes,
+            stop = now + 20.minutes,
+            title = "Evening News",
+            description = null,
+        )
 
     @Test
     fun `Back closes the details panel once per press`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {

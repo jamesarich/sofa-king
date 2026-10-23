@@ -3,8 +3,6 @@ package dev.jamesrich.sofaking.backend.store
 import dev.jamesrich.sofaking.backend.dvr.StoredRecording
 import dev.jamesrich.sofaking.backend.dvr.StoredRule
 import dev.jamesrich.sofaking.contract.RecordingBreak
-import java.time.Duration
-import java.time.Instant
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -17,10 +15,19 @@ import org.jetbrains.exposed.v1.jdbc.name
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import org.jetbrains.exposed.v1.jdbc.upsert
+import java.time.Duration
+import java.time.Instant
 
-suspend fun BackendStore.recordingRules(): List<StoredRule> = read { RecordingRules.selectAll().map { it.rule() }.sortedBy { it.createdAt } }
+suspend fun BackendStore.recordingRules(): List<StoredRule> = read {
+    RecordingRules.selectAll().map { it.rule() }.sortedBy { it.createdAt }
+}
 
-suspend fun BackendStore.recordingRule(id: String): StoredRule? = read { RecordingRules.selectAll().where { RecordingRules.id eq id }.singleOrNull()?.rule() }
+suspend fun BackendStore.recordingRule(id: String): StoredRule? = read {
+    RecordingRules.selectAll().where {
+        RecordingRules.id eq
+            id
+    }.singleOrNull()?.rule()
+}
 
 /** Inserts or replaces [rule]. */
 suspend fun BackendStore.saveRecordingRule(rule: StoredRule) = query {
@@ -48,7 +55,12 @@ suspend fun BackendStore.deleteRecordingRule(id: String, scheduledStates: Collec
 
 suspend fun BackendStore.recordings(): List<StoredRecording> = read { Recordings.selectAll().map { it.recording() } }
 
-suspend fun BackendStore.recording(id: String): StoredRecording? = read { Recordings.selectAll().where { Recordings.id eq id }.singleOrNull()?.recording() }
+suspend fun BackendStore.recording(id: String): StoredRecording? = read {
+    Recordings.selectAll().where {
+        Recordings.id eq
+            id
+    }.singleOrNull()?.recording()
+}
 
 /** Adds [recording] unless one is already stored for the same channel and start; true when it was added. */
 suspend fun BackendStore.addRecording(recording: StoredRecording): Boolean = query {
@@ -61,7 +73,9 @@ suspend fun BackendStore.saveRecording(recording: StoredRecording) = query {
     Unit
 }
 
-suspend fun BackendStore.deleteRecording(id: String): Boolean = query { Recordings.deleteWhere { Recordings.id eq id } > 0 }
+suspend fun BackendStore.deleteRecording(id: String): Boolean = query {
+    Recordings.deleteWhere { Recordings.id eq id } > 0
+}
 
 private fun UpdateBuilder<*>.write(r: StoredRecording) {
     this[Recordings.id] = r.id
@@ -95,7 +109,10 @@ private fun UpdateBuilder<*>.write(r: StoredRecording) {
 
 private fun ResultRow.rule() = StoredRule(
     this[RecordingRules.id], this[RecordingRules.title], this[RecordingRules.channelId], this[RecordingRules.newOnly], this[RecordingRules.keep],
-    Duration.ofSeconds(this[RecordingRules.startPadding].toLong()), Duration.ofSeconds(this[RecordingRules.endPadding].toLong()),
+    Duration.ofSeconds(
+        this[RecordingRules.startPadding].toLong(),
+    ),
+    Duration.ofSeconds(this[RecordingRules.endPadding].toLong()),
     this[RecordingRules.priority], Instant.parse(this[RecordingRules.createdAt]),
 )
 

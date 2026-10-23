@@ -34,7 +34,8 @@ class SessionTimeoutException(message: String) : IOException(message)
 /** What a playback session is for; a preview holds a 45 s lease and is the first evicted at capacity, a watch holds 90 s. */
 enum class PlaybackIntent(internal val wire: String) {
     PREVIEW(Wire.Intent.PREVIEW),
-    WATCH(Wire.Intent.WATCH);
+    WATCH(Wire.Intent.WATCH),
+    ;
 
     internal companion object {
         fun fromWire(value: String): PlaybackIntent? = entries.firstOrNull { it.wire == value }
@@ -45,6 +46,7 @@ enum class PlaybackIntent(internal val wire: String) {
  * The stream the player should hold for [channelId], or for the library item [itemId]. [url] changes whenever the
  * server replaces the stream.
  */
+
 /** The picture is in an ad break; [remainingMs] is how long the break has left, when the playlist says. */
 data class AdBreakNow(val remainingMs: Long?)
 
@@ -129,7 +131,13 @@ class PlaybackSessions(
         val held = _current.value
         if (held != null && held.channelId == channelId) {
             val reread = reread(api, held)
-            if (reread != null) return@withLock if (reread.intent == intent) reread else publish(api.updateSession(reread.sessionId, intent.wire), intent)
+            if (reread != null) {
+                return@withLock if (reread.intent == intent) {
+                    reread
+                } else {
+                    publish(api.updateSession(reread.sessionId, intent.wire), intent)
+                }
+            }
         } else if (held != null) {
             releaseHeld(api, held)
         }
@@ -137,6 +145,7 @@ class PlaybackSessions(
     }
 
     /** Changes the held session's intent in place; nothing happens when the session is not [channelId]'s or already [intent]. */
+
     /**
      * The ad break the held live channel's player shows, as the server places it from the segments the player fetched
      * and [aheadMs], what it has loaded past the picture; null outside one, between channels and before a server is set.
@@ -164,7 +173,11 @@ class PlaybackSessions(
         mutex.withLock {
             val held = _current.value
             if (itemId != null && held?.itemId != itemId) return@withLock
-            if (forget) resumable = null else if (held != null) resumable = resumableOf(held)
+            if (forget) {
+                resumable = null
+            } else if (held != null) {
+                resumable = resumableOf(held)
+            }
             val api = api
             if (held != null && api != null) releaseHeld(api, held)
         }
@@ -201,8 +214,13 @@ class PlaybackSessions(
      * or converts it into from that point, with the audio track [audioIndex] and the picture subtitle track
      * [subtitleIndex] drawn in. The held session, live or not, is released first.
      */
-    suspend fun play(itemId: String, profile: PlaybackProfile, startMs: Long = 0, audioIndex: Int? = null, subtitleIndex: Int? = null): PlaybackStream =
-        openItem(ItemRequest(itemId, profile, audioIndex, subtitleIndex), startMs)
+    suspend fun play(
+        itemId: String,
+        profile: PlaybackProfile,
+        startMs: Long = 0,
+        audioIndex: Int? = null,
+        subtitleIndex: Int? = null,
+    ): PlaybackStream = openItem(ItemRequest(itemId, profile, audioIndex, subtitleIndex), startMs)
 
     /**
      * Plays the recording [recordingId] from [startMs] as [play] plays a library item; one still recording follows
@@ -261,7 +279,9 @@ class PlaybackSessions(
         try {
             currentCoroutineContext().ensureActive()
         } catch (e: CancellationException) {
-            withContext(NonCancellable) { runCatching { withTimeout(RELEASE_TIMEOUT_MS) { kind.release(api, opened.sessionId) } } }
+            withContext(NonCancellable) {
+                runCatching { withTimeout(RELEASE_TIMEOUT_MS) { kind.release(api, opened.sessionId) } }
+            }
             throw e
         }
         return hold(api, opened, kind)
@@ -281,7 +301,12 @@ class PlaybackSessions(
         return liveStream(api, session, intent).also { _current.value = it }
     }
 
-    private fun publishItem(api: SofaKingApi, session: VodSessionDto, request: ItemRequest, startAtMs: Long): PlaybackStream {
+    private fun publishItem(
+        api: SofaKingApi,
+        session: VodSessionDto,
+        request: ItemRequest,
+        startAtMs: Long,
+    ): PlaybackStream {
         items[session.id] = request
         return itemStream(api, session, request.itemId, startAtMs).also { _current.value = it }
     }
@@ -298,7 +323,11 @@ class PlaybackSessions(
         _current.value = null
         val item = items.remove(held.sessionId) != null
         withContext(NonCancellable) {
-            runCatching { withTimeout(RELEASE_TIMEOUT_MS) { if (item) api.releaseVod(held.sessionId) else api.releaseSession(held.sessionId) } }
+            runCatching {
+                withTimeout(RELEASE_TIMEOUT_MS) {
+                    if (item) api.releaseVod(held.sessionId) else api.releaseSession(held.sessionId)
+                }
+            }
         }
     }
 
@@ -333,7 +362,8 @@ class PlaybackSessions(
                     val again = kind.reopening(held, itemPositionMs)
                     // A reopen that fails leaves no session; the player's own failure path tunes again with backoff.
                     val reopened = try {
-                        withTimeoutOrNull(openTimeout) { again.open(api) } ?: throw SessionTimeoutException("session reopen timed out")
+                        withTimeoutOrNull(openTimeout) { again.open(api) }
+                            ?: throw SessionTimeoutException("session reopen timed out")
                     } catch (_: IOException) {
                         return
                     }
@@ -361,9 +391,11 @@ class PlaybackSessions(
     }
 
     private inner class Live(private val channelId: String, private val intent: PlaybackIntent) : Kind {
-        override suspend fun open(api: SofaKingApi) = liveStream(api, api.openSession(channelId, intent.wire, newIdempotencyKey()), intent)
+        override suspend fun open(api: SofaKingApi) =
+            liveStream(api, api.openSession(channelId, intent.wire, newIdempotencyKey()), intent)
 
-        override suspend fun renew(api: SofaKingApi, held: PlaybackStream) = liveStream(api, api.updateSession(held.sessionId, null), held.intent)
+        override suspend fun renew(api: SofaKingApi, held: PlaybackStream) =
+            liveStream(api, api.updateSession(held.sessionId, null), held.intent)
 
         override suspend fun release(api: SofaKingApi, sessionId: String) = api.releaseSession(sessionId)
 
@@ -371,9 +403,11 @@ class PlaybackSessions(
     }
 
     private class Item(val request: ItemRequest, private val startMs: Long) : Kind {
-        override suspend fun open(api: SofaKingApi) = itemStream(api, api.openVod(request.dto(startMs)), request.itemId, startMs)
+        override suspend fun open(api: SofaKingApi) =
+            itemStream(api, api.openVod(request.dto(startMs)), request.itemId, startMs)
 
-        override suspend fun renew(api: SofaKingApi, held: PlaybackStream) = itemStream(api, api.updateVod(held.sessionId, null), request.itemId, held.startAtMs)
+        override suspend fun renew(api: SofaKingApi, held: PlaybackStream) =
+            itemStream(api, api.updateVod(held.sessionId, null), request.itemId, held.startAtMs)
 
         override suspend fun release(api: SofaKingApi, sessionId: String) = api.releaseVod(sessionId)
 
@@ -390,7 +424,14 @@ class PlaybackSessions(
     ) {
         fun dto(startMs: Long) = OpenVodPlaybackDto(
             itemId = if (recording) "" else itemId,
-            profile = ClientProfileDto(profile.containers, profile.videoCodecs, profile.audioCodecs, profile.maxHeight, profile.hdr, profile.deepColor),
+            profile = ClientProfileDto(
+                profile.containers,
+                profile.videoCodecs,
+                profile.audioCodecs,
+                profile.maxHeight,
+                profile.hdr,
+                profile.deepColor,
+            ),
             startMs = startMs,
             audioIndex = audioIndex,
             recordingId = itemId.takeIf { recording },

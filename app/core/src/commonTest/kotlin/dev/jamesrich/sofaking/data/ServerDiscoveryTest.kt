@@ -1,9 +1,9 @@
 package dev.jamesrich.sofaking.data
 
-import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class ServerDiscoveryTest {
     @Test
@@ -12,7 +12,10 @@ class ServerDiscoveryTest {
         found.resolved("Sofa King", "192.0.2.10", 9193, "0.1.0-dev.330")
         found.resolved("attic", "192.0.2.11", 9200, "")
         assertEquals(
-            listOf(DiscoveredServer("attic", "http://192.0.2.11:9200"), DiscoveredServer("Sofa King", "http://192.0.2.10:9193", "0.1.0-dev.330")),
+            listOf(
+                DiscoveredServer("attic", "http://192.0.2.11:9200"),
+                DiscoveredServer("Sofa King", "http://192.0.2.10:9193", "0.1.0-dev.330"),
+            ),
             found.list.first(),
         )
     }

@@ -38,7 +38,9 @@ class KotlinConventionPlugin : Plugin<Project> {
 
         // Compiles only: Kotlin/Native's link tasks warn about the runner's processor count, which no source can fix.
         // A gradle.properties value, not a CI flag, so local and CI compiles share remote-cache keys.
-        val warningsAsErrors = providers.gradleProperty("sofaking.warningsAsErrors").map(String::toBoolean).orElse(false)
+        val warningsAsErrors = providers.gradleProperty(
+            "sofaking.warningsAsErrors",
+        ).map(String::toBoolean).orElse(false)
         tasks.withType(KotlinCompilationTask::class.java).configureEach {
             it.compilerOptions.allWarningsAsErrors.set(warningsAsErrors)
         }

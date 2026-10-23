@@ -49,7 +49,10 @@ class AdminThemeTest {
         assertEquals("has failed for 7 days", failingFor(now.minusSeconds(7 * 86_400 + 60).toString(), now))
         assertEquals("has never imported", failingFor(null, now))
         assertEquals(Tone.WARN, failingTone(listOf(now.minusSeconds(3600).toString()), now))
-        assertEquals(Tone.BAD, failingTone(listOf(now.minusSeconds(3600).toString(), now.minusSeconds(2 * 86_400).toString()), now))
+        assertEquals(
+            Tone.BAD,
+            failingTone(listOf(now.minusSeconds(3600).toString(), now.minusSeconds(2 * 86_400).toString()), now),
+        )
         assertEquals(Tone.BAD, failingTone(listOf(null), now))
     }
 
@@ -65,8 +68,26 @@ class AdminThemeTest {
     }
 
     @Test fun `the lineup filter keeps every parameter in its query`() {
-        val filter = LineupFilter.from(io.ktor.http.parametersOf("q" to listOf("a"), "override" to listOf("true"), "changed" to listOf("true"), "sort" to listOf("name"), "dir" to listOf("desc"), "page" to listOf("2")))
+        val filter = LineupFilter.from(
+            io.ktor.http.parametersOf(
+                "q" to listOf("a"),
+                "override" to listOf("true"),
+                "changed" to listOf("true"),
+                "sort" to listOf("name"),
+                "dir" to listOf("desc"),
+                "page" to listOf("2"),
+            ),
+        )
         assertEquals("q=a&override=true&changed=true&sort=name&dir=desc&page=2", filter.query())
-        assertEquals(LineupFilter(), LineupFilter.from(io.ktor.http.parametersOf("sort" to listOf("bogus"), "dir" to listOf("sideways"))), "unknown sorts and directions are dropped")
+        assertEquals(
+            LineupFilter(),
+            LineupFilter.from(
+                io.ktor.http.parametersOf(
+                    "sort" to listOf("bogus"),
+                    "dir" to listOf("sideways"),
+                ),
+            ),
+            "unknown sorts and directions are dropped",
+        )
     }
 }

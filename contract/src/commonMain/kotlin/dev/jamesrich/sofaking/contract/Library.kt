@@ -9,7 +9,12 @@ import kotlinx.serialization.Serializable
 @Serializable data class Library(val id: String, val name: String, val kind: String, val items: Int = 0)
 
 /** The household's place in an item: where it stopped, and whether it was watched to the end. */
-@Serializable data class PlayState(val positionMs: Long = 0, val durationMs: Long? = null, val watched: Boolean = false, val updatedAt: String = "")
+@Serializable data class PlayState(
+    val positionMs: Long = 0,
+    val durationMs: Long? = null,
+    val watched: Boolean = false,
+    val updatedAt: String = "",
+)
 
 /**
  * One movie, show, season, episode or video ([kind] is a [Wire.ItemKind] value). [poster] and [backdrop] are
@@ -75,7 +80,15 @@ import kotlinx.serialization.Serializable
  * file beside it. A subtitle whose [codec] is pictures (`hdmv_pgs_subtitle`, `dvd_subtitle`, `dvb_subtitle`) has no
  * text, so a player shows it by asking for it in [OpenVodPlayback.subtitleIndex].
  */
-@Serializable data class MediaTrack(val index: Int, val codec: String, val language: String? = null, val title: String? = null, val channels: Int? = null, val default: Boolean = false, val forced: Boolean = false)
+@Serializable data class MediaTrack(
+    val index: Int,
+    val codec: String,
+    val language: String? = null,
+    val title: String? = null,
+    val channels: Int? = null,
+    val default: Boolean = false,
+    val forced: Boolean = false,
+)
 
 /** A span of a movie, episode or video from [startMs] to [endMs] that a player offers to skip; [kind] is a [Wire.SegmentKind] value. */
 @Serializable data class MediaSegment(val kind: String, val startMs: Long, val endMs: Long)

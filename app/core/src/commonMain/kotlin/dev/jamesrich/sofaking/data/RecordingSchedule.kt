@@ -28,7 +28,11 @@ sealed interface RecordingsState {
     data object Unavailable : RecordingsState
 
     /** Every recording but cancelled ones, soonest scheduled first, then the rest newest first, and the series rules, oldest first. */
-    data class Ready(val recordings: List<DvrRecording>, val space: RecordingSpace, val rules: List<SeriesRule> = emptyList()) : RecordingsState
+    data class Ready(
+        val recordings: List<DvrRecording>,
+        val space: RecordingSpace,
+        val rules: List<SeriesRule> = emptyList(),
+    ) : RecordingsState
     data class Failed(val message: String) : RecordingsState
 }
 
@@ -47,7 +51,8 @@ data class RecordingMarks(
         series = ruleId(programme) != null,
     )
 
-    internal fun ruleId(programme: Programme): String? = rules[ruleKey(programme.title, programme.channelId)] ?: rules[ruleKey(programme.title, null)]
+    internal fun ruleId(programme: Programme): String? =
+        rules[ruleKey(programme.title, programme.channelId)] ?: rules[ruleKey(programme.title, null)]
 }
 
 private fun recordingKey(channelId: String, start: Instant) = "$channelId@${start.toEpochMilliseconds()}"
@@ -75,6 +80,7 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     val marks: StateFlow<RecordingMarks> = _marks.asStateFlow()
 
     @Volatile private var api: SofaKingApi? = null
+
     @Volatile private var records = false
     private val mutex = Mutex()
 
@@ -103,7 +109,13 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
                 val list = async { api.recordings() }
                 val rules = async { api.recordingRules().rules.map { it.toModel() } }
                 val (recordings, storage) = list.await().let { it.recordings to it.storage }
-                RecordingsState.Ready(recordings.mapNotNull { it.toModel() }, RecordingSpace(storage.freeBytes, storage.totalBytes), rules.await())
+                RecordingsState.Ready(
+                    recordings.mapNotNull {
+                        it.toModel()
+                    },
+                    RecordingSpace(storage.freeBytes, storage.totalBytes),
+                    rules.await(),
+                )
             }
         } catch (e: CancellationException) {
             throw e
@@ -121,7 +133,11 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     /** Records [programme], or cancels its recording when it has one. False when the server refused or could not be reached. */
     suspend fun toggle(programme: Programme): Boolean = records && change("recording a program") {
         val id = _marks.value.recordings[recordingKey(programme.channelId, programme.start)]
-        if (id != null) deleteRecording(id) else scheduleRecording(ScheduleRecordingDto(programme.channelId, programme.start.toString()))
+        if (id != null) {
+            deleteRecording(id)
+        } else {
+            scheduleRecording(ScheduleRecordingDto(programme.channelId, programme.start.toString()))
+        }
     }
 
     /**
@@ -130,7 +146,11 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
      */
     suspend fun toggleSeries(programme: Programme): Boolean = records && change("recording a series") {
         val id = _marks.value.ruleId(programme)
-        if (id != null) deleteRecordingRule(id) else createRecordingRule(CreateRecordingRuleDto(programme.title.trim(), programme.channelId))
+        if (id != null) {
+            deleteRecordingRule(id)
+        } else {
+            createRecordingRule(CreateRecordingRuleDto(programme.title.trim(), programme.channelId))
+        }
     }
 
     /** Cancels a scheduled recording, stops a running one, or deletes a finished one and its file. */
@@ -140,10 +160,11 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
     }
 
     /** Changes [rule]: whether it takes new episodes only, and how many recordings it keeps (0 for all). */
-    internal suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean = change("changing a series rule") {
-        val fresh = updateRecordingRule(rule.id, UpdateRecordingRuleDto(newOnly = newOnly, keep = keep)).toModel()
-        edit { it.copy(rules = it.rules.map { r -> if (r.id == fresh.id) fresh else r }) }
-    }
+    internal suspend fun updateRule(rule: SeriesRule, newOnly: Boolean, keep: Int): Boolean =
+        change("changing a series rule") {
+            val fresh = updateRecordingRule(rule.id, UpdateRecordingRuleDto(newOnly = newOnly, keep = keep)).toModel()
+            edit { it.copy(rules = it.rules.map { r -> if (r.id == fresh.id) fresh else r }) }
+        }
 
     /** Deletes [rule] and the recordings it scheduled; what it recorded stays. */
     internal suspend fun deleteRule(rule: SeriesRule): Boolean = change("deleting a series rule") {
@@ -156,7 +177,19 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
         val api = api ?: return
         try {
             val fresh = api.updateRecording(recordingId, update).toModel()
-            if (show && fresh != null) edit { it.copy(recordings = it.recordings.map { r -> if (r.id == fresh.id) fresh else r }) }
+            if (show && fresh != null) {
+                edit {
+                    it.copy(
+                        recordings = it.recordings.map { r ->
+                            if (r.id == fresh.id) {
+                                fresh
+                            } else {
+                                r
+                            }
+                        },
+                    )
+                }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

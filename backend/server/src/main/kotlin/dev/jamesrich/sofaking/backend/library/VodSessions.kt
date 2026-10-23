@@ -10,6 +10,15 @@ import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.UpdateVodPlayback
 import dev.jamesrich.sofaking.contract.VodSession
 import dev.jamesrich.sofaking.contract.Wire
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -23,15 +32,6 @@ import java.util.HexFormat
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.time.Duration.Companion.minutes
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withContext
-import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger(VodSessions::class.java)
 
@@ -47,7 +47,9 @@ internal fun segmentCount(durationMs: Long): Int = maxOf(1, ((durationMs + SEGME
 
 /** A VOD playlist of every segment of an item [durationMs] long, the last one as long as what is left. */
 internal fun wholePlaylist(durationMs: Long): String = buildString {
-    append("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:${SEGMENT_SECONDS + 1}\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n")
+    append(
+        "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:${SEGMENT_SECONDS + 1}\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-INDEPENDENT-SEGMENTS\n",
+    )
     val count = segmentCount(durationMs)
     for (i in 0 until count) {
         val length = if (i == count - 1) durationMs - i * SEGMENT_MS else SEGMENT_MS
@@ -133,7 +135,14 @@ internal class VodState(
 }
 
 /** A library file or recording being played, as the portal's Watching now lists it. */
-class VodActivity(val id: String, val itemId: String, val recordingId: String?, val mode: String, val startedAt: Instant, val expiresAt: Instant)
+class VodActivity(
+    val id: String,
+    val itemId: String,
+    val recordingId: String?,
+    val mode: String,
+    val startedAt: Instant,
+    val expiresAt: Instant,
+)
 
 /** A file to serve for a VOD media request, and its type. */
 class VodMedia(val file: Path, val contentType: String)
@@ -158,10 +167,13 @@ class VodSessions(
     private val sessions = HashMap<String, VodState>()
     private val mutex = Mutex()
     private val random = SecureRandom()
+
     /** A lock per subtitle file while anyone wants it, so one file is never extracted twice at once and a slow one holds up no other. */
     private val extracting = HashMap<String, ExtractionLock>()
+
     /** Each extraction reads a whole file, so only a few run at once. */
     private val extractions = Semaphore(SUBTITLE_EXTRACTIONS)
+
     /** Sessions taken out under the lock whose FFmpeg and files [dispose] deals with once it is released. */
     private val retired = ConcurrentLinkedQueue<VodState>()
 
@@ -169,7 +181,11 @@ class VodSessions(
      * Runs [action] under the sessions' lock, then ends the FFmpeg of every session it retired and deletes that
      * session's files, so a slow exit or a folder of thousands of segments never holds up the other requests.
      */
-    private suspend inline fun <T> locked(action: () -> T): T = try { mutex.withLock(action = action) } finally { dispose() }
+    private suspend inline fun <T> locked(action: () -> T): T = try {
+        mutex.withLock(action = action)
+    } finally {
+        dispose()
+    }
 
     private suspend fun dispose() {
         if (retired.isEmpty()) return
@@ -195,10 +211,25 @@ class VodSessions(
         val (item, file) = itemFile(request.itemId)
         val burn = request.subtitleIndex?.let { index ->
             subtitleSource(item, file, index).also {
-                if (!it.picture) throw ApiFailure(400, "INVALID_REQUEST", "Subtitle stream $index is text; the player draws it")
+                if (!it.picture) {
+                    throw ApiFailure(
+                        400,
+                        "INVALID_REQUEST",
+                        "Subtitle stream $index is text; the player draws it",
+                    )
+                }
             }
         }
-        return start(request, item.record.id, null, file, growing = false, item.record.media, item.item.durationMs, burn)
+        return start(
+            request,
+            item.record.id,
+            null,
+            file,
+            growing = false,
+            item.record.media,
+            item.item.durationMs,
+            burn,
+        )
     }
 
     /**
@@ -222,11 +253,22 @@ class VodSessions(
                 if (!Files.isRegularFile(out)) {
                     Files.createDirectories(dir)
                     val partial = dir.resolve("$name.part")
-                    val command = listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", file.toString(), "-map", map, "-c:s", "webvtt", "-f", "webvtt", partial.toString())
+                    val command =
+                        listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-i", file.toString(), "-map", map, "-c:s", "webvtt", "-f", "webvtt", partial.toString())
                     // A client that gives up mid-conversion ends FFmpeg; what it wrote goes with it.
                     try {
-                        if (!extractions.withPermit { runs(command, SUBTITLE_TIMEOUT_MINUTES) }) throw ApiFailure(502, "SUBTITLE_FAILED", "The subtitles could not be read from the file")
-                        Files.move(partial, out, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                        if (!extractions.withPermit {
+                                runs(command, SUBTITLE_TIMEOUT_MINUTES)
+                            }
+                        ) {
+                            throw ApiFailure(502, "SUBTITLE_FAILED", "The subtitles could not be read from the file")
+                        }
+                        Files.move(
+                            partial,
+                            out,
+                            java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                        )
                     } finally {
                         Files.deleteIfExists(partial)
                     }
@@ -264,7 +306,9 @@ class VodSessions(
     /** Subtitle track [index] of [item], whose file is [video]: one of its streams, or a subtitle file beside it. */
     private suspend fun subtitleSource(item: View, video: Path, index: Int): SubtitleSource {
         if (index >= SIDECAR_BASE) {
-            val sidecar = withContext(Dispatchers.IO) { sidecarSubtitles(video) }.firstOrNull { it.stream.index == index }
+            val sidecar = withContext(Dispatchers.IO) {
+                sidecarSubtitles(video)
+            }.firstOrNull { it.stream.index == index }
             if (sidecar != null) return SubtitleSource(sidecar.stream, sidecar.file)
         } else {
             item.record.media?.subtitles?.firstOrNull { it.index == index }?.let { return SubtitleSource(it, null) }
@@ -274,37 +318,86 @@ class VodSessions(
 
     /** Plays a recording; one still recording is never played directly, as its stream has to follow the file. */
     private suspend fun openRecording(id: String, request: OpenVodPlayback): VodSession {
-        if (request.subtitleIndex != null) throw ApiFailure(400, "INVALID_REQUEST", "A recording has no subtitle tracks to draw")
-        val playable = recordings?.invoke(id) ?: throw ApiFailure(404, "RECORDING_NOT_FOUND", "No such recording, or nothing recorded yet")
-        val size = withContext(Dispatchers.IO) { if (Files.isRegularFile(playable.file, LinkOption.NOFOLLOW_LINKS)) Files.size(playable.file) else -1L }
-        if (size < 0) throw ApiFailure(404, "RECORDING_MISSING", "The recording's file is not there; is its disk mounted?")
-        if (size == 0L) throw ApiFailure(409, "RECORDING_NOT_READY", "Nothing has been recorded yet; try again in a few seconds", true)
+        if (request.subtitleIndex != null) {
+            throw ApiFailure(400, "INVALID_REQUEST", "A recording has no subtitle tracks to draw")
+        }
+        val playable =
+            recordings?.invoke(id)
+                ?: throw ApiFailure(404, "RECORDING_NOT_FOUND", "No such recording, or nothing recorded yet")
+        val size =
+            withContext(Dispatchers.IO) {
+                if (Files.isRegularFile(playable.file, LinkOption.NOFOLLOW_LINKS)) Files.size(playable.file) else -1L
+            }
+        if (size < 0) {
+            throw ApiFailure(404, "RECORDING_MISSING", "The recording's file is not there; is its disk mounted?")
+        }
+        if (size == 0L) {
+            throw ApiFailure(
+                409,
+                "RECORDING_NOT_READY",
+                "Nothing has been recorded yet; try again in a few seconds",
+                true,
+            )
+        }
         val media = probe(playable.file)
         return start(request, "", id, playable.file, playable.growing, media, playable.durationMs ?: media?.durationMs)
     }
 
     private suspend fun start(
-        request: OpenVodPlayback, itemId: String, recordingId: String?, file: Path, growing: Boolean, media: MediaInfo?, durationMs: Long?,
+        request: OpenVodPlayback,
+        itemId: String,
+        recordingId: String?,
+        file: Path,
+        growing: Boolean,
+        media: MediaInfo?,
+        durationMs: Long?,
         burn: SubtitleSource? = null,
     ): VodSession {
-        val audio = request.audioIndex?.let { index -> media?.audio?.firstOrNull { it.index == index } ?: throw ApiFailure(400, "INVALID_REQUEST", "No audio stream $index") }
+        val audio = request.audioIndex?.let { index ->
+            media?.audio?.firstOrNull { it.index == index }
+                ?: throw ApiFailure(400, "INVALID_REQUEST", "No audio stream $index")
+        }
         // Drawing subtitles into the picture means encoding it.
-        val mode = if (burn != null) Wire.VodMode.TRANSCODE
-        else vodMode(media, if (growing) request.profile.copy(containers = emptyList()) else request.profile, audio)
+        val mode = if (burn != null) {
+            Wire.VodMode.TRANSCODE
+        } else {
+            vodMode(media, if (growing) request.profile.copy(containers = emptyList()) else request.profile, audio)
+        }
         // Only a conversion cuts segments where it likes; a copy cuts at the file's own key frames, which nothing lists.
-        val whole = request.wholePlaylist && mode == Wire.VodMode.TRANSCODE && !growing && durationMs != null && durationMs > 0
+        val whole =
+            request.wholePlaylist && mode == Wire.VodMode.TRANSCODE && !growing && durationMs != null && durationMs > 0
         return locked {
             reap()
-            if (mode != Wire.VodMode.DIRECT && sessions.values.count { it.mode != Wire.VodMode.DIRECT } >= maxConverting) {
-                throw ApiFailure(503, Wire.ErrorCode.CAPACITY_EXHAUSTED, "Too many files are being converted; try again when one stops", true)
+            if (mode != Wire.VodMode.DIRECT && sessions.values.count {
+                    it.mode != Wire.VodMode.DIRECT
+                } >= maxConverting
+            ) {
+                throw ApiFailure(
+                    503,
+                    Wire.ErrorCode.CAPACITY_EXHAUSTED,
+                    "Too many files are being converted; try again when one stops",
+                    true,
+                )
             }
             val state = VodState(
                 UUID.randomUUID().toString(), itemId, recordingId, file, growing, mode, durationMs, audio?.index, burn, media, secret(), epoch = 1,
-                startMs = if (mode == Wire.VodMode.DIRECT || whole) 0 else request.startMs, expires = clock.instant().plus(lease), startedAt = clock.instant(),
+                startMs = if (mode == Wire.VodMode.DIRECT || whole) {
+                    0
+                } else {
+                    request.startMs
+                },
+                expires = clock.instant().plus(lease), startedAt = clock.instant(),
                 whole = whole, runStart = if (whole) (request.startMs / SEGMENT_MS).toInt() else 0,
             )
             // A conversion that fails to start leaves its folder, and maybe its FFmpeg, to dispose.
-            if (mode != Wire.VodMode.DIRECT) try { launch(state) } catch (e: Throwable) { retired += state; throw e }
+            if (mode != Wire.VodMode.DIRECT) {
+                try {
+                    launch(state)
+                } catch (e: Throwable) {
+                    retired += state
+                    throw e
+                }
+            }
             sessions[state.id] = state
             state.wire()
         }
@@ -315,7 +408,9 @@ class VodSessions(
     /** The sessions playing now, oldest first. */
     suspend fun snapshot(): List<VodActivity> = locked {
         reap()
-        sessions.values.sortedBy { it.startedAt }.map { VodActivity(it.id, it.itemId, it.recordingId, it.mode, it.startedAt, it.expires) }
+        sessions.values.sortedBy {
+            it.startedAt
+        }.map { VodActivity(it.id, it.itemId, it.recordingId, it.mode, it.startedAt, it.expires) }
     }
 
     /** Renews [id]'s lease; with a start, restarts a converted stream there under a new epoch. */
@@ -333,7 +428,10 @@ class VodSessions(
                 stop(state)
                 locked {
                     live(id)
-                    playable?.let { state.file = it.file; state.growing = it.growing }
+                    playable?.let {
+                        state.file = it.file
+                        state.growing = it.growing
+                    }
                     state.epoch++
                     state.startMs = start
                 }
@@ -369,10 +467,19 @@ class VodSessions(
         val dir = directory.resolve(state.id)
         if (state.whole) return wholeMedia(state, dir, name)
         return when {
-            name == "index.m3u8" -> waitFor(state, epoch) { Files.isRegularFile(dir.resolve(name)) && Files.isRegularFile(dir.resolve(firstSegment(state))) }
+            name == "index.m3u8" -> waitFor(state, epoch) {
+                Files.isRegularFile(dir.resolve(name)) && Files.isRegularFile(dir.resolve(firstSegment(state)))
+            }
                 ?.let { VodMedia(dir.resolve(name), "application/vnd.apple.mpegurl") }
-            SEGMENT.matches(name) -> waitFor(state, epoch) { Files.isRegularFile(dir.resolve(name)) }?.let { VodMedia(dir.resolve(name), "video/mp2t") }
-            FMP4_SEGMENT.matches(name) || name == FMP4_INIT -> waitFor(state, epoch) { Files.isRegularFile(dir.resolve(name)) }?.let { VodMedia(dir.resolve(name), "video/mp4") }
+
+            SEGMENT.matches(name) -> waitFor(state, epoch) {
+                Files.isRegularFile(dir.resolve(name))
+            }?.let { VodMedia(dir.resolve(name), "video/mp2t") }
+
+            FMP4_SEGMENT.matches(name) || name == FMP4_INIT -> waitFor(state, epoch) {
+                Files.isRegularFile(dir.resolve(name))
+            }?.let { VodMedia(dir.resolve(name), "video/mp4") }
+
             else -> null
         }
     }
@@ -407,7 +514,9 @@ class VodSessions(
     private suspend fun waitFor(state: VodState, epoch: Int, ready: () -> Boolean): Unit? {
         repeat(200) {
             if (withContext(Dispatchers.IO) { ready() }) return Unit
-            val running = locked { state.epoch == epoch && state.process?.isAlive == true && sessions[state.id] === state }
+            val running = locked {
+                state.epoch == epoch && state.process?.isAlive == true && sessions[state.id] === state
+            }
             if (!running) return if (withContext(Dispatchers.IO) { ready() }) Unit else null
             delay(100)
         }
@@ -443,7 +552,16 @@ class VodSessions(
             log.warn("vod ffmpeg did not start class={}", e.javaClass.simpleName)
             throw ApiFailure(503, "TRANSCODER_UNAVAILABLE", "FFmpeg could not start", true)
         }
-        log.info("vod session started session={} mode={} startMs={}", state.id, state.mode, if (state.whole) state.runStart * SEGMENT_MS else state.startMs)
+        log.info(
+            "vod session started session={} mode={} startMs={}",
+            state.id,
+            state.mode,
+            if (state.whole) {
+                state.runStart * SEGMENT_MS
+            } else {
+                state.startMs
+            },
+        )
     }
 
     private suspend fun stop(state: VodState, clearFiles: Boolean = true) {
@@ -457,8 +575,11 @@ class VodSessions(
 
     private fun VodState.wire(): VodSession {
         val base = "/media/vod/$id/$epoch/$secret"
-        val descriptor = if (mode == Wire.VodMode.DIRECT) PlaybackDescriptor("file", directType(media), "$base/file.${extension(media)}", epoch)
-        else PlaybackDescriptor("hls", "application/vnd.apple.mpegurl", "$base/index.m3u8", epoch)
+        val descriptor = if (mode == Wire.VodMode.DIRECT) {
+            PlaybackDescriptor("file", directType(media), "$base/file.${extension(media)}", epoch)
+        } else {
+            PlaybackDescriptor("hls", "application/vnd.apple.mpegurl", "$base/index.m3u8", epoch)
+        }
         return VodSession(id, itemId, mode, descriptor, startMs, durationMs, expires.toString(), recordingId)
     }
 
@@ -486,21 +607,29 @@ class VodSessions(
         const val SUBTITLES_KEPT = 200
 
         fun prune(dir: Path) {
-            val files = Files.list(dir).use { paths -> paths.filter { it.fileName.toString().endsWith(".vtt") }.toList() }
+            val files = Files.list(dir).use { paths ->
+                paths.filter { it.fileName.toString().endsWith(".vtt") }.toList()
+            }
             if (files.size <= SUBTITLES_KEPT) return
-            files.sortedBy { Files.getLastModifiedTime(it) }.take(files.size - SUBTITLES_KEPT).forEach { runCatching { Files.deleteIfExists(it) } }
+            files.sortedBy {
+                Files.getLastModifiedTime(it)
+            }.take(files.size - SUBTITLES_KEPT).forEach { runCatching { Files.deleteIfExists(it) } }
         }
 
         /** Whether [command] exits 0 within [minutes]; a client giving up on the request ends FFmpeg too. */
         suspend fun runs(command: List<String>, minutes: Long): Boolean = try {
-            ProcessBuilder(command).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(minutes.minutes) == 0
+            ProcessBuilder(
+                command,
+            ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).runFor(minutes.minutes) == 0
         } catch (_: IOException) {
             false
         }
 
         fun clear(dir: Path) {
             if (!Files.isDirectory(dir)) return
-            Files.walk(dir).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach { runCatching { Files.deleteIfExists(it) } } }
+            Files.walk(dir).use { paths ->
+                paths.sorted(Comparator.reverseOrder()).forEach { runCatching { Files.deleteIfExists(it) } }
+            }
         }
     }
 }
@@ -541,8 +670,9 @@ internal fun vodMode(media: MediaInfo?, profile: ClientProfile, audio: AudioStre
     val audioFits = track == null || track.codec in profile.audioCodecs
     val container = containerOf(media.container)
     // HEVC tagged `hev1` in MP4 plays on Android but not in AVPlayer; the remux retags it `hvc1`, which plays on both.
-    val containerFits = (container in profile.containers && !(container == "mp4" && video.codec == "hevc" && video.tag == "hev1")) ||
-        (container == "mkv" && "webm" in profile.containers && video.codec in setOf("vp8", "vp9", "av1"))
+    val containerFits =
+        (container in profile.containers && !(container == "mp4" && video.codec == "hevc" && video.tag == "hev1")) ||
+            (container == "mkv" && "webm" in profile.containers && video.codec in setOf("vp8", "vp9", "av1"))
     return when {
         videoFits && audioFits && containerFits && track?.index == default?.index -> Wire.VodMode.DIRECT
         videoFits && video.codec in TS_VIDEO && (track == null || (audioFits && track.codec in TS_AUDIO)) -> Wire.VodMode.REMUX
@@ -591,14 +721,19 @@ internal fun vodCommand(
      */
     firstSegment: Int? = null,
 ): List<String> {
-    val audio = audioIndex ?: media?.audio?.let { tracks -> (tracks.firstOrNull { it.default } ?: tracks.firstOrNull())?.index }
+    val audio =
+        audioIndex ?: media?.audio?.let { tracks -> (tracks.firstOrNull { it.default } ?: tracks.firstOrNull())?.index }
     val copyVideo = mode == Wire.VodMode.REMUX || mode == Wire.VodMode.AUDIO
     val copyAudio = mode == Wire.VodMode.REMUX
     val fmp4 = fragmentedMp4(mode, media)
     return buildList {
         addAll(listOf(ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error"))
         if (!copyVideo) addAll(encoder.inputArgs())
-        val seek = if (startMs > 0) listOf("-ss", "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0)) else emptyList()
+        val seek = if (startMs > 0) {
+            listOf("-ss", "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0))
+        } else {
+            emptyList()
+        }
         addAll(seek)
         if (follow) addAll(listOf("-follow", "1", "-rw_timeout", "$FOLLOW_TIMEOUT_MICROS"))
         addAll(listOf("-i", file.toString()))
@@ -620,16 +755,34 @@ internal fun vodCommand(
             if (copyAudio) addAll(listOf("-c:a", "copy")) else addAll(listOf("-c:a", "aac", "-ac", "2", "-b:a", "192k"))
         }
         if (firstSegment != null) {
-            addAll(listOf("-output_ts_offset", "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0), "-start_number", "$firstSegment"))
+            addAll(
+                listOf(
+                    "-output_ts_offset",
+                    "%.3f".format(java.util.Locale.ROOT, startMs / 1000.0),
+                    "-start_number",
+                    "$firstSegment",
+                ),
+            )
         } else {
             addAll(listOf("-avoid_negative_ts", "make_zero"))
         }
-        addAll(listOf(
-            "-f", "hls", "-hls_time", "$SEGMENT_SECONDS", "-hls_list_size", "0",
-            "-hls_playlist_type", "event", "-hls_flags", "temp_file+independent_segments",
-        ))
+        addAll(
+            listOf(
+                "-f", "hls", "-hls_time", "$SEGMENT_SECONDS", "-hls_list_size", "0",
+                "-hls_playlist_type", "event", "-hls_flags", "temp_file+independent_segments",
+            ),
+        )
         if (fmp4) {
-            addAll(listOf("-hls_segment_type", "fmp4", "-hls_fmp4_init_filename", FMP4_INIT, "-hls_segment_filename", dir.resolve("seg%d.m4s").toString()))
+            addAll(
+                listOf(
+                    "-hls_segment_type",
+                    "fmp4",
+                    "-hls_fmp4_init_filename",
+                    FMP4_INIT,
+                    "-hls_segment_filename",
+                    dir.resolve("seg%d.m4s").toString(),
+                ),
+            )
         } else {
             addAll(listOf("-hls_segment_type", "mpegts", "-hls_segment_filename", dir.resolve("seg%d.ts").toString()))
         }

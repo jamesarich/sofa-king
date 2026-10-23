@@ -83,7 +83,10 @@ https://siloh-ns1.plutotv.net/406_CBS_TV/clip/6126d984_CSI_S2E18/720p/20230303_1
     }
 
     @Test fun `the muxer path means nothing on another host`() {
-        assertEquals(listOf(false, false, false, false), ads(pluto.replace("siloh-ns1.plutotv.net", "cdn.example.test"), plutoBase))
+        assertEquals(
+            listOf(false, false, false, false),
+            ads(pluto.replace("siloh-ns1.plutotv.net", "cdn.example.test"), plutoBase),
+        )
     }
 
     @Test fun `the show coming back after Pluto ads ends the run`() {
@@ -121,7 +124,8 @@ https://aegis-cloudfront-1.tubi.video/b18a776e/master_5_5535913.ts
     }
 
     @Test fun `CUE-IN ends the run at the next segment even before the planned end`() {
-        val back = tubi + "#EXT-X-CUE-IN\n#EXTINF:6.006,\nhttps://aegis-cloudfront-1.tubi.video/b18a776e/master_5_5535914.ts\n"
+        val back =
+            tubi + "#EXT-X-CUE-IN\n#EXTINF:6.006,\nhttps://aegis-cloudfront-1.tubi.video/b18a776e/master_5_5535914.ts\n"
         assertEquals(listOf(false, false, true, true, false), ads(back, tubiBase))
         assertEquals(listOf(AdRun(5_535_771, 5_535_772, 120_020)), AdBreaks.runs(back, tubiBase))
     }
@@ -170,7 +174,9 @@ d.ts
     }
 
     @Test fun `a discontinuity alone is not a break`() {
-        val episodes = pluto.substringBefore("#EXT-X-KEY:METHOD=NONE\n") + "#EXTINF:5,\nhttps://siloh-ns1.plutotv.net/967_pluto/clip/6a95facf/720p/hls/0.ts\n"
+        val episodes =
+            pluto.substringBefore("#EXT-X-KEY:METHOD=NONE\n") +
+                "#EXTINF:5,\nhttps://siloh-ns1.plutotv.net/967_pluto/clip/6a95facf/720p/hls/0.ts\n"
         assertEquals(listOf(false, false, false), ads(episodes, plutoBase))
     }
 
@@ -189,7 +195,10 @@ https://xumo-xumoent-ch827-uj0ch.fast.nbcuni.com/live/master_6/00350/master_6_04
 #EXTINF:2.0,
 ../../../../segment/0123456789abcdef0123456789abcdef01234567/prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5/3504696
 """
-        val xumoBase = URI("https://d1example.cloudfront.net/v1/manifest/0123456789abcdef0123456789abcdef01234567/prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5.m3u8")
+        val xumoBase =
+            URI(
+                "https://d1example.cloudfront.net/v1/manifest/0123456789abcdef0123456789abcdef01234567/prod_default_xumo-nbcu-linear/00000000-0000-4000-8000-000000000001/5.m3u8",
+            )
         assertEquals(listOf(false, false, true, true), ads(xumo, xumoBase))
         val plex = """#EXTM3U
 #EXT-X-MEDIA-SEQUENCE:419891
@@ -206,7 +215,10 @@ https://epg.provider.plex.tv/library/parts/6a1610be-66635fc0/segment?x-plex-clie
 https://0123456789abcdef0123456789abcdef.mediatailor.us-west-2.amazonaws.com/v1/segment/0123456789abcdef0123456789abcdef01234567/LINEAR-850-CWFOREVER-PLEX_US/00000000-0000-4000-8000-000000000002/4/419895
 """
         // Plex's own part segment between two stitched ones is part of the break.
-        assertEquals(listOf(false, false, true, true, true), ads(plex, URI("https://epg.provider.plex.tv/library/parts/6a1610be-66635fc0/index.m3u8")))
+        assertEquals(
+            listOf(false, false, true, true, true),
+            ads(plex, URI("https://epg.provider.plex.tv/library/parts/6a1610be-66635fc0/index.m3u8")),
+        )
     }
 
     @Test fun `Roku's segments from its ad servers are ads and its live origin is not`() {
@@ -231,26 +243,55 @@ https://gcp-live-5014-013.delivery.roku.com/00000000-0000-4000-8000-000000000003
 #EXTINF:2.0,
 https://example.com/osbt/v1/bas/use2/1/2/3/5
 """
-        val rokuBase = URI("https://gcp-live-5014-013.delivery.roku.com/00000000-0000-4000-8000-000000000003/t2-origin/out/v1/live_216_low.m3u8")
+        val rokuBase =
+            URI(
+                "https://gcp-live-5014-013.delivery.roku.com/00000000-0000-4000-8000-000000000003/t2-origin/out/v1/live_216_low.m3u8",
+            )
         assertEquals(listOf(false, true, true, true, false, false), ads(roku, rokuBase))
     }
 
     @Test fun `Amagi's beacon segments marked M are ads and those marked C are not`() {
         fun beacon(type: String, n: Int) =
             "https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/ts-us-w1-n2/beacon/amg00000-example/0123456789abcdef$n?bcn=0&dur=6.000000&media_type=$type&seen-ad=1&seg_id=$n"
-        val whale = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:40\n" + listOf("C", "M", "M", "C").withIndex().joinToString("") { (n, type) -> "#EXTINF:6.0,\n${beacon(type, n)}\n" }
-        val base = URI("https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/ts-us-w1-n2/playlist/amg00000-example/playlist.m3u8")
+        val whale =
+            "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:40\n" +
+                listOf("C", "M", "M", "C").withIndex().joinToString("") { (n, type) ->
+                    "#EXTINF:6.0,\n${beacon(type, n)}\n"
+                }
+        val base =
+            URI(
+                "https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/ts-us-w1-n2/playlist/amg00000-example/playlist.m3u8",
+            )
         assertEquals(listOf(false, true, true, false), ads(whale, base))
         // Plex puts one of its own parts between Amagi's segments; one between two ads belongs to the break.
         val part = "https://epg.provider.plex.tv/library/parts/0123-4567/segment"
-        val plex = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:7\n" + listOf(beacon("C", 1), part, beacon("M", 2), part, beacon("M", 3), part, beacon("C", 4))
-            .joinToString("") { "#EXTINF:2.0,\n$it\n" }
-        assertEquals(listOf(false, false, true, true, true, false, false), ads(plex, URI("https://epg.provider.plex.tv/library/parts/0123-4567/index.m3u8")))
+        val plex =
+            "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:7\n" +
+                listOf(beacon("C", 1), part, beacon("M", 2), part, beacon("M", 3), part, beacon("C", 4))
+                    .joinToString("") { "#EXTINF:2.0,\n$it\n" }
+        assertEquals(
+            listOf(false, false, true, true, true, false, false),
+            ads(plex, URI("https://epg.provider.plex.tv/library/parts/0123-4567/index.m3u8")),
+        )
         // Once segments are fetched, a break keeps a beacon on every third segment and serves the rest plainly from the
         // playout; a plain segment is what the beacon before it was, and one before any beacon is not marked.
         fun plain(n: Int) = "https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/playlist$n" + "_1.ts"
-        val fetched = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:50\n" + listOf(plain(1), beacon("C", 2), plain(3), beacon("M", 4), plain(5), plain(6), beacon("M", 7), plain(8), plain(9), beacon("C", 10), plain(11))
-            .joinToString("") { "#EXTINF:6.0,\n$it\n" }
+        val fetched =
+            "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:50\n" +
+                listOf(
+                    plain(
+                        1,
+                    ),
+                    beacon(
+                        "C",
+                        2,
+                    ),
+                    plain(
+                        3,
+                    ),
+                    beacon("M", 4), plain(5), plain(6), beacon("M", 7), plain(8), plain(9), beacon("C", 10), plain(11),
+                )
+                    .joinToString("") { "#EXTINF:6.0,\n$it\n" }
         assertEquals(listOf(false, false, false, true, true, true, true, true, true, false, false), ads(fetched, base))
         // The same query on another host means nothing.
         assertEquals(listOf(false), ads("#EXTM3U\n#EXTINF:6.0,\nhttps://example.com/beacon/x?media_type=M\n", base))
@@ -259,7 +300,9 @@ https://example.com/osbt/v1/bas/use2/1/2/3/5
     @Test fun `fuelmedia segments whose token flags an ad break are ads`() {
         fun token(type: String, adBreak: Boolean): String {
             val json = """[{"SessionId":"x","SegTag":{"ContentType":"$type","IsAd":false,"IsAdFiller":$adBreak,"IsAdBreak":$adBreak}}]"""
-            val gzip = ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(json.toByteArray()) } }.toByteArray()
+            val gzip = ByteArrayOutputStream().also { out ->
+                GZIPOutputStream(out).use { it.write(json.toByteArray()) }
+            }.toByteArray()
             return Base64.getUrlEncoder().withoutPadding().encodeToString(gzip)
         }
         val host = "https://streamingengineservice-prod01-v1.fuelmedia.io/play/seg/6S412K288AWS"
@@ -277,16 +320,23 @@ $host/${token("adFiller", true)}.ts
 #EXTINF:6.0,
 $host/not-a-token.ts
 """
-        assertEquals(listOf(false, false, true, true, false), ads(stirr, URI("https://kotv.fuelmedia.io/play/6S412K288AWS.m3u8")))
+        assertEquals(
+            listOf(false, false, true, true, false),
+            ads(stirr, URI("https://kotv.fuelmedia.io/play/6S412K288AWS.m3u8")),
+        )
     }
 
     @Test fun `Ottera's ad host is an ad and a Plex part between two of its segments joins the break`() {
-        fun ad(n: Int) = "https://stream.ads.ottera.tv/mf2/640x360_800000?u=https%3A%2F%2Fexample.cloudfront.net%2Fcreative%2Fprog_index_11-$n.ts&a=0&s=$n&d=120"
+        fun ad(n: Int) =
+            "https://stream.ads.ottera.tv/mf2/640x360_800000?u=https%3A%2F%2Fexample.cloudfront.net%2Fcreative%2Fprog_index_11-$n.ts&a=0&s=$n&d=120"
         val own = "https://bas-example.otteravision.com/bas/example/example_360/00043/example_360_08615.ts"
         val part = "https://epg.provider.plex.tv/library/parts/0123-4567/segment"
         val plex = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:9\n" + listOf(part, own, part, ad(1), part, ad(2), part, own)
             .joinToString("") { "#EXTINF:2.0,\n$it\n" }
-        assertEquals(listOf(false, false, false, true, true, true, false, false), ads(plex, URI("https://epg.provider.plex.tv/library/parts/0123-4567/index.m3u8")))
+        assertEquals(
+            listOf(false, false, false, true, true, true, false, false),
+            ads(plex, URI("https://epg.provider.plex.tv/library/parts/0123-4567/index.m3u8")),
+        )
     }
 
     @Test fun `Google's ad pods are ads and the publisher's segments are not`() {
@@ -305,7 +355,10 @@ https://example.airspace-cdn.cbsivideo.com/live/seg_103.ts
 #EXTINF:6.0,
 https://dai.google.com/linear/hls/event/abcdef/master.m3u8
 """
-        assertEquals(listOf(false, true, true, false, false), ads(dai, URI("https://dai.google.com/linear/hls/pa/event/abcdef/stream/x/hls/0.m3u8")))
+        assertEquals(
+            listOf(false, true, true, false, false),
+            ads(dai, URI("https://dai.google.com/linear/hls/pa/event/abcdef/stream/x/hls/0.m3u8")),
+        )
     }
 
     @Test fun `Wurl's segments titled tag=ad are ads and its overlay cue is not a break`() {
@@ -324,7 +377,10 @@ https://connection3-ent-us.plex.wurl.tv/163876571/hls-v2/d.ts
 #EXTINF:6.006,epid=1:ct=C:tag=adventure-promo
 https://connection3-ent-us.plex.wurl.tv/102/412715/e.ts
 """
-        assertEquals(listOf(false, false, true, true, false), ads(wurl, URI("https://connection3-ent-us.plex.wurl.tv/102/playlist.m3u8")))
+        assertEquals(
+            listOf(false, false, true, true, false),
+            ads(wurl, URI("https://connection3-ent-us.plex.wurl.tv/102/playlist.m3u8")),
+        )
     }
 
     @Test fun `a cue-in is noted on the segment after it`() {

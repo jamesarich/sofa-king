@@ -43,10 +43,7 @@ sealed interface UpdateState {
 }
 
 /** Reads the published snapshot from GitHub's public releases API; no token, so the per-address limit of 60 an hour applies. */
-class UpdateChecker(
-    private val http: HttpClient = apiHttpClient,
-    private val releaseUrl: String = RELEASE_URL,
-) {
+class UpdateChecker(private val http: HttpClient = apiHttpClient, private val releaseUrl: String = RELEASE_URL) {
     /** The published build, or null when GitHub did not answer with it. Transport failures surface as exceptions. */
     suspend fun latest(): PublishedBuild? {
         val response = http.get(releaseUrl) { header(HttpHeaders.Accept, "application/vnd.github+json") }

@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
@@ -30,9 +31,9 @@ import org.jetbrains.skia.Pixmap
 import org.jetbrains.skia.impl.BufferUtil
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.factory.discovery.NativeDiscovery
+import uk.co.caprica.vlcj.media.TrackType
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
-import uk.co.caprica.vlcj.media.TrackType
 import uk.co.caprica.vlcj.player.embedded.EmbeddedMediaPlayer
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormat
 import uk.co.caprica.vlcj.player.embedded.videosurface.callback.BufferFormatCallback
@@ -43,7 +44,6 @@ import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.roundToInt
-import androidx.compose.ui.draw.clipToBounds
 
 private val log = Logger.withTag("SofaKing")
 
@@ -103,7 +103,12 @@ internal class VlcLivePlayer(
      * and the app stops on every zap from the UI thread. Every libVLC command runs on this one thread, in order,
      * while [_status] moves at once.
      */
-    private val commands = Executors.newSingleThreadExecutor { task -> Thread(task, "libvlc-commands").apply { isDaemon = true } }
+    private val commands = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "libvlc-commands").apply {
+            isDaemon =
+                true
+        }
+    }
 
     /**
      * Queues [task] on [commands], to run if libVLC loaded. Once [release] has shut the queue, a libVLC event still on
@@ -166,6 +171,7 @@ internal class VlcLivePlayer(
     }
 
     override val bufferedMs: Long get() = 0L
+
     /** libVLC renders captions itself and reports no buffer depth, so there is nothing to lead. */
     override val supportsCaptionLead: Boolean = false
     override val hasTextTrack: Boolean get() = (player?.subpictures()?.trackCount() ?: 0) > 0
@@ -214,7 +220,13 @@ internal class VlcLivePlayer(
             videoCodec = video?.codecName()?.takeIf { it.isNotBlank() }?.uppercase(),
             width = video?.width()?.takeIf { it > 0 },
             height = video?.height()?.takeIf { it > 0 },
-            frameRate = video?.let { if (it.frameRateBase() > 0) it.frameRate().toFloat() / it.frameRateBase() else null },
+            frameRate = video?.let {
+                if (it.frameRateBase() > 0) {
+                    it.frameRate().toFloat() / it.frameRateBase()
+                } else {
+                    null
+                }
+            },
             bitrateBps = video?.bitRate()?.takeIf { it > 0 },
             audioCodec = audio?.codecName()?.takeIf { it.isNotBlank() }?.uppercase(),
         )
@@ -225,7 +237,12 @@ internal class VlcLivePlayer(
         if (!isCurrent) return
         val current = vlc.audio().track()
         val tracks = vlc.audio().trackDescriptions().filter { it.id() >= 0 }
-        _audioTracks.value = if (tracks.size > 1) tracks.map { AudioTrack(it.id().toString(), it.description(), it.id() == current) } else emptyList()
+        _audioTracks.value =
+            if (tracks.size > 1) {
+                tracks.map { AudioTrack(it.id().toString(), it.description(), it.id() == current) }
+            } else {
+                emptyList()
+            }
     }
 
     override fun prepare() {
@@ -255,6 +272,7 @@ internal class VlcLivePlayer(
     }
 
     // libVLC answers these from its own state without blocking, so they are read on the caller's thread.
+
     /** libVLC decodes nearly every container and codec in software, at any bit depth; it does not map HDR to the screen. */
     override val playbackProfile = PlaybackProfile(
         containers = listOf("mp4", "mkv", "webm", "ts", "avi", "mov"),
@@ -302,7 +320,10 @@ internal class VlcLivePlayer(
                 frameCount.intValue
                 synchronized(frameLock) {
                     val frame = image ?: return@Canvas
-                    val scale = zoom.contentScale.computeScaleFactor(Size(frame.width.toFloat(), frame.height.toFloat()), size)
+                    val scale = zoom.contentScale.computeScaleFactor(
+                        Size(frame.width.toFloat(), frame.height.toFloat()),
+                        size,
+                    )
                     val drawn = Size(frame.width * scale.scaleX, frame.height * scale.scaleY)
                     val origin = Offset((size.width - drawn.width) / 2, (size.height - drawn.height) / 2)
                     drawImage(

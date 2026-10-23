@@ -8,13 +8,13 @@ import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -40,7 +40,13 @@ data class FanoutConfig(
 )
 
 /** The MPEG-TS null packet (PID 0x1FFF); players discard it, so it keeps a socket alive without touching the stream. */
-internal val TS_NULL_PACKET: ByteArray = ByteArray(TS_PACKET) { 0xFF.toByte() }.also { it[0] = TS_SYNC; it[1] = 0x1F; it[2] = 0xFF.toByte(); it[3] = 0x10 }
+internal val TS_NULL_PACKET: ByteArray = ByteArray(TS_PACKET) { 0xFF.toByte() }.also {
+    it[0] = TS_SYNC
+    it[1] = 0x1F
+    it[2] =
+        0xFF.toByte()
+    it[3] = 0x10
+}
 
 /** How much of the upstream body one read takes. */
 private const val READ_SIZE = 32 * 1024
@@ -88,7 +94,10 @@ internal class TsFanout(
     /** Starts reading the source; the first [addReader] must follow within the linger, or the stream stops as if its last reader left. */
     fun start() {
         // Only the registry, under its lock, has this stream yet, so nothing races the linger set here.
-        linger = scope.launch(CoroutineName("ts-linger")) { delay(config.lingerMillis); stop(null) }
+        linger = scope.launch(CoroutineName("ts-linger")) {
+            delay(config.lingerMillis)
+            stop(null)
+        }
         producer = scope.launch(CoroutineName("ts-fanout")) { produce() }
         keepalive =
             scope.launch(CoroutineName("ts-keepalive")) {
@@ -100,13 +109,12 @@ internal class TsFanout(
     }
 
     /** Null once this stream has ended; the caller then creates a fresh one. */
-    suspend fun addReader(): Reader? =
-        mutex.withLock {
-            if (ended) return@withLock null
-            linger?.cancel()
-            linger = null
-            Reader(Channel(config.readerChunks)).also { readers += it }
-        }
+    suspend fun addReader(): Reader? = mutex.withLock {
+        if (ended) return@withLock null
+        linger?.cancel()
+        linger = null
+        Reader(Channel(config.readerChunks)).also { readers += it }
+    }
 
     private suspend fun removeReader(reader: Reader) {
         mutex.withLock {
@@ -134,7 +142,9 @@ internal class TsFanout(
                 readers.toList().also { readers.clear() }
             }
         drained.forEach { it.channel.close(cause) }
-        if (!started.isCompleted) started.completeExceptionally(cause ?: IllegalStateException("Upstream ended before it started"))
+        if (!started.isCompleted) {
+            started.completeExceptionally(cause ?: IllegalStateException("Upstream ended before it started"))
+        }
         keepalive?.cancel()
         producer?.cancel()
         onEnded(this)
@@ -171,7 +181,12 @@ internal class TsFanout(
             while (readersPresent()) {
                 val remaining = lastDataAt + config.graceMillis - now()
                 if (remaining <= 0) {
-                    log.warn("relay upstream gave up offering={} graceMillis={} reconnects={}", key, config.graceMillis, reconnects)
+                    log.warn(
+                        "relay upstream gave up offering={} graceMillis={} reconnects={}",
+                        key,
+                        config.graceMillis,
+                        reconnects,
+                    )
                     break
                 }
                 delay(backoff.coerceAtMost(remaining))
@@ -183,7 +198,13 @@ internal class TsFanout(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    log.info("relay reconnect failed offering={} attempt={} class={} status={}", key, reconnects, e.javaClass.simpleName, (e as? UpstreamStatusException)?.status)
+                    log.info(
+                        "relay reconnect failed offering={} attempt={} class={} status={}",
+                        key,
+                        reconnects,
+                        e.javaClass.simpleName,
+                        (e as? UpstreamStatusException)?.status,
+                    )
                 }
                 if (chunks != before) backoff = 500
             }
@@ -192,8 +213,16 @@ internal class TsFanout(
         } catch (e: Exception) {
             cause = e
             // A body that carries the other protocol is a detection the reader turns into 410 STREAM_CHANGED, not a failure.
-            if (e is UpstreamProtocolException) log.info("relay upstream protocol offering={} protocol={}", key, e.protocol)
-            else log.warn("relay upstream failed offering={} class={} status={}", key, e.javaClass.simpleName, (e as? UpstreamStatusException)?.status)
+            if (e is UpstreamProtocolException) {
+                log.info("relay upstream protocol offering={} protocol={}", key, e.protocol)
+            } else {
+                log.warn(
+                    "relay upstream failed offering={} class={} status={}",
+                    key,
+                    e.javaClass.simpleName,
+                    (e as? UpstreamStatusException)?.status,
+                )
+            }
         } finally {
             withContext(NonCancellable) { stop(cause) }
         }
@@ -217,7 +246,13 @@ internal class TsFanout(
                 val size = carried + read
                 var offset = 0
                 if (!synced) {
-                    if (!started.isCompleted) sniffProtocol(work, size)?.let { if (it != "mpegts") throw UpstreamProtocolException(it) }
+                    if (!started.isCompleted) {
+                        sniffProtocol(work, size)?.let {
+                            if (it != "mpegts") {
+                                throw UpstreamProtocolException(it)
+                            }
+                        }
+                    }
                     val sync = tsSyncOffset(work, 3, to = size)
                     if (sync == null) {
                         junk += read
@@ -259,15 +294,18 @@ internal class SharedStreams(
     private val mutex = Mutex()
     private val streams = HashMap<String, TsFanout>()
 
-    suspend fun join(
-        key: String,
-        connect: UpstreamConnect,
-    ): TsFanout.Reader {
+    suspend fun join(key: String, connect: UpstreamConnect): TsFanout.Reader {
         while (true) {
             val stream =
                 mutex.withLock {
-                    streams[key] ?: TsFanout(key, connect, scope, config, now) { ended -> mutex.withLock { streams.remove(key, ended) } }
-                        .also { streams[key] = it; it.start() }
+                    streams[key]
+                        ?: TsFanout(key, connect, scope, config, now) { ended ->
+                            mutex.withLock { streams.remove(key, ended) }
+                        }
+                            .also {
+                                streams[key] = it
+                                it.start()
+                            }
                 }
             stream.addReader()?.let { return it }
             mutex.withLock { streams.remove(key, stream) }

@@ -1,13 +1,12 @@
 package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.api.GuideMapping
-import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
+import dev.jamesrich.sofaking.backend.catalog.GuideChannel
 import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.PreviouslyShown
 import dev.jamesrich.sofaking.backend.catalog.ProgrammeRating
-import java.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -38,6 +37,7 @@ import org.jetbrains.exposed.v1.jdbc.name
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.upsert
+import java.time.Instant
 
 /** SQLite binds at most 32,766 variables per statement; multi-row inserts stay well under that. */
 private const val INSERT_CHUNK = 2000
@@ -46,7 +46,9 @@ private const val INSERT_CHUNK = 2000
 private const val PROGRAMMES_PER_TRANSACTION = 20_000
 
 suspend fun BackendStore.lineup(): List<LineupEntryRecord> = read {
-    val offerings = LineupOfferings.selectAll().orderBy(LineupOfferings.position).groupBy({ it[LineupOfferings.entryId] }, { it[LineupOfferings.offeringId] })
+    val offerings = LineupOfferings.selectAll().orderBy(LineupOfferings.position).groupBy({
+        it[LineupOfferings.entryId]
+    }, { it[LineupOfferings.offeringId] })
     LineupEntries.selectAll().orderBy(LineupEntries.position).map { row ->
         val guideId = row[LineupEntries.guideId]
         val guideChannel = row[LineupEntries.guideChannel]
@@ -87,7 +89,9 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
             this[LineupEntries.autoDisabledReason] = entry.autoDisabledReason
         }
     }
-    entries.flatMap { entry -> entry.offeringIds.withIndex().map { (position, offeringId) -> Triple(entry.id, position, offeringId) } }
+    entries.flatMap { entry ->
+        entry.offeringIds.withIndex().map { (position, offeringId) -> Triple(entry.id, position, offeringId) }
+    }
         .chunked(INSERT_CHUNK).forEach { chunk ->
             LineupOfferings.batchInsert(chunk, shouldReturnGeneratedValues = false) { (entryId, position, offeringId) ->
                 this[LineupOfferings.entryId] = entryId
@@ -98,7 +102,13 @@ suspend fun BackendStore.saveLineup(entries: List<LineupEntryRecord>, at: Instan
     Unit
 }
 
-class StoredGuide(val guideId: String, val importedAt: Instant, val channels: List<GuideChannel>, val programmeEnds: Map<String, Instant>, val programmes: Int)
+class StoredGuide(
+    val guideId: String,
+    val importedAt: Instant,
+    val channels: List<GuideChannel>,
+    val programmeEnds: Map<String, Instant>,
+    val programmes: Int,
+)
 
 /** Each guide's current generation of rows, as the import last published it. */
 private fun currentRows(table: Table, guideId: Column<String>, generation: Column<Long>) =
@@ -114,11 +124,23 @@ suspend fun BackendStore.guides(): Map<String, StoredGuide> = read {
     val ends = currentRows(GuideProgrammes, GuideProgrammes.guideId, GuideProgrammes.generation)
         .select(GuideProgrammes.guideId, GuideProgrammes.channelId, maxEnd, count)
         .groupBy(GuideProgrammes.guideId, GuideProgrammes.channelId)
-        .groupBy({ it[GuideProgrammes.guideId] }) { Triple(it[GuideProgrammes.channelId], Instant.ofEpochSecond(it[maxEnd]!!), it[count]) }
+        .groupBy({
+            it[GuideProgrammes.guideId]
+        }) { Triple(it[GuideProgrammes.channelId], Instant.ofEpochSecond(it[maxEnd]!!), it[count]) }
     GuideImports.selectAll().associate { row ->
         val id = row[GuideImports.guideId]
         val rows = ends[id].orEmpty()
-        id to StoredGuide(id, Instant.parse(row[GuideImports.importedAt]), channels[id].orEmpty(), rows.associate { it.first to it.second }, rows.sumOf { it.third.toInt() })
+        id to
+            StoredGuide(
+                id,
+                Instant.parse(row[GuideImports.importedAt]),
+                channels[id].orEmpty(),
+                rows.associate {
+                    it.first to
+                        it.second
+                },
+                rows.sumOf { it.third.toInt() },
+            )
     }
 }
 
@@ -129,8 +151,18 @@ suspend fun BackendStore.guides(): Map<String, StoredGuide> = read {
  * see the old rows or the new ones, never a mix; a failed import leaves the old rows current and its own for the next
  * import to clear.
  */
-suspend fun BackendStore.saveGuide(guideId: String, importedAt: Instant, channels: List<GuideChannel>, programmes: List<GuideProgramme>) {
-    val current = query { GuideImports.select(GuideImports.generation).where { GuideImports.guideId eq guideId }.singleOrNull()?.get(GuideImports.generation) }
+suspend fun BackendStore.saveGuide(
+    guideId: String,
+    importedAt: Instant,
+    channels: List<GuideChannel>,
+    programmes: List<GuideProgramme>,
+) {
+    val current =
+        query {
+            GuideImports.select(GuideImports.generation).where {
+                GuideImports.guideId eq guideId
+            }.singleOrNull()?.get(GuideImports.generation)
+        }
     deleteGuideRows(guideId, except = current)
     val next = (current ?: 0) + 1
     query {
@@ -147,7 +179,11 @@ suspend fun BackendStore.saveGuide(guideId: String, importedAt: Instant, channel
     programmes.chunked(PROGRAMMES_PER_TRANSACTION).forEach { part ->
         query {
             part.chunked(INSERT_CHUNK).forEach { chunk ->
-                GuideProgrammes.batchInsert(chunk.map(GuideProgramme::bounded), ignore = true, shouldReturnGeneratedValues = false) { programme ->
+                GuideProgrammes.batchInsert(
+                    chunk.map(GuideProgramme::bounded),
+                    ignore = true,
+                    shouldReturnGeneratedValues = false,
+                ) { programme ->
                     this[GuideProgrammes.guideId] = guideId
                     this[GuideProgrammes.generation] = next
                     this[GuideProgrammes.channelId] = programme.channelId
@@ -174,21 +210,37 @@ suspend fun BackendStore.saveGuide(guideId: String, importedAt: Instant, channel
 
 /** Deletes [guideId]'s channel and programme rows of every generation but [except] (null: all), a step at a time. */
 private suspend fun BackendStore.deleteGuideRows(guideId: String, except: Long?) {
-    query { GuideChannels.deleteWhere { (GuideChannels.guideId eq guideId) and (if (except == null) Op.TRUE else GuideChannels.generation neq except) } }
-    val args = listOf<Pair<IColumnType<*>, Any?>>(TextColumnType() to guideId, LongColumnType() to (except ?: -1L), IntegerColumnType() to PROGRAMMES_PER_TRANSACTION)
+    query {
+        GuideChannels.deleteWhere {
+            (GuideChannels.guideId eq guideId) and
+                (if (except == null) Op.TRUE else GuideChannels.generation neq except)
+        }
+    }
+    val args = listOf<Pair<IColumnType<*>, Any?>>(
+        TextColumnType() to guideId,
+        LongColumnType() to (except ?: -1L),
+        IntegerColumnType() to PROGRAMMES_PER_TRANSACTION,
+    )
     while (true) {
         val deleted = query {
             exec(
                 "DELETE FROM guide_programme WHERE rowid IN (SELECT rowid FROM guide_programme WHERE guide_id = ? AND generation <> ? LIMIT ?)",
                 args,
             )
-            exec("SELECT changes()") { it.next(); it.getInt(1) } ?: 0
+            exec("SELECT changes()") {
+                it.next()
+                it.getInt(1)
+            } ?: 0
         }
         if (deleted < PROGRAMMES_PER_TRANSACTION) break
     }
 }
 
-private val programmeJson = Json { encodeDefaults = false; ignoreUnknownKeys = true; explicitNulls = false }
+private val programmeJson = Json {
+    encodeDefaults = false
+    ignoreUnknownKeys = true
+    explicitNulls = false
+}
 
 /** A programme's metadata beyond title and description, under short keys to keep a million rows small. */
 @Serializable private data class StoredDetails(
@@ -216,18 +268,31 @@ private fun programmeAt(row: ResultRow): GuideProgramme {
         runCatching { programmeJson.decodeFromString<StoredDetails>(stored) }.getOrNull()
     } ?: StoredDetails()
     return GuideProgramme(
-        row[GuideProgrammes.channelId], Instant.ofEpochSecond(row[GuideProgrammes.startsAt]), Instant.ofEpochSecond(row[GuideProgrammes.endsAt]),
+        row[GuideProgrammes.channelId],
+        Instant.ofEpochSecond(
+            row[GuideProgrammes.startsAt],
+        ),
+        Instant.ofEpochSecond(row[GuideProgrammes.endsAt]),
         row[GuideProgrammes.title], row[GuideProgrammes.description], details.subTitle, details.episodeNumbers, details.icon, details.categories,
         details.rating, details.isNew, details.previouslyShown, details.date, details.language,
     )
 }
 
 /** Programmes overlapping [from, to) for the given guide channels, grouped by channel and ordered by start. */
-suspend fun BackendStore.programmes(guideId: String, channelIds: Collection<String>, from: Instant, to: Instant): Map<String, List<GuideProgramme>> = read {
+suspend fun BackendStore.programmes(
+    guideId: String,
+    channelIds: Collection<String>,
+    from: Instant,
+    to: Instant,
+): Map<String, List<GuideProgramme>> = read {
     if (channelIds.isEmpty()) {
         emptyMap()
     } else {
-        currentRows(GuideProgrammes, GuideProgrammes.guideId, GuideProgrammes.generation).select(GuideProgrammes.columns).where {
+        currentRows(
+            GuideProgrammes,
+            GuideProgrammes.guideId,
+            GuideProgrammes.generation,
+        ).select(GuideProgrammes.columns).where {
             (GuideProgrammes.guideId eq guideId) and (GuideProgrammes.channelId inList channelIds.toSet()) and
                 (GuideProgrammes.startsAt less to.epochSecond) and (GuideProgrammes.endsAt greater from.epochSecond)
         }.orderBy(GuideProgrammes.startsAt).groupBy({ it[GuideProgrammes.channelId] }, ::programmeAt)

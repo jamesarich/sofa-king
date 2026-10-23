@@ -11,11 +11,15 @@ class JobOutcome(val ok: Boolean, val note: String? = null)
 
 /** One background job as the admin portal lists it: what it is, whether it is running, its last run and when it is next due. */
 class JobStatus(
-    val id: String, val label: String,
+    val id: String,
+    val label: String,
     /** How often the loop runs the job on its own; null for one that runs only on request. */
     val every: Duration?,
     val runningSince: Instant?,
-    val lastStartedAt: Instant?, val lastDurationMs: Long?, val lastOk: Boolean?, val lastNote: String?,
+    val lastStartedAt: Instant?,
+    val lastDurationMs: Long?,
+    val lastOk: Boolean?,
+    val lastNote: String?,
     /** When the loop runs the job next, from its last end and [every]; null while it runs or before its first run. */
     val nextDueAt: Instant?,
     /** Whether the portal can start it now. */
@@ -32,12 +36,19 @@ class JobStatus(
 class Jobs(private val clock: Clock) {
     private class Entry(val id: String, val order: Int) {
         @Volatile var label: String = id
+
         @Volatile var every: Duration? = null
+
         @Volatile var runNow: (() -> Unit)? = null
+
         @Volatile var runningSince: Instant? = null
+
         @Volatile var lastStartedAt: Instant? = null
+
         @Volatile var lastEndedAt: Instant? = null
+
         @Volatile var lastOk: Boolean? = null
+
         @Volatile var lastNote: String? = null
     }
 
@@ -48,7 +59,11 @@ class Jobs(private val clock: Clock) {
 
     /** Names the job [id] as [label], says how often its loop runs it, and gives the kick that starts it on request. */
     fun register(id: String, label: String, every: Duration? = null, runNow: (() -> Unit)? = null) {
-        entry(id).apply { this.label = label; this.every = every; this.runNow = runNow }
+        entry(id).apply {
+            this.label = label
+            this.every = every
+            this.runNow = runNow
+        }
     }
 
     /** Runs [block] as one run of [id], recording its start, end and outcome; an exception records a failed run by class and is rethrown. */
@@ -56,7 +71,9 @@ class Jobs(private val clock: Clock) {
         val entry = entry(id)
         val started = clock.instant()
         entry.runningSince = started
-        val outcome = try { block() } catch (e: Throwable) {
+        val outcome = try {
+            block()
+        } catch (e: Throwable) {
             finish(entry, started, JobOutcome(false, e.javaClass.simpleName))
             throw e
         }

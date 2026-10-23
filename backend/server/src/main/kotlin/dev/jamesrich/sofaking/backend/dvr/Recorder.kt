@@ -15,6 +15,19 @@ import dev.jamesrich.sofaking.backend.providers.ProviderFailure
 import dev.jamesrich.sofaking.backend.providers.ResolvedStream
 import dev.jamesrich.sofaking.backend.upstream.FfmpegSource
 import dev.jamesrich.sofaking.backend.upstream.ffmpegProcess
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import org.slf4j.LoggerFactory
 import java.io.FileOutputStream
 import java.net.URI
 import java.nio.file.Files
@@ -24,19 +37,6 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.future.await
-import kotlinx.coroutines.job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
-import org.slf4j.LoggerFactory
 
 /** What a recording run came to: the bytes now in the file, and the last reason the source could not be read, if any. */
 data class RecordedTake(val bytes: Long, val lastFailure: String?)
@@ -67,14 +67,26 @@ class Recorder internal constructor(
         withContext(Dispatchers.IO) { Files.createDirectories(file.parent) }
         var failure: String? = null
         while (clock.instant() < until) {
-            failure = try { attempt(channelId, file, until) } catch (e: CancellationException) { throw e } catch (e: ApiFailure) {
-                e.code
-            } catch (e: ProviderFailure) {
-                "SOURCE_UNAVAILABLE"
-            } catch (e: Exception) {
-                log.warn("recording attempt failed channel={} class={} message=\"{}\"", channelId, e.javaClass.simpleName, redactedMessage(e))
-                e.javaClass.simpleName
-            } ?: failure
+            failure =
+                try {
+                    attempt(channelId, file, until)
+                } catch (
+                    e: CancellationException,
+                ) {
+                    throw e
+                } catch (e: ApiFailure) {
+                    e.code
+                } catch (e: ProviderFailure) {
+                    "SOURCE_UNAVAILABLE"
+                } catch (e: Exception) {
+                    log.warn(
+                        "recording attempt failed channel={} class={} message=\"{}\"",
+                        channelId,
+                        e.javaClass.simpleName,
+                        redactedMessage(e),
+                    )
+                    e.javaClass.simpleName
+                } ?: failure
             val left = Duration.between(clock.instant(), until)
             if (left > Duration.ZERO) delay(minOf(left, retryDelay).toMillis())
         }
@@ -109,20 +121,30 @@ class Recorder internal constructor(
         val offering = sessions.offeringOf(sessionId)
         val stream = feeds.playable(offering)
         feeds.upstream.check(URI(stream.url))
-        if (shared != null && offering.protocol == "mpegts") copyShared(shared, offering, stream, file, until, sessions.bytesOf(sessionId))?.let { return it.ifEmpty { null } }
+        if (shared != null && offering.protocol == "mpegts") {
+            copyShared(shared, offering, stream, file, until, sessions.bytesOf(sessionId))?.let {
+                return it.ifEmpty { null }
+            }
+        }
         val bytes = sessions.bytesOf(sessionId)
         return relay.reading(stream, offering.protocol) { source -> remux(source, file, until, bytes) }
     }
 
     /** FFmpeg's stream copy of [source] appended to [file] until [until]; "NO_MEDIA" when it wrote nothing. */
     private suspend fun remux(source: FfmpegSource, file: Path, until: Instant, bytes: AtomicLong): String? {
-        val process = ffmpegProcess(remuxCommand(ffmpeg, source)).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
+        val process = ffmpegProcess(
+            remuxCommand(ffmpeg, source),
+        ).redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
         var written = 0L
         try {
             coroutineScope {
                 // A blocked pipe read ignores cancellation; killing FFmpeg at the deadline or on cancel unblocks it.
                 val deadline = launch {
-                    try { delay(Duration.between(clock.instant(), until).toMillis().coerceAtLeast(0)) } finally { process.destroy() }
+                    try {
+                        delay(Duration.between(clock.instant(), until).toMillis().coerceAtLeast(0))
+                    } finally {
+                        process.destroy()
+                    }
                 }
                 withContext(Dispatchers.IO) {
                     FileOutputStream(file.toFile(), true).use { out ->

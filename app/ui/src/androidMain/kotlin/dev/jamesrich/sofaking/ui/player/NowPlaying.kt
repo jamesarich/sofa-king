@@ -17,13 +17,12 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.text.Cue
 
 /** Session metadata: the programme on top, the channel number and name under it. */
-internal fun NowPlaying.toMetadata(): MediaMetadata =
-    MediaMetadata.Builder()
-        .setTitle(title)
-        .setSubtitle(subtitle)
-        .setArtworkUri(artworkUrl?.let(Uri::parse))
-        .setIsPlayable(true)
-        .build()
+internal fun NowPlaying.toMetadata(): MediaMetadata = MediaMetadata.Builder()
+    .setTitle(title)
+    .setSubtitle(subtitle)
+    .setArtworkUri(artworkUrl?.let(Uri::parse))
+    .setIsPlayable(true)
+    .build()
 
 /** A Media3 text cue as the common renderer's [CaptionCue]; bitmap cues are skipped, as the streams here carry none. */
 internal fun Cue.toCaptionCue(): CaptionCue? {

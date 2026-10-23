@@ -16,12 +16,16 @@ fun programKinds(categories: List<String>): Set<ProgramKind> {
     for (category in categories) {
         val words = category.lowercase()
         if ("movie" in words || "film" in words) filmMark = true
-        if (words == "movies" || words == "tv movie" || words == "feature film" || FILM_GENRES.any { it in words }) filmGenre = true
+        if (words == "movies" || words == "tv movie" || words == "feature film" || FILM_GENRES.any { it in words }) {
+            filmGenre = true
+        }
         if ("sport" in words) mask = mask or ProgramKind.SPORTS.bit
         if ("kid" in words || "child" in words) mask = mask or ProgramKind.KIDS.bit
         if ("news" in words) mask = mask or ProgramKind.NEWS.bit
     }
-    if (filmMark && filmGenre && mask and (ProgramKind.NEWS.bit or ProgramKind.SPORTS.bit) == 0) mask = mask or ProgramKind.MOVIE.bit
+    if (filmMark && filmGenre && mask and (ProgramKind.NEWS.bit or ProgramKind.SPORTS.bit) == 0) {
+        mask = mask or ProgramKind.MOVIE.bit
+    }
     return kindsOf(mask)
 }
 

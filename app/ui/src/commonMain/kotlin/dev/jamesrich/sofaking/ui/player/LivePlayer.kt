@@ -1,10 +1,10 @@
 package dev.jamesrich.sofaking.ui.player
 
-import dev.jamesrich.sofaking.data.AdBreakNow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
+import dev.jamesrich.sofaking.data.AdBreakNow
 import dev.jamesrich.sofaking.data.PlaybackPreferences
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
@@ -233,7 +233,12 @@ interface LivePlayer {
      * and copies or converts the rest into HLS. Engines claim only what they decode on every device they run on;
      * the default, MP4 with H.264 and AAC up to 1080p, is what every engine plays.
      */
-    val playbackProfile: PlaybackProfile get() = PlaybackProfile(listOf("mp4"), listOf("h264"), listOf("aac"), maxHeight = 1080)
+    val playbackProfile: PlaybackProfile get() = PlaybackProfile(
+        listOf("mp4"),
+        listOf("h264"),
+        listOf("aac"),
+        maxHeight = 1080,
+    )
 
     /** Opens the system media session; next and previous from it zap through [onZapStep] (+1 next, -1 previous). */
     fun openMediaSession(onZapStep: (Int) -> Unit): MediaSessionHandle

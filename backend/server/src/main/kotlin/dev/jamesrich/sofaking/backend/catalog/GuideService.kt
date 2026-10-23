@@ -2,9 +2,9 @@ package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.GuideChannelInfo
 import dev.jamesrich.sofaking.backend.api.GuideStatus
-import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.jobs.JobOutcome
 import dev.jamesrich.sofaking.backend.jobs.Jobs
+import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.StoredGuide
 import dev.jamesrich.sofaking.backend.store.guides
@@ -15,18 +15,14 @@ import dev.jamesrich.sofaking.backend.upstream.withUpstreamResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.jvm.javaio.toInputStream
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
@@ -34,6 +30,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Independent XMLTV sources. Each guide refreshes on its own interval and fails on its own;
@@ -56,7 +56,9 @@ class GuideService(
 ) {
     private class Published(val guides: Map<String, StoredGuide>) {
         val revision = hash(guides.entries.sortedBy { it.key }.joinToString(";") { "${it.key}:${it.value.importedAt}" })
-        val channelIndex: Map<String, Map<String, GuideChannel>> = guides.mapValues { (_, guide) -> guide.channels.associateBy { it.id } }
+        val channelIndex: Map<String, Map<String, GuideChannel>> = guides.mapValues { (_, guide) ->
+            guide.channels.associateBy { it.id }
+        }
     }
 
     private val log = LoggerFactory.getLogger(GuideService::class.java)
@@ -65,16 +67,34 @@ class GuideService(
     private val locks = configs.associate { it.id to Mutex() }
 
     init {
-        for (config in configs) jobs.register("guide:${config.id}", "Guide ${config.id}", Duration.ofSeconds(config.refreshSeconds)) { requestRefresh(config.id) }
+        for (config in configs) {
+            jobs.register(
+                "guide:${config.id}",
+                "Guide ${config.id}",
+                Duration.ofSeconds(config.refreshSeconds),
+            ) {
+                requestRefresh(config.id)
+            }
+        }
     }
     private val triggers = configs.associate { it.id to Channel<Unit>(Channel.CONFLATED) }
 
     suspend fun initialize() {
         val stored = store.guides().filterKeys { id -> configs.any { it.id == id } }
         published.set(Published(stored))
-        statuses.set(configs.map { config ->
-            stored[config.id]?.let { GuideStatus(config.id, it.importedAt.toString(), channels = it.channels.size, programmes = it.programmes) } ?: GuideStatus(config.id)
-        })
+        statuses.set(
+            configs.map { config ->
+                stored[config.id]?.let {
+                    GuideStatus(
+                        config.id,
+                        it.importedAt.toString(),
+                        channels = it.channels.size,
+                        programmes = it.programmes,
+                    )
+                }
+                    ?: GuideStatus(config.id)
+            },
+        )
     }
 
     fun statuses(): List<GuideStatus> = statuses.get()
@@ -89,12 +109,15 @@ class GuideService(
 
     fun channels(guideId: String): List<GuideChannel> = published.get().guides[guideId]?.channels.orEmpty()
 
-    fun channel(guideId: String, channelId: String): GuideChannel? = published.get().channelIndex[guideId]?.get(channelId)
+    fun channel(guideId: String, channelId: String): GuideChannel? =
+        published.get().channelIndex[guideId]?.get(channelId)
 
     fun searchChannels(guideId: String, query: String?, limit: Int): List<GuideChannelInfo> {
         val needle = query?.trim()?.lowercase().orEmpty()
         return channels(guideId).asSequence()
-            .filter { needle.isEmpty() || it.id.lowercase().contains(needle) || it.displayName.lowercase().contains(needle) }
+            .filter {
+                needle.isEmpty() || it.id.lowercase().contains(needle) || it.displayName.lowercase().contains(needle)
+            }
             .take(limit).map { GuideChannelInfo(guideId, it.id, it.displayName, it.icon) }.toList()
     }
 
@@ -104,52 +127,100 @@ class GuideService(
         return configs.map { it.id }.filter { index[it]?.containsKey(channelId) == true }
     }
 
-    suspend fun programmes(guideId: String, channelIds: Collection<String>, from: Instant, to: Instant): Map<String, List<GuideProgramme>> =
+    suspend fun programmes(
+        guideId: String,
+        channelIds: Collection<String>,
+        from: Instant,
+        to: Instant,
+    ): Map<String, List<GuideProgramme>> =
         if (guideId !in locks) emptyMap() else store.programmes(guideId, channelIds, from, to)
 
-    suspend fun refresh(config: GuideConfig) = locks.getValue(config.id).withLock { jobs.record("guide:${config.id}") {
-        val started = clock.instant()
-        try {
-            val wantedIds = wanted()[config.id].orEmpty()
-            val parsed = if (config.provider != null) {
-                val client = checkNotNull(providers?.client(config.provider)) { "No client for provider ${config.provider}" }
-                checkNotNull(client.guide(wantedIds)) { "Service has no guide" }
-            } else {
-                val url = checkNotNull(config.url)
-                // Guides run to tens of megabytes; only socket inactivity bounds the download, never a total request timeout.
-                http.withUpstreamResponse(url, url, config.headers, unbounded = true, policy = upstream) { response ->
-                    require(response.status.value == 200) { "Guide fetch failed" }
-                    val body = response.bodyAsChannel()
-                    withContext(Dispatchers.IO) { body.toInputStream().use { FeedParser.guide(it, config.url) { id -> id in wantedIds } } }
+    suspend fun refresh(config: GuideConfig) = locks.getValue(config.id).withLock {
+        jobs.record("guide:${config.id}") {
+            val started = clock.instant()
+            try {
+                val wantedIds = wanted()[config.id].orEmpty()
+                val parsed = if (config.provider != null) {
+                    val client =
+                        checkNotNull(providers?.client(config.provider)) { "No client for provider ${config.provider}" }
+                    checkNotNull(client.guide(wantedIds)) { "Service has no guide" }
+                } else {
+                    val url = checkNotNull(config.url)
+                    // Guides run to tens of megabytes; only socket inactivity bounds the download, never a total request timeout.
+                    http.withUpstreamResponse(
+                        url,
+                        url,
+                        config.headers,
+                        unbounded = true,
+                        policy = upstream,
+                    ) { response ->
+                        require(response.status.value == 200) { "Guide fetch failed" }
+                        val body = response.bodyAsChannel()
+                        withContext(Dispatchers.IO) {
+                            body.toInputStream().use {
+                                FeedParser.guide(it, config.url) { id ->
+                                    id in
+                                        wantedIds
+                                }
+                            }
+                        }
+                    }
                 }
-            }
-            val importedAt = clock.instant()
-            store.saveGuide(config.id, importedAt, parsed.channels, parsed.programmes)
-            val ends = parsed.programmes.groupBy { it.channelId }.mapValues { (_, rows) -> rows.maxOf { it.endsAt } }
-            val stored = StoredGuide(config.id, importedAt, parsed.channels, ends, parsed.programmes.size)
-            published.updateAndGet { Published(it.guides + (config.id to stored)) }
-            statuses.updateAndGet { list ->
-                list.map {
-                    if (it.id == config.id) GuideStatus(config.id, importedAt.toString(), channels = parsed.channels.size, programmes = parsed.programmes.size) else it
+                val importedAt = clock.instant()
+                store.saveGuide(config.id, importedAt, parsed.channels, parsed.programmes)
+                val ends = parsed.programmes.groupBy {
+                    it.channelId
+                }.mapValues { (_, rows) -> rows.maxOf { it.endsAt } }
+                val stored = StoredGuide(config.id, importedAt, parsed.channels, ends, parsed.programmes.size)
+                published.updateAndGet { Published(it.guides + (config.id to stored)) }
+                statuses.updateAndGet { list ->
+                    list.map {
+                        if (it.id == config.id) {
+                            GuideStatus(
+                                config.id,
+                                importedAt.toString(),
+                                channels = parsed.channels.size,
+                                programmes = parsed.programmes.size,
+                            )
+                        } else {
+                            it
+                        }
+                    }
                 }
+                log.info(
+                    "guide import guide={} channels={} programmes={} wanted={} controlChars={} durationMs={}",
+                    config.id,
+                    parsed.channels.size,
+                    parsed.programmes.size,
+                    wantedIds.size,
+                    parsed.controlCharacters,
+                    Duration.between(started, clock.instant()).toMillis(),
+                )
+                onImported()
+                JobOutcome(true, "${parsed.channels.size} channels, ${parsed.programmes.size} programmes")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                statuses.updateAndGet { list ->
+                    list.map {
+                        if (it.id == config.id) {
+                            it.copy(errorCode = "IMPORT_FAILED")
+                        } else {
+                            it
+                        }
+                    }
+                }
+                log.warn(
+                    "guide import guide={} failed class={} message=\"{}\" durationMs={}",
+                    config.id,
+                    e.javaClass.simpleName,
+                    redactedMessage(e),
+                    Duration.between(started, clock.instant()).toMillis(),
+                )
+                JobOutcome(false, "IMPORT_FAILED (${e.javaClass.simpleName})")
             }
-            log.info(
-                "guide import guide={} channels={} programmes={} wanted={} controlChars={} durationMs={}",
-                config.id, parsed.channels.size, parsed.programmes.size, wantedIds.size, parsed.controlCharacters, Duration.between(started, clock.instant()).toMillis(),
-            )
-            onImported()
-            JobOutcome(true, "${parsed.channels.size} channels, ${parsed.programmes.size} programmes")
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            statuses.updateAndGet { list -> list.map { if (it.id == config.id) it.copy(errorCode = "IMPORT_FAILED") else it } }
-            log.warn(
-                "guide import guide={} failed class={} message=\"{}\" durationMs={}",
-                config.id, e.javaClass.simpleName, redactedMessage(e), Duration.between(started, clock.instant()).toMillis(),
-            )
-            JobOutcome(false, "IMPORT_FAILED (${e.javaClass.simpleName})")
         }
-    } }
+    }
 
     /** Asks the guide's loop to refresh soon; repeated requests before it runs coalesce into one. */
     fun requestRefresh(guideId: String) {
@@ -179,4 +250,5 @@ internal fun redactedMessage(e: Throwable): String =
     redactedMessage(e.message?.takeIf { it.isNotBlank() } ?: e.cause?.message ?: return "")
 
 /** [message] with every URL replaced by `<url>`, on one line, bounded; FFmpeg's and the fetchers' lines carry tokens in URLs. */
-internal fun redactedMessage(message: String): String = urlInMessage.replace(message, "<url>").replace(whitespace, " ").trim().take(300)
+internal fun redactedMessage(message: String): String =
+    urlInMessage.replace(message, "<url>").replace(whitespace, " ").trim().take(300)

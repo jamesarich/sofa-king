@@ -32,39 +32,46 @@ class RecordingsScreenTest {
     )
 
     @Test
-    fun `focus starts on the running recording and a delete takes a second press`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
-        val calls = mutableListOf<String>()
-        val state = RecordingsState.Ready(
-            listOf(recording("done", RecordingState.COMPLETED, positionMs = 60_000), recording("now", RecordingState.RECORDING)),
-            RecordingSpace(0, 0),
-        )
-        setContent {
-            SofaKingTheme {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    RecordingsScreen(
-                        state = state,
-                        onPlay = { r, fromStart -> calls += "play ${r.id} $fromStart" },
-                        onDelete = { calls += "delete ${it.id}"; true },
-                        onRetry = {},
-                        onBack = {},
-                    )
+    fun `focus starts on the running recording and a delete takes a second press`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            val calls = mutableListOf<String>()
+            val state = RecordingsState.Ready(
+                listOf(
+                    recording("done", RecordingState.COMPLETED, positionMs = 60_000),
+                    recording("now", RecordingState.RECORDING),
+                ),
+                RecordingSpace(0, 0),
+            )
+            setContent {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        RecordingsScreen(
+                            state = state,
+                            onPlay = { r, fromStart -> calls += "play ${r.id} $fromStart" },
+                            onDelete = {
+                                calls += "delete ${it.id}"
+                                true
+                            },
+                            onRetry = {},
+                            onBack = {},
+                        )
+                    }
                 }
             }
-        }
-        fun press(key: Key) {
-            onRoot().performKeyInput { pressKey(key) }
+            fun press(key: Key) {
+                onRoot().performKeyInput { pressKey(key) }
+                waitForIdle()
+            }
             waitForIdle()
+            // The desktop scene moves focus with Tab, in the order a D-pad walks the rows: Play, Stop, then Resume, From start.
+            press(Key.Enter)
+            press(Key.Tab)
+            press(Key.Enter)
+            assertEquals(listOf("play now false"), calls, "the first press only asks")
+            press(Key.Enter)
+            press(Key.Tab)
+            press(Key.Tab)
+            press(Key.Enter)
+            assertEquals(listOf("play now false", "delete now", "play done true"), calls)
         }
-        waitForIdle()
-        // The desktop scene moves focus with Tab, in the order a D-pad walks the rows: Play, Stop, then Resume, From start.
-        press(Key.Enter)
-        press(Key.Tab)
-        press(Key.Enter)
-        assertEquals(listOf("play now false"), calls, "the first press only asks")
-        press(Key.Enter)
-        press(Key.Tab)
-        press(Key.Tab)
-        press(Key.Enter)
-        assertEquals(listOf("play now false", "delete now", "play done true"), calls)
-    }
 }

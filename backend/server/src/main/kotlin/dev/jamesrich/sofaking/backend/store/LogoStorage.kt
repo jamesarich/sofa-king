@@ -1,11 +1,11 @@
 package dev.jamesrich.sofaking.backend.store
 
-import java.time.Instant
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.get
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.upsert
+import java.time.Instant
 
 /**
  * One logo the lineup carries, keyed by the hash of its source URL. [fetchedAt] set means the file `logos/<key>`

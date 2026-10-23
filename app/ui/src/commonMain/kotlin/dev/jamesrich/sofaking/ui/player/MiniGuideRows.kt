@@ -15,7 +15,8 @@ internal fun miniGuideFilters(hasRecent: Boolean, scoped: Boolean): List<MiniGui
 }
 
 /** The chip selected when the panel opens: the guide filter the channel came from, else every channel. */
-internal fun miniGuideDefaultFilter(scoped: Boolean): MiniGuideFilter = if (scoped) MiniGuideFilter.SCOPE else MiniGuideFilter.ALL
+internal fun miniGuideDefaultFilter(scoped: Boolean): MiniGuideFilter =
+    if (scoped) MiniGuideFilter.SCOPE else MiniGuideFilter.ALL
 
 /** One mini-guide row; [pinnedLast] marks the last-watched channel shown above the full list. */
 internal data class MiniGuideRow(val channel: Channel, val pinnedLast: Boolean) {

@@ -57,6 +57,7 @@ internal object LineupOfferings : Table("lineup_offering") {
 internal object GuideImports : Table("guide_import") {
     val guideId = text("guide_id")
     val importedAt = text("imported_at")
+
     /** The generation of the guide's channel and programme rows that readers see; an import writes the next one beside it. */
     val generation = long("generation").default(0)
     override val primaryKey = PrimaryKey(guideId)
@@ -103,10 +104,12 @@ internal object GuideProgrammes : Table("guide_programme") {
     val endsAt = long("ends_at")
     val title = text("title")
     val description = text("description").nullable()
+
     /** The programme's metadata beyond title and description as compact JSON; null when the source gave none. */
     val detailsJson = text("details_json").nullable()
     override val primaryKey = PrimaryKey(guideId, generation, channelId, startsAt, endsAt, title)
 }
+
 /** One row per station key a lineup policy run remembers: availability and the pins' last offerings, as JSON. */
 internal object StationAvailabilityRows : Table("station_availability") {
     val key = text("key")
@@ -122,6 +125,7 @@ internal object AttentionIgnores : Table("attention_ignore") {
     val ignoredAt = text("ignored_at")
     override val primaryKey = PrimaryKey(itemKey)
 }
+
 /** One signed-in portal browser: the SHA-256 of its cookie's session ID, never the ID itself, its CSRF token and its expiry. */
 internal object AdminSessionRows : Table("admin_session") {
     val key = text("key")
@@ -265,6 +269,7 @@ internal object Recordings : Table("recording") {
     val createdAt = text("created_at")
     val updatedAt = text("updated_at")
     val commercials = text("commercials").nullable()
+
     /** The breaks as `startMs-endMs` pairs joined by commas. */
     val breaks = text("breaks").nullable()
     override val primaryKey = PrimaryKey(id)

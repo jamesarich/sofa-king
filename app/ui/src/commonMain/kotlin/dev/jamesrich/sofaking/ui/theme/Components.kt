@@ -48,13 +48,12 @@ const val TV_FOCUS_SCALE = 1.1f
  * The cue lives in a modifier node, so a focus move redraws the control without recomposing its caller.
  */
 @Composable
-fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifier =
-    this then TvFocusElement(
-        shape = shape,
-        focusedScale = focusedScale,
-        ring = MaterialTheme.colorScheme.onSurface,
-        spec = MaterialTheme.motionScheme.fastSpatialSpec(),
-    )
+fun Modifier.tvFocus(shape: Shape, focusedScale: Float = TV_FOCUS_SCALE): Modifier = this then TvFocusElement(
+    shape = shape,
+    focusedScale = focusedScale,
+    ring = MaterialTheme.colorScheme.onSurface,
+    spec = MaterialTheme.motionScheme.fastSpatialSpec(),
+)
 
 private data class TvFocusElement(
     val shape: Shape,
@@ -78,7 +77,10 @@ private class TvFocusNode(
     private var focusedScale: Float,
     ring: Color,
     private var spec: FiniteAnimationSpec<Float>,
-) : Modifier.Node(), FocusEventModifierNode, LayoutModifierNode, DrawModifierNode {
+) : Modifier.Node(),
+    FocusEventModifierNode,
+    LayoutModifierNode,
+    DrawModifierNode {
     private val scale = Animatable(1f)
 
     // Snapshot state, so a change redraws the layer that records the ring.

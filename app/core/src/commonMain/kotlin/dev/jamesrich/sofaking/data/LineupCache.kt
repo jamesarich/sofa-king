@@ -53,7 +53,10 @@ class LineupCache(
     }
 
     /** A lineup read back: its [channels] at once, its programmes from [guide]. */
-    class Cached internal constructor(val channels: List<Channel>, private val decodeGuide: suspend () -> Map<String, List<Programme>>?) {
+    class Cached internal constructor(
+        val channels: List<Channel>,
+        private val decodeGuide: suspend () -> Map<String, List<Programme>>?,
+    ) {
         /** The programmes that have not ended, by channel, or null when they do not decode (the cache is then cleared). */
         suspend fun guide(): Map<String, List<Programme>>? = decodeGuide()
     }
@@ -131,10 +134,18 @@ class CachedLineup internal constructor(
 
     /** The programmes that have not ended at [at], by channel. */
     internal fun guide(at: Instant): Map<String, List<Programme>> {
-        val entries = if (guideBytes.isEmpty()) this.guide else ProtoBuf.decodeFromByteArray<CachedGuides>(guideBytes).guide
+        val entries = if (guideBytes.isEmpty()) {
+            this.guide
+        } else {
+            ProtoBuf.decodeFromByteArray<CachedGuides>(
+                guideBytes,
+            ).guide
+        }
         val guide = HashMap<String, List<Programme>>()
         for (entry in entries) {
-            val programmes = entry.programmes.mapNotNull { it.toProgramme(entry.channelId).takeIf { programme -> programme.stop > at } }
+            val programmes = entry.programmes.mapNotNull {
+                it.toProgramme(entry.channelId).takeIf { programme -> programme.stop > at }
+            }
             if (programmes.isNotEmpty()) guide[entry.channelId] = programmes
         }
         return guide

@@ -9,10 +9,10 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.app.PendingIntentCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import androidx.core.content.pm.PackageInfoCompat
-import androidx.core.app.PendingIntentCompat
 import co.touchlab.kermit.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -32,14 +32,21 @@ internal val STORE_INSTALLERS = setOf("com.android.vending", "org.fdroid.fdroid"
  * Why a downloaded package must not go to the installer, or null when it may. [sameKey] is null when Android could
  * not read the package's signers, and the installer's own check then decides.
  */
-internal fun packageVerdict(expectedSha256: String?, sha256: String, packageName: String?, appPackage: String, versionCode: Long, installedVersionCode: Long, sameKey: Boolean?): InstallFailure? =
-    when {
-        expectedSha256 != null && expectedSha256 != sha256 -> InstallFailure.CHECKSUM
-        packageName != appPackage -> InstallFailure.NOT_THIS_APP
-        sameKey == false -> InstallFailure.DIFFERENT_KEY
-        versionCode <= installedVersionCode -> InstallFailure.NOT_NEWER
-        else -> null
-    }
+internal fun packageVerdict(
+    expectedSha256: String?,
+    sha256: String,
+    packageName: String?,
+    appPackage: String,
+    versionCode: Long,
+    installedVersionCode: Long,
+    sameKey: Boolean?,
+): InstallFailure? = when {
+    expectedSha256 != null && expectedSha256 != sha256 -> InstallFailure.CHECKSUM
+    packageName != appPackage -> InstallFailure.NOT_THIS_APP
+    sameKey == false -> InstallFailure.DIFFERENT_KEY
+    versionCode <= installedVersionCode -> InstallFailure.NOT_NEWER
+    else -> null
+}
 
 private val sharedLock = Any()
 private var shared: AndroidUpdateInstaller? = null
@@ -83,7 +90,12 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
     private val statusAction = "${app.packageName}.UPDATE_INSTALL_STATUS"
 
     init {
-        ContextCompat.registerReceiver(app, StatusReceiver(), IntentFilter(statusAction), ContextCompat.RECEIVER_NOT_EXPORTED)
+        ContextCompat.registerReceiver(
+            app,
+            StatusReceiver(),
+            IntentFilter(statusAction),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     override fun install(build: PublishedBuild) {
@@ -154,7 +166,10 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
     /** The package file's name, version and signers, or null when it is not a package. */
     private fun PackageManager.archiveInfo(path: String): PackageInfo? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getPackageArchiveInfo(path, PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()))
+            getPackageArchiveInfo(
+                path,
+                PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong()),
+            )
         } else {
             @Suppress("DEPRECATION")
             getPackageArchiveInfo(path, PackageManager.GET_SIGNING_CERTIFICATES)
@@ -175,7 +190,9 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(app.packageName)
             setSize(file.length())
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            }
         }
         val id = installer.createSession(params)
         installer.openSession(id).use { session ->
@@ -212,8 +229,12 @@ private class AndroidUpdateInstaller(private val app: Context) : UpdateInstaller
                         _state.value = InstallState.Failed(InstallFailure.INSTALLER, e.message)
                     }
                 }
+
                 // Installing this app ends its process first, so success is seldom heard.
-                PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_FAILURE_ABORTED -> _state.value = InstallState.Idle
+                PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_FAILURE_ABORTED ->
+                    _state.value =
+                        InstallState.Idle
+
                 else -> {
                     val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                     log.w { "update install failed with status $status: $message" }

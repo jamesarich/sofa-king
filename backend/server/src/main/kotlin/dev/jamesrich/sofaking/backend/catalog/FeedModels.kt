@@ -1,12 +1,8 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.api.GuideMapping
-import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.backend.providers.NativeServices
-import java.net.URI
-import java.nio.file.Files
-import java.nio.file.Path
-import java.time.Instant
+import dev.jamesrich.sofaking.contract.Channel
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -15,6 +11,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
+import java.net.URI
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.Instant
 
 private val idPattern = Regex("[a-zA-Z0-9_-]{1,64}")
 private val headerName = Regex("[A-Za-z0-9-]+")
@@ -33,11 +33,18 @@ private fun validateHeaders(headers: Map<String, String>) {
  * for this provider's stream URLs. [refreshSeconds] unset means 900 for a playlist and 3600 for a service.
  */
 @Serializable data class FeedConfig(
-    val id: String, val playlistUrl: String? = null, val guideUrl: String? = null,
-    val headers: Map<String, String> = emptyMap(), val refreshSeconds: Long? = null,
-    val allowEmpty: Boolean = false, val probe: Boolean = true, val defaultProtocol: String? = null,
+    val id: String,
+    val playlistUrl: String? = null,
+    val guideUrl: String? = null,
+    val headers: Map<String, String> = emptyMap(),
+    val refreshSeconds: Long? = null,
+    val allowEmpty: Boolean = false,
+    val probe: Boolean = true,
+    val defaultProtocol: String? = null,
     val renewableQuery: List<String>? = null,
-    val type: String = "m3u", val service: String? = null, val options: Map<String, String> = emptyMap(),
+    val type: String = "m3u",
+    val service: String? = null,
+    val options: Map<String, String> = emptyMap(),
 ) {
     /** Lowercase query parameter names dropped from this provider's source identities. */
     val renewable: Set<String> get() = renewableQuery(renewableQuery)
@@ -54,9 +61,15 @@ private fun validateHeaders(headers: Map<String, String>) {
         require(id.matches(idPattern)) { "Invalid provider ID" }
         require(type in setOf("m3u", "native")) { "Provider type must be m3u or native" }
         if (native) {
-            require(service != null && service in NativeServices.names) { "Unknown native service; known: ${NativeServices.names.sorted()}" }
+            require(service != null && service in NativeServices.names) {
+                "Unknown native service; known: ${NativeServices.names.sorted()}"
+            }
             require(playlistUrl == null) { "A native provider takes no playlistUrl" }
-            require(options.all { (key, value) -> key.matches(optionKey) && value.length <= 256 }) { "Invalid provider options" }
+            require(
+                options.all { (key, value) ->
+                    key.matches(optionKey) && value.length <= 256
+                },
+            ) { "Invalid provider options" }
         } else {
             require(service == null && options.isEmpty()) { "service and options apply to native providers" }
             httpUri(requireNotNull(playlistUrl) { "A playlistUrl is required" })
@@ -71,7 +84,10 @@ private fun validateHeaders(headers: Map<String, String>) {
 
 /** One XMLTV guide source, plain or gzip, or (with [provider]) the guide a native provider's service publishes through its API. */
 @Serializable data class GuideConfig(
-    val id: String, val url: String? = null, val headers: Map<String, String> = emptyMap(), val refreshSeconds: Long = 21_600,
+    val id: String,
+    val url: String? = null,
+    val headers: Map<String, String> = emptyMap(),
+    val refreshSeconds: Long = 21_600,
     val provider: String? = null,
 ) {
     fun validate() {
@@ -89,7 +105,11 @@ data class SourceConfig(val providers: List<FeedConfig> = emptyList(), val guide
         val url = provider.effectiveGuideUrl
         when {
             url != null -> GuideConfig(provider.id, url, provider.headers, provider.refreshInterval.coerceAtLeast(300))
-            provider.native && NativeServices.hasGuide(provider.service!!) -> GuideConfig(provider.id, refreshSeconds = NATIVE_GUIDE_REFRESH, provider = provider.id)
+
+            provider.native && NativeServices.hasGuide(
+                provider.service!!,
+            ) -> GuideConfig(provider.id, refreshSeconds = NATIVE_GUIDE_REFRESH, provider = provider.id)
+
             else -> null
         }
     }
@@ -104,7 +124,10 @@ const val NATIVE_GUIDE_REFRESH: Long = 3600
 private val configJson = Json { ignoreUnknownKeys = false }
 
 @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
-private val writtenSourceJson = Json { prettyPrint = true; prettyPrintIndent = "  " }
+private val writtenSourceJson = Json {
+    prettyPrint = true
+    prettyPrintIndent = "  "
+}
 
 /**
  * Reads the source file: a JSON array of providers, or an object with `providers` and `guides`.
@@ -127,41 +150,72 @@ fun readSourceDocument(path: Path): SourceDocument {
 
 /** [document] with `${NAME}` references replaced from [environment], checked the way the server checks the file at start. */
 fun validateSources(document: SourceDocument, environment: Map<String, String> = System.getenv()): SourceConfig {
-    val expanded = configJson.decodeFromJsonElement<SourceDocument>(expandVariables(configJson.encodeToJsonElement(document), environment))
+    val expanded = configJson.decodeFromJsonElement<SourceDocument>(
+        expandVariables(configJson.encodeToJsonElement(document), environment),
+    )
     val config = SourceConfig(expanded.providers, expanded.guides)
     require(config.providers.map { it.id }.distinct().size == config.providers.size) { "Duplicate provider IDs" }
     config.providers.forEach { it.validate() }
     config.guides.forEach { it.validate() }
-    require(config.allGuides.map { it.id }.distinct().size == config.allGuides.size) { "Duplicate guide IDs (a provider guideUrl uses the provider ID)" }
+    require(
+        config.allGuides.map {
+            it.id
+        }.distinct().size == config.allGuides.size,
+    ) { "Duplicate guide IDs (a provider guideUrl uses the provider ID)" }
     return config
 }
 
 /** [document] as the server writes a source file: an object with `providers` and `guides`, two-space indent, defaults left out. */
-fun sourceBytes(document: SourceDocument): ByteArray = (writtenSourceJson.encodeToString(SourceDocument.serializer(), document) + "\n").toByteArray()
+fun sourceBytes(document: SourceDocument): ByteArray = (
+    writtenSourceJson.encodeToString(SourceDocument.serializer(), document) + "\n"
+    ).toByteArray()
 
 private val variable = Regex("\\$\\{([A-Za-z_][A-Za-z0-9_]*)}")
 
 internal fun expandVariables(element: JsonElement, environment: Map<String, String>): JsonElement = when (element) {
     is JsonPrimitive -> if (element.isString) {
-        JsonPrimitive(variable.replace(element.content) { match ->
-            environment[match.groupValues[1]] ?: throw IllegalArgumentException("Source configuration references unset variable ${match.groupValues[1]}")
-        })
+        JsonPrimitive(
+            variable.replace(element.content) { match ->
+                environment[match.groupValues[1]]
+                    ?: throw IllegalArgumentException(
+                        "Source configuration references unset variable ${match.groupValues[1]}",
+                    )
+            },
+        )
     } else {
         element
     }
+
     is JsonArray -> JsonArray(element.map { expandVariables(it, environment) })
+
     is JsonObject -> JsonObject(element.mapValues { expandVariables(it.value, environment) })
 }
 
 fun httpUri(value: String): URI = URI(value).also {
-    require(it.scheme in setOf("http", "https") && it.host != null && it.userInfo == null) { "Expected an HTTP(S) URL without user info" }
+    require(it.scheme in setOf("http", "https") && it.host != null && it.userInfo == null) {
+        "Expected an HTTP(S) URL without user info"
+    }
 }
-@Serializable data class Offering(val id: String, val channelId: String, val providerId: String, val url: String, val protocol: String)
-@Serializable data class FeedSnapshot(val providerId: String, val channels: List<Channel>, val offerings: List<Offering>, val importedAt: String)
+
+@Serializable data class Offering(
+    val id: String,
+    val channelId: String,
+    val providerId: String,
+    val url: String,
+    val protocol: String,
+)
+
+@Serializable data class FeedSnapshot(
+    val providerId: String,
+    val channels: List<Channel>,
+    val offerings: List<Offering>,
+    val importedAt: String,
+)
 fun stableId(value: String): String = java.util.UUID.nameUUIDFromBytes(value.toByteArray(Charsets.UTF_8)).toString()
 
 /** An XMLTV `<channel>`, or a channel id seen only on programmes (then [displayName] is the id). */
 data class GuideChannel(val id: String, val displayName: String, val icon: String? = null)
+
 /** One XMLTV `<episode-num>`: its `system` (`xmltv_ns`, `onscreen`, `dd_progid` and so on) and its value as the source wrote it. */
 @Serializable data class EpisodeNumber(val system: String, val value: String)
 
@@ -198,7 +252,9 @@ data class GuideProgramme(
         subTitle = subTitle?.trim()?.take(TITLE_LIMIT)?.takeIf { it.isNotEmpty() && it != title },
         episodeNumbers = episodeNumbers.mapNotNull { number ->
             val system = number.system.trim().takeIf { it.matches(SYSTEM) } ?: return@mapNotNull null
-            val value = number.value.trim().takeIf { it.isNotEmpty() && it.length <= EPISODE_VALUE_LIMIT } ?: return@mapNotNull null
+            val value =
+                number.value.trim().takeIf { it.isNotEmpty() && it.length <= EPISODE_VALUE_LIMIT }
+                    ?: return@mapNotNull null
             EpisodeNumber(system, value)
         }.distinct().take(EPISODE_NUMBER_LIMIT),
         icon = normalizeLogoUrl(icon),
@@ -208,7 +264,9 @@ data class GuideProgramme(
             val value = r.value.trim().takeIf { it.isNotEmpty() && it.length <= RATING_LIMIT } ?: return@let null
             ProgrammeRating(value, r.system?.trim()?.takeIf { it.isNotEmpty() && it.length <= RATING_LIMIT })
         },
-        previouslyShown = previouslyShown?.let { PreviouslyShown(it.start?.trim()?.takeIf { start -> start.matches(XMLTV_TIME) }) },
+        previouslyShown = previouslyShown?.let {
+            PreviouslyShown(it.start?.trim()?.takeIf { start -> start.matches(XMLTV_TIME) })
+        },
         date = date?.let(::xmltvDate),
         language = language?.trim()?.takeIf { it.matches(LANGUAGE) },
     )
@@ -243,7 +301,15 @@ data class GuideProgramme(
  * [autoDisabledAt] is set while a lineup policy, not the household, holds the entry disabled.
  */
 data class LineupEntryRecord(
-    val id: String, val number: String, val name: String, val group: String? = null, val logo: String? = null,
-    val enabled: Boolean = true, val guide: GuideMapping? = null, val offeringIds: List<String> = emptyList(),
-    val createdBy: String = "manual", val autoDisabledAt: Instant? = null, val autoDisabledReason: String? = null,
+    val id: String,
+    val number: String,
+    val name: String,
+    val group: String? = null,
+    val logo: String? = null,
+    val enabled: Boolean = true,
+    val guide: GuideMapping? = null,
+    val offeringIds: List<String> = emptyList(),
+    val createdBy: String = "manual",
+    val autoDisabledAt: Instant? = null,
+    val autoDisabledReason: String? = null,
 )

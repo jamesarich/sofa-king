@@ -40,7 +40,10 @@ internal object GuideSearch {
         if (needle.isEmpty()) return emptyList()
         return programmes.asSequence()
             .filter { it.start > after && it.start < before }
-            .filter { normalize(it.title).contains(needle) || (it.subTitle?.let { sub -> normalize(sub).contains(needle) } == true) }
+            .filter {
+                normalize(it.title).contains(needle) ||
+                    (it.subTitle?.let { sub -> normalize(sub).contains(needle) } == true)
+            }
             .sortedBy { it.start }
             .take(MAX_UPCOMING)
             .toList()

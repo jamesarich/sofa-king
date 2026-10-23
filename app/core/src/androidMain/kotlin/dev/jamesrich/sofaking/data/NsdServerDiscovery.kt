@@ -6,12 +6,12 @@ import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import androidx.annotation.RequiresApi
 import dev.jamesrich.sofaking.contract.Wire
-import java.net.Inet4Address
-import java.util.concurrent.Executors
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
+import java.net.Inet4Address
+import java.util.concurrent.Executors
 
 /**
  * Browses with Android's [NsdManager], which runs mDNS in the system and needs no multicast lock. On Android 14 and
@@ -24,13 +24,19 @@ class NsdServerDiscovery(context: Context) : ServerDiscovery {
     override fun servers(): Flow<List<DiscoveredServer>> = callbackFlow {
         val found = DiscoveredServers()
         launch { found.list.collect(::send) }
-        val resolver = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) CallbackResolver(found) else QueueResolver(found)
+        val resolver = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            CallbackResolver(found)
+        } else {
+            QueueResolver(found)
+        }
         val listener = object : NsdManager.DiscoveryListener {
             override fun onServiceFound(service: NsdServiceInfo) = resolver.found(service)
             override fun onServiceLost(service: NsdServiceInfo) = resolver.lost(service)
             override fun onDiscoveryStarted(serviceType: String) = Unit
             override fun onDiscoveryStopped(serviceType: String) = Unit
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) { channel.close() }
+            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                channel.close()
+            }
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) = Unit
         }
         nsd.discoverServices(Wire.Discovery.SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
@@ -64,7 +70,9 @@ class NsdServerDiscovery(context: Context) : ServerDiscovery {
                 override fun onServiceInfoCallbackUnregistered() = Unit
             }
             callbacks[name] = callback
-            runCatching { nsd.registerServiceInfoCallback(service, executor, callback) }.onFailure { callbacks.remove(name) }
+            runCatching {
+                nsd.registerServiceInfoCallback(service, executor, callback)
+            }.onFailure { callbacks.remove(name) }
         }
 
         override fun lost(service: NsdServiceInfo) = executor.execute {
@@ -109,7 +117,9 @@ class NsdServerDiscovery(context: Context) : ServerDiscovery {
             }
             val listener = object : NsdManager.ResolveListener {
                 override fun onServiceResolved(info: NsdServiceInfo) {
-                    (info.host as? Inet4Address)?.hostAddress?.let { servers.resolved(info.serviceName, it, info.port, info.version()) }
+                    (info.host as? Inet4Address)?.hostAddress?.let {
+                        servers.resolved(info.serviceName, it, info.port, info.version())
+                    }
                     done()
                 }
                 override fun onResolveFailed(info: NsdServiceInfo, errorCode: Int) = done()

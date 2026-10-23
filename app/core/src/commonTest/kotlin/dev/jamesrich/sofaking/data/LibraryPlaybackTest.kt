@@ -11,8 +11,8 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlin.test.Test
@@ -25,7 +25,14 @@ import kotlin.time.Duration.Companion.milliseconds
 class LibraryPlaybackTest {
     /** A server with live and VOD sessions: a VOD open answers [mode], and a PATCH with a start bumps the epoch. */
     private class FakeServer(scope: TestScope) {
-        class Vod(val id: String, val itemId: String, val mode: String, var startMs: Long, var epoch: Int = 1, val recordingId: String? = null)
+        class Vod(
+            val id: String,
+            val itemId: String,
+            val mode: String,
+            var startMs: Long,
+            var epoch: Int = 1,
+            val recordingId: String? = null,
+        )
 
         val vods = linkedMapOf<String, Vod>()
         var mode = "remux"
@@ -33,18 +40,33 @@ class LibraryPlaybackTest {
         var openDelayMs = 0L
 
         val http = FakeHttp(scope) { request ->
-            val vodId = request.path.removePrefix("/api/v1/vod-sessions/").takeIf { request.path.startsWith("/api/v1/vod-sessions/") }
-            val liveId = request.path.removePrefix("/api/v1/playback-sessions/").takeIf { request.path.startsWith("/api/v1/playback-sessions/") }
+            val vodId = request.path.removePrefix("/api/v1/vod-sessions/").takeIf {
+                request.path.startsWith("/api/v1/vod-sessions/")
+            }
+            val liveId = request.path.removePrefix("/api/v1/playback-sessions/").takeIf {
+                request.path.startsWith("/api/v1/playback-sessions/")
+            }
             when {
                 request.method == "POST" && request.path == "/api/v1/vod-sessions" -> {
                     val body = Json.parseToJsonElement(request.body).jsonObject
                     val start = body["startMs"]?.jsonPrimitive?.longOrNull ?: 0
                     val recordingId = body["recordingId"]?.jsonPrimitive?.contentOrNull
-                    val vod = Vod("v${nextId++}", body["itemId"]?.jsonPrimitive?.content.orEmpty(), mode, if (mode == "direct") 0 else start, recordingId = recordingId)
+                    val vod = Vod(
+                        "v${nextId++}",
+                        body["itemId"]?.jsonPrimitive?.content.orEmpty(),
+                        mode,
+                        if (mode == "direct") {
+                            0
+                        } else {
+                            start
+                        },
+                        recordingId = recordingId,
+                    )
                     vods[vod.id] = vod
                     delay(openDelayMs)
                     json(vod.body(), status = 201)
                 }
+
                 vodId != null && request.method == "PATCH" -> vods[vodId]?.let { vod ->
                     Json.parseToJsonElement(request.body).jsonObject["startMs"]?.jsonPrimitive?.longOrNull?.let {
                         if (vod.mode != "direct") {
@@ -54,14 +76,19 @@ class LibraryPlaybackTest {
                     }
                     json(vod.body())
                 } ?: apiError(410, "SESSION_EXPIRED")
+
                 vodId != null && request.method == "DELETE" -> {
                     vods.remove(vodId)
                     respond("", HttpStatusCode.NoContent)
                 }
+
                 request.method == "POST" && request.path == "/api/v1/playback-sessions" ->
                     json(liveBody("s${nextId++}"), status = 201)
+
                 liveId != null && request.method == "PATCH" -> json(liveBody(liveId))
+
                 liveId != null && request.method == "DELETE" -> respond("", HttpStatusCode.NoContent)
+
                 else -> apiError(404, "RESOURCE_NOT_FOUND")
             }
         }
@@ -73,18 +100,29 @@ class LibraryPlaybackTest {
                 """"descriptor":{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/sessions/$id/1/root.m3u8","epoch":1}}"""
 
         private fun Vod.body(): String {
-            val descriptor = if (mode == "direct") """{"protocol":"file","mimeType":"video/x-matroska","url":"/media/vod/$id/$epoch/k/file.mkv","epoch":$epoch}"""
-            else """{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/vod/$id/$epoch/k/index.m3u8","epoch":$epoch}"""
+            val descriptor = if (mode == "direct") {
+                """{"protocol":"file","mimeType":"video/x-matroska","url":"/media/vod/$id/$epoch/k/file.mkv","epoch":$epoch}"""
+            } else {
+                """{"protocol":"hls","mimeType":"application/vnd.apple.mpegurl","url":"/media/vod/$id/$epoch/k/index.m3u8","epoch":$epoch}"""
+            }
             val recording = recordingId?.let { ""","recordingId":"$it"""" }.orEmpty()
             return """{"id":"$id","itemId":"$itemId","mode":"$mode","descriptor":$descriptor,"startMs":$startMs,"durationMs":3600000,"expiresAt":"2026-10-10T10:05:00Z"$recording}"""
         }
     }
 
-    private val tv = PlaybackProfile(listOf("mp4", "mkv"), listOf("h264", "hevc"), listOf("aac", "ac3"), maxHeight = 2160, hdr = true)
+    private val tv =
+        PlaybackProfile(
+            listOf("mp4", "mkv"),
+            listOf("h264", "hevc"),
+            listOf("aac", "ac3"),
+            maxHeight = 2160,
+            hdr = true,
+        )
 
     private suspend fun TestScope.fixture(): Pair<FakeServer, PlaybackSessions> {
         val fake = FakeServer(this)
-        val sessions = PlaybackSessions(backgroundScope, renewInterval = 100.milliseconds, newIdempotencyKey = { "key" })
+        val sessions =
+            PlaybackSessions(backgroundScope, renewInterval = 100.milliseconds, newIdempotencyKey = { "key" })
         sessions.configure(fake.http.api())
         return fake to sessions
     }

@@ -6,10 +6,13 @@ import kotlinx.serialization.Serializable
 enum class LibraryKind(val wire: String, val label: String) {
     /** `Title (Year)/Title (Year).ext` or loose `Title (Year).ext`. */
     MOVIES("movies", "Movies"),
+
     /** `Show (Year)/Season 01/Show - S01E02 - Title.ext`, or date-based `Show - 2026-10-17 - Title.ext`. */
     SHOWS("shows", "TV shows"),
+
     /** Any videos, titled by their file names: home videos, concerts, clips. */
-    VIDEOS("videos", "Other videos");
+    VIDEOS("videos", "Other videos"),
+    ;
 
     companion object {
         fun of(wire: String): LibraryKind? = entries.firstOrNull { it.wire == wire }
@@ -27,8 +30,14 @@ object ItemKind {
 
 /** A library as stored, with the outcome of its last scan. */
 data class LibraryRecord(
-    val id: String, val name: String, val kind: LibraryKind, val path: String, val createdAt: String,
-    val scannedAt: String? = null, val scanOk: Boolean? = null, val scanNote: String? = null,
+    val id: String,
+    val name: String,
+    val kind: LibraryKind,
+    val path: String,
+    val createdAt: String,
+    val scannedAt: String? = null,
+    val scanOk: Boolean? = null,
+    val scanNote: String? = null,
 )
 
 /** The `.nfo` facts that have no column of their own. */
@@ -78,7 +87,14 @@ data class LibraryItemRecord(
 )
 
 /** What one scan of a library did. */
-data class ScanResult(val added: Int, val updated: Int, val missing: Int, val removed: Int, val files: Int, val unavailable: Boolean = false) {
+data class ScanResult(
+    val added: Int,
+    val updated: Int,
+    val missing: Int,
+    val removed: Int,
+    val files: Int,
+    val unavailable: Boolean = false,
+) {
     val note: String get() = if (unavailable) "LIBRARY_UNAVAILABLE" else "$files files, $added new, $updated changed, $missing missing, $removed removed"
 }
 
@@ -105,4 +121,10 @@ data class MetadataFacts(
 data class MetadataRecord(val itemId: String, val tmdbId: Int?, val checkedAt: String, val facts: MetadataFacts?)
 
 /** The household's place in one movie, episode or video. */
-data class PlayStateRecord(val itemId: String, val positionMs: Long, val durationMs: Long?, val watched: Boolean, val updatedAt: String)
+data class PlayStateRecord(
+    val itemId: String,
+    val positionMs: Long,
+    val durationMs: Long?,
+    val watched: Boolean,
+    val updatedAt: String,
+)

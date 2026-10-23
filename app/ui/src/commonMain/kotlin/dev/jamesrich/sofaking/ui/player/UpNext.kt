@@ -1,6 +1,5 @@
 package dev.jamesrich.sofaking.ui.player
 
-import dev.jamesrich.sofaking.ui.Artwork
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +34,7 @@ import dev.jamesrich.sofaking.resources.vod_up_next_cancel
 import dev.jamesrich.sofaking.resources.vod_up_next_in
 import dev.jamesrich.sofaking.resources.vod_up_next_keys
 import dev.jamesrich.sofaking.resources.vod_up_next_play
+import dev.jamesrich.sofaking.ui.Artwork
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim
@@ -67,26 +67,69 @@ internal fun BoxScope.UpNextCard(
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(stringResource(if (stillWatching) Res.string.vod_still_watching else Res.string.vod_up_next), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(CardShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
+        Text(
+            stringResource(if (stillWatching) Res.string.vod_still_watching else Res.string.vod_up_next),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(
+                16f / 9f,
+            ).clip(CardShape).background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
             Artwork(next.artworkUrl, next.title)
         }
         next.subtitle?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Text(next.title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(
+            next.title,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
         LinearProgressIndicator(
             progress = { 1f - secondsLeft.toFloat() / if (stillWatching) STILL_WATCHING_SECONDS else UP_NEXT_SECONDS },
             modifier = Modifier.fillMaxWidth(),
         )
-        Text(stringResource(if (stillWatching) Res.string.vod_still_watching_in else Res.string.vod_up_next_in, secondsLeft), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            stringResource(
+                if (stillWatching) Res.string.vod_still_watching_in else Res.string.vod_up_next_in,
+                secondsLeft,
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
         if (pointerDriven) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SofaButton(onClick = onPlay) { Text(stringResource(if (stillWatching) Res.string.vod_still_watching_keep else Res.string.vod_up_next_play)) }
-                SofaButton(onClick = onCancel) { Text(stringResource(if (stillWatching) Res.string.vod_still_watching_stop else Res.string.vod_up_next_cancel)) }
+                SofaButton(onClick = onPlay) {
+                    Text(
+                        stringResource(
+                            if (stillWatching) Res.string.vod_still_watching_keep else Res.string.vod_up_next_play,
+                        ),
+                    )
+                }
+                SofaButton(onClick = onCancel) {
+                    Text(
+                        stringResource(
+                            if (stillWatching) Res.string.vod_still_watching_stop else Res.string.vod_up_next_cancel,
+                        ),
+                    )
+                }
             }
         } else {
-            Text(stringResource(if (stillWatching) Res.string.vod_still_watching_keys else Res.string.vod_up_next_keys), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(if (stillWatching) Res.string.vod_still_watching_keys else Res.string.vod_up_next_keys),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

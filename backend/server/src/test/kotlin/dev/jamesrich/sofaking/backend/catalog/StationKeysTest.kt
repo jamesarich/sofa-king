@@ -9,7 +9,12 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 class StationKeysTest {
-    private val corpus: List<String> = String(Fixture.resource("policy/candidate-names.txt"), Charsets.UTF_8).lines().filter { it.isNotEmpty() }
+    private val corpus: List<String> = String(
+        Fixture.resource("policy/candidate-names.txt"),
+        Charsets.UTF_8,
+    ).lines().filter {
+        it.isNotEmpty()
+    }
     private val keys = StationKeys()
 
     private fun assertDistinct(vararg names: String) {
@@ -69,12 +74,22 @@ class StationKeysTest {
     }
 
     @Test fun `suggested aliases pair a bare name with its tv or channel spelling and spellings that differ by spaces`() {
-        val suggested = suggestedAliases(listOf("bob ross", "bob ross channel", "espn 8", "espn8", "grio", "thegrio", "cheddar tv", "tennis channel", "tennis tv", "cbs news"))
+        val suggested =
+            suggestedAliases(
+                listOf("bob ross", "bob ross channel", "espn 8", "espn8", "grio", "thegrio", "cheddar tv", "tennis channel", "tennis tv", "cbs news"),
+            )
         assertEquals(
-            listOf("bob ross channel: possible alias of bob ross", "espn 8: possible alias of espn8", "grio: possible alias of thegrio"),
+            listOf(
+                "bob ross channel: possible alias of bob ross",
+                "espn 8: possible alias of espn8",
+                "grio: possible alias of thegrio",
+            ),
             suggested,
         )
-        assertTrue(suggestedAliases(listOf("tennis channel", "tennis tv", "tennis plus")).isEmpty(), "two suffixes without the bare name suggest nothing")
+        assertTrue(
+            suggestedAliases(listOf("tennis channel", "tennis tv", "tennis plus")).isEmpty(),
+            "two suffixes without the bare name suggest nothing",
+        )
     }
 
     @Test fun `version 2 drops every space, so spellings that differ only by spaces meet`() {
@@ -82,7 +97,8 @@ class StationKeysTest {
         assertEquals(v2.key("WeatherSpy"), v2.key("Weather Spy"))
         assertEquals(v2.key("123GO!"), v2.key("123 GO!"))
         assertEquals("bobrosschannel", v2.key("The Bob Ross Channel"))
-        fun distinct(vararg names: String) = assertEquals(names.size, names.map(v2::key).toSet().size, names.joinToString())
+        fun distinct(vararg names: String) =
+            assertEquals(names.size, names.map(v2::key).toSet().size, names.joinToString())
         distinct("Tennis Channel", "Tennis TV", "Tennis+")
         distinct("Bloomberg TV", "Bloomberg TV+")
         distinct("MLB", "MLB Channel")

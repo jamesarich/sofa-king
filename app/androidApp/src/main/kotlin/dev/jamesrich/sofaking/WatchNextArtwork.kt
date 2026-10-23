@@ -39,19 +39,29 @@ internal object WatchNextArtwork {
      */
     fun contentUri(context: Context, artworkUrl: String): Uri? {
         val source = artworkUrl.toUri()
-        if (source.scheme != "http" && source.scheme != "https" || source.encodedAuthority == null || !valid(source)) return null
+        if (source.scheme != "http" && source.scheme != "https" || source.encodedAuthority == null || !valid(source)) {
+            return null
+        }
         val server = "${source.scheme}://${source.encodedAuthority}"
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getString(SERVER, null) != server) prefs.edit { putString(SERVER, server) }
-        return Uri.Builder().scheme("content").authority(authority(context)).encodedPath(source.encodedPath).encodedQuery(source.encodedQuery).build()
+        return Uri.Builder().scheme(
+            "content",
+        ).authority(authority(context)).encodedPath(source.encodedPath).encodedQuery(source.encodedQuery).build()
     }
 
     /** Lets every home screen app read the artwork URIs, which only this app's provider answers. */
     fun grant(context: Context) {
         val root = Uri.Builder().scheme("content").authority(authority(context)).path("artwork/").build()
         val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        context.packageManager.queryIntentActivities(home, PackageManager.MATCH_ALL).map { it.activityInfo.packageName }.distinct().forEach { launcher ->
-            context.grantUriPermission(launcher, root, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION)
+        context.packageManager.queryIntentActivities(home, PackageManager.MATCH_ALL).map {
+            it.activityInfo.packageName
+        }.distinct().forEach { launcher ->
+            context.grantUriPermission(
+                launcher,
+                root,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PREFIX_URI_PERMISSION,
+            )
         }
     }
 
@@ -71,13 +81,17 @@ internal object WatchNextArtwork {
         if (uri.authority != authority(context) || !valid(uri)) throw FileNotFoundException(uri.toString())
         val file = File(cacheDir(context), cacheName(uri))
         if (file.exists()) return file
-        val server = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(SERVER, null) ?: throw FileNotFoundException(uri.toString())
+        val server =
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(SERVER, null)
+                ?: throw FileNotFoundException(uri.toString())
         val query = uri.encodedQuery?.let { "?$it" }.orEmpty()
         val connection = URL(server + uri.encodedPath + query).openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) throw FileNotFoundException("$uri: HTTP ${connection.responseCode}")
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                throw FileNotFoundException("$uri: HTTP ${connection.responseCode}")
+            }
             val partial = File(file.parentFile, file.name + ".part")
             connection.inputStream.use { input -> partial.outputStream().use(input::copyTo) }
             if (!partial.renameTo(file)) throw IOException("$uri: not cached")
@@ -118,7 +132,13 @@ class WatchNextArtworkProvider : ContentProvider() {
 
     override fun getType(uri: Uri): String = "image/*"
 
-    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? = null
+    override fun query(
+        uri: Uri,
+        projection: Array<out String>?,
+        selection: String?,
+        selectionArgs: Array<out String>?,
+        sortOrder: String?,
+    ): Cursor? = null
 
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
 
@@ -130,6 +150,8 @@ class WatchNextArtworkProvider : ContentProvider() {
 /** Grants the launcher the artwork again after a restart, which drops the grant, or an update of the app. */
 class ArtworkGrantReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) WatchNextArtwork.grant(context)
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            WatchNextArtwork.grant(context)
+        }
     }
 }

@@ -6,7 +6,8 @@ import kotlin.test.assertNull
 
 class NfoTest {
     @Test fun `a movie nfo gives its title, year, plot, genres and default rating`() {
-        val nfo = parseNfo("""
+        val nfo = parseNfo(
+            """
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <movie>
               <title>Alien</title><year>1979</year><plot>In space no one can hear you scream.</plot>
@@ -14,7 +15,8 @@ class NfoTest {
               <ratings><rating name="imdb"><value>8.5</value></rating><rating name="tmdb" default="true"><value>8.1</value></rating></ratings>
               <actor><name>Sigourney Weaver</name></actor>
             </movie>
-        """.trimIndent().byteInputStream())!!
+            """.trimIndent().byteInputStream(),
+        )!!
         assertEquals("Alien", nfo.title)
         assertEquals(1979, nfo.year)
         assertEquals(117, nfo.runtimeMinutes)
@@ -24,14 +26,20 @@ class NfoTest {
     }
 
     @Test fun `an episode nfo gives its numbers and air date`() {
-        val nfo = parseNfo("<episodedetails><title>Pilot</title><season>1</season><episode>2</episode><aired>2026-10-17</aired></episodedetails>".byteInputStream())!!
+        val nfo = parseNfo(
+            "<episodedetails><title>Pilot</title><season>1</season><episode>2</episode><aired>2026-10-17</aired></episodedetails>".byteInputStream(),
+        )!!
         assertEquals(1, nfo.season)
         assertEquals(2, nfo.episode)
         assertEquals(2026, nfo.year)
     }
 
     @Test fun `a doctype, a bare url and another root are refused`() {
-        assertNull(parseNfo("""<?xml version="1.0"?><!DOCTYPE movie [<!ENTITY x SYSTEM "file:///etc/passwd">]><movie><title>&x;</title></movie>""".byteInputStream()))
+        assertNull(
+            parseNfo(
+                """<?xml version="1.0"?><!DOCTYPE movie [<!ENTITY x SYSTEM "file:///etc/passwd">]><movie><title>&x;</title></movie>""".byteInputStream(),
+            ),
+        )
         assertNull(parseNfo("https://www.themoviedb.org/movie/348".byteInputStream()))
         assertNull(parseNfo("<album><title>No</title></album>".byteInputStream()))
     }

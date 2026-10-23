@@ -7,6 +7,7 @@ import kotlin.test.assertEquals
 class SteadyPlaylistsTest {
     private val source = URI("https://siloh-ns1.plutotv.net/v2/stitch/hls/channel/5f1ac1f1/1600/playlist.m3u8")
     private val live = "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:60\n#EXTINF:5,\nhls_1600-00060.ts\n"
+
     /** What Pluto answered at 02:27:02 on 2026-10-22, between two ordinary refreshes. */
     private val ended = "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:61\n#EXT-X-ENDLIST\n"
 
@@ -19,7 +20,13 @@ class SteadyPlaylistsTest {
     @Test fun `an empty ended answer with nothing before it from that URL goes out as it is`() {
         val playlists = SteadyPlaylists()
         playlists.steady(live, source)
-        assertEquals(ended, playlists.steady(ended, URI("https://siloh-ns1.plutotv.net/v2/stitch/hls/channel/5f1ac1f1/300/playlist.m3u8")))
+        assertEquals(
+            ended,
+            playlists.steady(
+                ended,
+                URI("https://siloh-ns1.plutotv.net/v2/stitch/hls/channel/5f1ac1f1/300/playlist.m3u8"),
+            ),
+        )
     }
 
     @Test fun `a finished playlist with segments and a master playlist pass through untouched`() {
@@ -33,7 +40,8 @@ class SteadyPlaylistsTest {
 
     /** A live window from [sequence] holding [names], each a five-second segment. */
     private fun window(sequence: Long, vararg names: String) =
-        "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:$sequence\n" + names.joinToString("") { "#EXTINF:5,\n$it.ts\n" }
+        "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:$sequence\n" +
+            names.joinToString("") { "#EXTINF:5,\n$it.ts\n" }
 
     @Test fun `a window numbered lower with new segments is numbered on behind a discontinuity`() {
         val playlists = SteadyPlaylists()
@@ -74,7 +82,10 @@ class SteadyPlaylistsTest {
         val before = "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-DISCONTINUITY-SEQUENCE:13\n#EXT-X-MEDIA-SEQUENCE:390\n#EXTINF:5,\na390.ts\n#EXT-X-DISCONTINUITY\n#EXTINF:5,\na391.ts\n"
         playlists.steady(before, source)
 
-        val restarted = playlists.steady("#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-DISCONTINUITY-SEQUENCE:0\n#EXT-X-MEDIA-SEQUENCE:5\n#EXTINF:5,\nb5.ts\n", source)
+        val restarted = playlists.steady(
+            "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-DISCONTINUITY-SEQUENCE:0\n#EXT-X-MEDIA-SEQUENCE:5\n#EXTINF:5,\nb5.ts\n",
+            source,
+        )
 
         assertEquals(
             "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-DISCONTINUITY-SEQUENCE:14\n#EXT-X-MEDIA-SEQUENCE:392\n#EXTINF:5,\n#EXT-X-DISCONTINUITY\nb5.ts\n",

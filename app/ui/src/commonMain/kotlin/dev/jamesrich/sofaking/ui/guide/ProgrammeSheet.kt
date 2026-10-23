@@ -65,10 +65,12 @@ import dev.jamesrich.sofaking.resources.guide_starts_in
 import dev.jamesrich.sofaking.resources.guide_time_left
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
-import dev.jamesrich.sofaking.ui.WholeLinesText
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.ProgrammeBadges
+import dev.jamesrich.sofaking.ui.WholeLinesText
+import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import dev.jamesrich.sofaking.ui.episodeLine
+import dev.jamesrich.sofaking.ui.hoursAndMinutes
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.noListingText
 import dev.jamesrich.sofaking.ui.panelEdgeMargin
@@ -76,8 +78,6 @@ import dev.jamesrich.sofaking.ui.rememberTimeFormatter
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton
-import dev.jamesrich.sofaking.ui.hoursAndMinutes
-import dev.jamesrich.sofaking.ui.arrowKeysMoveFocus
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
@@ -122,7 +122,9 @@ internal fun ProgrammeSheet(
     var showAirings by remember(details) { mutableStateOf(false) }
     var airingsShown by remember(details) { mutableStateOf(false) }
     val back: () -> Unit = { if (showAirings) showAirings = false else onDismiss() }
-    val recordable = details.programme?.takeIf { recording != null && programmeTiming(it, now) != ProgrammeTiming.Ended }
+    val recordable = details.programme?.takeIf {
+        recording != null && programmeTiming(it, now) != ProgrammeTiming.Ended
+    }
     val buttons: @Composable () -> Unit = {
         SheetButtons(details.channel, isFavorite, watchFocus, onWatch, onToggleFavorite, onDismiss)
         if (recordable != null && recording != null) RecordButtons(recordable, recording, onRecord, onRecordSeries)
@@ -139,7 +141,9 @@ internal fun ProgrammeSheet(
             airings = airings,
             now = now,
             firstFocus = firstAiring,
-            onPick = { airing -> if (isAiring(airing.programme, now)) onWatch(airing.channel) else onShowAiring(airing) },
+            onPick = { airing ->
+                if (isAiring(airing.programme, now)) onWatch(airing.channel) else onShowAiring(airing)
+            },
             onBack = back,
             modifier = listModifier,
         )
@@ -169,7 +173,13 @@ internal fun ProgrammeSheet(
                 }
                 .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
                 // The scrim takes a tap or click, so touch on a TV closes it as Back does; no focus cue, it is not a control.
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+                .clickable(
+                    interactionSource = remember {
+                        MutableInteractionSource()
+                    },
+                    indication = null,
+                    onClick = onDismiss,
+                ),
         ) {
             Surface(
                 // Darker than the buttons' raised plum, so an unfocused button still reads as a button.
@@ -182,9 +192,21 @@ internal fun ProgrammeSheet(
                     .width(PANEL_WIDTH)
                     // Focus stays in the panel: a D-pad move past its buttons must not land on the grid under it.
                     .focusProperties { onExit = { cancelFocusChange() } }
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {}),
+                    .clickable(
+                        interactionSource = remember {
+                            MutableInteractionSource()
+                        },
+                        indication = null,
+                        onClick = {},
+                    ),
             ) {
-                if (showAirings) airingsList(Modifier.fillMaxSize().padding(24.dp)) else PanelContent(details, now, guideLoading, buttons)
+                if (showAirings) {
+                    airingsList(
+                        Modifier.fillMaxSize().padding(24.dp),
+                    )
+                } else {
+                    PanelContent(details, now, guideLoading, buttons)
+                }
             }
         }
     } else {
@@ -192,7 +214,11 @@ internal fun ProgrammeSheet(
             BackHandler(enabled = showAirings, onBack = back)
             Box(Modifier.arrowKeysMoveFocus()) {
                 if (showAirings) {
-                    airingsList(Modifier.fillMaxWidth().heightIn(max = SHEET_TEXT_MAX_HEIGHT + 120.dp).padding(horizontal = 24.dp).padding(bottom = 24.dp))
+                    airingsList(
+                        Modifier.fillMaxWidth().heightIn(
+                            max = SHEET_TEXT_MAX_HEIGHT + 120.dp,
+                        ).padding(horizontal = 24.dp).padding(bottom = 24.dp),
+                    )
                 } else {
                     SheetContent(details, now, guideLoading, buttons)
                 }
@@ -206,14 +232,21 @@ internal fun ProgrammeSheet(
  * ellipsized because the D-pad cannot scroll text, and the buttons at the bottom.
  */
 @Composable
-private fun PanelContent(details: ProgrammeDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
+private fun PanelContent(
+    details: ProgrammeDetails,
+    now: Instant,
+    guideLoading: Boolean,
+    buttons: @Composable () -> Unit,
+) {
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             details.programme?.icon?.let { ProgrammeImage(it, Modifier.width(PANEL_IMAGE_WIDTH).aspectRatio(16f / 9f)) }
             Heading(details, now, guideLoading, Modifier.weight(1f))
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            details.programme?.description?.let { WholeLinesText(it, MaterialTheme.typography.bodyMedium, Modifier.fillMaxSize()) }
+            details.programme?.description?.let {
+                WholeLinesText(it, MaterialTheme.typography.bodyMedium, Modifier.fillMaxSize())
+            }
         }
         buttons()
     }
@@ -221,8 +254,16 @@ private fun PanelContent(details: ProgrammeDetails, now: Instant, guideLoading: 
 
 /** The bottom sheet: the full-width image, heading and description scroll above the buttons. */
 @Composable
-private fun SheetContent(details: ProgrammeDetails, now: Instant, guideLoading: Boolean, buttons: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun SheetContent(
+    details: ProgrammeDetails,
+    now: Instant,
+    guideLoading: Boolean,
+    buttons: @Composable () -> Unit,
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Column(
             Modifier.heightIn(max = SHEET_TEXT_MAX_HEIGHT).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -255,13 +296,28 @@ private fun Heading(details: ProgrammeDetails, now: Instant, guideLoading: Boole
         if (programme == null) {
             Text(details.channel.noListingText(guideLoading), style = MaterialTheme.typography.titleLarge)
         } else {
-            Text(programme.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                programme.title,
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             programme.episodeLine()?.let {
-                Text(it, style = MaterialTheme.typography.bodyLarge, color = secondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = secondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             // The badges ride on the time range and the time left has its own line, so neither wraps mid-phrase.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(timeFormat.range(programme.start, programme.stop), style = MaterialTheme.typography.bodyMedium, color = secondary)
+                Text(
+                    timeFormat.range(programme.start, programme.stop),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = secondary,
+                )
                 ProgrammeBadges(
                     programme = programme,
                     live = isAiring(programme, now),
@@ -272,7 +328,13 @@ private fun Heading(details: ProgrammeDetails, now: Instant, guideLoading: Boole
             }
             Text(programmeTimingText(programme, now), style = MaterialTheme.typography.bodyMedium, color = secondary)
         }
-        Text(details.channel.label(), style = MaterialTheme.typography.bodyMedium, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            details.channel.label(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = secondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -291,7 +353,12 @@ private fun SheetButtons(
             Text(stringResource(Res.string.guide_details_watch), maxLines = 1)
         }
         SofaButton(onClick = { onToggleFavorite(channel) }) {
-            Text(stringResource(if (isFavorite) Res.string.guide_details_remove_favorite else Res.string.guide_details_add_favorite), maxLines = 1)
+            Text(
+                stringResource(
+                    if (isFavorite) Res.string.guide_details_remove_favorite else Res.string.guide_details_add_favorite,
+                ),
+                maxLines = 1,
+            )
         }
         SofaButton(onClick = onDismiss) { Text(stringResource(Res.string.guide_details_close), maxLines = 1) }
     }
@@ -315,28 +382,50 @@ private fun RecordButtons(
         if (busy) return
         busy = true
         scope.launch {
-            try { failed = !action(programme) } finally { busy = false }
+            try {
+                failed = !action(programme)
+            } finally {
+                busy = false
+            }
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             SofaButton(onClick = { run(onRecord) }) {
-                Text(stringResource(if (mark.recording) Res.string.guide_details_cancel_recording else Res.string.guide_details_record), maxLines = 1)
+                Text(
+                    stringResource(
+                        if (mark.recording) Res.string.guide_details_cancel_recording else Res.string.guide_details_record,
+                    ),
+                    maxLines = 1,
+                )
             }
             SofaButton(onClick = { run(onRecordSeries) }) {
-                Text(stringResource(if (mark.series) Res.string.guide_details_stop_series else Res.string.guide_details_record_series), maxLines = 1)
+                Text(
+                    stringResource(
+                        if (mark.series) Res.string.guide_details_stop_series else Res.string.guide_details_record_series,
+                    ),
+                    maxLines = 1,
+                )
             }
         }
         if (failed) {
-            Text(stringResource(Res.string.guide_details_record_failed), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            Text(
+                stringResource(Res.string.guide_details_record_failed),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
 
 /** "42 min left", "Starts in 1 h 20 min" or "Ended", from [programmeTiming]. */
 @Composable
-private fun programmeTimingText(programme: Programme, now: Instant): String = when (val timing = programmeTiming(programme, now)) {
-    is ProgrammeTiming.Airing -> stringResource(Res.string.guide_time_left, timing.left.hoursAndMinutes())
-    is ProgrammeTiming.Upcoming -> stringResource(Res.string.guide_starts_in, timing.until.hoursAndMinutes())
-    ProgrammeTiming.Ended -> stringResource(Res.string.guide_ended)
-}
+private fun programmeTimingText(programme: Programme, now: Instant): String =
+    when (val timing = programmeTiming(programme, now)) {
+        is ProgrammeTiming.Airing -> stringResource(Res.string.guide_time_left, timing.left.hoursAndMinutes())
+        is ProgrammeTiming.Upcoming -> stringResource(Res.string.guide_starts_in, timing.until.hoursAndMinutes())
+        ProgrammeTiming.Ended -> stringResource(Res.string.guide_ended)
+    }

@@ -4,8 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import dev.jamesrich.sofaking.data.ItemKind
-import dev.jamesrich.sofaking.data.LibraryRepository
 import dev.jamesrich.sofaking.data.LetterJump
+import dev.jamesrich.sofaking.data.LibraryRepository
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaHome
 import dev.jamesrich.sofaking.data.MediaItem
@@ -155,9 +155,23 @@ class LibraryViewModel(
      * The grid already open with the same choices is kept as it is, so returning from an item lands where the viewer
      * was; one in another order keeps the genres it knows while the new page loads.
      */
-    fun openGrid(libraryId: String, sort: LibrarySort = LibrarySort.TITLE, unwatched: Boolean = false, genre: String? = null) {
+    fun openGrid(
+        libraryId: String,
+        sort: LibrarySort = LibrarySort.TITLE,
+        unwatched: Boolean = false,
+        genre: String? = null,
+    ) {
         val open = _grid.value
-        val wanted = LibraryGrid(libraryId, sort, unwatched, genre, genres = open?.takeIf { it.libraryId == libraryId }?.genres.orEmpty())
+        val wanted =
+            LibraryGrid(
+                libraryId,
+                sort,
+                unwatched,
+                genre,
+                genres = open?.takeIf {
+                    it.libraryId == libraryId
+                }?.genres.orEmpty(),
+            )
         // A grid whose next page failed keeps its pages, and loadMore retries that page; only a failed first page loads afresh.
         if (open != null && open.sameQuery(wanted) && (open.error == null || open.items.isNotEmpty())) return
         gridJob?.cancel()
@@ -196,16 +210,26 @@ class LibraryViewModel(
         gridJob = viewModelScope.launch {
             try {
                 val target = loadTarget
-                val limit = target?.let { (it + 1 - grid.items.size + LibraryRepository.PAGE_SIZE).coerceIn(LibraryRepository.PAGE_SIZE, MAX_PAGE) }
-                    ?: LibraryRepository.PAGE_SIZE
+                val limit =
+                    target?.let {
+                        (it + 1 - grid.items.size + LibraryRepository.PAGE_SIZE).coerceIn(
+                            LibraryRepository.PAGE_SIZE,
+                            MAX_PAGE,
+                        )
+                    }
+                        ?: LibraryRepository.PAGE_SIZE
                 val page = repository.page(grid.libraryId, grid.sort, grid.unwatched, cursor, limit, grid.genre)
                 _grid.update { current ->
                     if (current == null || !current.sameQuery(grid)) return@update current
                     // A page can repeat an item that moved between requests; the first place it showed wins.
                     val items = (current.items + page.items).distinctBy { it.id }
                     current.copy(
-                        items = items, genres = page.genres, letters = page.letters ?: current.letters,
-                        total = page.total, next = page.next, loading = false,
+                        items = items,
+                        genres = page.genres,
+                        letters = page.letters ?: current.letters,
+                        total = page.total,
+                        next = page.next,
+                        loading = false,
                     )
                 }
                 val loaded = _grid.value
@@ -276,7 +300,13 @@ class LibraryViewModel(
      * Opens [item] on the app's one session, releasing whatever was held: from the start with [fromStart], else
      * where the household stopped in it. [profile] is what the player plays as it is.
      */
-    suspend fun play(item: MediaItem, profile: PlaybackProfile, fromStart: Boolean = false, audioIndex: Int? = null, subtitleIndex: Int? = null): PlaybackStream {
+    suspend fun play(
+        item: MediaItem,
+        profile: PlaybackProfile,
+        fromStart: Boolean = false,
+        audioIndex: Int? = null,
+        subtitleIndex: Int? = null,
+    ): PlaybackStream {
         val start = item.progress?.takeIf { !fromStart && it.inProgress }?.positionMs ?: 0
         positions.reset(item.id)
         return sessions.play(item.id, profile, start, audioIndex, subtitleIndex)
@@ -309,8 +339,13 @@ class LibraryViewModel(
      * [subtitleIndex] drawn in (none when null), on the same terms as [play]; the player loads the new stream the
      * sessions publish.
      */
-    suspend fun switchTracks(item: MediaItem, profile: PlaybackProfile, positionMs: Long, audioIndex: Int?, subtitleIndex: Int?): PlaybackStream =
-        sessions.play(item.id, profile, positionMs, audioIndex, subtitleIndex)
+    suspend fun switchTracks(
+        item: MediaItem,
+        profile: PlaybackProfile,
+        positionMs: Long,
+        audioIndex: Int?,
+        subtitleIndex: Int?,
+    ): PlaybackStream = sessions.play(item.id, profile, positionMs, audioIndex, subtitleIndex)
 
     /** [itemId]'s text subtitle track [index], or null when the server cannot give it. */
     suspend fun subtitles(itemId: String, index: Int): Subtitles? {
@@ -358,7 +393,9 @@ class LibraryViewModel(
     /** [item]'s watch state changed: its place in the grid, the pages it shows on and the home follow. */
     private fun changed(item: MediaItem) {
         _grid.update { grid -> grid?.copy(items = grid.items.map { if (it.id == item.id) item else it }) }
-        listOfNotNull(item.id, item.parentId, item.showId).distinct().forEach { id -> details[id]?.let { loadDetail(id, it) } }
+        listOfNotNull(item.id, item.parentId, item.showId).distinct().forEach { id ->
+            details[id]?.let { loadDetail(id, it) }
+        }
         // A show's grid card counts unwatched episodes; it is reloaded with its page.
         item.showId?.let { show -> if (_grid.value?.items?.any { it.id == show } == true) refreshGridItem(show) }
         refreshHome()

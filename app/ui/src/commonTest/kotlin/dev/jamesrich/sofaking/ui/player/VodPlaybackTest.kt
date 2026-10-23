@@ -1,10 +1,10 @@
 package dev.jamesrich.sofaking.ui.player
 
-import dev.jamesrich.sofaking.ui.formatPlayTime
 import androidx.compose.ui.input.key.Key
 import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackStream
+import dev.jamesrich.sofaking.ui.formatPlayTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -27,16 +27,34 @@ class VodPlaybackTest {
     @Test
     fun `a file played as it is seeks anywhere in it`() {
         val direct = stream(Wire.VodMode.DIRECT)
-        assertEquals(VodSeekPlan.InStream(3_000_000), vodSeekPlan(direct, 3_000_000, writtenMs = null, itemDurationMs = 6_000_000))
+        assertEquals(
+            VodSeekPlan.InStream(3_000_000),
+            vodSeekPlan(direct, 3_000_000, writtenMs = null, itemDurationMs = 6_000_000),
+        )
     }
 
     @Test
     fun `a converted stream seeks inside what is written and restarts outside it`() {
         val hls = stream(Wire.VodMode.TRANSCODE, offsetMs = 600_000)
-        assertEquals(VodSeekPlan.InStream(60_000), vodSeekPlan(hls, 660_000, writtenMs = 120_000, itemDurationMs = 6_000_000))
-        assertEquals(VodSeekPlan.Restart(500_000), vodSeekPlan(hls, 500_000, writtenMs = 120_000, itemDurationMs = 6_000_000), "before the stream")
-        assertEquals(VodSeekPlan.Restart(718_000), vodSeekPlan(hls, 718_000, writtenMs = 120_000, itemDurationMs = 6_000_000), "at the written edge")
-        assertEquals(VodSeekPlan.Restart(2_000_000), vodSeekPlan(hls, 2_000_000, writtenMs = null, itemDurationMs = null), "nothing written yet")
+        assertEquals(
+            VodSeekPlan.InStream(60_000),
+            vodSeekPlan(hls, 660_000, writtenMs = 120_000, itemDurationMs = 6_000_000),
+        )
+        assertEquals(
+            VodSeekPlan.Restart(500_000),
+            vodSeekPlan(hls, 500_000, writtenMs = 120_000, itemDurationMs = 6_000_000),
+            "before the stream",
+        )
+        assertEquals(
+            VodSeekPlan.Restart(718_000),
+            vodSeekPlan(hls, 718_000, writtenMs = 120_000, itemDurationMs = 6_000_000),
+            "at the written edge",
+        )
+        assertEquals(
+            VodSeekPlan.Restart(2_000_000),
+            vodSeekPlan(hls, 2_000_000, writtenMs = null, itemDurationMs = null),
+            "nothing written yet",
+        )
     }
 
     @Test
@@ -71,7 +89,10 @@ class VodPlaybackTest {
     fun `presses build a seek that applies once they rest`() {
         val scrub = VodScrub()
         assertEquals(130_000, scrub.press(1, positionMs = 100_000, durationMs = 1_000_000, repeatCount = 0, nowMs = 0))
-        assertEquals(120_000, scrub.press(-1, positionMs = 100_000, durationMs = 1_000_000, repeatCount = 0, nowMs = 100))
+        assertEquals(
+            120_000,
+            scrub.press(-1, positionMs = 100_000, durationMs = 1_000_000, repeatCount = 0, nowMs = 100),
+        )
         assertNull(scrub.settled(100 + VodScrub.SCRUB_SETTLE_MS - 1))
         assertEquals(120_000, scrub.settled(100 + VodScrub.SCRUB_SETTLE_MS))
         assertNull(scrub.targetMs)
@@ -128,9 +149,16 @@ class VodPlaybackTest {
     @Test
     fun `the end is what is left of the item from now`() {
         val now = Instant.parse("2026-10-19T20:00:00Z")
-        assertEquals(Instant.parse("2026-10-19T20:52:30Z"), vodEndsAt(now, positionMs = 1_800_000L, durationMs = 4_950_000L))
+        assertEquals(
+            Instant.parse("2026-10-19T20:52:30Z"),
+            vodEndsAt(now, positionMs = 1_800_000L, durationMs = 4_950_000L),
+        )
         assertEquals(now, vodEndsAt(now, positionMs = 9_000L, durationMs = 5_000L))
         assertNull(vodEndsAt(now, positionMs = 0, durationMs = null))
-        assertEquals(Instant.parse("2026-10-19T20:26:15Z"), vodEndsAt(now, positionMs = 1_800_000L, durationMs = 4_950_000L, speed = 2f), "at twice the speed it ends in half the time")
+        assertEquals(
+            Instant.parse("2026-10-19T20:26:15Z"),
+            vodEndsAt(now, positionMs = 1_800_000L, durationMs = 4_950_000L, speed = 2f),
+            "at twice the speed it ends in half the time",
+        )
     }
 }

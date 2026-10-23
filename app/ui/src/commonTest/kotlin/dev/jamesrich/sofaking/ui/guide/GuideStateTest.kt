@@ -21,7 +21,13 @@ class GuideStateTest {
     private val items = guideListItems(channels, emptyMap())
     private val base = Instant.parse("2026-10-09T10:00:00Z")
     private fun cell(start: Long, end: Long) = GuideCell(
-        Programme(channelId = "1", start = base + start.minutes, stop = base + end.minutes, title = "Show", description = null),
+        Programme(
+            channelId = "1",
+            start = base + start.minutes,
+            stop = base + end.minutes,
+            title = "Show",
+            description = null,
+        ),
         start,
         end,
     )
@@ -29,20 +35,34 @@ class GuideStateTest {
     /** Records what the keys asked of focus, scrolling and the preview. */
     private class Controls : GuideControls {
         val calls = mutableListOf<String>()
-        override fun climbBack() { calls += "climb" }
-        override fun restartRest() { calls += "rest" }
-        override fun now() { calls += "now" }
-        override fun search() { calls += "search" }
-        override fun closeDetails() { calls += "closeDetails" }
-        override fun dayJump(shortcut: GuideShortcut) { calls += "day $shortcut" }
+        override fun climbBack() {
+            calls += "climb"
+        }
+        override fun restartRest() {
+            calls += "rest"
+        }
+        override fun now() {
+            calls += "now"
+        }
+        override fun search() {
+            calls += "search"
+        }
+        override fun closeDetails() {
+            calls += "closeDetails"
+        }
+        override fun dayJump(shortcut: GuideShortcut) {
+            calls += "day $shortcut"
+        }
     }
 
     private val controls = Controls()
     private val state = GuideState()
 
-    private fun down(key: Key, back: GuideBack = GuideBack.FOCUS_CHIPS) = state.onKeyEvent(key, KeyEventType.KeyDown, back, controls)
+    private fun down(key: Key, back: GuideBack = GuideBack.FOCUS_CHIPS) =
+        state.onKeyEvent(key, KeyEventType.KeyDown, back, controls)
 
-    private fun up(key: Key, back: GuideBack = GuideBack.FOCUS_CHIPS) = state.onKeyEvent(key, KeyEventType.KeyUp, back, controls)
+    private fun up(key: Key, back: GuideBack = GuideBack.FOCUS_CHIPS) =
+        state.onKeyEvent(key, KeyEventType.KeyUp, back, controls)
 
     @Test
     fun `Back is held on key-down and climbs on its key-up`() {
@@ -187,7 +207,11 @@ class GuideStateTest {
 
     private val moves = mutableListOf<Int>()
 
-    private fun grid(key: Key, type: KeyEventType = KeyEventType.KeyDown) = state.onGridKey(key, type, items, focusRow = { moves += it })
+    private fun grid(key: Key, type: KeyEventType = KeyEventType.KeyDown) =
+        state.onGridKey(key, type, items, focusRow = {
+            moves +=
+                it
+        })
 
     @Test
     fun `Down moves to the next row under the cursor`() {

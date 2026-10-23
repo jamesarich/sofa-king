@@ -20,16 +20,21 @@ import kotlin.time.Duration.Companion.seconds
 
 /** The part of [AppSettings] the server keeps per client: what [ViewerSync] compares and sends. */
 internal data class SyncedPreferences(val hidden: Set<String>, val favorites: List<String>, val recent: List<String>) {
-    constructor(settings: AppSettings) : this(settings.hiddenChannels, orderedFavoriteIds(settings), settings.recentChannels)
+    constructor(
+        settings: AppSettings,
+    ) : this(settings.hiddenChannels, orderedFavoriteIds(settings), settings.recentChannels)
 
-    fun toDto(client: ClientInfo) = ViewerPreferencesDto(hidden.sorted(), favorites, recent, client.deviceName, client.platform)
+    fun toDto(client: ClientInfo) =
+        ViewerPreferencesDto(hidden.sorted(), favorites, recent, client.deviceName, client.platform)
 
     companion object {
-        fun of(dto: ViewerPreferencesDto) = SyncedPreferences(dto.hidden.toSet(), dto.favorites.distinct(), dto.recent.distinct())
+        fun of(dto: ViewerPreferencesDto) =
+            SyncedPreferences(dto.hidden.toSet(), dto.favorites.distinct(), dto.recent.distinct())
 
         /** The starred ids in the viewer's order, then the rest as stored, so the server's list carries the order too. */
         private fun orderedFavoriteIds(settings: AppSettings): List<String> =
-            settings.favoritesOrder.filter { it in settings.favorites } + settings.favorites.filterNot { it in settings.favoritesOrder }.sorted()
+            settings.favoritesOrder.filter { it in settings.favorites } +
+                settings.favorites.filterNot { it in settings.favoritesOrder }.sorted()
     }
 }
 

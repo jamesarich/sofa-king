@@ -32,57 +32,64 @@ import kotlin.time.Duration.Companion.minutes
 class ProgrammeSheetAiringsTest {
     private val now = Clock.System.now()
     private val news = Channel(guideId = "c0", number = 2.0, name = "News Now", logo = null, groups = listOf("News"))
-    private val movies = Channel(guideId = "c1", number = 3.0, name = "Movie Max", logo = null, groups = listOf("Movies"))
-    private fun columbo(channel: Channel, startsIn: kotlin.time.Duration) =
-        Programme(channelId = channel.guideId, start = now + startsIn, stop = now + startsIn + 1.hours, title = "Columbo", description = null)
+    private val movies =
+        Channel(guideId = "c1", number = 3.0, name = "Movie Max", logo = null, groups = listOf("Movies"))
+    private fun columbo(channel: Channel, startsIn: kotlin.time.Duration) = Programme(
+        channelId = channel.guideId,
+        start = now + startsIn,
+        stop = now + startsIn + 1.hours,
+        title = "Columbo",
+        description = null,
+    )
 
     private val shown = columbo(news, 2.hours)
     private val onNow = Airing(movies, columbo(movies, (-10).minutes))
     private val later = Airing(movies, columbo(movies, 5.hours))
 
     @Test
-    fun `More airings lists the others and Back returns to the details`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
-        var dismissals = 0
-        val watched = mutableListOf<Channel>()
-        val opened = mutableListOf<Airing>()
-        setContent {
-            SofaKingTheme {
-                Surface(Modifier.fillMaxSize().arrowKeysMoveFocus(), color = MaterialTheme.colorScheme.background) {
-                    ProgrammeSheet(
-                        details = ProgrammeDetails(news, shown),
-                        now = now,
-                        isFavorite = false,
-                        guideLoading = false,
-                        onWatch = { watched += it },
-                        onToggleFavorite = {},
-                        onDismiss = { dismissals++ },
-                        airings = listOf(onNow, later),
-                        onShowAiring = { opened += it },
-                    )
+    fun `More airings lists the others and Back returns to the details`() =
+        runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+            var dismissals = 0
+            val watched = mutableListOf<Channel>()
+            val opened = mutableListOf<Airing>()
+            setContent {
+                SofaKingTheme {
+                    Surface(Modifier.fillMaxSize().arrowKeysMoveFocus(), color = MaterialTheme.colorScheme.background) {
+                        ProgrammeSheet(
+                            details = ProgrammeDetails(news, shown),
+                            now = now,
+                            isFavorite = false,
+                            guideLoading = false,
+                            onWatch = { watched += it },
+                            onToggleFavorite = {},
+                            onDismiss = { dismissals++ },
+                            airings = listOf(onNow, later),
+                            onShowAiring = { opened += it },
+                        )
+                    }
                 }
             }
-        }
-        waitForIdle()
-        onNodeWithText("More airings (2)").performClick()
-        waitForIdle()
-        onNodeWithText("More airings").assertExists()
-        onAllNodesWithText(movies.name, substring = true)[0].assertIsFocused()
+            waitForIdle()
+            onNodeWithText("More airings (2)").performClick()
+            waitForIdle()
+            onNodeWithText("More airings").assertExists()
+            onAllNodesWithText(movies.name, substring = true)[0].assertIsFocused()
 
-        onRoot().performKeyInput { pressKey(Key.Back) }
-        waitForIdle()
-        assertEquals(0, dismissals, "Back leaves the list, not the details")
-        onNodeWithText("More airings (2)").assertIsFocused()
+            onRoot().performKeyInput { pressKey(Key.Back) }
+            waitForIdle()
+            assertEquals(0, dismissals, "Back leaves the list, not the details")
+            onNodeWithText("More airings (2)").assertIsFocused()
 
-        onNodeWithText("More airings (2)").performClick()
-        waitForIdle()
-        onRoot().performKeyInput { pressKey(Key.Enter) }
-        waitForIdle()
-        assertEquals(listOf(movies), watched, "OK on the airing on now watches its channel")
-        onRoot().performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.Enter)
+            onNodeWithText("More airings (2)").performClick()
+            waitForIdle()
+            onRoot().performKeyInput { pressKey(Key.Enter) }
+            waitForIdle()
+            assertEquals(listOf(movies), watched, "OK on the airing on now watches its channel")
+            onRoot().performKeyInput {
+                pressKey(Key.DirectionDown)
+                pressKey(Key.Enter)
+            }
+            waitForIdle()
+            assertEquals(listOf(later), opened, "OK on a later airing opens its details")
         }
-        waitForIdle()
-        assertEquals(listOf(later), opened, "OK on a later airing opens its details")
-    }
 }

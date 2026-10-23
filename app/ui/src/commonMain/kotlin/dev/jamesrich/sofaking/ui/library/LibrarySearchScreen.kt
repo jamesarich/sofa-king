@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.resources.Res
@@ -43,7 +44,6 @@ import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.rememberVoiceSearch
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenInsets
-import androidx.compose.ui.text.input.ImeAction
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import org.jetbrains.compose.resources.stringResource
@@ -63,7 +63,12 @@ internal class LibrarySearchActions(
  * the viewer just left, which takes focus.
  */
 @Composable
-internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, returnedFrom: String?, initialQuery: String? = null) {
+internal fun LibrarySearchScreen(
+    actions: LibrarySearchActions,
+    voice: Boolean,
+    returnedFrom: String?,
+    initialQuery: String? = null,
+) {
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom).asPaddingValues()
     val query = rememberTextFieldState()
     val field = remember { FocusRequester() }
@@ -93,11 +98,14 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
     LaunchedEffect(Unit) {
         when {
             arrived && query.text.isNotBlank() -> Unit
+
             !arrived && initialQuery != null -> {
                 query.setTextAndPlaceCursorAtEnd(initialQuery)
                 focusResults = true
             }
+
             !arrived && voice && startVoice() -> Unit
+
             else -> requestFocusWhenAttached(field)
         }
         arrived = true
@@ -124,14 +132,30 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
         if (target != null) {
             if (searching || results == null) return@LaunchedEffect
             // Cleared only once the request is done: clearing it restarts this effect, which would cancel the request.
-            requestFocusWhenAttached(if (results.orEmpty().any { it.id == target }) returnFocus else if (sections.posters.isNotEmpty() || sections.wide.isNotEmpty()) firstResult else field)
+            requestFocusWhenAttached(
+                if (results.orEmpty().any { it.id == target }) {
+                    returnFocus
+                } else if (sections.posters.isNotEmpty() ||
+                    sections.wide.isNotEmpty()
+                ) {
+                    firstResult
+                } else {
+                    field
+                },
+            )
             focusReturn = null
             return@LaunchedEffect
         }
         if (!focusResults || searching || results == null) return@LaunchedEffect
         focusResults = false
         // Nothing matched what was said: the field takes focus so the query can be changed.
-        requestFocusWhenAttached(if (sections.posters.isNotEmpty() || sections.wide.isNotEmpty()) firstResult else field)
+        requestFocusWhenAttached(
+            if (sections.posters.isNotEmpty() || sections.wide.isNotEmpty()) {
+                firstResult
+            } else {
+                field
+            },
+        )
     }
 
     LazyColumn(
@@ -140,30 +164,59 @@ internal fun LibrarySearchScreen(actions: LibrarySearchActions, voice: Boolean, 
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
         item(key = "field") {
-            Column(Modifier.fillMaxWidth().padding(insets.horizontalOnly()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                Modifier.fillMaxWidth().padding(insets.horizontalOnly()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 TvTextField(
                     state = query,
                     focusRequester = field,
                     imeAction = ImeAction.Search,
-                    onAction = { if (sections.posters.isNotEmpty() || sections.wide.isNotEmpty()) firstResult.requestFocus() },
+                    onAction = {
+                        if (sections.posters.isNotEmpty() || sections.wide.isNotEmpty()) {
+                            firstResult.requestFocus()
+                        }
+                    },
                     modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth(),
                     hint = stringResource(Res.string.library_search_hint),
                 )
                 when {
                     searching -> SofaLoader(size = 32.dp)
-                    results?.isEmpty() == true -> Text(stringResource(Res.string.library_search_none), style = MaterialTheme.typography.titleMedium)
+
+                    results?.isEmpty() == true -> Text(
+                        stringResource(Res.string.library_search_none),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
                 }
             }
         }
         if (sections.posters.isNotEmpty()) {
             item(key = "posters") {
-                ResultRow(stringResource(Res.string.library_search_titles), sections.posters, CardStyle.POSTER, insets, actions, firstResult, returnedFrom, returnFocus)
+                ResultRow(
+                    stringResource(Res.string.library_search_titles),
+                    sections.posters,
+                    CardStyle.POSTER,
+                    insets,
+                    actions,
+                    firstResult,
+                    returnedFrom,
+                    returnFocus,
+                )
             }
         }
         if (sections.wide.isNotEmpty()) {
             item(key = "wide") {
                 val first = if (sections.posters.isEmpty()) firstResult else null
-                ResultRow(stringResource(Res.string.library_search_episodes), sections.wide, CardStyle.WIDE, insets, actions, first, returnedFrom, returnFocus)
+                ResultRow(
+                    stringResource(Res.string.library_search_episodes),
+                    sections.wide,
+                    CardStyle.WIDE,
+                    insets,
+                    actions,
+                    first,
+                    returnedFrom,
+                    returnFocus,
+                )
             }
         }
     }
@@ -189,7 +242,11 @@ private fun ResultRow(
             firstFocus != null -> firstFocus
             else -> FocusRequester.Default
         }
-        LazyRow(Modifier.focusRestorer(fallback), contentPadding = insets.horizontalOnly(), horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
+        LazyRow(
+            Modifier.focusRestorer(fallback),
+            contentPadding = insets.horizontalOnly(),
+            horizontalArrangement = Arrangement.spacedBy(CARD_GAP),
+        ) {
             items(items, key = { it.id }) { item ->
                 val modifier = when {
                     item.id == returnedFrom -> Modifier.focusRequester(returnFocus)

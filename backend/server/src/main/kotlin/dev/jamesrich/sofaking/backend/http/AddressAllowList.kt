@@ -20,7 +20,12 @@ class AddressAllowList(entries: List<String>) {
         val host = entry.substringBefore('/')
         val prefix = entry.substringAfter('/', "")
         val address = literal(host) ?: throw IllegalArgumentException("Not an IP address or CIDR block: $entry")
-        val bits = if (prefix.isEmpty()) address.size * 8 else prefix.toIntOrNull()?.takeIf { it in 0..address.size * 8 } ?: throw IllegalArgumentException("Bad prefix length: $entry")
+        val bits = if (prefix.isEmpty()) {
+            address.size * 8
+        } else {
+            prefix.toIntOrNull()?.takeIf { it in 0..address.size * 8 }
+                ?: throw IllegalArgumentException("Bad prefix length: $entry")
+        }
         Rule(address, bits)
     }
 
@@ -41,7 +46,9 @@ class AddressAllowList(entries: List<String>) {
             if (dotted && bare.count { it == '.' } != 3) return null
             if (!dotted && !bare.contains(':')) return null
             val bytes = runCatching { InetAddress.getByName(bare).address }.getOrNull() ?: return null
-            if (bytes.size == 16 && bytes.copyOfRange(0, 10).all { it == 0.toByte() } && bytes[10] == 0xFF.toByte() && bytes[11] == 0xFF.toByte()) {
+            if (bytes.size == 16 && bytes.copyOfRange(0, 10).all { it == 0.toByte() } && bytes[10] == 0xFF.toByte() &&
+                bytes[11] == 0xFF.toByte()
+            ) {
                 return bytes.copyOfRange(12, 16)
             }
             return bytes

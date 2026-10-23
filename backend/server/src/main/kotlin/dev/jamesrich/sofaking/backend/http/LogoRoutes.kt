@@ -17,7 +17,9 @@ import io.ktor.server.routing.get
  */
 fun Route.logoRoutes(logos: LogoCache) {
     get("/logos/{key}") {
-        val key = call.parameters["key"]?.takeIf { LogoCache.KEY.matches(it) } ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown logo")
+        val key =
+            call.parameters["key"]?.takeIf { LogoCache.KEY.matches(it) }
+                ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown logo")
         val record = logos.lookup(key) ?: throw ApiFailure(404, "RESOURCE_NOT_FOUND", "Unknown logo")
         val etag = "\"${record.contentHash}\""
         call.response.header(HttpHeaders.ETag, etag)

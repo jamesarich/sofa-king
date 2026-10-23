@@ -23,14 +23,18 @@ internal fun tsSyncOffset(bytes: ByteArray, packets: Int = 3, from: Int = 0, to:
         var aligned = true
         for (step in 1 until packets) {
             val index = offset + step * TS_PACKET
-            if (index >= to || bytes[index] != TS_SYNC) { aligned = false; break }
+            if (index >= to || bytes[index] != TS_SYNC) {
+                aligned = false
+                break
+            }
         }
         if (aligned) return offset
     }
     return null
 }
 
-internal fun isGzip(bytes: ByteArray): Boolean = bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
+internal fun isGzip(bytes: ByteArray): Boolean =
+    bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()
 
 /**
  * The start of a gzip body inflated as far as the bytes allow; some origins compress manifests whatever the

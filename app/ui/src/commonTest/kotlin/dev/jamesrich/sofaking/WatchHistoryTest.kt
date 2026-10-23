@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking
 
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.Test
 
 class WatchHistoryTest {
     @Test

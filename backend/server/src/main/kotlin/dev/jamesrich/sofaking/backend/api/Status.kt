@@ -31,7 +31,10 @@ import kotlinx.serialization.Serializable
  * import, and each one whose last import failed.
  */
 @Serializable data class StatusImports(
-    val total: Int, val pending: Int = 0, val lastImportAt: String? = null, val failing: List<StatusImportFailure> = emptyList(),
+    val total: Int,
+    val pending: Int = 0,
+    val lastImportAt: String? = null,
+    val failing: List<StatusImportFailure> = emptyList(),
 )
 
 @Serializable data class StatusImportFailure(val id: String, val errorCode: String, val lastSuccessAt: String? = null)

@@ -36,24 +36,35 @@ class SofaKingRepositoryTest {
                 } else {
                     json(catalogBody, etag = catalogEtag)
                 }
+
                 "/api/v1/guide/query" -> {
                     val query = Json.parseToJsonElement(request.body).jsonObject
                     if (query["revision"] != null && conflictsLeft > 0) {
                         conflictsLeft--
-                        return@FakeHttp json("""{"code":"RESYNC_REQUIRED","message":"Guide revision changed","retryable":true}""", status = 409)
+                        return@FakeHttp json(
+                            """{"code":"RESYNC_REQUIRED","message":"Guide revision changed","retryable":true}""",
+                            status = 409,
+                        )
                     }
                     val channels = query.channelIds().joinToString(",") { id ->
-                        if (id in removed) return@joinToString """{"channelId":"$id","status":"removed","programmes":[]}"""
+                        if (id in
+                            removed
+                        ) {
+                            return@joinToString """{"channelId":"$id","status":"removed","programmes":[]}"""
+                        }
                         """{"channelId":"$id","status":"available","programmes":[{"id":"p-$id","channelId":"$id","startsAt":"2026-10-10T10:00:00Z","endsAt":"2026-10-10T11:00:00Z","title":"Show $id"}]}"""
                     }
                     json("""{"revision":"$guideRevision","from":"x","to":"y","channels":[$channels]}""")
                 }
+
                 else -> apiError(404, "RESOURCE_NOT_FOUND")
             }
         }
 
         val catalogRequests get() = http.requests.count { it.path == "/api/v1/channels" }
-        val guideQueries get() = http.requests.filter { it.path == "/api/v1/guide/query" }.map { Json.parseToJsonElement(it.body).jsonObject }
+        val guideQueries get() = http.requests.filter {
+            it.path == "/api/v1/guide/query"
+        }.map { Json.parseToJsonElement(it.body).jsonObject }
         val revisions get() = guideQueries.map { it["revision"]?.jsonPrimitive?.content }
     }
 
@@ -61,7 +72,9 @@ class SofaKingRepositoryTest {
 
     private fun FakeServer.repository() = SofaKingRepository(http.api(token = "t")) { now }
 
-    private fun channels(count: Int) = List(count) { Channel("c$it", it.toDouble(), "Channel $it", null, listOf("Other")) }
+    private fun channels(count: Int) = List(count) {
+        Channel("c$it", it.toDouble(), "Channel $it", null, listOf("Other"))
+    }
 
     @Test
     fun `an unchanged catalog is answered from the ETag without a second body`() = runTest {
@@ -81,7 +94,8 @@ class SofaKingRepositoryTest {
         val fake = fake()
         val repository = fake.repository()
         repository.loadChannels()
-        fake.catalogBody = """{"revision":"r2","channels":[{"id":"c2","displayNumber":"2","name":"Two","playbackEligible":true}]}"""
+        fake.catalogBody =
+            """{"revision":"r2","channels":[{"id":"c2","displayNumber":"2","name":"Two","playbackEligible":true}]}"""
         fake.catalogEtag = "\"r2\""
 
         assertEquals(listOf("c2"), repository.loadChannels().map { it.guideId })

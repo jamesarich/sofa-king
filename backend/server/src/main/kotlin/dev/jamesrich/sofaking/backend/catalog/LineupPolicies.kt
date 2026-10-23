@@ -3,13 +3,16 @@ package dev.jamesrich.sofaking.backend.catalog
 import dev.jamesrich.sofaking.backend.api.CandidateFilter
 import dev.jamesrich.sofaking.backend.api.LineupPolicy
 import dev.jamesrich.sofaking.backend.api.SourcePin
-
+import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
-import kotlinx.serialization.json.Json
 
-private val policyJson = Json { ignoreUnknownKeys = false; encodeDefaults = true; prettyPrint = true }
+private val policyJson = Json {
+    ignoreUnknownKeys = false
+    encodeDefaults = true
+    prettyPrint = true
+}
 
 /** A policy as read from disk: the parsed document and the SHA-256 of its bytes. */
 class LoadedPolicy(val path: Path, val policy: LineupPolicy, val revision: String)
@@ -24,7 +27,8 @@ fun readPolicy(path: Path): LoadedPolicy {
 internal const val POLICY_LIMIT = 4 * 1_048_576
 
 /** Parses policy bytes; unknown keys fail. */
-internal fun parsePolicy(bytes: ByteArray): LineupPolicy = policyJson.decodeFromString<LineupPolicy>(bytes.toString(Charsets.UTF_8))
+internal fun parsePolicy(bytes: ByteArray): LineupPolicy =
+    policyJson.decodeFromString<LineupPolicy>(bytes.toString(Charsets.UTF_8))
 
 /** The SHA-256 of the file bytes, hex. */
 internal fun policyRevision(bytes: ByteArray): String = hash(bytes)
@@ -56,7 +60,9 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
     if (policy.numbering.floor !in 1..999_999) errors += "numbering.floor must be between 1 and 999999"
     if (policy.numbering.groupSize !in 1..100_000) errors += "numbering.groupSize must be between 1 and 100000"
     for ((group, start) in policy.numbering.groups.entries.sortedBy { it.key }) {
-        if (group.isBlank() || group.length > 128) errors += "numbering.groups: group \"$group\" must be 1 to 128 characters"
+        if (group.isBlank() || group.length > 128) {
+            errors += "numbering.groups: group \"$group\" must be 1 to 128 characters"
+        }
         if (start !in 1..999_999) errors += "numbering.groups[\"$group\"]: start must be between 1 and 999999"
     }
     if (policy.health.disableAfterHours !in 1..720) errors += "health.disableAfterHours must be between 1 and 720"
@@ -64,8 +70,16 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
     if (policy.health.keepMissingDays !in 0..3650) errors += "health.keepMissingDays must be between 0 and 3650"
 
     fun pattern(value: String, where: String) {
-        if (value.isBlank() || value.length > 256) { errors += "$where: patterns must be 1 to 256 characters"; return }
-        try { Regex(value) } catch (e: Exception) { errors += "$where: invalid pattern ${e.message?.lineSequence()?.firstOrNull()}" }
+        if (value.isBlank() || value.length > 256) {
+            errors += "$where: patterns must be 1 to 256 characters"
+            return
+        }
+        try {
+            Regex(value)
+        } catch (e: Exception) {
+            errors +=
+                "$where: invalid pattern ${e.message?.lineSequence()?.firstOrNull()}"
+        }
     }
     fun filter(value: CandidateFilter?, where: String) {
         value ?: return
@@ -89,22 +103,36 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
         if (raw != raw.trim().lowercase()) errors += "groups.map: key \"$raw\" must be lowercase and trimmed"
         if (group.isBlank() || group.length > 128) errors += "groups.map[\"$raw\"]: group must be 1 to 128 characters"
     }
-    for (raw in policy.groups.weak) if (raw != raw.trim().lowercase()) errors += "groups.weak: \"$raw\" must be lowercase and trimmed"
+    for (raw in policy.groups.weak) {
+        if (raw != raw.trim().lowercase()) {
+            errors += "groups.weak: \"$raw\" must be lowercase and trimmed"
+        }
+    }
 
     val aliases = policy.names.aliases
     for ((from, to) in aliases.entries.sortedBy { it.key }) {
-        if (from == to) errors += "names.aliases: \"$from\" aliases itself"
-        else if (to in aliases) errors += "names.aliases: \"$from\" -> \"$to\" chains through another alias"
+        if (from == to) {
+            errors += "names.aliases: \"$from\" aliases itself"
+        } else if (to in aliases) {
+            errors += "names.aliases: \"$from\" -> \"$to\" chains through another alias"
+        }
         val normalized = normalizedName(from, policy.names.version)
-        if (normalized != from) errors += "names.aliases: \"$from\" is not a normalized name (it normalizes to \"$normalized\")"
+        if (normalized != from) {
+            errors += "names.aliases: \"$from\" is not a normalized name (it normalizes to \"$normalized\")"
+        }
     }
     val learned = policy.names.learned
     for ((from, to) in learned.entries.sortedBy { it.key }) {
-        if (from == to) errors += "names.learned: \"$from\" aliases itself"
-        else if (to in learned) errors += "names.learned: \"$from\" -> \"$to\" chains through another learned alias"
+        if (from == to) {
+            errors += "names.learned: \"$from\" aliases itself"
+        } else if (to in learned) {
+            errors += "names.learned: \"$from\" -> \"$to\" chains through another learned alias"
+        }
     }
     policy.names.never.forEachIndexed { index, pair ->
-        if (pair.size != 2 || pair.any { it.isBlank() } || pair[0] == pair[1]) errors += "names.never[$index]: must be two different keys"
+        if (pair.size != 2 || pair.any { it.isBlank() } || pair[0] == pair[1]) {
+            errors += "names.never[$index]: must be two different keys"
+        }
     }
     val effective = effectiveLearned(policy.names)
 
@@ -113,11 +141,19 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
     val pins = HashMap<String, MutableList<String>>()
     for ((key, station) in policy.stations.entries.sortedBy { it.key }) {
         val where = "stations[\"$key\"]"
-        if (key in aliases) errors += "$where: key is an alias of \"${aliases.getValue(key)}\"; use the post-alias key"
-        else if (key in effective) errors += "$where: key is a learned alias of \"${effective.getValue(key)}\"; use the post-alias key"
+        if (key in aliases) {
+            errors += "$where: key is an alias of \"${aliases.getValue(key)}\"; use the post-alias key"
+        } else if (key in
+            effective
+        ) {
+            errors +=
+                "$where: key is a learned alias of \"${effective.getValue(key)}\"; use the post-alias key"
+        }
         if (key.isBlank() || key.length > 256) errors += "$where: key must be 1 to 256 characters"
         station.number?.let { number ->
-            if (number.isBlank() || number.length > 32 || number.any { it.isWhitespace() }) errors += "$where: number must be 1 to 32 characters without spaces"
+            if (number.isBlank() || number.length > 32 || number.any { it.isWhitespace() }) {
+                errors += "$where: number must be 1 to 32 characters without spaces"
+            }
             numbers.getOrPut(canonicalNumber(number)) { mutableListOf() } += key
         }
         station.id?.let { id ->
@@ -126,26 +162,55 @@ fun validatePolicy(policy: LineupPolicy, providerIds: Set<String>): List<String>
             ids.getOrPut(id.lowercase()) { mutableListOf() } += key
         }
         station.name?.let { if (it.isBlank() || it.length > 256) errors += "$where: name must be 1 to 256 characters" }
-        station.group?.let { if (it.isBlank() || it.length > 128) errors += "$where: group must be 1 to 128 characters" }
+        station.group?.let {
+            if (it.isBlank() || it.length > 128) {
+                errors += "$where: group must be 1 to 128 characters"
+            }
+        }
         station.logo?.let { if (normalizeLogoUrl(it) == null) errors += "$where: logo must be an HTTP(S) URL" }
-        for (provider in station.prefer + station.exclude) if (provider !in providerIds) errors += "$where: unknown provider $provider in prefer/exclude"
+        for (provider in station.prefer + station.exclude) {
+            if (provider !in
+                providerIds
+            ) {
+                errors += "$where: unknown provider $provider in prefer/exclude"
+            }
+        }
         for (pin in station.sources) {
             if (pin.provider !in providerIds) errors += "$where: pin names unknown provider ${pin.provider}"
             if (pin.tvgId == null && pin.name == null) errors += "$where: a pin needs tvgId or name"
             pins.getOrPut(pinIdentity(pin)) { mutableListOf() } += key
         }
     }
-    for ((number, keys) in numbers.entries.sortedBy { it.key }) if (keys.size > 1) errors += "number $number is claimed by ${keys.joinToString()}"
+    for ((number, keys) in numbers.entries.sortedBy { it.key }) {
+        if (keys.size > 1) {
+            errors += "number $number is claimed by ${keys.joinToString()}"
+        }
+    }
     for ((id, keys) in ids.entries.sortedBy { it.key }) {
-        val generated = policy.stations.keys.sorted().firstOrNull { it !in keys && policy.stations.getValue(it).id == null && stationId(it) == id }
+        val generated = policy.stations.keys.sorted().firstOrNull {
+            it !in keys && policy.stations.getValue(it).id == null && stationId(it) == id
+        }
         if (generated != null) errors += "id $id is the generated id of \"$generated\""
     }
-    for ((id, keys) in ids.entries.sortedBy { it.key }) if (keys.size > 1) errors += "id $id is claimed by ${keys.joinToString()}"
-    for ((pin, keys) in pins.entries.sortedBy { it.key }) if (keys.size > 1) errors += "pin $pin is claimed by ${keys.distinct().joinToString()}${if (keys.distinct().size == 1) " more than once" else ""}"
+    for ((id, keys) in ids.entries.sortedBy { it.key }) {
+        if (keys.size > 1) {
+            errors += "id $id is claimed by ${keys.joinToString()}"
+        }
+    }
+    for ((pin, keys) in pins.entries.sortedBy { it.key }) {
+        if (keys.size > 1) {
+            errors +=
+                "pin $pin is claimed by ${keys.distinct().joinToString()}${if (keys.distinct().size == 1) " more than once" else ""}"
+        }
+    }
     return errors
 }
 
-internal fun pinIdentity(pin: SourcePin): String = if (pin.tvgId != null) "${pin.provider}/tvg-id:${pin.tvgId}" else "${pin.provider}/name:${pin.name?.trim()?.lowercase()}"
+internal fun pinIdentity(pin: SourcePin): String = if (pin.tvgId != null) {
+    "${pin.provider}/tvg-id:${pin.tvgId}"
+} else {
+    "${pin.provider}/name:${pin.name?.trim()?.lowercase()}"
+}
 
 /** The ID a station without an `id` override carries. */
 fun stationId(key: String): String = stableId("station:$key")

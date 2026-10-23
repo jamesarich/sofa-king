@@ -28,15 +28,18 @@ import okio.Buffer
 import platform.Foundation.NSData
 import platform.Foundation.NSUserDefaults
 import platform.Foundation.create
-import platform.posix.memcpy
 import platform.UIKit.UIDevice
+import platform.posix.memcpy
 
 /**
  * Storage for the Apple TV app. tvOS may purge any file while the app is closed and lets an app write only to Caches,
  * so the settings live in `NSUserDefaults`, which it keeps (up to 500 KB), and the lineup cache, which is a cache, in
  * [cachesDirectory]. Settings an older build kept as a DataStore file under Caches move over once on the first read.
  */
-fun AppStorage.Companion.onAppleTv(cachesDirectory: String, defaults: NSUserDefaults = NSUserDefaults.standardUserDefaults): AppStorage = AppStorage(
+fun AppStorage.Companion.onAppleTv(
+    cachesDirectory: String,
+    defaults: NSUserDefaults = NSUserDefaults.standardUserDefaults,
+): AppStorage = AppStorage(
     settings = PreferenceDataStoreFactory.create(
         storage = UserDefaultsStorage(defaults, "sofaking.preferences"),
         corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
@@ -49,16 +52,20 @@ fun AppStorage.Companion.onAppleTv(cachesDirectory: String, defaults: NSUserDefa
 
 /** A DataStore [Storage] holding the serialized preferences as one `NSData` entry of [defaults] under [key]. */
 @OptIn(ExperimentalForeignApi::class)
-internal class UserDefaultsStorage(private val defaults: NSUserDefaults, private val key: String) : Storage<Preferences> {
+internal class UserDefaultsStorage(private val defaults: NSUserDefaults, private val key: String) :
+    Storage<Preferences> {
     override fun createConnection(): StorageConnection<Preferences> = Connection()
 
     private inner class Connection : StorageConnection<Preferences> {
         override val coordinator: InterProcessCoordinator = createSingleProcessCoordinator(key)
         private val writes = Mutex()
 
-        override suspend fun <R> readScope(block: suspend ReadScope<Preferences>.(locked: Boolean) -> R): R = Scope().block(false)
+        override suspend fun <R> readScope(block: suspend ReadScope<Preferences>.(locked: Boolean) -> R): R =
+            Scope().block(false)
 
-        override suspend fun writeScope(block: suspend WriteScope<Preferences>.() -> Unit) = writes.withLock { Scope().block() }
+        override suspend fun writeScope(block: suspend WriteScope<Preferences>.() -> Unit) = writes.withLock {
+            Scope().block()
+        }
 
         override fun close() = Unit
     }
@@ -106,5 +113,10 @@ private fun NSData.toByteArray(): ByteArray {
 }
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-private fun ByteArray.toNSData(): NSData =
-    if (isEmpty()) NSData() else usePinned { pinned -> NSData.create(bytes = pinned.addressOf(0), length = size.toULong()) }
+private fun ByteArray.toNSData(): NSData = if (isEmpty()) {
+    NSData()
+} else {
+    usePinned { pinned ->
+        NSData.create(bytes = pinned.addressOf(0), length = size.toULong())
+    }
+}

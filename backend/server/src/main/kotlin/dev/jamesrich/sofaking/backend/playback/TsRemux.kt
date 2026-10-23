@@ -13,10 +13,6 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.response.header
 import io.ktor.server.response.respondBytesWriter
 import io.ktor.utils.io.writeFully
-import java.nio.file.Files
-import java.nio.file.Path
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
@@ -26,8 +22,12 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.time.Duration.Companion.seconds
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * FFmpeg remuxing one HLS source into MPEG-TS for a client that only takes TS (Plex through the HDHomeRun
@@ -63,7 +63,13 @@ class TsRemux(private val ffmpeg: String, private val relay: LoopbackRelay) {
             call.respondBytesWriter(contentType = ContentType.parse("video/mp2t")) {
                 coroutineScope {
                     // A blocked pipe read ignores cancellation; killing the process is what unblocks it when the client leaves.
-                    val watchdog = launch { try { awaitCancellation() } finally { process.destroy() } }
+                    val watchdog = launch {
+                        try {
+                            awaitCancellation()
+                        } finally {
+                            process.destroy()
+                        }
+                    }
                     withContext(Dispatchers.IO) {
                         val input = process.inputStream
                         val buffer = ByteArray(64 * 1024)
@@ -100,8 +106,11 @@ class TsRemux(private val ffmpeg: String, private val relay: LoopbackRelay) {
     }
 
     /** The last FFmpeg lines with URLs removed, since segment URLs can carry tokens. */
-    private fun tail(errors: Path): String =
-        redactedMessage(runCatching { Files.readAllLines(errors) }.getOrDefault(emptyList()).takeLast(3).joinToString(" | "))
+    private fun tail(errors: Path): String = redactedMessage(
+        runCatching {
+            Files.readAllLines(errors)
+        }.getOrDefault(emptyList()).takeLast(3).joinToString(" | "),
+    )
 }
 
 /** The FFmpeg command that stream-copies [source] to MPEG-TS on its stdout. */
@@ -109,6 +118,7 @@ internal fun remuxCommand(ffmpeg: String, source: FfmpegSource): List<String> {
     val command = ffmpegBase(ffmpeg, "warning", source)
     // FFmpeg's own selection takes one video (highest resolution) and one audio (most channels) and skips the
     // other variants' downloads; subtitles and data have no reliable MPEG-TS mapping and are left out.
-    command += listOf("-i", source.url, "-sn", "-dn", "-c", "copy", "-f", "mpegts", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "pipe:1")
+    command +=
+        listOf("-i", source.url, "-sn", "-dn", "-c", "copy", "-f", "mpegts", "-mpegts_flags", "+resend_headers", "-flush_packets", "1", "pipe:1")
     return command
 }

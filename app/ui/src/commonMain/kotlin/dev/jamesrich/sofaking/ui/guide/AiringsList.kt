@@ -57,8 +57,17 @@ internal fun AiringsList(
     val tomorrow = stringResource(Res.string.guide_tomorrow)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(stringResource(Res.string.guide_airings_title), style = MaterialTheme.typography.titleLarge)
-        Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Column(
+            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             airings.forEachIndexed { index, airing ->
                 AiringRow(
                     airing = airing,
@@ -74,7 +83,13 @@ internal fun AiringsList(
 }
 
 /** "Today 8:00 PM", "Tomorrow 9:30 AM" or "Sat 7:00 PM". */
-private fun airingWhen(airing: Airing, now: Instant, timeFormat: TimeFormatter, today: String, tomorrow: String): String {
+private fun airingWhen(
+    airing: Airing,
+    now: Instant,
+    timeFormat: TimeFormatter,
+    today: String,
+    tomorrow: String,
+): String {
     val start = airing.programme.start
     val day = when (timeFormat.daysBetween(now, start)) {
         0 -> today
@@ -85,7 +100,13 @@ private fun airingWhen(airing: Airing, now: Instant, timeFormat: TimeFormatter, 
 }
 
 @Composable
-private fun AiringRow(airing: Airing, now: Instant, whenText: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun AiringRow(
+    airing: Airing,
+    now: Instant,
+    whenText: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val interactions = remember { MutableInteractionSource() }
     val focused by interactions.collectIsFocusedAsState()
     val shape = MaterialTheme.shapes.medium
@@ -96,7 +117,9 @@ private fun AiringRow(airing: Airing, now: Instant, whenText: String, onClick: (
             .tvFocus(shape, focusedScale = 1f)
             .clip(shape)
             .clickable(interactionSource = interactions, indication = ripple(), onClick = onClick),
-        supportingContent = { Text(airing.channel.label(), color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = {
+            Text(airing.channel.label(), color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        },
         trailingContent = {
             ProgrammeBadges(
                 programme = airing.programme,

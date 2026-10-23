@@ -21,7 +21,11 @@ internal fun searchSections(results: List<MediaItem>): SearchSections {
 /** Continue watching and a row of episodes or videos are wide; anything else shows posters. */
 internal fun cardStyleFor(shelf: MediaShelf): CardStyle = when {
     shelf.id == CONTINUE_SHELF -> CardStyle.WIDE
-    shelf.items.isNotEmpty() && shelf.items.all { it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO } -> CardStyle.WIDE
+
+    shelf.items.isNotEmpty() && shelf.items.all {
+        it.kind == ItemKind.EPISODE || it.kind == ItemKind.VIDEO
+    } -> CardStyle.WIDE
+
     else -> CardStyle.POSTER
 }
 

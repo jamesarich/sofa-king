@@ -1,12 +1,12 @@
 package dev.jamesrich.sofaking.backend.playback
 
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicBoolean
 
 private val log = LoggerFactory.getLogger(AudioFollower::class.java)
 
@@ -24,10 +24,15 @@ internal class AudioFollower(
     private val placement: (String) -> Placement?,
     private val heard: (url: String, levels: FloatArray, points: IntArray?, firstPointMs: Long) -> Unit,
 ) {
-    constructor(audio: SegmentAudio, ads: AdClock, scope: CoroutineScope) : this(audio, scope, ads::placement, ads::heard)
+    constructor(
+        audio: SegmentAudio,
+        ads: AdClock,
+        scope: CoroutineScope,
+    ) : this(audio, scope, ads::placement, ads::heard)
 
     private val queue = Channel<Pair<String, ByteArray>>(QUEUE)
     private val running = AtomicBoolean(false)
+
     /** By playlist; only the reading coroutine touches them. */
     private val streams = object : LinkedHashMap<String, Stream>(4, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Stream>) = size > STREAMS
@@ -37,8 +42,10 @@ internal class AudioFollower(
         /** Samples read so far, and the sample the next point is due at. */
         var samples = 0L
         var next = 0L
+
         /** The audio from [next] on. */
         var pending = ByteArray(0)
+
         /** The first sample of each recent segment, with where the segment starts on its timeline. */
         val segments = ArrayDeque<Pair<Long, Long>>()
 
@@ -76,7 +83,9 @@ internal class AudioFollower(
         val place = placement(url) ?: return
         val pcm = audio.pcm(segment) ?: return
         val previous = streams[place.playlist]
-        val stream = previous?.takeIf { place.sequence == it.sequence + 1 } ?: Stream(place.sequence).also { streams[place.playlist] = it }
+        val stream =
+            previous?.takeIf { place.sequence == it.sequence + 1 }
+                ?: Stream(place.sequence).also { streams[place.playlist] = it }
         stream.sequence = place.sequence
         stream.segments.addLast(stream.samples to place.startMs)
         while (stream.segments.size > SEGMENTS) stream.segments.removeFirst()

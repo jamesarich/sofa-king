@@ -7,7 +7,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class WatchNextTest {
-    private fun item(id: String, kind: ItemKind = ItemKind.EPISODE) = MediaItem(id = id, libraryId = "tv", kind = kind, title = id)
+    private fun item(id: String, kind: ItemKind = ItemKind.EPISODE) =
+        MediaItem(id = id, libraryId = "tv", kind = kind, title = id)
 
     private fun home(vararg shelves: MediaShelf) = LibraryHomeState.Ready(MediaHome(shelves.toList(), emptyList()))
 
@@ -15,7 +16,11 @@ class WatchNextTest {
     fun `the row mirrors the Continue watching shelf`() {
         val shelves = home(
             MediaShelf("recent", "Recently added", listOf(item("new"))),
-            MediaShelf(Wire.ShelfId.CONTINUE, "Continue watching", listOf(item("e2"), item("m1", ItemKind.MOVIE), item("show", ItemKind.SHOW))),
+            MediaShelf(
+                Wire.ShelfId.CONTINUE,
+                "Continue watching",
+                listOf(item("e2"), item("m1", ItemKind.MOVIE), item("show", ItemKind.SHOW)),
+            ),
         )
         assertEquals(listOf("e2", "m1"), watchNextItems(shelves)?.map { it.id }, "only what plays")
         assertEquals(emptyList(), watchNextItems(home(MediaShelf("recent", "Recently added", listOf(item("new"))))))

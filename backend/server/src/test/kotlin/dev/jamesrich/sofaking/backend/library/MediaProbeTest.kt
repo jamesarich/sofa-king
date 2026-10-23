@@ -7,7 +7,8 @@ import kotlin.test.assertTrue
 
 class MediaProbeTest {
     @Test fun `ffprobe json reads container, duration, streams and HDR`() {
-        val info = parseProbe("""
+        val info = parseProbe(
+            """
             {"streams":[
               {"index":0,"codec_name":"hevc","codec_type":"video","profile":"Main 10","level":150,"width":3840,"height":2160,"pix_fmt":"yuv420p10le","avg_frame_rate":"24000/1001","color_transfer":"smpte2084"},
               {"index":1,"codec_name":"truehd","codec_type":"audio","channels":8,"tags":{"language":"eng"},"disposition":{"default":1}},
@@ -15,7 +16,8 @@ class MediaProbeTest {
               {"index":3,"codec_name":"subrip","codec_type":"subtitle","tags":{"language":"eng"},"disposition":{"forced":1}},
               {"index":4,"codec_name":"mjpeg","codec_type":"video","disposition":{"attached_pic":1}}
             ],"format":{"format_name":"matroska,webm","duration":"7020.500000","bit_rate":"45000000"}}
-        """.trimIndent())!!
+            """.trimIndent(),
+        )!!
         assertEquals("matroska,webm", info.container)
         assertEquals(7_020_500, info.durationMs)
         assertEquals("hevc", info.video?.codec)

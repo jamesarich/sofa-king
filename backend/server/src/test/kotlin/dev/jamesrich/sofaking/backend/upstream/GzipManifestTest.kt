@@ -11,10 +11,14 @@ import kotlin.test.assertTrue
 
 /** Some origins (PBS's livestream CDN) gzip a manifest whether or not the request accepts it. */
 class GzipManifestTest {
-    private fun gzip(text: String): ByteArray = ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(text.toByteArray()) } }.toByteArray()
+    private fun gzip(text: String): ByteArray = ByteArrayOutputStream().also { out ->
+        GZIPOutputStream(out).use { it.write(text.toByteArray()) }
+    }.toByteArray()
 
     @Test fun `a gzip manifest head sniffs as HLS once inflated and plain bytes pass through`() {
-        val manifest = "#EXTM3U\n#EXT-X-VERSION:3\n" + (1..200).joinToString("\n") { "#EXT-X-STREAM-INF:BANDWIDTH=$it\nindex_$it.m3u8" }
+        val manifest =
+            "#EXTM3U\n#EXT-X-VERSION:3\n" +
+                (1..200).joinToString("\n") { "#EXT-X-STREAM-INF:BANDWIDTH=$it\nindex_$it.m3u8" }
         val compressed = gzip(manifest)
         assertTrue(isGzip(compressed))
         assertNull(sniffProtocol(compressed), "the raw bytes carry no signature")

@@ -12,7 +12,10 @@ class SubtitlesTest {
                 "intro\n01:00:04.500 --> 01:00:06.000 align:start\nTom &amp; Jerry\nsecond line\n",
         )
         assertEquals(
-            listOf(SubtitleCue(1_000, 3_000, "Hello there"), SubtitleCue(3_604_500, 3_606_000, "Tom & Jerry\nsecond line")),
+            listOf(
+                SubtitleCue(1_000, 3_000, "Hello there"),
+                SubtitleCue(3_604_500, 3_606_000, "Tom & Jerry\nsecond line"),
+            ),
             subtitles.cues,
         )
     }
@@ -25,7 +28,11 @@ class SubtitlesTest {
                 "00:04.000 --> 00:06.000\n\nx y\nz\n\nNOTE between\n\n00:07.000 --> 00:08.000\nlast\n",
         )
         assertEquals(
-            listOf(SubtitleCue(1_000, 3_000, "lead\ntrail"), SubtitleCue(4_000, 6_000, "x y\nz"), SubtitleCue(7_000, 8_000, "last")),
+            listOf(
+                SubtitleCue(1_000, 3_000, "lead\ntrail"),
+                SubtitleCue(4_000, 6_000, "x y\nz"),
+                SubtitleCue(7_000, 8_000, "last"),
+            ),
             subtitles.cues,
         )
     }
@@ -68,7 +75,11 @@ class SubtitlesTest {
             "♪ ♪\n-t.",
             "You had situations with her?R /.",
         )
-        val document = "WEBVTT\n\n" + lines.mapIndexed { i, line -> "00:${i.toString().padStart(2, '0')}.000 --> 00:${i.toString().padStart(2, '0')}.900\n$line" }.joinToString("\n\n")
+        val document =
+            "WEBVTT\n\n" +
+                lines.mapIndexed { i, line ->
+                    "00:${i.toString().padStart(2, '0')}.000 --> 00:${i.toString().padStart(2, '0')}.900\n$line"
+                }.joinToString("\n\n")
         assertEquals(
             listOf(
                 "Woman:\nhello, you've reach.", "For comments and complaints,", "Stupid with", "Did ancient aliens really help",
@@ -82,7 +93,14 @@ class SubtitlesTest {
 
     @Test
     fun `the text at a position is every cue showing then`() {
-        val subtitles = Subtitles(listOf(SubtitleCue(5_000, 9_000, "b"), SubtitleCue(1_000, 6_000, "a"), SubtitleCue(10_000, 11_000, "c")))
+        val subtitles =
+            Subtitles(
+                listOf(
+                    SubtitleCue(5_000, 9_000, "b"),
+                    SubtitleCue(1_000, 6_000, "a"),
+                    SubtitleCue(10_000, 11_000, "c"),
+                ),
+            )
         assertNull(subtitles.textAt(500))
         assertEquals("a", subtitles.textAt(1_000))
         assertEquals("a\nb", subtitles.textAt(5_500))

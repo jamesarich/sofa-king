@@ -29,17 +29,18 @@ class SofaKingRepository(
     private var channels: List<Channel>? = null
 
     /** The catalog alone: small and fast, so the UI can show channels before the guide arrives. */
-    suspend fun loadChannels(): List<Channel> {
-        return when (val result = api.catalog(etag)) {
-            is CatalogResult.Changed -> withContext(background) { SofaKingMapper.channels(result.catalog, api::logoUrl) }.also {
-                channels = it
-                etag = result.etag
-            }
-            CatalogResult.NotModified -> channels ?: run {
-                // Nothing to answer 304 with: the ETag is stale, so ask again without one.
-                etag = null
-                loadChannels()
-            }
+    suspend fun loadChannels(): List<Channel> = when (val result = api.catalog(etag)) {
+        is CatalogResult.Changed -> withContext(background) {
+            SofaKingMapper.channels(result.catalog, api::logoUrl)
+        }.also {
+            channels = it
+            etag = result.etag
+        }
+
+        CatalogResult.NotModified -> channels ?: run {
+            // Nothing to answer 304 with: the ETag is stale, so ask again without one.
+            etag = null
+            loadChannels()
         }
     }
 

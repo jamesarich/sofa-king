@@ -87,7 +87,9 @@ class ServerConnection(
         var wait = 5.seconds
         while (true) {
             try {
-                return api.bootstrap().capabilities.let { ServerCapabilities(recordings = it.recordings, library = it.library) }
+                return api.bootstrap().capabilities.let {
+                    ServerCapabilities(recordings = it.recordings, library = it.library)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: SofaKingException) {

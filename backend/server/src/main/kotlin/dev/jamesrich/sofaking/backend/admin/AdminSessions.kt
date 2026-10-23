@@ -5,6 +5,8 @@ import dev.jamesrich.sofaking.backend.store.StoredAdminSession
 import dev.jamesrich.sofaking.backend.store.adminSessions
 import dev.jamesrich.sofaking.backend.store.deleteAdminSession
 import dev.jamesrich.sofaking.backend.store.saveAdminSession
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Clock
@@ -15,8 +17,6 @@ import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 /** One signed-in browser: [key] is the HMAC of the ID its cookie holds, [csrf] goes in every form it posts. */
 class AdminSession(internal val key: String, val csrf: String, val expiresAt: Instant) {
@@ -43,6 +43,7 @@ class AdminSessions(
     private val random = SecureRandom()
     private val sessions = ConcurrentHashMap<String, AdminSession>()
     private val loaded = Mutex()
+
     @Volatile private var ready = store == null
 
     /** Reads the stored sessions once, before the first lookup. */
@@ -50,7 +51,11 @@ class AdminSessions(
         if (ready) return
         loaded.withLock {
             if (ready) return
-            for (stored in store!!.adminSessions(clock.instant())) sessions.putIfAbsent(stored.key, AdminSession(stored.key, stored.csrf, stored.expiresAt))
+            for (stored in store!!.adminSessions(
+                clock.instant(),
+            )) {
+                sessions.putIfAbsent(stored.key, AdminSession(stored.key, stored.csrf, stored.expiresAt))
+            }
             ready = true
         }
     }
@@ -91,7 +96,9 @@ class AdminSessions(
         store?.deleteAdminSession(key)
     }
 
-    private fun token(): String = ByteArray(32).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
+    private fun token(): String = ByteArray(32).also(random::nextBytes).let {
+        Base64.getUrlEncoder().withoutPadding().encodeToString(it)
+    }
 
     private fun hash(id: String): String {
         val mac = Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(secret!!.toByteArray(), "HmacSHA256")) }

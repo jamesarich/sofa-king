@@ -4,6 +4,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -15,7 +16,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,26 +46,20 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.Box
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import dev.jamesrich.sofaking.ui.theme.tvFocus
-import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.ChannelLogo
-import dev.jamesrich.sofaking.ui.NoListing
-import dev.jamesrich.sofaking.ui.noListing
 import dev.jamesrich.sofaking.ui.FIRST_FOCUS_FRAMES
+import dev.jamesrich.sofaking.ui.LocalLayoutProfile
+import dev.jamesrich.sofaking.ui.NoListing
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.formatNumber
 import dev.jamesrich.sofaking.ui.formatTemplate
+import dev.jamesrich.sofaking.ui.noListing
+import dev.jamesrich.sofaking.ui.theme.tvFocus
 import kotlin.math.roundToInt
 import kotlin.time.Instant
-import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 
 /**
  * Everything a row's cells need that is the same for every cell on screen; one instance per guide, so cells skip.
@@ -117,7 +117,9 @@ internal fun ChannelRow(
     val cells = remember(programmes, windowStart, windowEnd) {
         GuideTimeline.cellsFor(programmes, windowStart, windowEnd)
     }
-    val initialIndex = if (initialFocus == null) -1 else {
+    val initialIndex = if (initialFocus == null) {
+        -1
+    } else {
         cells.indexOfFirst { it.programme != null && it.covers(nowMinute) }.coerceAtLeast(0)
     }
     val ownFocus = remember(cells) { List(cells.size) { FocusRequester() } }
@@ -172,7 +174,12 @@ internal fun ChannelRow(
                 }
             }
             if (isFavorite) {
-                Icon(Icons.Filled.Star, env.favoriteLabel, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                Icon(
+                    Icons.Filled.Star,
+                    env.favoriteLabel,
+                    Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
             }
         }
         TimelineStrip(scrollState = env.scrollState, nowMinute = nowMinute, modifier = Modifier.weight(1f)) {
@@ -278,6 +285,7 @@ private fun GuideCellItem(
 
 private fun cellDescription(env: GuideRowEnv, channel: Channel, programme: Programme?, airing: Boolean): String = when {
     programme == null -> formatTemplate(env.cellNone, channel.name, env.noListingFor(channel))
+
     else -> formatTemplate(
         if (airing) env.cellAiring else env.cellLater,
         channel.name,
@@ -300,20 +308,14 @@ private fun Modifier.stickyStart(scrollState: ScrollState, cellStartPx: Float, m
         layout(cellWidth, placeable.height) { placeable.place(shift, 0) }
     }
 
-internal fun isAiring(programme: Programme, now: Instant): Boolean =
-    programme.start <= now && programme.stop > now
+internal fun isAiring(programme: Programme, now: Instant): Boolean = programme.start <= now && programme.stop > now
 
 /**
  * The search's "Later today" line under a channel: one chip per upcoming programme that matches, "8:00 PM Title",
  * which OK jumps the grid to. [firstFocus] lets the grid's Up and Down land on the first chip.
  */
 @Composable
-internal fun LaterRow(
-    item: GuideListItem.Later,
-    env: GuideRowEnv,
-    firstFocus: FocusRequester,
-    onFocused: () -> Unit,
-) {
+internal fun LaterRow(item: GuideListItem.Later, env: GuideRowEnv, firstFocus: FocusRequester, onFocused: () -> Unit) {
     val profile = LocalLayoutProfile.current
     Row(
         Modifier.fillMaxWidth().height(LATER_ROW_HEIGHT).onFocusChanged { if (it.hasFocus) onFocused() },

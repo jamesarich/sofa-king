@@ -29,7 +29,9 @@ fun interface ServerDiscovery {
 class DiscoveredServers {
     private val byName = MutableStateFlow<Map<String, DiscoveredServer>>(emptyMap())
 
-    val list: Flow<List<DiscoveredServer>> = byName.map { found -> found.values.sortedWith(compareBy({ it.name.lowercase() }, { it.url })) }
+    val list: Flow<List<DiscoveredServer>> = byName.map { found ->
+        found.values.sortedWith(compareBy({ it.name.lowercase() }, { it.url }))
+    }
 
     /**
      * Records [name] resolved to [host] and [port]. An IPv6 or unusable host leaves the list as it was: the server
@@ -37,7 +39,9 @@ class DiscoveredServers {
      */
     fun resolved(name: String, host: String, port: Int, version: String?) {
         val url = if (':' in host || port !in 1..65535) null else ServerAddress.normalizeUrl("http://$host:$port")
-        if (url != null) byName.update { it + (name to DiscoveredServer(name, url, version?.takeIf(String::isNotBlank))) }
+        if (url != null) {
+            byName.update { it + (name to DiscoveredServer(name, url, version?.takeIf(String::isNotBlank))) }
+        }
     }
 
     fun lost(name: String) = byName.update { it - name }

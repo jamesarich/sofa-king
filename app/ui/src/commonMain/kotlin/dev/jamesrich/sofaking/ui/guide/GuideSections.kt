@@ -135,7 +135,10 @@ internal fun GuideTimeHeader(
     timeFormat: TimeFormatter,
 ) {
     Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT)) {
-        Box(Modifier.width(pinWidth(LocalLayoutProfile.current)).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+        Box(
+            Modifier.width(pinWidth(LocalLayoutProfile.current)).fillMaxHeight(),
+            contentAlignment = Alignment.CenterStart,
+        ) {
             VisibleRange(
                 scrollState = scrollState,
                 viewport = viewport,
@@ -162,7 +165,9 @@ internal fun GuideTimeHeader(
             Row(Modifier.fillMaxHeight()) {
                 slotLabels.forEach { label ->
                     Box(
-                        Modifier.width(MINUTE_WIDTH * GuideTimeline.SLOT_MINUTES.toFloat()).fillMaxHeight().padding(start = 8.dp),
+                        Modifier.width(
+                            MINUTE_WIDTH * GuideTimeline.SLOT_MINUTES.toFloat(),
+                        ).fillMaxHeight().padding(start = 8.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
                         Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
@@ -206,7 +211,10 @@ internal fun ColumnScope.GuideGrid(
         CompositionLocalProvider(LocalBringIntoViewSpec provides NoBringIntoView) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f).focusRequester(focusRequester).focusRestorer().onFocusChanged { state.gridFocused = it.hasFocus }.onPreviewKeyEvent(onGridKey),
+                modifier = Modifier.weight(1f).focusRequester(focusRequester).focusRestorer().onFocusChanged {
+                    state.gridFocused =
+                        it.hasFocus
+                }.onPreviewKeyEvent(onGridKey),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
@@ -223,6 +231,7 @@ internal fun ColumnScope.GuideGrid(
                             jump = state.jump?.takeIf { it.guideId == item.channel.guideId },
                             onJumpHandled = onJumpHandled,
                         )
+
                         is GuideListItem.Later -> LaterRow(
                             item = item,
                             env = env,

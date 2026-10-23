@@ -1,8 +1,8 @@
 package dev.jamesrich.sofaking.ui.preview
 
+import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import kotlin.test.Test
 
 class PreviewCaptionsTest {
     @Test

@@ -38,7 +38,9 @@ class SleepTimer {
      */
     fun step(nowMs: Long, programmeEndMs: Long? = null, endOfItem: Boolean = false) {
         var next = SleepChoice.entries[(choice.ordinal + 1) % SleepChoice.entries.size]
-        if (next == SleepChoice.END && (programmeEndMs == null || programmeEndMs <= nowMs) && !endOfItem) next = SleepChoice.OFF
+        if (next == SleepChoice.END && (programmeEndMs == null || programmeEndMs <= nowMs) && !endOfItem) {
+            next = SleepChoice.OFF
+        }
         choice = next
         stopAtMs = when {
             next.minutes != null -> nowMs + next.minutes * MINUTE_MS
@@ -59,7 +61,8 @@ class SleepTimer {
     val atEndOfItem: Boolean get() = choice == SleepChoice.END && stopAtMs == null
 
     /** The minutes left, rounded up, while a time is set. */
-    fun minutesLeft(nowMs: Long): Int? = stopAtMs?.let { (((it - nowMs).coerceAtLeast(0) + MINUTE_MS - 1) / MINUTE_MS).toInt() }
+    fun minutesLeft(nowMs: Long): Int? =
+        stopAtMs?.let { (((it - nowMs).coerceAtLeast(0) + MINUTE_MS - 1) / MINUTE_MS).toInt() }
 }
 
 /**

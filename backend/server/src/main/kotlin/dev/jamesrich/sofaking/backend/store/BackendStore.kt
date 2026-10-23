@@ -4,16 +4,6 @@ import dev.jamesrich.sofaking.backend.api.PlexStatus
 import dev.jamesrich.sofaking.backend.health.HealthPolicy
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.Observation
-import java.nio.file.Path
-import java.time.Clock
-import java.time.Instant
-import java.util.UUID
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -40,10 +30,20 @@ import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.name
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import org.jetbrains.exposed.v1.jdbc.upsert
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
+import java.nio.file.Path
+import java.time.Clock
+import java.time.Instant
+import java.util.UUID
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /** A stored snapshot may carry fields [dev.jamesrich.sofaking.backend.catalog.FeedSnapshot] does not declare. */
 private val snapshotJson = Json { ignoreUnknownKeys = true }
@@ -76,7 +76,8 @@ class BackendStore internal constructor(
     private val reader: Database,
     private val readLane: DatabaseLane,
     private val clock: Clock,
-) : IdentityStore, AutoCloseable {
+) : IdentityStore,
+    AutoCloseable {
     private val closed = AtomicBoolean(false)
     private val policy = HealthPolicy()
 
@@ -93,12 +94,28 @@ class BackendStore internal constructor(
     internal suspend fun initialize() = databaseWork {
         applyMigrations(database, foundationMigrations(), clock)
         transaction(database) {
-            Metadata.insertIgnore { it[key] = "server_id"; it[value] = UUID.randomUUID().toString() }
-            healthSnapshot.set(OfferingHealth.selectAll().associate { it[OfferingHealth.offeringId] to decodeHealth(it[OfferingHealth.stateJson]) })
+            Metadata.insertIgnore {
+                it[key] = "server_id"
+                it[value] = UUID.randomUUID().toString()
+            }
+            healthSnapshot.set(
+                OfferingHealth.selectAll().associate {
+                    it[OfferingHealth.offeringId] to
+                        decodeHealth(it[OfferingHealth.stateJson])
+                },
+            )
             val count = OfferingHealth.offeringId.count()
             val latest = OfferingHealth.updatedAt.max()
             healthSeed.set(OfferingHealth.select(count, latest).single().let { "${it[count]}:${it[latest] ?: ""}" })
-            providerStates.set(ProviderStates.selectAll().associate { row -> (row[ProviderStates.providerId] to row[ProviderStates.key]) to row.providerState() })
+            providerStates.set(
+                ProviderStates.selectAll().associate { row ->
+                    (
+                        row[ProviderStates.providerId] to
+                            row[ProviderStates.key]
+                        ) to
+                        row.providerState()
+                },
+            )
         }
     }
 
@@ -108,9 +125,15 @@ class BackendStore internal constructor(
 
     override suspend fun ready(): Boolean {
         if (closed.get()) return false
-        return try { query { exec("SELECT 1") { it.next() && it.getInt(1) == 1 } == true } }
-        catch (e: CancellationException) { throw e }
-        catch (_: Exception) { false }
+        return try {
+            query { exec("SELECT 1") { it.next() && it.getInt(1) == 1 } == true }
+        } catch (
+            e: CancellationException,
+        ) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
     }
 
     suspend fun registerOffering(offeringId: String) {
@@ -127,25 +150,28 @@ class BackendStore internal constructor(
 
     suspend fun health(offeringId: String): HealthState? = healthSnapshot.get()[offeringId]
 
-    suspend fun recordObservation(offeringId: String, observation: Observation, now: Instant): HealthState = writeHealth { changed ->
-        val current = requireNotNull(healthSnapshot.get()[offeringId]) { "Unknown offering" }
-        val duplicate = HealthObservations.selectAll().where {
-            (HealthObservations.offeringId eq offeringId) and (HealthObservations.incidentId eq observation.incidentId)
-        }.any()
-        if (duplicate) current
-        else {
-            val next = policy.apply(current, observation, now)
-            HealthObservations.insert {
-                it[HealthObservations.offeringId] = offeringId
-                it[incidentId] = observation.incidentId
-                it[observedAt] = observation.observedAt.toString()
-                it[observationJson] = Json.encodeToString(observation.stored())
+    suspend fun recordObservation(offeringId: String, observation: Observation, now: Instant): HealthState =
+        writeHealth { changed ->
+            val current = requireNotNull(healthSnapshot.get()[offeringId]) { "Unknown offering" }
+            val duplicate = HealthObservations.selectAll().where {
+                (HealthObservations.offeringId eq offeringId) and
+                    (HealthObservations.incidentId eq observation.incidentId)
+            }.any()
+            if (duplicate) {
+                current
+            } else {
+                val next = policy.apply(current, observation, now)
+                HealthObservations.insert {
+                    it[HealthObservations.offeringId] = offeringId
+                    it[incidentId] = observation.incidentId
+                    it[observedAt] = observation.observedAt.toString()
+                    it[observationJson] = Json.encodeToString(observation.stored())
+                }
+                saveHealth(offeringId, next, now)
+                changed[offeringId] = next
+                next
             }
-            saveHealth(offeringId, next, now)
-            changed[offeringId] = next
-            next
         }
-    }
 
     /** Deletes observation history older than [before]; health state and strikes live in offering_health and are unaffected. */
     suspend fun pruneObservations(before: Instant): Int = query {
@@ -161,7 +187,10 @@ class BackendStore internal constructor(
             val stale = OfferingHealth.selectAll().mapNotNull { row ->
                 val id = row[OfferingHealth.offeringId]
                 val updated = runCatching { Instant.parse(row[OfferingHealth.updatedAt]) }.getOrNull()
-                id.takeIf { it !in live && updated != null && updated < before && !decodeHealth(row[OfferingHealth.stateJson]).manuallyDisabled }
+                id.takeIf {
+                    it !in live && updated != null && updated < before &&
+                        !decodeHealth(row[OfferingHealth.stateJson]).manuallyDisabled
+                }
             }
             for (chunk in stale.chunked(500)) {
                 HealthObservations.deleteWhere { offeringId inList chunk }
@@ -186,7 +215,9 @@ class BackendStore internal constructor(
     }
 
     suspend fun setManuallyDisabled(offeringId: String, disabled: Boolean): HealthState = writeHealth { changed ->
-        val next = requireNotNull(healthSnapshot.get()[offeringId]) { "Unknown offering" }.copy(manuallyDisabled = disabled)
+        val next = requireNotNull(healthSnapshot.get()[offeringId]) {
+            "Unknown offering"
+        }.copy(manuallyDisabled = disabled)
         saveHealth(offeringId, next, clock.instant())
         changed[offeringId] = next
         next
@@ -202,8 +233,15 @@ class BackendStore internal constructor(
         val initial = HealthState().encode()
         writeHealth { changed ->
             val key = "feed:${snapshot.providerId}"
-            Metadata.upsert { it[Metadata.key] = key; it[value] = encoded }
-            OfferingHealth.batchInsert(snapshot.offerings, ignore = true, shouldReturnGeneratedValues = false) { offering ->
+            Metadata.upsert {
+                it[Metadata.key] = key
+                it[value] = encoded
+            }
+            OfferingHealth.batchInsert(
+                snapshot.offerings,
+                ignore = true,
+                shouldReturnGeneratedValues = false,
+            ) { offering ->
                 this[OfferingHealth.offeringId] = offering.id
                 this[OfferingHealth.stateJson] = initial
                 this[OfferingHealth.updatedAt] = snapshot.importedAt
@@ -215,14 +253,19 @@ class BackendStore internal constructor(
 
     /** The last Plex sync's status, kept so it outlives a restart; null before the first sync or when it no longer decodes. */
     suspend fun plexStatus(): PlexStatus? {
-        val encoded = query { Metadata.selectAll().where { Metadata.key eq PLEX_STATUS_KEY }.singleOrNull()?.get(Metadata.value) } ?: return null
+        val encoded =
+            query { Metadata.selectAll().where { Metadata.key eq PLEX_STATUS_KEY }.singleOrNull()?.get(Metadata.value) }
+                ?: return null
         return runCatching { snapshotJson.decodeFromString<PlexStatus>(encoded) }.getOrNull()
     }
 
     suspend fun savePlexStatus(status: PlexStatus) {
         val encoded = Json.encodeToString(status)
         query {
-            Metadata.upsert { it[key] = PLEX_STATUS_KEY; it[value] = encoded }
+            Metadata.upsert {
+                it[key] = PLEX_STATUS_KEY
+                it[value] = encoded
+            }
         }
     }
 
@@ -232,11 +275,17 @@ class BackendStore internal constructor(
     }
 
     suspend fun probeAttempts(): Map<String, Instant> = query {
-        ProbeAttempts.selectAll().associate { it[ProbeAttempts.offeringId] to Instant.parse(it[ProbeAttempts.attemptedAt]) }
+        ProbeAttempts.selectAll().associate {
+            it[ProbeAttempts.offeringId] to
+                Instant.parse(it[ProbeAttempts.attemptedAt])
+        }
     }
 
     suspend fun markProbeAttempt(offeringId: String, at: Instant) = query {
-        ProbeAttempts.upsert { it[ProbeAttempts.offeringId] = offeringId; it[attemptedAt] = at.toString() }
+        ProbeAttempts.upsert {
+            it[ProbeAttempts.offeringId] = offeringId
+            it[attemptedAt] = at.toString()
+        }
         Unit
     }
 
@@ -275,12 +324,22 @@ class BackendStore internal constructor(
     }
 
     internal suspend fun <T> query(block: JdbcTransaction.() -> T): T = databaseWork {
-        timed(block) { transaction(database) { maxAttempts = 1; block() } }
+        timed(block) {
+            transaction(database) {
+                maxAttempts = 1
+                block()
+            }
+        }
     }
 
     /** Runs [block] in one transaction, then [publish] on the same thread after the commit, so mirrors change in commit order. */
     internal suspend fun <T> queryThen(block: JdbcTransaction.() -> T, publish: (T) -> Unit): T = databaseWork {
-        timed(block) { transaction(database) { maxAttempts = 1; block() } }.also(publish)
+        timed(block) {
+            transaction(database) {
+                maxAttempts = 1
+                block()
+            }
+        }.also(publish)
     }
 
     /** Runs [block] on the read-only connection: the last committed state, never waiting behind a write. */
@@ -288,7 +347,12 @@ class BackendStore internal constructor(
         check(!closed.get()) { "Store is closed" }
         return withContext(readLane.dispatcher) {
             check(!closed.get()) { "Store is closed" }
-            timed(block) { transaction(reader, readOnly = true) { maxAttempts = 1; block() } }
+            timed(block) {
+                transaction(reader, readOnly = true) {
+                    maxAttempts = 1
+                    block()
+                }
+            }
         }
     }
 
@@ -299,34 +363,55 @@ class BackendStore internal constructor(
             return work()
         } finally {
             val ms = (System.nanoTime() - started) / 1_000_000
-            if (ms > SLOW_TRANSACTION_MS) log.warn("slow database transaction source={} durationMs={}", block.javaClass.name.substringAfterLast('.').substringBefore('$'), ms)
+            if (ms > SLOW_TRANSACTION_MS) {
+                log.warn(
+                    "slow database transaction source={} durationMs={}",
+                    block.javaClass.name.substringAfterLast('.').substringBefore('$'),
+                    ms,
+                )
+            }
         }
     }
 
     /** Runs [block] in one transaction, then publishes the rows it changed; a rolled-back write publishes nothing. */
-    private suspend fun <T> writeHealth(block: JdbcTransaction.(MutableMap<String, HealthState>) -> T): T = databaseWork {
-        val changed = LinkedHashMap<String, HealthState>()
-        val result = transaction(database) { maxAttempts = 1; block(changed) }
-        if (changed.isNotEmpty()) {
-            healthSnapshot.updateAndGet { it + changed }
-            healthWrites.incrementAndGet()
+    private suspend fun <T> writeHealth(block: JdbcTransaction.(MutableMap<String, HealthState>) -> T): T =
+        databaseWork {
+            val changed = LinkedHashMap<String, HealthState>()
+            val result = transaction(database) {
+                maxAttempts = 1
+                block(changed)
+            }
+            if (changed.isNotEmpty()) {
+                healthSnapshot.updateAndGet { it + changed }
+                healthWrites.incrementAndGet()
+            }
+            result
         }
-        result
-    }
 
     private suspend fun <T> databaseWork(block: () -> T): T {
         check(!closed.get()) { "Store is closed" }
-        return withContext(writer.dispatcher) { check(!closed.get()) { "Store is closed" }; block() }
+        return withContext(writer.dispatcher) {
+            check(!closed.get()) { "Store is closed" }
+            block()
+        }
     }
 
     /** Lets SQLite refresh the statistics its query planner uses, on the tables that changed enough to need it. */
-    suspend fun optimize() = query { exec("PRAGMA optimize"); Unit }
+    suspend fun optimize() = query {
+        exec("PRAGMA optimize")
+        Unit
+    }
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         // SQLite advises PRAGMA optimize before closing a long-lived connection; a failure must not stop the close.
         try {
-            writer.executor.submit { transaction(database) { maxAttempts = 1; exec("PRAGMA optimize") } }.get(10, TimeUnit.SECONDS)
+            writer.executor.submit {
+                transaction(database) {
+                    maxAttempts = 1
+                    exec("PRAGMA optimize")
+                }
+            }.get(10, TimeUnit.SECONDS)
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
         } catch (_: Exception) {
@@ -356,7 +441,12 @@ suspend fun openStore(dataDirectory: Path, clock: Clock = Clock.systemUTC()): Ba
     try {
         database = withContext(writer.dispatcher) { databaseAt(dataDirectory) }
         // The writer creates the file and sets WAL before the read-only connection opens it.
-        withContext(writer.dispatcher) { transaction(database) { maxAttempts = 1; exec("SELECT 1") } }
+        withContext(writer.dispatcher) {
+            transaction(database) {
+                maxAttempts = 1
+                exec("SELECT 1")
+            }
+        }
         val reader = withContext(readLane.dispatcher) { databaseAt(dataDirectory, readOnly = true) }
         store = BackendStore(database, writer, reader, readLane, clock)
         store.initialize()

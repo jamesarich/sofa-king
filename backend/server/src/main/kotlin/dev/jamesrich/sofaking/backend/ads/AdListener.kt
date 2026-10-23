@@ -20,11 +20,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.request
 import io.ktor.utils.io.readBuffer
-import java.net.URI
-import java.time.Clock
-import java.time.Duration
-import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -40,6 +35,11 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import org.slf4j.LoggerFactory
+import java.net.URI
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 
 private val log = LoggerFactory.getLogger(AdListener::class.java)
 
@@ -75,6 +75,7 @@ class AdListener(
 ) {
     private val playing = ConcurrentHashMap<String, Job>()
     private val cooldown = ConcurrentHashMap<String, Instant>()
+
     /** Channels whose last turn played nothing, until when they wait. */
     private val resting = ConcurrentHashMap<String, Instant>()
 
@@ -108,23 +109,44 @@ class AdListener(
         // A channel that cannot be listened to gives its turn to the next in line, so a run of them never stalls the rest.
         val now = clock.instant()
         resting.values.removeIf { !it.isAfter(now) }
-        val usable = { offering: Offering -> service(offering) !in NEVER && cooldown[offering.providerId]?.isAfter(now) != true && offering.protocol == "hls" }
-        for ((channel, offering) in sessions.listenable(pick(store.adChannels(), channels(), watching + playing.keys + resting.keys, now), free, usable)) {
+        val usable = { offering: Offering ->
+            service(offering) !in NEVER &&
+                cooldown[offering.providerId]?.isAfter(now) != true && offering.protocol == "hls"
+        }
+        for ((channel, offering) in sessions.listenable(
+            pick(
+                store.adChannels(),
+                channels(),
+                watching + playing.keys + resting.keys,
+                now,
+            ),
+            free,
+            usable,
+        )) {
             playing[channel] = scope.launch(CoroutineName("ad-listener-$channel")) { listen(channel, offering) }
         }
     }
 
     private suspend fun listen(channel: String, offering: Offering) {
-        val ads = AdClock(learning = { LearnedBreaks.SHADOW }, library = library, channelId = channel, providerId = offering.providerId) { found ->
-            log.info(
-                "ADDETECT rule={} state={} marked=false lengthMs={} entry={} channel={} provider={} listener=true",
-                found.rule, if (found.ended) "ended" else "started", found.lengthMs, found.entry ?: "-", channel, offering.providerId,
-            )
-        }
+        val ads =
+            AdClock(learning = {
+                LearnedBreaks.SHADOW
+            }, library = library, channelId = channel, providerId = offering.providerId) { found ->
+                log.info(
+                    "ADDETECT rule={} state={} marked=false lengthMs={} entry={} channel={} provider={} listener=true",
+                    found.rule,
+                    if (found.ended) "ended" else "started",
+                    found.lengthMs,
+                    found.entry ?: "-",
+                    channel,
+                    offering.providerId,
+                )
+            }
         log.info("ad listener plays channel={} provider={}", channel, offering.providerId)
         val until = clock.instant().plus(LISTEN)
         // The audio reader ends with the turn, rather than idling on after it.
-        val reading = CoroutineScope(kotlin.coroutines.coroutineContext + SupervisorJob(kotlin.coroutines.coroutineContext[Job]))
+        val reading =
+            CoroutineScope(kotlin.coroutines.coroutineContext + SupervisorJob(kotlin.coroutines.coroutineContext[Job]))
         try {
             val stream = feeds.playable(offering)
             val follower = AudioFollower(audio, ads, reading)
@@ -133,16 +155,34 @@ class AdListener(
             while (clock.instant().isBefore(until)) {
                 val (text, base) = fetchText(stream, media) ?: return
                 if (text.contains("#EXT-X-KEY:METHOD=AES") || text.contains("#EXT-X-MAP:")) {
-                    log.info("ad listener skips channel={} provider={}: encrypted or fMP4 segments", channel, offering.providerId)
+                    log.info(
+                        "ad listener skips channel={} provider={}: encrypted or fMP4 segments",
+                        channel,
+                        offering.providerId,
+                    )
                     return
                 }
                 ads.annotate(text, base)
                 val segments = AdBreaks.parse(text, base)?.segments.orEmpty()
                 // A first look starts near the live edge, as a player does.
-                val fresh = segments.filter { it.sequence > last }.let { if (last == Long.MIN_VALUE) it.takeLast(START_SEGMENTS) else it }
+                val fresh = segments.filter { it.sequence > last }.let {
+                    if (last == Long.MIN_VALUE) {
+                        it.takeLast(START_SEGMENTS)
+                    } else {
+                        it
+                    }
+                }
                 for (segment in fresh) {
                     val bytes = fetchBytes(stream, segment.url) ?: continue
-                    val cues = tsSyncOffset(bytes, 3)?.let { sync -> SpliceReader().apply { feed(bytes, sync, bytes.size - sync) }.finish() }
+                    val cues = tsSyncOffset(bytes, 3)?.let { sync ->
+                        SpliceReader().apply {
+                            feed(
+                                bytes,
+                                sync,
+                                bytes.size - sync,
+                            )
+                        }.finish()
+                    }
                     ads.served(segment.url, cues)
                     follower.offer(segment.url, bytes)
                     last = segment.sequence
@@ -166,7 +206,12 @@ class AdListener(
                 if (census.playedMs > 0) {
                     log.info(
                         "ADCENSUS channel={} provider={} playedMs={} marked={} breaks={} learned={} listener=true",
-                        channel, offering.providerId, census.playedMs, census.marked, census.breaks, census.learned,
+                        channel,
+                        offering.providerId,
+                        census.playedMs,
+                        census.marked,
+                        census.breaks,
+                        census.learned,
                     )
                     store.recordAdChannel(channel, offering.providerId, census, clock.instant(), listened = true)
                 }
@@ -177,7 +222,8 @@ class AdListener(
     private class Refused(val status: Int) : Exception("upstream answered $status")
 
     /** The built-in service a native source plays from, such as `pluto`; null for a source file's own URL. */
-    private fun service(offering: Offering): String? = if (offering.url.startsWith("svc://")) URI(offering.url).host else null
+    private fun service(offering: Offering): String? =
+        if (offering.url.startsWith("svc://")) URI(offering.url).host else null
 
     /** The media playlist to follow: the lowest variant of a master, or its audio rendition when it has one. */
     private suspend fun mediaPlaylist(stream: ResolvedStream): String? {
@@ -185,13 +231,27 @@ class AdListener(
         return mediaOf(text, base)
     }
 
-    private suspend fun fetchText(stream: ResolvedStream, url: String): Pair<String, URI>? = fetch(stream, url, MAX_PLAYLIST) { bytes, finalUrl ->
-        bytes.toString(Charsets.UTF_8) to URI(finalUrl)
+    private suspend fun fetchText(stream: ResolvedStream, url: String): Pair<String, URI>? =
+        fetch(stream, url, MAX_PLAYLIST) {
+                bytes,
+                finalUrl,
+            ->
+            bytes.toString(Charsets.UTF_8) to URI(finalUrl)
+        }
+
+    private suspend fun fetchBytes(stream: ResolvedStream, url: String): ByteArray? = fetch(stream, url, MAX_SEGMENT) {
+            bytes,
+            _,
+        ->
+        bytes
     }
 
-    private suspend fun fetchBytes(stream: ResolvedStream, url: String): ByteArray? = fetch(stream, url, MAX_SEGMENT) { bytes, _ -> bytes }
-
-    private suspend fun <T> fetch(stream: ResolvedStream, url: String, limit: Long, read: (ByteArray, String) -> T): T? = permits.withPermit {
+    private suspend fun <T> fetch(
+        stream: ResolvedStream,
+        url: String,
+        limit: Long,
+        read: (ByteArray, String) -> T,
+    ): T? = permits.withPermit {
         http.withUpstreamResponse(url, stream.url, stream.headers, policy = feeds.upstream) { response ->
             val status = response.status.value
             if (status == 403 || status == 429) throw Refused(status)
@@ -205,8 +265,10 @@ class AdListener(
         /** How long a slot stays on one channel. */
         val LISTEN: Duration = Duration.ofMinutes(20)
         val COOLDOWN: Duration = Duration.ofHours(1)
+
         /** How recent a watch must be for a channel to come first. */
         val RECENT: Duration = Duration.ofDays(14)
+
         /** Built-in services whose channels are never listened to. */
         val NEVER = setOf("pluto")
         private const val RECONCILE_MS = 30_000L
@@ -220,11 +282,23 @@ class AdListener(
             if (!text.contains("#EXT-X-STREAM-INF")) return base.toString()
             val lines = text.lines()
             val variant = lines.indices.filter { lines[it].startsWith("#EXT-X-STREAM-INF") }
-                .mapNotNull { i -> lines.drop(i + 1).firstOrNull { it.isNotBlank() && !it.startsWith("#") }?.let { lines[i] to it.trim() } }
-                .minByOrNull { (info, _) -> Regex("""BANDWIDTH=(\d+)""").find(info)?.groupValues?.get(1)?.toLongOrNull() ?: Long.MAX_VALUE } ?: return null
+                .mapNotNull { i ->
+                    lines.drop(i + 1).firstOrNull { it.isNotBlank() && !it.startsWith("#") }?.let {
+                        lines[i] to
+                            it.trim()
+                    }
+                }
+                .minByOrNull { (info, _) ->
+                    Regex("""BANDWIDTH=(\d+)""").find(info)?.groupValues?.get(1)?.toLongOrNull()
+                        ?: Long.MAX_VALUE
+                }
+                ?: return null
             val group = Regex("""AUDIO="([^"]+)"""").find(variant.first)?.groupValues?.get(1)
             val rendition = group?.let { name ->
-                lines.firstOrNull { it.startsWith("#EXT-X-MEDIA:") && it.contains("TYPE=AUDIO") && it.contains("GROUP-ID=\"$name\"") && it.contains("URI=\"") }
+                lines.firstOrNull {
+                    it.startsWith("#EXT-X-MEDIA:") && it.contains("TYPE=AUDIO") &&
+                        it.contains("GROUP-ID=\"$name\"") && it.contains("URI=\"")
+                }
                     ?.let { Regex("""URI="([^"]+)"""").find(it)?.groupValues?.get(1) }
             }
             return base.resolve(rendition ?: variant.second).toString()
@@ -235,16 +309,29 @@ class AdListener(
          * marked first, the most recently watched first; then watched within [RECENT] with markers; then never heard;
          * then the least recently heard. Within the first two, a channel heard lately waits behind one that was not.
          */
-        fun pick(known: List<AdChannelRecord>, lineup: List<String>, busy: Set<String>, now: Instant = Instant.now()): List<String> {
+        fun pick(
+            known: List<AdChannelRecord>,
+            lineup: List<String>,
+            busy: Set<String>,
+            now: Instant = Instant.now(),
+        ): List<String> {
             val byChannel = known.associateBy { it.channelId }
             val since = now.minus(RECENT)
             fun recent(id: String) = byChannel[id]?.lastWatchedAt?.isAfter(since) == true
             fun heard(id: String) = byChannel[id]?.lastListenedAt ?: Instant.EPOCH
             val free = lineup.filter { it !in busy }
             val unmarked = free.filter { recent(it) && byChannel[it]?.markedAt == null }
-                .sortedWith(compareBy<String> { heard(it) > now.minus(LISTEN) }.thenByDescending { byChannel[it]?.lastWatchedAt })
+                .sortedWith(
+                    compareBy<String> {
+                        heard(it) > now.minus(LISTEN)
+                    }.thenByDescending { byChannel[it]?.lastWatchedAt },
+                )
             val marked = free.filter { recent(it) && byChannel[it]?.markedAt != null }
-                .sortedWith(compareBy<String> { heard(it) > now.minus(LISTEN) }.thenByDescending { byChannel[it]?.lastWatchedAt })
+                .sortedWith(
+                    compareBy<String> {
+                        heard(it) > now.minus(LISTEN)
+                    }.thenByDescending { byChannel[it]?.lastWatchedAt },
+                )
             val rest = free.filter { !recent(it) }.sortedBy { heard(it) }
             return unmarked + marked + rest
         }

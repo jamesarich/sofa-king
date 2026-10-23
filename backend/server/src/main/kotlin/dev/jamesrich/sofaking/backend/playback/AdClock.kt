@@ -56,30 +56,40 @@ class AdClock(
     private class Timeline(val key: String) {
         val starts = TreeMap<Long, Long>()
         val durations = HashMap<Long, Long>()
+
         /** The runs seen, by first segment, each with where the stream planned its end on this timeline, when it said. */
         val runs = TreeMap<Long, Run>()
         var lastServed: Long? = null
         var servedAt = 0L
+
         /** The first segment of a cue break the last refresh left open. */
         var openCue: Long? = null
+
         /** The breaks the cues inside its segments announced, in order. */
         val splices = ArrayList<TimedBreak>()
+
         /** Whether the playlist ever carried a marker; learning stops on it then. */
         var exact = false
+
         /** The silent stretches heard and not yet over, by start. */
         val quiet = TreeMap<Long, Quiet>()
+
         /** The learned breaks that may be marked, in order. */
         val learnedMarks = ArrayList<TimedBreak>()
+
         /** The Chromaprint points heard, the marked runs already learned, by first segment, and the library entry followed now. */
         val points = PointLog()
         val learnedRuns = HashSet<Long>()
         var following: Following? = null
         var lastLearnedEndMs: Long? = null
+
         /** The library entry the canary last checked, and where its match ended, so one airing counts once. */
         var canaryEntry: String? = null
         var canaryUntilMs = 0L
+
         /** The end of the latest segment heard. */
         var heardTo = 0L
+
         /** For [census]: the media fetched, the marked breaks and the breaks learned. */
         var playedMs = 0L
         var breaks = 0
@@ -95,12 +105,19 @@ class AdClock(
     private class TimedBreak(val startMs: Long, var endMs: Long, var planned: Boolean)
 
     /** A library entry a playlist's audio is matching: the entry's point for global point g is g + [shift]. */
-    private class Following(val entry: dev.jamesrich.sofaking.backend.ads.BreakEntry, val shift: Int, val startMs: Long, var lastPoint: Long, val timed: TimedBreak)
+    private class Following(
+        val entry: dev.jamesrich.sofaking.backend.ads.BreakEntry,
+        val shift: Int,
+        val startMs: Long,
+        var lastPoint: Long,
+        val timed: TimedBreak,
+    )
 
     /** A playlist's recent Chromaprint points, numbered from the first heard, each with its time on the timeline. */
     private class PointLog {
         private var words = IntArray(1024)
         private var times = LongArray(1024)
+
         /** The number of the first point kept, and of the point after the last. */
         var first = 0L
             private set
@@ -173,8 +190,12 @@ class AdClock(
         val runs = AdBreaks.runs(parsed)
         for (run in runs) remember(timeline, run)
         timeline.openCue = when {
-            read.cueOpenAtEnd -> parsed.segments.lastOrNull()?.takeIf { it.ad }?.let { last -> timeline.runs.floorEntry(last.sequence)?.key }
+            read.cueOpenAtEnd -> parsed.segments.lastOrNull()?.takeIf {
+                it.ad
+            }?.let { last -> timeline.runs.floorEntry(last.sequence)?.key }
+
             parsed.segments.lastOrNull()?.ad == true && parsed.segments.none { it.cueIn } -> timeline.openCue
+
             else -> null
         }
         return AdBreaks.annotate(text, runs)
@@ -241,7 +262,10 @@ class AdClock(
     @Synchronized
     internal fun served(url: String, cues: SegmentCues? = null) {
         val mark = marks[url] ?: return
-        if (mark.sequence > (mark.playlist.lastServed ?: Long.MIN_VALUE)) mark.playlist.playedMs += mark.playlist.durations[mark.sequence] ?: 0L
+        if (mark.sequence > (mark.playlist.lastServed ?: Long.MIN_VALUE)) {
+            mark.playlist.playedMs +=
+                mark.playlist.durations[mark.sequence] ?: 0L
+        }
         mark.playlist.lastServed = mark.sequence
         mark.playlist.servedAt = ++servedCount
         if (cues != null && cues.splices.isNotEmpty()) splice(mark.playlist, mark.sequence, cues)
@@ -255,12 +279,17 @@ class AdClock(
             // A cue is sent again in the segments before its splice, and a break may be named twice; one break stands.
             val current = timeline.splices.lastOrNull()?.takeIf { at >= it.startMs - REPEAT_SLACK_MS && at < it.endMs }
             if (splice.out) {
-                if (current == null) timeline.splices += TimedBreak(at, at + (splice.durationMs ?: OPEN_CUE_LIMIT_MS), splice.durationMs != null)
+                if (current == null) {
+                    timeline.splices +=
+                        TimedBreak(at, at + (splice.durationMs ?: OPEN_CUE_LIMIT_MS), splice.durationMs != null)
+                }
             } else if (current != null && at > current.startMs) {
                 current.endMs = at
                 current.planned = true
                 // The segments from the return on leave the run they joined while the break was planned longer.
-                val back = timeline.starts.entries.firstOrNull { (segment, start) -> start + (timeline.durations[segment] ?: 0L) / 2 >= at }?.key
+                val back = timeline.starts.entries.firstOrNull { (segment, start) ->
+                    start + (timeline.durations[segment] ?: 0L) / 2 >= at
+                }?.key
                 if (back != null) {
                     timeline.runs.floorEntry(back)?.value?.takeIf { it.first < back && it.last >= back }?.let {
                         it.last = back - 1
@@ -275,9 +304,18 @@ class AdClock(
     /** The segments already listed that [breaks] cover join the runs now, for [at]; later ones are marked as their playlists arrive. */
     private fun join(timeline: Timeline, breaks: List<TimedBreak>) {
         for (timed in breaks) {
-            val inside = timeline.starts.entries.filter { (segment, start) -> breakAt(breaks, start, timeline.durations[segment] ?: 0L) === timed }
+            val inside = timeline.starts.entries.filter { (segment, start) ->
+                breakAt(
+                    breaks,
+                    start,
+                    timeline.durations[segment] ?: 0L,
+                ) === timed
+            }
             val first = inside.firstOrNull() ?: continue
-            remember(timeline, AdRun(first.key, inside.last().key, if (timed.planned) timed.endMs - first.value else null))
+            remember(
+                timeline,
+                AdRun(first.key, inside.last().key, if (timed.planned) timed.endMs - first.value else null),
+            )
         }
     }
 
@@ -332,7 +370,15 @@ class AdClock(
             if (silent && from < 0) from = index
             if (!silent && from >= 0) {
                 // A stretch running to the last level runs to the segment's end, which its audio may fall a little short of.
-                quiet(timeline, start + from * LOUDNESS_WINDOW_MS, if (index == levels.size) maxOf(end, start + index * LOUDNESS_WINDOW_MS) else start + index * LOUDNESS_WINDOW_MS)
+                quiet(
+                    timeline,
+                    start + from * LOUDNESS_WINDOW_MS,
+                    if (index == levels.size) {
+                        maxOf(end, start + index * LOUDNESS_WINDOW_MS)
+                    } else {
+                        start + index * LOUDNESS_WINDOW_MS
+                    },
+                )
                 from = -1
             }
         }
@@ -343,7 +389,13 @@ class AdClock(
             val length = quiet.endMs - quiet.startMs
             var slate = quiet.slate
             if (slate == null && length >= SLATE_MS) {
-                slate = TimedBreak(quiet.startMs, quiet.endMs, planned = false).also { if (marked) timeline.learnedMarks += it }
+                slate =
+                    TimedBreak(quiet.startMs, quiet.endMs, planned = false).also {
+                        if (marked) {
+                            timeline.learnedMarks +=
+                                it
+                        }
+                    }
                 quiet.slate = slate
                 timeline.learned++
                 learned(LearnedBreak(SLATE, length, ended = false, marked = marked))
@@ -376,7 +428,9 @@ class AdClock(
             // A cue left open until the limit gave no end, so its length is a guess.
             if (run.plannedEndMs == null && endMs - startMs >= OPEN_CUE_LIMIT_MS - REPEAT_SLACK_MS) continue
             val points = timeline.points.between(startMs + LEARN_EDGE_MS, endMs - LEARN_EDGE_MS)
-            if (points.size >= BreakLibrary.MIN_LEARN_POINTS) library.learn(points, channelId, providerId, "$tag:$startMs")
+            if (points.size >= BreakLibrary.MIN_LEARN_POINTS) {
+                library.learn(points, channelId, providerId, "$tag:$startMs")
+            }
         }
         timeline.starts.firstEntry()?.let { (oldest, _) -> timeline.learnedRuns.removeIf { it < oldest } }
     }
@@ -395,7 +449,11 @@ class AdClock(
         timeline.canaryUntilMs = toMs
         val breaks = timeline.runs.values.mapNotNull { run ->
             val start = timeline.starts[run.first] ?: return@mapNotNull null
-            start to (timeline.starts[run.last + 1] ?: run.plannedEndMs ?: (timeline.starts[run.last]?.plus(timeline.durations[run.last] ?: 0L) ?: start))
+            start to
+                (
+                    timeline.starts[run.last + 1] ?: run.plannedEndMs
+                        ?: (timeline.starts[run.last]?.plus(timeline.durations[run.last] ?: 0L) ?: start)
+                    )
         }
         val inside = breaks.sumOf { (start, end) -> maxOf(0L, minOf(end, toMs) - maxOf(start, fromMs)) }
         if (inside * 2 >= toMs - fromMs) {
@@ -416,19 +474,33 @@ class AdClock(
             while (point < log.end) {
                 val at = point + following.shift
                 if (at >= entry.size) break
-                if (Integer.bitCount(log.word(point) xor entry[at.toInt()]) <= BreakLibrary.MAX_BIT_ERRORS) last = point
-                else if (point - last > BreakLibrary.MAX_GAP_POINTS) break
+                if (Integer.bitCount(log.word(point) xor entry[at.toInt()]) <= BreakLibrary.MAX_BIT_ERRORS) {
+                    last = point
+                } else if (point - last > BreakLibrary.MAX_GAP_POINTS) {
+                    break
+                }
                 point++
             }
             following.lastPoint = last
             val endMs = log.time(last) + BreakLibrary.POINT_MS.roundToLong()
             following.timed.endMs = endMs
-            val over = log.end - 1 - last > BreakLibrary.MAX_GAP_POINTS || last + following.shift >= entry.size - 1 || endMs - following.startMs >= MAX_LEARNED_MS
+            val over =
+                log.end - 1 - last > BreakLibrary.MAX_GAP_POINTS || last + following.shift >= entry.size - 1 ||
+                    endMs - following.startMs >= MAX_LEARNED_MS
             if (!over) return
             following.timed.planned = true
             timeline.following = null
             timeline.lastLearnedEndMs = endMs
-            learned(LearnedBreak(LIBRARY, endMs - following.startMs, ended = true, marked = following.timed in timeline.learnedMarks, entry = following.entry.id))
+            learned(
+                LearnedBreak(
+                    LIBRARY,
+                    endMs - following.startMs,
+                    ended = true,
+                    marked =
+                    following.timed in timeline.learnedMarks,
+                    entry = following.entry.id,
+                ),
+            )
         }
         val newest = log.lastTime ?: return
         val continuing = timeline.lastLearnedEndMs?.let { newest - it < CONTINUE_MS } == true
@@ -438,10 +510,18 @@ class AdClock(
         if (words.size - 1 - match.queryTo > BreakLibrary.MAX_GAP_POINTS) return
         if (match.entry.blocked) return
         val startMs = log.time(base + match.queryFrom)
-        val timed = TimedBreak(startMs, log.time(base + match.queryTo) + BreakLibrary.POINT_MS.roundToLong(), planned = false)
+        val timed =
+            TimedBreak(startMs, log.time(base + match.queryTo) + BreakLibrary.POINT_MS.roundToLong(), planned = false)
         val marked = mode == LearnedBreaks.ON && match.entry.blanking && !library.frozen()
         if (marked) timeline.learnedMarks += timed
-        timeline.following = Following(match.entry, match.entryFrom - (base + match.queryFrom).toInt(), startMs, base + match.queryTo, timed)
+        timeline.following =
+            Following(
+                match.entry,
+                match.entryFrom - (base + match.queryFrom).toInt(),
+                startMs,
+                base + match.queryTo,
+                timed,
+            )
         timeline.learned++
         library.matched(match.entry)
         learned(LearnedBreak(LIBRARY, timed.endMs - startMs, ended = false, marked = marked, entry = match.entry.id))
@@ -454,7 +534,8 @@ class AdClock(
         var slate: TimedBreak? = null
         // Segments are mostly heard in order, but one may land after the next; a stretch meets those on either side.
         while (true) {
-            val (key, met) = timeline.quiet.floorEntry(end + JOIN_MS)?.takeIf { it.value.endMs + JOIN_MS >= start } ?: break
+            val (key, met) = timeline.quiet.floorEntry(end + JOIN_MS)?.takeIf { it.value.endMs + JOIN_MS >= start }
+                ?: break
             timeline.quiet.remove(key)
             start = minOf(start, met.startMs)
             end = maxOf(end, met.endMs)
@@ -466,21 +547,29 @@ class AdClock(
     /** What the session found so far, for the census: its playlists' most, since audio renditions repeat the video's. */
     @Synchronized
     fun census(): AdCensus = AdCensus(
-        timelines.values.maxOfOrNull { it.playedMs } ?: 0L, timelines.values.any { it.exact },
-        timelines.values.maxOfOrNull { it.breaks } ?: 0, timelines.values.maxOfOrNull { it.learned } ?: 0,
+        timelines.values.maxOfOrNull { it.playedMs } ?: 0L,
+        timelines.values.any { it.exact },
+        timelines.values.maxOfOrNull { it.breaks } ?: 0,
+        timelines.values.maxOfOrNull { it.learned } ?: 0,
     )
 
     /** The break playing now for a player with [aheadMs] of media loaded past the picture; not in one when unknown. */
     @Synchronized
     fun at(aheadMs: Long): AdBreakState {
         // Audio renditions are fetched beside the video: the marked playlist served lately is the one playing.
-        val timeline = timelines.values.filter { it.runs.isNotEmpty() && it.lastServed != null && servedCount - it.servedAt < RECENT_SERVES }
-            .maxByOrNull { it.servedAt } ?: return AdBreakState()
+        val timeline =
+            timelines.values.filter {
+                it.runs.isNotEmpty() && it.lastServed != null && servedCount - it.servedAt < RECENT_SERVES
+            }
+                .maxByOrNull { it.servedAt } ?: return AdBreakState()
         val last = timeline.lastServed ?: return AdBreakState()
         val lastStart = timeline.starts[last] ?: return AdBreakState()
         val position = lastStart + (timeline.durations[last] ?: 0L) - aheadMs.coerceAtLeast(0L)
         // Starts grow with the sequence number, so the segment on screen is the last one starting at or before the position.
-        val (sequence, start) = timeline.starts.descendingMap().entries.firstOrNull { it.value <= position }?.let { it.key to it.value }
+        val (sequence, start) = timeline.starts.descendingMap().entries.firstOrNull { it.value <= position }?.let {
+            it.key to
+                it.value
+        }
             ?: return AdBreakState()
         if (position >= start + (timeline.durations[sequence] ?: 0L)) return AdBreakState()
         val run = timeline.runs.floorEntry(sequence)?.value?.takeIf { sequence <= it.last } ?: return AdBreakState()
@@ -491,7 +580,9 @@ class AdClock(
     /** Extends [timeline] with [segments]; a window that no longer meets what was seen starts it again. */
     private fun place(timeline: Timeline, segments: List<AdBreaks.Segment>) {
         val first = segments.firstOrNull() ?: return
-        if (timeline.starts.isNotEmpty() && first.sequence !in timeline.starts && first.sequence != timeline.starts.lastKey() + 1) {
+        if (timeline.starts.isNotEmpty() && first.sequence !in timeline.starts &&
+            first.sequence != timeline.starts.lastKey() + 1
+        ) {
             timeline.starts.clear()
             timeline.durations.clear()
             timeline.runs.clear()
@@ -544,7 +635,13 @@ class AdClock(
  * A break a rule learned from the stream rather than a marker: [rule], how long it has lasted so far, whether it has
  * [ended], and whether the session [marked] it for the player.
  */
-data class LearnedBreak(val rule: String, val lengthMs: Long, val ended: Boolean, val marked: Boolean, val entry: String? = null)
+data class LearnedBreak(
+    val rule: String,
+    val lengthMs: Long,
+    val ended: Boolean,
+    val marked: Boolean,
+    val entry: String? = null,
+)
 
 /** Where a fetched segment is: its playlist (the timeline's key), its sequence number and its start on the timeline. */
 internal data class Placement(val playlist: String, val sequence: Long, val startMs: Long)
@@ -558,36 +655,49 @@ data class AdCensus(val playedMs: Long, val marked: Boolean, val breaks: Int, va
 /** The rule for a stretch of silence long enough to be a slate, and for a shorter one that is only reported. */
 internal const val SLATE = "slate"
 internal const val SHORT_SLATE = "slate-short"
+
 /** The rule for a match of the break library, and for the canary's false hit on a marked channel. */
 internal const val LIBRARY = "library"
 internal const val CANARY = "canary-false"
+
 /** Audio below this level, in dBFS, is silent; speech and music under a quiet scene stay well above it. */
 private const val SILENCE_DB = -60f
+
 /** How long a silent stretch lasts before it is a slate; a show's own pauses rarely reach it. */
 private const val SLATE_MS = 20_000L
+
 /** How long a shorter silent stretch lasts before it is reported, in shadow only. */
 private const val SHORT_SLATE_MS = 10_000L
+
 /** How far apart two silent stretches may be and still be one, over a segment boundary the audio falls short of. */
 private const val JOIN_MS = 500L
+
 /** How far in from each edge of a marked break its audio is learned, since markers land a little off the cut. */
 private const val LEARN_EDGE_MS = 3_000L
+
 /** The points the canary and the matcher look at: about 15 and 20 s. */
 private const val CANARY_POINTS = 121
 private const val MATCH_POINTS = 162
+
 /** How close to a marked break a match may be and not count as show audio, since markers land a little off the cut. */
 private const val CANARY_EDGE_MS = 5_000L
+
 /** How soon after a learned break a match continues it, and the least that match may be: about 3 s. */
 private const val CONTINUE_MS = 5_000L
 private const val CONTINUE_POINTS = 25
+
 /** The longest a learned break may run. */
 private const val MAX_LEARNED_MS = 240_000L
 
 /** The playlists a session keeps a timeline for: its variants and renditions, and a few it switched away from. */
 private const val TIMELINE_LIMIT = 16
+
 /** How long a cue break with neither a planned end nor a `#EXT-X-CUE-IN` stays open across refreshes. */
 private const val OPEN_CUE_LIMIT_MS = 240_000L
+
 /** How close before a break's start a cue still names the same break. */
 private const val REPEAT_SLACK_MS = 2_000L
+
 /** How far a cue's splice time may be from its segment's first frame; one further off counts from the segment itself. */
 private const val SPLICE_REACH_TICKS = 60L * 90_000
 

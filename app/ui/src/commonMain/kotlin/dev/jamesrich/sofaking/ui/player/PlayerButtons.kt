@@ -42,8 +42,8 @@ import dev.jamesrich.sofaking.ui.InputKind
 import dev.jamesrich.sofaking.ui.LastInput
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import org.jetbrains.compose.resources.StringResource
-import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
+import kotlin.time.Clock
 
 /** How long a player's bar stays up after the last key, tap or mouse movement, unless something holds it. */
 internal const val BAR_IDLE_MS = 5_000L
@@ -99,17 +99,21 @@ internal fun vodButtons(
     inCredits: Boolean = false,
     creditsToNext: Boolean = false,
     speedAdjustable: Boolean = false,
-): List<VodButton> = if (failed) emptyList() else buildList {
-    if (inBreak) add(VodButton.SKIP_BREAK)
-    if (inIntro) add(VodButton.SKIP_INTRO)
-    if (inCredits) add(VodButton.SKIP_CREDITS)
-    if (tracksPickable) add(VodButton.TRACKS)
-    if (captions) add(VodButton.CAPTIONS)
-    add(VodButton.ZOOM)
-    add(VodButton.SLEEP)
-    if (speedAdjustable) add(VodButton.SPEED)
-    if (pastStart) add(VodButton.START_OVER)
-    if (hasNext && !(inCredits && creditsToNext)) add(VodButton.NEXT)
+): List<VodButton> = if (failed) {
+    emptyList()
+} else {
+    buildList {
+        if (inBreak) add(VodButton.SKIP_BREAK)
+        if (inIntro) add(VodButton.SKIP_INTRO)
+        if (inCredits) add(VodButton.SKIP_CREDITS)
+        if (tracksPickable) add(VodButton.TRACKS)
+        if (captions) add(VodButton.CAPTIONS)
+        add(VodButton.ZOOM)
+        add(VodButton.SLEEP)
+        if (speedAdjustable) add(VodButton.SPEED)
+        if (pastStart) add(VodButton.START_OVER)
+        if (hasNext && !(inCredits && creditsToNext)) add(VodButton.NEXT)
+    }
 }
 
 /** A button on the live player's bar; [liveButtons] chooses them. */
@@ -143,7 +147,12 @@ internal enum class LiveButton {
  * ([hasPrevious]), then what the CC, Play/Pause, Info and Zoom keys do, the sleep timer, Record where the server records and there is a program on, the star where favorites can change, and the guide.
  * A finger or a mouse has play and pause beside the channel buttons instead ([pointer]).
  */
-internal fun liveButtons(pointer: Boolean, canRecord: Boolean, canFavorite: Boolean, hasPrevious: Boolean = false): List<LiveButton> = buildList {
+internal fun liveButtons(
+    pointer: Boolean,
+    canRecord: Boolean,
+    canFavorite: Boolean,
+    hasPrevious: Boolean = false,
+): List<LiveButton> = buildList {
     add(LiveButton.CHANNELS)
     if (hasPrevious) add(LiveButton.PREVIOUS)
     if (!pointer) add(LiveButton.PLAY_PAUSE)
@@ -207,14 +216,18 @@ internal val VideoZoom.label: StringResource
 
 /** Zoom on either bar, named with the zoom it is at, as "Zoom: Fit". */
 @Composable
-internal fun zoomButtonItem(zoom: VideoZoom, onClick: () -> Unit): PlayerButtonItem =
-    PlayerButtonItem(SofaIcons.AspectRatio, stringResource(Res.string.player_zoom_notice, stringResource(zoom.label)), onClick)
+internal fun zoomButtonItem(zoom: VideoZoom, onClick: () -> Unit): PlayerButtonItem = PlayerButtonItem(
+    SofaIcons.AspectRatio,
+    stringResource(Res.string.player_zoom_notice, stringResource(zoom.label)),
+    onClick,
+)
 
 /** The library player's speeds, which its Speed button steps through and back to the first. */
 internal val PLAYBACK_SPEEDS = listOf(1f, 1.25f, 1.5f, 2f)
 
 /** The speed after [speed] on the Speed button; one not in [PLAYBACK_SPEEDS] goes back to normal. */
-internal fun nextSpeed(speed: Float): Float = PLAYBACK_SPEEDS.getOrNull(PLAYBACK_SPEEDS.indexOf(speed) + 1) ?: PLAYBACK_SPEEDS.first()
+internal fun nextSpeed(speed: Float): Float =
+    PLAYBACK_SPEEDS.getOrNull(PLAYBACK_SPEEDS.indexOf(speed) + 1) ?: PLAYBACK_SPEEDS.first()
 
 /** [speed] as the Speed button names it, as "1.25" or "2". */
 internal fun speedText(speed: Float): String = speed.toString().removeSuffix(".0")
@@ -273,7 +286,13 @@ internal fun PlayerButtonRow(
                     modifier = Modifier
                         .then(if (position == 0) Modifier.focusRequester(entry) else Modifier)
                         .onFocusChanged { if (it.isFocused) focusedIndex = position }
-                        .then(if (item.state != null) Modifier.semantics { stateDescription = item.state } else Modifier),
+                        .then(
+                            if (item.state != null) {
+                                Modifier.semantics { stateDescription = item.state }
+                            } else {
+                                Modifier
+                            },
+                        ),
                 )
             }
         }

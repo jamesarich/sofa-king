@@ -4,7 +4,8 @@ import dev.jamesrich.sofaking.contract.LetterCount
 import java.time.LocalDate
 
 /** The video containers a library scan picks up, by lower-case extension. */
-internal val VIDEO_EXTENSIONS = setOf("mkv", "mp4", "m4v", "mov", "avi", "ts", "m2ts", "mts", "webm", "wmv", "mpg", "mpeg", "flv", "ogv", "3gp")
+internal val VIDEO_EXTENSIONS =
+    setOf("mkv", "mp4", "m4v", "mov", "avi", "ts", "m2ts", "mts", "webm", "wmv", "mpg", "mpeg", "flv", "ogv", "3gp")
 
 /** Folders Plex and Jellyfin treat as extras or NAS housekeeping; a scan skips them and what they hold. */
 private val SKIPPED_FOLDERS = setOf(
@@ -13,7 +14,8 @@ private val SKIPPED_FOLDERS = setOf(
 )
 
 /** File-name suffixes Plex reads as extras of the movie beside them. */
-private val EXTRA_SUFFIXES = listOf("-trailer", "-sample", "-featurette", "-behindthescenes", "-deleted", "-interview", "-scene", "-short", "-other")
+private val EXTRA_SUFFIXES =
+    listOf("-trailer", "-sample", "-featurette", "-behindthescenes", "-deleted", "-interview", "-scene", "-short", "-other")
 
 internal fun skippedFolder(name: String): Boolean = name.startsWith('.') || name.lowercase() in SKIPPED_FOLDERS
 
@@ -47,7 +49,9 @@ internal fun titleYear(raw: String): TitleYear {
         val year = match.groupValues[2].toInt()
         if (year in 1880..2100) return TitleYear(clean(match.groupValues[1]), year)
     }
-    BARE_YEAR.matchEntire(name)?.let { match -> return TitleYear(clean(match.groupValues[1]), match.groupValues[2].toInt()) }
+    BARE_YEAR.matchEntire(name)?.let { match ->
+        return TitleYear(clean(match.groupValues[1]), match.groupValues[2].toInt())
+    }
     return TitleYear(clean(name), null)
 }
 
@@ -64,10 +68,15 @@ private fun clean(title: String): String =
 
 /** An episode's numbers or air date and the title after them, read from its file name. */
 internal data class EpisodeName(
-    val season: Int?, val episode: Int?, val episodeEnd: Int? = null, val aired: LocalDate? = null, val title: String? = null,
+    val season: Int?,
+    val episode: Int?,
+    val episodeEnd: Int? = null,
+    val aired: LocalDate? = null,
+    val title: String? = null,
 )
 
-private val SEASON_EPISODE = Regex("""(?i)(?:^|[\s._\-\[(])s(\d{1,4})[\s._]?e(\d{1,4})(?:[\s._]?-?[\s._]?e(\d{1,4}))?""")
+private val SEASON_EPISODE =
+    Regex("""(?i)(?:^|[\s._\-\[(])s(\d{1,4})[\s._]?e(\d{1,4})(?:[\s._]?-?[\s._]?e(\d{1,4}))?""")
 private val CROSS = Regex("""(?i)(?:^|[\s._\-\[(])(\d{1,2})x(\d{2,3})(?:-(\d{2,3}))?""")
 private val AIR_DATE = Regex("""(?:^|[\s._\-\[(])((?:19|20)\d{2})[-._](\d{2})[-._](\d{2})""")
 private val SEASON_FOLDER = Regex("""(?i)^(?:season|series|staffel|saison|temporada)[\s._]*(\d{1,4})$""")
@@ -87,7 +96,15 @@ internal fun seasonOfFolder(name: String): Int? {
 internal fun episodeName(stem: String): EpisodeName {
     SEASON_EPISODE.find(stem)?.let { match ->
         val (season, episode, end) = match.destructured
-        return EpisodeName(season.toInt(), episode.toInt(), end.toIntOrNull(), title = titleAfter(stem, match.range.last + 1))
+        return EpisodeName(
+            season.toInt(),
+            episode.toInt(),
+            end.toIntOrNull(),
+            title = titleAfter(
+                stem,
+                match.range.last + 1,
+            ),
+        )
     }
     AIR_DATE.find(stem)?.let { match ->
         val (y, m, d) = match.destructured
@@ -96,7 +113,15 @@ internal fun episodeName(stem: String): EpisodeName {
     }
     CROSS.find(stem)?.let { match ->
         val (season, episode, end) = match.destructured
-        return EpisodeName(season.toInt(), episode.toInt(), end.toIntOrNull(), title = titleAfter(stem, match.range.last + 1))
+        return EpisodeName(
+            season.toInt(),
+            episode.toInt(),
+            end.toIntOrNull(),
+            title = titleAfter(
+                stem,
+                match.range.last + 1,
+            ),
+        )
     }
     return EpisodeName(null, null)
 }
@@ -126,7 +151,11 @@ internal fun letterRuns(titles: List<String>): List<LetterCount> {
         val first = sortTitle(title).firstOrNull()
         val letter = if (first != null && first.isLetter()) first.uppercase() else "#"
         val last = runs.lastOrNull()
-        if (last?.letter == letter) runs[runs.size - 1] = last.copy(count = last.count + 1) else runs += LetterCount(letter, 1)
+        if (last?.letter == letter) {
+            runs[runs.size - 1] = last.copy(count = last.count + 1)
+        } else {
+            runs += LetterCount(letter, 1)
+        }
     }
     return runs
 }
@@ -134,6 +163,10 @@ internal fun letterRuns(titles: List<String>): List<LetterCount> {
 /** The name a list sorts by: lower case, without a leading English article. */
 internal fun sortTitle(title: String): String {
     val lower = title.lowercase().trim()
-    for (article in listOf("the ", "a ", "an ")) if (lower.startsWith(article) && lower.length > article.length) return lower.substring(article.length)
+    for (article in listOf("the ", "a ", "an ")) {
+        if (lower.startsWith(article) && lower.length > article.length) {
+            return lower.substring(article.length)
+        }
+    }
     return lower
 }

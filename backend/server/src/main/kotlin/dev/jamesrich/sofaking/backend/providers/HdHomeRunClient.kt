@@ -19,11 +19,17 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "hdhomerun"
     override val protocol: String get() = "mpegts"
 
-    private val base = requireNotNull(context.options["url"]?.trimEnd('/')?.takeIf { it.startsWith("http://") || it.startsWith("https://") }) {
+    private val base = requireNotNull(
+        context.options["url"]?.trimEnd('/')?.takeIf {
+            it.startsWith("http://") ||
+                it.startsWith("https://")
+        },
+    ) {
         "The hdhomerun service needs options.url, the tuner's address such as http://192.168.1.50"
     }
     private val transcode = context.options["transcode"]?.takeIf { it.matches(Regex("[a-z0-9]{1,32}")) }
     private val guideApi = context.options["guideApi"] ?: GUIDE_API
+
     /** Guide downloads spread over the day, as the guide service asks, so every install picks its own interval once. */
     private val guideTtl: Duration = GUIDE_TTL_MIN.plusMinutes(Random.nextLong(0, GUIDE_TTL_SPREAD.toMinutes()))
 
@@ -39,8 +45,10 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
         val remap = HashMap<String, String>()
         for (channel in parsed.channels) {
             val number = byNumber.keys.firstOrNull { number ->
-                channel.id == number || channel.id.endsWith("-$number") || channel.id.endsWith("_$number") || channel.id.endsWith(":$number") ||
-                    channel.displayName == number || channel.displayName.equals(byNumber.getValue(number).name, ignoreCase = true)
+                channel.id == number || channel.id.endsWith("-$number") || channel.id.endsWith("_$number") ||
+                    channel.id.endsWith(":$number") ||
+                    channel.displayName == number ||
+                    channel.displayName.equals(byNumber.getValue(number).name, ignoreCase = true)
             } ?: continue
             remap.putIfAbsent(channel.id, number)
         }
@@ -54,7 +62,10 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
 
     override suspend fun resolve(channelId: String): ResolvedStream {
         val url = listed().firstOrNull { it.channel.id == channelId }?.url
-            ?: run { context.invalidate(LINEUP); listed().firstOrNull { it.channel.id == channelId }?.url }
+            ?: run {
+                context.invalidate(LINEUP)
+                listed().firstOrNull { it.channel.id == channelId }?.url
+            }
             ?: throw ProviderFailure("Channel is no longer in the tuner lineup", transient = false)
         val stream = if (transcode == null) url else url + (if ('?' in url) "&" else "?") + "transcode=$transcode"
         return ResolvedStream(stream)
@@ -79,8 +90,13 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
 
     private suspend fun fetchGuide(): ParsedGuide {
         val discover = context.http.get("$base/discover.json").require("HDHomeRun discover").json()
-        val auth = discover.str("DeviceAuth") ?: throw ProviderFailure("Tuner reports no DeviceAuth, so its guide cannot be fetched")
-        val fetched = context.http.get("$guideApi?DeviceAuth=${URLEncoder.encode(auth, Charsets.UTF_8)}", GUIDE_HEADERS).require("HDHomeRun guide")
+        val auth =
+            discover.str("DeviceAuth")
+                ?: throw ProviderFailure("Tuner reports no DeviceAuth, so its guide cannot be fetched")
+        val fetched = context.http.get(
+            "$guideApi?DeviceAuth=${URLEncoder.encode(auth, Charsets.UTF_8)}",
+            GUIDE_HEADERS,
+        ).require("HDHomeRun guide")
         return try {
             ByteArrayInputStream(fetched.body).use { FeedParser.guide(it, guideApi) { true } }
         } catch (e: ProviderFailure) {

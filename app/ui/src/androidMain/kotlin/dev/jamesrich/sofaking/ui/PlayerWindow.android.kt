@@ -69,7 +69,10 @@ private fun rememberPictureInPicture(activity: ComponentActivity, player: LivePl
             override fun onPictureInPictureEvent(event: PictureInPictureDelegate.Event, config: Configuration?) {
                 when (event) {
                     // Android 15 says when the window starts to shrink, so the overlays go before it does.
-                    PictureInPictureDelegate.Event.ENTER_ANIMATION_START, PictureInPictureDelegate.Event.ENTERED -> inPictureInPicture = true
+                    PictureInPictureDelegate.Event.ENTER_ANIMATION_START, PictureInPictureDelegate.Event.ENTERED ->
+                        inPictureInPicture =
+                            true
+
                     PictureInPictureDelegate.Event.EXITED -> inPictureInPicture = false
                 }
             }

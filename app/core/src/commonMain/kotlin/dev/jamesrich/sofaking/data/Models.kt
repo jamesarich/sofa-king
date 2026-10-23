@@ -19,9 +19,11 @@ data class Channel(
 enum class GuideStatus {
     /** No guide is mapped to the channel. */
     UNASSIGNED,
+
     /** A guide is mapped but lists nothing for the channel. */
     EMPTY,
     AVAILABLE,
+
     /** The mapped guide's data has run out. */
     STALE,
 }

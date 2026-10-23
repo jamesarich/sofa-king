@@ -10,9 +10,15 @@ import kotlinx.serialization.json.Json
  * A policy run consults [map] and [weak] after the policy's own, unless `groups.builtIn` is false, and the starter
  * policy copies all three.
  */
-@Serializable class DefaultGroups(private val groupMap: Map<String, String> = emptyMap(), val weak: Set<String> = emptySet(), val patterns: List<GroupPattern> = emptyList()) {
+@Serializable class DefaultGroups(
+    private val groupMap: Map<String, String> = emptyMap(),
+    val weak: Set<String> = emptySet(),
+    val patterns: List<GroupPattern> = emptyList(),
+) {
     /** Lowercase raw category to group. */
-    val map: Map<String, String> by lazy { groupMap.entries.associate { (raw, group) -> raw.trim().lowercase() to group } }
+    val map: Map<String, String> by lazy {
+        groupMap.entries.associate { (raw, group) -> raw.trim().lowercase() to group }
+    }
 
     /** The group for [raw], a category as a service wrote it, when the shipped map names it. */
     fun groupOf(raw: String): String? = map[raw.trim().lowercase()]
@@ -22,9 +28,14 @@ import kotlinx.serialization.json.Json
     companion object {
         private val json = Json { ignoreUnknownKeys = false }
         private val loaded by lazy {
-            val text = DefaultGroups::class.java.getResourceAsStream("/policy/starter-groups.json")?.use { it.readBytes().toString(Charsets.UTF_8) }
-                ?: error("policy/starter-groups.json is missing from the server")
-            json.decodeFromString<DefaultGroups>(text).let { DefaultGroups(it.map, it.weak.mapTo(HashSet()) { raw -> raw.trim().lowercase() }, it.patterns) }
+            val text =
+                DefaultGroups::class.java.getResourceAsStream("/policy/starter-groups.json")?.use {
+                    it.readBytes().toString(Charsets.UTF_8)
+                }
+                    ?: error("policy/starter-groups.json is missing from the server")
+            json.decodeFromString<DefaultGroups>(text).let {
+                DefaultGroups(it.map, it.weak.mapTo(HashSet()) { raw -> raw.trim().lowercase() }, it.patterns)
+            }
         }
 
         fun load(): DefaultGroups = loaded

@@ -25,7 +25,9 @@ fun normalizeLogoUrl(raw: String?, base: String? = null): String? {
     } catch (_: IllegalArgumentException) {
         return null
     }
-    if (resolved.scheme?.lowercase() !in setOf("http", "https") || resolved.host == null || resolved.userInfo != null) return null
+    if (resolved.scheme?.lowercase() !in setOf("http", "https") || resolved.host == null || resolved.userInfo != null) {
+        return null
+    }
     return resolved.toString().takeIf { it.length <= 2048 }
 }
 
@@ -39,13 +41,22 @@ internal fun percentEncode(value: String): String {
         val c = value[index]
         when {
             c == '%' && index + 2 < value.length && isHex(value[index + 1]) && isHex(value[index + 2]) -> {
-                out.append(value, index, index + 3); index += 3; continue
+                out.append(value, index, index + 3)
+                index += 3
+                continue
             }
+
             c.code in 0x21..0x7E && (c.isLetterOrDigit() || c in UNENCODED) -> out.append(c)
+
             else -> {
                 val point = value.codePointAt(index)
-                for (byte in String(Character.toChars(point)).toByteArray(Charsets.UTF_8)) HEX.toHexDigits(out.append('%'), byte)
-                index += Character.charCount(point); continue
+                for (byte in String(
+                    Character.toChars(point),
+                ).toByteArray(Charsets.UTF_8)) {
+                    HEX.toHexDigits(out.append('%'), byte)
+                }
+                index += Character.charCount(point)
+                continue
             }
         }
         index++

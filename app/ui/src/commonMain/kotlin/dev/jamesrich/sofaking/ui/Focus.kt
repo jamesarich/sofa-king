@@ -6,8 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -18,8 +18,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.currentValueOf
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Dp
 import kotlin.math.abs
 
@@ -46,7 +46,12 @@ internal suspend fun requestFocusWhenAttached(request: FocusRequester, frames: I
  * reach, so each one's content takes this modifier too. Off where the platform already does it
  * ([platformMovesFocusOnArrows]).
  */
-internal fun Modifier.arrowKeysMoveFocus(): Modifier = if (platformMovesFocusOnArrows) this else this then ArrowKeysMoveFocusElement
+internal fun Modifier.arrowKeysMoveFocus(): Modifier = if (platformMovesFocusOnArrows) {
+    this
+} else {
+    this then
+        ArrowKeysMoveFocusElement
+}
 
 internal fun Key.arrowFocusDirection(): FocusDirection? = when (this) {
     Key.DirectionUp -> FocusDirection.Up
@@ -63,7 +68,10 @@ private data object ArrowKeysMoveFocusElement : ModifierNodeElement<ArrowKeysMov
 }
 
 /** Reads the focus manager where it is placed, so inside a popup it moves focus in the popup's layer. */
-private class ArrowKeysMoveFocusNode : Modifier.Node(), KeyInputModifierNode, CompositionLocalConsumerModifierNode {
+private class ArrowKeysMoveFocusNode :
+    Modifier.Node(),
+    KeyInputModifierNode,
+    CompositionLocalConsumerModifierNode {
     override fun onKeyEvent(event: KeyEvent): Boolean {
         val direction = event.key.arrowFocusDirection() ?: return false
         return event.type == KeyEventType.KeyDown && currentValueOf(LocalFocusManager).moveFocus(direction)

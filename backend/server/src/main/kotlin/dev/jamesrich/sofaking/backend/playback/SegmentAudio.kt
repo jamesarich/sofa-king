@@ -2,13 +2,6 @@ package dev.jamesrich.sofaking.backend.playback
 
 import dev.jamesrich.sofaking.backend.io.startOwned
 import dev.jamesrich.sofaking.backend.io.terminate
-import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import kotlin.math.log10
-import kotlin.math.sqrt
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -17,6 +10,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import kotlin.math.log10
+import kotlin.math.sqrt
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Reads segments' audio with FFmpeg for the learned breaks (see [AudioFollower]): [pcm] decodes a segment's first audio
@@ -35,7 +35,9 @@ class SegmentAudio(private val ffmpeg: String, parallelism: Int = 2, private val
      * that has [CHROMAPRINT_CONTEXT] samples from there on; null when FFmpeg fails.
      */
     suspend fun points(pcm: ByteArray): IntArray? {
-        val raw = run(pcm, "-f", "s16le", "-ar", AUDIO_RATE.toString(), "-ac", "1", "-i", "pipe:0", "-f", "chromaprint", "-fp_format", "raw", "pipe:1") ?: return null
+        val raw =
+            run(pcm, "-f", "s16le", "-ar", AUDIO_RATE.toString(), "-ac", "1", "-i", "pipe:0", "-f", "chromaprint", "-fp_format", "raw", "pipe:1")
+                ?: return null
         val words = ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer()
         return IntArray(words.remaining()).also(words::get)
     }
@@ -45,10 +47,17 @@ class SegmentAudio(private val ffmpeg: String, parallelism: Int = 2, private val
             .redirectError(ProcessBuilder.Redirect.DISCARD).startOwned()
         try {
             coroutineScope {
-                val watchdog = launch { delay(timeout); process.terminate() }
+                val watchdog = launch {
+                    delay(timeout)
+                    process.terminate()
+                }
                 // Written beside the read, since FFmpeg's output fills the pipe before it has read all of its input.
                 launch(Dispatchers.IO) {
-                    try { process.outputStream.use { it.write(input) } } catch (_: IOException) { /* FFmpeg stopped reading */ }
+                    try {
+                        process.outputStream.use { it.write(input) }
+                    } catch (
+                        _: IOException,
+                    ) { /* FFmpeg stopped reading */ }
                 }
                 val output = runInterruptible(Dispatchers.IO) { process.inputStream.readBytes() }
                 val exit = process.onExit().await().exitValue()

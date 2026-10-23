@@ -21,9 +21,13 @@ import kotlinx.coroutines.test.setMain
  * A fake server from a route table: [handler] answers a request's method, path and body with a status and a JSON
  * body, and a request it leaves unanswered gets a 404.
  */
-internal class RouteServer(scope: TestScope, handler: suspend (method: String, path: String, body: String) -> Pair<Int, String>?) {
+internal class RouteServer(
+    scope: TestScope,
+    handler: suspend (method: String, path: String, body: String) -> Pair<Int, String>?,
+) {
     val http = FakeHttp(scope) { request ->
-        handler(request.method, request.path, request.body)?.let { (status, body) -> json(body, status) } ?: apiError(404, "RESOURCE_NOT_FOUND")
+        handler(request.method, request.path, request.body)?.let { (status, body) -> json(body, status) }
+            ?: apiError(404, "RESOURCE_NOT_FOUND")
     }
 
     /** Every request so far, as `METHOD /path body`. */

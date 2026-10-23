@@ -184,6 +184,7 @@ jobs:
           done
           set -a; . "$out/server.env"; set +a
           export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
+          export TEST_RUNNER_SOFAKING_WALK_SEED=1792765030  # DIAGNOSTIC: replay the walk that crashed on main; remove before merge
           # The newest tvOS runtime's first device.
           device=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
           devices = json.load(sys.stdin)["devices"]

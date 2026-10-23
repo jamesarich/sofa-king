@@ -385,9 +385,10 @@ object StationBuilder {
             val previous = input.previous[draft.key]
             val since = if (eligibleNow) null else previous?.unavailableSince ?: input.now
             var off = previous?.autoDisabled == true
+            val recovered = healthyNow || (policy.health.enableOn == "eligible" && eligibleNow)
             if (!off && since != null && Duration.between(since, input.now) >= disableAfter) {
                 off = true
-            } else if (off && (healthyNow || (policy.health.enableOn == "eligible" && eligibleNow))) {
+            } else if (off && recovered) {
                 off = false
             }
             if (off) autoOff += draft.key
@@ -495,11 +496,8 @@ object StationBuilder {
             val serverNumbered = numbering.assigned.toHashSet()
             for (draft in drafts) {
                 val number = draft.number ?: continue
-                if (draft.key !in serverNumbered || !draft.baseEnabled || draft.missing != null ||
-                    draft.key in unverified
-                ) {
-                    continue
-                }
+                val live = draft.baseEnabled && draft.missing == null
+                if (draft.key !in serverNumbered || !live || draft.key in unverified) continue
                 val start = numbering.groups[groupFor(draft)] ?: continue
                 val value = numberValue(number) ?: continue
                 if (value >= start.toBigDecimal() && value < blockEnd(start).toBigDecimal()) continue

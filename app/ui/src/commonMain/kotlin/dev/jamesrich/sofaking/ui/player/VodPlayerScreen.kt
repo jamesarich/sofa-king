@@ -456,11 +456,9 @@ fun VodPlayerScreen(
         state.failure,
         state.autoSkipSeconds != null,
     ) {
-        if (!state.overlayVisible || paused || state.scrubTarget != null || state.failure != null ||
-            state.autoSkipSeconds != null
-        ) {
-            return@LaunchedEffect
-        }
+        // A scrub, a failure or an intro countdown keeps the bar up.
+        val barHeld = state.scrubTarget != null || state.failure != null || state.autoSkipSeconds != null
+        if (!state.overlayVisible || paused || barHeld) return@LaunchedEffect
         delay(BAR_IDLE_MS)
         state.overlayVisible = false
     }

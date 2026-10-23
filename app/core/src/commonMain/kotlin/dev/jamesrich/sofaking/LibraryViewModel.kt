@@ -174,7 +174,8 @@ class LibraryViewModel(
             )
         // A grid whose next page failed keeps its pages, and loadMore retries that page; only a
         // failed first page loads afresh.
-        if (open != null && open.sameQuery(wanted) && (open.error == null || open.items.isNotEmpty())) return
+        val sameGrid = open?.takeIf { it.sameQuery(wanted) }
+        if (sameGrid != null && (sameGrid.error == null || sameGrid.items.isNotEmpty())) return
         gridJob?.cancel()
         loadTarget = null
         _grid.value = wanted

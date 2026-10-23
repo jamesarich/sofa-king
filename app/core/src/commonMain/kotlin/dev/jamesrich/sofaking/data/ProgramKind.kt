@@ -16,7 +16,7 @@ fun programKinds(categories: List<String>): Set<ProgramKind> {
     for (category in categories) {
         val words = category.lowercase()
         if ("movie" in words || "film" in words) filmMark = true
-        if (words == "movies" || words == "tv movie" || words == "feature film" || FILM_GENRES.any { it in words }) {
+        if (words in FILM_CATEGORIES || FILM_GENRES.any { it in words }) {
             filmGenre = true
         }
         if ("sport" in words) mask = mask or ProgramKind.SPORTS.bit
@@ -28,6 +28,9 @@ fun programKinds(categories: List<String>): Set<ProgramKind> {
     }
     return kindsOf(mask)
 }
+
+/** Whole categories that name a movie. */
+private val FILM_CATEGORIES = setOf("movies", "tv movie", "feature film")
 
 private val FILM_GENRES = listOf(
     "drama", "thriller", "horror", "comed", "action", "crime", "romanc", "romantic", "mystery", "fantasy", "adventure",

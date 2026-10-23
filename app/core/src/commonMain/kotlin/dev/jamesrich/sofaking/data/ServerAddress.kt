@@ -36,9 +36,8 @@ object ServerAddress {
         if (url.protocol != URLProtocol.HTTP && url.protocol != URLProtocol.HTTPS) return null
         if (!hostPattern.matches(url.host)) return null
         if (url.user != null || url.password != null) return null
-        if (url.encodedQuery.isNotEmpty() || url.encodedFragment.isNotEmpty() || '?' in trimmed || '#' in trimmed) {
-            return null
-        }
+        val parsedExtra = url.encodedQuery.isNotEmpty() || url.encodedFragment.isNotEmpty()
+        if (parsedExtra || '?' in trimmed || '#' in trimmed) return null
         if (url.specifiedPort !in 0..65535) return null
         return trimmed
     }

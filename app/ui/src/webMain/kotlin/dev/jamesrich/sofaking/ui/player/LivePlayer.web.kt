@@ -134,7 +134,8 @@ internal class HtmlLivePlayer(override val captionSync: CaptionSync, private val
             // A cross-origin HLS stream that fails before loading may come from a server that sends no CORS headers
             // on media: play it again as a plain element, which needs none. TS fails for its format and reports.
             val current = stream
-            if (drawsInCanvas.value && !loaded && current?.mimeType == HLS_MIME_TYPE && isCrossOrigin(current.url)) {
+            val crossOriginHls = current?.mimeType == HLS_MIME_TYPE && isCrossOrigin(current.url)
+            if (drawsInCanvas.value && !loaded && crossOriginHls) {
                 video.crossOrigin = null
                 useElement()
                 prepare()

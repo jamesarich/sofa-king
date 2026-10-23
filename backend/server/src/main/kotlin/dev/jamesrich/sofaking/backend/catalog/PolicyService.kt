@@ -318,10 +318,7 @@ class PolicyService(
         store.recordPolicyChanges(changes, now)
 
         val moved = result.renumbered.mapNotNull { (key, number) ->
-            loaded.policy.stations[key]?.number?.let {
-                key to
-                    (it to number)
-            }
+            loaded.policy.stations[key]?.number?.let { key to (it to number) }
         }.toMap()
         val numbers =
             result.assigned.filterKeys { loaded.policy.stations[it]?.number == null } +
@@ -330,7 +327,9 @@ class PolicyService(
         val names = loaded.policy.names
         val blocked = names.learned.filter { (from, to) -> neverMerges(names.never, from, to) }.keys
         var revision = loaded.revision
-        if (numbers.isNotEmpty() || reclaim.isNotEmpty() || result.learned.isNotEmpty() || blocked.isNotEmpty()) {
+        val numbering = numbers.isNotEmpty() || reclaim.isNotEmpty()
+        val aliases = result.learned.isNotEmpty() || blocked.isNotEmpty()
+        if (numbering || aliases) {
             val what = "${numbers.size} assigned numbers, ${reclaim.size} reclaimed numbers and " +
                 "${result.learned.size} learned aliases"
             try {

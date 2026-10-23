@@ -148,9 +148,12 @@ private fun SofaKingApp(
     val currentOnPlayItemHandle by rememberUpdatedState(onPlayItemHandle)
     // A tab the server turns out not to offer, or no longer offers, gives way to Live.
     LaunchedEffect(nav.tab, offered) {
-        if ((nav.tab == Tab.LIBRARY && !offered.library) || (nav.tab == Tab.RECORDINGS && !offered.recordings)) {
-            shell.nav = shell.nav.open(Tab.LIVE)
+        val withdrawn = when (nav.tab) {
+            Tab.LIBRARY -> !offered.library
+            Tab.RECORDINGS -> !offered.recordings
+            else -> false
         }
+        if (withdrawn) shell.nav = shell.nav.open(Tab.LIVE)
     }
     // A scanned QR code pairs at once. Pairing runs in the ViewModel; its outcome comes back as state, and the shell
     // acts on it once: a new server starts over on its guide, a refused code lands in Settings with the reason.

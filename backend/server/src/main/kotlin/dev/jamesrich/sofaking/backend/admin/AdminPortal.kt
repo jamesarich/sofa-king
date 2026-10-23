@@ -2070,11 +2070,9 @@ internal data class LineupFilter(
 ) {
     fun admits(row: StationRow): Boolean {
         val entry = row.entry
-        if (q.isNotEmpty() && !entry.name.contains(q, ignoreCase = true) && entry.number != q &&
-            row.station?.key?.contains(q, ignoreCase = true) != true
-        ) {
-            return false
-        }
+        val station = row.station?.key?.contains(q, ignoreCase = true) == true
+        val found = entry.name.contains(q, ignoreCase = true) || entry.number == q || station
+        if (q.isNotEmpty() && !found) return false
         if (group.isNotEmpty() && entry.group != group) return false
         if (required && !row.required) return false
         if (override && !row.overridden) return false

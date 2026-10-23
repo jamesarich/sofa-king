@@ -502,7 +502,8 @@ fun PlayerScreen(
     LaunchedEffect(state.miniGuideOpen, state.streamCardOpen, state.overlayVisible) {
         // Retried until the surface is placed: on entry it may not be yet, and a refused
         // request would leave nothing focused.
-        if (!state.miniGuideOpen && !state.streamCardOpen && !(state.overlayVisible && state.buttonsFocused)) {
+        val buttonsHoldFocus = state.overlayVisible && state.buttonsFocused
+        if (!state.miniGuideOpen && !state.streamCardOpen && !buttonsHoldFocus) {
             requestFocusWhenAttached(focus)
         }
     }
@@ -599,11 +600,8 @@ fun PlayerScreen(
      * key-up; the info bar and zapping work over it as ever. Over a failure the keys work the failure card instead.
      */
     fun breakScreenTakes(key: Key): Boolean {
-        if (!breakScreenUp || state.failure != null || state.miniGuideOpen || state.streamCardOpen ||
-            state.buttonsFocused
-        ) {
-            return false
-        }
+        val controlsOpen = state.miniGuideOpen || state.streamCardOpen || state.buttonsFocused
+        if (!breakScreenUp || state.failure != null || controlsOpen) return false
         return key == Key.Back || (key.isOk && !state.overlayVisible && !state.numbers.hasDigits)
     }
     BackHandler {

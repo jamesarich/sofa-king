@@ -68,8 +68,9 @@ object IntroMatch {
         fun close() {
             if (start < 0) return
             val length = last - start + 1
+            val longest = best?.let { length > it.length } ?: true
             if (length in minPoints..maxPoints && matches >= MIN_DENSITY * length &&
-                (best == null || length > best!!.length)
+                longest
             ) {
                 best = Run(start, last, shift)
             }

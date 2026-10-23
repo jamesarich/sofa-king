@@ -318,11 +318,12 @@ class UpdateChecker(
                 require('@' !in image) { "the update image must be named by tag, not digest" }
                 val slash = image.indexOf('/')
                 val first = if (slash < 0) "" else image.substring(0, slash)
-                val (host, rest) = if (slash >= 0 && ('.' in first || ':' in first || first == "localhost")) {
+                // A first part that looks like a host names the registry; otherwise it is a Docker Hub namespace.
+                val registry = '.' in first || ':' in first || first == "localhost"
+                val (host, rest) = if (slash >= 0 && registry) {
                     first to image.substring(slash + 1)
                 } else {
-                    "registry-1.docker.io" to
-                        image
+                    "registry-1.docker.io" to image
                 }
                 val colon = rest.lastIndexOf(':')
                 val name = if (colon < 0) rest else rest.substring(0, colon)

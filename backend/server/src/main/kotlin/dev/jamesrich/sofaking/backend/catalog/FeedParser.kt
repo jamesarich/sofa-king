@@ -314,7 +314,8 @@ object FeedParser {
                                 if (!keep) continue
                                 val from = xmlTime(start)
                                 val to = xmlTime(stop)
-                                if (from == null || to == null || !to.isAfter(from) || title.isBlank()) continue
+                                if (from == null || to == null) continue
+                                if (!to.isAfter(from) || title.isBlank()) continue
                                 if (!keys.add("$channel\u0000$from\u0000$to\u0000$title")) continue
                                 programs +=
                                     read.copy(

@@ -38,7 +38,8 @@ class SleepTimer {
      */
     fun step(nowMs: Long, programEndMs: Long? = null, endOfItem: Boolean = false) {
         var next = SleepChoice.entries[(choice.ordinal + 1) % SleepChoice.entries.size]
-        if (next == SleepChoice.END && (programEndMs == null || programEndMs <= nowMs) && !endOfItem) {
+        val programOver = programEndMs == null || programEndMs <= nowMs
+        if (next == SleepChoice.END && programOver && !endOfItem) {
             next = SleepChoice.OFF
         }
         choice = next

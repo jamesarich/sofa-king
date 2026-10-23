@@ -168,7 +168,8 @@ internal object AdBreaks {
         // before it, belongs to the break.
         for (index in 1 until segments.size - 1) {
             val segment = segments[index]
-            if (!segment.ad && !segment.cueIn && stitched[index - 1] && stitched[index + 1]) {
+            val betweenStitched = stitched[index - 1] && stitched[index + 1]
+            if (!segment.ad && !segment.cueIn && betweenStitched) {
                 segments[index] = segment.copy(ad = true)
             }
         }

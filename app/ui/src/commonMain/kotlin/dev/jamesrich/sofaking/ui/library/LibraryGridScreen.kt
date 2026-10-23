@@ -147,7 +147,8 @@ internal fun LibraryGridScreen(
             LibraryCard(item, style, actions.onOpenItem, actions.onPlayItem, actions.menu, modifier)
         }
         val g = grid
-        if (g != null && (g.loading || g.error != null || items.isEmpty())) {
+        val unsettled = g != null && (g.loading || g.error != null)
+        if (g != null && (unsettled || items.isEmpty())) {
             item(key = "footer", span = { GridItemSpan(maxLineSpan) }) {
                 Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                     when {

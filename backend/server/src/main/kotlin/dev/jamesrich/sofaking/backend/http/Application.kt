@@ -394,9 +394,11 @@ internal fun routedPath(raw: String): String? {
         runCatching { segment.decodeURLPart() }.getOrNull()
             ?: return null
     }
-    if (segments.any { it == "." || it == ".." || it.contains('/') || it.any(Char::isISOControl) }) return null
+    if (segments.any { it in DOT_SEGMENTS || it.contains('/') || it.any(Char::isISOControl) }) return null
     return segments.joinToString("/", prefix = "/")
 }
+
+private val DOT_SEGMENTS = setOf(".", "..")
 
 internal val RoutedPathKey = AttributeKey<String>("RoutedPath")
 

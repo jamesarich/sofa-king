@@ -102,15 +102,15 @@ class TouchTest {
         Thread.sleep(SETTLE_MS)
         check(device.hasObject(By.res(PLAYER)) && server.watching().isNotEmpty()) { "A cancelled back swipe left the player" }
 
-        // The bars hide again after a few seconds, so a swipe that only brings them back is tried again.
+        // The bars hide again about three seconds after a swipe brings them back, so the next swipe follows soon.
         var swipes = 0
-        while (swipes < BACK_SWIPES && !device.hasObject(By.res(GUIDE))) {
+        while (swipes < BACK_SWIPES && device.hasObject(By.res(PLAYER))) {
             device.swipe(edge.x, middle, device.displayWidth / 2, middle, SWIPE_STEPS)
             swipes++
-            device.wait(Until.hasObject(By.res(GUIDE)), SETTLE_MS)
+            device.wait(Until.gone(By.res(PLAYER)), SWIPE_GAP_MS)
         }
-        println("Predictive back: the guide after $swipes back swipes")
-        check(device.hasObject(By.res(GUIDE))) { "$BACK_SWIPES back swipes did not return to the guide" }
+        println("Predictive back: the player left after $swipes back swipes")
+        check(device.wait(Until.hasObject(By.res(GUIDE)), TIMEOUT_MS)) { "$BACK_SWIPES back swipes did not return to the guide" }
         eventually("the channel to close") { server.watching().isEmpty() }
     }
 
@@ -192,6 +192,7 @@ class TouchTest {
         const val SETTLE_MS = 2_000L
         const val IDLE_MS = 1_000L
         const val SWIPE_STEPS = 30
+        const val SWIPE_GAP_MS = 800L
         const val BACK_SWIPES = 3
         const val WALK_STEPS = 150
 

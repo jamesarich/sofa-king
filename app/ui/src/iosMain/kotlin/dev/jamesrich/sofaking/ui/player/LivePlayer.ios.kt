@@ -27,6 +27,7 @@ import platform.AVFAudio.AVAudioSessionCategoryAmbient
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.AVAudioSessionModeDefault
 import platform.AVFAudio.AVAudioSessionModeMoviePlayback
+import platform.AVFAudio.setActive
 import platform.AVFoundation.AVErrorDecodeFailed
 import platform.AVFoundation.AVErrorDecoderNotFound
 import platform.AVFoundation.AVErrorFailedToParse

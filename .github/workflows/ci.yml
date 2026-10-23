@@ -199,10 +199,12 @@ jobs:
           python3 scripts/fixture_server.py --out "$out" > "$out/fixture.log" 2>&1 &
           fixture=$!
           trap 'kill "$fixture"' EXIT
-          until [ -f "$out/server.env" ]; do
+          for _ in $(seq 180); do
+            [ -f "$out/server.env" ] && break
             kill -0 "$fixture" 2>/dev/null || { cat "$out/fixture.log"; exit 1; }
             sleep 1
           done
+          [ -f "$out/server.env" ] || { echo "The fixture server wrote no server.env in 3 minutes"; cat "$out/fixture.log"; exit 1; }
           set -a; . "$out/server.env"; set +a
           export TEST_RUNNER_SOFAKING_SERVER="$SOFAKING_SERVER" TEST_RUNNER_SOFAKING_TOKEN="$SOFAKING_TOKEN"
           # The newest tvOS runtime's first device.

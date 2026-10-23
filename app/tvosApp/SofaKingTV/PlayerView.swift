@@ -99,9 +99,10 @@ struct PlayerView: View {
 
     private var liveBreaks: LiveBreaks { model.settings?.liveBreaks ?? .play }
 
-    /// The break screen to draw over the picture now, or nil.
+    /// The break screen to draw over the picture now, or nil. It stays up under a failure card, so a reconnect
+    /// inside a break never uncovers the ad.
     private var breakScreen: BreakScreen? {
-        guard let adBreak, !breakDismissed, failure == nil else { return nil }
+        guard let adBreak, !breakDismissed else { return nil }
         return BreakScreen(
             remainingMs: adBreak.remainingMs?.int64Value,
             quip: breakQuip,
@@ -150,7 +151,9 @@ struct PlayerView: View {
         while !Task.isCancelled {
             var wait: Duration = .seconds(1)
             var found: AdBreakNow?
-            if let ahead = loadedAheadMs() {
+            // With nothing loaded past the picture the picture is stalled, and the server can't place it.
+            let ahead = loadedAheadMs()
+            if let ahead {
                 do {
                     found = try await model.core.adBreak(aheadMs: ahead)
                 } catch {
@@ -158,7 +161,7 @@ struct PlayerView: View {
                     wait = .seconds(15)
                 }
             }
-            adBreak = watch.shown(found: found)
+            adBreak = ahead == nil ? watch.stalled() : watch.shown(found: found)
             if watch.over { breakDismissed = false }
             try? await Task.sleep(for: wait)
         }

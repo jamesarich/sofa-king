@@ -13,6 +13,16 @@ indent_size = 4
 max_line_length = 120
 ij_kotlin_allow_trailing_comma = true
 ij_kotlin_allow_trailing_comma_on_call_site = true
+# ktlint (Spotless, the sofaking.lint convention) in IntelliJ IDEA's Kotlin style, which kotlin.code.style=official also
+# picks, so the IDE's Reformat Code and the check agree.
+ktlint_code_style = intellij_idea
+# Composable functions are named like types (Compose's API guidelines).
+ktlint_function_naming_ignore_when_annotated_with = Composable
+# No wildcard imports, in the IDE as in ktlint: the IDE's own default list starts with java.util.* and io.ktor.**. This
+# one names only the Kotlin Android Extensions package, which nothing here uses, since an empty list reads as unset.
+ij_kotlin_name_count_to_use_star_import = 2147483647
+ij_kotlin_name_count_to_use_star_import_for_members = 2147483647
+ij_kotlin_packages_to_use_import_on_demand = kotlinx.android.synthetic.**
 
 [*.{yml,yaml,json,toml,md}]
 indent_size = 2

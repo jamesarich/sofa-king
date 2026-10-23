@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.kotlin.serialization)
     id("sofaking.kotlin")
+    id("sofaking.lint")
     id("sofaking.android")
 }
 

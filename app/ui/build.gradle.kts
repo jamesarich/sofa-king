@@ -10,6 +10,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
     id("sofaking.kotlin")
+    id("sofaking.lint")
     id("sofaking.android")
 }
 

@@ -1,4 +1,4 @@
-plugins { application; alias(libs.plugins.kotlin.jvm); alias(libs.plugins.kotlin.serialization); id("sofaking.kotlin") }
+plugins { application; alias(libs.plugins.kotlin.jvm); alias(libs.plugins.kotlin.serialization); id("sofaking.kotlin"); id("sofaking.lint") }
 group = "dev.jamesrich.sofaking"
 version = libs.versions.sofaking.get()
 application { mainClass = "dev.jamesrich.sofaking.backend.MainKt" }

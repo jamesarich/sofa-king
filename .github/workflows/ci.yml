@@ -163,12 +163,13 @@ jobs:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ steps.kotlin.outputs.version }}
           restore-keys: konan-${{ runner.os }}-
-      # The device targets cannot run tests here, so they only compile.
+      # The device targets cannot run tests here, so they only compile. The UI's iOS tests run only for main: linking
+      # their test binary takes about five minutes, and the check job already compiles them for every pull request.
       - name: Test Apple targets, compile the device targets and link the iOS framework
         run: >-
           ./gradlew --continue
           :core:iosSimulatorArm64Test :core:macosArm64Test :core:tvosSimulatorArm64Test
-          :core:watchosSimulatorArm64Test :ui:iosSimulatorArm64Test
+          :core:watchosSimulatorArm64Test ${{ github.event_name != 'pull_request' && ':ui:iosSimulatorArm64Test' || '' }}
           :core:compileKotlinIosArm64 :core:compileKotlinTvosArm64 :core:compileKotlinWatchosArm64
           :ui:compileKotlinIosArm64
           :ui:linkDebugFrameworkIosSimulatorArm64

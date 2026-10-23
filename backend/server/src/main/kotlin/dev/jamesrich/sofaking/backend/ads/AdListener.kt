@@ -54,7 +54,8 @@ private val log = LoggerFactory.getLogger(AdListener::class.java)
  * [AdClock] in shadow, and hands its segments' audio to an [AudioFollower]: marked breaks are learned, and matches and
  * slates on unmarked channels are logged as `ADDETECT ... listener=true`. Nothing a listener finds marks a viewer's
  * playlist, since each session gets its own ads. It ends its turn with the channel's census. Encrypted and fMP4
- * playlists are skipped, and so is a provider that answers 403 or 429, for [COOLDOWN]. Pluto TV gives each device one
+ * playlists are skipped, and so is a provider that answers 403 or 429, or a channel whose turn played nothing, for
+ * [COOLDOWN]. Pluto TV gives each device one
  * channel at a time, so its channels are never listened to.
  */
 class AdListener(
@@ -74,6 +75,8 @@ class AdListener(
 ) {
     private val playing = ConcurrentHashMap<String, Job>()
     private val cooldown = ConcurrentHashMap<String, Instant>()
+    /** Channels whose last turn played nothing, until when they wait. */
+    private val resting = ConcurrentHashMap<String, Instant>()
 
     fun start(scope: CoroutineScope): Job = scope.launch(CoroutineName("ad-listener")) {
         // The server settles first: its guides, health and sessions come before background listening.
@@ -104,8 +107,9 @@ class AdListener(
         if (free <= 0) return
         // A channel that cannot be listened to gives its turn to the next in line, so a run of them never stalls the rest.
         val now = clock.instant()
+        resting.values.removeIf { !it.isAfter(now) }
         val usable = { offering: Offering -> service(offering) !in NEVER && cooldown[offering.providerId]?.isAfter(now) != true && offering.protocol == "hls" }
-        for ((channel, offering) in sessions.listenable(pick(store.adChannels(), channels(), watching + playing.keys, now), free, usable)) {
+        for ((channel, offering) in sessions.listenable(pick(store.adChannels(), channels(), watching + playing.keys + resting.keys, now), free, usable)) {
             playing[channel] = scope.launch(CoroutineName("ad-listener-$channel")) { listen(channel, offering) }
         }
     }
@@ -157,6 +161,8 @@ class AdListener(
             reading.cancel()
             withContext(NonCancellable) {
                 val census = ads.census()
+                // A channel that played nothing would otherwise be first in line again at the next look.
+                if (census.playedMs == 0L) resting[channel] = clock.instant().plus(COOLDOWN)
                 if (census.playedMs > 0) {
                     log.info(
                         "ADCENSUS channel={} provider={} playedMs={} marked={} breaks={} learned={} listener=true",

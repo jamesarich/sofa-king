@@ -463,11 +463,7 @@ private fun art(root: Path, vararg bases: Path?): String? {
         if (base == null) continue
         for (extension in ART_EXTENSIONS) {
             val candidate = base.resolveSibling("${base.fileName}.$extension")
-            if (Files.isRegularFile(
-                    candidate,
-                    java.nio.file.LinkOption.NOFOLLOW_LINKS,
-                )
-            ) {
+            if (Files.isRegularFile(candidate, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
                 return root.relativize(candidate).joinToString("/")
             }
         }

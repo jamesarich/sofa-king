@@ -135,10 +135,7 @@ class LineupService(
         val next = Published(entries)
         published.set(next)
         for ((guideId, channels) in next.wanted) {
-            if (!before[guideId].orEmpty().containsAll(
-                    channels,
-                )
-            ) {
+            if (!before[guideId].orEmpty().containsAll(channels)) {
                 guides.requestRefresh(guideId)
             }
         }

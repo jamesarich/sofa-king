@@ -237,11 +237,7 @@ class Dvr(
 
     /** Deletes the rule and its scheduled recordings; what it recorded stays. */
     suspend fun deleteRule(id: String) {
-        if (!store.deleteRecordingRule(
-                id,
-                listOf(Wire.RecordingState.SCHEDULED, CANCELED),
-            )
-        ) {
+        if (!store.deleteRecordingRule(id, listOf(Wire.RecordingState.SCHEDULED, CANCELED))) {
             throw ApiFailure(404, "RULE_NOT_FOUND", "Unknown recording rule")
         }
     }
@@ -387,10 +383,7 @@ class Dvr(
             plan.drop.forEach { store.deleteRecording(it.id) }
             var added = 0
             for ((rule, airing) in plan.add) {
-                if (store.addRecording(
-                        stored(rule.id, airing, rule.startPadding, rule.endPadding),
-                    )
-                ) {
+                if (store.addRecording(stored(rule.id, airing, rule.startPadding, rule.endPadding))) {
                     added++
                 }
             }

@@ -277,7 +277,6 @@ internal fun PreviewBand(
                     channel = cell?.channel,
                     program = cell?.cell?.program,
                     live = cell?.cell?.program?.let { isAiring(it, now) } == true,
-                    now = now,
                     guideLoading = guideLoading,
                     modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds(),
                 )

@@ -126,8 +126,10 @@ internal const val STARTER_FIELD = "starter"
 /** Whether the services form asks for the starter lineup too. */
 internal fun Parameters.wantsStarter(): Boolean = this[STARTER_FIELD] == "on"
 
-/** The form field that switches a service on, and the one that holds one of its options. */
-internal fun serviceField(service: String) = "svc"
+/** The form field each checked service's box sends its name under. */
+internal const val SERVICE_FIELD = "svc"
+
+/** The form field that holds one of [service]'s options. */
 internal fun optionField(service: String, key: String) = "opt.$service.$key"
 
 /**
@@ -136,7 +138,7 @@ internal fun optionField(service: String, key: String) = "opt.$service.$key"
  * stay as they are. Fails with every option that does not fit.
  */
 internal fun applyServicesForm(document: SourceDocument, form: Parameters): Result<SourceDocument> {
-    val checked = form.getAll(serviceField("")).orEmpty().toSet()
+    val checked = form.getAll(SERVICE_FIELD).orEmpty().toSet()
     val errors = ArrayList<String>()
     val providers = ArrayList<FeedConfig>()
     val taken = document.providers.mapTo(HashSet()) { it.id }
@@ -251,9 +253,9 @@ internal fun FlowContent.servicesPanel(chrome: Chrome, view: SetupView) = panel(
             for (row in view.services) {
                 li {
                     val info = row.info
-                    val checked = view.proposed?.let { info.service in it.getAll(serviceField("")).orEmpty() } ?: row.on
+                    val checked = view.proposed?.let { info.service in it.getAll(SERVICE_FIELD).orEmpty() } ?: row.on
                     label("switch") {
-                        checkBoxInput(name = serviceField(info.service)) {
+                        checkBoxInput(name = SERVICE_FIELD) {
                             value = info.service
                             this.checked = checked
                         }

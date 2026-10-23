@@ -282,11 +282,7 @@ class PlexSync(
                 listOf("uri" to uri),
             ).container("Device").firstNotNullOfOrNull(::deviceOf)
                 ?: throw PlexFailure("Plex added no device at port ${device.port}")
-        if (!created.uuid.endsWith(
-                "/${device.id}",
-                ignoreCase = true,
-            )
-        ) {
+        if (!created.uuid.endsWith("/${device.id}", ignoreCase = true)) {
             throw PlexFailure(
                 "port ${device.port} answers as ${created.uuid.removePrefix(GRABBER)}, not ${device.id}",
             )

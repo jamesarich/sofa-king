@@ -90,13 +90,12 @@ private const val MAX_STREAM_GONE_RETUNES = 2
 internal fun showPreviewCaptions(captionsEnabled: Boolean, hasChannel: Boolean, failed: Boolean): Boolean =
     captionsEnabled && hasChannel && !failed
 
-/** Program details for the focused cell. [live] is whether the program is airing at [now]. */
+/** Program details for the focused cell. [live] is whether the program is airing now. */
 @Composable
 internal fun PreviewDetails(
     channel: Channel?,
     program: Program?,
     live: Boolean,
-    now: Instant,
     guideLoading: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -266,12 +265,7 @@ internal fun PreviewVideo(
         // One surface for the life of the preview; the card covers it from a reset until the next first frame.
         player.Video(Modifier.fillMaxSize(), VideoZoom.FIT) { PreviewCard(channel, failed) }
         // No overscan inset: the box sits inside the guide's margins already.
-        if (showPreviewCaptions(
-                captionsEnabled,
-                channel != null,
-                failed,
-            )
-        ) {
+        if (showPreviewCaptions(captionsEnabled, channel != null, failed)) {
             Captions(player, captionStyle, bottomFraction = 0f, Modifier.fillMaxSize())
         }
         if (failed) {

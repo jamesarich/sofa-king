@@ -84,10 +84,7 @@ internal fun Route.viewerRoutes(runtime: LiveRuntime, clock: Clock, apiToken: St
 internal fun Route.viewerAdminRoutes(runtime: LiveRuntime) {
     get("/viewers") { call.respond(runtime.store.viewers()) }
     delete("/viewers/{clientId}") {
-        if (!runtime.store.forgetViewer(
-                validClientId(call.parameters["clientId"]!!),
-            )
-        ) {
+        if (!runtime.store.forgetViewer(validClientId(call.parameters["clientId"]!!))) {
             throw ApiFailure(404, "VIEWER_NOT_FOUND", "Unknown viewer")
         }
         call.respond(HttpStatusCode.NoContent)

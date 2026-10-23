@@ -313,10 +313,7 @@ class LibraryService(
         if (!Files.isDirectory(candidate)) throw ApiFailure(400, "INVALID_REQUEST", "No folder at that path")
         // A link inside the root must not lead the scan outside it.
         val real = candidate.toRealPath()
-        if (!real.startsWith(
-                root.root.toRealPath(),
-            )
-        ) {
+        if (!real.startsWith(root.root.toRealPath())) {
             throw ApiFailure(400, "INVALID_REQUEST", "That folder links outside ${root.root}")
         }
         return candidate

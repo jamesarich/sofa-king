@@ -69,7 +69,7 @@ class PlexSyncTest {
             """{"deviceIdentifier":"$number","lineupIdentifier":"$name-id","channelKey":"$name-key","favorite":false}"""
         }
 
-        private fun json(body: String) = headersOf(HttpHeaders.ContentType, "application/json")
+        private val json = headersOf(HttpHeaders.ContentType, "application/json")
 
         val engine = MockEngine(
             MockEngineConfig().apply {
@@ -81,18 +81,18 @@ class PlexSyncTest {
                     when {
                         request.method == HttpMethod.Get && path == "/livetv/dvrs" -> respond(
                             dvrs,
-                            headers = json(dvrs),
+                            headers = json,
                         )
 
                         request.method == HttpMethod.Get && path == "/livetv/epg/channelmap" -> {
                             val body = """{"MediaContainer":{"ChannelMapping":[""" +
                                 """${channelMaps[request.url.parameters["device"]].orEmpty().joinToString(",")}]}}"""
-                            respond(body, headers = json(body))
+                            respond(body, headers = json)
                         }
 
                         request.method == HttpMethod.Post && path == "/media/grabbers/devices" -> respond(
                             added,
-                            headers = json(added),
+                            headers = json,
                         )
 
                         else -> respond("", HttpStatusCode.OK)

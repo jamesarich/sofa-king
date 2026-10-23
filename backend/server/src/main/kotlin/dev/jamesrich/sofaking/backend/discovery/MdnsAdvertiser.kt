@@ -56,10 +56,7 @@ class MdnsAdvertiser(
         for (address in found - responders.keys) {
             runCatching { responders[address] = responder(address) }
                 .onFailure {
-                    if (failed.add(
-                            address,
-                        )
-                    ) {
+                    if (failed.add(address)) {
                         log.warn("mdns: cannot advertise on {} ({})", address.hostAddress, it.javaClass.simpleName)
                     }
                 }

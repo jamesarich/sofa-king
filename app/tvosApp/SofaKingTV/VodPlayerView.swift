@@ -41,7 +41,8 @@ struct VodRequest: Identifiable, Hashable {
 /// A library item or recording full screen on AVPlayer, through a server session core opens, renews and releases.
 /// The system player's transport bar scrubs; a converted stream scrubs within what the server has converted so far.
 /// A recording's commercial breaks show on the bar, and with Skip commercials on, playback that runs into one jumps
-/// to its end; inside a break the player offers Skip break, and inside an episode's intro, Skip intro. The position is saved as it plays and when it stops; leaving releases the session, and backgrounding
+/// to its end; inside a break the player offers Skip break, inside an episode's intro, Skip intro, and inside its
+/// credits, Skip credits, or Next episode when they run to the end. The position is saved as it plays and when it stops; leaving releases the session, and backgrounding
 /// releases it until the app returns, when the item reopens where it was. Reaching the end of an episode offers the
 /// next one, played after a countdown; reaching the end of anything else returns to the page. For a library item,
 /// the transport bar's Audio and Subtitles menus pick a track: another audio track plays the item again from where it
@@ -84,6 +85,11 @@ struct VodPlayerView: View {
     /// left on it; nil when it waits for a press. Pausing stops it.
     @State private var autoSkipIntroEndMs: Int64?
     @State private var autoSkipSeconds: Int?
+    /// The end of the episode's credits while the player is in them, for Skip credits; nil outside them.
+    @State private var creditsEndMs: Int64?
+    /// The episode after this one, looked up once as the credits start, for Next episode.
+    @State private var creditsNext: MediaItem?
+    @State private var creditsNextAsked = false
 
     var body: some View {
         ZStack {
@@ -265,6 +271,11 @@ struct VodPlayerView: View {
         breakEndMs = breaks.first(where: { positionMs >= $0.startMs && positionMs < $0.endMs })?.endMs
         introEndMs = detail?.intro.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
         countDownIntro(in: s)
+        creditsEndMs = detail?.credits.flatMap { positionMs >= $0.startMs && positionMs < $0.endMs ? $0.endMs : nil }
+        if creditsEndMs != nil, !creditsNextAsked, let item = request.libraryItem {
+            creditsNextAsked = true
+            Task { creditsNext = try? await model.core.upNext(item: item) }
+        }
         guard player.rate > 0 else {
             // A pause is the viewer's doing, so Up next starts its count again.
             model.autoplays = 0
@@ -326,8 +337,9 @@ struct VodPlayerView: View {
         }
     }
 
-    /// Skip break while the player is in a commercial break, and Skip intro while it is in an episode's intro,
-    /// which the system shows over the picture.
+    /// Skip break while the player is in a commercial break, Skip intro while it is in an episode's intro, and Skip
+    /// credits in its credits, or Next episode when they run to the end and one follows; the system shows them over
+    /// the picture.
     private var contextualActions: [UIAction] {
         guard let s = stream else { return [] }
         if let end = breakEndMs {
@@ -341,6 +353,18 @@ struct VodPlayerView: View {
             return [UIAction(title: title, image: UIImage(systemName: "forward.end")) { _ in
                 autoSkipSeconds = nil
                 introEndMs = nil
+                jump(to: end, in: s)
+            }]
+        }
+        if let end = creditsEndMs {
+            if let upcoming = creditsNext, durationMs > 0, end >= durationMs - 1000 {
+                return [UIAction(title: "Next episode", image: UIImage(systemName: "forward.end.alt")) { _ in
+                    model.autoplays = 0
+                    play(upcoming)
+                }]
+            }
+            return [UIAction(title: "Skip credits", image: UIImage(systemName: "forward.end")) { _ in
+                creditsEndMs = nil
                 jump(to: end, in: s)
             }]
         }

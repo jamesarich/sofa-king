@@ -67,9 +67,11 @@ Every file keeps one id for as long as its path is the same, even across a remov
 
 ## Intros
 
-After each scan of a TV shows library the server looks for the intro each episode shares with the others of its show, the way Jellyfin's Intro Skipper does, and the app offers Skip intro while one plays. The Jobs page lists the pass as Intro detection; it runs one episode at a time, apart from the scan, and Run now starts it for every TV shows library.
+After each scan of a TV shows library the server looks for the intro and the end credits each episode shares with the others of its show, the way Jellyfin's Intro Skipper does, and the app offers Skip intro while one plays and Skip credits, or Next episode, while the credits roll. The Jobs page lists the pass as Intro and credits detection; it runs one episode at a time, apart from the scan, and Run now starts it for every TV shows library.
 
 FFmpeg reads a [Chromaprint](https://acoustid.org/chromaprint) fingerprint of each new or changed episode's audio: its first ten minutes, or its first 30% when that is shorter, which takes a few seconds an episode. The fingerprints are kept in the database, so an unchanged file (same size and change time) is never read again. Each episode is then compared with the four nearest of its show, the same season first: the intro is the stretch of 15 seconds to 2 minutes they share, where most of them agree. A show needs two episodes before either has an intro, and a stretch only one other episode shares, such as a recap, does not count when three or more could agree. An episode whose opening differs from the rest of its show's gets no intro, and movies and other videos are not searched.
+
+Credits are found the same way from a second fingerprint of each episode's last tenth, at most its last five minutes, which needs the episode's length from the scan: the credits are the stretch of 15 seconds to 5 minutes the end shares with the nearest episodes'. A show whose credits play over different music each week has none found. Episodes read before credits detection have their ends read on the next pass, without reading their starts again.
 
 ## Browse and watch
 

@@ -28,6 +28,9 @@ enum class VodMarkerKind {
 
     /** An episode's intro, which the bar offers to skip; it is not drawn on the seek bar. */
     INTRO,
+
+    /** An episode's end credits, which the bar offers to skip, or to leave for the next episode; not drawn either. */
+    CREDITS,
 }
 
 /** Where a seek lands: in the stream the player holds, at its own time, or in a conversion restarted there. */
@@ -64,8 +67,22 @@ internal fun breakEndAt(markers: List<VodMarker>, positionMs: Long): Long? =
     markers.firstOrNull { it.kind == VodMarkerKind.BREAK && positionMs >= it.startMs && positionMs < it.endMs }?.endMs
 
 /** The intro [positionMs] is in; null outside one. */
-internal fun introAt(markers: List<VodMarker>, positionMs: Long): VodMarker? =
-    markers.firstOrNull { it.kind == VodMarkerKind.INTRO && positionMs >= it.startMs && positionMs < it.endMs }
+internal fun introAt(markers: List<VodMarker>, positionMs: Long): VodMarker? = segmentAt(markers, positionMs, VodMarkerKind.INTRO)
+
+/** The credits [positionMs] is in; null outside them. */
+internal fun creditsAt(markers: List<VodMarker>, positionMs: Long): VodMarker? = segmentAt(markers, positionMs, VodMarkerKind.CREDITS)
+
+private fun segmentAt(markers: List<VodMarker>, positionMs: Long, kind: VodMarkerKind): VodMarker? =
+    markers.firstOrNull { it.kind == kind && positionMs >= it.startMs && positionMs < it.endMs }
+
+/**
+ * Whether [credits] run to the end of an item [durationMs] long, give or take [CREDITS_END_SLACK_MS], so that past
+ * them there is nothing left to watch and the next episode is what skipping them means.
+ */
+internal fun creditsRunToEnd(credits: VodMarker, durationMs: Long?): Boolean =
+    durationMs != null && credits.endMs >= durationMs - CREDITS_END_SLACK_MS
+
+private const val CREDITS_END_SLACK_MS = 1_000L
 
 /** What a key does in the seekable player. */
 internal enum class VodAction { PLAY_PAUSE, PLAY, PAUSE, BACK, FORWARD, SHOW_INFO, BUTTONS, CAPTIONS, TRACKS, ZOOM, STOP }

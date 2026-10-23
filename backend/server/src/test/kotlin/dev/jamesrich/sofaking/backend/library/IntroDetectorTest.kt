@@ -6,6 +6,7 @@ import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.store.libraryIntros
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.openStore
+import dev.jamesrich.sofaking.backend.store.saveLibraryFingerprint
 import dev.jamesrich.sofaking.contract.MediaSegment
 import dev.jamesrich.sofaking.contract.Wire
 import java.io.ByteArrayOutputStream
@@ -31,7 +32,8 @@ import kotlinx.coroutines.runBlocking
 class IntroDetectorTest {
     private class Setup(val root: Path, val store: BackendStore, val service: LibraryService, val detector: IntroDetector, val reads: MutableList<Path>)
 
-    private fun setup(): Setup = runBlocking {
+    /** Episodes the scan takes for ten minutes long unless [durations] knows a file's length. */
+    private fun setup(tailShare: Double = TAIL_SHARE, durations: Map<String, Long> = emptyMap()): Setup = runBlocking {
         val dir = Files.createTempDirectory("sofa-intros-")
         val root = Files.createDirectories(dir.resolve("media"))
         val clock = MutableClock()
@@ -39,9 +41,9 @@ class IntroDetectorTest {
         val jobs = Jobs(clock)
         val reads = ArrayList<Path>()
         val ffmpeg = FfmpegFingerprinter("ffmpeg", dir.resolve("work"))
-        val detector = IntroDetector(store, clock, jobs) { file, seconds -> synchronized(reads) { reads.add(file) }; ffmpeg.fingerprint(file, seconds) }
-        // Ten-minute episodes as far as the scan knows, so the whole of each short test file is read.
-        val scanner = LibraryScanner({ MediaInfo("matroska,webm", durationMs = 600_000) }, missingGrace = Duration.ofDays(7))
+        val detector = IntroDetector(store, clock, jobs, { file, from, seconds -> synchronized(reads) { reads.add(file) }; ffmpeg.fingerprint(file, from, seconds) }, tailShare)
+        // Ten-minute episodes as far as the scan knows, so the whole of each short test file is read for its intro.
+        val scanner = LibraryScanner({ MediaInfo("matroska,webm", durationMs = durations[it.fileName.toString()] ?: 600_000) }, missingGrace = Duration.ofDays(7))
         Setup(root, store, LibraryService(store, clock, listOf(MediaRoot("Media", root)), scanner, jobs, intros = detector), detector, reads)
     }
 
@@ -66,8 +68,9 @@ class IntroDetectorTest {
     }
 
     /** An AAC episode in Matroska: [before] seconds of its own tune, the [theme], then a minute of its own. */
-    private fun episode(file: Path, seed: Int, before: Double, theme: ShortArray) {
-        val pcm = tune(seed, before) + theme + tune(seed + 1_000, 60.0)
+    private fun episode(file: Path, seed: Int, before: Double, theme: ShortArray) = encode(file, tune(seed, before) + theme + tune(seed + 1_000, 60.0))
+
+    private fun encode(file: Path, pcm: ShortArray) {
         val wav = Files.createTempFile("episode-", ".wav")
         Files.write(wav, wav(pcm))
         Files.createDirectories(file.parent)
@@ -132,7 +135,7 @@ class IntroDetectorTest {
         s.service.scan(library.id)
         assertEquals(emptyList<MediaSegment>(), s.service.catalog.item(first.id).segments)
         assertEquals(1, s.detector.run(library)!!.read)
-        assertEquals(listOf(replaced), s.reads)
+        assertEquals(listOf(replaced, replaced), s.reads, "its start, then its end")
         val again = s.service.catalog.item(first.id).segments.single()
         assertNear(8_000, again.startMs)
     }
@@ -158,6 +161,49 @@ class IntroDetectorTest {
         s.service.scan(library.id)
         assertEquals(IntroResult(read = 0, failed = 1, shows = 1, intros = 0), s.detector.run(library))
         assertEquals(IntroResult(read = 0, failed = 0, shows = 1, intros = 0), s.detector.run(library))
+    }
+
+    @Test fun `episodes that end on the same credits music get them as their credits`() = runBlocking {
+        val credits = tune(7, 20.0)
+        val lengths = mapOf(1 to 50.0, 2 to 58.0, 3 to 64.0, 4 to 70.0)
+        // Where each episode's credits start, and how long it is, from its samples.
+        val starts = HashMap<Int, Long>()
+        val durations = HashMap<String, Long>()
+        val pcms = lengths.mapValues { (number, before) ->
+            val own = tune(200 + number, before)
+            starts[number] = own.size * 1_000L / RATE
+            (own + credits).also { durations["Show - S01E0$number.mkv"] = it.size * 1_000L / RATE }
+        }
+        val s = setup(tailShare = 0.5, durations = durations)
+        val tv = s.root.resolve("tv")
+        pcms.forEach { (number, pcm) -> encode(tv.resolve("Show/Season 01/Show - S01E0$number.mkv"), pcm) }
+        val library = s.service.create("TV", LibraryKind.SHOWS, tv.toString())
+        s.service.scan(library.id)
+
+        val result = assertNotNull(s.detector.run(library))
+        assertEquals(4, result.credits)
+        assertEquals(0, result.intros)
+        val episodes = s.store.libraryItems(library.id).filter { it.kind == ItemKind.EPISODE }
+        val found = s.store.libraryIntros(episodes.map { it.id })
+        for (episode in episodes) {
+            val span = assertNotNull(found.getValue(episode.id).credits, "episode ${episode.episode}")
+            assertNear(starts.getValue(episode.episode!!), span.startMs)
+            assertEquals(durations.getValue("Show - S01E0${episode.episode}.mkv"), span.endMs, "credits that end with the episode run to its end")
+        }
+        val segment = s.service.catalog.item(episodes.first().id).segments.single()
+        assertEquals(Wire.SegmentKind.CREDITS, segment.kind)
+
+        // Nothing changed: no file is read again.
+        s.reads.clear()
+        assertEquals(0, s.detector.run(library)!!.read)
+        assertEquals(emptyList(), s.reads)
+
+        // An episode read before credits detection has only its end read.
+        val first = episodes.first()
+        s.store.saveLibraryFingerprint(found.getValue(first.id).copy(tail = null, tailStartMs = null, credits = null))
+        assertEquals(1, s.detector.run(library)!!.read)
+        assertEquals(listOf(s.root.resolve("tv").resolve(first.path!!)), s.reads)
+        assertTrue(s.store.libraryIntros(listOf(first.id)).getValue(first.id).credits != null, "its credits are found again")
     }
 
     private companion object {

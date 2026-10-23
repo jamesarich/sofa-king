@@ -77,6 +77,8 @@ object Wire {
     object SegmentKind {
         /** The opening titles and theme an episode shares with others of its show. */
         const val INTRO = "intro"
+        /** The end credits an episode shares with others of its show; an app that does not know the kind ignores it. */
+        const val CREDITS = "credits"
     }
 
     /** The library home's rows. */

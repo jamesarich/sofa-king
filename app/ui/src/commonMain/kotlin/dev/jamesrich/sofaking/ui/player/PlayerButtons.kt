@@ -49,6 +49,9 @@ internal enum class VodButton {
     /** Jumps over the intro playback is in. */
     SKIP_INTRO,
 
+    /** Jumps over the credits playback is in, or plays the next episode when they run to the end. */
+    SKIP_CREDITS,
+
     /** A library item's Audio and subtitles card. */
     TRACKS,
 
@@ -67,9 +70,10 @@ internal enum class VodButton {
 }
 
 /**
- * The library and recordings player's buttons, in the bar's order. A break or an intro being played leads, so Down
- * and OK skip it; a library item with tracks to pick offers them and a recording its captions; then Zoom and the sleep
- * timer; Start over once [pastStart]; and the next episode when there is one. A failed stream offers none: OK retries it.
+ * The library and recordings player's buttons, in the bar's order. A break, an intro or the credits being played
+ * leads, so Down and OK skip it; a library item with tracks to pick offers them and a recording its captions; then
+ * Zoom and the sleep timer; Start over once [pastStart]; and the next episode when there is one, unless the credits
+ * button already leads to it ([creditsToNext]). A failed stream offers none: OK retries it.
  */
 internal fun vodButtons(
     failed: Boolean,
@@ -79,15 +83,18 @@ internal fun vodButtons(
     pastStart: Boolean,
     hasNext: Boolean,
     inIntro: Boolean = false,
+    inCredits: Boolean = false,
+    creditsToNext: Boolean = false,
 ): List<VodButton> = if (failed) emptyList() else buildList {
     if (inBreak) add(VodButton.SKIP_BREAK)
     if (inIntro) add(VodButton.SKIP_INTRO)
+    if (inCredits) add(VodButton.SKIP_CREDITS)
     if (tracksPickable) add(VodButton.TRACKS)
     if (captions) add(VodButton.CAPTIONS)
     add(VodButton.ZOOM)
     add(VodButton.SLEEP)
     if (pastStart) add(VodButton.START_OVER)
-    if (hasNext) add(VodButton.NEXT)
+    if (hasNext && !(inCredits && creditsToNext)) add(VodButton.NEXT)
 }
 
 /** A button on the live player's bar; [liveButtons] chooses them. */

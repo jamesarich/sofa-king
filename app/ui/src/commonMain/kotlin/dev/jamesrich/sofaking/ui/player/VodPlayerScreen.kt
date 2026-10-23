@@ -190,6 +190,7 @@ fun VodPlayerScreen(
     // Read from the ticking position, so the screen recomposes only when they change.
     val breakEnd by remember(title.markers) { derivedStateOf { breakEndAt(title.markers, state.positionMs) } }
     val intro by remember(title.markers) { derivedStateOf { introAt(title.markers, state.positionMs) } }
+    val credits by remember(title.markers) { derivedStateOf { creditsAt(title.markers, state.positionMs) } }
     val pastStart by remember { derivedStateOf { state.positionMs > START_OVER_AFTER_MS } }
     val windowHeightDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp().value.toInt() }
 
@@ -349,6 +350,8 @@ fun VodPlayerScreen(
                         introSkippedToast = true
                     }
                 }
+                // The credits are offered the same way, never skipped by themselves.
+                creditsAt(currentTitle.markers, now)?.let { if (status.isPlaying) state.inIntro(it) }
             }
             val clock = uptimeMs()
             if (status.isPlaying && clock - lastReport >= REPORT_MS) {
@@ -519,6 +522,8 @@ fun VodPlayerScreen(
         toast = VodToast(Res.string.player_zoom_notice, zoomed.label)
     }
 
+    // Credits that run to the end, with an episode after them: their button plays it.
+    val creditsToNext = credits?.let { creditsRunToEnd(it, state.durationMs) } == true && upcoming != null
     val buttons = vodButtons(
         failed = state.failure != null,
         inBreak = breakEnd != null,
@@ -527,6 +532,8 @@ fun VodPlayerScreen(
         pastStart = pastStart,
         hasNext = upcoming != null,
         inIntro = intro != null,
+        inCredits = credits != null,
+        creditsToNext = creditsToNext,
     )
 
     val controls = object : VodControls {
@@ -694,11 +701,13 @@ fun VodPlayerScreen(
                         captionsOn = captionsOn == true,
                         zoom = zoom,
                         autoSkipSeconds = state.autoSkipSeconds,
+                        creditsToNext = creditsToNext,
                         sleep = sleep,
                         onClick = {
                             when (button) {
                                 VodButton.SKIP_BREAK -> breakEnd?.let(::seekItem)
                                 VodButton.SKIP_INTRO -> intro?.endMs?.let(::seekItem)
+                                VodButton.SKIP_CREDITS -> if (creditsToNext) onPlayNext() else credits?.endMs?.let(::seekItem)
                                 VodButton.TRACKS -> if (state.tracksOpen) state.closeTracks() else state.openTracks()
                                 VodButton.CAPTIONS -> switchCaptions()
                                 VodButton.ZOOM -> stepZoom()
@@ -842,6 +851,7 @@ private fun vodButtonItem(
     captionsOn: Boolean,
     zoom: VideoZoom,
     autoSkipSeconds: Int?,
+    creditsToNext: Boolean,
     sleep: SleepTimer,
     onClick: () -> Unit,
 ): PlayerButtonItem = when (button) {
@@ -851,6 +861,9 @@ private fun vodButtonItem(
         autoSkipSeconds?.let { stringResource(Res.string.vod_control_skip_intro_countdown, it) } ?: stringResource(Res.string.vod_control_skip_intro),
         onClick,
     )
+    VodButton.SKIP_CREDITS ->
+        if (creditsToNext) PlayerButtonItem(SofaIcons.SkipNext, stringResource(Res.string.vod_control_next), onClick)
+        else PlayerButtonItem(SofaIcons.FastForward, stringResource(Res.string.vod_control_skip_credits), onClick)
     VodButton.TRACKS -> PlayerButtonItem(SofaIcons.Subtitles, stringResource(Res.string.vod_tracks_title), onClick)
     VodButton.CAPTIONS -> PlayerButtonItem(
         if (captionsOn) SofaIcons.ClosedCaption else SofaIcons.ClosedCaptionOff,
@@ -865,7 +878,7 @@ private fun vodButtonItem(
 }
 
 /** The buttons that take focus as playback reaches what they skip. */
-private val SKIP_BUTTONS = setOf(VodButton.SKIP_BREAK, VodButton.SKIP_INTRO)
+private val SKIP_BUTTONS = setOf(VodButton.SKIP_BREAK, VodButton.SKIP_INTRO, VodButton.SKIP_CREDITS)
 
 /** The buttons that keep focus after a press, as each press steps them on (the track card takes it itself). */
 private val STAYING_BUTTONS = setOf(VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP, VodButton.TRACKS)

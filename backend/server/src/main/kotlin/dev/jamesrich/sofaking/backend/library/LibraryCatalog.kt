@@ -217,10 +217,13 @@ class LibraryCatalog internal constructor(
         )
     }
 
-    /** The intro found in the episode's file as it is now; one found in a file since replaced is not offered. */
+    /** The intro and credits found in the episode's file as it is now; those found in a file since replaced are not offered. */
     private suspend fun segments(record: LibraryItemRecord): List<MediaSegment> {
-        val intro = store.libraryIntro(record.id)?.takeIf { it.fileKey == fileKey(record) }?.intro ?: return emptyList()
-        return listOf(MediaSegment(Wire.SegmentKind.INTRO, intro.startMs, intro.endMs))
+        val found = store.libraryIntro(record.id)?.takeIf { it.fileKey == fileKey(record) } ?: return emptyList()
+        return listOfNotNull(
+            found.intro?.let { MediaSegment(Wire.SegmentKind.INTRO, it.startMs, it.endMs) },
+            found.credits?.let { MediaSegment(Wire.SegmentKind.CREDITS, it.startMs, it.endMs) },
+        )
     }
 
     /** Movies, shows and videos whose title holds [query], then episodes; at most [limit]. */

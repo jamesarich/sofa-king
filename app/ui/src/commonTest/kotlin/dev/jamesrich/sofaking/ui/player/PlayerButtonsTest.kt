@@ -30,6 +30,14 @@ class PlayerButtonsTest {
     }
 
     @Test
+    fun `an episode in its credits leads with their button which stands in for Next episode when they run to the end`() {
+        fun buttons(toNext: Boolean) =
+            vodButtons(failed = false, inBreak = false, tracksPickable = false, captions = false, pastStart = true, hasNext = true, inCredits = true, creditsToNext = toNext)
+        assertEquals(listOf(VodButton.SKIP_CREDITS, VodButton.ZOOM, VodButton.SLEEP, VodButton.START_OVER), buttons(toNext = true))
+        assertEquals(listOf(VodButton.SKIP_CREDITS, VodButton.ZOOM, VodButton.SLEEP, VodButton.START_OVER, VodButton.NEXT), buttons(toNext = false))
+    }
+
+    @Test
     fun `a failed stream offers no buttons`() {
         assertEquals(
             emptyList(),

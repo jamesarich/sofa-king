@@ -205,6 +205,8 @@ def android(args, out):
                     ['network', '-e', 'wifi', 'show', '-e', 'level', '4'], ['network', '-e', 'mobile', 'hide']):
         adb('shell', 'am', 'broadcast', '-a', 'com.android.systemui.demo', '-e', 'command', *command)
     tv = args.platform == 'android-tv'
+    adb('logcat', '-c')
+    logcat = subprocess.Popen(['adb', 'logcat', '-v', 'threadtime'], stdout=(out / 'logcat.txt').open('w'), stderr=subprocess.STDOUT)
     with showcase_server(out, images=emulated) as base:
         @contextlib.contextmanager
         def start(**extra):
@@ -215,6 +217,7 @@ def android(args, out):
             adb('exec-in', f'run-as {PACKAGE} sh -c "rm -rf files && mkdir -p files/datastore && cat > files/datastore/settings.preferences_pb"',
                 data=preferences_pb(settings))
             adb('shell', 'am', 'start', '-W', '-n', f'{PACKAGE}/.MainActivity', timeout=120)
+            shoot = lambda name: (out / f'{args.name}-{name}.png').write_bytes(adb('exec-out', 'screencap', '-p'))
 
             def keys(*names):
                 for name in names:
@@ -239,12 +242,18 @@ def android(args, out):
             try:
                 # The TV is driven by the remote's keys; a tap still reaches a library item, more surely than keys
                 # through the TV's own layout.
-                yield App(lambda name: (out / f'{args.name}-{name}.png').write_bytes(adb('exec-out', 'screencap', '-p')),
-                          keys, tap, touch=not tv)
+                # Nothing has focus on a touch screen, so its guide previews nothing until a channel is tapped.
+                yield App(shoot, keys, tap, touch=not tv, preview=tv)
+            except BaseException:
+                shoot('failed')
+                raise
             finally:
                 adb('shell', 'am', 'force-stop', PACKAGE)
 
-        tour(base, start)
+        try:
+            tour(base, start)
+        finally:
+            logcat.terminate()
     adb('shell', 'am', 'broadcast', '-a', 'com.android.systemui.demo', '-e', 'command', 'exit')
 
 
@@ -281,9 +290,13 @@ def apple(args, out):
                 # The Apple TV app has no channel to start on; the Top Shelf's link opens one.
                 time.sleep(5)
                 simctl('openurl', 'booted', f'sofaking://channel/{extra["startup_channel"]}')
+            shoot = lambda name: simctl('io', 'booted', 'screenshot', str(out / f'{args.name}-{name}.png'))
             try:
-                # The Apple TV's channel list has no preview.
-                yield App(lambda name: simctl('io', 'booted', 'screenshot', str(out / f'{args.name}-{name}.png')), preview=not tv)
+                # Nothing has focus on a touch screen, and the Apple TV's channel list has no preview.
+                yield App(shoot, preview=False)
+            except BaseException:
+                shoot('failed')
+                raise
             finally:
                 simctl('terminate', 'booted', bundle)
 

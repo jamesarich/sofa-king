@@ -33,6 +33,7 @@ import platform.AVFoundation.AVMediaSelectionGroup
 import platform.AVFoundation.AVPlayerItemAccessLogEvent
 import platform.AVFoundation.accessLog
 import platform.AVFoundation.presentationSize
+import platform.AVFoundation.rate
 import platform.AVFoundation.selectedMediaOptionInMediaSelectionGroup
 import kotlinx.cinterop.useContents
 import platform.AVFoundation.AVMediaSelectionOption

@@ -24,7 +24,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,7 +63,6 @@ import dev.jamesrich.sofaking.resources.guide_ended
 import dev.jamesrich.sofaking.resources.guide_starts_in
 import dev.jamesrich.sofaking.resources.guide_time_left
 import dev.jamesrich.sofaking.ui.BackHandler
-import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.WholeLinesText
@@ -81,10 +79,6 @@ import dev.jamesrich.sofaking.ui.theme.SofaButton
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
-
-/** What the details sheet shows: a channel and the program focused in its row, which may be a gap. */
-@Immutable
-internal data class ProgramDetails(val channel: Channel, val program: Program?)
 
 /** The side panel's width on a TV: room for the image beside the title and three buttons on a line. */
 private val PANEL_WIDTH = 560.dp

@@ -7,11 +7,6 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.upsert
 import java.time.Instant
 
-/**
- * One value a native provider keeps across restarts: its device id, a session token. [expiresAt] null never expires.
- */
-data class ProviderStateValue(val value: String, val expiresAt: Instant?, val updatedAt: Instant)
-
 internal fun ResultRow.providerState() = ProviderStateValue(
     this[ProviderStates.value],
     this[ProviderStates.expiresAt]?.let(Instant::parse),

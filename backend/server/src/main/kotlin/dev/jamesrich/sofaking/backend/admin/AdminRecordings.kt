@@ -1,8 +1,6 @@
 package dev.jamesrich.sofaking.backend.admin
 
-import dev.jamesrich.sofaking.backend.dvr.Retention
 import dev.jamesrich.sofaking.contract.Recording
-import dev.jamesrich.sofaking.contract.RecordingList
 import dev.jamesrich.sofaking.contract.RecordingRule
 import dev.jamesrich.sofaking.contract.Wire
 import kotlinx.html.A
@@ -47,20 +45,6 @@ import kotlinx.html.thead
 import kotlinx.html.time
 import kotlinx.html.title
 import kotlinx.html.tr
-
-/**
- * [channels] are the ones with a guide, which a rule may name; [allChannels] are every enabled one, which a manual
- * recording may name. [zone] is the time zone the manual recording form's times are read in.
- */
-internal class RecordingsView(
-    val list: RecordingList,
-    val rules: List<RecordingRule>,
-    val channels: Map<String, String>,
-    val folder: String,
-    val retention: Retention,
-    val allChannels: Map<String, String> = channels,
-    val zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
-)
 
 /** A recording's name as a list shows it: the show, then its season and episode or episode title. */
 internal fun recordingName(recording: Recording): String {

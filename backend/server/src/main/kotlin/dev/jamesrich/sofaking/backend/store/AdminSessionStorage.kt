@@ -7,9 +7,6 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.time.Instant
 
-/** A portal session as stored: [key] is the SHA-256 of the cookie's session ID. */
-data class StoredAdminSession(val key: String, val csrf: String, val expiresAt: Instant)
-
 /** The portal sessions that outlive [now], after deleting the expired ones. */
 suspend fun BackendStore.adminSessions(now: Instant): List<StoredAdminSession> = query {
     AdminSessionRows.deleteWhere { expiresAt lessEq now.toString() }

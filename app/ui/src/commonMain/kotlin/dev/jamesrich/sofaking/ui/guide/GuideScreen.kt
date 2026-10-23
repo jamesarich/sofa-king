@@ -47,7 +47,6 @@ import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Program
-import dev.jamesrich.sofaking.data.ProgramKind
 import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.airingsOf
@@ -80,33 +79,12 @@ import dev.jamesrich.sofaking.ui.uptimeMs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
-
-@Serializable
-internal sealed interface GuideFilter {
-    @Serializable
-    data object All : GuideFilter
-
-    @Serializable
-    data object Favorites : GuideFilter
-
-    /** The channels watched most recently, newest first. */
-    @Serializable
-    data object Recent : GuideFilter
-
-    @Serializable
-    data class Group(val name: String) : GuideFilter
-
-    /** The channels showing a [kind] of program now. */
-    @Serializable
-    data class OnNow(val kind: ProgramKind) : GuideFilter
-}
 
 /** How often the kinds of program on now are read again. */
 private const val ON_NOW_REFRESH_SECONDS = 300L

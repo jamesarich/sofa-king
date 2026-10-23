@@ -52,12 +52,12 @@ def showcase_server(out, images=None, **settings):
 class App:
     """One start of the app, as the tour drives it: [keys] presses keys by their web names, [tap] taps the item a text
     or description names (None for the middle of the screen), [shoot] saves the screen under a name, and [touch] says
-    the platform is driven by touch rather than keys; [preview] says its guide plays the focused channel, and [showing]
-    says whether some text on screen starts with a given one. A platform without keys, taps or a way to read its
-    screen leaves them None, and the tour takes another way, skips the screen or waits a fixed time."""
+    the platform is driven by touch rather than keys; [preview] says its guide plays the focused channel, and [logged]
+    says whether the app has logged a line with a given text since this start. A platform without keys, taps or the
+    app's log leaves them None, and the tour takes another way, skips the screen or waits a fixed time."""
 
-    def __init__(self, shoot, keys=None, tap=None, touch=False, preview=True, showing=None):
-        self.shoot, self.keys, self.tap, self.touch, self.preview, self.showing = shoot, keys, tap, touch, preview, showing
+    def __init__(self, shoot, keys=None, tap=None, touch=False, preview=True, logged=None):
+        self.shoot, self.keys, self.tap, self.touch, self.preview, self.logged = shoot, keys, tap, touch, preview, logged
 
 
 def wait_for_session(base, seconds=60):
@@ -227,26 +227,23 @@ def android(args, out):
                     adb('shell', 'input', 'keyevent', ANDROID_KEYS.get(name, name))
                     time.sleep(0.4)
 
-            def screen():
-                """The items on screen, as the accessibility tree Compose gives them."""
-                adb('shell', 'uiautomator', 'dump', '/data/local/tmp/screen.xml')
-                return ElementTree.fromstring(adb('exec-out', 'cat', '/data/local/tmp/screen.xml'))
-
-            named = lambda node, text: any((node.get(a) or '').startswith(text) for a in ('text', 'content-desc'))
-
-            def showing(text):
-                return any(named(n, text) for n in screen().iter('node'))
+            log = out / 'logcat.txt'
+            since = log.stat().st_size
+            logged = lambda text: text in log.read_bytes()[since:].decode(errors='replace')
 
             def tap(text):
                 if text is None:
                     size = re.search(rb'(\d+)x(\d+)', adb('shell', 'wm', 'size').splitlines()[-1])
                     return adb('shell', 'input', 'tap', str(int(size[1]) // 2), str(int(size[2]) // 2))
-                # The first clickable item whose text or description starts with [text].
-                tree = screen()
-                nodes = [n for n in tree.iter('node') if named(n, text)]
+                # The first clickable item whose text or description starts with [text]. The dump waits for the screen
+                # to settle, so it fails while a loader spins.
+                adb('shell', 'uiautomator', 'dump', '/data/local/tmp/screen.xml')
+                tree = ElementTree.fromstring(adb('exec-out', 'cat', '/data/local/tmp/screen.xml'))
+                named = lambda node: any((node.get(a) or '').startswith(text) for a in ('text', 'content-desc'))
+                nodes = [n for n in tree.iter('node') if named(n)]
                 if not nodes:
                     raise SystemExit(f'Nothing on screen reads {text!r}')
-                clickable = [n for n in tree.iter('node') if n.get('clickable') == 'true' and any(named(c, text) for c in n.iter('node'))]
+                clickable = [n for n in tree.iter('node') if n.get('clickable') == 'true' and any(named(c) for c in n.iter('node'))]
                 left, top, right, bottom = map(int, re.findall(r'\d+', (clickable or nodes)[-1].get('bounds')))
                 adb('shell', 'input', 'tap', str((left + right) // 2), str((top + bottom) // 2))
 
@@ -254,7 +251,7 @@ def android(args, out):
                 # The TV is driven by the remote's keys; a tap still reaches a library item, more surely than keys
                 # through the TV's own layout.
                 # Nothing has focus on a touch screen, so its guide previews nothing until a channel is tapped.
-                yield App(shoot, keys, tap, touch=not tv, preview=tv, showing=showing)
+                yield App(shoot, keys, tap, touch=not tv, preview=tv, logged=logged)
             except BaseException:
                 shoot('failed')
                 raise
@@ -338,9 +335,9 @@ def tour(base, start, out):
     before = served(out, '/api/v1/guide/query')
     with start(startup='GUIDE') as app:
         wait_served(out, '/api/v1/guide/query', before)
-        if app.showing:
-            # A slow emulator draws the programs some seconds after the server sends them.
-            wait_for('the listings', lambda: not app.showing('Loading listings'), 60)
+        if app.logged:
+            # An emulator without a GPU decodes the programs for some seconds after the server sends them.
+            wait_for('the listings', lambda: app.logged('SofaKing: guide: '), 60)
         if app.preview:
             wait_for_session(base)
         time.sleep(PREVIEW_SECONDS if app.preview else 3)

@@ -71,11 +71,11 @@ class HallmarkClientTest {
                             )
                             assertEquals(
                                 listOf("Merry Christmas, Ted Cooper!", "An Unexpected Christmas"),
-                                guide.programmes.map {
+                                guide.programs.map {
                                     it.title
                                 },
                             )
-                            assertTrue(guide.programmes.all { it.channelId == "hallmark_christmas" })
+                            assertTrue(guide.programs.all { it.channelId == "hallmark_christmas" })
                             assertEquals(
                                 1,
                                 fixture.hits("/catalog/channels"),

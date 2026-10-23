@@ -55,12 +55,12 @@ class BallySportsClientTest {
                         assertNull(client.resolve("15").expiresAt)
                         val guide = client.guide(setOf("2"))
                         assertEquals(2, guide.channels.size)
-                        val programme = guide.programmes.single()
-                        assertEquals("Eli Willits with a three-RBI game", programme.title)
-                        assertEquals("Nationals No. 1 prospect", programme.description)
+                        val program = guide.programs.single()
+                        assertEquals("Eli Willits with a three-RBI game", program.title)
+                        assertEquals("Nationals No. 1 prospect", program.description)
                         assertEquals(
                             "2026-10-10T03:00:00Z",
-                            programme.startsAt.toString(),
+                            program.startsAt.toString(),
                             "the \$D date prefix is stripped",
                         )
                         assertEquals(

@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.ads
 
+import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.store.AdChannelRecord
 import java.net.URI
 import java.time.Instant
@@ -44,6 +45,13 @@ class AdListenerTest {
             listOf("unmarked-today", "unmarked-yesterday"),
             AdListener.pick(known, lineup, emptySet(), now = now).take(2),
         )
+    }
+
+    @Test
+    fun `nothing is listened to while anyone watches or with learned breaks off`() {
+        assertEquals(6, AdListener.wanted(LearnedBreaks.SHADOW, emptySet(), 6))
+        assertEquals(0, AdListener.wanted(LearnedBreaks.ON, setOf("news"), 6))
+        assertEquals(0, AdListener.wanted(LearnedBreaks.OFF, emptySet(), 6))
     }
 
     @Test

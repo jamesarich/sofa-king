@@ -46,7 +46,7 @@ class LearnedAliasesTest {
 
     private fun schedule(vararg titles: String, offsetMinutes: Long = 0) = titles.mapIndexed { hour, title ->
         val start = now.plus(Duration.ofHours(hour.toLong())).plus(Duration.ofMinutes(offsetMinutes))
-        GuideProgramme("x", start, start.plus(Duration.ofHours(1)), title)
+        GuideProgram("x", start, start.plus(Duration.ofHours(1)), title)
     }
 
     private val policy = LineupPolicy(providers = listOf(PolicyProvider("whale"), PolicyProvider("samsung")))
@@ -177,7 +177,7 @@ class LearnedAliasesTest {
         assertTrue("ghosthunterschannel: possible alias of ghosthunters" in learning.suggestions)
     }
 
-    @Test fun `schedules match on three programmes and 60 percent of the smaller one, starting within five minutes`() {
+    @Test fun `schedules match on three programs and 60 percent of the smaller one, starting within five minutes`() {
         assertTrue(sameSchedule(hunts, schedules.getValue("ghosthunterschannel")))
         assertFalse(
             sameSchedule(hunts, schedule("Ghost Hunters", "Ghost Hunters", "Other", "Other")),

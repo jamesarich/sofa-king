@@ -53,11 +53,11 @@ class HdHomeRunClient(private val context: ProviderContext) : ProviderClient {
             remap.putIfAbsent(channel.id, number)
         }
         val now = context.clock.instant()
-        val programmes = parsed.programmes.mapNotNull { programme ->
-            val number = remap[programme.channelId] ?: return@mapNotNull null
-            if (number !in wanted || programme.endsAt < now) null else programme.copy(channelId = number)
+        val programs = parsed.programs.mapNotNull { program ->
+            val number = remap[program.channelId] ?: return@mapNotNull null
+            if (number !in wanted || program.endsAt < now) null else program.copy(channelId = number)
         }
-        return ParsedGuide(index, programmes)
+        return ParsedGuide(index, programs)
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {

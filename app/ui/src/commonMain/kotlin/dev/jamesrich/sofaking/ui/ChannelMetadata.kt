@@ -20,23 +20,23 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideStatus
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.guide_out_of_date
 import dev.jamesrich.sofaking.resources.listing_loading
 import dev.jamesrich.sofaking.resources.no_guide
 import dev.jamesrich.sofaking.resources.no_listing
 import dev.jamesrich.sofaking.resources.preview_live
-import dev.jamesrich.sofaking.resources.programme_new
+import dev.jamesrich.sofaking.resources.program_new
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 private val BadgeShape = RoundedCornerShape(4.dp)
 
 /** The episode label and title, for example "S2 E5  The Pilot", or null when the guide has neither. */
-internal fun Programme.episodeLine(): String? = listOfNotNull(episode, subTitle).joinToString("  ").ifEmpty { null }
+internal fun Program.episodeLine(): String? = listOfNotNull(episode, subTitle).joinToString("  ").ifEmpty { null }
 
-/** Why a stretch of a channel shows no programme, with the text it reads as. */
+/** Why a stretch of a channel shows no program, with the text it reads as. */
 internal enum class NoListing(val label: StringResource) {
     NO_GUIDE(Res.string.no_guide),
     OUT_OF_DATE(Res.string.guide_out_of_date),
@@ -45,7 +45,7 @@ internal enum class NoListing(val label: StringResource) {
 }
 
 /**
- * What to show in place of a programme: why the channel has none, as far as the server says, or that its programmes
+ * What to show in place of a program: why the channel has none, as far as the server says, or that its programs
  * are still on the way while [guideLoading].
  */
 internal fun Channel.noListing(guideLoading: Boolean): NoListing = when (guideStatus) {
@@ -58,7 +58,7 @@ internal fun Channel.noListing(guideLoading: Boolean): NoListing = when (guideSt
 @Composable
 internal fun Channel.noListingText(guideLoading: Boolean): String = stringResource(noListing(guideLoading).label)
 
-/** Between the parts of a programme's detail line, such as its time range and episode. */
+/** Between the parts of a program's detail line, such as its time range and episode. */
 internal const val DETAIL_SEPARATOR = "  ·  "
 
 /**
@@ -78,19 +78,19 @@ internal fun ChannelLogo(channel: Channel, width: Dp, height: Dp, modifier: Modi
 
 /** Live, New and the rating, in that order; [fill] and [onFill] color the filled badges, [outline] the rating. */
 @Composable
-internal fun ProgrammeBadges(
-    programme: Programme,
+internal fun ProgramBadges(
+    program: Program,
     live: Boolean,
     fill: Color,
     onFill: Color,
     outline: Color,
     modifier: Modifier = Modifier,
 ) {
-    if (!live && !programme.isNew && programme.rating == null) return
+    if (!live && !program.isNew && program.rating == null) return
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         if (live) FilledBadge(stringResource(Res.string.preview_live), fill, onFill)
-        if (programme.isNew) FilledBadge(stringResource(Res.string.programme_new), fill, onFill)
-        programme.rating?.let {
+        if (program.isNew) FilledBadge(stringResource(Res.string.program_new), fill, onFill)
+        program.rating?.let {
             Text(
                 it,
                 style = MaterialTheme.typography.bodySmall,

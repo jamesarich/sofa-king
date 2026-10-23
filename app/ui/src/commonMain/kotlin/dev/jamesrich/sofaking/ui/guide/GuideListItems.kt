@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking.ui.guide
 
 import androidx.compose.runtime.Immutable
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 
 /** One item of the guide's list: a channel's row, or the "Later" line under it that search adds. */
 @Immutable
@@ -16,14 +16,14 @@ internal sealed interface GuideListItem {
         override val key: String get() = "${channel.guideId}#${channel.number}"
     }
 
-    /** Upcoming programmes of [channel] that match the search, each a jump to its cell. */
-    data class Later(override val channel: Channel, val programmes: List<Programme>) : GuideListItem {
+    /** Upcoming programs of [channel] that match the search, each a jump to its cell. */
+    data class Later(override val channel: Channel, val programs: List<Program>) : GuideListItem {
         override val key: String get() = "later:${channel.guideId}#${channel.number}"
     }
 }
 
 /** [visible] as list items, with a Later line after every channel in [upcoming] (keyed by guide id). */
-internal fun guideListItems(visible: List<Channel>, upcoming: Map<String, List<Programme>>): List<GuideListItem> =
+internal fun guideListItems(visible: List<Channel>, upcoming: Map<String, List<Program>>): List<GuideListItem> =
     buildList {
         for (channel in visible) {
             add(GuideListItem.Row(channel))

@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import kotlinx.serialization.json.JsonElement
 import java.time.Duration
@@ -11,7 +11,7 @@ import java.time.Instant
  * Tubi's live channels as tubitv.com/live serves them to a signed-out visitor: the page's `window.__data` state
  * names the US linear containers and their channel ids, and the public `oz/epg/programming` endpoint answers, per
  * batch of ids, each channel's title, images, HLS manifest (with a token valid a few days) and about two days of
- * programmes. Channels that need a login or carry a license server are left out.
+ * programs. Channels that need a login or carry a license server are left out.
  */
 class TubiClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "tubi"
@@ -19,7 +19,7 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
     private val pageUrl = context.options["pageUrl"] ?: PAGE_URL
     private val epgUrl = context.options["epgUrl"] ?: EPG_URL
 
-    private class Snapshot(val channels: List<ProviderChannel>, val programmes: List<GuideProgramme>)
+    private class Snapshot(val channels: List<ProviderChannel>, val programs: List<GuideProgram>)
 
     override suspend fun channels(): List<ProviderChannel> = snapshot().channels
 
@@ -27,7 +27,7 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
         val snapshot = snapshot()
         return ParsedGuide(
             snapshot.channels.map { GuideChannel(it.id, it.name, it.logo) },
-            snapshot.programmes.filter {
+            snapshot.programs.filter {
                 it.channelId in
                     wanted
             },
@@ -68,7 +68,7 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
         }
         if (order.isEmpty()) throw ProviderFailure("Tubi live page lists no channels")
         val channels = ArrayList<ProviderChannel>()
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         for (row in rows(order.toList())) {
             val id = row.str("content_id") ?: continue
             val name = row.str("title") ?: continue
@@ -82,15 +82,15 @@ class TubiClient(private val context: ProviderContext) : ProviderClient {
                     groups[id],
                     listOf("us"),
                 )
-            for (programme in row["programs"].array) {
-                val start = programme.str("start_time")?.let(::instantOrNull) ?: continue
-                val end = programme.str("end_time")?.let(::instantOrNull) ?: continue
-                val title = programme.str("title") ?: continue
-                if (end > start) programmes += GuideProgramme(id, start, end, title, programme.str("description"))
+            for (program in row["programs"].array) {
+                val start = program.str("start_time")?.let(::instantOrNull) ?: continue
+                val end = program.str("end_time")?.let(::instantOrNull) ?: continue
+                val title = program.str("title") ?: continue
+                if (end > start) programs += GuideProgram(id, start, end, title, program.str("description"))
             }
         }
         if (channels.isEmpty()) throw ProviderFailure("Channel list is empty")
-        return Snapshot(channels, programmes)
+        return Snapshot(channels, programs)
     }
 
     private suspend fun rows(ids: List<String>): List<JsonElement> = ids.chunked(BATCH).flatMap { batch ->

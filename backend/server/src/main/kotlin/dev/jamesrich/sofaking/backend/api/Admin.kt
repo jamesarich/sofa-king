@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking.backend.api
 
 import kotlinx.serialization.Serializable
 
-/** Which XMLTV channel of which configured guide source carries a lineup entry's programmes. */
+/** Which XMLTV channel of which configured guide source carries a lineup entry's programs. */
 @Serializable data class GuideMapping(val guideId: String, val channelId: String)
 
 @Serializable data class CandidateOffering(
@@ -31,7 +31,7 @@ import kotlinx.serialization.Serializable
     val lastSuccessAt: String? = null,
     val errorCode: String? = null,
     val channels: Int = 0,
-    val programmes: Int = 0,
+    val programs: Int = 0,
 )
 
 @Serializable data class GuideChannelInfo(

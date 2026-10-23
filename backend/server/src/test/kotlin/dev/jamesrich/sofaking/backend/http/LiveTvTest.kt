@@ -89,7 +89,7 @@ class LiveTvTest {
                     "Morning",
                     Json.decodeFromString<GuideWindow>(
                         guideResponse.bodyAsText(),
-                    ).channels.single().programmes.single().title,
+                    ).channels.single().programs.single().title,
                 )
                 val request = OpenPlayback(catalog.channels.single().id, "preview", "api-test")
                 val opened = client.post("/api/v1/playback-sessions") {

@@ -88,7 +88,7 @@ internal fun backgroundScope(report: (String) -> Unit = runtimeLog::error): Coro
 )
 
 /**
- * Runs [action] every [periodMillis] until cancelled; a failed run is logged by exception class and the loop goes on.
+ * Runs [action] every [periodMillis] until canceled; a failed run is logged by exception class and the loop goes on.
  */
 internal fun CoroutineScope.launchEvery(
     name: String,

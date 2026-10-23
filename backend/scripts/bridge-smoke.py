@@ -61,11 +61,11 @@ def main():
                     assert time.monotonic() < deadline, 'No real guide coverage'
                     time.sleep(1)
                 now = datetime.now(timezone.utc)
-                programmes = 0
+                programs = 0
                 if args.guide:
                     guide = smoke.request(base, '/api/v1/guide/query', 'POST', {'channelIds': [c['id'] for c in candidates], 'from': now.isoformat(), 'to': (now + timedelta(hours=6)).isoformat()})
-                    programmes = sum(len(c['programmes']) for c in guide['channels'])
-                    assert programmes > 0, 'Bounded guide query has no programmes'
+                    programs = sum(len(c['programs']) for c in guide['channels'])
+                    assert programs > 0, 'Bounded guide query has no programs'
                 decoded = False
                 if args.decode_channel:
                     channel = next(c for c in catalog['channels'] if c['name'] == args.decode_channel)
@@ -74,7 +74,7 @@ def main():
                     assert result.returncode == 0 and b'progress=end' in result.stdout, 'Household stream did not decode through the backend'
                     smoke.request(base, '/api/v1/playback-sessions/' + session['id'], 'DELETE')
                     decoded = True
-                print(f'Bridge smoke passed: {len(catalog["channels"])} channels, {len(candidates)} guide rows, {programmes} real programmes; video decode={decoded}. No provider probes or production writes.')
+                print(f'Bridge smoke passed: {len(catalog["channels"])} channels, {len(candidates)} guide rows, {programs} real programs; video decode={decoded}. No provider probes or production writes.')
         finally:
             if process is not None:
                 smoke.stop(process)

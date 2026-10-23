@@ -14,7 +14,7 @@ data class Channel(
     val logo: String?,
     /** Every category the channel is filed under, never empty; a channel can be both Local and News. */
     val groups: List<String>,
-    /** Why a channel without programmes has none; a server that does not say is taken as [GuideStatus.AVAILABLE]. */
+    /** Why a channel without programs has none; a server that does not say is taken as [GuideStatus.AVAILABLE]. */
     val guideStatus: GuideStatus = GuideStatus.AVAILABLE,
 )
 
@@ -31,7 +31,7 @@ enum class GuideStatus {
     STALE,
 }
 
-data class Programme(
+data class Program(
     val channelId: String,
     val start: Instant,
     val stop: Instant,
@@ -53,16 +53,16 @@ data class Programme(
 
 data class Lineup(
     val channels: List<Channel>,
-    /** Programmes per [Channel.guideId], sorted by start. */
-    val guide: Map<String, List<Programme>>,
-    /** The channels are in and their programmes are still on the way, so a channel without any may yet have some. */
+    /** Programs per [Channel.guideId], sorted by start. */
+    val guide: Map<String, List<Program>>,
+    /** The channels are in and their programs are still on the way, so a channel without any may yet have some. */
     val guideLoading: Boolean = false,
 ) {
-    fun nowAndNext(channel: Channel, at: Instant): Pair<Programme?, Programme?> {
-        val programmes = guide[channel.guideId].orEmpty()
-        val index = programmes.indexOfFirst { it.start <= at && it.stop > at }
-        if (index < 0) return null to programmes.firstOrNull { it.start > at }
-        return programmes[index] to programmes.getOrNull(index + 1)
+    fun nowAndNext(channel: Channel, at: Instant): Pair<Program?, Program?> {
+        val programs = guide[channel.guideId].orEmpty()
+        val index = programs.indexOfFirst { it.start <= at && it.stop > at }
+        if (index < 0) return null to programs.firstOrNull { it.start > at }
+        return programs[index] to programs.getOrNull(index + 1)
     }
 }
 

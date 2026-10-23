@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
-import dev.jamesrich.sofaking.backend.catalog.ProgrammeRating
+import dev.jamesrich.sofaking.backend.catalog.ProgramRating
 import java.net.URLEncoder
 import java.time.Instant
 
@@ -47,7 +47,7 @@ interface ProviderClient {
     suspend fun channels(): List<ProviderChannel>
 
     /**
-     * The service's guide: every channel in the index, programmes only for the ids in [wanted].
+     * The service's guide: every channel in the index, programs only for the ids in [wanted].
      * Null when the service has none.
      */
     suspend fun guide(wanted: Set<String>): ParsedGuide? = null
@@ -119,10 +119,10 @@ private val vchip = setOf("TV-Y", "TV-Y7", "TV-Y7-FV", "TV-G", "TV-PG", "TV-14",
 private val mpaa = setOf("G", "PG", "PG-13", "R", "NC-17")
 
 /** A service's content rating with the system its value belongs to: US TV ratings are `VCHIP`, film ratings `MPAA`. */
-internal fun usRating(value: String?): ProgrammeRating? {
+internal fun usRating(value: String?): ProgramRating? {
     val rating = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
     val upper = rating.uppercase()
-    return ProgrammeRating(
+    return ProgramRating(
         rating,
         if (upper in vchip) {
             "VCHIP"

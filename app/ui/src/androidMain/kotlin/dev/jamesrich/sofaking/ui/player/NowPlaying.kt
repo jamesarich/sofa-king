@@ -16,7 +16,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.text.Cue
 
-/** Session metadata: the programme on top, the channel number and name under it. */
+/** Session metadata: the program on top, the channel number and name under it. */
 internal fun NowPlaying.toMetadata(): MediaMetadata = MediaMetadata.Builder()
     .setTitle(title)
     .setSubtitle(subtitle)

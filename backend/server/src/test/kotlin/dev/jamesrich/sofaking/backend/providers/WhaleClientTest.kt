@@ -170,7 +170,7 @@ class WhaleClientTest {
             }
         }
 
-    @Test fun `guide indexes every channel and fetches programmes only for wanted ids`() = runBlocking<Unit> {
+    @Test fun `guide indexes every channel and fetches programs only for wanted ids`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-whale-")
         try {
             ProviderFixture().use { fixture ->
@@ -189,7 +189,7 @@ class WhaleClientTest {
                             )
                         val empty = client.guide(emptySet())
                         assertEquals(3, empty.channels.size)
-                        assertTrue(empty.programmes.isEmpty())
+                        assertTrue(empty.programs.isEmpty())
                         assertEquals(0, fixture.hits("/api/device/browser/v1/epg"))
                         val guide = client.guide(setOf(watchMojo))
                         assertEquals(1, fixture.hits("/api/device/browser/v1/epg"))
@@ -200,12 +200,12 @@ class WhaleClientTest {
                         )
                         assertEquals(
                             listOf("Morning Block", "Evening Block"),
-                            guide.programmes.map {
+                            guide.programs.map {
                                 it.title
                             },
-                            "a zero-length programme is dropped",
+                            "a zero-length program is dropped",
                         )
-                        assertEquals(watchMojo, guide.programmes.first().channelId)
+                        assertEquals(watchMojo, guide.programs.first().channelId)
                         assertEquals("WatchMojo", guide.channels.first().displayName)
                     }
                 }

@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,7 +21,7 @@ class GuideStateTest {
     private val items = guideListItems(channels, emptyMap())
     private val base = Instant.parse("2026-10-09T10:00:00Z")
     private fun cell(start: Long, end: Long) = GuideCell(
-        Programme(
+        Program(
             channelId = "1",
             start = base + start.minutes,
             stop = base + end.minutes,
@@ -84,7 +84,7 @@ class GuideStateTest {
 
     @Test
     fun `the open details take their own Back`() {
-        state.details = ProgrammeDetails(channels[0], null)
+        state.details = ProgramDetails(channels[0], null)
         assertFalse(up(Key.Back))
         assertFalse("climb" in controls.calls)
     }
@@ -131,7 +131,7 @@ class GuideStateTest {
         assertNull(state.details)
         assertFalse(down(Key.DirectionCenter))
         assertFalse(up(Key.DirectionCenter))
-        assertEquals(ProgrammeDetails(channels[0], cell(0, 30).programme), state.details)
+        assertEquals(ProgramDetails(channels[0], cell(0, 30).program), state.details)
         assertFalse(down(Key.DirectionCenter))
     }
 
@@ -142,15 +142,15 @@ class GuideStateTest {
         assertTrue(down(Key.Info))
         state.details = null
         state.openDetails(channels[1], cell(0, 30), inWindow = true)
-        assertEquals(ProgrammeDetails(channels[1], cell(0, 30).programme), state.details)
+        assertEquals(ProgramDetails(channels[1], cell(0, 30).program), state.details)
     }
 
     @Test
-    fun `Info opens the focused programme's details and closes them`() {
+    fun `Info opens the focused program's details and closes them`() {
         state.gridFocused = true
         state.cellFocused(channels[1], cell(0, 30))
         assertTrue(down(Key.Info))
-        assertEquals(ProgrammeDetails(channels[1], cell(0, 30).programme), state.details)
+        assertEquals(ProgramDetails(channels[1], cell(0, 30).program), state.details)
         assertTrue(down(Key.Info))
         assertEquals(listOf("rest", "rest", "closeDetails"), controls.calls)
     }
@@ -166,10 +166,10 @@ class GuideStateTest {
 
     @Test
     fun `Guide and Search close the details and act`() {
-        state.details = ProgrammeDetails(channels[0], null)
+        state.details = ProgramDetails(channels[0], null)
         down(Key.Guide)
         assertNull(state.details)
-        state.details = ProgrammeDetails(channels[0], null)
+        state.details = ProgramDetails(channels[0], null)
         down(Key.Search)
         assertNull(state.details)
         assertEquals(listOf("rest", "now", "rest", "search"), controls.calls)
@@ -186,14 +186,14 @@ class GuideStateTest {
 
     @Test
     fun `Fast Forward and Rewind close the details back to the cell`() {
-        state.details = ProgrammeDetails(channels[0], null)
+        state.details = ProgramDetails(channels[0], null)
         down(Key.MediaRewind)
         assertEquals(listOf("rest", "closeDetails", "day DAY_BACK"), controls.calls)
     }
 
     @Test
     fun `digits do nothing while the details are open`() {
-        state.details = ProgrammeDetails(channels[0], null)
+        state.details = ProgramDetails(channels[0], null)
         assertFalse(down(Key.Five))
         assertFalse(state.numbers.hasDigits)
     }
@@ -263,7 +263,7 @@ class GuideStateTest {
 
     @Test
     fun `a row step counts from the focused Later line`() {
-        val later = guideListItems(channels, mapOf("1" to listOf(cell(60, 90).programme!!)))
+        val later = guideListItems(channels, mapOf("1" to listOf(cell(60, 90).program!!)))
         state.cellFocused(channels[0], cell(0, 30))
         state.laterFocused(later[1].key)
         state.onGridKey(Key.DirectionDown, KeyEventType.KeyDown, later, focusRow = { moves += it })

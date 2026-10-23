@@ -48,15 +48,16 @@ private val log = LoggerFactory.getLogger(AdListener::class.java)
  * census covers channels nobody opened. Up to [slots] channels at once, each for [LISTEN] before its slot picks again
  * (see [pick]): channels watched lately that markers never covered come first, since that is where learned breaks pay
  * off, then channels watched lately with markers, whose breaks teach the library the ads the viewers see, then
- * channels never heard, then the least recently heard. A channel someone is watching is left to the session.
+ * channels never heard, then the least recently heard. Listeners share the household's connection and the
+ * providers' per-device limits with the viewers, so they only play while nobody watches anything and stop as soon as
+ * someone starts; [slots] is 0, off, unless `SOFA_AD_LISTENERS` sets it.
  *
  * A listener reads the lowest variant's media playlist (or its audio rendition) as a player would, through its own
  * [AdClock] in shadow, and hands its segments' audio to an [AudioFollower]: marked breaks are learned, and matches and
  * slates on unmarked channels are logged as `ADDETECT ... listener=true`. Nothing a listener finds marks a viewer's
  * playlist, since each session gets its own ads. It ends its turn with the channel's census. Encrypted and fMP4
  * playlists are skipped, and so is a provider that answers 403 or 429, or a channel whose turn played nothing, for
- * [COOLDOWN]. Pluto TV gives each device one
- * channel at a time, so its channels are never listened to.
+ * [COOLDOWN]. Pluto TV gives each device one channel at a time, so its channels are never listened to.
  */
 class AdListener(
     private val http: HttpClient,
@@ -99,12 +100,10 @@ class AdListener(
 
     private suspend fun reconcile(scope: CoroutineScope) {
         playing.entries.removeIf { !it.value.isActive }
-        val wanted = if (mode() == LearnedBreaks.OFF) 0 else slots()
-        // Fewer slots, or someone started watching: those turns end now.
         val watching = sessions.watching()
-        playing.filterKeys { it in watching }.values.forEach { it.cancel() }
+        val wanted = wanted(mode(), watching, slots())
         playing.entries.drop(wanted).forEach { it.value.cancel() }
-        val free = wanted - playing.count { it.value.isActive && it.key !in watching }
+        val free = wanted - playing.count { it.value.isActive }
         if (free <= 0) return
         // A channel that cannot be listened to gives its turn to the next in line, so a run
         // of them never stalls the rest.
@@ -154,6 +153,8 @@ class AdListener(
             val media = mediaPlaylist(stream) ?: return
             var last = Long.MIN_VALUE
             while (clock.instant().isBefore(until)) {
+                // Someone started watching: the turn ends now rather than at the next look.
+                if (sessions.watching().isNotEmpty()) return
                 val (text, base) = fetchText(stream, media) ?: return
                 if (text.contains("#EXT-X-KEY:METHOD=AES") || text.contains("#EXT-X-MAP:")) {
                     log.info(
@@ -304,6 +305,13 @@ class AdListener(
             }
             return base.resolve(rendition ?: variant.second).toString()
         }
+
+        /**
+         * How many channels to listen to: none while anyone is [watching], since listening shares the household's
+         * connection and the providers' per-device limits with the viewers, or with learned breaks [LearnedBreaks.OFF].
+         */
+        fun wanted(mode: LearnedBreaks, watching: Set<String>, slots: Int): Int =
+            if (mode == LearnedBreaks.OFF || watching.isNotEmpty()) 0 else slots
 
         /**
          * [lineup]'s channels in the order to listen to them, none of [busy]: watched within [RECENT] and never seen

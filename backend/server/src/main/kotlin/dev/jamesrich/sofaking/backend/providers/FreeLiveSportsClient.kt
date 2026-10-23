@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.time.Duration
 import java.time.Instant
@@ -16,7 +16,7 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
 
     private val catalogUrl = context.options["catalogUrl"] ?: CATALOG_URL
 
-    private class Listed(val channel: ProviderChannel, val template: String, val programmes: List<GuideProgramme>)
+    private class Listed(val channel: ProviderChannel, val template: String, val programs: List<GuideProgram>)
 
     override suspend fun channels(): List<ProviderChannel> = listed().map { it.channel }
 
@@ -29,7 +29,7 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
             channels.filter {
                 it.channel.id in
                     wanted
-            }.flatMap { it.programmes },
+            }.flatMap { it.programs },
         )
     }
 
@@ -63,11 +63,11 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
             val name = row.str("name") ?: continue
             val template = row.str("url") ?: continue
             if (result.containsKey(id)) continue
-            val programmes = row["epg"]["entries"].array.mapNotNull { entry ->
+            val programs = row["epg"]["entries"].array.mapNotNull { entry ->
                 val start = entry.str("start")?.let(::instantOrNull) ?: return@mapNotNull null
                 val end = entry.str("stop")?.let(::instantOrNull) ?: return@mapNotNull null
                 val title = entry.str("title") ?: return@mapNotNull null
-                if (end <= start) null else GuideProgramme(id, start, end, title, entry.str("description"))
+                if (end <= start) null else GuideProgram(id, start, end, title, entry.str("description"))
             }
             result[id] =
                 Listed(
@@ -80,7 +80,7 @@ class FreeLiveSportsClient(private val context: ProviderContext) : ProviderClien
                         listOf("us"),
                     ),
                     template,
-                    programmes,
+                    programs,
                 )
         }
         if (result.isEmpty()) throw ProviderFailure("Channel list is empty")

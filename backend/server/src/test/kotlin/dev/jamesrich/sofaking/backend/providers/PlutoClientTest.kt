@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
-import dev.jamesrich.sofaking.backend.catalog.ProgrammeRating
+import dev.jamesrich.sofaking.backend.catalog.ProgramRating
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.providerState
 import dev.jamesrich.sofaking.backend.store.saveProviderState
@@ -124,7 +124,7 @@ class PlutoClientTest {
                         fixture.pluto()
                         val client =
                             PlutoClient(ProviderFixture.context("pluto", options(fixture), http, store, MutableClock()))
-                        assertTrue(client.guide(emptySet()).programmes.isEmpty())
+                        assertTrue(client.guide(emptySet()).programs.isEmpty())
                         assertEquals(0, fixture.hits("/channels/v2/guide/timelines"))
                         val guide = client.guide(setOf(trending))
                         assertEquals(2, guide.channels.size)
@@ -132,10 +132,10 @@ class PlutoClientTest {
                             "start=2026-10-10T13:00:00Z&channelIds=$trending&duration=720",
                             fixture.lastQuery["/channels/v2/guide/timelines"],
                         )
-                        assertEquals(listOf("John Tucker Must Die", "Mean Girls"), guide.programmes.map { it.title })
-                        assertEquals("2026-10-11T03:30:00Z", guide.programmes[0].startsAt.toString())
+                        assertEquals(listOf("John Tucker Must Die", "Mean Girls"), guide.programs.map { it.title })
+                        assertEquals("2026-10-11T03:30:00Z", guide.programs[0].startsAt.toString())
                         assertTrue(
-                            guide.programmes.all {
+                            guide.programs.all {
                                 it.subTitle == null && it.episodeNumbers.isEmpty() && it.rating == null
                             },
                             "a timeline with only a description adds nothing",
@@ -163,7 +163,7 @@ class PlutoClientTest {
                                 PlutoClient(
                                     ProviderFixture.context("pluto", options(fixture), http, store, MutableClock()),
                                 )
-                            val (episode, film) = client.guide(setOf(trending)).programmes.map { it.bounded() }
+                            val (episode, film) = client.guide(setOf(trending)).programs.map { it.bounded() }
                             assertEquals("Sample Series", episode.title)
                             assertEquals("The Sample Episode", episode.subTitle)
                             assertEquals("Something happens.", episode.description)
@@ -172,7 +172,7 @@ class PlutoClientTest {
                                 episode.episodeNumbers,
                             )
                             assertEquals(listOf("Comedy", "Sitcoms"), episode.categories)
-                            assertEquals(ProgrammeRating("TV-14", "VCHIP"), episode.rating)
+                            assertEquals(ProgramRating("TV-14", "VCHIP"), episode.rating)
                             assertEquals("https://images.pluto.tv/episodes/sample/poster.jpg", episode.icon)
                             assertEquals("Sample Film", film.title)
                             assertNull(film.subTitle)

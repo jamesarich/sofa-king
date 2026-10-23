@@ -26,7 +26,7 @@ import kotlinx.serialization.Serializable
  * [episode] is a display label such as `S2 E5`; [rating] a content rating such as `TV-14`; [icon] an image URL
  * the guide source serves. The fields after [description] are null or false when the source has none.
  */
-@Serializable data class Programme(
+@Serializable data class Program(
     val id: String = "",
     val channelId: String = "",
     val startsAt: String,
@@ -48,7 +48,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GuideQuery(val channelIds: List<String>, val from: String, val to: String, val revision: String? = null)
 
-@Serializable data class ChannelGuide(val channelId: String, val status: String = "", val programmes: List<Programme>)
+@Serializable data class ChannelGuide(val channelId: String, val status: String = "", val programs: List<Program>)
 
 @Serializable data class GuideWindow(
     val revision: String,

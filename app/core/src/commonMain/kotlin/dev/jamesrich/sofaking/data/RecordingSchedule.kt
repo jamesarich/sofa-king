@@ -28,7 +28,7 @@ sealed interface RecordingsState {
     data object Unavailable : RecordingsState
 
     /**
-     * Every recording but cancelled ones, soonest scheduled first, then the rest newest first, and
+     * Every recording but canceled ones, soonest scheduled first, then the rest newest first, and
      * the series rules, oldest first.
      */
     data class Ready(
@@ -39,23 +39,23 @@ sealed interface RecordingsState {
     data class Failed(val message: String) : RecordingsState
 }
 
-/** Whether a programme is set to record, on its own or through a series rule for its title. */
+/** Whether a program is set to record, on its own or through a series rule for its title. */
 data class RecordingMark(val recording: Boolean = false, val series: Boolean = false)
 
-/** The server's scheduled recordings and series rules, as the guide marks programmes with them. */
+/** The server's scheduled recordings and series rules, as the guide marks programs with them. */
 data class RecordingMarks(
     /** Scheduled and running recordings by [recordingKey], to their ids. */
     internal val recordings: Map<String, String> = emptyMap(),
     /** Series rules by [ruleKey], to their ids; a rule for any channel has no channel in its key. */
     internal val rules: Map<String, String> = emptyMap(),
 ) {
-    fun of(programme: Programme) = RecordingMark(
-        recording = recordingKey(programme.channelId, programme.start) in recordings,
-        series = ruleId(programme) != null,
+    fun of(program: Program) = RecordingMark(
+        recording = recordingKey(program.channelId, program.start) in recordings,
+        series = ruleId(program) != null,
     )
 
-    internal fun ruleId(programme: Programme): String? =
-        rules[ruleKey(programme.title, programme.channelId)] ?: rules[ruleKey(programme.title, null)]
+    internal fun ruleId(program: Program): String? =
+        rules[ruleKey(program.title, program.channelId)] ?: rules[ruleKey(program.title, null)]
 }
 
 private fun recordingKey(channelId: String, start: Instant) = "$channelId@${start.toEpochMilliseconds()}"
@@ -134,28 +134,28 @@ class RecordingSchedule internal constructor(scope: CoroutineScope, apis: Flow<S
         failedLoad("recordings", e, _state.value as? RecordingsState.Ready, RecordingsState::Failed)
 
     /**
-     * Records [programme], or cancels its recording when it has one. False when the server
+     * Records [program], or cancels its recording when it has one. False when the server
      * refused or could not be reached.
      */
-    suspend fun toggle(programme: Programme): Boolean = records && change("recording a program") {
-        val id = _marks.value.recordings[recordingKey(programme.channelId, programme.start)]
+    suspend fun toggle(program: Program): Boolean = records && change("recording a program") {
+        val id = _marks.value.recordings[recordingKey(program.channelId, program.start)]
         if (id != null) {
             deleteRecording(id)
         } else {
-            scheduleRecording(ScheduleRecordingDto(programme.channelId, programme.start.toString()))
+            scheduleRecording(ScheduleRecordingDto(program.channelId, program.start.toString()))
         }
     }
 
     /**
-     * Records every airing of [programme]'s title on its channel, or deletes the series rule that takes it, with the
+     * Records every airing of [program]'s title on its channel, or deletes the series rule that takes it, with the
      * recordings that rule scheduled.
      */
-    suspend fun toggleSeries(programme: Programme): Boolean = records && change("recording a series") {
-        val id = _marks.value.ruleId(programme)
+    suspend fun toggleSeries(program: Program): Boolean = records && change("recording a series") {
+        val id = _marks.value.ruleId(program)
         if (id != null) {
             deleteRecordingRule(id)
         } else {
-            createRecordingRule(CreateRecordingRuleDto(programme.title.trim(), programme.channelId))
+            createRecordingRule(CreateRecordingRuleDto(program.title.trim(), program.channelId))
         }
     }
 

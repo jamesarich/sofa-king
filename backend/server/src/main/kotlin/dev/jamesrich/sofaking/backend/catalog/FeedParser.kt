@@ -42,7 +42,7 @@ data class ParsedPlaylist(
  */
 data class ParsedGuide(
     val channels: List<GuideChannel>,
-    val programmes: List<GuideProgramme>,
+    val programs: List<GuideProgram>,
     val controlCharacters: Int = 0,
 )
 
@@ -242,7 +242,7 @@ object FeedParser {
     }
 
     /**
-     * Parses XMLTV from [input] (plain or gzip), keeping only programmes whose channel [wanted] accepts.
+     * Parses XMLTV from [input] (plain or gzip), keeping only programs whose channel [wanted] accepts.
      *
      * A `<!DOCTYPE tv SYSTEM "xmltv.dtd">` declaration is reported and skipped, never processed: the
      * external DTD is not fetched, internal-subset declarations are ignored, and a reference to an entity
@@ -264,7 +264,7 @@ object FeedParser {
         val reader = factory.createXMLStreamReader(stripped)
         val channels = linkedMapOf<String, GuideChannel>()
         val seen = HashSet<String>()
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         val keys = HashSet<String>()
         try {
             var root = false
@@ -306,7 +306,7 @@ object FeedParser {
                                 val start = reader.getAttributeValue(null, "start")
                                 val stop = reader.getAttributeValue(null, "stop")
                                 val keep = channel.isNotEmpty() && wanted(channel)
-                                val read = readProgramme(reader, baseUrl, keep)
+                                val read = readProgram(reader, baseUrl, keep)
                                 val title = read.title
                                 if (channel.isNotEmpty() && seen.add(channel)) {
                                     require(seen.size <= GUIDE_CHANNEL_LIMIT) { "Guide exceeds import limits" }
@@ -316,14 +316,14 @@ object FeedParser {
                                 val to = xmlTime(stop)
                                 if (from == null || to == null || !to.isAfter(from) || title.isBlank()) continue
                                 if (!keys.add("$channel\u0000$from\u0000$to\u0000$title")) continue
-                                programmes +=
+                                programs +=
                                     read.copy(
                                         channelId = channel,
                                         startsAt = from,
                                         endsAt = to,
                                         title = title.trim(),
                                     ).bounded()
-                                require(programmes.size <= GUIDE_PROGRAMME_LIMIT) { "Guide exceeds import limits" }
+                                require(programs.size <= GUIDE_PROGRAM_LIMIT) { "Guide exceeds import limits" }
                             }
                         }
                     }
@@ -336,7 +336,7 @@ object FeedParser {
         for (id in seen) channels.putIfAbsent(id, GuideChannel(id, id))
         return ParsedGuide(
             channels.values.toList(),
-            programmes.sortedWith(
+            programs.sortedWith(
                 compareBy({
                     it.channelId
                 }, { it.startsAt }),
@@ -350,17 +350,17 @@ object FeedParser {
 
     /**
      * Reads a `<programme>`'s children up to its end tag. Only direct children count, so an `<icon>` or `<value>`
-     * inside credits or a star rating is never taken for the programme's own. Without [collect] the element is only
+     * inside credits or a star rating is never taken for the program's own. Without [collect] the element is only
      * consumed. The result carries no channel or times; the caller sets them.
      */
-    private fun readProgramme(reader: XMLStreamReader, baseUrl: String?, collect: Boolean): GuideProgramme {
+    private fun readProgram(reader: XMLStreamReader, baseUrl: String?, collect: Boolean): GuideProgram {
         var title = ""
         var description: String? = null
         var subTitle: String? = null
         val numbers = ArrayList<EpisodeNumber>()
         var icon: String? = null
         val categories = ArrayList<String>()
-        var rating: ProgrammeRating? = null
+        var rating: ProgramRating? = null
         var isNew = false
         var previouslyShown: PreviouslyShown? = null
         var date: String? = null
@@ -384,7 +384,7 @@ object FeedParser {
             when (reader.localName) {
                 "title" -> {
                     val lang = reader.getAttributeValue(null, "lang")
-                    val text = reader.elementText.take(GuideProgramme.TITLE_LIMIT)
+                    val text = reader.elementText.take(GuideProgram.TITLE_LIMIT)
                     if (title.isBlank()) {
                         title = text
                         titleLanguage = lang
@@ -392,13 +392,13 @@ object FeedParser {
                 }
 
                 "sub-title" -> {
-                    val text = reader.elementText.take(GuideProgramme.TITLE_LIMIT).trim()
+                    val text = reader.elementText.take(GuideProgram.TITLE_LIMIT).trim()
                     if (subTitle == null && text.isNotEmpty()) subTitle = text
                 }
 
                 "desc" -> {
                     val lang = reader.getAttributeValue(null, "lang")
-                    val text = reader.elementText.take(GuideProgramme.DESCRIPTION_LIMIT)
+                    val text = reader.elementText.take(GuideProgram.DESCRIPTION_LIMIT)
                     if (description == null) {
                         description = text
                         descLanguage = lang
@@ -408,16 +408,16 @@ object FeedParser {
                 "episode-num" -> {
                     val system = reader.getAttributeValue(null, "system")?.trim()?.ifEmpty { null } ?: "onscreen"
                     val text = reader.elementText.trim()
-                    if (numbers.size < GuideProgramme.EPISODE_NUMBER_LIMIT && text.isNotEmpty() &&
-                        text.length <= GuideProgramme.EPISODE_VALUE_LIMIT
+                    if (numbers.size < GuideProgram.EPISODE_NUMBER_LIMIT && text.isNotEmpty() &&
+                        text.length <= GuideProgram.EPISODE_VALUE_LIMIT
                     ) {
                         numbers += EpisodeNumber(system.take(64), text)
                     }
                 }
 
                 "category" -> {
-                    val text = reader.elementText.trim().take(GuideProgramme.CATEGORY_LENGTH_LIMIT)
-                    if (categories.size < GuideProgramme.CATEGORY_LIMIT && text.isNotEmpty()) categories += text
+                    val text = reader.elementText.trim().take(GuideProgram.CATEGORY_LENGTH_LIMIT)
+                    if (categories.size < GuideProgram.CATEGORY_LIMIT && text.isNotEmpty()) categories += text
                 }
 
                 "date" -> {
@@ -433,7 +433,7 @@ object FeedParser {
                 "rating" -> {
                     val system = reader.getAttributeValue(null, "system")?.take(64)
                     val value = ratingValue(reader)
-                    if (rating == null && value != null) rating = ProgrammeRating(value, system)
+                    if (rating == null && value != null) rating = ProgramRating(value, system)
                 }
 
                 "icon" -> {
@@ -456,7 +456,7 @@ object FeedParser {
                 else -> depth++
             }
         }
-        return GuideProgramme(
+        return GuideProgram(
             "", Instant.EPOCH, Instant.EPOCH, title, description, subTitle, numbers, icon, categories, rating, isNew,
             previouslyShown, date,
             titleLanguage ?: descLanguage ?: languageElement,
@@ -504,7 +504,7 @@ object FeedParser {
 
     private const val GUIDE_BYTE_LIMIT = 1L shl 30
     private const val GUIDE_CHANNEL_LIMIT = 100_000
-    private const val GUIDE_PROGRAMME_LIMIT = 1_000_000
+    private const val GUIDE_PROGRAM_LIMIT = 1_000_000
 
     private fun xmlTime(value: String?): Instant? = try {
         // Reject unspecified local zones; never silently shift a regional schedule.

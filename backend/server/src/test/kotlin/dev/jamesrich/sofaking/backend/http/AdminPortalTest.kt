@@ -1566,7 +1566,7 @@ class AdminPortalTest {
             }
         }
 
-    @Test fun `the theme cookie pins a colour scheme on every page, and the nav folds into a menu`() = testApplication {
+    @Test fun `the theme cookie pins a color scheme on every page, and the nav folds into a menu`() = testApplication {
         portal {
             browser.signIn()
             val page = browser.get("/admin/lineup").bodyAsText()
@@ -1621,7 +1621,7 @@ class AdminPortalTest {
                 overview.contains("/admin/lineup/${station.id}") && overview.contains("via fixture"),
                 "the channel links to its page and names its source",
             )
-            if (station.guide != null) assertTrue(overview.contains("Morning"), "the programme on now is named")
+            if (station.guide != null) assertTrue(overview.contains("Morning"), "the program on now is named")
             assertTrue(overview.contains("/admin/sessions/$sessionId/stop"), "each session has a Stop")
             val listed = Json.parseToJsonElement(
                 browser.get("/api/v1/admin/sessions") {
@@ -1840,7 +1840,7 @@ class AdminPortalTest {
             val values = mapOf(
                 "SOFA_LOG_LEVEL" to "info", "SOFA_XMLTV_DAYS" to "3", "SOFA_PLEX_SYNC_MINUTES" to "60",
                 "SOFA_HDHR_TUNERS" to "2", "SOFA_MAX_SESSIONS" to "4", "SOFA_RECORDINGS_FREE_GIB" to "10",
-                "SOFA_RECORDINGS_KEEP_DAYS" to "0", "SOFA_LEARNED_BREAKS" to "shadow", "SOFA_AD_LISTENERS" to "6",
+                "SOFA_RECORDINGS_KEEP_DAYS" to "0", "SOFA_LEARNED_BREAKS" to "shadow", "SOFA_AD_LISTENERS" to "0",
             )
             fun fields(vararg changes: Pair<String, String>) =
                 (values + changes).map { it.key to it.value }.toTypedArray()
@@ -1982,7 +1982,7 @@ class AdminPortalTest {
             )
             assertTrue(
                 issuedHtml.contains("Pairing code $code for http://"),
-                "the QR is labelled with the code and the address",
+                "the QR is labeled with the code and the address",
             )
             assertTrue(issuedHtml.contains("Cancel the code"))
             assertTrue(

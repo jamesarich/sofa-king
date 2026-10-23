@@ -58,7 +58,7 @@ import java.time.Instant
 
 /**
  * What every signed-in page carries besides its content: the session, the render time, a one-shot notice, nav counts,
- * the server revision and start time for the footer, the colour scheme the operator chose, and the page to come back
+ * the server revision and start time for the footer, the color scheme the operator chose, and the page to come back
  * to after choosing one.
  */
 internal class Chrome(
@@ -110,7 +110,7 @@ private const val MARK = """<svg viewBox="0 0 120 120" aria-hidden="true" focusa
     """Z"/><path fill="#E0902A" d="M36,40 L84,40 L84,46 L36,46 Z"/><path fill="#14111F" """ +
     """d="M60,42 L62,44 L60,46 L58,44 Z"/></svg>"""
 
-/** The browser chrome's colour beside each scheme's page background. */
+/** The browser chrome's color beside each scheme's page background. */
 private const val DARK_THEME_COLOR = "#14111F"
 private const val LIGHT_THEME_COLOR = "#F7F4FC"
 
@@ -199,7 +199,7 @@ internal fun FlowContent.tabs(chrome: Chrome, current: String, items: List<Tab>)
 
 /**
  * The shared page: the brand bar, the grouped nav and sign-out for a signed-in [chrome], htmx boosting its links and
- * forms. [theme] pins the colour scheme; null follows the device.
+ * forms. [theme] pins the color scheme; null follows the device.
  */
 internal fun layout(
     title: String,

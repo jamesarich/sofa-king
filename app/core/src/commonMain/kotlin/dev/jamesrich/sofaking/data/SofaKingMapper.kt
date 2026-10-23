@@ -3,7 +3,7 @@ package dev.jamesrich.sofaking.data
 import dev.jamesrich.sofaking.contract.Wire
 import kotlin.time.Instant
 
-/** The server's catalog and guide shapes as the app's [Channel] and [Programme] models. */
+/** The server's catalog and guide shapes as the app's [Channel] and [Program] models. */
 internal object SofaKingMapper {
     /**
      * Channels the server can play, with a numeric display number, sorted by it; every tag is a group, [DEFAULT_GROUP]
@@ -27,13 +27,13 @@ internal object SofaKingMapper {
         }.sortedBy { it.number }
 
     /**
-     * Programmes per channel id, sorted by start; ones with unreadable times or no duration are dropped,
+     * Programs per channel id, sorted by start; ones with unreadable times or no duration are dropped,
      * as are channels left with none.
      */
-    fun programmes(window: GuideWindowDto): Map<String, List<Programme>> = buildMap {
+    fun programs(window: GuideWindowDto): Map<String, List<Program>> = buildMap {
         for (channel in window.channels) {
-            val programmes = channel.programmes.mapNotNull { toProgramme(channel.channelId, it) }.sortedBy { it.start }
-            if (programmes.isNotEmpty()) put(channel.channelId, programmes)
+            val programs = channel.programs.mapNotNull { toProgram(channel.channelId, it) }.sortedBy { it.start }
+            if (programs.isNotEmpty()) put(channel.channelId, programs)
         }
     }
 
@@ -41,11 +41,11 @@ internal object SofaKingMapper {
     fun removed(window: GuideWindowDto): Set<String> =
         window.channels.filter { it.status == Wire.GuideStatus.REMOVED }.mapTo(HashSet()) { it.channelId }
 
-    private fun toProgramme(channelId: String, dto: ProgrammeDto): Programme? {
+    private fun toProgram(channelId: String, dto: ProgramDto): Program? {
         val start = Instant.parseOrNull(dto.startsAt) ?: return null
         val stop = Instant.parseOrNull(dto.endsAt) ?: return null
         if (stop <= start) return null
-        return Programme(
+        return Program(
             channelId = channelId,
             start = start,
             stop = stop,

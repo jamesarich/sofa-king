@@ -55,13 +55,13 @@ class FreeLiveSportsClientTest {
                                 fixture.lastHeaders["/catalog/key"]!!["origin"],
                             )
                             val guide = client.guide(setOf("6902789463cbad62d1ce4a43"))
-                            assertEquals(2, guide.programmes.size)
-                            assertEquals("UMass-Lowell at Binghamton", guide.programmes.first().title)
+                            assertEquals(2, guide.programs.size)
+                            assertEquals("UMass-Lowell at Binghamton", guide.programs.first().title)
                             assertEquals(
                                 "From Bearcats Sports Complex in Binghamton, N.Y.",
-                                guide.programmes.first().description,
+                                guide.programs.first().description,
                             )
-                            assertTrue(client.guide(setOf("69658066975ee235f015da2b")).programmes.isEmpty())
+                            assertTrue(client.guide(setOf("69658066975ee235f015da2b")).programs.isEmpty())
                             val resolved = client.resolve("6902789463cbad62d1ce4a43")
                             val deviceId = store.providerState("fls", ProviderContext.DEVICE_ID)!!.value
                             assertEquals(

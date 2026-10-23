@@ -16,7 +16,7 @@ import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackProfile
 import dev.jamesrich.sofaking.data.PlaybackStream
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.RecordingsState
@@ -58,7 +58,7 @@ class Watch internal constructor(private val job: Job) {
 }
 
 /** What a channel row shows: the program on now and the one after it. */
-data class NowNext(val now: Programme?, val next: Programme?)
+data class NowNext(val now: Program?, val next: Program?)
 
 /**
  * The shared data layer for the SwiftUI Apple TV app, which cannot use Compose: the one [LineupViewModel] and its
@@ -283,22 +283,22 @@ class SofaKingTv {
     fun recordingStopped(recordingId: String, positionMs: Long, durationMs: Long) =
         recordings.stopped(recordingId, positionMs, durationMs.takeIf { it > 0 })
 
-    /** Which guide programmes are set to record, on their own or by a series rule. */
+    /** Which guide programs are set to record, on their own or by a series rule. */
     fun watchRecordingMarks(onChange: (RecordingMarks) -> Unit): Watch = watch(viewModel.recordings.marks, onChange)
 
-    /** Whether [programme] records, by [marks]. */
-    fun recordingMark(marks: RecordingMarks, programme: Programme): RecordingMark = marks.of(programme)
+    /** Whether [program] records, by [marks]. */
+    fun recordingMark(marks: RecordingMarks, program: Program): RecordingMark = marks.of(program)
 
-    /** True until [programme] ends: only then can it still be recorded. */
-    fun recordable(programme: Programme): Boolean = programme.stop > Clock.System.now()
+    /** True until [program] ends: only then can it still be recorded. */
+    fun recordable(program: Program): Boolean = program.stop > Clock.System.now()
 
-    /** Records [programme], or cancels its recording; false when the server refused or could not be reached. */
+    /** Records [program], or cancels its recording; false when the server refused or could not be reached. */
     @Throws(Exception::class)
-    suspend fun toggleRecording(programme: Programme): Boolean = viewModel.recordings.toggle(programme)
+    suspend fun toggleRecording(program: Program): Boolean = viewModel.recordings.toggle(program)
 
-    /** Records every airing of [programme]'s title on its channel, or stops the series rule that takes it. */
+    /** Records every airing of [program]'s title on its channel, or stops the series rule that takes it. */
     @Throws(Exception::class)
-    suspend fun toggleSeries(programme: Programme): Boolean = viewModel.recordings.toggleSeries(programme)
+    suspend fun toggleSeries(program: Program): Boolean = viewModel.recordings.toggleSeries(program)
 
     /** Sets whether [rule] takes new episodes only and how many recordings it keeps (0 for all). */
     @Throws(Exception::class)
@@ -373,17 +373,17 @@ class SofaKingTv {
     fun nowAndNext(lineup: Lineup, channel: Channel): NowNext =
         lineup.nowAndNext(channel, Clock.System.now()).let { (now, next) -> NowNext(now, next) }
 
-    /** The other airings of [programme] in [lineup], from the one on now onwards, soonest first. */
-    fun airings(lineup: Lineup, programme: Programme): List<Airing> = lineup.airingsOf(programme, Clock.System.now())
+    /** The other airings of [program] in [lineup], from the one on now onwards, soonest first. */
+    fun airings(lineup: Lineup, program: Program): List<Airing> = lineup.airingsOf(program, Clock.System.now())
 
     /** The program's start in milliseconds since the epoch, which Swift turns into a `Date`. */
-    fun epochMs(programme: Programme): Long = programme.start.toEpochMilliseconds()
+    fun epochMs(program: Program): Long = program.start.toEpochMilliseconds()
 
     /** The program's end in milliseconds since the epoch. */
-    fun endEpochMs(programme: Programme): Long = programme.stop.toEpochMilliseconds()
+    fun endEpochMs(program: Program): Long = program.stop.toEpochMilliseconds()
 
     /** The program's description; the property clashes with `NSObject.description`, so Swift reads it here. */
-    fun summary(programme: Programme): String? = programme.description
+    fun summary(program: Program): String? = program.description
 
     private fun <T> watch(flow: Flow<T>, onChange: (T) -> Unit): Watch = Watch(
         scope.launch {

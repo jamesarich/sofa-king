@@ -99,7 +99,7 @@ class Fixture : AutoCloseable {
     @Volatile var lastMediaQuery: String? = null
 
     /**
-     * While set, the guide's `Morning` programme carries a sub-title, season and episode
+     * While set, the guide's `Morning` program carries a sub-title, season and episode
      * numbering, a rating and `<new/>`.
      */
     @Volatile var guideMetadata = false
@@ -379,7 +379,7 @@ class Fixture : AutoCloseable {
         append("</tv>")
     }
 
-    /** Hourly programmes from 2026-10-10T13:00Z, one list of titles per channel. */
+    /** Hourly programs from 2026-10-10T13:00Z, one list of titles per channel. */
     private fun scheduleXml(channels: Map<String, List<String>>): String = buildString {
         append("<tv>")
         for ((channel, titles) in channels) {

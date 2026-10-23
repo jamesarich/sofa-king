@@ -1765,7 +1765,7 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
                                         +guide.id
                                     }
                                     td("num") { +thousands(guide.channels) }
-                                    td("num") { +thousands(guide.programmes) }
+                                    td("num") { +thousands(guide.programs) }
                                     td("nowrap") { ago(guide.lastSuccessAt, now) }
                                     td {
                                         if (guide.errorCode != null) {

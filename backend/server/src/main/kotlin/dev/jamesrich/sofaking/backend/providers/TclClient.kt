@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -12,7 +12,7 @@ import java.time.temporal.ChronoUnit
 
 /**
  * TCL TV+ as tcltv.plus uses it: the `livetab` category list, then one `programlist/by/category` request per
- * category, which carries every channel with its ad-stitched HLS template and its programmes for the requested
+ * category, which carries every channel with its ad-stitched HLS template and its programs for the requested
  * window, so the channel list and the guide come from the same requests. A resolve has the service's
  * `format-stream-url` fill the template, as its own client does. Channels with `drm` are left out.
  */
@@ -23,7 +23,7 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
 
     private class Listed(val channel: ProviderChannel, val template: String, val source: String?)
 
-    private class Snapshot(val channels: List<Listed>, val programmes: List<GuideProgramme>)
+    private class Snapshot(val channels: List<Listed>, val programs: List<GuideProgram>)
 
     override suspend fun channels(): List<ProviderChannel> = snapshot().channels.map { it.channel }
 
@@ -33,7 +33,7 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
             snapshot.channels.map {
                 GuideChannel(it.channel.id, it.channel.name, it.channel.logo)
             },
-            snapshot.programmes.filter {
+            snapshot.programs.filter {
                 it.channelId in
                     wanted
             },
@@ -93,7 +93,7 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
         val start = context.clock.instant().minus(Duration.ofHours(1)).truncatedTo(ChronoUnit.HOURS)
         val window = "start=$start&end=${start.plus(GUIDE_HORIZON)}"
         val channels = LinkedHashMap<String, Listed>()
-        val programmes = LinkedHashMap<Pair<String, Instant>, GuideProgramme>()
+        val programs = LinkedHashMap<Pair<String, Instant>, GuideProgram>()
         // Curated rows are read last, so a channel's group is the first themed row that lists it.
         for (line in lines.filterNot { it.str("name") in CURATED } + lines.filter { it.str("name") in CURATED }) {
             val group = line.str("name")?.takeUnless { it in CURATED }
@@ -116,16 +116,16 @@ class TclClient(private val context: ProviderContext) : ProviderClient {
                         template,
                         channel.str("source"),
                     )
-                for (programme in channel["programs"].array) {
-                    val from = programme.str("start")?.let(::instantOrNull) ?: continue
-                    val until = programme.str("end")?.let(::instantOrNull) ?: continue
-                    val title = programme.str("title") ?: continue
-                    if (until > from) programmes.putIfAbsent(id to from, GuideProgramme(id, from, until, title))
+                for (program in channel["programs"].array) {
+                    val from = program.str("start")?.let(::instantOrNull) ?: continue
+                    val until = program.str("end")?.let(::instantOrNull) ?: continue
+                    val title = program.str("title") ?: continue
+                    if (until > from) programs.putIfAbsent(id to from, GuideProgram(id, from, until, title))
                 }
             }
         }
         if (channels.isEmpty()) throw ProviderFailure("Channel list is empty")
-        return Snapshot(channels.values.toList(), programmes.values.toList())
+        return Snapshot(channels.values.toList(), programs.values.toList())
     }
 
     companion object {

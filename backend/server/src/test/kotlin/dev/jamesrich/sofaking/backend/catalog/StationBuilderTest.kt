@@ -464,7 +464,7 @@ class StationBuilderTest {
         assertEquals(emptyList(), overridden.station("bbc news").guideCandidates)
     }
 
-    @Test fun `a station takes the first guide with programmes ahead, and keeps the first when none has any`() {
+    @Test fun `a station takes the first guide with programs ahead, and keeps the first when none has any`() {
         val guides = mapOf("bbc" to listOf("whale"), "s-bbc" to listOf("samsung"), "v-bbc" to listOf("epg"))
         val providers = setOf("whale", "samsung", "vizio")
         val all = listOf(GuideMapping("whale", "bbc"), GuideMapping("samsung", "s-bbc"), GuideMapping("epg", "v-bbc"))

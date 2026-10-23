@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking
 
 import dev.jamesrich.sofaking.data.CommercialBreak
 import dev.jamesrich.sofaking.data.PlaybackProfile
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingSchedule
 import dev.jamesrich.sofaking.data.RecordingSpace
 import dev.jamesrich.sofaking.data.RecordingState
@@ -130,7 +130,7 @@ class RecordingsViewModelTest {
         val model = viewModel(server, schedule)
         runCurrent()
         val news =
-            Programme(
+            Program(
                 "c1",
                 Instant.parse("2026-10-18T18:00:00Z"),
                 Instant.parse("2026-10-18T18:30:00Z"),

@@ -59,6 +59,9 @@ import dev.jamesrich.sofaking.data.InstallState
 import dev.jamesrich.sofaking.data.LiveBreaks
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.StartupTarget
+import dev.jamesrich.sofaking.data.SubtitleLook
+import dev.jamesrich.sofaking.data.SubtitleRaise
+import dev.jamesrich.sofaking.data.SubtitleSize
 import dev.jamesrich.sofaking.data.UpdateState
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.app_name
@@ -150,6 +153,17 @@ import dev.jamesrich.sofaking.resources.settings_startup_guide
 import dev.jamesrich.sofaking.resources.settings_startup_help
 import dev.jamesrich.sofaking.resources.settings_startup_library
 import dev.jamesrich.sofaking.resources.settings_startup_resume
+import dev.jamesrich.sofaking.resources.settings_subtitle_box
+import dev.jamesrich.sofaking.resources.settings_subtitle_box_help
+import dev.jamesrich.sofaking.resources.settings_subtitle_look_help
+import dev.jamesrich.sofaking.resources.settings_subtitle_raise
+import dev.jamesrich.sofaking.resources.settings_subtitle_raise_high
+import dev.jamesrich.sofaking.resources.settings_subtitle_raise_low
+import dev.jamesrich.sofaking.resources.settings_subtitle_raise_none
+import dev.jamesrich.sofaking.resources.settings_subtitle_size
+import dev.jamesrich.sofaking.resources.settings_subtitle_size_large
+import dev.jamesrich.sofaking.resources.settings_subtitle_size_medium
+import dev.jamesrich.sofaking.resources.settings_subtitle_size_small
 import dev.jamesrich.sofaking.resources.settings_time_12
 import dev.jamesrich.sofaking.resources.settings_time_24
 import dev.jamesrich.sofaking.resources.settings_time_auto
@@ -232,6 +246,7 @@ class SettingsActions(
     val onSkipCommercialsChanged: (Boolean) -> Unit = {},
     val onAutoSkipIntrosChanged: (Boolean) -> Unit = {},
     val onHideSpoilersChanged: (Boolean) -> Unit = {},
+    val onSubtitleLookChanged: (SubtitleLook) -> Unit = {},
     val onLiveBreaksChanged: (LiveBreaks) -> Unit = {},
     /** Loads the lineup and the library home again from the server. */
     val onReload: () -> Unit = {},
@@ -295,6 +310,11 @@ fun SettingsScreen(
     var skipCommercials by remember(settings.skipCommercials) { mutableStateOf(settings.skipCommercials) }
     var autoSkipIntros by remember(settings.autoSkipIntros) { mutableStateOf(settings.autoSkipIntros) }
     var hideSpoilers by remember(settings.hideSpoilers) { mutableStateOf(settings.hideSpoilers) }
+    var subtitleLook by remember(settings.subtitleLook) { mutableStateOf(settings.subtitleLook) }
+    fun lookSubtitles(look: SubtitleLook) {
+        subtitleLook = look
+        actions.onSubtitleLookChanged(look)
+    }
     var liveBreaks by remember(settings.liveBreaks) { mutableStateOf(settings.liveBreaks) }
     val pairingCode = rememberTextFieldState()
     val serverFocus = remember { FocusRequester() }
@@ -685,6 +705,49 @@ fun SettingsScreen(
                             hideSpoilers = it
                             actions.onHideSpoilersChanged(it)
                         },
+                    )
+                }
+                item {
+                    ChoiceRow(
+                        label = stringResource(Res.string.settings_subtitle_size),
+                        choices = SubtitleSize.entries,
+                        selected = subtitleLook.size,
+                        choiceLabel = {
+                            stringResource(
+                                when (it) {
+                                    SubtitleSize.SMALL -> Res.string.settings_subtitle_size_small
+                                    SubtitleSize.MEDIUM -> Res.string.settings_subtitle_size_medium
+                                    SubtitleSize.LARGE -> Res.string.settings_subtitle_size_large
+                                },
+                            )
+                        },
+                        onSelect = { lookSubtitles(subtitleLook.copy(size = it)) },
+                        help = stringResource(Res.string.settings_subtitle_look_help),
+                    )
+                }
+                item {
+                    ChoiceRow(
+                        label = stringResource(Res.string.settings_subtitle_raise),
+                        choices = SubtitleRaise.entries,
+                        selected = subtitleLook.raise,
+                        choiceLabel = {
+                            stringResource(
+                                when (it) {
+                                    SubtitleRaise.NONE -> Res.string.settings_subtitle_raise_none
+                                    SubtitleRaise.LOW -> Res.string.settings_subtitle_raise_low
+                                    SubtitleRaise.HIGH -> Res.string.settings_subtitle_raise_high
+                                },
+                            )
+                        },
+                        onSelect = { lookSubtitles(subtitleLook.copy(raise = it)) },
+                    )
+                }
+                item {
+                    ToggleRow(
+                        label = stringResource(Res.string.settings_subtitle_box),
+                        help = stringResource(Res.string.settings_subtitle_box_help),
+                        checked = subtitleLook.box,
+                        onCheckedChange = { lookSubtitles(subtitleLook.copy(box = it)) },
                     )
                 }
             }

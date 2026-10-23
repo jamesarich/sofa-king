@@ -56,6 +56,8 @@ data class AppSettings(
     val autoSkipIntros: Boolean = false,
     /** Whether an episode not started yet keeps its overview back and its still blurred ([hidesSpoilers]). */
     val hideSpoilers: Boolean = false,
+    /** How a library item's text subtitles look; live and recording captions follow [captionStyle]. */
+    val subtitleLook: SubtitleLook = SubtitleLook(),
     /**
      * What the live player does in an ad break a streaming channel marks: plays it, or covers it with the break screen.
      */
@@ -102,7 +104,7 @@ data class AppSettings(
             "startupChannel=$startupChannel, lastTab=$lastTab, clockFormat=$clockFormat, guideDensity=$guideDensity, " +
             "hiddenChannels=$hiddenChannels, " +
             "zapSkipsHidden=$zapSkipsHidden, skipCommercials=$skipCommercials, autoSkipIntros=$autoSkipIntros, " +
-            "hideSpoilers=$hideSpoilers, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
+            "hideSpoilers=$hideSpoilers, subtitleLook=$subtitleLook, liveBreaks=$liveBreaks, adsDodged=$adsDodged, " +
             "favoritesOrder=$favoritesOrder, playback=$playback, clientId=$clientId, " +
             "preferencesSyncedAt=$preferencesSyncedAt, settingsPin=${if (settingsPin.isEmpty()) "unset" else "set"}, " +
             "trackChoices=${trackChoices.size})"
@@ -137,6 +139,19 @@ enum class StartupTarget { RESUME, GUIDE, LIBRARY, CHANNEL }
 
 /** The app's top-level tabs, as the settings remember the one last open. */
 enum class TopLevelTab { LIVE, LIBRARY, RECORDINGS }
+
+/** How big a library item's text subtitles are, as a share of the normal size. */
+enum class SubtitleSize(val scale: Float) { SMALL(0.8f), MEDIUM(1f), LARGE(1.3f) }
+
+/** How high a library item's text subtitles sit: at the bottom, or raised clear of a letterbox's bar or a ticker. */
+enum class SubtitleRaise { NONE, LOW, HIGH }
+
+/** A library item's text subtitles: their [size], how far they are [raise]d, and whether a [box] sits behind them. */
+data class SubtitleLook(
+    val size: SubtitleSize = SubtitleSize.MEDIUM,
+    val raise: SubtitleRaise = SubtitleRaise.NONE,
+    val box: Boolean = true,
+)
 
 /** How captions are drawn; SYSTEM defers to the platform's CaptioningManager settings. */
 enum class CaptionStyle { SYSTEM, LARGE_HIGH_CONTRAST }
@@ -224,6 +239,8 @@ interface SettingsStore {
     suspend fun setAutoSkipIntros(enabled: Boolean)
 
     suspend fun setHideSpoilers(enabled: Boolean)
+
+    suspend fun setSubtitleLook(look: SubtitleLook)
 
     suspend fun setLiveBreaks(mode: LiveBreaks)
 

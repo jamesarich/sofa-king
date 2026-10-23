@@ -67,7 +67,7 @@ class Recorder internal constructor(
 ) {
     private val log = LoggerFactory.getLogger(Recorder::class.java)
 
-    /** Appends [channelId]'s stream to [file] until [until]; cancelling stops it early with what was written. */
+    /** Appends [channelId]'s stream to [file] until [until]; canceling stops it early with what was written. */
     suspend fun record(channelId: String, file: Path, until: Instant): RecordedTake {
         withContext(Dispatchers.IO) { Files.createDirectories(file.parent) }
         var failure: String? = null
@@ -110,7 +110,7 @@ class Recorder internal constructor(
                     read(session.id, file, until)
                 }
             } catch (e: CancellationException) {
-                // Rethrown when the recording itself was cancelled; otherwise the session ended under this attempt.
+                // Rethrown when the recording itself was canceled; otherwise the session ended under this attempt.
                 currentCoroutineContext().ensureActive()
                 "SESSION_ENDED"
             }

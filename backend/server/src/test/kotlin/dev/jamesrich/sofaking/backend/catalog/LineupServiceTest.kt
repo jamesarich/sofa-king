@@ -88,7 +88,7 @@ class LineupServiceTest {
                                 GuideQuery(listOf(manual.id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z"),
                             ).channels.single()
                             assertEquals(Wire.GuideStatus.REMOVED, disabled.status)
-                            assertTrue(disabled.programmes.isEmpty())
+                            assertTrue(disabled.programs.isEmpty())
                             stack.lineup.update(
                                 manual.id,
                                 UpdateLineupEntry(enabled = true, position = 0, clearGroup = true),

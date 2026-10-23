@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import kotlinx.serialization.json.JsonElement
 import java.time.Duration
@@ -12,14 +12,14 @@ import java.util.zip.Inflater
 /**
  * LG Channels as lgchannels.com reads it: one `schedulelist` document, served as base64 of a zlib stream under
  * `text/plain`, carrying every category, channel, static HLS template (`[DEVICE_ID]`-style macros) and the next
- * hours of programmes. The device headers are what the web client sends with its country and language.
+ * hours of programs. The device headers are what the web client sends with its country and language.
  */
 class LgClient(private val context: ProviderContext) : ProviderClient {
     override val service: String get() = "lg"
 
     private val apiBase = context.options["apiBase"] ?: API_BASE
 
-    private class Listed(val channel: ProviderChannel, val template: String, val programmes: List<GuideProgramme>)
+    private class Listed(val channel: ProviderChannel, val template: String, val programs: List<GuideProgram>)
 
     override suspend fun channels(): List<ProviderChannel> = listed().map { it.channel }
 
@@ -32,7 +32,7 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
             channels.filter {
                 it.channel.id in
                     wanted
-            }.flatMap { it.programmes },
+            }.flatMap { it.programs },
         )
     }
 
@@ -68,11 +68,11 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
                 val name = channel.str("channelName") ?: continue
                 val template = channel.str("mediaStaticUrl") ?: continue
                 if (result.containsKey(id)) continue
-                val programmes = channel["programs"].array.mapNotNull { programme ->
-                    val start = programme.str("startDateTime")?.let(::instantOrNull) ?: return@mapNotNull null
-                    val end = programme.str("endDateTime")?.let(::instantOrNull) ?: return@mapNotNull null
-                    val title = programme.str("programTitle") ?: return@mapNotNull null
-                    if (end <= start) null else GuideProgramme(id, start, end, title, programme.str("description"))
+                val programs = channel["programs"].array.mapNotNull { program ->
+                    val start = program.str("startDateTime")?.let(::instantOrNull) ?: return@mapNotNull null
+                    val end = program.str("endDateTime")?.let(::instantOrNull) ?: return@mapNotNull null
+                    val title = program.str("programTitle") ?: return@mapNotNull null
+                    if (end <= start) null else GuideProgram(id, start, end, title, program.str("description"))
                 }
                 result[id] = Listed(
                     ProviderChannel(
@@ -84,7 +84,7 @@ class LgClient(private val context: ProviderContext) : ProviderClient {
                         listOf("us"),
                     ),
                     template,
-                    programmes,
+                    programs,
                 )
             }
         }

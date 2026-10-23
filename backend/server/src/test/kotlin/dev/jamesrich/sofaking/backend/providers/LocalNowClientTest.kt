@@ -46,7 +46,7 @@ class LocalNowClientTest {
     private fun options(fixture: ProviderFixture, extra: Map<String, String> = emptyMap()) =
         mapOf("pageUrl" to "${fixture.base}/", "apiBase" to "${fixture.base}/dsp") + extra
 
-    @Test fun `lists unlocked channels once for the configured market with their programmes`() = runBlocking<Unit> {
+    @Test fun `lists unlocked channels once for the configured market with their programs`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-localnow-")
         try {
             ProviderFixture().use { fixture ->
@@ -88,7 +88,7 @@ class LocalNowClientTest {
                         assertEquals(2, guide.channels.size)
                         assertEquals(
                             listOf("Local Now Tonight", "Your News & Weather"),
-                            guide.programmes.map {
+                            guide.programs.map {
                                 it.title
                             },
                         )

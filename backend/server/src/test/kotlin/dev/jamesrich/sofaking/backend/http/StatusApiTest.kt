@@ -110,7 +110,7 @@ class StatusApiTest {
                 assertEquals("abc1234", status.revision)
                 assertEquals(started.toString(), status.startedAt)
                 assertEquals(3725, status.uptimeSeconds)
-                assertEquals(207, status.schemaVersion)
+                assertEquals(208, status.schemaVersion)
                 val lineup = runtime.lineup.entries()
                 assertEquals(
                     StatusChannels(

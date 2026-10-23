@@ -2,8 +2,8 @@ package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.ProgramKind
-import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.ui.player.ChannelNumberEntry
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -78,7 +78,7 @@ class GuideFilterMovesTest {
     fun `kinds on now list the channels showing one and chips follow Recent`() {
         val at = Instant.parse("2026-10-19T12:10:00Z")
         fun show(id: String, start: String, stop: String, vararg kinds: ProgramKind) =
-            Programme(id, Instant.parse(start), Instant.parse(stop), "P", null, kinds = kinds.toSet())
+            Program(id, Instant.parse(start), Instant.parse(stop), "P", null, kinds = kinds.toSet())
         val lineup = Lineup(
             all,
             mapOf(

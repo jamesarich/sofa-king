@@ -211,12 +211,12 @@ class SofaKingApi(
         http.get("bootstrap").decode()
     }
 
-    /** Every recording but cancelled ones, soonest scheduled first. */
+    /** Every recording but canceled ones, soonest scheduled first. */
     internal suspend fun recordings(): RecordingListDto = call {
         http.get("recordings").decode()
     }
 
-    /** Records the programme on [ScheduleRecordingDto.channelId] that starts at [ScheduleRecordingDto.startsAt]. */
+    /** Records the program on [ScheduleRecordingDto.channelId] that starts at [ScheduleRecordingDto.startsAt]. */
     internal suspend fun scheduleRecording(request: ScheduleRecordingDto): RecordingDto = call {
         http.post("recordings") { json(request) }.decode()
     }

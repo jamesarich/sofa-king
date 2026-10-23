@@ -16,7 +16,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,11 +28,11 @@ import kotlin.time.Duration.Companion.minutes
  * cancels to keep focus in it, so Back closed nothing and left focus sunk in the panel.
  */
 @OptIn(ExperimentalTestApi::class)
-class ProgrammeSheetBackTest {
+class ProgramSheetBackTest {
     private val now = Clock.System.now()
     private val channel = Channel(guideId = "c0", number = 2.0, name = "News Now", logo = null, groups = listOf("News"))
-    private val programme =
-        Programme(
+    private val program =
+        Program(
             channelId = "c0",
             start = now - 10.minutes,
             stop = now + 20.minutes,
@@ -48,8 +48,8 @@ class ProgrammeSheetBackTest {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     var open by remember { mutableStateOf(true) }
                     if (open) {
-                        ProgrammeSheet(
-                            details = ProgrammeDetails(channel, programme),
+                        ProgramSheet(
+                            details = ProgramDetails(channel, program),
                             now = now,
                             isFavorite = false,
                             guideLoading = false,

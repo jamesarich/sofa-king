@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.dvr
 
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.SeasonEpisode
 import java.nio.file.Path
 import java.time.Instant
@@ -13,13 +13,13 @@ class RecordingLayoutTest {
     private val zone = ZoneId.of("America/Chicago")
     private val start = Instant.parse("2026-10-18T01:30:00Z") // 20:30 on the 17th in Chicago
 
-    private fun programme(
+    private fun program(
         title: String,
         subTitle: String? = null,
         numbers: List<EpisodeNumber> = emptyList(),
         categories: List<String> = emptyList(),
         date: String? = null,
-    ) = GuideProgramme(
+    ) = GuideProgram(
         "c",
         start,
         start.plusSeconds(1800),
@@ -31,7 +31,7 @@ class RecordingLayoutTest {
     )
 
     @Test fun `a numbered episode goes in its season folder with SxxEyy`() {
-        val title = RecordingTitle.of(programme("Star Trek", "The Cage", listOf(EpisodeNumber("xmltv_ns", "0.0.0/1"))))
+        val title = RecordingTitle.of(program("Star Trek", "The Cage", listOf(EpisodeNumber("xmltv_ns", "0.0.0/1"))))
         assertEquals(
             Path.of("TV/Star Trek/Season 01/Star Trek - S01E01 - The Cage.ts"),
             RecordingLayout.path(title, start, zone),
@@ -39,7 +39,7 @@ class RecordingLayoutTest {
     }
 
     @Test fun `an unnumbered airing is named by its local date`() {
-        val title = RecordingTitle.of(programme("NBC Nightly News", "October 17"))
+        val title = RecordingTitle.of(program("NBC Nightly News", "October 17"))
         assertEquals(
             Path.of("TV/NBC Nightly News/Season 2026/NBC Nightly News - 2026-10-17 - October 17.ts"),
             RecordingLayout.path(title, start, zone),
@@ -52,9 +52,9 @@ class RecordingLayoutTest {
     }
 
     @Test fun `a movie gets its own folder with the year`() {
-        val title = RecordingTitle.of(programme("Heat", categories = listOf("Movie", "Crime"), date = "1995"))
+        val title = RecordingTitle.of(program("Heat", categories = listOf("Movie", "Crime"), date = "1995"))
         assertEquals(Path.of("Movies/Heat (1995)/Heat (1995).ts"), RecordingLayout.path(title, start, zone))
-        val undated = RecordingTitle.of(programme("Heat", categories = listOf("movie")))
+        val undated = RecordingTitle.of(program("Heat", categories = listOf("movie")))
         assertEquals(Path.of("Movies/Heat/Heat.ts"), RecordingLayout.path(undated, start, zone))
     }
 

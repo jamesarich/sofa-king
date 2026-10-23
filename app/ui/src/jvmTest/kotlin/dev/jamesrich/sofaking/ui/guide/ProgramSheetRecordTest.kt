@@ -13,7 +13,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingMark
 import dev.jamesrich.sofaking.ui.theme.SofaKingTheme
 import kotlin.test.Test
@@ -23,11 +23,11 @@ import kotlin.time.Duration.Companion.minutes
 
 /** Record and Record series on the TV details panel, on the row below Watch, Favorite and Close. */
 @OptIn(ExperimentalTestApi::class)
-class ProgrammeSheetRecordTest {
+class ProgramSheetRecordTest {
     private val now = Clock.System.now()
     private val channel = Channel(guideId = "c0", number = 2.0, name = "News Now", logo = null, groups = listOf("News"))
-    private val programme =
-        Programme(
+    private val program =
+        Program(
             channelId = "c0",
             start = now + 10.minutes,
             stop = now + 40.minutes,
@@ -42,8 +42,8 @@ class ProgrammeSheetRecordTest {
             setContent {
                 SofaKingTheme {
                     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                        ProgrammeSheet(
-                            details = ProgrammeDetails(channel, programme),
+                        ProgramSheet(
+                            details = ProgramDetails(channel, program),
                             now = now,
                             isFavorite = false,
                             guideLoading = false,

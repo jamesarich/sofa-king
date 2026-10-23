@@ -58,12 +58,7 @@ class RecordingApiTest {
     private val token = "secret".repeat(8)
     private val xmltvTime = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z").withZone(ZoneOffset.UTC)
 
-    private class Api(
-        val runtime: LiveRuntime,
-        val channelId: String,
-        val programmeStart: Instant,
-        val recordings: Path,
-    )
+    private class Api(val runtime: LiveRuntime, val channelId: String, val programStart: Instant, val recordings: Path)
 
     /** The live fixture channel with a guide holding one `Movie Night` an hour from now, behind the API token. */
     private suspend fun ApplicationTestBuilder.dvrApi(block: suspend Api.() -> Unit) {
@@ -139,7 +134,7 @@ class RecordingApiTest {
         testApplication {
             dvrApi {
                 val recordings = "/api/v1/recordings"
-                val window = programmeStart.plusSeconds(86_400)
+                val window = programStart.plusSeconds(86_400)
                 fun schedule(startsAt: String, endsAt: String? = null, channelId: String = this.channelId) =
                     Json.encodeToString(ScheduleRecording.serializer(), ScheduleRecording(channelId, startsAt, endsAt))
 
@@ -175,17 +170,17 @@ class RecordingApiTest {
                 )
                 assertError(
                     HttpStatusCode.NotFound,
-                    "PROGRAMME_NOT_FOUND",
-                    send(HttpMethod.Post, recordings, schedule(programmeStart.plusSeconds(60).toString())),
+                    "PROGRAM_NOT_FOUND",
+                    send(HttpMethod.Post, recordings, schedule(programStart.plusSeconds(60).toString())),
                 )
                 val past = Instant.now().minusSeconds(7200)
                 assertError(
                     HttpStatusCode.Conflict,
-                    "PROGRAMME_ENDED",
+                    "PROGRAM_ENDED",
                     send(HttpMethod.Post, recordings, schedule(past.toString(), past.plusSeconds(1800).toString())),
                 )
 
-                val created = send(HttpMethod.Post, recordings, schedule(programmeStart.toString()))
+                val created = send(HttpMethod.Post, recordings, schedule(programStart.toString()))
                 assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                 val movie = json.decodeFromString<Recording>(created.bodyAsText())
                 assertEquals(Wire.RecordingState.SCHEDULED, movie.state)

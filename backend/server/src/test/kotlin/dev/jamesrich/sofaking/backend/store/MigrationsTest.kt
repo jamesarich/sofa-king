@@ -2,10 +2,10 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import dev.jamesrich.sofaking.backend.catalog.PreviouslyShown
-import dev.jamesrich.sofaking.backend.catalog.ProgrammeRating
+import dev.jamesrich.sofaking.backend.catalog.ProgramRating
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.nio.file.Files
@@ -144,7 +144,7 @@ class MigrationsTest {
                             assertEquals(
                                 listOf(
                                     1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202,
-                                    203, 204, 205, 206, 207,
+                                    203, 204, 205, 206, 207, 208,
                                 ),
                                 buildList {
                                     while (rows.next()) add(rows.getInt(1))
@@ -257,7 +257,7 @@ class MigrationsTest {
         }
     }
 
-    @Test fun `programmes stored before the details column read with no metadata, and new ones keep theirs`() =
+    @Test fun `programs stored before the details column read with no metadata, and new ones keep theirs`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-migration-details-")
             try {
@@ -278,10 +278,10 @@ class MigrationsTest {
                 val end = java.time.Instant.ofEpochSecond(1791644400)
                 openStore(dir).use { store ->
                     assertEquals(
-                        GuideProgramme("c", start, end, "Old", "Kept"),
-                        store.programmes("g", listOf("c"), start, end).getValue("c").single(),
+                        GuideProgram("c", start, end, "Old", "Kept"),
+                        store.programs("g", listOf("c"), start, end).getValue("c").single(),
                     )
-                    val rich = GuideProgramme(
+                    val rich = GuideProgram(
                         "c", start, end, "New", subTitle = "Part One",
                         episodeNumbers = listOf(
                             EpisodeNumber("xmltv_ns", "0.1."),
@@ -290,10 +290,10 @@ class MigrationsTest {
                         categories = listOf(
                             "News",
                         ),
-                        rating = ProgrammeRating("TV-G", "VCHIP"), isNew = true,
+                        rating = ProgramRating("TV-G", "VCHIP"), isNew = true,
                         previouslyShown = PreviouslyShown(), date = "2026", language = "en",
                     )
-                    val plain = GuideProgramme("c", end, end.plusSeconds(3600), "Plain")
+                    val plain = GuideProgram("c", end, end.plusSeconds(3600), "Plain")
                     store.saveGuide(
                         "g",
                         java.time.Instant.parse("2026-10-11T00:00:00Z"),
@@ -302,20 +302,20 @@ class MigrationsTest {
                     )
                     assertEquals(
                         listOf(rich, plain),
-                        store.programmes("g", listOf("c"), start, end.plusSeconds(3600)).getValue("c"),
+                        store.programs("g", listOf("c"), start, end.plusSeconds(3600)).getValue("c"),
                     )
                 }
                 DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
                     connection.createStatement().use { stmt ->
                         stmt.executeQuery(
-                            "SELECT title, details_json FROM guide_programme ORDER BY starts_at",
+                            "SELECT title, details_json FROM guide_program ORDER BY starts_at",
                         ).use { rows ->
                             assertTrue(rows.next())
                             assertEquals("New", rows.getString(1))
                             assertTrue(rows.getString(2).startsWith("{"))
                             assertTrue(rows.next())
                             assertEquals("Plain", rows.getString(1))
-                            assertNull(rows.getString(2), "a programme without metadata stores none")
+                            assertNull(rows.getString(2), "a program without metadata stores none")
                         }
                     }
                 }
@@ -323,6 +323,59 @@ class MigrationsTest {
                 dir.toFile().deleteRecursively()
             }
         }
+
+    @Test fun `the guide table and a canceled recording move to their US names with their rows`() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("sofa-migration-us-names-")
+        try {
+            val db = databaseAt(dir)
+            try {
+                applyMigrations(db, foundationMigrations().filter { it.version < 208 })
+                transaction(db) {
+                    exec("INSERT INTO guide_import(guide_id, imported_at) VALUES ('g', '2026-10-10T00:00:00Z')")
+                    exec(
+                        "INSERT INTO guide_programme(guide_id, channel_id, starts_at, ends_at, title) " +
+                            "VALUES ('g', 'c', 1791640800, 1791644400, 'Kept')",
+                    )
+                    exec(
+                        "INSERT INTO recording(id, channel_id, channel_name, starts_at, ends_at, " +
+                            "start_padding_seconds, end_padding_seconds, title, movie, state, bytes, protected, " +
+                            "position_ms, watched, created_at, updated_at) " +
+                            "VALUES ('r', 'c', 'C', 1791640800, 1791644400, 0, 0, 'Kept', 0, 'canceled', 0, 0, 0, 0, " +
+                            "'2026-10-10T00:00:00Z', '2026-10-10T00:00:00Z')",
+                    )
+                }
+            } finally {
+                closeDatabase(db)
+            }
+            val start = java.time.Instant.ofEpochSecond(1791640800)
+            val end = java.time.Instant.ofEpochSecond(1791644400)
+            openStore(dir).use { store ->
+                assertEquals(
+                    GuideProgram("c", start, end, "Kept"),
+                    store.programs("g", listOf("c"), start, end).getValue("c").single(),
+                )
+            }
+            DriverManager.getConnection("jdbc:sqlite:${dir.resolve("backend.sqlite")}").use { connection ->
+                connection.createStatement().use { stmt ->
+                    stmt.executeQuery("SELECT state FROM recording WHERE id = 'r'").use { rows ->
+                        rows.next()
+                        assertEquals("canceled", rows.getString(1))
+                    }
+                    stmt.executeQuery("SELECT name FROM sqlite_master WHERE name LIKE 'guide_programme%'").use { rows ->
+                        assertFalse(rows.next(), "no British table or index is left")
+                    }
+                    stmt.executeQuery(
+                        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'guide_program_window'",
+                    ).use { rows ->
+                        rows.next()
+                        assertEquals(1, rows.getInt(1))
+                    }
+                }
+            }
+        } finally {
+            dir.toFile().deleteRecursively()
+        }
+    }
 
     @Test fun `shipped migrations open and carry the lineup and guide tables`() {
         val dir = Files.createTempDirectory("sofa-migration-shipped-")
@@ -332,7 +385,7 @@ class MigrationsTest {
             assertEquals(
                 listOf(
                     1, 2, 3, 4, 10, 30, 40, 41, 50, 60, 70, 80, 90, 100, 110, 120, 121, 200, 201, 202, 203, 204, 205,
-                    206, 207,
+                    206, 207, 208,
                 ),
                 foundationMigrations().map {
                     it.version
@@ -348,7 +401,7 @@ class MigrationsTest {
                                     "lineup_entry",
                                     "lineup_offering",
                                     "guide_channel",
-                                    "guide_programme",
+                                    "guide_program",
                                     "guide_import",
                                     "logo_cache",
                                     "station_availability",

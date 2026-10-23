@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.dvr
 
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.GuideService
 import dev.jamesrich.sofaking.backend.catalog.LineupService
 import dev.jamesrich.sofaking.backend.catalog.redactedMessage
@@ -15,7 +15,7 @@ import dev.jamesrich.sofaking.backend.store.deleteRecording
 import dev.jamesrich.sofaking.backend.store.deleteRecordingRule
 import dev.jamesrich.sofaking.backend.store.guides
 import dev.jamesrich.sofaking.backend.store.lineup
-import dev.jamesrich.sofaking.backend.store.programmes
+import dev.jamesrich.sofaking.backend.store.programs
 import dev.jamesrich.sofaking.backend.store.recording
 import dev.jamesrich.sofaking.backend.store.recordingRule
 import dev.jamesrich.sofaking.backend.store.recordingRules
@@ -239,7 +239,7 @@ class Dvr(
     suspend fun deleteRule(id: String) {
         if (!store.deleteRecordingRule(
                 id,
-                listOf(Wire.RecordingState.SCHEDULED, CANCELLED),
+                listOf(Wire.RecordingState.SCHEDULED, CANCELED),
             )
         ) {
             throw ApiFailure(404, "RULE_NOT_FOUND", "Unknown recording rule")
@@ -249,11 +249,11 @@ class Dvr(
     // Recordings
 
     /**
-     * Every recording but cancelled ones: scheduled and running soonest first, then the rest
+     * Every recording but canceled ones: scheduled and running soonest first, then the rest
      * newest first, with conflicts marked.
      */
     suspend fun recordings(): RecordingList {
-        val all = store.recordings().filter { it.state != CANCELLED }
+        val all = store.recordings().filter { it.state != CANCELED }
         val conflicts = DvrPlanner.conflicts(all, store.recordingRules().associate { it.id to it.priority }, capacity())
         val upcoming = all.filter {
             it.state == Wire.RecordingState.SCHEDULED || it.state == Wire.RecordingState.RECORDING
@@ -263,7 +263,7 @@ class Dvr(
     }
 
     suspend fun recording(id: String): Recording = (
-        store.recording(id)?.takeIf { it.state != CANCELLED }
+        store.recording(id)?.takeIf { it.state != CANCELED }
             ?: throw notFound()
         ).toWire()
 
@@ -284,7 +284,7 @@ class Dvr(
     }
 
     /**
-     * Schedules the programme on [ScheduleRecording.channelId] that starts at [ScheduleRecording.startsAt], or, with
+     * Schedules the program on [ScheduleRecording.channelId] that starts at [ScheduleRecording.startsAt], or, with
      * [ScheduleRecording.endsAt], that window of the channel under [ScheduleRecording.title], guide or not.
      */
     suspend fun schedule(request: ScheduleRecording): Recording {
@@ -293,7 +293,7 @@ class Dvr(
                 ?: throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")
         val start = instant(request.startsAt, "startsAt")
         val manual = request.endsAt != null
-        val programme = if (manual) {
+        val program = if (manual) {
             val end = instant(request.endsAt!!, "endsAt")
             if (end <= start || Duration.between(start, end) > MAX_MANUAL) {
                 throw ApiFailure(
@@ -304,42 +304,35 @@ class Dvr(
             }
             val title = request.title?.trim()?.takeIf { it.isNotEmpty() } ?: entry.name
             if (title.length > 200) throw ApiFailure(400, "INVALID_REQUEST", "A title has at most 200 characters")
-            GuideProgramme(channelId = entry.id, startsAt = start, endsAt = end, title = title)
+            GuideProgram(channelId = entry.id, startsAt = start, endsAt = end, title = title)
         } else {
             val mapping =
                 entry.guide
                     ?: throw ApiFailure(
                         404,
-                        "PROGRAMME_NOT_FOUND",
+                        "PROGRAM_NOT_FOUND",
                         "The channel has no guide; give endsAt to record a time window",
                     )
-            guides.programmes(
-                mapping.guideId,
-                listOf(mapping.channelId),
-                start,
-                start.plusSeconds(1),
-            )[mapping.channelId]
+            guides.programs(mapping.guideId, listOf(mapping.channelId), start, start.plusSeconds(1))[mapping.channelId]
                 ?.firstOrNull { it.startsAt == start }
-                ?: throw ApiFailure(404, "PROGRAMME_NOT_FOUND", "No program starts then on that channel")
+                ?: throw ApiFailure(404, "PROGRAM_NOT_FOUND", "No program starts then on that channel")
         }
-        if (programme.endsAt <= clock.instant()) {
-            throw ApiFailure(409, "PROGRAMME_ENDED", "The program has already ended")
-        }
-        // A window someone picked by the clock is recorded as given; a guide programme gets the usual padding.
+        if (program.endsAt <= clock.instant()) throw ApiFailure(409, "PROGRAM_ENDED", "The program has already ended")
+        // A window someone picked by the clock is recorded as given; a guide program gets the usual padding.
         val padding = if (manual) Duration.ZERO to Duration.ZERO else DEFAULT_START_PADDING to DEFAULT_END_PADDING
         return mutex.withLock {
             store.recordings().firstOrNull { it.channelId == entry.id && it.startsAt == start }?.let { existing ->
-                if (existing.state != CANCELLED) return@withLock existing.toWire()
+                if (existing.state != CANCELED) return@withLock existing.toWire()
                 store.deleteRecording(existing.id)
             }
-            val recording = stored(null, Airing(entry.id, entry.name, programme), padding.first, padding.second)
+            val recording = stored(null, Airing(entry.id, entry.name, program), padding.first, padding.second)
             store.addRecording(recording)
             recording.toWire()
         }.also { scope.launch { tick() } }
     }
 
     suspend fun update(id: String, update: UpdateRecording): Recording = mutex.withLock {
-        val recording = store.recording(id)?.takeIf { it.state != CANCELLED } ?: throw notFound()
+        val recording = store.recording(id)?.takeIf { it.state != CANCELED } ?: throw notFound()
         val changed = recording.copy(
             protected = update.protected ?: recording.protected,
             positionMs = update.positionMs?.coerceAtLeast(0) ?: recording.positionMs,
@@ -352,18 +345,18 @@ class Dvr(
 
     /**
      * Cancels a scheduled recording, stops a running one (keeping what it recorded), or deletes a finished one and its
-     * files. A cancelled rule airing is remembered so the rule does not schedule it again.
+     * files. A canceled rule airing is remembered so the rule does not schedule it again.
      */
     suspend fun delete(id: String) {
         // Decided under the lock, so a recording the tick starts meanwhile is stopped, not overwritten.
         val stopping = mutex.withLock {
-            val recording = store.recording(id)?.takeIf { it.state != CANCELLED } ?: throw notFound()
+            val recording = store.recording(id)?.takeIf { it.state != CANCELED } ?: throw notFound()
             when (recording.state) {
                 Wire.RecordingState.RECORDING -> recording
 
                 Wire.RecordingState.SCHEDULED -> {
                     if (recording.ruleId != null) {
-                        store.saveRecording(recording.copy(state = CANCELLED, updatedAt = clock.instant()))
+                        store.saveRecording(recording.copy(state = CANCELED, updatedAt = clock.instant()))
                     } else {
                         store.deleteRecording(id)
                     }
@@ -419,7 +412,7 @@ class Dvr(
         val titles = rules.mapTo(HashSet()) { it.title.trim().lowercase() }
         val entries = lineup.entries().filter { it.enabled && it.guide != null && (anyChannel || it.id in wanted) }
         return entries.groupBy { it.guide!!.guideId }.flatMap { (guideId, group) ->
-            val rows = guides.programmes(guideId, group.map { it.guide!!.channelId }.distinct(), from, to)
+            val rows = guides.programs(guideId, group.map { it.guide!!.channelId }.distinct(), from, to)
             group.flatMap { entry ->
                 rows[entry.guide!!.channelId].orEmpty().filter {
                     it.title.trim().lowercase() in titles
@@ -706,14 +699,14 @@ class Dvr(
     }
 
     private fun stored(ruleId: String?, airing: Airing, startPadding: Duration, endPadding: Duration): StoredRecording {
-        val programme: GuideProgramme = airing.programme
-        val name = RecordingTitle.of(programme)
+        val program: GuideProgram = airing.program
+        val name = RecordingTitle.of(program)
         val now = clock.instant()
         return StoredRecording(
-            UUID.randomUUID().toString(), ruleId, airing.channelId, airing.channelName, programme.startsAt,
-            programme.endsAt, startPadding, endPadding,
-            programme.title, name.episodeTitle, programme.description, name.numbering?.season, name.numbering?.episode,
-            name.movie, name.year, programme.icon,
+            UUID.randomUUID().toString(), ruleId, airing.channelId, airing.channelName, program.startsAt,
+            program.endsAt, startPadding, endPadding,
+            program.title, name.episodeTitle, program.description, name.numbering?.season, name.numbering?.episode,
+            name.movie, name.year, program.icon,
             Wire.RecordingState.SCHEDULED, createdAt = now, updatedAt = now,
         )
     }

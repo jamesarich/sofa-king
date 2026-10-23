@@ -15,7 +15,7 @@ import kotlin.test.assertNull
 
 class LgClientTest {
     @Test
-    fun `decodes the base64 zlib schedulelist into channels, programmes and filled stream URLs`() = runBlocking<Unit> {
+    fun `decodes the base64 zlib schedulelist into channels, programs and filled stream URLs`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-lg-")
         try {
             ProviderFixture().use { fixture ->
@@ -69,11 +69,11 @@ class LgClientTest {
                         assertEquals(2, guide.channels.size)
                         assertEquals(
                             listOf("2026-10-10T22:00:00Z", "2026-10-11T02:00:00Z"),
-                            guide.programmes.map {
+                            guide.programs.map {
                                 it.startsAt.toString()
                             },
                         )
-                        assertEquals("LiveNOW from FOX", guide.programmes.first().title)
+                        assertEquals("LiveNOW from FOX", guide.programs.first().title)
                         val resolved = client.resolve("foxlivenow_foxlivenow_US")
                         val deviceId = store.providerState("lg", ProviderContext.DEVICE_ID)!!.value
                         val ua = URLEncoder.encode(BROWSER_USER_AGENT, Charsets.UTF_8)

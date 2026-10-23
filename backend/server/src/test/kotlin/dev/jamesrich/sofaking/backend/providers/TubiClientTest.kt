@@ -26,7 +26,7 @@ class TubiClientTest {
     )
 
     @Test
-    fun `lists the page's linear channels without login or DRM ones and keeps their programmes`() = runBlocking<Unit> {
+    fun `lists the page's linear channels without login or DRM ones and keeps their programs`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-tubi-")
         try {
             ProviderFixture().use { fixture ->
@@ -55,7 +55,7 @@ class TubiClientTest {
                         val guide = client.guide(setOf(nfl))
                         assertEquals(
                             listOf("Weekly Game Previews", "NFL Game Re-Airs"),
-                            guide.programmes.map {
+                            guide.programs.map {
                                 it.title
                             },
                         )

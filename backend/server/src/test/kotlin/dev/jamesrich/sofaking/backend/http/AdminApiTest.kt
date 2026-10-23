@@ -219,7 +219,7 @@ class AdminApiTest {
                         )
                     }.bodyAsText(),
                 )
-                assertEquals("Morning", window.channels.single().programmes.single().title)
+                assertEquals("Morning", window.channels.single().programs.single().title)
                 val session = Json.decodeFromString<PlaybackSession>(
                     client.post("/api/v1/playback-sessions") {
                         bearerAuth(token)

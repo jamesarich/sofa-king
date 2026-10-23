@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 // The DVR under /api/v1/recordings and /api/v1/recording-rules; the same compatibility rules as LiveTv.kt apply.
 
 /**
- * One recording, scheduled, running or kept. The programme fields are the guide's when it was scheduled;
- * [startsAt] and [endsAt] are the programme's own times, and the recording runs from [startPaddingSeconds] before
+ * One recording, scheduled, running or kept. The program fields are the guide's when it was scheduled;
+ * [startsAt] and [endsAt] are the program's own times, and the recording runs from [startPaddingSeconds] before
  * to [endPaddingSeconds] after them. [state] is a [Wire.RecordingState] value and [reason] says why one failed.
  * [path] is relative to the recordings folder once the file exists. [conflict] marks a scheduled recording that
  * overlaps more recordings than the server has playback slots. [ruleId] names the series rule that scheduled it.
@@ -55,7 +55,7 @@ import kotlinx.serialization.Serializable
 )
 
 /**
- * `POST /api/v1/recordings`: record the programme on [channelId] that starts at [startsAt]. With [endsAt], record
+ * `POST /api/v1/recordings`: record the program on [channelId] that starts at [startsAt]. With [endsAt], record
  * that window instead, whatever the guide says, under [title] (the channel's name when null); a channel without a
  * guide can be recorded only this way.
  */

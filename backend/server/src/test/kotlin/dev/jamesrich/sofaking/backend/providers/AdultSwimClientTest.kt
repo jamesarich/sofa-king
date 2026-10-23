@@ -77,23 +77,23 @@ class AdultSwimClientTest {
                             assertEquals(2, guide.channels.size)
                             assertEquals(
                                 listOf("Rick and Morty", "Rick and Morty"),
-                                guide.programmes.map {
+                                guide.programs.map {
                                     it.title
                                 },
                                 "the series is the title",
                             )
                             assertEquals(
                                 listOf("Promortyus", "The Vat of Acid Episode"),
-                                guide.programmes.map {
+                                guide.programs.map {
                                     it.subTitle
                                 },
                                 "the episode is the sub-title",
                             )
-                            assertNull(guide.programmes[0].description)
-                            assertEquals("2026-10-11T02:38:26.519Z", guide.programmes[0].startsAt.toString())
+                            assertNull(guide.programs[0].description)
+                            assertEquals("2026-10-11T02:38:26.519Z", guide.programs[0].startsAt.toString())
                             assertEquals(
                                 "2026-10-11T02:59:41.092Z",
-                                guide.programmes[0].endsAt.toString(),
+                                guide.programs[0].endsAt.toString(),
                                 "start plus the fractional duration",
                             )
                             assertFailsWith<ProviderFailure> {

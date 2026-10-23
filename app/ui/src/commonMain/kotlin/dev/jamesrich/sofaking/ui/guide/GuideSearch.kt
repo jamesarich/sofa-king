@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.ui.guide
 
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.ui.formatNumber
 import kotlin.time.Instant
 
@@ -19,26 +19,26 @@ internal object GuideSearch {
     }
 
     /**
-     * True when [query] is blank, or it appears in the channel [name] or the airing programme
-     * [programmeTitle], or it is the start of the channel [number].
+     * True when [query] is blank, or it appears in the channel [name] or the airing program
+     * [programTitle], or it is the start of the channel [number].
      */
-    fun matches(query: String, number: Double, name: String, programmeTitle: String?): Boolean {
+    fun matches(query: String, number: Double, name: String, programTitle: String?): Boolean {
         val needle = normalize(query.trim())
         if (needle.isEmpty()) return true
         return normalize(number.formatNumber()).startsWith(needle) ||
             normalize(name).contains(needle) ||
-            (programmeTitle != null && normalize(programmeTitle).contains(needle))
+            (programTitle != null && normalize(programTitle).contains(needle))
     }
 
     /**
-     * The programmes of one channel that start after [after] and before [before] whose title or episode title
-     * holds [query], in start order, at most [MAX_UPCOMING]; empty for a blank query. The airing programme is the
+     * The programs of one channel that start after [after] and before [before] whose title or episode title
+     * holds [query], in start order, at most [MAX_UPCOMING]; empty for a blank query. The airing program is the
      * grid's own match, so it is left out.
      */
-    fun upcoming(query: String, programmes: List<Programme>, after: Instant, before: Instant): List<Programme> {
+    fun upcoming(query: String, programs: List<Program>, after: Instant, before: Instant): List<Program> {
         val needle = normalize(query.trim())
         if (needle.isEmpty()) return emptyList()
-        return programmes.asSequence()
+        return programs.asSequence()
             .filter { it.start > after && it.start < before }
             .filter {
                 normalize(it.title).contains(needle) ||
@@ -52,7 +52,7 @@ internal object GuideSearch {
     /**
      * The Latin letters with diacritics that NFD would decompose, folded to their base letter; Kotlin has no
      * common Unicode normalizer. Covers Latin-1 Supplement and Latin Extended-A, which is what channel and
-     * programme names use.
+     * program names use.
      */
     private val FOLDS: Map<Char, Char> = buildMap {
         fun fold(base: Char, accented: String) = accented.forEach { put(it, base) }

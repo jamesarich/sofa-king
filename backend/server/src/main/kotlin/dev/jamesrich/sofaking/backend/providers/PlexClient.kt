@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.runCatchingCancellable
 import kotlinx.coroutines.delay
@@ -32,7 +32,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
         val channels = listed()
         val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
         val today = context.clock.instant().atOffset(ZoneOffset.UTC).toLocalDate()
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         var first = true
         for (id in channels.map { it.channel.id }.filter { it in wanted }) {
             for (date in listOf(today, today.plusDays(1))) {
@@ -54,7 +54,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
                         val start = media["beginsAt"].long ?: continue
                         val end = media["endsAt"].long ?: continue
                         if (end <= start) continue
-                        programmes += GuideProgramme(
+                        programs += GuideProgram(
                             id, Instant.ofEpochSecond(start), Instant.ofEpochSecond(end), title, item.str("summary"),
                             subTitle = if (series != null) item.str("title") else null,
                             episodeNumbers = if (episode) {
@@ -77,7 +77,7 @@ class PlexClient(private val context: ProviderContext) : ProviderClient {
                 }
             }
         }
-        return ParsedGuide(index, programmes.distinctBy { Triple(it.channelId, it.startsAt, it.title) })
+        return ParsedGuide(index, programs.distinctBy { Triple(it.channelId, it.startsAt, it.title) })
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {

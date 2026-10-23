@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -13,7 +13,7 @@ import java.time.Instant
 
 /**
  * Local Now as localnow.com uses it: the page's runtime config carries a public app token and the data-store host,
- * the `live/epg` document lists every channel for a DMA and market with its next few programmes, and `video/play`
+ * the `live/epg` document lists every channel for a DMA and market with its next few programs, and `video/play`
  * answers each channel's ad-stitched HLS master. Channels that are not `unlocked` or that
  * carry a DRM config are left out.
  */
@@ -26,7 +26,7 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
 
     private class Listed(val channel: ProviderChannel, val slug: String?)
 
-    private class Snapshot(val channels: List<Listed>, val programmes: List<GuideProgramme>)
+    private class Snapshot(val channels: List<Listed>, val programs: List<GuideProgram>)
 
     private class Runtime(val host: String, val token: String)
 
@@ -38,7 +38,7 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
             snapshot.channels.map {
                 GuideChannel(it.channel.id, it.channel.name, it.channel.logo)
             },
-            snapshot.programmes.filter {
+            snapshot.programs.filter {
                 it.channelId in
                     wanted
             },
@@ -78,7 +78,7 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
             context.http.get("${runtime.host}/live/epg/US/website$query", headers(runtime))
         }.json()
         val channels = LinkedHashMap<String, Listed>()
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         for (channel in payload["channels"].array) {
             val id = channel.str("video_id") ?: channel.str("_id") ?: continue
             val name = channel.str("name") ?: continue
@@ -94,24 +94,24 @@ class LocalNowClient(private val context: ProviderContext) : ProviderClient {
                 ),
                 channel.str("slug"),
             )
-            for (programme in channel["program"].array) {
-                val start = programme["starts_at"].long ?: continue
-                val end = programme["ends_at"].long ?: continue
-                val title = programme.str("program_title") ?: continue
+            for (program in channel["program"].array) {
+                val start = program["starts_at"].long ?: continue
+                val end = program["ends_at"].long ?: continue
+                val title = program.str("program_title") ?: continue
                 if (end > start) {
-                    programmes +=
-                        GuideProgramme(
+                    programs +=
+                        GuideProgram(
                             id,
                             Instant.ofEpochSecond(start),
                             Instant.ofEpochSecond(end),
                             title,
-                            programme.str("program_description"),
+                            program.str("program_description"),
                         )
                 }
             }
         }
         if (channels.isEmpty()) throw ProviderFailure("Channel list is empty")
-        return Snapshot(channels.values.toList(), programmes)
+        return Snapshot(channels.values.toList(), programs)
     }
 
     /** Runs [request] with the page's runtime config; a 401 or 403 reads the page again and tries once more. */

@@ -1,6 +1,6 @@
 package dev.jamesrich.sofaking.backend.dvr
 
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.SeasonEpisode
 import dev.jamesrich.sofaking.backend.catalog.seasonEpisode
 import java.nio.file.Path
@@ -22,17 +22,17 @@ data class RecordingTitle(
     val year: Int? = null,
 ) {
     companion object {
-        /** The guide calls a programme a movie through one of its categories. */
+        /** The guide calls a program a movie through one of its categories. */
         private val MOVIE_CATEGORIES = setOf("movie", "movies", "film", "feature film")
 
-        fun of(programme: GuideProgramme): RecordingTitle {
-            val movie = programme.categories.any { it.trim().lowercase() in MOVIE_CATEGORIES }
+        fun of(program: GuideProgram): RecordingTitle {
+            val movie = program.categories.any { it.trim().lowercase() in MOVIE_CATEGORIES }
             return RecordingTitle(
-                show = programme.title,
-                episodeTitle = programme.subTitle,
-                numbering = if (movie) null else seasonEpisode(programme.episodeNumbers),
+                show = program.title,
+                episodeTitle = program.subTitle,
+                numbering = if (movie) null else seasonEpisode(program.episodeNumbers),
                 movie = movie,
-                year = programme.date?.take(4)?.toIntOrNull()?.takeIf { it in 1870..9999 },
+                year = program.date?.take(4)?.toIntOrNull()?.takeIf { it in 1870..9999 },
             )
         }
     }

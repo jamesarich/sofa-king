@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.time.Duration
 import java.time.Instant
@@ -36,7 +36,7 @@ class PbsClient(private val context: ProviderContext) : ProviderClient {
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val channels = listed()
         val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         for (station in channels.filter { it.channel.id in wanted }.map { it.station }.distinctBy { it.id }) {
             val wantedFeeds = channels.filter {
                 it.station.id == station.id && it.channel.id in wanted
@@ -56,7 +56,7 @@ class PbsClient(private val context: ProviderContext) : ProviderClient {
                                 val seconds = item["duration"].long ?: continue
                                 val show = item.str("show_title") ?: continue
                                 if (seconds <= 0) continue
-                                programmes += GuideProgramme(
+                                programs += GuideProgram(
                                     listed.channel.id,
                                     start,
                                     start.plusSeconds(seconds),
@@ -70,7 +70,7 @@ class PbsClient(private val context: ProviderContext) : ProviderClient {
                 }
             }
         }
-        return ParsedGuide(index, programmes.distinctBy { "${it.channelId}|${it.startsAt}|${it.title}" })
+        return ParsedGuide(index, programs.distinctBy { "${it.channelId}|${it.startsAt}|${it.title}" })
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {

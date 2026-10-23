@@ -59,7 +59,7 @@ internal object GuideImports : Table("guide_import") {
     val importedAt = text("imported_at")
 
     /**
-     * The generation of the guide's channel and programme rows that readers see; an import
+     * The generation of the guide's channel and program rows that readers see; an import
      * writes the next one beside it.
      */
     val generation = long("generation").default(0)
@@ -99,7 +99,7 @@ internal object ProviderStates : Table("provider_state") {
     val updatedAt = text("updated_at")
     override val primaryKey = PrimaryKey(providerId, key)
 }
-internal object GuideProgrammes : Table("guide_programme") {
+internal object GuidePrograms : Table("guide_program") {
     val guideId = text("guide_id")
     val generation = long("generation").default(0)
     val channelId = text("channel_id")
@@ -108,7 +108,7 @@ internal object GuideProgrammes : Table("guide_programme") {
     val title = text("title")
     val description = text("description").nullable()
 
-    /** The programme's metadata beyond title and description as compact JSON; null when the source gave none. */
+    /** The program's metadata beyond title and description as compact JSON; null when the source gave none. */
     val detailsJson = text("details_json").nullable()
     override val primaryKey = PrimaryKey(guideId, generation, channelId, startsAt, endsAt, title)
 }

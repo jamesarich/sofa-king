@@ -2,16 +2,16 @@ package dev.jamesrich.sofaking.ui.guide
 
 import androidx.compose.runtime.Immutable
 import dev.jamesrich.sofaking.data.GuideWindow
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.time.Instant
 
-/** A span of one guide row, in whole minutes from the window start. [programme] is null for a gap. */
+/** A span of one guide row, in whole minutes from the window start. [program] is null for a gap. */
 @Immutable
-internal data class GuideCell(val programme: Programme?, val startMinute: Long, val endMinute: Long) {
+internal data class GuideCell(val program: Program?, val startMinute: Long, val endMinute: Long) {
     val minutes: Long get() = endMinute - startMinute
 
     /** True when [minute] (null for "outside the window") falls inside this cell. */
@@ -43,7 +43,7 @@ internal object GuideTimeline {
         cells.indexOfFirst { minute >= it.startMinute && minute < it.endMinute }
 
     /**
-     * The cell standing in for [previous] once its row's programmes changed: the one covering [cursor] when
+     * The cell standing in for [previous] once its row's programs changed: the one covering [cursor] when
      * the cursor was inside [previous] (focus keeps it there), else the one at the previous cell's start.
      * Null when the new [cells] are empty.
      */
@@ -65,23 +65,23 @@ internal object GuideTimeline {
     /**
      * Covers `[windowStart, windowEnd)` with cells that tile it exactly, in order.
      *
-     * Programmes are taken in start order and clipped to the window. Overlap rule: the
-     * earlier-starting programme keeps its full time; a later one is trimmed to begin where
-     * the previous cell ends and is dropped if nothing is left. Empty or inverted programmes
+     * Programs are taken in start order and clipped to the window. Overlap rule: the
+     * earlier-starting program keeps its full time; a later one is trimmed to begin where
+     * the previous cell ends and is dropped if nothing is left. Empty or inverted programs
      * are dropped. Times are compared in whole minutes, so seconds are truncated.
      */
-    fun cellsFor(programmes: List<Programme>, windowStart: Instant, windowEnd: Instant): List<GuideCell> {
+    fun cellsFor(programs: List<Program>, windowStart: Instant, windowEnd: Instant): List<GuideCell> {
         val total = offsetMinutes(windowStart, windowEnd)
         if (total == 0L) return emptyList()
 
         val cells = mutableListOf<GuideCell>()
         var cursor = 0L
-        for (programme in programmes.sortedBy { it.start }) {
-            val start = max(offsetMinutes(windowStart, programme.start), cursor)
-            val end = min(offsetMinutes(windowStart, programme.stop), total)
+        for (program in programs.sortedBy { it.start }) {
+            val start = max(offsetMinutes(windowStart, program.start), cursor)
+            val end = min(offsetMinutes(windowStart, program.stop), total)
             if (end <= start) continue
             if (start > cursor) cells += GuideCell(null, cursor, start)
-            cells += GuideCell(programme, start, end)
+            cells += GuideCell(program, start, end)
             cursor = end
         }
         if (cursor < total) cells += GuideCell(null, cursor, total)

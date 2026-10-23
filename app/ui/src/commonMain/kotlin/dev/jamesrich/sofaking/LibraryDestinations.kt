@@ -13,6 +13,7 @@ import dev.jamesrich.sofaking.data.IntroSpan
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.LibrarySort
 import dev.jamesrich.sofaking.data.MediaItem
+import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.defaultAudio
 import dev.jamesrich.sofaking.data.initialAudio
 import dev.jamesrich.sofaking.data.initialSeasonId
@@ -234,6 +235,7 @@ internal fun VodDestination(
                 upNext = { libraryVm.upNext(item)?.also { next = it }?.upNext() },
                 onPlayNext = { next?.let { shell.replaceTop(Route.Vod(it.id)) } },
                 autoSkipIntros = settings?.autoSkipIntros ?: false,
+                subtitleLook = settings?.subtitleLook ?: SubtitleLook(),
                 tracks = tracks,
                 zoom = shell.videoZoom,
                 onZoom = { shell.videoZoom = it },

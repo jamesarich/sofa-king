@@ -51,11 +51,11 @@ import kotlin.test.assertTrue
 class DvrTest {
     private val xmltvTime = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z").withZone(ZoneOffset.UTC)
 
-    /** An XMLTV guide for the fixture's live channel with one short programme per [programmes] entry. */
-    private fun guideServer(programmes: List<Triple<String, Instant, Instant>>): HttpServer {
+    /** An XMLTV guide for the fixture's live channel with one short program per [programs] entry. */
+    private fun guideServer(programs: List<Triple<String, Instant, Instant>>): HttpServer {
         val body = buildString {
             append("<?xml version=\"1.0\"?><tv><channel id=\"live\"><display-name>Live</display-name></channel>")
-            for ((title, start, end) in programmes) {
+            for ((title, start, end) in programs) {
                 append(
                     "<programme channel=\"live\" start=\"${xmltvTime.format(start)}\" " +
                         "stop=\"${xmltvTime.format(end)}\"><title>$title</title></programme>",
@@ -161,7 +161,7 @@ class DvrTest {
             dir.toFile().deleteRecursively()
         }
 
-    @Test fun `a one-off is scheduled from the guide, cancelling it forgets it, and a rule airing stays cancelled`() =
+    @Test fun `a one-off is scheduled from the guide, canceling it forgets it, and a rule airing stays canceled`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-dvr-api-")
             val start = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(3600)
@@ -181,7 +181,7 @@ class DvrTest {
                         assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> {
                             dvr.schedule(ScheduleRecording(live.id, start.plusSeconds(60).toString()))
                         }
-                    assertEquals("PROGRAMME_NOT_FOUND", failure.code)
+                    assertEquals("PROGRAM_NOT_FOUND", failure.code)
                     val oneOff = dvr.schedule(ScheduleRecording(live.id, start.toString()))
                     assertEquals(
                         oneOff.id,
@@ -275,7 +275,7 @@ class DvrTest {
                     assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> {
                         dvr.schedule(ScheduleRecording(live.id, start.toString()))
                     }
-                assertEquals("PROGRAMME_NOT_FOUND", guideless.code)
+                assertEquals("PROGRAM_NOT_FOUND", guideless.code)
                 val tooLong = assertFailsWith<dev.jamesrich.sofaking.backend.catalog.ApiFailure> {
                     dvr.schedule(
                         ScheduleRecording(
@@ -596,7 +596,7 @@ class DvrTest {
         assertFalse(Files.exists(root.resolve(RecordingLayout.IN_PROGRESS)), "the in-progress folder is pruned")
     }
 
-    @Test fun `cancelling a rule airing while the tick starts it keeps it cancelled`() = ticking {
+    @Test fun `canceling a rule airing while the tick starts it keeps it canceled`() = ticking {
         // Recordings launch on this test's event loop, with the DVR's own loops stopped, so
         // only these two calls interleave.
         val scope = CoroutineScope(currentCoroutineContext() + SupervisorJob())
@@ -610,9 +610,9 @@ class DvrTest {
                 launch { dvr.delete("airing") }
             }
             pollUntil(10_000) {
-                store.recording("airing")?.state.let { it == CANCELLED || it == Wire.RecordingState.FAILED }
+                store.recording("airing")?.state.let { it == CANCELED || it == Wire.RecordingState.FAILED }
             }
-            assertEquals(CANCELLED, store.recording("airing")?.state, "the tick does not undo the cancel")
+            assertEquals(CANCELED, store.recording("airing")?.state, "the tick does not undo the cancel")
             assertFalse(Files.exists(root.resolve(RecordingLayout.IN_PROGRESS)), "nothing is recorded")
         } finally {
             scope.cancel()

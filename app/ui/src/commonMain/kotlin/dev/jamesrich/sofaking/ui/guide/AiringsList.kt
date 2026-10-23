@@ -28,7 +28,7 @@ import dev.jamesrich.sofaking.resources.guide_airings_back
 import dev.jamesrich.sofaking.resources.guide_airings_title
 import dev.jamesrich.sofaking.resources.guide_today
 import dev.jamesrich.sofaking.resources.guide_tomorrow
-import dev.jamesrich.sofaking.ui.ProgrammeBadges
+import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
@@ -38,7 +38,7 @@ import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
 
 /**
- * The other airings of the programme [title], soonest first: when, on which channel, and its badges. OK on one
+ * The other airings of the program [title], soonest first: when, on which channel, and its badges. OK on one
  * airing now watches its channel and on a later one opens its details, through [onPick]; Back, or the Back button,
  * returns to the details through [onBack]. [firstFocus] goes to the first airing.
  */
@@ -90,7 +90,7 @@ private fun airingWhen(
     today: String,
     tomorrow: String,
 ): String {
-    val start = airing.programme.start
+    val start = airing.program.start
     val day = when (timeFormat.daysBetween(now, start)) {
         0 -> today
         1 -> tomorrow
@@ -121,9 +121,9 @@ private fun AiringRow(
             Text(airing.channel.label(), color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         },
         trailingContent = {
-            ProgrammeBadges(
-                programme = airing.programme,
-                live = isAiring(airing.programme, now),
+            ProgramBadges(
+                program = airing.program,
+                live = isAiring(airing.program, now),
                 fill = MaterialTheme.colorScheme.primary,
                 onFill = MaterialTheme.colorScheme.onPrimary,
                 outline = secondary,

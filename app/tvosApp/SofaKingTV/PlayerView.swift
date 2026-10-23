@@ -199,7 +199,7 @@ struct PlayerView: View {
         ].compactMap { $0 }
         let channels = UIMenu(title: "Channels", image: UIImage(systemName: "list.bullet"), children: groups)
         let programEnd = model.lineup.flatMap { model.core.nowAndNext(lineup: $0, channel: channel).now }.map {
-            Date(timeIntervalSince1970: Double(model.core.endEpochMs(programme: $0)) / 1000)
+            Date(timeIntervalSince1970: Double(model.core.endEpochMs(program: $0)) / 1000)
         }
         let sleep = model.sleepMenu(endTitle: programEnd == nil ? nil : "End of this program", endsAt: programEnd)
         let items: [UIMenuElement?] = [recordAction, star, channels, sleep]
@@ -210,14 +210,14 @@ struct PlayerView: View {
     private var recordAction: UIAction? {
         guard model.recordingsShown, let marks = model.recordingMarks, let lineup = model.lineup,
               let now = model.core.nowAndNext(lineup: lineup, channel: channel).now,
-              model.core.recordable(programme: now)
+              model.core.recordable(program: now)
         else { return nil }
-        let recording = model.core.recordingMark(marks: marks, programme: now).recording
+        let recording = model.core.recordingMark(marks: marks, program: now).recording
         return UIAction(
             title: recording ? "Cancel recording" : "Record",
             image: UIImage(systemName: recording ? "xmark.circle" : "record.circle")
         ) { _ in
-            Task { _ = try? await model.core.toggleRecording(programme: now) }
+            Task { _ = try? await model.core.toggleRecording(program: now) }
         }
     }
 

@@ -4,7 +4,7 @@ import dev.jamesrich.sofaking.backend.LiveRuntime
 import dev.jamesrich.sofaking.backend.OutputConfig
 import dev.jamesrich.sofaking.backend.admin.sameSecret
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.contract.PlaybackSession
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -68,10 +68,10 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
             val channels = runtime.catalog.catalog().channels
             val entries = channels.mapNotNull { channel -> runtime.lineup.entry(channel.id) }.associateBy { it.id }
             val mappings = channels.mapNotNull { channel -> entries[channel.id]?.guide?.let { channel.id to it } }
-            val programmes = HashMap<String, List<GuideProgramme>>()
+            val programs = HashMap<String, List<GuideProgram>>()
             for ((guideId, group) in mappings.groupBy { it.second.guideId }) {
-                val rows = runtime.guides.programmes(guideId, group.map { it.second.channelId }, from, to)
-                for ((entryId, mapping) in group) programmes[entryId] = rows[mapping.channelId].orEmpty()
+                val rows = runtime.guides.programs(guideId, group.map { it.second.channelId }, from, to)
+                for ((entryId, mapping) in group) programs[entryId] = rows[mapping.channelId].orEmpty()
             }
             val base = publicBase(call)
             call.response.header(HttpHeaders.CacheControl, "no-store")
@@ -89,10 +89,10 @@ fun Route.outputRoutes(runtime: LiveRuntime, clock: Clock, config: OutputConfig,
                     val group = entries[channel.id]?.group
                     // A channel with nothing in the window gets hourly placeholders, so Plex
                     // lists and records it like the rest.
-                    val listed = programmes[channel.id].orEmpty().ifEmpty {
+                    val listed = programs[channel.id].orEmpty().ifEmpty {
                         placeholders(channel.id, channel.name, from, to)
                     }
-                    for (programme in listed) write(xmltvProgramme(channel.id, programme, group))
+                    for (program in listed) write(xmltvProgram(channel.id, program, group))
                 }
                 write("</tv>\n")
             }
@@ -208,39 +208,39 @@ private val airDateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").w
 
 private fun airDate(instant: Instant): String = airDateFormat.format(instant)
 
-/** One programme titled [name] for each hour from the hour [from] falls in up to [to]. */
-internal fun placeholders(channelId: String, name: String, from: Instant, to: Instant): List<GuideProgramme> =
+/** One program titled [name] for each hour from the hour [from] falls in up to [to]. */
+internal fun placeholders(channelId: String, name: String, from: Instant, to: Instant): List<GuideProgram> =
     generateSequence(from.truncatedTo(java.time.temporal.ChronoUnit.HOURS)) { it.plus(Duration.ofHours(1)) }
         .takeWhile { it < to }
-        .map { start -> GuideProgramme(channelId, start, start.plus(Duration.ofHours(1)), name) }
+        .map { start -> GuideProgram(channelId, start, start.plus(Duration.ofHours(1)), name) }
         .toList()
 
 internal const val XMLTV_MOVIE = "Movie"
 
-/** The kinds Plex sorts a programme by, in the order a programme's categories list them. */
+/** The kinds Plex sorts a program by, in the order a program's categories list them. */
 private val PLEX_KINDS = listOf(XMLTV_MOVIE, "Sports", "News", "Children", "Series").map(String::lowercase)
 
 /**
  * One `<programme>` line for the channel [channelId], children in XMLTV DTD order. The categories are the source's
- * own with any Plex kind first, else the ones [xmltvCategories] derives from the channel's [group]. A programme the
+ * own with any Plex kind first, else the ones [xmltvCategories] derives from the channel's [group]. A program the
  * source did not number and that is not a movie gets its start time as `original-air-date`, since Plex files a
- * programme without episode numbering as a movie.
+ * program without episode numbering as a movie.
  */
-internal fun xmltvProgramme(channelId: String, programme: GuideProgramme, group: String?): String = buildString {
-    val lang = programme.language?.let { " lang=\"${xml(it)}\"" }.orEmpty()
+internal fun xmltvProgram(channelId: String, program: GuideProgram, group: String?): String = buildString {
+    val lang = program.language?.let { " lang=\"${xml(it)}\"" }.orEmpty()
     append(
-        "<programme start=\"${xmltvTime(programme.startsAt)}\" stop=\"${xmltvTime(programme.endsAt)}\" " +
+        "<programme start=\"${xmltvTime(program.startsAt)}\" stop=\"${xmltvTime(program.endsAt)}\" " +
             "channel=\"${xml(channelId)}\">",
     )
-    append("<title$lang>${xml(programme.title)}</title>")
-    programme.subTitle?.let { append("<sub-title$lang>${xml(it)}</sub-title>") }
-    programme.description?.let { append("<desc$lang>${xml(it)}</desc>") }
-    programme.date?.let { append("<date>${xml(it)}</date>") }
+    append("<title$lang>${xml(program.title)}</title>")
+    program.subTitle?.let { append("<sub-title$lang>${xml(it)}</sub-title>") }
+    program.description?.let { append("<desc$lang>${xml(it)}</desc>") }
+    program.date?.let { append("<date>${xml(it)}</date>") }
     val derived = xmltvCategories(group)
-    if (programme.categories.isEmpty()) {
+    if (program.categories.isEmpty()) {
         derived.forEach { append("<category lang=\"en\">${xml(it)}</category>") }
     } else {
-        programme.categories.sortedBy { category ->
+        program.categories.sortedBy { category ->
             PLEX_KINDS.indexOf(category.lowercase()).let {
                 if (it < 0) {
                     PLEX_KINDS.size
@@ -251,19 +251,19 @@ internal fun xmltvProgramme(channelId: String, programme: GuideProgramme, group:
         }
             .forEach { append("<category$lang>${xml(it)}</category>") }
     }
-    programme.icon?.let { append("<icon src=\"${xml(it)}\"/>") }
-    programme.episodeNumbers.forEach {
+    program.icon?.let { append("<icon src=\"${xml(it)}\"/>") }
+    program.episodeNumbers.forEach {
         append("<episode-num system=\"${xml(it.system)}\">${xml(it.value)}</episode-num>")
     }
-    val movie = derived.first() == XMLTV_MOVIE || programme.categories.any { it.equals(XMLTV_MOVIE, ignoreCase = true) }
-    if (programme.episodeNumbers.isEmpty() && !movie) {
-        append("<episode-num system=\"original-air-date\">${airDate(programme.startsAt)}</episode-num>")
+    val movie = derived.first() == XMLTV_MOVIE || program.categories.any { it.equals(XMLTV_MOVIE, ignoreCase = true) }
+    if (program.episodeNumbers.isEmpty() && !movie) {
+        append("<episode-num system=\"original-air-date\">${airDate(program.startsAt)}</episode-num>")
     }
-    programme.previouslyShown?.let { shown ->
+    program.previouslyShown?.let { shown ->
         append(shown.start?.let { "<previously-shown start=\"${xml(it)}\"/>" } ?: "<previously-shown/>")
     }
-    if (programme.isNew) append("<new/>")
-    programme.rating?.let { rating ->
+    if (program.isNew) append("<new/>")
+    program.rating?.let { rating ->
         append(rating.system?.let { "<rating system=\"${xml(it)}\">" } ?: "<rating>")
         append("<value>${xml(rating.value)}</value></rating>")
     }

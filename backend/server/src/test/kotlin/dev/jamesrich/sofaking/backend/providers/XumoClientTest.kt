@@ -133,7 +133,7 @@ class XumoClientTest {
                                     MutableClock(),
                                 ),
                             )
-                        assertTrue(client.guide(emptySet()).programmes.isEmpty())
+                        assertTrue(client.guide(emptySet()).programs.isEmpty())
                         assertEquals(
                             0,
                             fixture.hits("/v2/epg/10006/20261010/2.json"),
@@ -147,21 +147,21 @@ class XumoClientTest {
                         assertTrue(fixture.lastQuery["/v2/epg/10006/20261010/2.json"]!!.endsWith("limit=50&offset=0"))
                         assertEquals(
                             listOf("Dateline NBC", "Dateline NBC"),
-                            guide.programmes.map {
+                            guide.programs.map {
                                 it.title
                             },
                             "only the mapped channel's rows",
                         )
-                        assertEquals("2026-10-11T00:00:00Z", guide.programmes[0].startsAt.toString())
+                        assertEquals("2026-10-11T00:00:00Z", guide.programs[0].startsAt.toString())
                         assertEquals(
                             listOf(
                                 listOf(EpisodeNumber("dd_progid", "EP00019155.3073")),
                                 listOf(EpisodeNumber("dd_progid", "EP00019155.3082")),
                             ),
-                            guide.programmes.map { it.episodeNumbers },
-                            "the Gracenote asset id is the programme id",
+                            guide.programs.map { it.episodeNumbers },
+                            "the Gracenote asset id is the program id",
                         )
-                        assertTrue(guide.programmes.all { it.categories.isEmpty() }, "an episode id names no kind")
+                        assertTrue(guide.programs.all { it.categories.isEmpty() }, "an episode id names no kind")
                     }
                 }
             }

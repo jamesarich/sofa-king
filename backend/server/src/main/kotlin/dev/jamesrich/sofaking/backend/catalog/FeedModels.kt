@@ -226,7 +226,7 @@ fun httpUri(value: String): URI = URI(value).also {
 )
 fun stableId(value: String): String = java.util.UUID.nameUUIDFromBytes(value.toByteArray(Charsets.UTF_8)).toString()
 
-/** An XMLTV `<channel>`, or a channel id seen only on programmes (then [displayName] is the id). */
+/** An XMLTV `<channel>`, or a channel id seen only on programs (then [displayName] is the id). */
 data class GuideChannel(val id: String, val displayName: String, val icon: String? = null)
 
 /**
@@ -236,16 +236,16 @@ data class GuideChannel(val id: String, val displayName: String, val icon: Strin
 @Serializable data class EpisodeNumber(val system: String, val value: String)
 
 /** A content rating such as `TV-14`, with the rating system (`VCHIP`, `MPAA`) when the source names one. */
-@Serializable data class ProgrammeRating(val value: String, val system: String? = null)
+@Serializable data class ProgramRating(val value: String, val system: String? = null)
 
 /** An XMLTV `<previously-shown>`: the airing is a repeat, first shown at [start] (XMLTV time text) when known. */
 @Serializable data class PreviouslyShown(val start: String? = null)
 
 /**
- * A guide programme and the metadata its source provides. [date] is the XMLTV original date, `YYYY`, `YYYYMM` or
+ * A guide program and the metadata its source provides. [date] is the XMLTV original date, `YYYY`, `YYYYMM` or
  * `YYYYMMDD`; [language] is the language code of the title. [bounded] applies the storage caps.
  */
-data class GuideProgramme(
+data class GuideProgram(
     val channelId: String,
     val startsAt: Instant,
     val endsAt: Instant,
@@ -255,14 +255,14 @@ data class GuideProgramme(
     val episodeNumbers: List<EpisodeNumber> = emptyList(),
     val icon: String? = null,
     val categories: List<String> = emptyList(),
-    val rating: ProgrammeRating? = null,
+    val rating: ProgramRating? = null,
     val isNew: Boolean = false,
     val previouslyShown: PreviouslyShown? = null,
     val date: String? = null,
     val language: String? = null,
 ) {
-    /** This programme with every metadata field cut to what storage keeps; a field that fails its check is dropped. */
-    fun bounded(): GuideProgramme = copy(
+    /** This program with every metadata field cut to what storage keeps; a field that fails its check is dropped. */
+    fun bounded(): GuideProgram = copy(
         title = title.take(TITLE_LIMIT),
         description = description?.take(DESCRIPTION_LIMIT),
         subTitle = subTitle?.trim()?.take(TITLE_LIMIT)?.takeIf { it.isNotEmpty() && it != title },
@@ -278,7 +278,7 @@ data class GuideProgramme(
             .distinctBy { it.lowercase() }.take(CATEGORY_LIMIT),
         rating = rating?.let { r ->
             val value = r.value.trim().takeIf { it.isNotEmpty() && it.length <= RATING_LIMIT } ?: return@let null
-            ProgrammeRating(value, r.system?.trim()?.takeIf { it.isNotEmpty() && it.length <= RATING_LIMIT })
+            ProgramRating(value, r.system?.trim()?.takeIf { it.isNotEmpty() && it.length <= RATING_LIMIT })
         },
         previouslyShown = previouslyShown?.let {
             PreviouslyShown(it.start?.trim()?.takeIf { start -> start.matches(XMLTV_TIME) })

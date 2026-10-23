@@ -38,7 +38,7 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.PlaybackIntent
 import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.preview_hint
 import dev.jamesrich.sofaking.resources.preview_unavailable
@@ -46,7 +46,7 @@ import dev.jamesrich.sofaking.resources.tuning
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
-import dev.jamesrich.sofaking.ui.ProgrammeBadges
+import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.WholeLinesText
 import dev.jamesrich.sofaking.ui.appLifecycleOwner
@@ -89,11 +89,11 @@ private const val MAX_STREAM_GONE_RETUNES = 2
 internal fun showPreviewCaptions(captionsEnabled: Boolean, hasChannel: Boolean, failed: Boolean): Boolean =
     captionsEnabled && hasChannel && !failed
 
-/** Programme details for the focused cell. [live] is whether the programme is airing at [now]. */
+/** Program details for the focused cell. [live] is whether the program is airing at [now]. */
 @Composable
 internal fun PreviewDetails(
     channel: Channel?,
-    programme: Programme?,
+    program: Program?,
     live: Boolean,
     now: Instant,
     guideLoading: Boolean,
@@ -102,11 +102,11 @@ internal fun PreviewDetails(
     val timeFormat = rememberTimeFormatter()
     val secondary = MaterialTheme.colorScheme.onSurfaceVariant
     // Title, one line of details, then as much description as the band has room for in whole lines; the
-    // programme's image, when the guide has one, sits beside the text at the band's height.
+    // program's image, when the guide has one, sits beside the text at the band's height.
     Row(modifier) {
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             if (channel == null) return@Column
-            if (programme == null) {
+            if (program == null) {
                 Text(
                     channel.noListingText(guideLoading),
                     style = MaterialTheme.typography.titleMedium,
@@ -124,14 +124,14 @@ internal fun PreviewDetails(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    programme.title,
+                    program.title,
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                ProgrammeBadges(
-                    programme = programme,
+                ProgramBadges(
+                    program = program,
                     live = live,
                     fill = MaterialTheme.colorScheme.primary,
                     onFill = MaterialTheme.colorScheme.onPrimary,
@@ -141,22 +141,18 @@ internal fun PreviewDetails(
             }
             // The channel comes last: the focused row already names it, so it is the part to lose when space runs out.
             Text(
-                listOfNotNull(
-                    timeFormat.range(programme.start, programme.stop),
-                    programme.episodeLine(),
-                    channel.label(),
-                )
+                listOfNotNull(timeFormat.range(program.start, program.stop), program.episodeLine(), channel.label())
                     .joinToString(DETAIL_SEPARATOR),
                 style = MaterialTheme.typography.bodyMedium,
                 color = secondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            programme.description?.let {
+            program.description?.let {
                 WholeLinesText(it, MaterialTheme.typography.bodySmall, Modifier.fillMaxWidth().weight(1f))
             }
         }
-        programme?.icon?.let {
+        program?.icon?.let {
             AsyncImage(
                 model = it,
                 contentDescription = null,
@@ -169,7 +165,7 @@ internal fun PreviewDetails(
     }
 }
 
-/** The programme image beside the details: 16:9, as tall as the text column under the chips. */
+/** The program image beside the details: 16:9, as tall as the text column under the chips. */
 private val DETAIL_IMAGE_WIDTH = 160.dp
 private val DETAIL_IMAGE_HEIGHT = 90.dp
 

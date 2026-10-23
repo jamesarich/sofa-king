@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.time.Duration
 import java.time.Instant
@@ -30,30 +30,30 @@ class WhaleClient(private val context: ProviderContext) : ProviderClient {
         val index = channels.map { GuideChannel(it.channel.id, it.channel.name, it.channel.logo) }
         val ids = channels.map { it.channel.id }.filter { it in wanted }
         val now = context.clock.instant()
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         for (batch in ids.chunked(EPG_BATCH)) {
             val url = "$epgUrl?channelIds=${batch.joinToString(",")}&startTime=${now.toEpochMilli()}&" +
                 "endTime=${now.plus(EPG_HORIZON).toEpochMilli()}&langCode=en&countryCode=US"
             val data = authorized { token -> context.http.get(url, HEADERS + ("token" to token)) }.json()["data"].array
             for (row in data) {
                 val channelId = row.str("chlId") ?: continue
-                for (programme in row["ptList"].array) {
-                    val start = programme["prgStm"].long ?: continue
-                    val end = programme["prgEtm"].long ?: continue
-                    val title = programme.str("prgTitle") ?: continue
+                for (program in row["ptList"].array) {
+                    val start = program["prgStm"].long ?: continue
+                    val end = program["prgEtm"].long ?: continue
+                    val title = program.str("prgTitle") ?: continue
                     if (end <= start) continue
-                    programmes +=
-                        GuideProgramme(
+                    programs +=
+                        GuideProgram(
                             channelId,
                             Instant.ofEpochMilli(start),
                             Instant.ofEpochMilli(end),
                             title,
-                            programme.str("prgDesc"),
+                            program.str("prgDesc"),
                         )
                 }
             }
         }
-        return ParsedGuide(index, programmes)
+        return ParsedGuide(index, programs)
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {

@@ -48,7 +48,7 @@ class BuildInput(
     val now: Instant,
     /** Offerings that count as verified without a probe: the enabled lineup a first policy run replaces. */
     val seedVerified: Set<String> = emptySet(),
-    /** Whether a guide holds programmes ahead for a channel; a station prefers a covered guide over an empty one. */
+    /** Whether a guide holds programs ahead for a channel; a station prefers a covered guide over an empty one. */
     val guideCovered: (GuideMapping) -> Boolean = { true },
 )
 
@@ -566,7 +566,7 @@ object StationBuilder {
                 draft.key in autoOff -> "unavailable"
                 else -> null
             }
-            // The first guide that has programmes ahead, else the first that lists the station at all.
+            // The first guide that has programs ahead, else the first that lists the station at all.
             val guides = if (override?.guide != null) emptyList() else guidesFor(draft.sources, input)
             PolicyStation(
                 id = override?.id?.lowercase() ?: stationId(draft.key),

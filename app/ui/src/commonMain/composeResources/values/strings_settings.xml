@@ -82,6 +82,17 @@
     <string name="settings_auto_skip_intros">Skip intros automatically</string>
     <string name="settings_hide_spoilers">Hide spoilers</string>
     <string name="settings_hide_spoilers_help">Episodes you have not started keep their summaries back and blur their pictures.</string>
+    <string name="settings_subtitle_size">Subtitle size</string>
+    <string name="settings_subtitle_size_small">Small</string>
+    <string name="settings_subtitle_size_medium">Medium</string>
+    <string name="settings_subtitle_size_large">Large</string>
+    <string name="settings_subtitle_look_help">For movies and shows from the library. Live TV and recordings follow the caption style below.</string>
+    <string name="settings_subtitle_raise">Subtitle position</string>
+    <string name="settings_subtitle_raise_none">Bottom</string>
+    <string name="settings_subtitle_raise_low">Raised</string>
+    <string name="settings_subtitle_raise_high">Higher</string>
+    <string name="settings_subtitle_box">Subtitle background</string>
+    <string name="settings_subtitle_box_help">A dark box behind the subtitles. Off, they are white with a shadow.</string>
     <string name="settings_auto_skip_intros_help">Skip intro counts down 5 seconds and then skips; any key stops it. Off, an intro waits for a press.</string>
     <string name="settings_match_frame_rate">Match frame rate</string>
     <string name="settings_match_frame_rate_help">Switches the display to the stream's frame rate while it plays. Some TVs show a black screen for a moment at each switch.</string>

@@ -74,6 +74,6 @@ class BackgroundTest {
         }
         started.await()
         job.cancelAndJoin()
-        assertFalse(carriedOn, "a cancelled caller does not continue past the call")
+        assertFalse(carriedOn, "a canceled caller does not continue past the call")
     }
 }

@@ -19,9 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.jamesrich.sofaking.data.SubtitleLook
+import dev.jamesrich.sofaking.data.SubtitleRaise
 import dev.jamesrich.sofaking.data.Subtitles
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.stream_card_audio
@@ -202,16 +207,36 @@ internal fun BoxScope.TracksCard(
     }
 }
 
-/** The subtitle on screen, centered [bottom] above the bottom edge's overscan. */
+/**
+ * The subtitle on screen, centered [bottom] above the bottom edge's overscan, at [look]'s size; on its box, or
+ * without one in white with a shadow, so it reads over a light picture too.
+ */
 @Composable
-internal fun BoxScope.SubtitleText(text: String, bottom: Dp) {
+internal fun BoxScope.SubtitleText(text: String, bottom: Dp, look: SubtitleLook = SubtitleLook()) {
+    val base = MaterialTheme.typography.headlineSmall
+    val style = base.copy(
+        fontSize = base.fontSize * look.size.scale,
+        lineHeight = base.lineHeight * look.size.scale,
+        shadow = if (look.box) null else SUBTITLE_SHADOW,
+    )
+    val surface = if (look.box) Modifier.background(SofaOverlayScrim, OverlayShape) else Modifier
     Box(Modifier.align(Alignment.BottomCenter).screenPadding().padding(bottom = bottom)) {
         Text(
             text,
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
+            style = style,
+            color = if (look.box) MaterialTheme.colorScheme.onSurface else Color.White,
             textAlign = TextAlign.Center,
-            modifier = Modifier.background(SofaOverlayScrim, OverlayShape).padding(horizontal = 16.dp, vertical = 6.dp),
+            modifier = surface.padding(horizontal = 16.dp, vertical = 6.dp),
         )
     }
 }
+
+/** How far above the bottom [SubtitleRaise] lifts a library item's subtitles, past the usual gap. */
+internal val SubtitleRaise.height: Dp
+    get() = when (this) {
+        SubtitleRaise.NONE -> 0.dp
+        SubtitleRaise.LOW -> 72.dp
+        SubtitleRaise.HIGH -> 156.dp
+    }
+
+private val SUBTITLE_SHADOW = Shadow(Color.Black, Offset(2f, 2f), blurRadius = 6f)

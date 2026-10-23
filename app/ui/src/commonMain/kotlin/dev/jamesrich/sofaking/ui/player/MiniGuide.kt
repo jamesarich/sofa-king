@@ -45,7 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.resources.Res
 import dev.jamesrich.sofaking.resources.filter_all
 import dev.jamesrich.sofaking.resources.filter_favorites
@@ -160,10 +160,10 @@ internal fun BoxScope.MiniGuide(
                 ) {
                     items(rows.size, key = { rows[it].key }) { position ->
                         val row = rows[position]
-                        val (programme, next) = lineup.nowAndNext(row.channel, now)
+                        val (program, next) = lineup.nowAndNext(row.channel, now)
                         MiniGuideRowItem(
                             row = row,
-                            programme = programme,
+                            program = program,
                             nextLine = next?.let {
                                 stringResource(Res.string.mini_guide_next, it.title, timeFormat.format(it.start))
                             },
@@ -193,7 +193,7 @@ private val RowShape = RoundedCornerShape(8.dp)
 @Composable
 private fun MiniGuideRowItem(
     row: MiniGuideRow,
-    programme: Programme?,
+    program: Program?,
     nextLine: String?,
     guideLoading: Boolean,
     now: Instant,
@@ -247,15 +247,15 @@ private fun MiniGuideRowItem(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                programme?.title ?: channel.noListingText(guideLoading),
+                program?.title ?: channel.noListingText(guideLoading),
                 style = MaterialTheme.typography.bodyMedium,
                 color = secondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (programme != null) {
+            if (program != null) {
                 Spacer(Modifier.height(4.dp))
-                ProgressBar(programmeProgress(programme.start, programme.stop, now), color = primary)
+                ProgressBar(programProgress(program.start, program.stop, now), color = primary)
             }
             if (nextLine != null) {
                 Text(

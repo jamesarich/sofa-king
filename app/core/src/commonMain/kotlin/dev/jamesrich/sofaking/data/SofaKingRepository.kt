@@ -12,8 +12,8 @@ import kotlinx.coroutines.withContext
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-/** A loaded guide: programmes by channel, and the requested channels the server said have left the lineup. */
-data class GuideLoad(val programmes: Map<String, List<Programme>>, val removed: Set<String>)
+/** A loaded guide: programs by channel, and the requested channels the server said have left the lineup. */
+data class GuideLoad(val programs: Map<String, List<Program>>, val removed: Set<String>)
 
 /**
  * The lineup from a Sofa King server. The catalog is fetched with its ETag, so an unchanged lineup costs one
@@ -45,7 +45,7 @@ class SofaKingRepository(
     }
 
     /**
-     * Programmes for [channels] over the guide window starting at [from] (the one that contains now unless the
+     * Programs for [channels] over the guide window starting at [from] (the one that contains now unless the
      * guide asked for a later day). Chunks share one catalog revision; a revision that moves
      * under them restarts without one.
      */
@@ -75,10 +75,10 @@ class SofaKingRepository(
             }.awaitAll()
         }
         return withContext(background) {
-            val guide = HashMap<String, List<Programme>>()
+            val guide = HashMap<String, List<Program>>()
             val removed = HashSet<String>()
             for (window in listOf(first) + rest) {
-                guide += SofaKingMapper.programmes(window)
+                guide += SofaKingMapper.programs(window)
                 removed += SofaKingMapper.removed(window)
             }
             GuideLoad(guide, removed)

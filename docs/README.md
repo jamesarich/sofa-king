@@ -20,7 +20,7 @@ Terms both parts use. Each part's docs index defines the rest.
 | Channel, lineup entry | One entry in the lineup: its number, name, group, logo, guide mapping and sources, under a stable ID. The API's channel ID is the lineup entry ID |
 | Group, tag | A channel's lineup group, such as News. The API sends it in the channel's `tags`, and the app shows each as a filter chip |
 | Guide | In the app, the grid of channels and their programs over 24 hours. In the server's docs, an XMLTV source of programs that the server imports, which the app's docs call a guide source |
-| Program | One scheduled show. XMLTV and the API call it a programme |
+| Program | One scheduled show. XMLTV calls it a programme |
 | Playback session | The server's lease on one live stream, opened as a preview or a watch. The app holds one at a time and promotes its preview to watch when the channel goes full screen |
 | Recording | One program the server records from a channel into the recordings folder, scheduled by hand or by a series rule |
 | Media library | A folder of movies, TV shows or other videos under the server's media folder or its recordings folder, which the server scans. Its movies, shows, seasons, episodes and videos are library items |

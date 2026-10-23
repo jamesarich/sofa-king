@@ -8,7 +8,7 @@ import dev.jamesrich.sofaking.backend.catalog.FeedConfig
 import dev.jamesrich.sofaking.backend.catalog.FeedService
 import dev.jamesrich.sofaking.backend.catalog.Fixture
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.GuideService
 import dev.jamesrich.sofaking.backend.catalog.LineupService
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
@@ -80,11 +80,11 @@ private class FakeClient(private val base: String, private val clock: MutableClo
             wanted
         ) {
             listOf(
-                GuideProgramme(
+                GuideProgram(
                     "one",
                     Instant.parse("2026-10-10T12:00:00Z"),
                     Instant.parse("2026-10-10T14:00:00Z"),
-                    "Native programme",
+                    "Native program",
                 ),
             )
         } else {
@@ -179,7 +179,7 @@ class NativeFeedTest {
                     val window = runtime.catalog.guide(
                         GuideQuery(listOf(entry.id), "2026-10-10T12:00:00Z", "2026-10-10T13:00:00Z"),
                     )
-                    assertEquals("Native programme", window.channels.single().programmes.single().title)
+                    assertEquals("Native program", window.channels.single().programs.single().title)
 
                     application { backendModule(runtime.store, clock, runtime, token) }
                     val session = Json.decodeFromString<PlaybackSession>(

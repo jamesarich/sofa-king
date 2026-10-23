@@ -81,7 +81,7 @@ class CommercialsTest {
         }
     }
 
-    @Test fun `a run past the timeout fails that scan rather than cancelling its caller, and leaves no process`() =
+    @Test fun `a run past the timeout fails that scan rather than canceling its caller, and leaves no process`() =
         runBlocking<Unit> {
             val dir = Files.createTempDirectory("sofa-comskip-slow-")
             try {
@@ -114,7 +114,7 @@ class CommercialsTest {
         }
 
     /**
-     * Real Comskip on a programme, three 30-second ads between black frames, and the programme
+     * Real Comskip on a program, three 30-second ads between black frames, and the program
      * again; skipped without Comskip.
      */
     @Test fun `Comskip finds the ad block in a generated recording`() = runBlocking<Unit> {

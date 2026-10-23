@@ -99,7 +99,7 @@ class VizioClientTest {
                                     clock,
                                 ),
                             )
-                        assertTrue(client.guide(emptySet()).programmes.isEmpty())
+                        assertTrue(client.guide(emptySet()).programs.isEmpty())
                         assertEquals(0, fixture.hits("/api/airings/"), "nothing mapped, nothing fetched")
                         val guide = client.guide(setOf("93FoxNewsNow"))
                         assertEquals(2, guide.channels.size)
@@ -112,12 +112,14 @@ class VizioClientTest {
                             ),
                             query,
                         )
-                        assertEquals(2, guide.programmes.size, "the airing of an unknown station is dropped")
+                        assertEquals(2, guide.programs.size, "the airing of an unknown station is dropped")
                         assertTrue(
-                            guide.programmes.all { it.channelId == "93FoxNewsNow" && it.title == "LiveNOW from FOX" },
+                            guide.programs.all {
+                                it.channelId == "93FoxNewsNow" && it.title == "LiveNOW from FOX"
+                            },
                         )
-                        assertEquals("2026-10-11T02:00:00Z", guide.programmes.first().startsAt.toString())
-                        val first = guide.programmes.first()
+                        assertEquals("2026-10-11T02:00:00Z", guide.programs.first().startsAt.toString())
+                        val first = guide.programs.first()
                         assertNull(first.subTitle, "a sub-title equal to the title says nothing")
                         assertTrue(first.episodeNumbers.isEmpty(), "season and episode 0 mean unnumbered")
                         assertEquals(
@@ -151,7 +153,7 @@ class VizioClientTest {
                                     MutableClock(),
                                 ),
                             )
-                        val (episode, special) = client.guide(setOf("93FoxNewsNow")).programmes
+                        val (episode, special) = client.guide(setOf("93FoxNewsNow")).programs
                         assertEquals("Sample Series", episode.title)
                         assertEquals("The Sample Episode", episode.subTitle)
                         assertEquals("Something happens.", episode.description)

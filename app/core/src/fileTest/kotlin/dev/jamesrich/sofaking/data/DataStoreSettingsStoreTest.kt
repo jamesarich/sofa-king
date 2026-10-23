@@ -171,6 +171,18 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
+    fun `library subtitles start medium at the bottom on a box and keep what is chosen`() = runTest {
+        val store = newStore()
+        assertEquals(
+            SubtitleLook(SubtitleSize.MEDIUM, SubtitleRaise.NONE, box = true),
+            store.settings.first().subtitleLook,
+        )
+        val chosen = SubtitleLook(SubtitleSize.LARGE, SubtitleRaise.HIGH, box = false)
+        store.setSubtitleLook(chosen)
+        assertEquals(chosen, store.settings.first().subtitleLook)
+    }
+
+    @Test
     fun `live ad breaks play until the break screen is chosen`() = runTest {
         val store = newStore()
         assertEquals(LiveBreaks.PLAY, store.settings.first().liveBreaks)
@@ -327,7 +339,7 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
-    fun `an unrecognised stored caption style falls back to system`() = runTest {
+    fun `an unrecognized stored caption style falls back to system`() = runTest {
         dataStore.edit { it[stringPreferencesKey("caption_style")] = "NO_SUCH_STYLE" }
 
         assertEquals(CaptionStyle.SYSTEM, newStore().settings.first().captionStyle)
@@ -345,7 +357,7 @@ class DataStoreSettingsStoreTest {
     }
 
     @Test
-    fun `an unrecognised stored auto open delay falls back to ten seconds`() = runTest {
+    fun `an unrecognized stored auto open delay falls back to ten seconds`() = runTest {
         dataStore.edit { it[stringPreferencesKey("auto_open_delay")] = "NO_SUCH_DELAY" }
 
         assertEquals(AutoOpenDelay.AFTER_10_SECONDS, newStore().settings.first().autoOpenDelay)

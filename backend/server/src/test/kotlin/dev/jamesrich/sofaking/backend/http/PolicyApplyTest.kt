@@ -437,7 +437,7 @@ class PolicyApplyTest {
             ) {
                 for (guide in runtime.guides.configs) runtime.guides.refresh(guide)
                 val first = runtime.policy!!.apply("test")
-                assertTrue(first.learned.isEmpty(), "no programmes are kept before the lineup maps the guides")
+                assertTrue(first.learned.isEmpty(), "no programs are kept before the lineup maps the guides")
                 assertEquals(
                     listOf("learnshowtv: possible alias of learnshow", "nflnetwork: possible alias of nflchannel"),
                     first.suggestedAliases,

@@ -19,10 +19,10 @@ class SofaKingMapperTest {
 
     private fun guide(vararg channels: ChannelGuideDto) = GuideWindowDto("r1", channels = channels.toList())
 
-    private fun channelGuide(id: String, vararg programmes: ProgrammeDto) =
-        ChannelGuideDto(id, programmes = programmes.toList())
+    private fun channelGuide(id: String, vararg programs: ProgramDto) =
+        ChannelGuideDto(id, programs = programs.toList())
 
-    private fun programme(
+    private fun program(
         startsAt: String,
         endsAt: String,
         title: String,
@@ -33,7 +33,7 @@ class SofaKingMapperTest {
         rating: String? = null,
         icon: String? = null,
         categories: List<String> = emptyList(),
-    ) = ProgrammeDto(
+    ) = ProgramDto(
         startsAt = startsAt, endsAt = endsAt, title = title, description = description,
         subTitle = subTitle, episode = episode, isNew = isNew, rating = rating, icon = icon, categories = categories,
     )
@@ -90,29 +90,29 @@ class SofaKingMapperTest {
     }
 
     @Test
-    fun `programmes are grouped by channel sorted by start and read their description`() {
+    fun `programs are grouped by channel sorted by start and read their description`() {
         val window = guide(
             channelGuide(
                 "a",
-                programme("2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Later", description = "Second"),
-                programme("2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Earlier", description = " "),
+                program("2026-10-10T11:00:00Z", "2026-10-10T12:00:00Z", "Later", description = "Second"),
+                program("2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Earlier", description = " "),
             ),
             channelGuide("b"),
         )
 
-        val guide = SofaKingMapper.programmes(window)
+        val guide = SofaKingMapper.programs(window)
 
         assertEquals(setOf("a"), guide.keys)
         assertEquals(
             listOf(
-                Programme(
+                Program(
                     "a",
                     Instant.parse("2026-10-10T10:00:00Z"),
                     Instant.parse("2026-10-10T11:00:00Z"),
                     "Earlier",
                     null,
                 ),
-                Programme(
+                Program(
                     "a",
                     Instant.parse("2026-10-10T11:00:00Z"),
                     Instant.parse("2026-10-10T12:00:00Z"),
@@ -125,37 +125,37 @@ class SofaKingMapperTest {
     }
 
     @Test
-    fun `programmes with unreadable times or no duration are dropped`() {
+    fun `programs with unreadable times or no duration are dropped`() {
         val window = guide(
             channelGuide(
                 "a",
-                programme("not a time", "2026-10-10T12:00:00Z", "Bad start"),
-                programme("2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Zero length"),
-                programme("2026-10-10T11:00:00Z", "2026-10-10T10:00:00Z", "Backwards"),
-                programme("2026-10-10T11:00:00Z", "2026-10-10T11:30:00Z", "Kept"),
+                program("not a time", "2026-10-10T12:00:00Z", "Bad start"),
+                program("2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Zero length"),
+                program("2026-10-10T11:00:00Z", "2026-10-10T10:00:00Z", "Backwards"),
+                program("2026-10-10T11:00:00Z", "2026-10-10T11:30:00Z", "Kept"),
             ),
-            channelGuide("b", programme("2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Only bad")),
+            channelGuide("b", program("2026-10-10T11:00:00Z", "2026-10-10T11:00:00Z", "Only bad")),
         )
 
-        val guide = SofaKingMapper.programmes(window)
+        val guide = SofaKingMapper.programs(window)
 
         assertEquals(listOf("Kept"), guide["a"]?.map { it.title })
         assertNull(guide["b"], "a channel with nothing valid has no entry")
     }
 
     @Test
-    fun `programme metadata is read and blank values read as none`() {
+    fun `program metadata is read and blank values read as none`() {
         val window = guide(
             channelGuide(
                 "a",
-                programme(
+                program(
                     "2026-10-10T10:00:00Z", "2026-10-10T11:00:00Z", "Show",
                     subTitle = " The Pilot ", episode = "S1 E1", isNew = true, rating = "TV-PG",
                     icon = "https://img/" +
                         "x.jpg",
                     categories = listOf("Feature Film", "Drama", "Children"),
                 ),
-                programme(
+                program(
                     "2026-10-10T11:00:00Z",
                     "2026-10-10T12:00:00Z",
                     "Plain",
@@ -166,7 +166,7 @@ class SofaKingMapperTest {
             ),
         )
 
-        val (show, plain) = SofaKingMapper.programmes(window).getValue("a")
+        val (show, plain) = SofaKingMapper.programs(window).getValue("a")
 
         assertEquals(
             listOf("The Pilot", "S1 E1", "TV-PG", "https://img/x.jpg"),

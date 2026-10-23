@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.ui.guide
 
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Instant
@@ -9,13 +9,7 @@ import kotlin.time.Instant
 class GuideListItemsTest {
     private fun channel(id: String) = Channel(id, id.toDouble(), "Ch $id", null, listOf("News"))
     private val later =
-        Programme(
-            "101",
-            Instant.parse("2026-10-12T20:00:00Z"),
-            Instant.parse("2026-10-12T21:00:00Z"),
-            "Late Show",
-            null,
-        )
+        Program("101", Instant.parse("2026-10-12T20:00:00Z"), Instant.parse("2026-10-12T21:00:00Z"), "Late Show", null)
     private val channels = listOf(channel("100"), channel("101"), channel("102"))
 
     @Test

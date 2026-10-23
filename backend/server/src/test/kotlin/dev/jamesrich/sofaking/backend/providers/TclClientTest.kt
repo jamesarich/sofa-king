@@ -37,7 +37,7 @@ class TclClientTest {
     }
 
     @Test
-    fun `lists channels from the themed rows first and keeps their programmes for the guide`() = runBlocking<Unit> {
+    fun `lists channels from the themed rows first and keeps their programs for the guide`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-tcl-")
         try {
             ProviderFixture().use { fixture ->
@@ -79,11 +79,11 @@ class TclClientTest {
                         assertEquals(3, guide.channels.size)
                         assertEquals(
                             listOf("Dateline NBC S27 E26", "Dateline NBC S27 E35"),
-                            guide.programmes.map {
+                            guide.programs.map {
                                 it.title
                             },
                         )
-                        assertTrue(guide.programmes.all { it.channelId == "XU233757" })
+                        assertTrue(guide.programs.all { it.channelId == "XU233757" })
                         assertEquals(
                             2,
                             fixture.hits("/api/metadata/v1/epg/programlist/by/category"),

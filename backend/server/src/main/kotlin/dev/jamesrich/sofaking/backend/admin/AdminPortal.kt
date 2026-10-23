@@ -1032,7 +1032,7 @@ class AdminPortal(
         return ViewersView(runtime.store.viewers(), runtime.pairing.current()?.let { PairingView(it, base) }, base)
     }
 
-    /** The pinned colour scheme from the cookie, or null to follow the device. */
+    /** The pinned color scheme from the cookie, or null to follow the device. */
     private fun theme(call: ApplicationCall): String? = call.request.cookies[THEME_COOKIE]?.takeIf { it in THEMES }
 
     private fun eventsView(parameters: Parameters): EventsView {
@@ -1607,7 +1607,7 @@ class AdminPortal(
         }
     }
 
-    /** The live sessions with their channel's name and the programme it airs now, read once per guide. */
+    /** The live sessions with their channel's name and the program it airs now, read once per guide. */
     private suspend fun sessionRows(now: Instant): List<SessionRow> {
         val active = runtime.sessions.snapshot()
         if (active.isEmpty()) return emptyList()
@@ -1619,8 +1619,8 @@ class AdminPortal(
                     it.channelId
             }
         }.groupBy({ it.first }, { it.second })) {
-            for ((channelId, programmes) in runtime.guides.programmes(guideId, group, now, now.plusSeconds(1))) {
-                programmes.firstOrNull()?.let { onNow["$guideId/$channelId"] = it.title }
+            for ((channelId, programs) in runtime.guides.programs(guideId, group, now, now.plusSeconds(1))) {
+                programs.firstOrNull()?.let { onNow["$guideId/$channelId"] = it.title }
             }
         }
         return active.map { session ->

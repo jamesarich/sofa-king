@@ -44,7 +44,7 @@ class HdHomeRunClientTest {
                   <programme start="20261010120000 +0000" stop="20261010123000 +0000" channel="10AFFFFF-5.1"><title>Ended</title></programme>
                   <programme start="20261010123000 +0000" stop="20261010133000 +0000" channel="10AFFFFF-5.1"><title>Local News</title><desc>Noon news.</desc></programme>
                   <programme start="20261010130000 +0000" stop="20261010140000 +0000" channel="10AFFFFF-5.2"><title>Perry Mason</title></programme>
-                  <programme start="20261010130000 +0000" stop="20261010140000 +0000" channel="10AFFFFF-8.1"><title>DRM programme</title></programme>
+                  <programme start="20261010130000 +0000" stop="20261010140000 +0000" channel="10AFFFFF-8.1"><title>DRM program</title></programme>
                 </tv>
                     """.trimIndent(),
                     contentType = "application/xml",
@@ -179,20 +179,20 @@ class HdHomeRunClientTest {
                                 },
                                 "the index is the lineup, not the XMLTV's ids",
                             )
-                            assertTrue(index.programmes.isEmpty())
+                            assertTrue(index.programs.isEmpty())
                             val guide = client.guide(setOf("5.1", "8.1"))
                             assertEquals(
                                 listOf("Local News"),
-                                guide.programmes.map {
+                                guide.programs.map {
                                     it.title
                                 },
-                                "ended programmes, unmapped channels and DRM channels are dropped",
+                                "ended programs, unmapped channels and DRM channels are dropped",
                             )
-                            assertEquals("5.1", guide.programmes[0].channelId)
-                            assertEquals("Noon news.", guide.programmes[0].description)
+                            assertEquals("5.1", guide.programs[0].channelId)
+                            assertEquals("Noon news.", guide.programs[0].description)
                             assertEquals(
                                 listOf("Perry Mason"),
-                                client.guide(setOf("5.2")).programmes.map {
+                                client.guide(setOf("5.2")).programs.map {
                                     it.title
                                 },
                                 "a channel matched by display name maps too",

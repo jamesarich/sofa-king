@@ -29,6 +29,7 @@ import org.jetbrains.skia.ImageInfo
 import org.jetbrains.skia.Pixmap
 import org.jetbrains.skia.impl.BufferUtil
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
+import uk.co.caprica.vlcj.factory.discovery.NativeDiscovery
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import uk.co.caprica.vlcj.media.TrackType
@@ -47,34 +48,55 @@ import androidx.compose.ui.draw.clipToBounds
 private val log = Logger.withTag("SofaKing")
 
 /**
- * Makes the desktop player. Tests that run the whole app swap in one without libVLC: where it is not installed, its
- * discovery walks the library directories on the UI thread, which on a CI runner takes many minutes.
+ * Makes the desktop player. Tests that run the whole app swap in one without libVLC, since where it is not installed
+ * its discovery walks the library directories, which on a CI runner takes many minutes.
  */
-internal var newDesktopLivePlayer: (CaptionSync) -> LivePlayer = ::VlcLivePlayer
+internal var newDesktopLivePlayer: (CaptionSync) -> LivePlayer = { VlcLivePlayer(it) }
 
 @Composable
 actual fun rememberLivePlayer(captionSync: CaptionSync): LivePlayer {
-    val player = remember(captionSync) {
-        try {
-            newDesktopLivePlayer(captionSync)
-        } catch (e: Throwable) {
-            // libVLC is a system install on desktops; without it every tune fails with a clear code.
-            log.w(e) { "libVLC not found; playback is unavailable" }
-            UnavailableLivePlayer(captionSync, code = "VLC_NOT_INSTALLED")
-        }
-    }
+    val player = remember(captionSync) { newDesktopLivePlayer(captionSync) }
     DisposableEffect(player) { onDispose { player.release() } }
     return player
+}
+
+/**
+ * Whether vlcj's discovery found libVLC, looked for once per process: vlcj remembers only a find, so where libVLC is
+ * missing every player would walk the library directories again.
+ */
+private val libVlcDiscovered: Boolean by lazy { NativeDiscovery().discover() }
+
+/**
+ * libVLC's factory for one player. Discovery only adds the directory it found to the search path, so without a find
+ * the system's loader still gets its try; where neither finds libVLC, this throws.
+ */
+private fun newVlcFactory(): MediaPlayerFactory {
+    libVlcDiscovered
+    return MediaPlayerFactory(null as NativeDiscovery?, "--no-video-title-show", "--network-caching=1500", "--quiet")
 }
 
 /**
  * The desktop player on libVLC, which plays the relay's MPEG-TS and HLS alike and draws the stream's CEA-608
  * captions into the picture itself. Frames arrive as BGRA buffers and are copied into a Skia bitmap, so Compose
  * draws overlays above the video as on every other platform. libVLC demuxes by content; it has no MIME hint.
+ *
+ * libVLC is found and loaded by [openVlc] on the command thread, not the UI's: where it is not installed, the search
+ * takes seconds on a desktop and many minutes on a CI runner. Without it, every prepare fails with `VLC_NOT_INSTALLED`,
+ * so the screens show their failure cards and the rest of the app works.
  */
-internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLivePlayer() {
-    private val factory = MediaPlayerFactory("--no-video-title-show", "--network-caching=1500", "--quiet")
-    private val vlc: EmbeddedMediaPlayer = factory.mediaPlayers().newEmbeddedMediaPlayer()
+internal class VlcLivePlayer(
+    override val captionSync: CaptionSync,
+    private val openVlc: () -> MediaPlayerFactory = ::newVlcFactory,
+) : StreamLivePlayer() {
+    /** Set by the first command, if libVLC loads; read on any thread, so the getters below answer before it does. */
+    @Volatile
+    private var factory: MediaPlayerFactory? = null
+
+    @Volatile
+    private var player: EmbeddedMediaPlayer? = null
+
+    /** The player, inside [command]s, which run only once it exists. */
+    private val vlc: EmbeddedMediaPlayer get() = checkNotNull(player)
 
     /**
      * libVLC's stop and release block until its input thread ends, hundreds of milliseconds on a stalled stream,
@@ -84,10 +106,13 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
     private val commands = Executors.newSingleThreadExecutor { task -> Thread(task, "libvlc-commands").apply { isDaemon = true } }
 
     /**
-     * Queues [task] on [commands]. Once [release] has shut the queue, a libVLC event still on its way or a late call
-     * from the UI has nothing left to command, so it is dropped rather than thrown on libVLC's or the UI's thread.
+     * Queues [task] on [commands], to run if libVLC loaded. Once [release] has shut the queue, a libVLC event still on
+     * its way or a late call from the UI has nothing left to command, so it is dropped rather than thrown on libVLC's
+     * or the UI's thread.
      */
-    private fun command(task: () -> Unit) {
+    private fun command(task: () -> Unit) = execute { if (player != null) task() }
+
+    private fun execute(task: () -> Unit) {
         try {
             commands.execute(task)
         } catch (_: RejectedExecutionException) {
@@ -125,14 +150,25 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
     private var hasFrame by mutableStateOf(false)
 
     init {
-        vlc.videoSurface().set(factory.videoSurfaces().newVideoSurface(Formats(), Frames(), true))
-        vlc.events().addMediaPlayerEventListener(Events())
+        execute {
+            try {
+                val factory = openVlc()
+                this.factory = factory
+                val vlc = factory.mediaPlayers().newEmbeddedMediaPlayer()
+                vlc.videoSurface().set(factory.videoSurfaces().newVideoSurface(Formats(), Frames(), true))
+                vlc.events().addMediaPlayerEventListener(Events())
+                player = vlc
+            } catch (e: Throwable) {
+                // libVLC is a system install on desktops; without it every tune fails with a clear code.
+                log.w(e) { "libVLC not found; playback is unavailable" }
+            }
+        }
     }
 
     override val bufferedMs: Long get() = 0L
     /** libVLC renders captions itself and reports no buffer depth, so there is nothing to lead. */
     override val supportsCaptionLead: Boolean = false
-    override val hasTextTrack: Boolean get() = vlc.subpictures().trackCount() > 0
+    override val hasTextTrack: Boolean get() = (player?.subpictures()?.trackCount() ?: 0) > 0
 
     /** Set again as each audio stream starts, from [Events.audioDeviceChanged]. */
     @Volatile
@@ -171,7 +207,7 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
 
     /** libVLC describes the tracks of the media it has opened; nothing before the first frame. */
     override fun streamInfo(): StreamInfo {
-        val info = vlc.media().info() ?: return StreamInfo()
+        val info = player?.media()?.info() ?: return StreamInfo()
         val video = info.videoTracks().firstOrNull()
         val audio = info.audioTracks().firstOrNull()
         return StreamInfo(
@@ -197,7 +233,13 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
         _status.update { it.copy(state = PlaybackState.BUFFERING) }
         val start = playWhenReady
         val opening = generation.incrementAndGet()
-        command {
+        execute {
+            if (player == null) {
+                if (generation.get() != opening) return@execute
+                _status.update { it.copy(state = PlaybackState.IDLE, isPlaying = false) }
+                _errors.tryEmit(PlayerError(VLC_NOT_INSTALLED))
+                return@execute
+            }
             opened = opening
             if (start) vlc.media().play(url) else vlc.media().startPaused(url)
         }
@@ -221,11 +263,11 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
         deepColor = listOf("h264", "hevc", "vp9", "av1"),
     )
 
-    override val isSeekable: Boolean get() = stream?.seekable == true && vlc.status().isSeekable
+    override val isSeekable: Boolean get() = stream?.seekable == true && player?.status()?.isSeekable == true
 
-    override val positionMs: Long get() = if (isSeekable) vlc.status().time().coerceAtLeast(0L) else 0L
+    override val positionMs: Long get() = if (isSeekable) player?.status()?.time()?.coerceAtLeast(0L) ?: 0L else 0L
 
-    override val durationMs: Long? get() = vlc.status().length().takeIf { isSeekable && it > 0L }
+    override val durationMs: Long? get() = player?.status()?.length()?.takeIf { isSeekable && it > 0L }
 
     /**
      * libVLC reports no buffer depth, but it holds a live HLS stream its live delay behind the newest segment, which
@@ -264,9 +306,9 @@ internal class VlcLivePlayer(override val captionSync: CaptionSync) : StreamLive
 
     override fun release() {
         // After the player is released no frame can arrive, so the bitmaps go on the same thread, after it.
-        commands.execute {
-            vlc.release()
-            factory.release()
+        execute {
+            player?.release()
+            factory?.release()
             synchronized(frameLock) {
                 image = null
                 front?.close()
@@ -406,6 +448,9 @@ internal object NoMediaSession : MediaSessionHandle {
 
     override fun close() = Unit
 }
+
+/** The code a desktop without libVLC fails every tune with; the failure card tells the viewer to install VLC. */
+internal const val VLC_NOT_INSTALLED = "VLC_NOT_INSTALLED"
 
 /** libVLC's default `adaptive-livedelay`: how far behind the newest segment of a live HLS playlist it plays. */
 private const val VLC_LIVE_DELAY_MS = 15_000L

@@ -191,6 +191,12 @@ jobs:
           cd tvosApp
           xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -configuration Debug -destination "id=$device" \
             CODE_SIGNING_ALLOWED=NO -resultBundlePath "../build/tvos-ui/RemoteTests.xcresult" test
+      # A failure's screenshots, as PNG files beside the result bundle in the artifact.
+      - name: Export the remote tests' screenshots
+        if: failure()
+        run: >-
+          [ ! -d build/tvos-ui/RemoteTests.xcresult ] ||
+          xcrun xcresulttool export attachments --path build/tvos-ui/RemoteTests.xcresult --output-path build/tvos-ui/attachments
       # A restored older distribution would otherwise be saved again under the new key, and the entry would grow.
       - name: Keep only the current Kotlin/Native distribution
         if: github.ref == 'refs/heads/main'

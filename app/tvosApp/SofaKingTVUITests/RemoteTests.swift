@@ -7,6 +7,9 @@ import XCTest
 final class RemoteTests: XCTestCase {
     /// The app under test, made fresh by each test's launch.
     private var app: XCUIApplication!
+    /// The fixture server, counting only the sessions this launch opened: a test that stopped with the player up
+    /// leaves its session open until it expires.
+    private var server: FixtureServer!
 
     @MainActor
     private var remote: XCUIRemote { .shared }
@@ -15,8 +18,7 @@ final class RemoteTests: XCTestCase {
     /// menu (#191), and leaves the player, which releases its session.
     @MainActor
     func testPlayerTransportMenu() throws {
-        let server = try FixtureServer.fromEnvironment()
-        launchToList(server)
+        try launchToList()
         // News Now is the first row: below the search field on a first launch, above the last channel's row after one.
         let news = row("News Now")
         focus(news, by: Array(repeating: XCUIRemote.Button.down, count: 4) + Array(repeating: XCUIRemote.Button.up, count: 8))
@@ -44,14 +46,13 @@ final class RemoteTests: XCTestCase {
             server.sessions().contains { $0["channelId"] as? String != tuned }
         }
 
-        leavePlayer(server)
+        leavePlayer()
     }
 
     /// Each tab takes focus from the tab bar, and Down moves into it without losing focus.
     @MainActor
     func testTabs() throws {
-        let server = try FixtureServer.fromEnvironment()
-        launchToList(server)
+        try launchToList()
         let live = app.tabBars.buttons["Live"]
         focus(live, pressing: .up)
         for name in ["Recordings", "Settings", "Live"] {
@@ -68,11 +69,10 @@ final class RemoteTests: XCTestCase {
     /// the background. SOFAKING_WALK_SEED replays a walk; SOFAKING_WALK_KEYS sets its length.
     @MainActor
     func testWalkWithRandomKeys() throws {
-        let server = try FixtureServer.fromEnvironment()
         let environment = ProcessInfo.processInfo.environment
         let seed = environment["SOFAKING_WALK_SEED"].flatMap(UInt64.init) ?? UInt64(Date().timeIntervalSince1970)
         let count = environment["SOFAKING_WALK_KEYS"].flatMap(Int.init) ?? 200
-        launchToList(server)
+        try launchToList()
         var random = SplitMix64(seed: seed)
         var pressed: [String] = []
         var relaunches = 0
@@ -112,8 +112,9 @@ final class RemoteTests: XCTestCase {
     /// Launches the app on the fixture server and waits for the channel list; a launch that opens the last channel
     /// full screen, as a cold start does, leaves the player first.
     @MainActor
-    private func launchToList(_ server: FixtureServer) {
+    private func launchToList() throws {
         continueAfterFailure = false
+        server = try FixtureServer.fromEnvironment(since: Date())
         app = XCUIApplication()
         app.launchArguments = ["-serverUrl", server.url.absoluteString, "-apiToken", server.token]
         app.launch()
@@ -121,13 +122,13 @@ final class RemoteTests: XCTestCase {
         eventually("the channel list or the last channel", timeout: 60) { news.exists || !server.sessions().isEmpty }
         // The launch decision opens the last channel once the lineup is in.
         RunLoop.current.run(until: Date().addingTimeInterval(3))
-        if !server.sessions().isEmpty { leavePlayer(server) }
+        if !server.sessions().isEmpty { leavePlayer() }
         XCTAssertTrue(news.waitForExistence(timeout: 10), "No channel list\n\(screen)")
     }
 
     /// Presses Menu until the player has gone and released its session; once more would leave the app.
     @MainActor
-    private func leavePlayer(_ server: FixtureServer) {
+    private func leavePlayer() {
         for _ in 0..<3 {
             remote.press(.menu)
             let deadline = Date().addingTimeInterval(5)
@@ -150,6 +151,7 @@ final class RemoteTests: XCTestCase {
                 _ = element.waitForExistence(timeout: 3)
             }
             if element.exists && element.hasFocus { return }
+            print("[remote] looking for \(element.description), pressing \(move.rawValue) next:\n\(outline())")
             remote.press(move)
         }
         XCTAssertTrue(element.exists && element.hasFocus, "Could not reach \(element.description) in the transport bar\n\(screen)")
@@ -204,11 +206,32 @@ final class RemoteTests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true")).firstMatch
     }
 
-    /// What has focus and the whole element tree, for a failure message.
+    /// The screen as a failure message gives it: a screenshot kept in the result bundle, and the labelled and focused
+    /// elements as an outline.
     @MainActor
     private var screen: String {
-        let focus = focused.exists ? "\(focused.elementType.rawValue) '\(focused.label)'" : "nothing"
-        return "Focus: \(focus)\n\(String(app.debugDescription.prefix(8000)))"
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.lifetime = .keepAlways
+        add(shot)
+        return outline()
+    }
+
+    /// Each element with a label, other than text, or with focus (marked `*`), indented by depth, with its type's
+    /// raw value and its frame.
+    @MainActor
+    private func outline() -> String {
+        guard let root = try? app.snapshot() else { return "(no snapshot)" }
+        var lines: [String] = []
+        func visit(_ element: XCUIElementSnapshot, _ depth: Int) {
+            if element.hasFocus || (!element.label.isEmpty && element.elementType != .staticText) {
+                let frame = element.frame
+                lines.append(String(repeating: " ", count: depth) + "\(element.hasFocus ? "*" : "")\(element.elementType.rawValue) '\(element.label)' "
+                    + "\(Int(frame.minX)),\(Int(frame.minY)) \(Int(frame.width))x\(Int(frame.height))")
+            }
+            element.children.forEach { visit($0, depth + 1) }
+        }
+        visit(root, 0)
+        return lines.joined(separator: "\n")
     }
 }
 
@@ -216,19 +239,28 @@ final class RemoteTests: XCTestCase {
 struct FixtureServer {
     let url: URL
     let token: String
+    /// Sessions that started before this are left out.
+    let since: Date
 
-    static func fromEnvironment() throws -> FixtureServer {
+    static func fromEnvironment(since: Date) throws -> FixtureServer {
         let environment = ProcessInfo.processInfo.environment
         guard let address = environment["SOFAKING_SERVER"], let url = URL(string: address), let token = environment["SOFAKING_TOKEN"] else {
             throw XCTSkip("Needs the fixture server: run app/scripts/fixture_server.py and pass SOFAKING_SERVER and SOFAKING_TOKEN")
         }
-        return FixtureServer(url: url, token: token)
+        return FixtureServer(url: url, token: token, since: since)
     }
 
-    /// The app's open playback sessions; the server's own (recordings) are external.
+    /// The app's open playback sessions since `since`; the server's own (recordings) are external.
     func sessions() -> [[String: Any]] {
-        ((get("api/v1/admin/sessions") as? [[String: Any]]) ?? []).filter { ($0["external"] as? Bool) != true }
+        ((get("api/v1/admin/sessions") as? [[String: Any]]) ?? []).filter { session in
+            guard (session["external"] as? Bool) != true else { return false }
+            // `2026-10-23T12:39:32.517Z`: whole seconds are enough, a second either side.
+            guard let started = (session["startedAt"] as? String).flatMap({ Self.seconds.date(from: String($0.prefix(19)) + "Z") }) else { return true }
+            return started >= since.addingTimeInterval(-2)
+        }
     }
+
+    private static let seconds = ISO8601DateFormatter()
 
     /// How many recordings the DVR holds, scheduled or done.
     func recordings() -> Int {

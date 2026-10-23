@@ -11,6 +11,7 @@ import dev.jamesrich.sofaking.data.ClockFormat
 import dev.jamesrich.sofaking.data.DecoderPreference
 import dev.jamesrich.sofaking.data.GuideDensity
 import dev.jamesrich.sofaking.data.StartupTarget
+import dev.jamesrich.sofaking.data.SubtitleLook
 import dev.jamesrich.sofaking.data.TopLevelTab
 import androidx.datastore.core.DataStore
 import dev.jamesrich.sofaking.data.CachedLineup
@@ -475,6 +476,10 @@ class LineupViewModel(
 
     fun setHideSpoilers(enabled: Boolean) {
         save { store.setHideSpoilers(enabled) }
+    }
+
+    fun setSubtitleLook(look: SubtitleLook) {
+        save { store.setSubtitleLook(look) }
     }
 
     fun setLiveBreaks(mode: LiveBreaks) {

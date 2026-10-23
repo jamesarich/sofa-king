@@ -134,9 +134,11 @@ data class MediaItemDetail(
     val videoCodec: String? = null,
     /** The intro the server found in an episode, which the player offers to skip. */
     val intro: IntroSpan? = null,
+    /** The end credits the server found in an episode, which the player offers to skip, or to go on to the next. */
+    val credits: IntroSpan? = null,
 )
 
-/** An episode's intro, from [startMs] to [endMs] after the start of the file. */
+/** An episode's intro or credits, from [startMs] to [endMs] after the start of the file. */
 data class IntroSpan(val startMs: Long, val endMs: Long)
 
 /** One row of the library home, such as Continue watching or a library's recent additions. */

@@ -32,6 +32,8 @@ class WireFixturesTest {
         assertEquals("Living room TV", client.decodeFromString<ViewerPreferences>(fixture("v1/viewer-preferences.json")).name)
         assertEquals(Wire.ItemKind.SHOW, client.decodeFromString<LibraryPage>(fixture("v1/library-page.json")).items.single().kind)
         assertEquals(listOf(1, 2), client.decodeFromString<LibraryItemDetail>(fixture("v1/library-item-detail.json")).children.map { it.episode })
+        val episode = client.decodeFromString<LibraryItemDetail>(fixture("v1/library-episode-detail.json"))
+        assertEquals(listOf(Wire.SegmentKind.INTRO, Wire.SegmentKind.CREDITS), episode.segments.map { it.kind })
         val home = client.decodeFromString<LibraryHome>(fixture("v1/library-home.json"))
         assertEquals(listOf(Wire.ShelfId.CONTINUE, Wire.ShelfId.RECENT), home.shelves.map { it.id })
         assertEquals(600000, home.shelves.first().items.single().playState?.positionMs)

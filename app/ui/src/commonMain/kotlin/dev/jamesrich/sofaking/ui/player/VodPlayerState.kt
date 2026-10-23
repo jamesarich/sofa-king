@@ -160,8 +160,8 @@ internal class VodPlayerState {
     }
 
     /**
-     * Playback is in [intro]: the first time, the bar comes up with Skip intro on it, focused for the remote, and with
-     * [autoSkip] a countdown of [AUTO_SKIP_MS] starts on it. While the track card is open the offer waits for it to close.
+     * Playback is in [intro], or the credits: the first time, the bar comes up with Skip intro (or Skip credits) on it,
+     * focused for the remote, and with [autoSkip] a countdown of [AUTO_SKIP_MS] starts on it. While the track card is open the offer waits for it to close.
      */
     fun inIntro(intro: VodMarker, autoSkip: Boolean = false, nowMs: Long = uptimeMs()) {
         if (tracksOpen || !offeredIntros.add(intro.startMs)) return

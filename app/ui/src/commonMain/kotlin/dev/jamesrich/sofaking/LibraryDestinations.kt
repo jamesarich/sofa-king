@@ -177,7 +177,7 @@ internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupVi
                 } ?: VodTracks()
             }
             VodPlayerScreen(
-                title = item.vodTitle(ready?.intro),
+                title = item.vodTitle(ready?.intro, ready?.credits),
                 player = player,
                 sessions = vm.sessions,
                 itemId = item.id,
@@ -204,13 +204,17 @@ internal fun VodDestination(route: Route.Vod, shell: AppShellState, vm: LineupVi
     }
 }
 
-/** What the player shows for a library item: an episode under its show and number, a movie with its year, and its [intro]. */
-private fun MediaItem.vodTitle(intro: IntroSpan?): VodTitle {
+/** What the player shows for a library item: an episode under its show and number, a movie with its year, and its [intro] and [credits]. */
+private fun MediaItem.vodTitle(intro: IntroSpan?, credits: IntroSpan?): VodTitle {
     val subtitle = when (kind) {
         ItemKind.EPISODE -> listOfNotNull(showTitle, episodeLabel).joinToString(" · ").ifEmpty { null }
         else -> year?.toString()
     }
-    return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster, markers = listOfNotNull(intro?.let { VodMarker(it.startMs, it.endMs, VodMarkerKind.INTRO) }))
+    val markers = listOfNotNull(
+        intro?.let { VodMarker(it.startMs, it.endMs, VodMarkerKind.INTRO) },
+        credits?.let { VodMarker(it.startMs, it.endMs, VodMarkerKind.CREDITS) },
+    )
+    return VodTitle(title, subtitle, artworkUrl = backdrop ?: poster, markers = markers)
 }
 
 /** The Up next card for an episode: its number and title under the show, with its still. */

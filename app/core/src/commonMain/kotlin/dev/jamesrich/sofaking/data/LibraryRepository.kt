@@ -33,7 +33,8 @@ class LibraryRepository(private val api: SofaKingApi) {
             subtitles = dto.subtitles.map(::track),
             container = dto.container,
             videoCodec = dto.videoCodec,
-            intro = dto.segments.firstOrNull { it.kind == Wire.SegmentKind.INTRO && it.endMs > it.startMs }?.let { IntroSpan(it.startMs, it.endMs) },
+            intro = segment(dto.segments, Wire.SegmentKind.INTRO),
+            credits = segment(dto.segments, Wire.SegmentKind.CREDITS),
         )
     }
 
@@ -51,6 +52,10 @@ class LibraryRepository(private val api: SofaKingApi) {
     private fun page(dto: LibraryPageDto) = MediaPage(dto.items.map(::item), dto.total, dto.next, dto.genres)
 
     private fun library(dto: LibraryDto) = MediaLibrary(dto.id, dto.name, LibraryKind.fromWire(dto.kind), dto.items)
+
+    /** The first span of [kind] among [segments] that has a length. */
+    private fun segment(segments: List<MediaSegmentDto>, kind: String) =
+        segments.firstOrNull { it.kind == kind && it.endMs > it.startMs }?.let { IntroSpan(it.startMs, it.endMs) }
 
     private fun track(dto: MediaTrackDto) = MediaTrackInfo(dto.index, dto.codec, dto.language, dto.title, dto.channels, dto.default, dto.forced)
 

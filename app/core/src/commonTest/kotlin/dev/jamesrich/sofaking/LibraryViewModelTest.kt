@@ -355,11 +355,11 @@ class LibraryViewModelTest {
     }
 
     @Test
-    fun `an episode's page carries the intro the server found and skips segments it does not know`() = fixture.viewModelTest {
+    fun `an episode's page carries the intro and credits the server found and skips segments it does not know`() = fixture.viewModelTest {
         val server = RouteServer(this) { _, path, _ ->
             when (path) {
                 "/api/v1/library/home" -> 200 to """{"shelves":[]}"""
-                "/api/v1/library/items/e1" -> 200 to """{"item":${item("e1", "episode")},"segments":[{"kind":"credits","startMs":1300000,"endMs":1400000},{"kind":"intro","startMs":600,"endMs":53100}]}"""
+                "/api/v1/library/items/e1" -> 200 to """{"item":${item("e1", "episode")},"segments":[{"kind":"recap","startMs":0,"endMs":500},{"kind":"credits","startMs":1300000,"endMs":1400000},{"kind":"intro","startMs":600,"endMs":53100}]}"""
                 "/api/v1/library/items/e2" -> 200 to """{"item":${item("e2", "episode")}}"""
                 else -> null
             }
@@ -371,6 +371,8 @@ class LibraryViewModelTest {
         runCurrent()
         advanceTimeBy(1.seconds)
         assertEquals(IntroSpan(600, 53_100), assertIs<ItemDetailState.Ready>(first.value).detail.intro)
+        assertEquals(IntroSpan(1_300_000, 1_400_000), assertIs<ItemDetailState.Ready>(first.value).detail.credits)
         assertNull(assertIs<ItemDetailState.Ready>(second.value).detail.intro)
+        assertNull(assertIs<ItemDetailState.Ready>(second.value).detail.credits)
     }
 }

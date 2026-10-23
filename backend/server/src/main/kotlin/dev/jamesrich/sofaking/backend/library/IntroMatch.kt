@@ -15,7 +15,8 @@ data class SharedSpan(val first: IntroSpan, val second: IntroSpan)
  * `chromaprint` muxer writes, one 32-bit word for each [POINT_MS] of audio. Exact words both episodes hold vote for how
  * far one is shifted against the other; at the best few shifts, a point matches when at most [MAX_BIT_ERRORS] of its
  * bits differ, and the shared audio is the longest run of matching points with no gap over [MAX_GAP_MS], at least
- * [MIN_DENSITY] of its points matching, from [MIN_INTRO_MS] to [MAX_INTRO_MS] long.
+ * [MIN_DENSITY] of its points matching, from [MIN_INTRO_MS] to [MAX_INTRO_MS] long by default. End credits, read
+ * from each episode's last minutes, run up to [MAX_CREDITS_MS].
  */
 object IntroMatch {
     /** One point covers a third of Chromaprint's 4096-sample frame at 11,025 Hz. */
@@ -25,13 +26,14 @@ object IntroMatch {
     const val MIN_DENSITY = 0.6
     const val MIN_INTRO_MS = 15_000L
     const val MAX_INTRO_MS = 120_000L
+    const val MAX_CREDITS_MS = 300_000L
 
     /** How many of the most voted shifts are tried, each with its neighbours. */
     private const val SHIFTS = 8
     private const val NEIGHBOURS = 2
 
-    /** The longest stretch of audio [a] and [b] share within the bounds above; null when they share none. */
-    fun shared(a: IntArray, b: IntArray): SharedSpan? {
+    /** The longest stretch of audio [a] and [b] share, from [minMs] to [maxMs] long; null when they share none. */
+    fun shared(a: IntArray, b: IntArray, minMs: Long = MIN_INTRO_MS, maxMs: Long = MAX_INTRO_MS): SharedSpan? {
         val positions = HashMap<Int, MutableList<Int>>(b.size * 2)
         b.forEachIndexed { j, word -> positions.getOrPut(word) { ArrayList(1) } += j }
         val votes = HashMap<Int, Int>()
@@ -40,7 +42,7 @@ object IntroMatch {
             .flatMap { (shift, _) -> (shift - NEIGHBOURS)..(shift + NEIGHBOURS) }.distinct()
         var best: Run? = null
         for (shift in shifts) {
-            val run = longestRun(a, b, shift) ?: continue
+            val run = longestRun(a, b, shift, minMs, maxMs) ?: continue
             if (best == null || run.length > best.length) best = run
         }
         return best?.let {
@@ -53,12 +55,12 @@ object IntroMatch {
     }
 
     /** With [b] shifted [shift] points against [a], the longest run that passes the bounds. */
-    private fun longestRun(a: IntArray, b: IntArray, shift: Int): Run? {
+    private fun longestRun(a: IntArray, b: IntArray, shift: Int, minMs: Long, maxMs: Long): Run? {
         val from = maxOf(0, -shift)
         val until = minOf(a.size, b.size - shift)
         val maxGap = (MAX_GAP_MS / POINT_MS).toInt()
-        val minPoints = (MIN_INTRO_MS / POINT_MS).toInt()
-        val maxPoints = (MAX_INTRO_MS / POINT_MS).toInt()
+        val minPoints = (minMs / POINT_MS).toInt()
+        val maxPoints = (maxMs / POINT_MS).toInt()
         var best: Run? = null
         var start = -1
         var last = -1

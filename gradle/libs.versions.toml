@@ -34,6 +34,7 @@ androidx-core = "1.19.1"
 core-pip = "1.0.0-alpha04"
 media3 = "1.11.1"
 profileinstaller = "1.4.1"
+tvprovider = "1.1.0"
 # Macrobenchmark and the Baseline Profile plugin release together.
 benchmark = "1.5.0"
 uiautomator = "2.4.0"
@@ -104,6 +105,7 @@ media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", versio
 media3-ui-compose = { module = "androidx.media3:media3-ui-compose", version.ref = "media3" }
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
+androidx-tvprovider = { module = "androidx.tvprovider:tvprovider", version.ref = "tvprovider" }
 screenshot-validation-api = { module = "com.android.tools.screenshot:screenshot-validation-api", version.ref = "screenshot" }
 androidx-benchmark-macro-junit4 = { module = "androidx.benchmark:benchmark-macro-junit4", version.ref = "benchmark" }
 androidx-uiautomator = { module = "androidx.test.uiautomator:uiautomator", version.ref = "uiautomator" }

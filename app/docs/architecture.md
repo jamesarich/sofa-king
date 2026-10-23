@@ -35,6 +35,7 @@ All source lives under `dev.jamesrich.sofaking`. Code is in `commonMain` unless 
 | `LibraryViewModel`, `LibraryRepository` | The library home's shelves, one library's paged grid, item pages, search, marking watched, playing an item and saving where playback stopped |
 | `LineupCache` | Last complete lineup, keyed by server address, in a DataStore file or the browser's localStorage |
 | `ServerDiscovery`, `DiscoveredServers` | The servers advertising `_sofaking._tcp` over mDNS, for Settings: `NsdServerDiscovery` (Android's `NsdManager`) and `JmdnsServerDiscovery` (JmDNS on desktops); the Apple TV app browses with its own `ServerBrowser` (Network framework) |
+| `WatchNext` | The platform's row of what to watch next outside the app, fed the library's Continue watching shelf whenever the home shelves load: `WatchNextPublisher` writes the Android TV home screen's Watch Next row through `androidx.tvprovider`, its entries open `sofaking://vod/ID`, and `WatchNextArtworkProvider` serves their artwork to the launcher, which may refuse plain HTTP; elsewhere it is `WatchNext.None` |
 | `DataStoreSettingsStore`, `AppStorage` | Server address, API token, client id, favorites, last and recent channels, hidden channels, the last guide filter, caption, preview and playback settings, and the Settings PIN's hash |
 | `GuideScreen`, `GuideState` | Grid, time window, filtering and D-pad navigation; `GuideState` holds the guide's UI state, its moves and its key handling, unit-tested |
 | `PreviewVideo` | Muted preview on the shared player through a preview session |

@@ -60,6 +60,7 @@ import dev.jamesrich.sofaking.data.MediaItem
 import dev.jamesrich.sofaking.data.MediaItemDetail
 import dev.jamesrich.sofaking.data.PrimaryAction
 import dev.jamesrich.sofaking.data.fileFacts
+import dev.jamesrich.sofaking.data.hidesSpoilers
 import dev.jamesrich.sofaking.data.primaryAction
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.DETAIL_SEPARATOR
@@ -95,16 +96,17 @@ internal fun ItemDetailsScreen(
     selectedSeasonId: String?,
     actions: ItemDetailsActions,
     returnedFrom: String? = null,
+    hideSpoilers: Boolean = false,
 ) {
     when (state) {
         ItemDetailState.Loading -> MessageScreen(stringResource(Res.string.library_loading), loading = true)
         is ItemDetailState.Failed -> MessageScreen(stringResource(Res.string.library_load_failed), detail = state.message, onRetry = actions.onRetry)
-        is ItemDetailState.Ready -> Details(state.detail, season, selectedSeasonId, actions, returnedFrom)
+        is ItemDetailState.Ready -> Details(state.detail, season, selectedSeasonId, actions, returnedFrom, hideSpoilers)
     }
 }
 
 @Composable
-private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedSeasonId: String?, actions: ItemDetailsActions, returnedFrom: String?) {
+private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedSeasonId: String?, actions: ItemDetailsActions, returnedFrom: String?, hideSpoilers: Boolean) {
     val item = detail.item
     val insets = screenInsets().only(WindowInsetsSides.Horizontal + WindowInsetsSides.Vertical).asPaddingValues()
     val seasons = detail.children.filter { it.kind == ItemKind.SEASON }
@@ -134,7 +136,7 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
             ),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            item(key = "summary") { Summary(detail, actions, primaryFocus, Modifier.padding(sides)) }
+            item(key = "summary") { Summary(detail, actions, primaryFocus, hideSpoilers, Modifier.padding(sides)) }
             if (detail.cast.isNotEmpty()) {
                 item(key = "cast") { Cast(detail.cast.take(CAST_SHOWN), actions.onPerson, sides) }
             }
@@ -148,7 +150,7 @@ private fun Details(detail: MediaItemDetail, season: ItemDetailState?, selectedS
             }
             items(episodes, key = { it.id }) { episode ->
                 val modifier = if (episode.id == returnTo) Modifier.focusRequester(episodeFocus) else Modifier
-                EpisodeRow(episode, onClick = { actions.onPlay(episode, false) }, modifier = Modifier.padding(sides).then(modifier))
+                EpisodeRow(episode, hideSpoilers && hidesSpoilers(episode), onClick = { actions.onPlay(episode, false) }, modifier = Modifier.padding(sides).then(modifier))
             }
         }
         }
@@ -193,7 +195,7 @@ private fun Hero(url: String?, modifier: Modifier) {
 }
 
 @Composable
-private fun Summary(detail: MediaItemDetail, actions: ItemDetailsActions, primaryFocus: FocusRequester, modifier: Modifier) {
+private fun Summary(detail: MediaItemDetail, actions: ItemDetailsActions, primaryFocus: FocusRequester, hideSpoilers: Boolean, modifier: Modifier) {
     val item = detail.item
     Column(modifier.widthIn(max = 760.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (item.kind == ItemKind.EPISODE && item.showTitle != null) {
@@ -207,7 +209,7 @@ private fun Summary(detail: MediaItemDetail, actions: ItemDetailsActions, primar
         MetaLine(detail)
         FileLine(detail)
         detail.tagline?.let { Text(it, style = MaterialTheme.typography.titleMedium, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        item.overview?.let { Overview(it) }
+        item.overview?.let { overview -> if (hideSpoilers && hidesSpoilers(item)) SpoilerHidden() else Overview(overview) }
         Buttons(detail, actions, primaryFocus)
         if (detail.directors.isNotEmpty()) Credit(stringResource(Res.string.library_directors, detail.directors.joinToString(", ")))
     }
@@ -338,9 +340,12 @@ private fun primaryLabel(action: PrimaryAction, playsItself: Boolean): String {
     }
 }
 
-/** An episode as a row: its picture with progress, number and title, length and air date, and the overview. */
+/**
+ * An episode as a row: its picture with progress, number and title, length and air date, and the overview; [spoilers]
+ * hidden, the picture is blurred and the overview says only that the episode is unwatched.
+ */
 @Composable
-private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun EpisodeRow(episode: MediaItem, spoilersHidden: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(
         onClick = onClick,
         shape = RowShape,
@@ -349,7 +354,7 @@ private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit, modifier: Modifi
     ) {
         Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.width(EPISODE_THUMB_WIDTH).aspectRatio(16f / 9f).background(MaterialTheme.colorScheme.surfaceVariant, CardShape)) {
-                Artwork(episode.stillOrBackdrop(), label = episode.episode?.let { "E$it" } ?: episode.title)
+                Artwork(episode.stillOrBackdrop(), label = episode.episode?.let { "E$it" } ?: episode.title, hidden = spoilersHidden)
                 val progress = episode.progress
                 if (progress?.watched == true) WatchedTick(Modifier.align(Alignment.TopEnd).padding(6.dp))
                 if (progress != null && progress.inProgress) progress.fraction?.let { ProgressStrip(it, Modifier.align(Alignment.BottomCenter)) }
@@ -363,10 +368,23 @@ private fun EpisodeRow(episode: MediaItem, onClick: () -> Unit, modifier: Modifi
                 )
                 val line = listOfNotNull(runtime(episode.durationMs)?.hoursAndMinutes(), episode.aired).joinToString(DETAIL_SEPARATOR)
                 if (line.isNotEmpty()) Text(line, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                episode.overview?.let { Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+                episode.overview?.let { overview ->
+                    if (spoilersHidden) SpoilerHidden() else Text(overview, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
+}
+
+/** Where an overview would be, with Hide spoilers on: says only that the episode is unwatched. */
+@Composable
+private fun SpoilerHidden() {
+    Text(
+        stringResource(Res.string.library_spoiler_hidden),
+        style = MaterialTheme.typography.bodyMedium,
+        fontStyle = FontStyle.Italic,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** An episode's own still, which the server sends as its poster; its backdrop falls back to the show's. */

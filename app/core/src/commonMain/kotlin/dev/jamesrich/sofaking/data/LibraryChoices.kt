@@ -51,6 +51,13 @@ fun seasonAfter(children: List<MediaItem>, seasonId: String): MediaItem? {
     return seasons.drop(at + 1).firstOrNull { it.season != 0 }
 }
 
+/**
+ * Whether Hide spoilers keeps [item]'s overview back and blurs its still: an episode not started yet. One watched, or
+ * stopped part way, shows as usual.
+ */
+fun hidesSpoilers(item: MediaItem): Boolean =
+    item.kind == ItemKind.EPISODE && item.progress.let { it == null || (!it.watched && !it.inProgress) }
+
 /** The subtitle tracks the server serves as text, which a player can draw; picture tracks (PGS, DVD) are left out. */
 fun textSubtitles(detail: MediaItemDetail): List<MediaTrackInfo> = detail.subtitles.filterNot(::isPictureSubtitle)
 

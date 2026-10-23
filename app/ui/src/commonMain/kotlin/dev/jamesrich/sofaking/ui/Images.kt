@@ -1,5 +1,7 @@
 package dev.jamesrich.sofaking.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -10,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,10 +36,11 @@ internal fun sofaKingImageLoader(context: PlatformContext): ImageLoader =
 
 /**
  * The picture filling its card. Under it, and alone while it loads or when it fails, [label] stands in its place,
- * or the library mark when the card's own caption already names the item.
+ * or the library mark when the card's own caption already names the item. [hidden] blurs and dims the picture, for
+ * Hide spoilers; Android before 12 has no blur, so there it is only dimmed.
  */
 @Composable
-internal fun BoxScope.Artwork(url: String?, label: String?) {
+internal fun BoxScope.Artwork(url: String?, label: String?, hidden: Boolean = false) {
     if (label == null) {
         Icon(
             SofaIcons.VideoLibrary,
@@ -55,5 +59,10 @@ internal fun BoxScope.Artwork(url: String?, label: String?) {
             modifier = Modifier.align(Alignment.Center).padding(12.dp),
         )
     }
-    if (url != null) AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+    if (url == null) return
+    AsyncImage(url, contentDescription = null, contentScale = ContentScale.Crop, modifier = if (hidden) Modifier.fillMaxSize().blur(HIDDEN_BLUR) else Modifier.fillMaxSize())
+    if (hidden) Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = HIDDEN_DIM)))
 }
+
+private val HIDDEN_BLUR = 16.dp
+private const val HIDDEN_DIM = 0.6f

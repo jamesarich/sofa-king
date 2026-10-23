@@ -16,6 +16,7 @@ on:
       - ".github/workflows/snapshot.yml"
       - ".github/workflows/publish-snapshot.yml"
       - ".github/version.sh"
+      - ".github/actions/apt-install/**"
   push:
     branches: [main]
     paths:
@@ -31,6 +32,7 @@ on:
       - ".github/workflows/snapshot.yml"
       - ".github/workflows/publish-snapshot.yml"
       - ".github/version.sh"
+      - ".github/actions/apt-install/**"
   workflow_dispatch:
 
 concurrency:
@@ -92,7 +94,9 @@ jobs:
       # Random keys on both production web builds in Google Chrome, which the runner has and which plays the fixture
       # channels' H.264 where Playwright's own Chromium does not, against the server's distribution, as on the TV.
       - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+        uses: ./.github/actions/apt-install
+        with:
+          packages: ffmpeg
       - name: Build the server distribution
         working-directory: backend
         run: ./gradlew --console=plain :server:installDist

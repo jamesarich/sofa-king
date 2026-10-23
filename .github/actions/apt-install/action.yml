@@ -1,0 +1,40 @@
+name: Install Ubuntu packages
+description: >-
+  Installs Ubuntu packages and keeps the downloaded .deb files in the Actions cache per runner image, so a slow Ubuntu
+  mirror costs one run per image rather than every run. On 2026-10-23 one FFmpeg install in seven took 4 to 32 minutes.
+inputs:
+  packages:
+    description: The packages to install, separated by spaces
+    required: true
+runs:
+  using: composite
+  steps:
+    # A runner image's own packages decide which archives an install downloads, so the key carries the image version.
+    - id: key
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+      run: echo "key=apt-$ImageOS-$ImageVersion-$RUNNER_ARCH-$(echo "$PACKAGES" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+    - id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/apt-archives
+        key: ${{ steps.key.outputs.key }}
+    # Installing the cached archives needs neither the package index nor the mirror; if they no longer fit the image,
+    # the install falls back to the mirror.
+    - shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+        CACHED: ${{ steps.cache.outputs.cache-hit }}
+      run: |
+        archives="$HOME/apt-archives"
+        if [ "$CACHED" = true ] && sudo apt-get install -y --no-install-recommends "$archives"/*.deb; then
+          exit 0
+        fi
+        mkdir -p "$archives/partial"
+        sudo apt-get update
+        # shellcheck disable=SC2086 # the package list splits on spaces
+        sudo apt-get install -y --no-install-recommends \
+          -o Dir::Cache::Archives="$archives" -o APT::Keep-Downloaded-Packages=true $PACKAGES
+        sudo rm -rf "$archives/partial" "$archives/lock"
+        sudo chown -R "$(id -u):$(id -g)" "$archives"

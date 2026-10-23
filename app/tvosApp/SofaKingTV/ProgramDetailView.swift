@@ -9,7 +9,7 @@ struct ProgramDetailView: View {
     let lineup: Lineup
     let channel: Channel
     /// A later airing to show in place of what is on now.
-    var airing: Programme? = nil
+    var airing: Program? = nil
     let watch: () -> Void
     @State private var opened: Airing?
 
@@ -35,10 +35,10 @@ struct ProgramDetailView: View {
                             Text(line).foregroundStyle(.secondary)
                         }
                         Text(timing(shown)).foregroundStyle(.secondary)
-                        if let summary = model.core.summary(programme: shown), !summary.isEmpty {
+                        if let summary = model.core.summary(program: shown), !summary.isEmpty {
                             Text(summary).font(.body)
                         }
-                        RecordButtons(programme: shown)
+                        RecordButtons(program: shown)
                     } else {
                         Text("No program information").font(.title2)
                     }
@@ -49,7 +49,7 @@ struct ProgramDetailView: View {
                         if let line = episodeLine(next) {
                             Text(line).font(.caption).foregroundStyle(.tertiary)
                         }
-                        RecordButtons(programme: next)
+                        RecordButtons(program: next)
                     }
                     HStack(spacing: 24) {
                         Button("Watch", systemImage: "play.fill", action: watch)
@@ -57,8 +57,8 @@ struct ProgramDetailView: View {
                     }
                     .padding(.top, 16)
                     if let shown {
-                        MoreAirings(airings: model.core.airings(lineup: lineup, programme: shown)) { other in
-                            if model.core.start(of: other.programme) <= .now {
+                        MoreAirings(airings: model.core.airings(lineup: lineup, program: shown)) { other in
+                            if model.core.start(of: other.program) <= .now {
                                 model.requestedChannel = other.channel.guideId
                             } else {
                                 opened = other
@@ -72,26 +72,26 @@ struct ProgramDetailView: View {
         }
         .navigationTitle(channel.name)
         .navigationDestination(item: $opened) { other in
-            ProgramDetailView(lineup: lineup, channel: other.channel, airing: other.programme) {
+            ProgramDetailView(lineup: lineup, channel: other.channel, airing: other.program) {
                 model.requestedChannel = other.channel.guideId
             }
         }
     }
 
     /// The episode title, its number, a first-airing mark and the rating, those that the guide gave.
-    private func episodeLine(_ programme: Programme) -> String? {
+    private func episodeLine(_ program: Program) -> String? {
         var parts: [String] = []
-        if let subTitle = programme.subTitle, !subTitle.isEmpty { parts.append(subTitle) }
-        if let episode = programme.episode, !episode.isEmpty { parts.append(episode) }
-        if programme.isNew { parts.append("New") }
-        if let rating = programme.rating, !rating.isEmpty { parts.append(rating) }
+        if let subTitle = program.subTitle, !subTitle.isEmpty { parts.append(subTitle) }
+        if let episode = program.episode, !episode.isEmpty { parts.append(episode) }
+        if program.isNew { parts.append("New") }
+        if let rating = program.rating, !rating.isEmpty { parts.append(rating) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// `7:00 – 8:00 PM · 25 min left`, or for a later airing its day and times.
-    private func timing(_ programme: Programme) -> String {
-        let start = model.core.start(of: programme)
-        let end = model.core.end(of: programme)
+    private func timing(_ program: Program) -> String {
+        let start = model.core.start(of: program)
+        let end = model.core.end(of: program)
         if start > .now { return (start..<end).formatted(.interval.weekday().hour().minute()) }
         let range = (start..<end).formatted(.interval.hour().minute())
         let left = max(0, Int(end.timeIntervalSinceNow / 60))
@@ -103,20 +103,20 @@ struct ProgramDetailView: View {
 /// on a server that records; a line says when the server did not take the change.
 private struct RecordButtons: View {
     @Environment(AppModel.self) private var model
-    let programme: Programme
+    let program: Program
     @State private var busy = false
     @State private var failed = false
 
     var body: some View {
-        if model.recordingsShown, model.core.recordable(programme: programme), let marks = model.recordingMarks {
-            let mark = model.core.recordingMark(marks: marks, programme: programme)
+        if model.recordingsShown, model.core.recordable(program: program), let marks = model.recordingMarks {
+            let mark = model.core.recordingMark(marks: marks, program: program)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 24) {
                     Button(mark.recording ? "Cancel recording" : "Record", systemImage: mark.recording ? "xmark.circle" : "record.circle") {
-                        change { try await model.core.toggleRecording(programme: programme) }
+                        change { try await model.core.toggleRecording(program: program) }
                     }
                     Button(mark.series ? "Stop series" : "Record series", systemImage: mark.series ? "xmark.circle" : "repeat.circle") {
-                        change { try await model.core.toggleSeries(programme: programme) }
+                        change { try await model.core.toggleSeries(program: program) }
                     }
                 }
                 if failed {
@@ -149,9 +149,9 @@ private struct MoreAirings: View {
             ForEach(airings, id: \.self) { other in
                 Button { pick(other) } label: {
                     HStack(spacing: 24) {
-                        Text(when(other.programme)).monospacedDigit()
+                        Text(when(other.program)).monospacedDigit()
                         Text("\(other.channel.number.formatted()) \(other.channel.name)").foregroundStyle(.secondary)
-                        if other.programme.isNew { Text("New").font(.caption).foregroundStyle(.secondary) }
+                        if other.program.isNew { Text("New").font(.caption).foregroundStyle(.secondary) }
                     }
                 }
             }
@@ -159,8 +159,8 @@ private struct MoreAirings: View {
     }
 
     /// "On now", or the day and time it starts.
-    private func when(_ programme: Programme) -> String {
-        let start = model.core.start(of: programme)
+    private func when(_ program: Program) -> String {
+        let start = model.core.start(of: program)
         if start <= .now { return "On now" }
         return start.formatted(.dateTime.weekday().hour().minute())
     }

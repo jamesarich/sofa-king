@@ -28,15 +28,15 @@ import dev.jamesrich.sofaking.data.MediaLibrary
 import dev.jamesrich.sofaking.data.MediaShelf
 import dev.jamesrich.sofaking.data.PlayProgress
 import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.ui.LayoutProfile
 import dev.jamesrich.sofaking.ui.LocalClock
 import dev.jamesrich.sofaking.ui.LocalClockFormat
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.LocalTimeZone
 import dev.jamesrich.sofaking.ui.guide.GuideScreen
-import dev.jamesrich.sofaking.ui.guide.ProgrammeDetails
-import dev.jamesrich.sofaking.ui.guide.ProgrammeSheet
+import dev.jamesrich.sofaking.ui.guide.ProgramDetails
+import dev.jamesrich.sofaking.ui.guide.ProgramSheet
 import dev.jamesrich.sofaking.ui.library.ItemDetailsActions
 import dev.jamesrich.sofaking.ui.library.ItemDetailsScreen
 import dev.jamesrich.sofaking.ui.library.LibraryHomeActions
@@ -87,8 +87,8 @@ fun GuidePreview(tv: Boolean) = Frame(tv) {
 /** A program's details: a side panel on a TV, a sheet elsewhere. */
 @Composable
 fun ProgramDetailsPreview(tv: Boolean) = Frame(tv) {
-    ProgrammeSheet(
-        details = ProgrammeDetails(Samples.channels[0], Samples.lineup.guide.getValue("c0").first()),
+    ProgramSheet(
+        details = ProgramDetails(Samples.channels[0], Samples.lineup.guide.getValue("c0").first()),
         now = Samples.now,
         isFavorite = true,
         guideLoading = false,
@@ -183,7 +183,7 @@ private object Samples {
         channels = channels,
         guide = channels.filter { it.guideStatus == GuideStatus.AVAILABLE }.associate { channel ->
             channel.guideId to List(8) { slot ->
-                Programme(
+                Program(
                     channelId = channel.guideId,
                     start = start + (slot * 45).minutes,
                     stop = start + ((slot + 1) * 45).minutes,

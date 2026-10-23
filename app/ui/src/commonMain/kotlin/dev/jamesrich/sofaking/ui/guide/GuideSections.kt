@@ -38,7 +38,7 @@ import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.resources.*
 import dev.jamesrich.sofaking.ui.LocalLayoutProfile
 import dev.jamesrich.sofaking.ui.TimeFormatter
@@ -64,7 +64,7 @@ internal fun rememberGuideRowEnv(
     onPlay: (Channel) -> Unit,
     onToggleFavorite: (Channel) -> Unit,
     onOpenDetails: (Channel, GuideCell) -> Unit,
-    onJumpTo: (Channel, Programme) -> Unit,
+    onJumpTo: (Channel, Program) -> Unit,
 ): GuideRowEnv {
     val cellAiring = stringResource(Res.string.guide_cell_airing)
     val cellLater = stringResource(Res.string.guide_cell_later)
@@ -198,7 +198,7 @@ internal fun ColumnScope.GuideGrid(
                     when (item) {
                         is GuideListItem.Row -> ChannelRow(
                             channel = item.channel,
-                            programmes = lineup.guide[item.channel.guideId].orEmpty(),
+                            programs = lineup.guide[item.channel.guideId].orEmpty(),
                             isFavorite = item.channel.guideId in favorites,
                             windowStart = windowStart,
                             windowEnd = windowEnd,
@@ -249,8 +249,8 @@ internal fun PreviewBand(
             } else {
                 PreviewDetails(
                     channel = cell?.channel,
-                    programme = cell?.cell?.programme,
-                    live = cell?.cell?.programme?.let { isAiring(it, now) } == true,
+                    program = cell?.cell?.program,
+                    live = cell?.cell?.program?.let { isAiring(it, now) } == true,
                     now = now,
                     guideLoading = guideLoading,
                     modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds(),

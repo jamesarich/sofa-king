@@ -70,19 +70,19 @@ class WhaleClientTest {
         } } } } finally { dir.toFile().deleteRecursively() }
     }
 
-    @Test fun `guide indexes every channel and fetches programmes only for wanted ids`() = runBlocking<Unit> {
+    @Test fun `guide indexes every channel and fetches programs only for wanted ids`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-whale-")
         try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
             fixture.whale()
             val client = WhaleClient(ProviderFixture.context("whale", mapOf("apiBase" to "${fixture.base}/api"), http, store, MutableClock()))
             val empty = client.guide(emptySet())
-            assertEquals(3, empty.channels.size); assertTrue(empty.programmes.isEmpty())
+            assertEquals(3, empty.channels.size); assertTrue(empty.programs.isEmpty())
             assertEquals(0, fixture.hits("/api/device/browser/v1/epg"))
             val guide = client.guide(setOf(watchMojo))
             assertEquals(1, fixture.hits("/api/device/browser/v1/epg"))
             assertTrue(fixture.lastQuery["/api/device/browser/v1/epg"]!!.startsWith("channelIds=$watchMojo&startTime="))
-            assertEquals(listOf("Morning Block", "Evening Block"), guide.programmes.map { it.title }, "a zero-length programme is dropped")
-            assertEquals(watchMojo, guide.programmes.first().channelId)
+            assertEquals(listOf("Morning Block", "Evening Block"), guide.programs.map { it.title }, "a zero-length program is dropped")
+            assertEquals(watchMojo, guide.programs.first().channelId)
             assertEquals("WatchMojo", guide.channels.first().displayName)
         } } } } finally { dir.toFile().deleteRecursively() }
     }

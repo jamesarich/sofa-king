@@ -78,7 +78,7 @@ internal interface GuideControls {
     /** The Search key: search by voice, or the text field. */
     fun search()
 
-    /** Info with the details open: they close and focus goes back to the programme's cell. */
+    /** Info with the details open: they close and focus goes back to the program's cell. */
     fun closeDetails()
 
     /** Fast Forward or Rewind: the grid moves a day. */
@@ -143,8 +143,8 @@ internal class GuideState(
     /** The list item a row move is heading for, until its cell or chip reports focus. */
     var pendingRow by mutableStateOf<Int?>(null)
 
-    /** The programme whose details are open, if any. */
-    var details by mutableStateOf<ProgrammeDetails?>(null)
+    /** The program whose details are open, if any. */
+    var details by mutableStateOf<ProgramDetails?>(null)
 
     // True once a cell has taken focus; until then the header's buttons hold it, so the request is retried.
     // A guide opened for search gives focus to the search instead.
@@ -171,7 +171,7 @@ internal class GuideState(
 
     // The rest of an OK held to open the details goes nowhere, so Watch, focused under it, does not play.
     private val heldOk = HeldOkGuard()
-    private var detailsOnRelease: ProgrammeDetails? = null
+    private var detailsOnRelease: ProgramDetails? = null
 
     /** The clock moved on: once it leaves the live window, the window and the cursor roll over to the live one. */
     fun rollWindow(now: Instant) {
@@ -264,12 +264,12 @@ internal class GuideState(
     }
 
     /**
-     * The details of the programme in [cell], on the Info key or a held OK, whose rest goes nowhere. Where they open
+     * The details of the program in [cell], on the Info key or a held OK, whose rest goes nowhere. Where they open
      * in a window of their own ([inWindow], the bottom sheet), a held OK opens them when it comes up instead: the
      * press has to end on the cell, whose clickable would otherwise keep it and ignore the next OK there.
      */
     fun openDetails(channel: Channel, cell: GuideCell, inWindow: Boolean = false) {
-        val opened = ProgrammeDetails(channel, cell.programme)
+        val opened = ProgramDetails(channel, cell.program)
         if (inWindow && heldOk.held) {
             detailsOnRelease = opened
         } else {

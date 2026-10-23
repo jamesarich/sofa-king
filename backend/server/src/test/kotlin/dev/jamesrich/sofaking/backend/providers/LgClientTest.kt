@@ -10,7 +10,7 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class LgClientTest {
-    @Test fun `decodes the base64 zlib schedulelist into channels, programmes and filled stream URLs`() = runBlocking<Unit> {
+    @Test fun `decodes the base64 zlib schedulelist into channels, programs and filled stream URLs`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-lg-")
         try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
             // The fixture is the real base64-of-zlib shape with a BASE placeholder inside; rebuild it for this server's address.
@@ -28,8 +28,8 @@ class LgClientTest {
             assertEquals("US", sent["x-device-country"]); assertEquals("WEB", sent["x-device-type"]); assertEquals("https://lgchannels.com", sent["origin"])
             val guide = client.guide(setOf("foxlivenow_foxlivenow_US"))
             assertEquals(2, guide.channels.size)
-            assertEquals(listOf("2026-10-10T22:00:00Z", "2026-10-11T02:00:00Z"), guide.programmes.map { it.startsAt.toString() })
-            assertEquals("LiveNOW from FOX", guide.programmes.first().title)
+            assertEquals(listOf("2026-10-10T22:00:00Z", "2026-10-11T02:00:00Z"), guide.programs.map { it.startsAt.toString() })
+            assertEquals("LiveNOW from FOX", guide.programs.first().title)
             val resolved = client.resolve("foxlivenow_foxlivenow_US")
             val deviceId = store.providerState("lg", ProviderContext.DEVICE_ID)!!.value
             val ua = URLEncoder.encode(BROWSER_USER_AGENT, Charsets.UTF_8)

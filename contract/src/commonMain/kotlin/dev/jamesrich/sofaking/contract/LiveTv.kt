@@ -19,7 +19,7 @@ import kotlinx.serialization.Serializable
  * [episode] is a display label such as `S2 E5`; [rating] a content rating such as `TV-14`; [icon] an image URL
  * the guide source serves. The fields after [description] are null or false when the source has none.
  */
-@Serializable data class Programme(
+@Serializable data class Program(
     val id: String = "", val channelId: String = "", val startsAt: String, val endsAt: String,
     val title: String, val description: String? = null,
     val subTitle: String? = null, val episode: String? = null, val isNew: Boolean = false,
@@ -28,7 +28,7 @@ import kotlinx.serialization.Serializable
     val categories: List<String> = emptyList(),
 )
 @Serializable data class GuideQuery(val channelIds: List<String>, val from: String, val to: String, val revision: String? = null)
-@Serializable data class ChannelGuide(val channelId: String, val status: String = "", val programmes: List<Programme>)
+@Serializable data class ChannelGuide(val channelId: String, val status: String = "", val programs: List<Program>)
 @Serializable data class GuideWindow(val revision: String, val from: String = "", val to: String = "", val channels: List<ChannelGuide>)
 /** [intent] is always written, so a server's default never decides it. */
 @Serializable data class OpenPlayback(val channelId: String, @EncodeDefault val intent: String = Wire.Intent.WATCH, val idempotencyKey: String)

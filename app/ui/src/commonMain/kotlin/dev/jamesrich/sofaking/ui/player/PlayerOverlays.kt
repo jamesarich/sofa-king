@@ -47,7 +47,7 @@ import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.RiseIn
 import dev.jamesrich.sofaking.ui.SinkOut
-import dev.jamesrich.sofaking.ui.ProgrammeBadges
+import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.episodeLine
 import dev.jamesrich.sofaking.ui.label
@@ -354,8 +354,8 @@ internal fun InfoOverlay(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        ProgrammeBadges(
-                            programme = current,
+                        ProgramBadges(
+                            program = current,
                             live = false,
                             fill = MaterialTheme.colorScheme.primary,
                             onFill = MaterialTheme.colorScheme.onPrimary,
@@ -384,7 +384,7 @@ internal fun InfoOverlay(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            ProgressBar(programmeProgress(current.start, current.stop, now))
+            ProgressBar(programProgress(current.start, current.stop, now))
         }
         next?.let { Text(stringResource(Res.string.up_next, it.title), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         if (showKeyLegend) {
@@ -395,7 +395,7 @@ internal fun InfoOverlay(
 }
 
 /**
- * One player control, for a finger, a mouse or the D-pad: the icon carries the label as its description. The centre
+ * One player control, for a finger, a mouse or the D-pad: the icon carries the label as its description. The center
  * touch control is [primary] and larger; [size] is the tonal button's, 48 dp unless the row it sits in is tighter.
  */
 @Composable
@@ -576,7 +576,7 @@ internal fun TrackRow(label: String, selected: Boolean, onClick: () -> Unit, mod
 }
 
 /**
- * The centre of the picture confirming a play or pause the bar did not come up for: a disc with the icon, shown for
+ * The center of the picture confirming a play or pause the bar did not come up for: a disc with the icon, shown for
  * a moment on each [pulse]. Icon only, so it never covers subtitles at the top or bottom of the frame.
  */
 @Composable

@@ -24,8 +24,8 @@ class HallmarkClientTest {
             assertEquals(4, guide.channels.size)
             assertEquals(1, fixture.hits("/catalog/channels/Linear-1187-Non-Stop-Christmas-DRM/schedule"))
             assertTrue(fixture.lastQuery["/catalog/channels/Linear-1187-Non-Stop-Christmas-DRM/schedule"]!!.startsWith("from=2026-10-10T12:00:00.000Z&until=2026-10-12T12:00:00.000Z&locale=en"))
-            assertEquals(listOf("Merry Christmas, Ted Cooper!", "An Unexpected Christmas"), guide.programmes.map { it.title })
-            assertTrue(guide.programmes.all { it.channelId == "hallmark_christmas" })
+            assertEquals(listOf("Merry Christmas, Ted Cooper!", "An Unexpected Christmas"), guide.programs.map { it.title })
+            assertTrue(guide.programs.all { it.channelId == "hallmark_christmas" })
             assertEquals(1, fixture.hits("/catalog/channels"), "the catalog is shared by the listing and the guide")
             assertFailsWith<ProviderFailure> { client.resolve("hallmark_western") }.let { assertFalse(it.transient) }
         } } } } finally { dir.toFile().deleteRecursively() }

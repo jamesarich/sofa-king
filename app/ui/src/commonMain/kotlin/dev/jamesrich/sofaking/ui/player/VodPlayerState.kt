@@ -82,7 +82,7 @@ internal class VodPlayerState {
         private set
 
     /**
-     * What a play or pause from the remote's media keys just did while the bar was down, which the centre of the
+     * What a play or pause from the remote's media keys just did while the bar was down, which the center of the
      * picture confirms for a moment instead of bringing the bar up; [transportPulse] counts each one, so a repeat of
      * the same one shows again.
      */
@@ -331,7 +331,7 @@ internal class VodPlayerState {
 
     /**
      * A media key's play or pause: with the bar up it stays up for another while, and with it down it stays down and
-     * the picture's centre confirms the press.
+     * the picture's center confirms the press.
      */
     private fun mediaPlayPause(controls: VodControls, paused: Boolean) {
         if (overlayVisible) return playPause(controls)

@@ -871,7 +871,7 @@ class AdminPortalTest {
         }
     }
 
-    @Test fun `the theme cookie pins a colour scheme on every page, and the nav folds into a menu`() = testApplication {
+    @Test fun `the theme cookie pins a color scheme on every page, and the nav folds into a menu`() = testApplication {
         portal {
             browser.signIn()
             val page = browser.get("/admin/lineup").bodyAsText()
@@ -906,7 +906,7 @@ class AdminPortalTest {
             val overview = browser.get("/admin").bodyAsText()
             assertTrue(overview.contains("1 session") && overview.contains("Sofa King app") && overview.contains("localhost"), "the session, its player and its address are listed: $overview")
             assertTrue(overview.contains("/admin/lineup/${station.id}") && overview.contains("via fixture"), "the channel links to its page and names its source")
-            if (station.guide != null) assertTrue(overview.contains("Morning"), "the programme on now is named")
+            if (station.guide != null) assertTrue(overview.contains("Morning"), "the program on now is named")
             assertTrue(overview.contains("/admin/sessions/$sessionId/stop"), "each session has a Stop")
             val listed = Json.parseToJsonElement(browser.get("/api/v1/admin/sessions") { bearerAuth(admin) }.bodyAsText()).jsonArray.single().jsonObject
             assertEquals("localhost", listed["client"]!!.jsonPrimitive.content)
@@ -1092,7 +1092,7 @@ class AdminPortalTest {
             val code = runtime.pairing.current()!!.code
             assertTrue(issuedHtml.contains(spacedCode(code)), "the code is on the page")
             assertTrue(issuedHtml.contains("<svg") && issuedHtml.contains("Pairing code $code"), "the QR code is drawn inline")
-            assertTrue(issuedHtml.contains("Pairing code $code for http://"), "the QR is labelled with the code and the address")
+            assertTrue(issuedHtml.contains("Pairing code $code for http://"), "the QR is labeled with the code and the address")
             assertTrue(issuedHtml.contains("Cancel the code"))
             assertTrue(browser.get("/admin/viewers").bodyAsText().contains(spacedCode(code)), "a reload shows the live code")
 

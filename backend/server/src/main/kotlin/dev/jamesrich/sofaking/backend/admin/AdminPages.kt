@@ -851,7 +851,7 @@ internal fun providersPage(chrome: Chrome, view: ProvidersView, extra: (MAIN.() 
                     for (guide in view.guides.sortedWith(compareBy({ it.errorCode == null }, { it.id }))) tr {
                         th { attributes["scope"] = "row"; +guide.id }
                         td("num") { +thousands(guide.channels) }
-                        td("num") { +thousands(guide.programmes) }
+                        td("num") { +thousands(guide.programs) }
                         td("nowrap") { ago(guide.lastSuccessAt, now) }
                         td { if (guide.errorCode != null) chip(guide.errorCode, Tone.BAD) else if (guide.lastSuccessAt == null) chip("Waiting", Tone.WARN) else chip("OK", Tone.OK) }
                     }

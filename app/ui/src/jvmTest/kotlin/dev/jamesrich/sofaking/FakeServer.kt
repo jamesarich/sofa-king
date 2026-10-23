@@ -23,7 +23,7 @@ import dev.jamesrich.sofaking.contract.PairingResult
 import dev.jamesrich.sofaking.contract.PlayState
 import dev.jamesrich.sofaking.contract.PlaybackDescriptor
 import dev.jamesrich.sofaking.contract.PlaybackSession
-import dev.jamesrich.sofaking.contract.Programme
+import dev.jamesrich.sofaking.contract.Program
 import dev.jamesrich.sofaking.contract.Recording
 import dev.jamesrich.sofaking.contract.RecordingBreak
 import dev.jamesrich.sofaking.contract.RecordingList
@@ -209,8 +209,8 @@ internal class FakeServer(private val recordings: Boolean = true) {
                 ChannelGuide(
                     channelId = id,
                     status = Wire.GuideStatus.AVAILABLE,
-                    programmes = slots.map { start ->
-                        Programme(
+                    programs = slots.map { start ->
+                        Program(
                             id = "$id-${start.epochSeconds}",
                             channelId = id,
                             startsAt = start.toString(),

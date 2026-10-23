@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.time.Duration
 import java.time.Instant
@@ -11,7 +11,7 @@ import kotlinx.serialization.json.JsonObject
 
 /**
  * STIRR's live channels as stirr.com uses them: one `videos/list` document of every live channel, the `epg` endpoint
- * without a channel for the whole guide (only channels with programmes are listed), and a `playable` POST per resolve that answers an ad-stitched HLS URL carrying a
+ * without a channel for the whole guide (only channels with programs are listed), and a `playable` POST per resolve that answers an ad-stitched HLS URL carrying a
  * short-lived `vx_token`. Channels marked `drm_protected` are left out.
  */
 class StirrClient(private val context: ProviderContext) : ProviderClient {
@@ -26,7 +26,7 @@ class StirrClient(private val context: ProviderContext) : ProviderClient {
         val rows = context.http.get("$apiBase/epg?tz=UTC", HEADERS).require("STIRR guide").json()["data"]["channels"].array
         val index = ArrayList<GuideChannel>()
         val now = context.clock.instant()
-        val programmes = ArrayList<GuideProgramme>()
+        val programs = ArrayList<GuideProgram>()
         for (row in rows) {
             val id = row["channel_id"].long?.toString() ?: continue
             val channel = channels[id] ?: continue
@@ -39,10 +39,10 @@ class StirrClient(private val context: ProviderContext) : ProviderClient {
                 val end = item["end_time"].long ?: continue
                 val title = item.str("title") ?: continue
                 if (end <= start || Instant.ofEpochSecond(end) < now) continue
-                programmes += GuideProgramme(id, Instant.ofEpochSecond(start), Instant.ofEpochSecond(end), title, item.str("description"))
+                programs += GuideProgram(id, Instant.ofEpochSecond(start), Instant.ofEpochSecond(end), title, item.str("description"))
             }
         }
-        return ParsedGuide(index, programmes)
+        return ParsedGuide(index, programs)
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {

@@ -54,7 +54,7 @@ jobs:
     name: Test and build (Linux)
     runs-on: ubuntu-24.04
     # The build takes about ten minutes and the web key fuzz about five more; the limit bounds a hung cache save, which
-    # once ran for 42 minutes until cancelled by hand and kept the next main run queued behind it. FFmpeg's packages
+    # once ran for 42 minutes until canceled by hand and kept the next main run queued behind it. FFmpeg's packages
     # once took 19 minutes from the runner's mirror.
     timeout-minutes: 45
     steps:

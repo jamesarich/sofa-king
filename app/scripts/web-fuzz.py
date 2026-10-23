@@ -27,7 +27,7 @@ KEYS = [
     ('ArrowUp', 12), ('ArrowDown', 14), ('ArrowLeft', 10), ('ArrowRight', 12), ('Enter', 10), ('Escape', 6),
     ('PageUp', 2), ('PageDown', 2), ('Space', 1),
 ]
-# A screenshot this small is one colour: the app drew nothing.
+# A screenshot this small is one color: the app drew nothing.
 BLANK_BYTES = 4000
 # A failed request logs a console error without its address, so requests are checked by their responses instead. A
 # device with no saved preferences yet gets a 404 for them, and a stream's media is gone (410) once its session is

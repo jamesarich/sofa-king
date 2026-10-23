@@ -25,7 +25,7 @@ class GuideServiceTest {
                 assertEquals("IMPORT_FAILED", statuses.getValue("broken").errorCode)
                 assertNull(statuses.getValue("gz").errorCode)
                 assertEquals(2, statuses.getValue("gz").channels, "the channel index lists every channel")
-                assertEquals(1, statuses.getValue("gz").programmes, "only the mapped channel's programmes are retained")
+                assertEquals(1, statuses.getValue("gz").programs, "only the mapped channel's programs are retained")
                 channelId = stack.catalog.catalog().channels.single().id
                 val entry = stack.lineup.entry(channelId)!!
                 assertEquals(GuideMapping("gz", "station"), entry.guide, "the implicit provider guide comes after explicit guides")
@@ -40,10 +40,10 @@ class GuideServiceTest {
                 guides.initialize()
                 lineup = LineupService(store, clock, feeds, guides); lineup.initialize()
                 val catalog = CatalogService(feeds, guides, lineup, store, clock)
-                assertEquals(1, guides.statuses().single().programmes)
+                assertEquals(1, guides.statuses().single().programs)
                 assertEquals(Instant.parse("2026-10-10T14:00:00Z"), guides.coverage().getValue("gz").getValue("station"))
                 val window = catalog.guide(GuideQuery(listOf(channelId), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single()
-                assertEquals("Morning", window.programmes.single().title)
+                assertEquals("Morning", window.programs.single().title)
             }
         } } } finally { dir.toFile().deleteRecursively() }
     }
@@ -83,9 +83,9 @@ class GuideServiceTest {
             try {
                 stack.guides.start(scope)
                 val other = stack.lineup.create(CreateLineupEntry(number = "9", name = "Other", guide = GuideMapping("gz", "other")))
-                pollUntil(10_000, 50) { stack.guides.statuses().single().programmes >= 2 }
+                pollUntil(10_000, 50) { stack.guides.statuses().single().programs >= 2 }
                 val window = stack.catalog.guide(GuideQuery(listOf(other.id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single()
-                assertEquals("Elsewhere", window.programmes.single().title)
+                assertEquals("Elsewhere", window.programs.single().title)
                 assertEquals("available", stack.catalog.catalog().channels.single { it.id == other.id }.guideStatus)
                 assertFalse(stack.catalog.catalog().channels.single { it.id == other.id }.playbackEligible, "an entry without sources is listed but not playable")
             } finally { scope.coroutineContext[Job]!!.cancelAndJoin() }

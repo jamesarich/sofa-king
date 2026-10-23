@@ -40,7 +40,7 @@ permissions:
 
 concurrency:
   group: backend-${{ github.ref }}
-  # A push to main publishes the image, so only pull request runs are cancelled.
+  # A push to main publishes the image, so only pull request runs are canceled.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:

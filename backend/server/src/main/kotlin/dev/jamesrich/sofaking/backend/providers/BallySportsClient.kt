@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import java.time.Duration
 import java.time.Instant
@@ -9,7 +9,7 @@ import kotlinx.serialization.json.JsonArray
 
 /**
  * Bally Sports' free channels, read from the Next.js payload of any channel page: the React Server Components
- * chunks carry `channelData` (name, uuid, logo, order, public CDN URL) and the programmes as `epgData` (`epgItems`
+ * chunks carry `channelData` (name, uuid, logo, order, public CDN URL) and the programs as `epgData` (`epgItems`
  * since October 2026). Streams are static HLS on `*.channels.ballys.tv`.
  */
 class BallySportsClient(private val context: ProviderContext) : ProviderClient {
@@ -17,13 +17,13 @@ class BallySportsClient(private val context: ProviderContext) : ProviderClient {
 
     private val pageUrl = context.options["pageUrl"] ?: PAGE_URL
 
-    private class Page(val channels: List<Pair<ProviderChannel, String>>, val programmes: List<GuideProgramme>)
+    private class Page(val channels: List<Pair<ProviderChannel, String>>, val programs: List<GuideProgram>)
 
     override suspend fun channels(): List<ProviderChannel> = page().channels.map { it.first }
 
     override suspend fun guide(wanted: Set<String>): ParsedGuide {
         val page = page()
-        return ParsedGuide(page.channels.map { GuideChannel(it.first.id, it.first.name, it.first.logo) }, page.programmes.filter { it.channelId in wanted })
+        return ParsedGuide(page.channels.map { GuideChannel(it.first.id, it.first.name, it.first.logo) }, page.programs.filter { it.channelId in wanted })
     }
 
     override suspend fun resolve(channelId: String): ResolvedStream {
@@ -45,14 +45,14 @@ class BallySportsClient(private val context: ProviderContext) : ProviderClient {
             val url = entry.str("public_cdn_url")?.takeIf { CDN.matches(it) } ?: return@mapNotNull null
             ProviderChannel(id, name, entry["order"].long?.toString(), httpOrNull(entry.str("logo")), "Sports", listOf("us")) to url
         }.distinctBy { it.first.id }
-        val programmes = epgData.mapNotNull { event ->
+        val programs = epgData.mapNotNull { event ->
             val channelId = event.str("channelUuid") ?: return@mapNotNull null
             val start = event.str("since")?.let(::instantOrNull) ?: return@mapNotNull null
             val end = event.str("till")?.let(::instantOrNull) ?: return@mapNotNull null
             val title = event.str("title") ?: return@mapNotNull null
-            if (end <= start) null else GuideProgramme(channelId, start, end, title, event.str("comment"))
+            if (end <= start) null else GuideProgram(channelId, start, end, title, event.str("comment"))
         }
-        return Page(channels, programmes)
+        return Page(channels, programs)
     }
 
 

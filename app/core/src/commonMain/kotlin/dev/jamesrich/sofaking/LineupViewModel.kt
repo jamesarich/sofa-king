@@ -23,7 +23,7 @@ import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.LineupCache
 import dev.jamesrich.sofaking.data.GuideWindow
 import dev.jamesrich.sofaking.data.PlaybackSessions
-import dev.jamesrich.sofaking.data.Programme
+import dev.jamesrich.sofaking.data.Program
 import dev.jamesrich.sofaking.data.RecordingSchedule
 import dev.jamesrich.sofaking.data.ServerAddress
 import dev.jamesrich.sofaking.data.ServerCapabilities
@@ -144,7 +144,7 @@ class LineupViewModel(
      * Guide windows beyond the live one that the guide jumped to, by their start: loaded once each and merged
      * into the lineup until the live window passes them. Never cached; a cold start shows today's guide.
      */
-    private val extraDays = MutableStateFlow<Map<Instant, Map<String, List<Programme>>>>(emptyMap())
+    private val extraDays = MutableStateFlow<Map<Instant, Map<String, List<Program>>>>(emptyMap())
 
     /** The windows being fetched, so a repeated jump does not query twice; read and written on the main thread. */
     private val daysLoading = HashSet<Instant>()
@@ -244,7 +244,7 @@ class LineupViewModel(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, LineupState.Loading)
 
     /**
-     * Loads the programmes of the guide window starting at [windowStart] for the channels on screen, when it lies
+     * Loads the programs of the guide window starting at [windowStart] for the channels on screen, when it lies
      * beyond the live window and is not loaded yet. The lineup then carries both days; a failure leaves the window
      * empty, and the next jump to it asks again.
      */
@@ -259,9 +259,9 @@ class LineupViewModel(
             try {
                 val started = TimeSource.Monotonic.markNow()
                 val guide = repository.loadGuide(lineup.channels, windowStart)
-                log.i { "guide: day ${windowStart} ${guide.programmes.values.sumOf { it.size }} programmes in ${started.elapsedNow()}" }
+                log.i { "guide: day ${windowStart} ${guide.programs.values.sumOf { it.size }} programs in ${started.elapsedNow()}" }
                 // A day that arrives after Settings named another server is the old server's, so it is dropped.
-                if (extraDaysServer == server) extraDays.update { it + (windowStart to guide.programmes) }
+                if (extraDaysServer == server) extraDays.update { it + (windowStart to guide.programs) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -284,17 +284,17 @@ class LineupViewModel(
         val cache = LineupCache(lineupCache, key, background, clock::now)
         // A refresh keeps the lineup already on screen; a cold start or a server change reads the cache,
         // so the last good lineup shows at once and the network load replaces it below. Its channels come first,
-        // so a channel or a tab opens while the programmes decode, which takes seconds on a TV.
+        // so a channel or a tab opens while the programs decode, which takes seconds on a TV.
         var last: Lineup? = lastGood?.takeIf { it.first == key }?.second
         if (last == null) {
             val cacheStarted = TimeSource.Monotonic.markNow()
             cache.open()?.let { cached ->
                 log.i { "cache: ${cached.channels.size} channels in ${cacheStarted.elapsedNow()}" }
                 emit(LineupState.Ready(Lineup(cached.channels, emptyMap(), guideLoading = true)))
-                // A guide that failed to decode, or whose programmes have all ended, is still on its way from the server.
+                // A guide that failed to decode, or whose programs have all ended, is still on its way from the server.
                 val guide = cached.guide()
                 val full = Lineup(cached.channels, guide.orEmpty(), guideLoading = guide.isNullOrEmpty())
-                log.i { "cache: ${full.guide.values.sumOf { it.size }} programmes in ${cacheStarted.elapsedNow()}" }
+                log.i { "cache: ${full.guide.values.sumOf { it.size }} programs in ${cacheStarted.elapsedNow()}" }
                 last = full
                 lastGood = key to full
                 emit(LineupState.Ready(full))
@@ -310,7 +310,7 @@ class LineupViewModel(
                 val started = TimeSource.Monotonic.markNow()
                 val channels = repository.loadChannels()
                 log.i { "lineup: ${channels.size} channels in ${started.elapsedNow()}" }
-                // Channels first so the guide is usable while the programmes arrive. A cached guide stays in
+                // Channels first so the guide is usable while the programs arrive. A cached guide stays in
                 // place for channels it still covers; it is replaced once the new guide is in.
                 if (last?.channels != channels) {
                     interim = Lineup(channels, last?.guide.orEmpty(), guideLoading = true)
@@ -318,11 +318,11 @@ class LineupViewModel(
                 }
                 onCatalog(interim ?: last)
                 val guide = repository.loadGuide(channels)
-                log.i { "guide: ${guide.programmes.values.sumOf { it.size }} programmes for ${guide.programmes.size} channels in ${started.elapsedNow()}" }
+                log.i { "guide: ${guide.programs.values.sumOf { it.size }} programs for ${guide.programs.size} channels in ${started.elapsedNow()}" }
                 // The lineup changed between the catalog and the guide: drop what left and read the catalog again soon.
                 lineupMoved = guide.removed.isNotEmpty()
                 if (lineupMoved) log.i { "guide: ${guide.removed.size} channels left the lineup" }
-                Result.success(Lineup(channels.filterNot { it.guideId in guide.removed }, guide.programmes))
+                Result.success(Lineup(channels.filterNot { it.guideId in guide.removed }, guide.programs))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -351,7 +351,7 @@ class LineupViewModel(
                 onCatalog(null)
                 val shown = interim
                 when {
-                    // The new channels stay on screen without programmes until a retry brings the guide; they are
+                    // The new channels stay on screen without programs until a retry brings the guide; they are
                     // not cached, so a cold start still shows the last complete lineup.
                     shown != null -> {
                         val kept = shown.copy(guideLoading = false)
@@ -542,12 +542,12 @@ class LineupViewModel(
     }
 
     /** [live] plus every day in [extra], per channel in start order without repeats, so a day loaded twice reads once. */
-    private fun mergeGuides(live: Map<String, List<Programme>>, extra: Collection<Map<String, List<Programme>>>): Map<String, List<Programme>> {
-        val merged = HashMap<String, List<Programme>>(live)
+    private fun mergeGuides(live: Map<String, List<Program>>, extra: Collection<Map<String, List<Program>>>): Map<String, List<Program>> {
+        val merged = HashMap<String, List<Program>>(live)
         for (day in extra) {
-            for ((channel, programmes) in day) {
+            for ((channel, programs) in day) {
                 val current = merged[channel]
-                merged[channel] = if (current == null) programmes else (current + programmes).distinctBy { it.start }.sortedBy { it.start }
+                merged[channel] = if (current == null) programs else (current + programs).distinctBy { it.start }.sortedBy { it.start }
             }
         }
         return merged

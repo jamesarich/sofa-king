@@ -76,7 +76,7 @@ class CaptionPolicyTest {
     }
 
     @Test
-    fun `advance is labelled in seconds with one decimal and no sign`() {
+    fun `advance is labeled in seconds with one decimal and no sign`() {
         assertEquals("3.0", CaptionPolicy.advanceLabel(3_000))
         assertEquals("3.5", CaptionPolicy.advanceLabel(3_500))
         assertEquals("0.0", CaptionPolicy.advanceLabel(0))

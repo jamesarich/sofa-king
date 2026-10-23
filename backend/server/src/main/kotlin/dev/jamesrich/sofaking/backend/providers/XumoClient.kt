@@ -2,7 +2,7 @@ package dev.jamesrich.sofaking.backend.providers
 
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
 import dev.jamesrich.sofaking.backend.catalog.GuideChannel
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.ParsedGuide
 import dev.jamesrich.sofaking.backend.catalog.percentEncode
 import java.net.URI
@@ -34,7 +34,7 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
         if (ids.isEmpty()) return ParsedGuide(index, emptyList())
         val now = context.clock.instant().atOffset(ZoneOffset.UTC)
         val firstBlock = now.withHour(now.hour / 6 * 6).withMinute(0).withSecond(0).withNano(0)
-        val programmes = LinkedHashMap<Pair<String, Instant>, GuideProgramme>()
+        val programs = LinkedHashMap<Pair<String, Instant>, GuideProgram>()
         // Blocks not yet published answer 400; the guide then ends where the service's does.
         for (step in 0 until GUIDE_BLOCKS) {
             val block = firstBlock.plusHours(6L * step)
@@ -54,13 +54,13 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
                         val assetId = slot.str("assetId") ?: continue
                         val asset = page["assets"][assetId]
                         val title = asset.str("title") ?: continue
-                        if (end > start) programmes.putIfAbsent(id to start, programme(id, start, end, title, asset["descriptions"].let { it.str("medium") ?: it.str("small") }, assetId))
+                        if (end > start) programs.putIfAbsent(id to start, program(id, start, end, title, asset["descriptions"].let { it.str("medium") ?: it.str("small") }, assetId))
                     }
                 }
                 offset += PAGE
             } while (rows.size == PAGE && offset < (page["totalChannels"].long ?: 0) && offset < MAX_OFFSET)
         }
-        return ParsedGuide(index, programmes.values.toList())
+        return ParsedGuide(index, programs.values.toList())
     }
 
     /**
@@ -68,10 +68,10 @@ class XumoClient(private val context: ProviderContext) : ProviderClient {
      * series and four for the episode, which XMLTV carries as `dd_progid` `EP00019155.3073`. `MV` is a movie and
      * `SP` a sports event.
      */
-    private fun programme(id: String, start: Instant, end: Instant, title: String, description: String?, assetId: String): GuideProgramme {
-        val tms = TMS_ID.matchEntire(assetId) ?: return GuideProgramme(id, start, end, title, description)
+    private fun program(id: String, start: Instant, end: Instant, title: String, description: String?, assetId: String): GuideProgram {
+        val tms = TMS_ID.matchEntire(assetId) ?: return GuideProgram(id, start, end, title, description)
         val (kind, series, episode) = tms.destructured
-        return GuideProgramme(
+        return GuideProgram(
             id, start, end, title, description,
             episodeNumbers = listOf(EpisodeNumber("dd_progid", "$kind$series.$episode")),
             categories = listOfNotNull(KINDS[kind]),

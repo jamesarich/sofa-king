@@ -29,9 +29,10 @@ KEYS = [
 ]
 # A screenshot this small is one colour: the app drew nothing.
 BLANK_BYTES = 4000
-# A failed request logs a console error without its address, so requests are checked by their responses instead; a
-# device with no saved preferences yet gets a 404 for them.
-EXPECTED = (('/api/v1/preferences/', 404),)
+# A failed request logs a console error without its address, so requests are checked by their responses instead. A
+# device with no saved preferences yet gets a 404 for them, and a stream's media is gone (410) once its session is
+# released, which a tune can do while the player still reads it.
+EXPECTED = (('/api/v1/preferences/', 404), ('/media/sessions/', 410))
 
 
 class Static(http.server.SimpleHTTPRequestHandler):

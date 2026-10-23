@@ -51,6 +51,20 @@ To look at the TV layout without a TV, run the desktop app with `./gradlew :ui:r
 SOFAKING_MONKEY_SEED=1234 python3 scripts/tv-monkey.py --apk androidApp/build/outputs/apk/debug/androidApp-debug.apk --out build/tv-monkey
 ```
 
+### Phone touch tests
+
+[`phone-tests.yml`](../../.github/workflows/phone-tests.yml) runs the debug app's instrumented tests in [`androidApp/src/androidTest`](../androidApp/src/androidTest) every night in a headless Android 36 phone emulator, against the same fixture server, which the emulator reaches at `10.0.2.2`. Each test pairs the app through a `sofaking://pair` link, drives it with UI Automator and checks what it did through the server's API. `pictureInPicture` plays Sofa Sports, goes to the Home screen, which must shrink the player into picture-in-picture still playing, and brings it back full screen. `predictiveBack` lets go of a back swipe at the screen's edge, which must leave the player as it was, then carries one through, which must return to the guide and close the channel. `rotation` turns the phone while a channel plays and checks that the app holds one session. `walkWithRandomTouches` makes 300 weighted random taps, swipes, back swipes, long presses, turns and trips to the Home screen. After each test the app closes, which must release every session; a crash fails the run. The artifact holds the test report, the logcat (with the walk's seed) and the server log. Replay a walk from the Actions tab with its step count and seed, or locally against a booted phone emulator with the fixture server running:
+
+```sh
+python3 scripts/fixture_server.py --out build/phone-tests &
+./gradlew :androidApp:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.sofakingServer=http://10.0.2.2:PORT \
+  -Pandroid.testInstrumentationRunnerArguments.sofakingToken=TOKEN \
+  -Pandroid.testInstrumentationRunnerArguments.sofakingWalkSeed=1234
+```
+
+with the port and token from `build/phone-tests/server.env`. Without the server's address the tests skip.
+
 ### Desktop monkey
 
 [`desktop-monkey.yml`](../../.github/workflows/desktop-monkey.yml) runs [`scripts/desktop-monkey.py`](../scripts/desktop-monkey.py) every night on a GitHub runner: the desktop app's distribution (`:ui:createDistributable`) in an Xvfb display, paired by a settings file written before it starts, against the same fixture server, with libVLC playing the channels into ALSA's null device. It presses 1,000 random keys 150 ms apart through xdotool, weighted as `AppKeyFuzzTest` weighs the remote's, with a held Return now and then. Then it closes the window the way a window manager's close button does. It fails when the app exits, logs an uncaught exception or an unhandled failure, draws two blank screens in a row, or does not quit and release its session when its window closes. The summary counts Compose's warnings about focus requests made before their target was placed. A JVM that will not quit prints its threads to `app.log`, which the artifact keeps with the server log, the keys and the last screen. Replay a run from the Actions tab with its key count and seed, or locally with Xvfb, xdotool, ImageMagick, python-xlib, libVLC, FFmpeg and both distributions built:

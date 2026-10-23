@@ -27,7 +27,7 @@ They share these files at the root:
 
 ## Formatting and static analysis
 
-Kotlin follows IntelliJ IDEA's Kotlin style, which the root `.editorconfig` sets for the IDE and for [ktlint](https://pinterest.github.io/ktlint/), with lines up to 120 characters and no wildcard imports. The `sofaking.lint` convention applies [Spotless](https://github.com/diffplug/spotless) with ktlint to every project's Kotlin sources and Gradle scripts, and [detekt](https://detekt.dev/) to its Kotlin sources, with the [Compose rules](https://mrmans0n.github.io/compose-rules/) where the project uses Compose. `gradle/detekt.yml` holds what differs from detekt's defaults, each change with its reason. From `app/`, `backend/` or `contract/`:
+Kotlin follows IntelliJ IDEA's Kotlin style, which the root `.editorconfig` sets for the IDE and for [ktlint](https://pinterest.github.io/ktlint/), with lines up to 120 characters and no wildcard imports. The `sofaking.lint` convention applies [Spotless](https://github.com/diffplug/spotless) with ktlint to every project's Kotlin sources and Gradle scripts, and [detekt](https://detekt.dev/) to its Kotlin sources, with the [Compose rules](https://mrmans0n.github.io/compose-rules/) where the project uses Compose. `gradle/detekt.yml` holds what differs from detekt's defaults, and `gradle/detekt-compose.yml` the Compose rules' settings, each change with its reason. From `app/`, `backend/` or `contract/`:
 
 ```sh
 ./gradlew spotlessApply   # format
@@ -35,7 +35,9 @@ Kotlin follows IntelliJ IDEA's Kotlin style, which the root `.editorconfig` sets
 ./gradlew detekt          # static analysis
 ```
 
-CI runs `spotlessCheck` in every build. Fix a finding in the code rather than suppressing it; where a rule is wrong for one declaration, `@Suppress` that one rule there, with a comment saying why.
+CI runs `spotlessCheck` and `detekt` in every build. Fix a finding in the code rather than suppressing it; where a rule is wrong for one declaration, `@Suppress` that one rule there, with a comment saying why. There is no baseline. detekt's size and complexity rules are off until the code is refactored to their defaults, and each comes back on in the pull request that does it.
+
+Catch the exceptions a call can throw, such as `IOException` or `SerializationException`. Where a failure of any kind is logged or shown and the work goes on, such as a background loop's next pass or a screen's load, use `runCatchingCancellable` (the server's `Results.kt`, the app's `data/Failures.kt`): it rethrows `CancellationException`, so canceling still cancels, and never catches an `Error`. To clean up after a failure and let it go on, use `runCatching { … }.onFailure { … }.getOrThrow()`, or `finally`.
 
 ## Commits
 

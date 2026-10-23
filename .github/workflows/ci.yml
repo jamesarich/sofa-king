@@ -89,7 +89,7 @@ jobs:
       - name: Test, lint and build
         run: >-
           ./gradlew --continue
-          spotlessCheck
+          spotlessCheck detekt
           :core:allTests :ui:jvmTest :ui:testAndroidHostTest :ui:jsNodeTest
           :core:compileTestKotlinLinuxX64 :core:compileKotlinLinuxArm64 :ui:compileTestKotlinIosSimulatorArm64
           :androidApp:lintDebug :androidApp:assembleRelease :androidApp:testDebugScreenshotTestDefaultTestSuite

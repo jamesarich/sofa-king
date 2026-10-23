@@ -70,6 +70,11 @@ class DataStoreSettingsStore(
                 skipCommercials = prefs[SKIP_COMMERCIALS] ?: false,
                 autoSkipIntros = prefs[AUTO_SKIP_INTROS] ?: false,
                 hideSpoilers = prefs[HIDE_SPOILERS] ?: false,
+                subtitleLook = SubtitleLook(
+                    size = prefs[SUBTITLE_SIZE].toEnum(SubtitleSize.MEDIUM),
+                    raise = prefs[SUBTITLE_RAISE].toEnum(SubtitleRaise.NONE),
+                    box = prefs[SUBTITLE_BOX] ?: true,
+                ),
                 liveBreaks = prefs[LIVE_BREAKS].toEnum(LiveBreaks.PLAY),
                 adsDodged = AdsDodged(prefs[ADS_DODGED_DAY].orEmpty(), prefs[ADS_DODGED_MS] ?: 0L),
                 trackChoices = trackChoices(prefs),
@@ -208,6 +213,14 @@ class DataStoreSettingsStore(
         dataStore.edit { prefs -> prefs[HIDE_SPOILERS] = enabled }
     }
 
+    override suspend fun setSubtitleLook(look: SubtitleLook) {
+        dataStore.edit { prefs ->
+            prefs[SUBTITLE_SIZE] = look.size.name
+            prefs[SUBTITLE_RAISE] = look.raise.name
+            prefs[SUBTITLE_BOX] = look.box
+        }
+    }
+
     override suspend fun setLiveBreaks(mode: LiveBreaks) {
         dataStore.edit { prefs -> prefs[LIVE_BREAKS] = mode.name }
     }
@@ -336,6 +349,9 @@ class DataStoreSettingsStore(
         val SKIP_COMMERCIALS = booleanPreferencesKey("skip_commercials")
         val AUTO_SKIP_INTROS = booleanPreferencesKey("auto_skip_intros")
         val HIDE_SPOILERS = booleanPreferencesKey("hide_spoilers")
+        val SUBTITLE_SIZE = stringPreferencesKey("subtitle_size")
+        val SUBTITLE_RAISE = stringPreferencesKey("subtitle_raise")
+        val SUBTITLE_BOX = booleanPreferencesKey("subtitle_box")
         val LIVE_BREAKS = stringPreferencesKey("live_breaks")
         val ADS_DODGED_DAY = stringPreferencesKey("ads_dodged_day")
         val ADS_DODGED_MS = longPreferencesKey("ads_dodged_ms")

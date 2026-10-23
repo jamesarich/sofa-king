@@ -24,7 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Airing
 import dev.jamesrich.sofaking.resources.*
-import dev.jamesrich.sofaking.ui.ProgrammeBadges
+import dev.jamesrich.sofaking.ui.ProgramBadges
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.label
 import dev.jamesrich.sofaking.ui.rememberTimeFormatter
@@ -34,7 +34,7 @@ import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
 
 /**
- * The other airings of the programme [title], soonest first: when, on which channel, and its badges. OK on one
+ * The other airings of the program [title], soonest first: when, on which channel, and its badges. OK on one
  * airing now watches its channel and on a later one opens its details, through [onPick]; Back, or the Back button,
  * returns to the details through [onBack]. [firstFocus] goes to the first airing.
  */
@@ -71,7 +71,7 @@ internal fun AiringsList(
 
 /** "Today 8:00 PM", "Tomorrow 9:30 AM" or "Sat 7:00 PM". */
 private fun airingWhen(airing: Airing, now: Instant, timeFormat: TimeFormatter, today: String, tomorrow: String): String {
-    val start = airing.programme.start
+    val start = airing.program.start
     val day = when (timeFormat.daysBetween(now, start)) {
         0 -> today
         1 -> tomorrow
@@ -94,9 +94,9 @@ private fun AiringRow(airing: Airing, now: Instant, whenText: String, onClick: (
             .clickable(interactionSource = interactions, indication = ripple(), onClick = onClick),
         supportingContent = { Text(airing.channel.label(), color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         trailingContent = {
-            ProgrammeBadges(
-                programme = airing.programme,
-                live = isAiring(airing.programme, now),
+            ProgramBadges(
+                program = airing.program,
+                live = isAiring(airing.program, now),
                 fill = MaterialTheme.colorScheme.primary,
                 onFill = MaterialTheme.colorScheme.onPrimary,
                 outline = secondary,

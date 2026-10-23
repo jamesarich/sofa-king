@@ -102,7 +102,7 @@ internal class HeldOkGuard {
     }
 }
 
-/** The keys that press OK: the remote's centre, Enter and a keypad's Enter, as Compose's own clickable reads them. */
+/** The keys that press OK: the remote's center, Enter and a keypad's Enter, as Compose's own clickable reads them. */
 internal val Key.isOk: Boolean get() = this == Key.DirectionCenter || this == Key.Enter || this == Key.NumPadEnter
 
 /**

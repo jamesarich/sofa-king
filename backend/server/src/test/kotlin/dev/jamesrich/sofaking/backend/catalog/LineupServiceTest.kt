@@ -35,7 +35,7 @@ class LineupServiceTest {
             stack.lineup.update(manual.id, UpdateLineupEntry(enabled = false, group = "Hidden"))
             assertEquals(listOf("TS Station"), stack.catalog.catalog().channels.map { it.name })
             val disabled = stack.catalog.guide(GuideQuery(listOf(manual.id), "2026-10-10T13:00:00Z", "2026-10-10T14:00:00Z")).channels.single()
-            assertEquals(Wire.GuideStatus.REMOVED, disabled.status); assertTrue(disabled.programmes.isEmpty())
+            assertEquals(Wire.GuideStatus.REMOVED, disabled.status); assertTrue(disabled.programs.isEmpty())
             stack.lineup.update(manual.id, UpdateLineupEntry(enabled = true, position = 0, clearGroup = true))
             assertEquals(listOf("Manual", "TS Station"), stack.catalog.catalog().channels.map { it.name })
             assertTrue(stack.catalog.catalog().channels.first().tags.isEmpty())

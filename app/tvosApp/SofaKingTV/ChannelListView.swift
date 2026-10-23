@@ -118,11 +118,11 @@ extension Channel: @retroactive Identifiable {
 }
 
 extension SofaKingTv {
-    func startTime(of programme: Programme) -> String {
-        start(of: programme).formatted(date: .omitted, time: .shortened)
+    func startTime(of program: Program) -> String {
+        start(of: program).formatted(date: .omitted, time: .shortened)
     }
 
-    func start(of programme: Programme) -> Date { Date(timeIntervalSince1970: Double(epochMs(programme: programme)) / 1000) }
+    func start(of program: Program) -> Date { Date(timeIntervalSince1970: Double(epochMs(program: program)) / 1000) }
 
-    func end(of programme: Programme) -> Date { Date(timeIntervalSince1970: Double(endEpochMs(programme: programme)) / 1000) }
+    func end(of program: Program) -> Date { Date(timeIntervalSince1970: Double(endEpochMs(program: program)) / 1000) }
 }

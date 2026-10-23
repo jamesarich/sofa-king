@@ -27,7 +27,7 @@ class TclClientTest {
         json("/api/metadata/v1/format-stream-url", """{"stream_url":"$base/tcl/master.m3u8?device%5Bdid%5D=REPLACE_ME&ads.device_id=%7BDEVICE_ID%7D&ads.us_privacy=1YN-&ads.app_name=%7BAPP_NAME%7D&ads.ifa=%5BIFA%5D"}""")
     }
 
-    @Test fun `lists channels from the themed rows first and keeps their programmes for the guide`() = runBlocking<Unit> {
+    @Test fun `lists channels from the themed rows first and keeps their programs for the guide`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-tcl-")
         try { ProviderFixture().use { fixture -> ProviderFixture.httpClient().use { http -> openStore(dir).use { store ->
             fixture.tcl()
@@ -46,8 +46,8 @@ class TclClientTest {
             assertEquals(2, fixture.hits("/api/metadata/v1/epg/programlist/by/category"))
             val guide = client.guide(setOf("XU233757"))
             assertEquals(3, guide.channels.size)
-            assertEquals(listOf("Dateline NBC S27 E26", "Dateline NBC S27 E35"), guide.programmes.map { it.title })
-            assertTrue(guide.programmes.all { it.channelId == "XU233757" })
+            assertEquals(listOf("Dateline NBC S27 E26", "Dateline NBC S27 E35"), guide.programs.map { it.title })
+            assertTrue(guide.programs.all { it.channelId == "XU233757" })
             assertEquals(2, fixture.hits("/api/metadata/v1/epg/programlist/by/category"), "the guide reuses the listing")
         } } } } finally { dir.toFile().deleteRecursively() }
     }

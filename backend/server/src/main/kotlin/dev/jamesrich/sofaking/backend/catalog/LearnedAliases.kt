@@ -41,23 +41,23 @@ fun loosePairs(result: BuildResult, never: List<List<String>>): List<Pair<String
 /** Titles compare lowercase, letters and digits only. */
 private fun titleKey(title: String): String = title.lowercase().filter { it.isLetterOrDigit() }
 
-/** Programmes of [a] that [b] airs too: the same title starting within five minutes, each programme matched once. */
-fun matchingProgrammes(a: List<GuideProgramme>, b: List<GuideProgramme>): Int {
+/** Programs of [a] that [b] airs too: the same title starting within five minutes, each program matched once. */
+fun matchingPrograms(a: List<GuideProgram>, b: List<GuideProgram>): Int {
     val pool = b.map { titleKey(it.title) to it.startsAt }.filter { it.first.isNotEmpty() }.sortedBy { it.second }.toMutableList()
     var matched = 0
-    for (programme in a.sortedWith(compareBy({ it.startsAt }, { it.title }))) {
-        val title = titleKey(programme.title)
+    for (program in a.sortedWith(compareBy({ it.startsAt }, { it.title }))) {
+        val title = titleKey(program.title)
         if (title.isEmpty()) continue
-        val index = pool.indexOfFirst { (other, starts) -> other == title && abs(Duration.between(starts, programme.startsAt).toSeconds()) <= START_TOLERANCE.toSeconds() }
+        val index = pool.indexOfFirst { (other, starts) -> other == title && abs(Duration.between(starts, program.startsAt).toSeconds()) <= START_TOLERANCE.toSeconds() }
         if (index >= 0) { pool.removeAt(index); matched++ }
     }
     return matched
 }
 
-/** Two schedules are one channel's when at least three programmes and 60% of the smaller schedule match. */
-fun sameSchedule(a: List<GuideProgramme>, b: List<GuideProgramme>): Boolean {
+/** Two schedules are one channel's when at least three programs and 60% of the smaller schedule match. */
+fun sameSchedule(a: List<GuideProgram>, b: List<GuideProgram>): Boolean {
     if (a.isEmpty() || b.isEmpty()) return false
-    val matched = matchingProgrammes(a, b)
+    val matched = matchingPrograms(a, b)
     return matched >= 3 && matched * 5 >= 3 * min(a.size, b.size)
 }
 
@@ -65,12 +65,12 @@ fun sameSchedule(a: List<GuideProgramme>, b: List<GuideProgramme>): Boolean {
 internal fun numberOnly(override: StationOverride?): Boolean = override == null || override.copy(number = null) == StationOverride()
 
 /**
- * Decides the loose pairs of [result] from [schedules] (station key to its guide's programmes in the window; a key
+ * Decides the loose pairs of [result] from [schedules] (station key to its guide's programs in the window; a key
  * without an entry has no guide). Pairs whose schedules match merge, by component, into the station with the most
  * sources (ties: the first key); pairs with no schedule to compare are suggestions. A station whose override holds
  * more than a number is never merged away, nor is a component that a [LineupPolicy.names] never pair spans.
  */
-fun learnAliases(result: BuildResult, policy: LineupPolicy, schedules: Map<String, List<GuideProgramme>>): Learning {
+fun learnAliases(result: BuildResult, policy: LineupPolicy, schedules: Map<String, List<GuideProgram>>): Learning {
     val never = policy.names.never
     val sources = result.stations.associate { it.key to it.offeringIds.size }
     val target = compareBy<String> { sources[it] ?: 0 }.thenByDescending { it }

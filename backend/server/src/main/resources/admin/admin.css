@@ -141,7 +141,7 @@ tr.flash>*{background:var(--flash)}
 tr.flash>:first-child{box-shadow:inset 4px 0 0 var(--lavender)}
 tr.err-row>*{background:var(--flash-bad)}
 tr.err-row>:first-child{box-shadow:inset 4px 0 0 var(--error)}
-/* Data problems tint the whole row; the swatches in the summary line say what each colour means. */
+/* Data problems tint the whole row; the swatches in the summary line say what each color means. */
 tr.tint-bad>*{background:var(--tint-bad)}
 tr.tint-warn>*{background:var(--tint-warn)}
 tr.tint-bad>:first-child{box-shadow:inset 4px 0 0 var(--error)}

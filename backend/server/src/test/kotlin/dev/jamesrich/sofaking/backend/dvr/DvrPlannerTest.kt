@@ -1,7 +1,7 @@
 package dev.jamesrich.sofaking.backend.dvr
 
 import dev.jamesrich.sofaking.backend.catalog.EpisodeNumber
-import dev.jamesrich.sofaking.backend.catalog.GuideProgramme
+import dev.jamesrich.sofaking.backend.catalog.GuideProgram
 import dev.jamesrich.sofaking.backend.catalog.PreviouslyShown
 import dev.jamesrich.sofaking.contract.Wire
 import java.time.Duration
@@ -19,7 +19,7 @@ class DvrPlannerTest {
         hours: Long, title: String = "Star Trek", channel: String = "a", episode: String? = null, subTitle: String? = null, repeat: Boolean = false,
     ) = Airing(
         channel, channel.uppercase(),
-        GuideProgramme(
+        GuideProgram(
             channel, at(hours), at(hours).plus(Duration.ofHours(1)), title, subTitle = subTitle,
             episodeNumbers = listOfNotNull(episode?.let { EpisodeNumber("onscreen", it) }), previouslyShown = if (repeat) PreviouslyShown() else null,
         ),
@@ -34,7 +34,7 @@ class DvrPlannerTest {
     @Test fun `a rule takes airings of its title on its channel, ignoring case and repeats`() {
         val airings = listOf(airing(1), airing(2, title = "STAR TREK "), airing(3, channel = "b"), airing(4, repeat = true), airing(5, title = "Other"))
         val plan = DvrPlanner.plan(listOf(rule(channel = "a")), airings, emptyList(), now)
-        assertEquals(listOf(at(1), at(2)), plan.add.map { it.second.programme.startsAt })
+        assertEquals(listOf(at(1), at(2)), plan.add.map { it.second.program.startsAt })
         assertEquals(4, DvrPlanner.plan(listOf(rule(newOnly = false)), airings, emptyList(), now).add.size)
     }
 
@@ -42,7 +42,7 @@ class DvrPlannerTest {
         val airings = listOf(airing(1, episode = "S01E01"), airing(2, channel = "b", episode = "S01E01"), airing(3, episode = "S01E02"), airing(4, subTitle = "Pilot"), airing(5, subTitle = "pilot"))
         val held = listOf(recording("kept", at(-48), state = Wire.RecordingState.COMPLETED, season = 1, episode = 2))
         val plan = DvrPlanner.plan(listOf(rule(newOnly = false)), airings, held, now)
-        assertEquals(listOf(at(1), at(4)), plan.add.map { it.second.programme.startsAt })
+        assertEquals(listOf(at(1), at(4)), plan.add.map { it.second.program.startsAt })
     }
 
     @Test fun `an airing without numbering or an episode title is recorded every time`() {
@@ -50,10 +50,10 @@ class DvrPlannerTest {
         assertEquals(2, plan.add.size)
     }
 
-    @Test fun `a slot with any recording, even a cancelled one, and an ended airing are skipped`() {
-        val cancelled = recording("x", at(1), ruleId = "rule-Star Trek-0", state = CANCELLED)
-        val plan = DvrPlanner.plan(listOf(rule()), listOf(airing(-2), airing(1), airing(2)), listOf(cancelled), now)
-        assertEquals(listOf(at(2)), plan.add.map { it.second.programme.startsAt })
+    @Test fun `a slot with any recording, even a canceled one, and an ended airing are skipped`() {
+        val canceled = recording("x", at(1), ruleId = "rule-Star Trek-0", state = CANCELED)
+        val plan = DvrPlanner.plan(listOf(rule()), listOf(airing(-2), airing(1), airing(2)), listOf(canceled), now)
+        assertEquals(listOf(at(2)), plan.add.map { it.second.program.startsAt })
     }
 
     @Test fun `a scheduled rule airing the guide no longer has is dropped, one-offs and started ones are not`() {

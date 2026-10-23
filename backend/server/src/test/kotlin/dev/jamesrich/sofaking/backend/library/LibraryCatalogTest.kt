@@ -117,7 +117,7 @@ class LibraryCatalogTest {
         assertEquals(0, done.positionMs)
         assertEquals(second.id, catalog.home().shelves.first { it.id == Wire.ShelfId.CONTINUE }.items.single().id, "the next episode is up")
 
-        // A rewatch stopped part way keeps the tick and resumes, from the shelf and the show.
+        // A rewatch stopped part way keeps the check mark and resumes, from the shelf and the show.
         s.clock.now = s.clock.now.plus(Duration.ofMinutes(1))
         val rewatch = catalog.updatePlayState(pilot.id, UpdatePlayState(positionMs = 400_000)).playState!!
         assertTrue(rewatch.watched)

@@ -109,7 +109,7 @@ def check_player_outputs(base, upstream, hls_channel, ts_channel, directory):
     assert f'tvg-id="{hls_channel["id"]}" tvg-chno="5"' in playlist and 'group-title="Test"' in playlist, playlist
     with urlopen(f'{base}/output/guide.xml?token={OUTPUT_TOKEN}&days=1', timeout=5) as response:
         guide = response.read().decode()
-    assert f'<channel id="{hls_channel["id"]}">' in guide and '<title>Real fixture programme</title>' in guide, guide
+    assert f'<channel id="{hls_channel["id"]}">' in guide and '<title>Real fixture program</title>' in guide, guide
     check_logos(base, upstream, hls_channel, playlist, guide, directory / 'data')
     # A player following the redirect decodes video through the session.
     decoded = subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', hls_url, '-t', '4', '-map', '0:v:0', '-progress', 'pipe:1', '-f', 'null', '-'],
@@ -197,7 +197,7 @@ def main():
         now = datetime.now(timezone.utc).replace(microsecond=0)
         start = now.strftime('%Y%m%d%H%M%S +0000')
         end = (now + timedelta(hours=1)).strftime('%Y%m%d%H%M%S +0000')
-        (media / 'guide.xml').write_text(f'<tv><programme channel="fixture" start="{start}" stop="{end}"><title>Real fixture programme</title></programme></tv>')
+        (media / 'guide.xml').write_text(f'<tv><programme channel="fixture" start="{start}" stop="{end}"><title>Real fixture program</title></programme></tv>')
         sources = directory / 'sources.json'
         (media / 'ts-feed.m3u').write_text(f'#EXTM3U\n#EXTINF:-1 tvg-id="ts-fixture" tvg-chno="6",Fixture TS\n{upstream}/endless.ts\n')
         with (media / 'guide.xml.gz').open('wb') as compressed:
@@ -244,13 +244,13 @@ def main():
                     catalog = request(base, '/api/v1/channels')
                     if len(catalog['channels']) == 2 and catalog['channels'][0]['guideStatus'] == 'available':
                         break
-                    assert time.monotonic() < deadline, 'Lineup mapping did not pull guide programmes: ' + json.dumps(catalog)
+                    assert time.monotonic() < deadline, 'Lineup mapping did not pull guide programs: ' + json.dumps(catalog)
                     time.sleep(0.1)
                 channel = catalog['channels'][0]
                 assert channel['id'] == entry['id'] and channel['legacyGuideId'] == 'fixture'
                 assert entry['logo'] == f'{upstream}/logo.png', entry
                 guide = request(base, '/api/v1/guide/query', 'POST', {'channelIds': [channel['id']], 'from': now.isoformat(), 'to': (now + timedelta(hours=1)).isoformat()})
-                assert guide['channels'][0]['programmes'][0]['title'] == 'Real fixture programme'
+                assert guide['channels'][0]['programs'][0]['title'] == 'Real fixture program'
                 session = request(base, '/api/v1/playback-sessions', 'POST', {'channelId': channel['id'], 'intent': 'preview', 'idempotencyKey': 'smoke'})
                 manifest = request(base, session['descriptor']['url'])
                 assert upstream not in manifest and '/media/sessions/' in manifest

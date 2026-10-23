@@ -48,7 +48,7 @@ class CommercialsTest {
         } finally { dir.toFile().deleteRecursively() }
     }
 
-    @Test fun `a run past the timeout fails that scan rather than cancelling its caller, and leaves no process`() = runBlocking<Unit> {
+    @Test fun `a run past the timeout fails that scan rather than canceling its caller, and leaves no process`() = runBlocking<Unit> {
         val dir = Files.createTempDirectory("sofa-comskip-slow-")
         try {
             val recording = dir.resolve("Show - S01E01.ts").also { Files.write(it, byteArrayOf(0x47)) }
@@ -62,7 +62,7 @@ class CommercialsTest {
         } finally { dir.toFile().deleteRecursively() }
     }
 
-    /** Real Comskip on a programme, three 30-second ads between black frames, and the programme again; skipped without Comskip. */
+    /** Real Comskip on a program, three 30-second ads between black frames, and the program again; skipped without Comskip. */
     @Test fun `Comskip finds the ad block in a generated recording`() = runBlocking<Unit> {
         assumeTrue(runCatching { ProcessBuilder("comskip", "--help").redirectErrorStream(true).start().waitFor() }.isSuccess, "comskip is not installed")
         val dir = Files.createTempDirectory("sofa-comskip-real-")

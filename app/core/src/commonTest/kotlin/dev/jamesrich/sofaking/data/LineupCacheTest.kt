@@ -24,8 +24,8 @@ class LineupCacheTest {
     private val channelTwo = Channel("2", 2.5, "Café ☃", null, listOf("Other"))
     private val channelThree = Channel("3", 3.0, "Quiet", null, listOf("Other"))
 
-    private fun programme(channel: String, start: String, stop: String, title: String, description: String? = null) =
-        Programme(channel, Instant.parse(start), Instant.parse(stop), title, description)
+    private fun program(channel: String, start: String, stop: String, title: String, description: String? = null) =
+        Program(channel, Instant.parse(start), Instant.parse(stop), title, description)
 
     /** [bytes] as the serializer reads them from the store's file. */
     private suspend fun decode(bytes: ByteArray) = CachedLineupSerializer.readFrom(Buffer().write(bytes))
@@ -33,15 +33,15 @@ class LineupCacheTest {
     private suspend fun encode(cached: CachedLineup?): ByteArray = Buffer().also { CachedLineupSerializer.writeTo(cached, it) }.readByteArray()
 
     @Test
-    fun `round trip keeps channels and programmes`() = runTest {
+    fun `round trip keeps channels and programs`() = runTest {
         val lineup = Lineup(
             channels = listOf(channelOne, channelTwo),
             guide = mapOf(
                 "1" to listOf(
-                    programme("1", "2026-10-09T09:00:00Z", "2026-10-09T11:00:00Z", "Morning", "Long description"),
-                    programme("1", "2026-10-09T11:00:00Z", "2026-10-09T12:00:00Z", "Noon ✓ naïve"),
+                    program("1", "2026-10-09T09:00:00Z", "2026-10-09T11:00:00Z", "Morning", "Long description"),
+                    program("1", "2026-10-09T11:00:00Z", "2026-10-09T12:00:00Z", "Noon ✓ naïve"),
                 ),
-                "2" to listOf(programme("2", "2026-10-09T10:00:00Z", "2026-10-09T10:30:00Z", "Short", description = "d")),
+                "2" to listOf(program("2", "2026-10-09T10:00:00Z", "2026-10-09T10:30:00Z", "Short", description = "d")),
             ),
         )
 
@@ -51,8 +51,8 @@ class LineupCacheTest {
     }
 
     @Test
-    fun `round trip through the serializer keeps guide status and programme metadata`() = runTest {
-        val episode = Programme(
+    fun `round trip through the serializer keeps guide status and program metadata`() = runTest {
+        val episode = Program(
             channelId = "3",
             start = Instant.parse("2026-10-09T10:00:00Z"),
             stop = Instant.parse("2026-10-09T11:00:00Z"),
@@ -77,11 +77,11 @@ class LineupCacheTest {
     }
 
     @Test
-    fun `read drops programmes that have already ended`() = runTest {
-        val ended = programme("1", "2026-10-09T08:00:00Z", "2026-10-09T09:00:00Z", "Ended")
-        val boundary = programme("1", "2026-10-09T09:00:00Z", "2026-10-09T10:00:00Z", "Ends now")
-        val airing = programme("1", "2026-10-09T09:30:00Z", "2026-10-09T11:00:00Z", "Airing")
-        val allEnded = programme("2", "2026-10-09T07:00:00Z", "2026-10-09T08:00:00Z", "Gone")
+    fun `read drops programs that have already ended`() = runTest {
+        val ended = program("1", "2026-10-09T08:00:00Z", "2026-10-09T09:00:00Z", "Ended")
+        val boundary = program("1", "2026-10-09T09:00:00Z", "2026-10-09T10:00:00Z", "Ends now")
+        val airing = program("1", "2026-10-09T09:30:00Z", "2026-10-09T11:00:00Z", "Airing")
+        val allEnded = program("2", "2026-10-09T07:00:00Z", "2026-10-09T08:00:00Z", "Gone")
         cache().write(
             Lineup(
                 listOf(channelOne, channelTwo),
@@ -108,7 +108,7 @@ class LineupCacheTest {
 
     @Test
     fun `a truncated record is corruption`() = runTest {
-        cache().write(Lineup(listOf(channelOne), mapOf("1" to listOf(programme("1", "2026-10-09T11:00:00Z", "2026-10-09T12:00:00Z", "T")))))
+        cache().write(Lineup(listOf(channelOne), mapOf("1" to listOf(program("1", "2026-10-09T11:00:00Z", "2026-10-09T12:00:00Z", "T")))))
         val bytes = encode(store.value)
 
         assertFailsWith<CorruptionException> { decode(bytes.copyOf(bytes.size / 2)) }
@@ -134,8 +134,8 @@ class LineupCacheTest {
     }
 
     @Test
-    fun `the channels open before the programmes are decoded`() = runTest {
-        val guide = mapOf("1" to listOf(programme("1", "2026-10-09T09:00:00Z", "2026-10-09T11:00:00Z", "Morning")))
+    fun `the channels open before the programs are decoded`() = runTest {
+        val guide = mapOf("1" to listOf(program("1", "2026-10-09T09:00:00Z", "2026-10-09T11:00:00Z", "Morning")))
         cache().write(Lineup(listOf(channelOne), guide))
 
         val opened = assertNotNull(cache().open())
@@ -144,10 +144,10 @@ class LineupCacheTest {
     }
 
     @Test
-    fun `a file from before the programmes were nested still reads`() = runTest {
-        val programme = CachedProgramme(Instant.parse("2026-10-09T09:00:00Z").epochSeconds, Instant.parse("2026-10-09T11:00:00Z").epochSeconds, "Morning")
+    fun `a file from before the programs were nested still reads`() = runTest {
+        val program = CachedProgram(Instant.parse("2026-10-09T09:00:00Z").epochSeconds, Instant.parse("2026-10-09T11:00:00Z").epochSeconds, "Morning")
         store.updateData {
-            CachedLineup(KEY, channels = listOf(CachedChannel("1", 1.0, "One", null, listOf("News"), "AVAILABLE")), guide = listOf(CachedGuide("1", listOf(programme))))
+            CachedLineup(KEY, channels = listOf(CachedChannel("1", 1.0, "One", null, listOf("News"), "AVAILABLE")), guide = listOf(CachedGuide("1", listOf(program))))
         }
 
         val lineup = assertNotNull(cache().read())
@@ -155,7 +155,7 @@ class LineupCacheTest {
     }
 
     @Test
-    fun `programmes that do not decode read as null and clear the cache`() = runTest {
+    fun `programs that do not decode read as null and clear the cache`() = runTest {
         store.updateData { CachedLineup(KEY, channels = listOf(CachedChannel("1", 1.0, "One", null, listOf("News"), "AVAILABLE")), guideBytes = byteArrayOf(10, 99)) }
 
         val opened = assertNotNull(cache().open())

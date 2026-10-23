@@ -63,6 +63,14 @@ TEST_RUNNER_SOFAKING_SERVER=$SOFAKING_SERVER TEST_RUNNER_SOFAKING_TOKEN=$SOFAKIN
   xcodebuild -project SofaKingTV.xcodeproj -scheme SofaKingTV -destination 'platform=tvOS Simulator,name=Apple TV' CODE_SIGNING_ALLOWED=NO test
 ```
 
+### Web key fuzz
+
+[`scripts/web-fuzz.py`](../scripts/web-fuzz.py) serves a production web build to a headless browser through [Playwright for Python](https://playwright.dev/python/), with the page paired to the same fixture server, and presses 400 random keys 150 ms apart, weighted as `AppKeyFuzzTest` weighs the remote's. It fails when the page keeps the focus on its body (the app then takes no keys until a click), on an uncaught error, a console error, a failed request (but the 404 for a new device's preferences), a crashed page, or two blank screens in a row; the summary also counts the sessions left open after the page closed. The Linux CI job runs it on both web builds in Google Chrome, which plays the fixture's H.264 where Playwright's own Chromium does not, and uploads the console, server log, keys and last screen when it fails. Locally, with the server's distribution, FFmpeg, Playwright and a web build:
+
+```sh
+SOFAKING_WEB_FUZZ_SEED=1234 python3 scripts/web-fuzz.py --channel chrome --dist ui/build/dist/wasmJs/productionExecutable --out build/web-fuzz
+```
+
 ## Android Studio
 
 Open the repository root, not `app/`. The root `settings.gradle.kts` imports the app, the server and the contract as one composite build named `sofa-king-monorepo`, and the root `gradle.properties` holds the Gradle settings the IDE's sync uses. Use an Android Studio release that supports the catalog's `agp` version, with its bundled Kotlin Multiplatform plugin enabled, and the SDK in `app/local.properties` as above. A preview `agp` (an alpha or beta) syncs only in the Android Studio Canary or Beta built with it; a stable Studio stops at the last stable plugin, and a nightly expects a plugin preview that Google Maven may not have published yet. Either refuses the sync with "The project is using an incompatible version" (or "incompatible preview version") of the Android Gradle plugin, under Gradle Sync issues in the Build window. To see which plugin a Studio build accepts, read `buildVersion` in `com/android/version.properties` inside the app's `plugins/android/lib/libagp-version.jar`.

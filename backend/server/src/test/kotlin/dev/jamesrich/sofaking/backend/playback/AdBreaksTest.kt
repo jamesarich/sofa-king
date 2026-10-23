@@ -269,6 +269,53 @@ $host/not-a-token.ts
         assertEquals(listOf(false, false, true, true, false), ads(stirr, URI("https://kotv.fuelmedia.io/play/6S412K288AWS.m3u8")))
     }
 
+    @Test fun `Ottera's ad host is an ad and a Plex part between two of its segments joins the break`() {
+        fun ad(n: Int) = "https://stream.ads.ottera.tv/mf2/640x360_800000?u=https%3A%2F%2Fexample.cloudfront.net%2Fcreative%2Fprog_index_11-$n.ts&a=0&s=$n&d=120"
+        val own = "https://bas-example.otteravision.com/bas/example/example_360/00043/example_360_08615.ts"
+        val part = "https://epg.provider.plex.tv/library/parts/0123-4567/segment"
+        val plex = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:9\n" + listOf(part, own, part, ad(1), part, ad(2), part, own)
+            .joinToString("") { "#EXTINF:2.0,\n$it\n" }
+        assertEquals(listOf(false, false, false, true, true, true, false, false), ads(plex, URI("https://epg.provider.plex.tv/library/parts/0123-4567/index.m3u8")))
+    }
+
+    @Test fun `Google's ad pods are ads and the publisher's segments are not`() {
+        val dai = """#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:500
+#EXTINF:6.0,
+https://example.airspace-cdn.cbsivideo.com/live/seg_100.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:6.0,
+https://dai.google.com/linear/pods/v1/p/abcdef/stream0:MRN2/12345/slate/0/0123abcd/1.ts
+#EXTINF:6.0,
+https://dai.google.com/linear/pods/v1/p/abcdef/stream0:MRN2/12345/slate/0/0123abcd/2.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:6.0,
+https://example.airspace-cdn.cbsivideo.com/live/seg_103.ts
+#EXTINF:6.0,
+https://dai.google.com/linear/hls/event/abcdef/master.m3u8
+"""
+        assertEquals(listOf(false, true, true, false, false), ads(dai, URI("https://dai.google.com/linear/hls/pa/event/abcdef/stream/x/hls/0.m3u8")))
+    }
+
+    @Test fun `Wurl's segments titled tag=ad are ads and its overlay cue is not a break`() {
+        val wurl = """#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:100
+#EXTINF:6.006,epid=1:epdur=1800100:ct=C:tag=content:aid=53768162
+https://connection3-ent-us.plex.wurl.tv/102/412715/a.ts
+#EXT-X-TRANSMIT-CUE-OUT:AdFormat=pip,MaxDuration=53.00,offset=0.41
+#EXTINF:6.006,epid=1:epdur=1800100:ct=C:tag=content:aid=53768162
+https://connection3-ent-us.plex.wurl.tv/102/412715/b.ts
+#EXT-X-DISCONTINUITY
+#EXTINF:6.006,epid=1:epdur=1800100:ct=M:tag=ad:aid=163876571:td=49632
+https://connection3-ent-us.plex.wurl.tv/163876571/hls-v2/c.ts
+#EXTINF:6.006,epid=1:epdur=1800100:ct=M:tag=ad:aid=163876571:td=49632
+https://connection3-ent-us.plex.wurl.tv/163876571/hls-v2/d.ts
+#EXTINF:6.006,epid=1:ct=C:tag=adventure-promo
+https://connection3-ent-us.plex.wurl.tv/102/412715/e.ts
+"""
+        assertEquals(listOf(false, false, true, true, false), ads(wurl, URI("https://connection3-ent-us.plex.wurl.tv/102/playlist.m3u8")))
+    }
+
     @Test fun `a cue-in is noted on the segment after it`() {
         val text = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:7\n#EXTINF:6,\na.ts\n#EXT-X-CUE-IN\n#EXTINF:6,\nb.ts\n"
         val parsed = assertNotNull(AdBreaks.parse(text, tubiBase))

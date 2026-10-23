@@ -132,6 +132,7 @@ kotlin {
         jvmTest.dependencies {
             implementation(libs.compose.ui.test)
             implementation(libs.ktor.client.mock)
+            implementation(libs.kotlinx.serialization.json)
         }
         webMain.dependencies {
             implementation(libs.kotlinx.browser)
@@ -188,6 +189,8 @@ val macVersion = appVersion.let { if (it.startsWith("0.")) "1.${it.removePrefix(
 compose.desktop {
     application {
         mainClass = "dev.jamesrich.sofaking.MainKt"
+        // `:ui:run -Psofaking.tv=true` lays the window out as a TV, with the keyboard as the remote.
+        providers.gradleProperty("sofaking.tv").orNull?.let { jvmArgs("-Dsofaking.tv=$it") }
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             // From `suggestRuntimeModules`; DataStore's protobuf needs jdk.unsupported, and the trimmed runtime lacks it.

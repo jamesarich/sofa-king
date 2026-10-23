@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.data.ViewerSync
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 /**
  * The app's objects over a platform's [storage]: one settings store per file and one connection to the server it
@@ -16,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
  */
 internal class AppGraph(private val storage: AppStorage, private val discovery: ServerDiscovery) {
     private val settings: SettingsStore = DataStoreSettingsStore(storage.settings)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     /**
      * Started by the first ViewModel rather than with the process, so a process woken for anything else does not call
@@ -24,7 +26,7 @@ internal class AppGraph(private val storage: AppStorage, private val discovery: 
     private val connection by lazy {
         ServerConnection(
             settings = settings.settings,
-            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+            scope = scope,
             viewerSync = ViewerSync(settings, storage.client),
         )
     }
@@ -35,6 +37,9 @@ internal class AppGraph(private val storage: AppStorage, private val discovery: 
 
     /** The Recordings tab reads the same list as the guide's record marks, from the connection. */
     fun recordingsViewModel(): RecordingsViewModel = RecordingsViewModel(connection.recordings, connection.sessions)
+
+    /** Ends the connection's work; only a test that starts the app again in the same process needs it. */
+    fun close() = scope.cancel()
 }
 
 private var graph: AppGraph? = null
@@ -51,4 +56,10 @@ internal val appGraph: AppGraph
 fun initSofaKing(storage: AppStorage, discovery: ServerDiscovery = ServerDiscovery.None) {
     check(graph == null) { "initSofaKing runs once per process" }
     graph = AppGraph(storage, discovery)
+}
+
+/** Ends the graph [initSofaKing] started, so a test can start the app again on fresh storage. */
+internal fun stopSofaKing() {
+    graph?.close()
+    graph = null
 }

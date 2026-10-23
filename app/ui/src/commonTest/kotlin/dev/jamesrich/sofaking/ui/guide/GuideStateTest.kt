@@ -117,6 +117,7 @@ class GuideStateTest {
 
     @Test
     fun `Info opens the details sheet at once`() {
+        state.gridFocused = true
         state.cellFocused(channels[1], cell(0, 30))
         assertTrue(down(Key.Info))
         state.details = null
@@ -126,11 +127,21 @@ class GuideStateTest {
 
     @Test
     fun `Info opens the focused programme's details and closes them`() {
+        state.gridFocused = true
         state.cellFocused(channels[1], cell(0, 30))
         assertTrue(down(Key.Info))
         assertEquals(ProgrammeDetails(channels[1], cell(0, 30).programme), state.details)
         assertTrue(down(Key.Info))
         assertEquals(listOf("rest", "rest", "closeDetails"), controls.calls)
+    }
+
+    @Test
+    fun `Info off the grid leaves the details closed`() {
+        state.gridFocused = true
+        state.cellFocused(channels[1], cell(0, 30))
+        state.gridFocused = false
+        assertTrue(down(Key.Info))
+        assertNull(state.details)
     }
 
     @Test
@@ -151,6 +162,20 @@ class GuideStateTest {
         state.searchOpen = true
         down(Key.MediaFastForward)
         assertEquals(listOf("rest", "day DAY_FORWARD", "rest", "day DAY_BACK", "rest"), controls.calls)
+    }
+
+    @Test
+    fun `Fast Forward and Rewind close the details back to the cell`() {
+        state.details = ProgrammeDetails(channels[0], null)
+        down(Key.MediaRewind)
+        assertEquals(listOf("rest", "closeDetails", "day DAY_BACK"), controls.calls)
+    }
+
+    @Test
+    fun `digits do nothing while the details are open`() {
+        state.details = ProgrammeDetails(channels[0], null)
+        assertFalse(down(Key.Five))
+        assertFalse(state.numbers.hasDigits)
     }
 
     @Test

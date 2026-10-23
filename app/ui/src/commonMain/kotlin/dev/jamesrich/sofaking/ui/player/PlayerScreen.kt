@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.appLifecycleOwner
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.contract.Wire
@@ -439,7 +440,8 @@ fun PlayerScreen(
     // Focus returns to the player surface whenever a panel closes, including after its list is removed, and when the
     // bar leaves while one of its buttons has it.
     LaunchedEffect(state.miniGuideOpen, state.streamCardOpen, state.overlayVisible) {
-        if (!state.miniGuideOpen && !state.streamCardOpen && !(state.overlayVisible && state.buttonsFocused)) focus.requestFocus()
+        // Retried until the surface is placed: on entry it may not be yet, and a refused request would leave nothing focused.
+        if (!state.miniGuideOpen && !state.streamCardOpen && !(state.overlayVisible && state.buttonsFocused)) requestFocusWhenAttached(focus)
     }
     // A short note at the top left: Record's answer once the server has taken the change or not, or the new zoom.
     var notice by remember { mutableStateOf<String?>(null) }

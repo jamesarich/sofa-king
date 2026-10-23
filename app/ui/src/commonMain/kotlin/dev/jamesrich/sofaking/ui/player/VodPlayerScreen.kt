@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.ui.player
 
+import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.formatPlayTime
 import dev.jamesrich.sofaking.ui.theme.SofaIcons
 import androidx.compose.animation.AnimatedVisibility
@@ -506,7 +507,7 @@ fun VodPlayerScreen(
         }
     }
 
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    LaunchedEffect(Unit) { requestFocusWhenAttached(focus) }
     // A button that had focus when the bar left, or when it was removed, hands it back to the picture.
     LaunchedEffect(state.overlayVisible, buttons.size) { if (state.buttonsFocused && (!state.overlayVisible || buttons.isEmpty())) focus.requestFocus() }
     LaunchedEffect(state.focusSkip, state.overlayVisible, buttons.firstOrNull()) {

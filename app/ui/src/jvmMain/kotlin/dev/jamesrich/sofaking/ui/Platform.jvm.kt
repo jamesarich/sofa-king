@@ -8,9 +8,14 @@ import androidx.compose.ui.input.key.KeyEvent
 import dev.jamesrich.sofaking.data.PublishedBuild
 import dev.jamesrich.sofaking.data.UpdateInstaller
 
-/** A desktop window, sized and placed by its user. */
+/**
+ * A desktop window, sized and placed by its user, unless started with `-Dsofaking.tv=true`, which lays the app out as
+ * on a TV with the keyboard as the remote, for working on the TV layout and testing it without one.
+ */
 @Composable
-internal actual fun rememberIsTelevision(): Boolean = false
+internal actual fun rememberIsTelevision(): Boolean = remember { System.getProperty(TV_PROPERTY).toBoolean() }
+
+internal const val TV_PROPERTY = "sofaking.tv"
 
 /** The default locale's short time pattern: an hour-of-day field (H or k) means a 24-hour clock. */
 @Composable

@@ -1,7 +1,6 @@
 package dev.jamesrich.sofaking.ui.library
 
 import dev.jamesrich.sofaking.ui.Artwork
-import dev.jamesrich.sofaking.ui.HeldOkGuard
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +42,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -93,12 +95,13 @@ private fun PosterCard(
     modifier: Modifier = Modifier,
     menu: CardMenu? = null,
 ) {
+    val subtitle = posterSubtitle(item)
     Column(modifier.width(POSTER_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ItemCard(item, onClick, onPlay, menu, aspectRatio = 2f / 3f, focusScale = null) {
+        ItemCard(item, cardLabel(item.title, subtitle), onClick, onPlay, menu, aspectRatio = 2f / 3f, focusScale = null) {
             // A file without a poster still has a frame from the server, cropped to the poster's shape.
             Artwork(item.poster ?: item.backdrop, label = null)
         }
-        CardLabel(item.title, posterSubtitle(item))
+        CardLabel(item.title, subtitle)
     }
 }
 
@@ -111,15 +114,17 @@ private fun WideCard(
     modifier: Modifier = Modifier,
     menu: CardMenu? = null,
 ) {
+    val title = if (item.kind == ItemKind.EPISODE) item.showTitle ?: item.title else item.title
+    val subtitle = if (item.kind == ItemKind.EPISODE) {
+        listOfNotNull(item.episodeLabel, item.title.takeIf { item.showTitle != null }).joinToString(" · ")
+    } else {
+        item.year?.toString()
+    }
     Column(modifier.width(WIDE_WIDTH), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ItemCard(item, onClick, onPlay, menu, aspectRatio = 16f / 9f, focusScale = WIDE_FOCUS_SCALE) {
+        ItemCard(item, cardLabel(title, subtitle), onClick, onPlay, menu, aspectRatio = 16f / 9f, focusScale = WIDE_FOCUS_SCALE) {
             Artwork(item.backdrop ?: item.poster, label = null)
         }
-        if (item.kind == ItemKind.EPISODE) {
-            CardLabel(item.showTitle ?: item.title, listOfNotNull(item.episodeLabel, item.title.takeIf { item.showTitle != null }).joinToString(" · "))
-        } else {
-            CardLabel(item.title, item.year?.toString())
-        }
+        CardLabel(title, subtitle)
     }
 }
 
@@ -127,12 +132,15 @@ private fun WideCard(
 internal class CardMenu(val onPlayFromStart: ((MediaItem) -> Unit)?, val onSetWatched: (MediaItem, Boolean) -> Unit)
 
 /**
- * The card itself, with [menu] on a held OK. The rest of the press that opened it, its repeats and key-up, is
- * swallowed, so the menu's first entry is not pressed by the same OK.
+ * The card itself, with [menu] on a held OK. The menu is a window of its own, so a held OK opens it once the key comes
+ * up: the whole press ends on the card, whose click would otherwise wait for a key-up that went to the menu and ignore
+ * the next OK. A long touch or a right click opens it at once. The card is what takes focus, so it carries
+ * [label], the title and subtitle drawn under it, for a screen reader.
  */
 @Composable
 private fun ItemCard(
     item: MediaItem,
+    label: String,
     onClick: () -> Unit,
     onPlay: (() -> Unit)?,
     menu: CardMenu?,
@@ -141,23 +149,34 @@ private fun ItemCard(
     picture: @Composable BoxScope.() -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    val heldOk = remember { HeldOkGuard() }
+    var okDown by remember { mutableStateOf(false) }
+    var openOnRelease by remember { mutableStateOf(false) }
     val focus = if (focusScale == null) Modifier.tvFocus(CardShape) else Modifier.tvFocus(CardShape, focusScale)
     Box {
         Card(
             shape = CardShape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio).playKey(onPlay).heldOk(heldOk).then(focus).clip(CardShape)
+            modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio).playKey(onPlay)
+                .onPreviewKeyEvent { event ->
+                    if (event.key.isOk && event.type == KeyEventType.KeyDown) okDown = true
+                    if (event.key.isOk && event.type == KeyEventType.KeyUp) {
+                        okDown = false
+                        if (openOnRelease) {
+                            openOnRelease = false
+                            open = true
+                        }
+                    }
+                    false
+                }
+                .then(focus).clip(CardShape)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClickLabel = if (menu != null) stringResource(Res.string.library_card_menu) else null,
                     onLongClick = menu?.let {
-                        {
-                            heldOk.arm()
-                            open = true
-                        }
+                        { if (okDown) openOnRelease = true else open = true }
                     },
-                ),
+                )
+                .semantics { contentDescription = label },
         ) {
             Box(Modifier.fillMaxSize()) {
                 picture()
@@ -166,7 +185,7 @@ private fun ItemCard(
         }
         if (menu != null) {
             val first = remember { FocusRequester() }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.heldOk(heldOk).arrowKeysMoveFocus()) {
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.arrowKeysMoveFocus()) {
                 val entries = cardMenuEntries(item, playFromStart = menu.onPlayFromStart != null)
                 entries.forEachIndexed { index, entry ->
                     DropdownMenuItem(
@@ -185,17 +204,6 @@ private fun ItemCard(
                 LaunchedEffect(Unit) { requestFocusWhenAttached(first) }
             }
         }
-    }
-}
-
-/** Passes OK's key-down and key-up through [guard], dropping the ones it swallows. */
-private fun Modifier.heldOk(guard: HeldOkGuard): Modifier = onPreviewKeyEvent { event ->
-    val ok = event.key.isOk
-    when {
-        !ok -> false
-        event.type == KeyEventType.KeyDown -> guard.onKeyDown()
-        event.type == KeyEventType.KeyUp -> guard.onKeyUp()
-        else -> false
     }
 }
 
@@ -244,7 +252,8 @@ internal fun WatchedTick(modifier: Modifier = Modifier) {
 
 @Composable
 private fun CardLabel(title: String, subtitle: String?) {
-    Column {
+    // The card above says the same to a screen reader.
+    Column(Modifier.clearAndSetSemantics {}) {
         Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
             subtitle.orEmpty(),
@@ -255,6 +264,8 @@ private fun CardLabel(title: String, subtitle: String?) {
         )
     }
 }
+
+private fun cardLabel(title: String, subtitle: String?): String = listOfNotNull(title, subtitle?.takeIf { it.isNotEmpty() }).joinToString(", ")
 
 /** A poster's second line: a show's season or episode count would need the details, so the year, or the episode number. */
 private fun posterSubtitle(item: MediaItem): String? = item.episodeLabel ?: item.year?.toString()

@@ -1,0 +1,16 @@
+# The first episode plays to its end, Up next offers the second, and OK plays it. The script opens the first
+# episode first, where the last flow left it.
+appId: dev.jamesrich.sofaking
+name: Library Up next
+---
+- extendedWaitUntil:
+    visible: "Up next"
+    timeout: 60000
+- pressKey: Remote Dpad Center
+- extendedWaitUntil:
+    notVisible: "Up next"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible: "Starting"
+    timeout: 30000
+- pressKey: Back

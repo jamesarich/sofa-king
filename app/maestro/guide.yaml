@@ -1,0 +1,16 @@
+# The guide opens the focused channel full screen on OK, and Back brings the guide back.
+appId: dev.jamesrich.sofaking
+name: Guide to full screen and back
+---
+- extendedWaitUntil:
+    visible: "Sofa Sports"
+    timeout: 30000
+- pressKey: Remote Dpad Center
+# Full screen shows only the channel playing.
+- extendedWaitUntil:
+    notVisible: "Sofa Sports"
+    timeout: 15000
+- pressKey: Back
+- extendedWaitUntil:
+    visible: "Sofa Sports"
+    timeout: 15000

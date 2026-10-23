@@ -2,7 +2,8 @@
 """Run the server's installed distribution against fixture channels, for tests that drive an app on a device or
 simulator: eight channels from one FFmpeg clip (the first as HLS, the rest as endless MPEG-TS), six hours of guide, and
 the lineup adopted. With --shows it also serves a TV shows library of four short episodes that share a theme, whose
-intros the server finds, for Skip intro. Run directly, it serves until stopped and writes the server's address and token
+intros the server finds, for Skip intro; tv-monkey.py asks instead for a short show of two 20-second episodes, which
+its Maestro flows play to the end. Run directly, it serves until stopped and writes the server's address and token
 to <out>/server.env, for `xcodebuild test` and the like; tv-monkey.py imports it.
 
 Needs FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/).
@@ -36,6 +37,8 @@ PIECE = 188 * 64
 # first 30% of an episode for its intro, so the theme ends well inside that.
 EPISODES = 4
 COLD_OPEN, THEME, EPISODE = 10, 45, 240
+# The short show's two episodes, long enough for a test to pause and seek in and short enough to reach Up next.
+EPISODE_SECONDS = 20
 
 
 class Upstream(http.server.SimpleHTTPRequestHandler):
@@ -147,11 +150,32 @@ def intros(base, library):
     return len(found) == EPISODES and all(item['segments'] for item in found) and found
 
 
+def short_show(library):
+    """A show of two short episodes, MP4 with H.264 and AAC, which the debug Android app plays as it is."""
+    season = library / 'Short Show' / 'Season 01'
+    season.mkdir(parents=True)
+    for episode in (1, 2):
+        subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25',
+                        '-f', 'lavfi', '-i', f'sine=frequency={440 * episode}:sample_rate=48000', '-t', str(EPISODE_SECONDS),
+                        '-c:v', 'libx264', '-preset', 'ultrafast', '-g', '25', '-c:a', 'aac', '-movflags', '+faststart',
+                        str(season / f'Short Show - S01E0{episode}.mp4')], check=True, timeout=60)
+
+
+def show_episodes(base):
+    """The short show's episode ids, in order, from a server started with short=True."""
+    library = next(l for l in request(base, '/api/v1/admin/libraries') if l['name'] == 'Short show')
+    show = request(base, f'/api/v1/libraries/{library["id"]}/items')['items'][0]
+    season = request(base, f'/api/v1/library/items/{show["id"]}')['children'][0]
+    episodes = request(base, f'/api/v1/library/items/{season["id"]}')['children']
+    return [e['id'] for e in sorted(episodes, key=lambda e: e.get('episode') or 0)]
+
+
 @contextlib.contextmanager
-def serve(out, shows=False, quiet=False, **settings):
+def serve(out, shows=False, short=False, quiet=False, **settings):
     """Starts the fixture channels and the server, with its log in <out>/server.log and any further `SOFA_` [settings],
-    and yields the server's base URL once the lineup is adopted, and with [shows] the fixture show's intros found; stops
-    both on the way out. [quiet] silences the channels; the show's theme keeps its sound, which finds the intros."""
+    and yields the server's base URL once the lineup is adopted, with [shows] the fixture show's intros found, and with
+    [short] the short show scanned; stops both on the way out. [quiet] silences the channels; the show's theme keeps its
+    sound, which finds the intros."""
     if not SERVER.exists():
         raise SystemExit('Build :server:installDist in backend/ first')
     with tempfile.TemporaryDirectory(prefix='sofa-fixture-') as temporary:
@@ -166,6 +190,8 @@ def serve(out, shows=False, quiet=False, **settings):
         library.mkdir()
         if shows:
             show(library)
+        if short:
+            short_show(library / 'short')
         sources = directory / 'sources.json'
         sources.write_text(json.dumps({'providers': [
             {'id': 'fixture', 'playlistUrl': upstream + '/feed.m3u', 'guideUrl': upstream + '/guide.xml', 'probe': False}]}))
@@ -187,6 +213,9 @@ def serve(out, shows=False, quiet=False, **settings):
             if shows:
                 created = request(base, '/api/v1/admin/libraries', 'POST', {'name': 'TV Shows', 'kind': 'shows', 'path': str(library)})
                 wait_for('the fixture show\'s intros', lambda: intros(base, created['id']), 120)
+            if short:
+                created = request(base, '/api/v1/admin/libraries', 'POST', {'name': 'Short show', 'kind': 'shows', 'path': str(library / 'short')})
+                wait_for('the short show', lambda: request(base, f'/api/v1/libraries/{created["id"]}/items')['items'], 60)
             yield base
         finally:
             if server.poll() is None:

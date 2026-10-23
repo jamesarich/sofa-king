@@ -51,6 +51,14 @@ To look at the TV layout without a TV, run the desktop app with `./gradlew :ui:r
 SOFAKING_MONKEY_SEED=1234 python3 scripts/tv-monkey.py --apk androidApp/build/outputs/apk/debug/androidApp-debug.apk --out build/tv-monkey
 ```
 
+### Desktop monkey
+
+[`desktop-monkey.yml`](../../.github/workflows/desktop-monkey.yml) runs [`scripts/desktop-monkey.py`](../scripts/desktop-monkey.py) every night on a GitHub runner: the desktop app's distribution (`:ui:createDistributable`) in an Xvfb display, paired by a settings file written before it starts, against the same fixture server, with libVLC playing the channels into ALSA's null device. It presses 1,000 random keys 150 ms apart through xdotool, weighted as `AppKeyFuzzTest` weighs the remote's, with a held Return now and then. Then it closes the window the way a window manager's close button does. It fails when the app exits, logs an uncaught exception or an unhandled failure, draws two blank screens in a row, or does not quit and release its session when its window closes. The summary counts Compose's warnings about focus requests made before their target was placed. A JVM that will not quit prints its threads to `app.log`, which the artifact keeps with the server log, the keys and the last screen. Replay a run from the Actions tab with its key count and seed, or locally with Xvfb, xdotool, ImageMagick, python-xlib, libVLC, FFmpeg and both distributions built:
+
+```sh
+SOFAKING_DESKTOP_MONKEY_SEED=1234 python3 scripts/desktop-monkey.py --out build/desktop-monkey
+```
+
 ### Apple TV remote tests
 
 `tvosApp/SofaKingTVUITests` drives the Apple TV app with the Siri Remote (`XCUIRemote`) in a tvOS simulator, against the same fixture server, and checks what the remote did through the server's API. `testPlayerTransportMenu` plays Sofa Sports from the list, presses Record in the player's transport bar until the DVR holds the recording, switches to Movies through Channels › All channels, and leaves with Menu, which must release the session. `testTabs` moves along the tab bar, into each tab and back. `testWalkWithRandomKeys` presses 200 weighted random buttons, brings the app back when Menu leaves it, fails if the app stops, and checks that the session is released once the app is in the background. A failure's message holds what had focus and the element tree. The macOS CI job runs them after building the Apple TV host. On a Mac, with the server's distribution built and FFmpeg installed, start the fixture server and pass its address to the test runner; without it the tests skip:

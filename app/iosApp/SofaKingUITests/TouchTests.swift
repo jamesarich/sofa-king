@@ -25,6 +25,63 @@ final class TouchTests: XCTestCase {
         eventually("the app to release its session in the background") { server.sessions().isEmpty }
     }
 
+    /// Random taps, swipes, back swipes from the screen's left edge and long presses against the fixture server, seeded
+    /// so a walk replays from SOFAKING_WALK_SEED (and SOFAKING_WALK_STEPS, 150 by default). The app must keep running,
+    /// and release its session once it is behind the home screen.
+    @MainActor
+    func testWalkWithRandomTouches() throws {
+        let server = try FixtureServer.fromEnvironment(since: Date())
+        launch(["-serverUrl", server.url.absoluteString, "-apiToken", server.token])
+        let environment = ProcessInfo.processInfo.environment
+        let seed = environment["SOFAKING_WALK_SEED"].flatMap(UInt64.init) ?? UInt64(Date().timeIntervalSince1970)
+        let steps = environment["SOFAKING_WALK_STEPS"].flatMap(Int.init) ?? 150
+        var random = SplitMix64(seed: seed)
+        var walked: [String] = []
+        var returns = 0
+        for step in 0..<steps {
+            let touch = Self.touches.pick(&random)
+            walked.append(touch.name)
+            touch.act(app, &random)
+            switch app.state {
+            case .runningForeground:
+                break
+            case .notRunning:
+                XCTFail("The app stopped at touch \(step + 1) of seed \(seed) after \(walked.suffix(12).joined(separator: " "))")
+                return
+            default:
+                // A link or a share sheet can leave the app; bring it back.
+                returns += 1
+                app.activate()
+            }
+        }
+        print("Walk: seed \(seed), \(steps) touches, back to the app \(returns) times")
+        let summary = XCTAttachment(string: "Seed \(seed), \(steps) touches: \(walked.joined(separator: " "))")
+        summary.name = "Walk"
+        summary.lifetime = .keepAlways
+        add(summary)
+        XCUIDevice.shared.press(.home)
+        eventually("the app to release its session in the background, seed \(seed)", timeout: 30) { server.sessions().isEmpty }
+    }
+
+    /// The walk's touches, weighted.
+    private static let touches = WeightedTouches([
+        ("tap", 10, { app, random in app.coordinate(withNormalizedOffset: random.point()).tap() }),
+        ("tapButton", 6, { app, random in
+            let buttons = app.buttons.allElementsBoundByIndex.filter { $0.isHittable }
+            if !buttons.isEmpty { buttons[Int(random.next() % UInt64(buttons.count))].tap() }
+        }),
+        ("swipeUp", 3, { app, _ in app.swipeUp() }),
+        ("swipeDown", 3, { app, _ in app.swipeDown() }),
+        ("swipeLeft", 2, { app, _ in app.swipeLeft() }),
+        ("swipeRight", 2, { app, _ in app.swipeRight() }),
+        ("back", 3, { app, _ in
+            // The system's back gesture: a swipe in from the left edge.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.005, dy: 0.5))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)))
+        }),
+        ("longPress", 1, { app, random in app.coordinate(withNormalizedOffset: random.point()).press(forDuration: 1.2) }),
+    ])
+
     /// Plays SOFAKING_BREAK_CHANNEL full screen for SOFAKING_BREAK_MINUTES (10 by default) and logs each time the break
     /// screen comes and goes, with a screenshot at each edge, so its timing can be read against the stream. Fails if
     /// the app stops.
@@ -190,5 +247,46 @@ struct FixtureServer {
 
     private final class Response: @unchecked Sendable {
         var data: Data?
+    }
+}
+
+/// Touches to pick at random, each as often as its weight says.
+struct WeightedTouches {
+    typealias Act = @MainActor (XCUIApplication, inout SplitMix64) -> Void
+    let touches: [(name: String, weight: Int, act: Act)]
+
+    init(_ touches: [(name: String, weight: Int, act: Act)]) {
+        self.touches = touches
+    }
+
+    func pick(_ random: inout SplitMix64) -> (name: String, act: Act) {
+        var roll = Int(random.next() % UInt64(touches.map(\.weight).reduce(0, +)))
+        for touch in touches {
+            if roll < touch.weight { return (touch.name, touch.act) }
+            roll -= touch.weight
+        }
+        return (touches[0].name, touches[0].act)
+    }
+}
+
+/// A seeded generator, so a walk replays from its seed.
+struct SplitMix64: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        state = seed
+    }
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
+
+    /// A point inside the screen, clear of its outermost edges.
+    mutating func point() -> CGVector {
+        CGVector(dx: 0.03 + Double(next() % 940) / 1000, dy: 0.03 + Double(next() % 940) / 1000)
     }
 }

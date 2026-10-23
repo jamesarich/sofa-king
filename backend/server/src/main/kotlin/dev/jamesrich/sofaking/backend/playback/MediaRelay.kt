@@ -39,13 +39,8 @@ import kotlinx.io.readByteArray
 import java.io.ByteArrayOutputStream
 import java.net.URI
 import kotlin.coroutines.coroutineContext
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
 
 private val MEDIA_STATUSES = setOf(200, 206)
-
-private val log = LoggerFactory.getLogger(MediaRelay::class.java)
 
 class MediaRelay(
     private val http: HttpClient,
@@ -53,8 +48,8 @@ class MediaRelay(
     private val sessions: SessionManager,
     private val scope: CoroutineScope,
     fanout: FanoutConfig = FanoutConfig(),
-    /** Reads how loud a session's segments are for its learned breaks; none are learned without it. */
-    private val loudness: SegmentLoudness? = null,
+    /** Reads the audio of a session's segments for its learned breaks; none are learned without it. */
+    private val audio: SegmentAudio? = null,
 ) {
     /** Upstream requests in flight across the server, players' and FFmpeg's through [LoopbackRelay] alike. */
     internal val permits = Semaphore(32)
@@ -177,21 +172,13 @@ class MediaRelay(
                 manifest = { text, source -> resource.playlists.steady(text, source).let { ads?.annotate(it, source) ?: it } },
                 sniffed = { protocol -> if (root && protocol == "mpegts") protocolMismatch(id, epoch, job, "mpegts") },
                 tap = ads?.let { { found -> tapped = found } },
-                keepBytes = loudness != null && ads?.listening == true,
+                keepBytes = audio != null && ads?.listening == true,
             )
         }
         ads?.served(url, tapped?.cues)
         val bytes = tapped?.bytes
         // Read after the segment is answered, so the player never waits on it.
-        if (ads != null && loudness != null && bytes != null) scope.launch {
-            try {
-                loudness.levels(bytes)?.let { ads.heard(url, it) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log.debug("segment loudness failed: {}", e.toString())
-            }
-        }
+        if (ads != null && audio != null && bytes != null) synchronized(ads) { ads.follower ?: AudioFollower(audio, ads, scope).also { ads.follower = it } }.offer(url, bytes)
     }
 }
 

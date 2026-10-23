@@ -9,6 +9,7 @@ import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
+import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.*
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
@@ -35,6 +36,9 @@ import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 
 private val runtimeLog = LoggerFactory.getLogger(LiveRuntime::class.java)
+
+/** How often the break library saves what it learned. */
+private const val LIBRARY_FLUSH_MS = 300_000L
 
 /** The runtime's scope: a background coroutine that fails is logged by its name and exception class, and the others keep running. */
 internal fun backgroundScope(report: (String) -> Unit = runtimeLog::error): CoroutineScope =
@@ -150,6 +154,14 @@ class LiveRuntime(
                 logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) }, jobs = jobs)
                 logos.initialize()
                 val sessions = SessionManager(catalog, store, clock, settings.current.maxSessions)
+                val library = BreakLibrary(store, clock).also { it.load() }
+                sessions.library = library
+                scope.launch(CoroutineName("ad-library")) {
+                    while (isActive) {
+                        delay(LIBRARY_FLUSH_MS)
+                        try { library.flush() } catch (e: CancellationException) { throw e } catch (e: Exception) { runtimeLog.warn("ad library save failed: {}", e.toString()) }
+                    }
+                }
                 settings.onChange { values ->
                     sessions.capacity = values.maxSessions
                     sessions.learnedBreaks = LearnedBreaks.of(values.learnedBreaks) ?: LearnedBreaks.SHADOW
@@ -174,7 +186,8 @@ class LiveRuntime(
                 policyService?.requestRun("startup")
                 plex?.start(scope)
                 plex?.requestSync("startup")
-                val relay = MediaRelay(http, feeds, sessions, scope, loudness = SegmentLoudness(config.ffmpeg))
+                val audio = SegmentAudio(config.ffmpeg)
+                val relay = MediaRelay(http, feeds, sessions, scope, audio = audio)
                 val loopback = LoopbackRelay(http, policy, relay.permits)
                 // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.
                 val service = policyService

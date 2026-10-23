@@ -1,5 +1,6 @@
 package dev.jamesrich.sofaking.backend.playback
 
+import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.contract.AdBreakState
 import java.net.URI
@@ -197,5 +198,100 @@ master_5_5535913.ts
         learned.hear(*(101..104).map { it to silent }.toTypedArray())
         learned.served(whaleSegment(100))
         assertEquals(AdCensus(playedMs = 6_000, marked = false, breaks = 0, learned = 1), learned.census())
+    }
+
+    private val adAudio = kotlin.random.Random(11).let { random -> IntArray(1_000) { random.nextInt() } }
+    private val noise = kotlin.random.Random(12)
+
+    /**
+     * Hears [sequences] of a 6 s playlist whose first segment is [first], with the ad's audio from [adFromMs] to
+     * [adUntilMs] on its timeline and other audio elsewhere.
+     */
+    private fun AdClock.listen(first: Int, sequences: IntRange, adFromMs: Long, adUntilMs: Long) {
+        val step = BreakLibrary.POINT_MS
+        for (sequence in sequences) {
+            val from = kotlin.math.ceil((sequence - first) * 6_000 / step).toInt()
+            val until = kotlin.math.ceil((sequence - first + 1) * 6_000 / step).toInt()
+            val words = IntArray(until - from) { i ->
+                val at = (from + i) * step
+                if (at >= adFromMs && at < adUntilMs) adAudio[((at - adFromMs) / step).toInt()] else noise.nextInt()
+            }
+            heard(whaleSegment(sequence), loud, words, kotlin.math.round(from * step).toLong())
+        }
+    }
+
+    /** A clock on [channel] that learns into [library] as [mode], with what it reported. */
+    private fun learning(mode: LearnedBreaks, library: BreakLibrary, channel: String): Pair<AdClock, MutableList<LearnedBreak>> {
+        val found = mutableListOf<LearnedBreak>()
+        return AdClock(learning = { mode }, library = library, channelId = channel, providerId = "whale", learned = { found += it }) to found
+    }
+
+    /** A marked break from 6 to 36 s, closed by its cue-in, heard on [channel]. */
+    private fun learnBreak(library: BreakLibrary, channel: String) {
+        val (marked, _) = learning(LearnedBreaks.SHADOW, library, channel)
+        marked.annotate(whale(100, 101 to "#EXT-X-CUE-OUT:DURATION=30"), whaleBase)
+        marked.annotate(whale(104, 106 to "#EXT-X-CUE-IN"), whaleBase)
+        marked.listen(100, 100..107, adFromMs = 6_000, adUntilMs = 36_000)
+    }
+
+    @Test
+    fun `a break markers closed is learned, and its ads start a learned break on a channel without markers`() {
+        val library = BreakLibrary(null, java.time.Clock.systemUTC())
+        learnBreak(library, "c1")
+        // 3 s in from each edge of the 30 s break.
+        assertEquals(1, library.stats().entries)
+        assertEquals(194L, library.stats().points)
+
+        val (shadow, found) = learning(LearnedBreaks.ON, library, "c3")
+        shadow.annotate(whale(200), whaleBase)
+        shadow.annotate(whale(204), whaleBase)
+        shadow.listen(200, 200..203, adFromMs = 6_000, adUntilMs = 36_000)
+        assertEquals(listOf(LIBRARY), found.map { it.rule })
+        assertFalse(found.single().marked, "an entry marked on one channel one day is not yet trusted to blank")
+        assertFalse(shadow.annotate(whale(204), whaleBase).contains("SOFA-AD"))
+        shadow.listen(200, 204..207, adFromMs = 6_000, adUntilMs = 36_000)
+        val ended = found.last()
+        assertTrue(ended.ended)
+        // From 3 s into the ad, where the entry starts, to 3 s before its end.
+        assertEquals(24_000.0, ended.lengthMs.toDouble(), 300.0)
+        assertEquals(AdCensus(playedMs = 0, marked = false, breaks = 0, learned = 1), shadow.census())
+    }
+
+    @Test
+    fun `an entry marked on two channels is marked for the player, while the canary is good`() {
+        val library = BreakLibrary(null, java.time.Clock.systemUTC())
+        learnBreak(library, "c1")
+        learnBreak(library, "c2")
+        assertEquals(1, library.stats().blanking)
+        val (on, found) = learning(LearnedBreaks.ON, library, "c3")
+        on.annotate(whale(200), whaleBase)
+        on.annotate(whale(204), whaleBase)
+        on.listen(200, 200..203, adFromMs = 6_000, adUntilMs = 36_000)
+        assertTrue(found.single().marked, found.toString())
+        // The match starts just past 9 s, the middle of segment 201, so the marks start with 202: a little ad shows, never show.
+        val marks = on.annotate(whale(200), whaleBase)
+        assertTrue(marks.endsWith("#EXT-X-SOFA-AD:FIRST=202,LAST=203\n"), marks)
+    }
+
+    @Test
+    fun `the canary counts a match in a marked break and blocks an entry heard in the show`() {
+        val library = BreakLibrary(null, java.time.Clock.systemUTC())
+        learnBreak(library, "c1")
+        learnBreak(library, "c2")
+        val entry = library.match(adAudio.copyOfRange(30, 200), BreakLibrary.MIN_LEARN_POINTS)!!.entry
+        assertEquals(1, entry.hits, "the second channel's canary found the first's entry in its break")
+        val (marked, found) = learning(LearnedBreaks.ON, library, "c4")
+        marked.annotate(whale(300, 301 to "#EXT-X-CUE-OUT:DURATION=30"), whaleBase)
+        marked.annotate(whale(304, 306 to "#EXT-X-CUE-IN"), whaleBase)
+        marked.annotate(whale(308), whaleBase)
+        marked.annotate(whale(312), whaleBase)
+        marked.listen(300, 300..307, adFromMs = 6_000, adUntilMs = 36_000)
+        assertEquals(2, entry.hits)
+        assertFalse(entry.blocked)
+        // The same audio again at 60 s, long after the break ended: show audio, as far as the markers say.
+        marked.listen(300, 308..315, adFromMs = 60_000, adUntilMs = 90_000)
+        assertTrue(entry.blocked)
+        assertTrue(library.frozen())
+        assertEquals(listOf(CANARY), found.map { it.rule })
     }
 }

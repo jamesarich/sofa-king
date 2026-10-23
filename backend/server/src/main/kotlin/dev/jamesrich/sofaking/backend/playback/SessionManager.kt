@@ -5,6 +5,7 @@ import dev.jamesrich.sofaking.contract.*
 import dev.jamesrich.sofaking.backend.catalog.*
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.HealthStatus
+import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import java.time.*
@@ -98,6 +99,8 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     @Volatile var capacity: Int = capacity
     /** What the app's sessions do with the breaks they learn (see [AdClock]); the runtime settings change it without a restart. */
     @Volatile var learnedBreaks: LearnedBreaks = LearnedBreaks.SHADOW
+    /** The break library the app's sessions learn into and match against; none until the runtime sets it. */
+    @Volatile var library: BreakLibrary? = null
     /** Gets what each app session that played found on its channel, as it ends: the channel, its provider and the census. */
     @Volatile var onCensus: (String, String, AdCensus) -> Unit = { _, _, _ -> }
     private val mutex = Mutex()
@@ -117,7 +120,12 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
         makeRoom()
         val now = clock.instant()
         val id = UUID.randomUUID().toString()
-        val ads = AdClock(learning = { learnedBreaks }) { found -> learnedLog.info("ADDETECT rule={} state={} marked={} lengthMs={} channel={} provider={} session={}", found.rule, if (found.ended) "ended" else "started", found.marked, found.lengthMs, request.channelId, offering.providerId, id) }
+        val ads = AdClock(learning = { learnedBreaks }, library = library, channelId = request.channelId, providerId = offering.providerId) { found ->
+            learnedLog.info(
+                "ADDETECT rule={} state={} marked={} lengthMs={} entry={} channel={} provider={} session={}",
+                found.rule, if (found.ended) "ended" else "started", found.marked, found.lengthMs, found.entry ?: "-", request.channelId, offering.providerId, id,
+            )
+        }
         val session = LiveSession(id, request, offering, now.plus(lease(request.intent)), startedAt = now, client = client, ads = ads)
         sessions[session.id] = session
         keys[request.idempotencyKey] = request to session.id

@@ -287,3 +287,23 @@ internal object AdChannels : Table("ad_channel") {
     val lastListenedAt = text("last_listened_at").nullable()
     override val primaryKey = PrimaryKey(channelId)
 }
+
+/**
+ * The ad audio the break library learned (see `BreakLibrary`): Chromaprint [points] as little-endian 32-bit words, the
+ * provider and the channels and UTC days it was marked on (comma-separated), the break it was first heard in, and how
+ * the matches since went.
+ */
+internal object AdBreakRows : Table("ad_break") {
+    val id = text("id")
+    val points = binary("points")
+    val providerId = text("provider_id")
+    val channels = text("channels")
+    val days = text("days")
+    val sourceBreak = text("source")
+    val createdAt = text("created_at")
+    val lastHitAt = text("last_hit_at").nullable()
+    val hits = integer("hits")
+    val falseHits = integer("false_hits")
+    val blocked = bool("blocked")
+    override val primaryKey = PrimaryKey(id)
+}

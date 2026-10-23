@@ -100,7 +100,7 @@ class TouchTest {
         check(device.hasObject(By.res(PLAYER))) { "The first swipe from the edge left the player" }
         device.swipe(arrayOf(edge, Point(device.displayWidth / 3, middle), edge), SWIPE_STEPS / 2)
         Thread.sleep(SETTLE_MS)
-        check(device.hasObject(By.res(PLAYER)) && server.watching().isNotEmpty()) { "A cancelled back swipe left the player" }
+        check(device.hasObject(By.res(PLAYER)) && server.watching().isNotEmpty()) { "A canceled back swipe left the player" }
 
         // The bars hide again about three seconds after a swipe brings them back, so the next swipe follows soon.
         var swipes = 0

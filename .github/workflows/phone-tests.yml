@@ -1,0 +1,111 @@
+name: Phone tests
+
+# The debug app's touch tests (app/androidApp/src/androidTest) in a headless Android phone emulator, against the server's
+# installed distribution serving fixture channels (app/scripts/fixture_server.py): picture-in-picture, the predictive
+# back gesture, rotation and a seeded walk of random touches. Fails on a failed test or a crash. Nightly, by hand, and
+# on changes to the tests or to this workflow.
+on:
+  schedule:
+    - cron: "53 6 * * *"
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: Random touches in the walk
+        default: "300"
+      seed:
+        description: Random seed (empty for a new one)
+        default: ""
+  pull_request:
+    paths:
+      - "app/androidApp/src/androidTest/**"
+      - "app/scripts/fixture_server.py"
+      - ".github/workflows/phone-tests.yml"
+
+concurrency:
+  group: phone-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  SOFAKING_CACHE_USERNAME: ${{ secrets.SOFAKING_CACHE_USERNAME }}
+  SOFAKING_CACHE_PASSWORD: ${{ secrets.SOFAKING_CACHE_PASSWORD }}
+
+jobs:
+  touch:
+    name: Touch (Android phone 36)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-read-only: true
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      # The fixture channels are a clip FFmpeg generates; the server relays HLS through FFmpeg too.
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Build the server distribution
+        working-directory: backend
+        run: ./gradlew --console=plain :server:installDist
+      - name: Build the debug app and its tests
+        working-directory: app
+        run: ./gradlew --console=plain :androidApp:assembleDebug :androidApp:assembleDebugAndroidTest
+      # It keeps serving for the rest of the job; the emulator reaches the runner's loopback at 10.0.2.2.
+      - name: Start the fixture server
+        working-directory: app
+        run: |
+          out=build/phone-tests
+          mkdir -p "$out"
+          nohup python3 scripts/fixture_server.py --out "$out" > "$out/fixture.log" 2>&1 &
+          until [ -f "$out/server.env" ]; do
+            kill -0 $! 2>/dev/null || { cat "$out/fixture.log"; exit 1; }
+            sleep 1
+          done
+          . "$out/server.env"
+          echo "PHONE_SERVER=http://10.0.2.2:${SOFAKING_SERVER##*:}" >> "$GITHUB_ENV"
+          echo "PHONE_TOKEN=$SOFAKING_TOKEN" >> "$GITHUB_ENV"
+      # The emulator needs hardware acceleration, which the runner gives only to the kvm group.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run the touch tests in the emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          PHONE_WALK_STEPS: ${{ inputs.steps || '300' }}
+          PHONE_WALK_SEED: ${{ inputs.seed }}
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          working-directory: app
+          # Each script line runs on its own, so the test run is one line; the walk's seed is in logcat.txt.
+          script: >-
+            adb logcat -c && (adb logcat -v threadtime > build/phone-tests/logcat.txt &) &&
+            ./gradlew --console=plain :androidApp:connectedDebugAndroidTest
+            -Pandroid.testInstrumentationRunnerArguments.sofakingServer="$PHONE_SERVER"
+            -Pandroid.testInstrumentationRunnerArguments.sofakingToken="$PHONE_TOKEN"
+            -Pandroid.testInstrumentationRunnerArguments.sofakingWalkSteps="$PHONE_WALK_STEPS"
+            ${PHONE_WALK_SEED:+-Pandroid.testInstrumentationRunnerArguments.sofakingWalkSeed=$PHONE_WALK_SEED}
+      - name: Upload the reports and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: phone-tests
+          path: |
+            app/build/phone-tests/
+            app/androidApp/build/reports/androidTests/
+            app/androidApp/build/outputs/androidTest-results/
+          if-no-files-found: ignore

@@ -14,6 +14,8 @@ android {
         versionCode = providers.gradleProperty("sofaking.versionCode").get().toInt()
         versionName = libs.versions.sofaking.get() +
             providers.gradleProperty("sofaking.versionSuffix").getOrElse("")
+        // The touch tests in src/androidTest, against the fixture server (docs/development.md).
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     // AGP's Compose Preview tasks fail to register without this and the unit tests androidComponents enables below.
@@ -62,4 +64,7 @@ dependencies {
     implementation(libs.androidx.profileinstaller)
     implementation(libs.androidx.tvprovider)
     baselineProfile(project(":baselineprofile"))
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.uiautomator)
 }

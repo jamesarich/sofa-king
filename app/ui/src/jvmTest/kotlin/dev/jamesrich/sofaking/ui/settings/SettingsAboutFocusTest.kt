@@ -33,7 +33,7 @@ import kotlin.test.assertTrue
 
 /**
  * About, the last block of Settings, as a TV reaches it: focus on its last button scrolls only as far as that button,
- * and Check again turned itself off while checking, which dropped focus to another row.
+ * so the TMDB notice sits above it, and Check again turned itself off while checking, which dropped focus to another row.
  */
 @OptIn(ExperimentalTestApi::class)
 class SettingsAboutFocusTest {
@@ -59,31 +59,33 @@ class SettingsAboutFocusTest {
         waitForIdle()
     }
 
-    /** Scrolls to the end, then back by the notice's height, so Check again shows and the notice under it does not. */
-    private fun ComposeUiTest.hideNoticeUnderTheButton() {
+    /** Scrolls to the end, then back until the notice and Check again are both below the visible list. */
+    private fun ComposeUiTest.hideAboutBelowTheList() {
         val list = onNode(hasScrollAction())
         list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
         waitForIdle()
+        val bottom = list.getUnclippedBoundsInRoot().bottom
         val notice = onNodeWithText(tmdbNotice, substring = true).getUnclippedBoundsInRoot()
-        val shift = with(density) { (notice.bottom - notice.top).toPx() }
+        val shift = with(density) { (bottom - notice.top).toPx() } + 1f
         list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, -shift) }
         waitForIdle()
-        assertTrue(!noticeShown(), "the setup leaves the notice below the visible list")
+        assertTrue(!shown(tmdbNotice) && !shown(checkAgain), "the setup leaves About below the visible list")
     }
 
-    private fun ComposeUiTest.noticeShown(): Boolean {
+    private fun ComposeUiTest.shown(text: String): Boolean {
         val list = onNode(hasScrollAction()).getUnclippedBoundsInRoot()
-        val notice = onNodeWithText(tmdbNotice, substring = true).getUnclippedBoundsInRoot()
-        return notice.top >= list.top && notice.bottom <= list.bottom
+        val node = onNodeWithText(text, substring = true).getUnclippedBoundsInRoot()
+        return node.top >= list.top && node.bottom <= list.bottom
     }
 
     @Test
-    fun `focus on Check again brings the notice under it into view`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
+    fun `focus on Check again shows it and the notice above it`() = runSkikoComposeUiTest(Size(1920f, 1080f), Density(2f)) {
         showSettings(update = { UpdateState.UpToDate(latest) })
-        hideNoticeUnderTheButton()
+        hideAboutBelowTheList()
         onNodeWithText(checkAgain).requestFocus()
         waitForIdle()
-        assertTrue(noticeShown(), "the page's last line shows once focus reaches its last button")
+        assertTrue(shown(checkAgain), "Check again, the page's last line, shows once it has focus")
+        assertTrue(shown(tmdbNotice), "the notice above Check again shows with it")
     }
 
     @Test
@@ -96,7 +98,7 @@ class SettingsAboutFocusTest {
                 update = UpdateState.Checking
             }
         })
-        hideNoticeUnderTheButton()
+        hideAboutBelowTheList()
         onNodeWithText(checkAgain).requestFocus()
         waitForIdle()
         onRoot().performKeyInput { pressKey(Key.Enter) }

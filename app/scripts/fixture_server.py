@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Run the server's installed distribution against fixture channels, for tests that drive an app on a device or
 simulator: eight channels from one FFmpeg clip (the first as HLS, the rest as endless MPEG-TS), six hours of guide, and
-the lineup adopted. Run directly, it serves until stopped and writes the server's address and token to
-<out>/server.env, for `xcodebuild test` and the like; tv-monkey.py imports it.
+the lineup adopted. With --shows it also serves a TV shows library of four short episodes that share a theme, whose
+intros the server finds, for Skip intro. Run directly, it serves until stopped and writes the server's address and token
+to <out>/server.env, for `xcodebuild test` and the like; tv-monkey.py imports it.
 
 Needs FFmpeg and the server's distribution (`./gradlew :server:installDist` in backend/).
 """
@@ -33,6 +34,10 @@ CLIP_SECONDS = 10
 PIECE = 188 * 64
 # How many segments a live HLS playlist lists.
 LIVE_WINDOW = 5
+# The fixture show's episodes: a cold open, then the theme they share, then the rest, in seconds. The server reads the
+# first 30% of an episode for its intro, so the theme ends well inside that.
+EPISODES = 4
+COLD_OPEN, THEME, EPISODE = 10, 45, 240
 
 
 class Upstream(http.server.SimpleHTTPRequestHandler):
@@ -119,10 +124,11 @@ def wait_for(what, check, seconds):
         time.sleep(0.5)
 
 
-def fixtures(media, upstream, library=None):
-    """A ten-second clip for the TS channels, the same clip as HLS for the first channel, an M3U and six hours of guide."""
+def fixtures(media, upstream, library=None, quiet=False):
+    """A ten-second clip for the TS channels, the same clip as HLS for the first channel, an M3U and six hours of guide.
+    The clip's tone is silent when [quiet], for a simulator that plays through the Mac's speakers."""
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=25',
-                    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000', '-t', str(CLIP_SECONDS), '-c:v', 'libx264',
+                    '-f', 'lavfi', '-i', f'sine=frequency=440:sample_rate=48000,volume={0 if quiet else 1}', '-t', str(CLIP_SECONDS), '-c:v', 'libx264',
                     '-preset', 'ultrafast', '-g', '25', '-c:a', 'aac', '-f', 'mpegts', str(media / 'clip.ts')],
                    check=True, timeout=60)
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', str(media / 'clip.ts'), '-c', 'copy',
@@ -143,13 +149,48 @@ def fixtures(media, upstream, library=None):
     (media / 'guide.xml').write_text('<tv>' + ''.join(programmes) + '</tv>')
 
 
+def tune(a, b, seconds):
+    """[seconds] of a tune of quarter-second notes, which [a] and [b] pick: Chromaprint tells one tune from another."""
+    note = f'220*pow(2,mod(floor(t*4)*{a}+{b},24)/12)'
+    return ['-f', 'lavfi', '-i', f"aevalsrc='0.4*sin(2*PI*{note}*t)+0.2*sin(4*PI*{note}*t)':s=48000:d={seconds}"]
+
+
+def show(library):
+    """[EPISODES] episodes of one show, each a cold open and a body of its own around the same theme, which the server
+    finds as their intro: about COLD_OPEN to COLD_OPEN + THEME seconds in."""
+    muxers = subprocess.run(['ffmpeg', '-hide_banner', '-muxers'], capture_output=True, text=True, check=True).stdout
+    if ' chromaprint ' not in muxers:
+        raise SystemExit('--shows needs an FFmpeg built with Chromaprint (--enable-chromaprint), which finds the intros')
+    season = library / 'Fixture Show' / 'Season 01'
+    season.mkdir(parents=True)
+    body = EPISODE - COLD_OPEN - THEME
+    for n in range(1, EPISODES + 1):
+        picture = ['-f', 'lavfi', '-i', f'testsrc=size=320x180:rate=10:d={EPISODE}']
+        sound = tune(13 + 2 * n, 1 + 3 * n, COLD_OPEN) + tune(7, 3, THEME) + tune(11 + 2 * n, 5 + n, body)
+        subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', *picture, *sound, '-filter_complex',
+                        '[1:a][2:a][3:a]concat=n=3:v=0:a=1[a]', '-map', '0:v', '-map', '[a]', '-c:v', 'libx264',
+                        '-preset', 'ultrafast', '-c:a', 'aac', str(season / f'Fixture Show - S01E{n:02d} - Episode {n}.mkv')],
+                       check=True, timeout=120)
+
+
+def intros(base, library):
+    """The fixture show's episodes, once each has its intro."""
+    shows = request(base, f'/api/v1/libraries/{library}/items')['items']
+    seasons = shows and request(base, f"/api/v1/library/items/{shows[0]['id']}")['children']
+    episodes = seasons and request(base, f"/api/v1/library/items/{seasons[0]['id']}")['children']
+    found = [request(base, f"/api/v1/library/items/{episode['id']}") for episode in episodes or []]
+    return len(found) == EPISODES and all(item['segments'] for item in found) and found
+
+
 @contextlib.contextmanager
-def serve(out, build=fixtures, channels=CHANNELS, libraries=(), **settings):
+def serve(out, build=None, channels=CHANNELS, libraries=(), shows=False, quiet=False, **settings):
     """Starts the fixture channels and the server, with its log in <out>/server.log and any further `SOFA_` [settings],
-    and yields the server's base URL once the lineup is adopted; stops both on the way out. [build] writes the channels'
-    files, playlist and guide into the folder it is given and serves them from the address it is given, the [channels]
-    the lineup then holds, and the server's media folder, which it fills for [libraries]. Each of those, a (name, kind,
-    folder) triple, is added from that folder once the lineup is in, and scanned before this yields."""
+    and yields the server's base URL once the lineup is adopted, and with [shows] the fixture show's intros found; stops
+    both on the way out. [build] writes the channels' files, playlist and guide into the folder it is given and serves
+    them from the address it is given, the [channels] the lineup then holds, and the server's media folder, which it
+    fills for [libraries]; the fixture channels by default, silent when [quiet]. Each of [libraries], a (name, kind,
+    folder) triple, is added from that folder once the lineup is in, and scanned before this yields. The show's theme
+    keeps its sound, which finds the intros."""
     if not SERVER.exists():
         raise SystemExit('Build :server:installDist in backend/ first')
     with tempfile.TemporaryDirectory(prefix='sofa-fixture-') as temporary:
@@ -161,7 +202,9 @@ def serve(out, build=fixtures, channels=CHANNELS, libraries=(), **settings):
         upstream = f'http://127.0.0.1:{fixture.server_port}'
         library = directory / 'library'
         library.mkdir()
-        build(media, upstream, library)
+        (build or functools.partial(fixtures, quiet=quiet))(media, upstream, library)
+        if shows:
+            show(library)
         sources = directory / 'sources.json'
         sources.write_text(json.dumps({'providers': [
             {'id': 'fixture', 'playlistUrl': upstream + '/feed.m3u', 'guideUrl': upstream + '/guide.xml', 'probe': False}]}))
@@ -183,6 +226,9 @@ def serve(out, build=fixtures, channels=CHANNELS, libraries=(), **settings):
             for name, kind, folder in libraries:
                 added = request(base, '/api/v1/admin/libraries', 'POST', {'name': name, 'kind': kind, 'path': str(library / folder)})
                 request(base, f'/api/v1/admin/libraries/{added["id"]}/scan', 'POST', timeout=300)
+            if shows:
+                created = request(base, '/api/v1/admin/libraries', 'POST', {'name': 'TV Shows', 'kind': 'shows', 'path': str(library)})
+                wait_for('the fixture show\'s intros', lambda: intros(base, created['id']), 120)
             yield base
         finally:
             if server.poll() is None:
@@ -200,13 +246,15 @@ def stop(*_):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--out', required=True)
+    parser.add_argument('--shows', action='store_true', help='also serve a TV shows library whose episodes have an intro')
+    parser.add_argument('--quiet', action='store_true', help="silence the channels' tone")
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     ready = out / 'server.env'
     ready.unlink(missing_ok=True)
     signal.signal(signal.SIGTERM, stop)
-    with serve(out) as base:
+    with serve(out, shows=args.shows, quiet=args.quiet) as base:
         ready.write_text(f'SOFAKING_SERVER={base}\nSOFAKING_TOKEN={TOKEN}\n')
         print(f'Serving {base}', flush=True)
         try:

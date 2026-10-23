@@ -241,6 +241,12 @@ https://example.com/osbt/v1/bas/use2/1/2/3/5
         val plex = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:7\n" + listOf(beacon("C", 1), part, beacon("M", 2), part, beacon("M", 3), part, beacon("C", 4))
             .joinToString("") { "#EXTINF:2.0,\n$it\n" }
         assertEquals(listOf(false, false, true, true, true, false, false), ads(plex, URI("https://epg.provider.plex.tv/library/parts/0123-4567/index.m3u8")))
+        // Once segments are fetched, a break keeps a beacon on every third segment and serves the rest plainly from the
+        // playout; a plain segment is what the beacon before it was, and one before any beacon is not marked.
+        fun plain(n: Int) = "https://amg00000-example-plex-us-0000.playouts.now.amagi.tv/playlist$n" + "_1.ts"
+        val fetched = "#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:50\n" + listOf(plain(1), beacon("C", 2), plain(3), beacon("M", 4), plain(5), plain(6), beacon("M", 7), plain(8), plain(9), beacon("C", 10), plain(11))
+            .joinToString("") { "#EXTINF:6.0,\n$it\n" }
+        assertEquals(listOf(false, false, false, true, true, true, true, true, true, false, false), ads(fetched, base))
         // The same query on another host means nothing.
         assertEquals(listOf(false), ads("#EXTM3U\n#EXTINF:6.0,\nhttps://example.com/beacon/x?media_type=M\n", base))
     }

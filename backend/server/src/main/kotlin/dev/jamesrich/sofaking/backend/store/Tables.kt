@@ -269,3 +269,41 @@ internal object Recordings : Table("recording") {
     val breaks = text("breaks").nullable()
     override val primaryKey = PrimaryKey(id)
 }
+
+/**
+ * What the app's live sessions and the ad listener found on each channel: how long it was played, how many ad breaks
+ * were marked and how many learned, and when a marker was last seen on it ([markedAt]; null for a channel never seen
+ * marked).
+ */
+internal object AdChannels : Table("ad_channel") {
+    val channelId = text("channel_id")
+    val providerId = text("provider_id")
+    val watchedMs = long("watched_ms")
+    val lastWatchedAt = text("last_watched_at").nullable()
+    val breaks = integer("breaks")
+    val learned = integer("learned")
+    val markedAt = text("marked_at").nullable()
+    val listenedMs = long("listened_ms")
+    val lastListenedAt = text("last_listened_at").nullable()
+    override val primaryKey = PrimaryKey(channelId)
+}
+
+/**
+ * The ad audio the break library learned (see `BreakLibrary`): Chromaprint [points] as little-endian 32-bit words, the
+ * provider and the channels and UTC days it was marked on (comma-separated), the break it was first heard in, and how
+ * the matches since went.
+ */
+internal object AdBreakRows : Table("ad_break") {
+    val id = text("id")
+    val points = binary("points")
+    val providerId = text("provider_id")
+    val channels = text("channels")
+    val days = text("days")
+    val sourceBreak = text("source")
+    val createdAt = text("created_at")
+    val lastHitAt = text("last_hit_at").nullable()
+    val hits = integer("hits")
+    val falseHits = integer("false_hits")
+    val blocked = bool("blocked")
+    override val primaryKey = PrimaryKey(id)
+}

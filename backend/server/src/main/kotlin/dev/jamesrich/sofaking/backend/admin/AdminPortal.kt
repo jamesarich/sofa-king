@@ -34,6 +34,8 @@ import dev.jamesrich.sofaking.backend.store.ignoredAttention
 import dev.jamesrich.sofaking.backend.store.showAttention
 import dev.jamesrich.sofaking.backend.store.forgetViewer
 import dev.jamesrich.sofaking.backend.store.viewers
+import dev.jamesrich.sofaking.backend.store.AdChannelRecord
+import dev.jamesrich.sofaking.backend.store.adChannels
 import dev.jamesrich.sofaking.backend.store.library
 import dev.jamesrich.sofaking.backend.library.LIBRARY_SCAN_JOB
 import dev.jamesrich.sofaking.backend.library.LibraryKind
@@ -264,6 +266,14 @@ class AdminPortal(
                 val chrome = chrome()
                 val view = providersView()
                 call.html(providersPage(chrome, view) { providerEntries(chrome, view, null, null) })
+            }
+            get("/ads") {
+                val names = runtime.lineup.entries().associate { it.id to it.name }
+                val listening = runtime.listener?.listening().orEmpty()
+                val rows = runtime.store.adChannels()
+                    .sortedWith(compareByDescending<AdChannelRecord> { it.watchedMs }.thenByDescending { it.listenedMs })
+                    .map { AdChannelRow(it, names[it.channelId], it.channelId in listening) }
+                call.html(adsPage(chrome(), AdsView(runtime.sessions.learnedBreaks, runtime.settings.current.adListeners, runtime.sessions.library?.stats(), listening.size, rows)))
             }
             action("/sources/services") { session, form ->
                 val starter = form.wantsStarter() && runtime.setup?.canWriteStarterPolicy == true

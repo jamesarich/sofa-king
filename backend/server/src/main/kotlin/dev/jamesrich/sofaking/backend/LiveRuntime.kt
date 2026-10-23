@@ -9,9 +9,12 @@ import dev.jamesrich.sofaking.backend.health.ProbeConfig
 import dev.jamesrich.sofaking.backend.health.ProbeWorker
 import dev.jamesrich.sofaking.backend.http.HdhrAccess
 import dev.jamesrich.sofaking.backend.http.hdhrDeviceId
+import dev.jamesrich.sofaking.backend.ads.AdListener
+import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.jobs.Jobs
 import dev.jamesrich.sofaking.backend.library.*
 import dev.jamesrich.sofaking.backend.logging.applyLogLevel
+import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.backend.settings.RuntimeSettings
 import dev.jamesrich.sofaking.backend.settings.RuntimeValues
 import dev.jamesrich.sofaking.backend.logos.LogoCache
@@ -21,6 +24,7 @@ import dev.jamesrich.sofaking.backend.pairing.PairingService
 import dev.jamesrich.sofaking.backend.playback.*
 import dev.jamesrich.sofaking.backend.providers.ProviderRegistry
 import dev.jamesrich.sofaking.backend.setup.SetupService
+import dev.jamesrich.sofaking.backend.store.recordAdChannel
 import dev.jamesrich.sofaking.backend.store.BackendStore
 import dev.jamesrich.sofaking.backend.update.RunningBuild
 import dev.jamesrich.sofaking.backend.update.UpdateChecker
@@ -33,6 +37,9 @@ import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 
 private val runtimeLog = LoggerFactory.getLogger(LiveRuntime::class.java)
+
+/** How often the break library saves what it learned. */
+private const val LIBRARY_FLUSH_MS = 300_000L
 
 /** The runtime's scope: a background coroutine that fails is logged by its name and exception class, and the others keep running. */
 internal fun backgroundScope(report: (String) -> Unit = runtimeLog::error): CoroutineScope =
@@ -91,6 +98,8 @@ class LiveRuntime(
     val loopback: LoopbackRelay = LoopbackRelay(http, feeds.upstream, relay.permits),
     /** Who may reach the HDHomeRun emulation; the default admits everyone, as a loopback bind with no allow-list does. */
     val hdhrAccess: HdhrAccess = HdhrAccess(emptyList(), openWhenEmpty = true, store, Clock.systemUTC()),
+    /** The background ad listener, for the portal's Ads page; null for a runtime built without a config. */
+    val listener: AdListener? = null,
 ) {
     suspend fun close() {
         scope.coroutineContext[Job]!!.cancelAndJoin()
@@ -148,7 +157,20 @@ class LiveRuntime(
                 logos = LogoCache(store, http, clock, config.dataDirectory.resolve("logos"), policy, { lineup.entries().mapNotNull(catalog::logoSource) }, jobs = jobs)
                 logos.initialize()
                 val sessions = SessionManager(catalog, store, clock, settings.current.maxSessions)
-                settings.onChange { values -> sessions.capacity = values.maxSessions; plex?.setInterval(values.plexSyncMinutes) }
+                val library = BreakLibrary(store, clock).also { it.load() }
+                sessions.library = library
+                scope.launch(CoroutineName("ad-library")) {
+                    while (isActive) {
+                        delay(LIBRARY_FLUSH_MS)
+                        try { library.flush() } catch (e: CancellationException) { throw e } catch (e: Exception) { runtimeLog.warn("ad library save failed: {}", e.toString()) }
+                    }
+                }
+                settings.onChange { values ->
+                    sessions.capacity = values.maxSessions
+                    sessions.learnedBreaks = LearnedBreaks.of(values.learnedBreaks) ?: LearnedBreaks.SHADOW
+                    plex?.setInterval(values.plexSyncMinutes)
+                }
+                sessions.onCensus = { channel, provider, census -> scope.launch { store.recordAdChannel(channel, provider, census, clock.instant()) } }
                 policyService = loadedPolicy?.let { loaded ->
                     lateinit var service: PolicyService
                     val sizing = if (config.hdhr.enabled) HdhrSizing(config.hdhr.devices, config.hdhr.deviceSize) else null
@@ -167,7 +189,12 @@ class LiveRuntime(
                 policyService?.requestRun("startup")
                 plex?.start(scope)
                 plex?.requestSync("startup")
-                val relay = MediaRelay(http, feeds, sessions, scope)
+                val audio = SegmentAudio(config.ffmpeg)
+                val relay = MediaRelay(http, feeds, sessions, scope, audio = audio)
+                val listener = AdListener(
+                    http, feeds, sessions, store, library, audio, relay.permits, clock,
+                    channels = { lineup.entries().filter { it.enabled }.map { it.id } }, slots = { settings.current.adListeners }, mode = { sessions.learnedBreaks },
+                ).also { it.start(scope) }
                 val loopback = LoopbackRelay(http, policy, relay.permits)
                 // Under a policy the worker probes what the lineup's stations reference, whatever the providers' probe flags.
                 val service = policyService
@@ -207,7 +234,7 @@ class LiveRuntime(
                 val runtime = LiveRuntime(
                     store, feeds, guides, lineup, catalog, sessions, relay, TsRemux(config.ffmpeg, loopback), logos, http, scope,
                     policyService, plex, started, jobs, settings, worker, PairingService(clock), updates, SetupService(config, restart, checkTmdb = { TmdbClient(http, it).check() }), libraries, vod, dvr, loopback,
-                    HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() },
+                    HdhrAccess(config.hdhr.allow, ServerConfig.isLoopback(config.host), store, clock).also { it.load() }, listener,
                 )
                 dvr.start(scope)
                 dvr.requestSchedule("startup")

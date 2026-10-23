@@ -14,6 +14,21 @@ class PlayerButtonsTest {
     }
 
     @Test
+    fun `an engine that changes speed adds Speed after Sleep`() {
+        assertEquals(
+            listOf(VodButton.TRACKS, VodButton.ZOOM, VodButton.SLEEP, VodButton.SPEED, VodButton.START_OVER),
+            vodButtons(failed = false, inBreak = false, tracksPickable = true, captions = false, pastStart = true, hasNext = false, speedAdjustable = true),
+        )
+    }
+
+    @Test
+    fun `Speed steps through the speeds and back to normal`() {
+        assertEquals(listOf(1.25f, 1.5f, 2f, 1f), PLAYBACK_SPEEDS.map(::nextSpeed))
+        assertEquals(1f, nextSpeed(0.5f), "a speed off the list goes back to normal")
+        assertEquals(listOf("1", "1.25", "1.5", "2"), PLAYBACK_SPEEDS.map(::speedText))
+    }
+
+    @Test
     fun `a recording in a break leads with Skip break and offers its captions`() {
         assertEquals(
             listOf(VodButton.SKIP_BREAK, VodButton.CAPTIONS, VodButton.ZOOM, VodButton.SLEEP),

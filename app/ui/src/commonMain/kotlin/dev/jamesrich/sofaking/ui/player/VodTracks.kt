@@ -23,7 +23,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Subtitles
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.stream_card_audio
+import dev.jamesrich.sofaking.resources.vod_tracks_earlier
+import dev.jamesrich.sofaking.resources.vod_tracks_later
+import dev.jamesrich.sofaking.resources.vod_tracks_subtitles
+import dev.jamesrich.sofaking.resources.vod_tracks_subtitles_off
+import dev.jamesrich.sofaking.resources.vod_tracks_timing
+import dev.jamesrich.sofaking.resources.vod_tracks_title
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.screenPadding
 import dev.jamesrich.sofaking.ui.theme.SofaButton

@@ -3,7 +3,12 @@ package dev.jamesrich.sofaking.backend.jobs
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import java.time.Duration
 import kotlinx.coroutines.test.runTest
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class JobsTest {
     @Test fun `a run records its start, duration, outcome and when the loop is next due`() = runTest {

@@ -1,7 +1,9 @@
 package dev.jamesrich.sofaking.backend.http
 
-import dev.jamesrich.sofaking.backend.*
-import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.HdhrConfig
+import dev.jamesrich.sofaking.backend.LiveRuntime
+import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.library.IntroRecord
 import dev.jamesrich.sofaking.backend.library.IntroSpan
 import dev.jamesrich.sofaking.backend.library.LibraryKind
@@ -9,10 +11,29 @@ import dev.jamesrich.sofaking.backend.library.fileKey
 import dev.jamesrich.sofaking.backend.store.libraryItems
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.saveLibraryFingerprint
-import dev.jamesrich.sofaking.contract.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
+import dev.jamesrich.sofaking.contract.Bootstrap
+import dev.jamesrich.sofaking.contract.Library
+import dev.jamesrich.sofaking.contract.LibraryHome
+import dev.jamesrich.sofaking.contract.LibraryItem
+import dev.jamesrich.sofaking.contract.LibraryItemDetail
+import dev.jamesrich.sofaking.contract.LibraryPage
+import dev.jamesrich.sofaking.contract.MediaSegment
+import dev.jamesrich.sofaking.contract.Wire
+import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.headers
+import io.ktor.client.request.options
+import io.ktor.client.request.put
+import io.ktor.client.request.query
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
+import io.ktor.http.headers
+import io.ktor.http.path
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import java.nio.file.Path
@@ -20,7 +41,10 @@ import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonObject
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class LibraryApiTest {
     private val json = Json { ignoreUnknownKeys = true }

@@ -15,7 +15,12 @@ import dev.jamesrich.sofaking.backend.providers.NativeServices
 import io.ktor.http.parameters
 import java.nio.file.Files
 import kotlinx.coroutines.test.runTest
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SetupServiceTest {
     private val token = "secret".repeat(8)

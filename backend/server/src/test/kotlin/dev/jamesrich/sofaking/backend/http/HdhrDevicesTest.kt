@@ -1,7 +1,11 @@
 package dev.jamesrich.sofaking.backend.http
 
-import dev.jamesrich.sofaking.backend.*
-import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.HdhrConfig
+import dev.jamesrich.sofaking.backend.LiveRuntime
+import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.catalog.Fixture
+import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.catalog.adoptAll
 import dev.jamesrich.sofaking.backend.store.openStore
 import io.ktor.server.engine.connector
 import io.ktor.server.engine.embeddedServer
@@ -13,8 +17,16 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.*
-import kotlin.test.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class HdhrDevicesTest {
     private val token = "secret".repeat(8)

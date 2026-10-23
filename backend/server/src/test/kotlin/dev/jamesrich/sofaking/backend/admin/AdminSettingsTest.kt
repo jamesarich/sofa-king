@@ -3,7 +3,11 @@ package dev.jamesrich.sofaking.backend.admin
 import dev.jamesrich.sofaking.backend.SecretOrigin
 import dev.jamesrich.sofaking.backend.ServerConfig
 import java.nio.file.Path
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class EffectiveSettingsTest {
     private val api = "a".repeat(32)

@@ -21,7 +21,13 @@ import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.GuideStatus
 import dev.jamesrich.sofaking.data.Programme
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.guide_out_of_date
+import dev.jamesrich.sofaking.resources.listing_loading
+import dev.jamesrich.sofaking.resources.no_guide
+import dev.jamesrich.sofaking.resources.no_listing
+import dev.jamesrich.sofaking.resources.preview_live
+import dev.jamesrich.sofaking.resources.programme_new
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 

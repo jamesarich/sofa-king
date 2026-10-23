@@ -5,12 +5,23 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.openStore
-import io.ktor.client.request.*
-import io.ktor.http.*
+import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.get
+import io.ktor.client.request.headers
+import io.ktor.client.request.request
+import io.ktor.client.request.url
+import io.ktor.http.HttpHeaders
+import io.ktor.http.encodedPath
+import io.ktor.http.headers
+import io.ktor.http.path
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import org.slf4j.LoggerFactory
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class AccessLogTest {
     private val apiToken = "api".repeat(12)

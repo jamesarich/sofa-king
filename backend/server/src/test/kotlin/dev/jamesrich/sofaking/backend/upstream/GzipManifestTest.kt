@@ -2,7 +2,12 @@ package dev.jamesrich.sofaking.backend.upstream
 
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPOutputStream
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /** Some origins (PBS's livestream CDN) gzip a manifest whether or not the request accepts it. */
 class GzipManifestTest {

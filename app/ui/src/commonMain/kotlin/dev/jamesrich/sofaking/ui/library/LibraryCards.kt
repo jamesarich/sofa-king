@@ -51,7 +51,12 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.jamesrich.sofaking.data.ItemKind
 import dev.jamesrich.sofaking.data.MediaItem
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.library_card_menu
+import dev.jamesrich.sofaking.resources.library_mark_unwatched
+import dev.jamesrich.sofaking.resources.library_mark_watched
+import dev.jamesrich.sofaking.resources.library_play_from_start
+import dev.jamesrich.sofaking.resources.library_watched
 import dev.jamesrich.sofaking.ui.isOk
 import dev.jamesrich.sofaking.ui.requestFocusWhenAttached
 import dev.jamesrich.sofaking.ui.theme.SofaOverlayScrim

@@ -1,7 +1,9 @@
 package dev.jamesrich.sofaking.backend.admin
 
 import java.time.Instant
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class AdminThemeTest {
     private val now: Instant = Instant.parse("2026-10-15T12:00:00Z")

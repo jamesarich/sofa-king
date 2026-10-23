@@ -3,7 +3,9 @@ package dev.jamesrich.sofaking.backend.upstream
 import java.io.ByteArrayOutputStream
 import java.util.zip.CRC32
 import java.util.zip.Deflater
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 
 /** The gzip header parser behind [inflateHead], exercised through it with every optional header field. */
 class GzipHeaderTest {

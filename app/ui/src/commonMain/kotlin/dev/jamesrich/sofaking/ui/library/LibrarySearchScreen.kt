@@ -32,7 +32,12 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.MediaItem
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.library_search_episodes
+import dev.jamesrich.sofaking.resources.library_search_hint
+import dev.jamesrich.sofaking.resources.library_search_none
+import dev.jamesrich.sofaking.resources.library_search_titles
+import dev.jamesrich.sofaking.resources.library_search_voice_prompt
 import dev.jamesrich.sofaking.ui.SofaLoader
 import dev.jamesrich.sofaking.ui.TvTextField
 import dev.jamesrich.sofaking.ui.rememberVoiceSearch

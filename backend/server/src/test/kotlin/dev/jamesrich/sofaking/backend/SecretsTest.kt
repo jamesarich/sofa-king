@@ -3,7 +3,13 @@ package dev.jamesrich.sofaking.backend
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.test.*
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ReadSecretFilesTest {
     private val files = mapOf(Path.of("/run/secrets/api") to "t".repeat(32) + "\n", Path.of("/run/secrets/plex") to "plex-token\r\n")

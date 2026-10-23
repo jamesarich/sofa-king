@@ -1,7 +1,9 @@
 package dev.jamesrich.sofaking.backend.library
 
 import java.nio.file.Files
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class SidecarsTest {
     @Test fun `a subtitle file name gives its language and flags`() {

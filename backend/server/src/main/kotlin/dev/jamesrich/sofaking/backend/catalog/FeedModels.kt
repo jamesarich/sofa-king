@@ -1,14 +1,20 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
+import dev.jamesrich.sofaking.backend.api.GuideMapping
+import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.backend.providers.NativeServices
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
 
 private val idPattern = Regex("[a-zA-Z0-9_-]{1,64}")
 private val headerName = Regex("[A-Za-z0-9-]+")

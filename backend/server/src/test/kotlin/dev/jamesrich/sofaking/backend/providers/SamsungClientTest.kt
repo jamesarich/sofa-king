@@ -6,7 +6,11 @@ import dev.jamesrich.sofaking.backend.store.providerState
 import java.nio.file.Files
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class SamsungClientTest {
     @Test fun `the gzip channel list is read by region without DRM channels and the redirect target is filled`() = runBlocking<Unit> {

@@ -2,7 +2,10 @@ package dev.jamesrich.sofaking.backend.discovery
 
 import dev.jamesrich.sofaking.contract.Wire
 import java.net.InetAddress
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class MdnsAdvertiserTest {
     @Test fun `the service carries the type, the name, the port and the version`() {

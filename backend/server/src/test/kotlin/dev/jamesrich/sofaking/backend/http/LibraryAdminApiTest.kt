@@ -1,16 +1,30 @@
 package dev.jamesrich.sofaking.backend.http
 
-import dev.jamesrich.sofaking.backend.*
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.HdhrConfig
+import dev.jamesrich.sofaking.backend.LiveRuntime
+import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.api.LibraryFolders
+import dev.jamesrich.sofaking.backend.api.LibraryInfo
+import dev.jamesrich.sofaking.backend.api.LibraryScanInfo
+import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.openStore
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
+import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.delete
+import io.ktor.client.request.get
+import io.ktor.client.request.patch
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
+import io.ktor.http.path
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import kotlinx.serialization.json.Json
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class LibraryAdminApiTest {
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }

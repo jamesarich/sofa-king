@@ -15,7 +15,16 @@ import dev.jamesrich.sofaking.data.PlaybackSessions
 import dev.jamesrich.sofaking.data.Programme
 import dev.jamesrich.sofaking.data.RecordingMarks
 import dev.jamesrich.sofaking.data.visibleChannels
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.channel_gone
+import dev.jamesrich.sofaking.resources.load_failed
+import dev.jamesrich.sofaking.resources.load_failed_hint
+import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.resources.no_channels
+import dev.jamesrich.sofaking.resources.no_channels_hint
+import dev.jamesrich.sofaking.resources.settings
+import dev.jamesrich.sofaking.resources.unconfigured
+import dev.jamesrich.sofaking.resources.unconfigured_hint
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.formatTemplate
 import dev.jamesrich.sofaking.ui.guide.GuideScreen

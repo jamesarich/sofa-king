@@ -4,7 +4,34 @@ import dev.jamesrich.sofaking.backend.api.Viewer
 import dev.jamesrich.sofaking.backend.pairing.IssuedCode
 import io.ktor.http.encodeURLParameter
 import java.time.Instant
-import kotlinx.html.*
+import kotlinx.html.A
+import kotlinx.html.ButtonType
+import kotlinx.html.a
+import kotlinx.html.address
+import kotlinx.html.br
+import kotlinx.html.button
+import kotlinx.html.caption
+import kotlinx.html.classes
+import kotlinx.html.code
+import kotlinx.html.dd
+import kotlinx.html.div
+import kotlinx.html.dl
+import kotlinx.html.dt
+import kotlinx.html.hidden
+import kotlinx.html.id
+import kotlinx.html.label
+import kotlinx.html.link
+import kotlinx.html.p
+import kotlinx.html.s
+import kotlinx.html.small
+import kotlinx.html.span
+import kotlinx.html.table
+import kotlinx.html.tbody
+import kotlinx.html.td
+import kotlinx.html.th
+import kotlinx.html.thead
+import kotlinx.html.tr
+import kotlinx.html.unsafe
 
 /** The code the page shows, the address a client reaches this server at, and the QR that carries both. */
 internal class PairingView(val code: IssuedCode, val serverUrl: String) {

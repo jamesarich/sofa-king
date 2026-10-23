@@ -1,16 +1,39 @@
 package dev.jamesrich.sofaking.backend.http
 
-import dev.jamesrich.sofaking.backend.*
-import dev.jamesrich.sofaking.backend.catalog.*
+import dev.jamesrich.sofaking.backend.HdhrConfig
+import dev.jamesrich.sofaking.backend.LiveRuntime
+import dev.jamesrich.sofaking.backend.ServerConfig
+import dev.jamesrich.sofaking.backend.pollUntil
+import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.PgsFixture
 import dev.jamesrich.sofaking.backend.store.openStore
-import dev.jamesrich.sofaking.contract.*
+import dev.jamesrich.sofaking.contract.ApiError
+import dev.jamesrich.sofaking.contract.ClientProfile
+import dev.jamesrich.sofaking.contract.OpenVodPlayback
+import dev.jamesrich.sofaking.contract.UpdateVodPlayback
+import dev.jamesrich.sofaking.contract.VodSession
+import dev.jamesrich.sofaking.contract.Wire
 import io.ktor.client.plugins.cookies.HttpCookies
-import io.ktor.client.request.*
+import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.delete
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.patch
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.request.url
 import io.ktor.client.request.forms.submitForm
-import io.ktor.client.statement.*
-import io.ktor.http.*
+import io.ktor.client.statement.bodyAsText
+import io.ktor.client.statement.readRawBytes
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.append
+import io.ktor.http.contentType
+import io.ktor.http.expires
+import io.ktor.http.parameters
+import io.ktor.http.plus
 import io.ktor.server.testing.testApplication
 import java.nio.file.Files
 import java.nio.file.Path
@@ -22,7 +45,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class VodApiTest {
     private val json = Json { ignoreUnknownKeys = true }

@@ -7,7 +7,9 @@ import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import java.nio.file.Files
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class LineupStorageTest {
     private val t = Instant.parse("2026-10-10T00:00:00Z")

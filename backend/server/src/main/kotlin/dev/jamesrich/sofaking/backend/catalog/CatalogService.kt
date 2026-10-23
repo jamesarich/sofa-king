@@ -1,7 +1,13 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
+import dev.jamesrich.sofaking.backend.api.GuideStatus
+import dev.jamesrich.sofaking.contract.Catalog
+import dev.jamesrich.sofaking.contract.Channel
+import dev.jamesrich.sofaking.contract.ChannelGuide
+import dev.jamesrich.sofaking.contract.GuideQuery
+import dev.jamesrich.sofaking.contract.GuideWindow
+import dev.jamesrich.sofaking.contract.Programme
+import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.HealthStatus
 import dev.jamesrich.sofaking.backend.store.BackendStore

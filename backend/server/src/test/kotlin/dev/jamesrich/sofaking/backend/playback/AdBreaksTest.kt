@@ -5,7 +5,12 @@ import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.util.Base64
 import java.util.zip.GZIPOutputStream
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** The playlists here are ones Pluto, Tubi, Xumo, Plex, Roku, Whale and Stirr served on 2026-10-22 and 23, with their paths shortened and their tokens removed. */
 class AdBreaksTest {

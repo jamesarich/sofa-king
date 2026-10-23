@@ -2,15 +2,33 @@ package dev.jamesrich.sofaking.backend.store
 
 import dev.jamesrich.sofaking.backend.api.PlexDeviceStatus
 import dev.jamesrich.sofaking.backend.api.PlexStatus
-import dev.jamesrich.sofaking.backend.health.*
-import kotlinx.coroutines.*
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.*
+import dev.jamesrich.sofaking.backend.health.FailureClass
+import dev.jamesrich.sofaking.backend.health.HealthState
+import dev.jamesrich.sofaking.backend.health.HealthStatus
+import dev.jamesrich.sofaking.backend.health.Observation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.count
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.not
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.DriverManager
 import java.time.Instant
-import kotlin.test.*
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class BackendStoreTest {
     private val dirs = mutableListOf<Path>()

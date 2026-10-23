@@ -1,7 +1,10 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
+import dev.jamesrich.sofaking.backend.api.GuideStatus
+import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
+import dev.jamesrich.sofaking.contract.Channel
+import dev.jamesrich.sofaking.contract.GuideQuery
+import dev.jamesrich.sofaking.contract.Wire
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
@@ -9,7 +12,14 @@ import io.ktor.client.engine.cio.CIO
 import java.nio.file.Files
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class FeedServiceTest {
     @Test fun `atomic last good import persists across failure and restart without resetting disables`() = runBlocking<Unit> {

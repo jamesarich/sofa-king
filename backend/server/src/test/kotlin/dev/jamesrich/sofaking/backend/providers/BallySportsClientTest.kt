@@ -4,7 +4,10 @@ import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.openStore
 import java.nio.file.Files
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class BallySportsClientTest {
     @Test fun `channels and guide come out of the RSC chunks of the channel page`() = runBlocking<Unit> {

@@ -12,7 +12,13 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class LogoCacheTest {
     private val loopback = UpstreamPolicy(allowLoopback = true)

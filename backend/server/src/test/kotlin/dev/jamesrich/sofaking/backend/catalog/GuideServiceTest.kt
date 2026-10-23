@@ -1,16 +1,28 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import dev.jamesrich.sofaking.backend.pollUntil
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
+import dev.jamesrich.sofaking.backend.api.CreateLineupEntry
+import dev.jamesrich.sofaking.backend.api.GuideChannelInfo
+import dev.jamesrich.sofaking.backend.api.GuideMapping
+import dev.jamesrich.sofaking.contract.GuideQuery
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import java.nio.file.Files
 import java.time.Instant
-import kotlinx.coroutines.*
-import kotlin.test.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 class GuideServiceTest {
     @Test fun `guides import independently keep only mapped channels and survive restart`() = runBlocking<Unit> {

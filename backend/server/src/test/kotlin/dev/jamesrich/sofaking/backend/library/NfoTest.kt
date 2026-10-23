@@ -1,6 +1,8 @@
 package dev.jamesrich.sofaking.backend.library
 
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class NfoTest {
     @Test fun `a movie nfo gives its title, year, plot, genres and default rating`() {

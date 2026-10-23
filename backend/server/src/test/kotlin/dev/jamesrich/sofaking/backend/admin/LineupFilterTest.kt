@@ -4,7 +4,9 @@ import dev.jamesrich.sofaking.backend.api.GuideMapping
 import dev.jamesrich.sofaking.backend.api.PolicyStation
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
 import io.ktor.http.parametersOf
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 class LineupFilterTest {
     private fun row(number: String, name: String, group: String? = null, enabled: Boolean = true, required: Boolean = false, disabledReason: String? = null, key: String? = null, guideStatus: String = "empty") =

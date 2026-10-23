@@ -2,7 +2,9 @@ package dev.jamesrich.sofaking.backend.http
 
 import dev.jamesrich.sofaking.backend.HdhrConfig
 import dev.jamesrich.sofaking.backend.catalog.LineupEntryRecord
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class DeviceShareTest {
     private val enabled = (1..23).map { LineupEntryRecord("b0f6d2f4-0000-4000-8000-${"%012d".format(it)}", it.toString(), "Channel $it") }

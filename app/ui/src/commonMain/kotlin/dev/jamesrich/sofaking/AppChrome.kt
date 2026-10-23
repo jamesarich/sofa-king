@@ -40,7 +40,14 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.app_name
+import dev.jamesrich.sofaking.resources.nav_library
+import dev.jamesrich.sofaking.resources.nav_live
+import dev.jamesrich.sofaking.resources.nav_settings
+import dev.jamesrich.sofaking.resources.recordings_title
+import dev.jamesrich.sofaking.resources.refreshing
+import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.LogoMark
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut

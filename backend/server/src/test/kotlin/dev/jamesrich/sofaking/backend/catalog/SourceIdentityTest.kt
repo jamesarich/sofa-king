@@ -1,6 +1,10 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 
 class SourceIdentityTest {
     @Test fun `source keys drop renewable query parameters and keep identity parameters sorted`() {

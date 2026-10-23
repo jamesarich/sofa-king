@@ -1,7 +1,10 @@
 package dev.jamesrich.sofaking.backend.catalog
 
 import java.nio.file.Files
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class SourceConfigTest {
     private fun load(text: String, environment: Map<String, String> = emptyMap()): SourceConfig {

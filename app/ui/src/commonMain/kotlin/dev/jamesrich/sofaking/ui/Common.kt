@@ -25,7 +25,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import dev.jamesrich.sofaking.data.Channel
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.banner_logo
+import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.resources.retry
+import dev.jamesrich.sofaking.resources.tagline
 import dev.jamesrich.sofaking.ui.theme.SofaButton
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn

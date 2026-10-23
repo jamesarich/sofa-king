@@ -4,7 +4,12 @@ import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPOutputStream
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ProviderHttpTest {
     private fun gzip(bytes: ByteArray): ByteArray =

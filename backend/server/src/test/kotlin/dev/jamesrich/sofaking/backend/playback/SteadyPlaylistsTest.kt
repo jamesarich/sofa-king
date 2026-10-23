@@ -1,7 +1,8 @@
 package dev.jamesrich.sofaking.backend.playback
 
 import java.net.URI
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class SteadyPlaylistsTest {
     private val source = URI("https://siloh-ns1.plutotv.net/v2/stitch/hls/channel/5f1ac1f1/1600/playlist.m3u8")

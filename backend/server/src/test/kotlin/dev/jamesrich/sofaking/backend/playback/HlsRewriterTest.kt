@@ -3,7 +3,11 @@ package dev.jamesrich.sofaking.backend.playback
 import dev.jamesrich.sofaking.backend.catalog.ApiFailure
 import java.net.URI
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class HlsRewriterTest {
     @Test fun `rewrites variants audio subtitles keys maps and relative segments preserving timing`() = runBlocking<Unit> {

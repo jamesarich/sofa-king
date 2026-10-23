@@ -4,7 +4,10 @@ import dev.jamesrich.sofaking.backend.ads.BreakLibrary
 import dev.jamesrich.sofaking.backend.settings.LearnedBreaks
 import dev.jamesrich.sofaking.contract.AdBreakState
 import java.net.URI
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class AdClockTest {
     private val base = URI("https://aegis-cloudfront-1.tubi.video/b18a776e/master_5.m3u8")

@@ -1,8 +1,15 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
-import dev.jamesrich.sofaking.backend.health.*
+import dev.jamesrich.sofaking.backend.api.AdoptProvider
+import dev.jamesrich.sofaking.backend.api.AdoptResult
+import dev.jamesrich.sofaking.backend.api.CreateLineupEntry
+import dev.jamesrich.sofaking.backend.api.GuideMapping
+import dev.jamesrich.sofaking.backend.api.GuideStatus
+import dev.jamesrich.sofaking.backend.api.UpdateLineupEntry
+import dev.jamesrich.sofaking.contract.GuideQuery
+import dev.jamesrich.sofaking.contract.OpenPlayback
+import dev.jamesrich.sofaking.contract.Wire
+import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.playback.SessionManager
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
@@ -11,7 +18,10 @@ import io.ktor.client.engine.cio.CIO
 import java.nio.file.Files
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class LineupServiceTest {
     @Test fun `only lineup entries are served in lineup order and feed channels outside it stay candidates`() = runBlocking<Unit> {

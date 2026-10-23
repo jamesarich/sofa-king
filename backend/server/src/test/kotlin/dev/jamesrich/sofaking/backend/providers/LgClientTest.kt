@@ -7,7 +7,11 @@ import java.net.URLEncoder
 import java.nio.file.Files
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 class LgClientTest {
     @Test fun `decodes the base64 zlib schedulelist into channels, programmes and filled stream URLs`() = runBlocking<Unit> {

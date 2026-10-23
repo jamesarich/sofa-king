@@ -3,7 +3,11 @@ package dev.jamesrich.sofaking.backend.store
 import java.nio.file.Files
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.sqlite.SQLiteConnection
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class DatabaseFactoryTest {
     @Test fun `connections run in WAL with NORMAL synchronous`() {

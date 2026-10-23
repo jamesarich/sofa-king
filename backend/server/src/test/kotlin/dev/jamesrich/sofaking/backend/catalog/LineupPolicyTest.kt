@@ -1,9 +1,20 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
+import dev.jamesrich.sofaking.backend.api.CandidateFilter
+import dev.jamesrich.sofaking.backend.api.GroupPattern
+import dev.jamesrich.sofaking.backend.api.LineupPolicy
+import dev.jamesrich.sofaking.backend.api.PolicyGroups
+import dev.jamesrich.sofaking.backend.api.PolicyNames
+import dev.jamesrich.sofaking.backend.api.PolicyProvider
+import dev.jamesrich.sofaking.backend.api.SourcePin
+import dev.jamesrich.sofaking.backend.api.StationOverride
+
 import java.nio.file.Files
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class LineupPolicyTest {
     private val providers = setOf("localnow", "whale", "samsung", "vizio", "masqueradarr")

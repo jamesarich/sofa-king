@@ -7,7 +7,46 @@ import dev.jamesrich.sofaking.backend.setup.ServiceCatalog
 import dev.jamesrich.sofaking.backend.setup.ServiceInfo
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import io.ktor.http.Parameters
-import kotlinx.html.*
+import kotlinx.html.A
+import kotlinx.html.ButtonType
+import kotlinx.html.FlowContent
+import kotlinx.html.FormMethod
+import kotlinx.html.a
+import kotlinx.html.address
+import kotlinx.html.aside
+import kotlinx.html.b
+import kotlinx.html.button
+import kotlinx.html.caption
+import kotlinx.html.checkBoxInput
+import kotlinx.html.classes
+import kotlinx.html.details
+import kotlinx.html.div
+import kotlinx.html.form
+import kotlinx.html.h1
+import kotlinx.html.hidden
+import kotlinx.html.hiddenInput
+import kotlinx.html.id
+import kotlinx.html.label
+import kotlinx.html.li
+import kotlinx.html.map
+import kotlinx.html.ol
+import kotlinx.html.option
+import kotlinx.html.p
+import kotlinx.html.s
+import kotlinx.html.small
+import kotlinx.html.source
+import kotlinx.html.span
+import kotlinx.html.summary
+import kotlinx.html.table
+import kotlinx.html.tbody
+import kotlinx.html.td
+import kotlinx.html.textInput
+import kotlinx.html.th
+import kotlinx.html.thead
+import kotlinx.html.title
+import kotlinx.html.tr
+import kotlinx.html.ul
+import kotlinx.html.urlInput
 
 /** One native service on the Sources page: the catalog's description, whether the source file has it, and its options as written. */
 internal class ServiceRow(val info: ServiceInfo, val on: Boolean, val options: Map<String, String>)

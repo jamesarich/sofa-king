@@ -1,13 +1,21 @@
 package dev.jamesrich.sofaking.backend.catalog
 
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
+import dev.jamesrich.sofaking.backend.api.LineupPolicy
+import dev.jamesrich.sofaking.backend.api.PolicyNames
+import dev.jamesrich.sofaking.backend.api.PolicyNumbering
+import dev.jamesrich.sofaking.backend.api.PolicyProvider
+import dev.jamesrich.sofaking.backend.api.StationOverride
+import dev.jamesrich.sofaking.contract.Channel
 import dev.jamesrich.sofaking.backend.health.HealthState
 import dev.jamesrich.sofaking.backend.health.HealthStatus
 import java.time.Duration
 import java.time.Instant
 import kotlin.random.Random
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class LearnedAliasesTest {
     private val now = Instant.parse("2026-10-11T12:00:00Z")

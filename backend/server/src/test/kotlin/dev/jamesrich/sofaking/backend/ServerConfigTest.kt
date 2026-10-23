@@ -1,7 +1,13 @@
 package dev.jamesrich.sofaking.backend
 
 import java.nio.file.Path
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ServerConfigTest {
     @Test fun `defaults keep server local with persistent data directory`() {

@@ -5,7 +5,42 @@ import dev.jamesrich.sofaking.backend.library.LibraryKind
 import dev.jamesrich.sofaking.backend.library.LibraryRecord
 import dev.jamesrich.sofaking.backend.library.LibrarySuggestion
 import dev.jamesrich.sofaking.backend.library.TMDB_NOTICE
-import kotlinx.html.*
+import kotlinx.html.A
+import kotlinx.html.ButtonType
+import kotlinx.html.FormMethod
+import kotlinx.html.VIDEO
+import kotlinx.html.a
+import kotlinx.html.aside
+import kotlinx.html.button
+import kotlinx.html.caption
+import kotlinx.html.classes
+import kotlinx.html.code
+import kotlinx.html.details
+import kotlinx.html.div
+import kotlinx.html.form
+import kotlinx.html.hiddenInput
+import kotlinx.html.id
+import kotlinx.html.label
+import kotlinx.html.li
+import kotlinx.html.main
+import kotlinx.html.option
+import kotlinx.html.p
+import kotlinx.html.passwordInput
+import kotlinx.html.progress
+import kotlinx.html.s
+import kotlinx.html.select
+import kotlinx.html.small
+import kotlinx.html.span
+import kotlinx.html.summary
+import kotlinx.html.table
+import kotlinx.html.tbody
+import kotlinx.html.td
+import kotlinx.html.textInput
+import kotlinx.html.th
+import kotlinx.html.thead
+import kotlinx.html.tr
+import kotlinx.html.ul
+import kotlinx.html.video
 
 /**
  * The Library page: each library with its counts and last scan, and the form that adds one. [roots] are the folders

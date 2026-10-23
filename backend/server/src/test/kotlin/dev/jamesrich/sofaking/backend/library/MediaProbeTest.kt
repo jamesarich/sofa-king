@@ -1,6 +1,9 @@
 package dev.jamesrich.sofaking.backend.library
 
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class MediaProbeTest {
     @Test fun `ffprobe json reads container, duration, streams and HDR`() {

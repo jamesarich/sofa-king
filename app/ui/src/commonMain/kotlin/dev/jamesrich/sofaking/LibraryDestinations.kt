@@ -20,7 +20,12 @@ import dev.jamesrich.sofaking.data.initialSubtitle
 import dev.jamesrich.sofaking.data.isPictureSubtitle
 import dev.jamesrich.sofaking.data.trackChoice
 import dev.jamesrich.sofaking.data.trackLabel
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.library_load_failed
+import dev.jamesrich.sofaking.resources.library_loading
+import dev.jamesrich.sofaking.resources.loading
+import dev.jamesrich.sofaking.resources.retry
+import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.BackHandler
 import dev.jamesrich.sofaking.ui.MessageScreen
 import dev.jamesrich.sofaking.ui.library.CardMenu

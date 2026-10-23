@@ -25,7 +25,13 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.AppSettings
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.player_control_mute
+import dev.jamesrich.sofaking.resources.player_control_unmute
+import dev.jamesrich.sofaking.resources.player_control_volume
+import dev.jamesrich.sofaking.resources.player_volume_level
+import dev.jamesrich.sofaking.resources.player_volume_muted
+import dev.jamesrich.sofaking.resources.settings
 import dev.jamesrich.sofaking.ui.PopIn
 import dev.jamesrich.sofaking.ui.PopOut
 import dev.jamesrich.sofaking.ui.theme.SofaIcons

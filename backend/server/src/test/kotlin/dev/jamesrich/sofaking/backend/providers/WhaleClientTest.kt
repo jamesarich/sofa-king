@@ -7,7 +7,12 @@ import dev.jamesrich.sofaking.backend.store.saveProviderState
 import java.nio.file.Files
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class WhaleClientTest {
     private val watchMojo = "523509741847643710"

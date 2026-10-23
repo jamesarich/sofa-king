@@ -1,15 +1,26 @@
 package dev.jamesrich.sofaking.backend.http
 
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
-import dev.jamesrich.sofaking.backend.store.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
-import io.ktor.server.application.*
+import dev.jamesrich.sofaking.contract.ApiError
+import dev.jamesrich.sofaking.contract.Bootstrap
+import dev.jamesrich.sofaking.contract.Capabilities
+import dev.jamesrich.sofaking.backend.store.IdentityStore
+import dev.jamesrich.sofaking.backend.store.openStore
+import io.ktor.client.request.get
+import io.ktor.client.request.host
+import io.ktor.client.statement.bodyAsBytes
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.application
+import io.ktor.server.application.host
+import io.ktor.server.application.log
 import io.ktor.server.config.MapApplicationConfig
-import io.ktor.server.routing.*
-import io.ktor.server.testing.*
+import io.ktor.server.routing.application
+import io.ktor.server.routing.get
+import io.ktor.server.routing.host
+import io.ktor.server.routing.routing
+import io.ktor.server.testing.it
+import io.ktor.server.testing.on
+import io.ktor.server.testing.testApplication
 import io.ktor.util.cio.ChannelWriteException
 import io.ktor.utils.io.ClosedByteChannelException
 import io.ktor.utils.io.ClosedWriteChannelException
@@ -19,9 +30,14 @@ import org.slf4j.event.Level
 import org.slf4j.event.SubstituteLoggingEvent
 import org.slf4j.helpers.SubstituteLogger
 import java.nio.file.Files
-import java.time.*
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ApplicationTest {
     @Test fun `bootstrap is typed native and truthful`() = testApplication {

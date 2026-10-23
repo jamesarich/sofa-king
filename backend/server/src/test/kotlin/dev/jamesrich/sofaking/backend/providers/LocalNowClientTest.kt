@@ -6,7 +6,12 @@ import dev.jamesrich.sofaking.backend.store.saveProviderState
 import java.nio.file.Files
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class LocalNowClientTest {
     private val desMoines = "22A7F880-7B2C-4658-B1C4-33F996DA38A9"

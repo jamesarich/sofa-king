@@ -1,7 +1,34 @@
 package dev.jamesrich.sofaking.backend.admin
 
-import kotlinx.html.*
-import kotlinx.serialization.json.*
+import kotlinx.html.A
+import kotlinx.html.a
+import kotlinx.html.body
+import kotlinx.html.classes
+import kotlinx.html.code
+import kotlinx.html.div
+import kotlinx.html.id
+import kotlinx.html.label
+import kotlinx.html.li
+import kotlinx.html.map
+import kotlinx.html.nav
+import kotlinx.html.p
+import kotlinx.html.s
+import kotlinx.html.section
+import kotlinx.html.small
+import kotlinx.html.span
+import kotlinx.html.summary
+import kotlinx.html.title
+import kotlinx.html.ul
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 /** One operation of the API reference: its method, path, what it does, who it takes, its parameters and answers. */
 internal class ApiOperation(

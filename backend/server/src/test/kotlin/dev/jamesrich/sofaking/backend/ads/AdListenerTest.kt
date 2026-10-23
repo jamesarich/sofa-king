@@ -3,7 +3,8 @@ package dev.jamesrich.sofaking.backend.ads
 import dev.jamesrich.sofaking.backend.store.AdChannelRecord
 import java.net.URI
 import java.time.Instant
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class AdListenerTest {
     private val now = Instant.parse("2026-10-23T18:00:00Z")

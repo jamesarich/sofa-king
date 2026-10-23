@@ -5,7 +5,9 @@ import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.store.providerState
 import java.nio.file.Files
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class FreeLiveSportsClientTest {
     @Test fun `one catalog document yields channels in number order, the embedded schedule and fresh macros`() = runBlocking<Unit> {

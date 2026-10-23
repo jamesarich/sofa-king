@@ -41,7 +41,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.filter_all
+import dev.jamesrich.sofaking.resources.filter_favorites
+import dev.jamesrich.sofaking.resources.mini_guide_empty_favorites
+import dev.jamesrich.sofaking.resources.mini_guide_last_channel
+import dev.jamesrich.sofaking.resources.mini_guide_next
+import dev.jamesrich.sofaking.resources.mini_guide_recent
+import dev.jamesrich.sofaking.resources.mini_guide_title
 import dev.jamesrich.sofaking.data.Channel
 import dev.jamesrich.sofaking.data.Lineup
 import dev.jamesrich.sofaking.data.Programme

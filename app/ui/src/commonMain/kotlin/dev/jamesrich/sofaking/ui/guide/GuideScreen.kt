@@ -40,7 +40,13 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.guide_favorites_none
+import dev.jamesrich.sofaking.resources.guide_recent_none
+import dev.jamesrich.sofaking.resources.guide_search_hint
+import dev.jamesrich.sofaking.resources.guide_search_none
+import dev.jamesrich.sofaking.resources.guide_search_voice_prompt
+import dev.jamesrich.sofaking.resources.refreshing
 import dev.jamesrich.sofaking.data.AutoOpenDelay
 import dev.jamesrich.sofaking.data.CaptionStyle
 import dev.jamesrich.sofaking.data.Channel

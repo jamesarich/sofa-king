@@ -1,6 +1,7 @@
 package dev.jamesrich.sofaking.backend.playback
 
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class SpliceReaderTest {
     private fun hex(text: String) = ByteArray(text.length / 2) { text.substring(it * 2, it * 2 + 2).toInt(16).toByte() }

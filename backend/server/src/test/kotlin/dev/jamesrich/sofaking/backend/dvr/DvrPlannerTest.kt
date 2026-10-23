@@ -6,7 +6,8 @@ import dev.jamesrich.sofaking.backend.catalog.PreviouslyShown
 import dev.jamesrich.sofaking.contract.Wire
 import java.time.Duration
 import java.time.Instant
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class DvrPlannerTest {
     private val now = Instant.parse("2026-10-17T12:00:00Z")

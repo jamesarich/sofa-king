@@ -1,17 +1,34 @@
 package dev.jamesrich.sofaking.backend.playback
 
-import dev.jamesrich.sofaking.backend.api.*
-import dev.jamesrich.sofaking.contract.*
-import dev.jamesrich.sofaking.backend.catalog.*
-import dev.jamesrich.sofaking.backend.health.*
+import dev.jamesrich.sofaking.contract.Channel
+import dev.jamesrich.sofaking.contract.OpenPlayback
+import dev.jamesrich.sofaking.contract.UpdatePlayback
+import dev.jamesrich.sofaking.contract.Wire
+import dev.jamesrich.sofaking.backend.catalog.ApiFailure
+import dev.jamesrich.sofaking.backend.catalog.FeedConfig
+import dev.jamesrich.sofaking.backend.catalog.FeedService
+import dev.jamesrich.sofaking.backend.catalog.FeedSnapshot
+import dev.jamesrich.sofaking.backend.catalog.Fixture
+import dev.jamesrich.sofaking.backend.catalog.MutableClock
+import dev.jamesrich.sofaking.backend.catalog.Offering
+import dev.jamesrich.sofaking.backend.catalog.lineupStack
+import dev.jamesrich.sofaking.backend.health.FailureClass
+import dev.jamesrich.sofaking.backend.health.Observation
 import dev.jamesrich.sofaking.backend.store.openStore
 import dev.jamesrich.sofaking.backend.upstream.UpstreamPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import java.nio.file.Files
 import java.time.Instant
-import kotlinx.coroutines.*
-import kotlin.test.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.job
+import kotlinx.coroutines.runBlocking
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SessionManagerTest {
     @Test fun `idempotency promotion capacity cancellation and lease expiry are owned`() = runBlocking<Unit> {

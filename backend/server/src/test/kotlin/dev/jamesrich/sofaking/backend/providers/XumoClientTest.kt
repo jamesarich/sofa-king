@@ -7,7 +7,11 @@ import dev.jamesrich.sofaking.backend.store.providerState
 import java.nio.file.Files
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class XumoClientTest {
     private val inTouch = "99951481"

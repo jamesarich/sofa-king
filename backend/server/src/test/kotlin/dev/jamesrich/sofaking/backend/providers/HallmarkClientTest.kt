@@ -4,7 +4,12 @@ import dev.jamesrich.sofaking.backend.catalog.MutableClock
 import dev.jamesrich.sofaking.backend.store.openStore
 import java.nio.file.Files
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class HallmarkClientTest {
     @Test fun `four fixed channels with static streams, catalog logos and a schedule per wanted channel`() = runBlocking<Unit> {

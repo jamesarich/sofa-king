@@ -2,7 +2,9 @@ package dev.jamesrich.sofaking.backend.logging
 
 import ch.qos.logback.classic.LoggerContext
 import org.slf4j.MDC
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class EventRingTest {
     @Test fun `the ring keeps the newest lines at INFO and above, newest first, with the request id`() {

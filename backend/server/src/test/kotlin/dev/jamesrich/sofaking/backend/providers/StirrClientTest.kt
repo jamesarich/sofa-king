@@ -6,7 +6,11 @@ import java.time.Duration
 import java.time.Instant
 import dev.jamesrich.sofaking.backend.store.openStore
 import kotlinx.coroutines.runBlocking
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class StirrClientTest {
     private fun ProviderFixture.stirr() {

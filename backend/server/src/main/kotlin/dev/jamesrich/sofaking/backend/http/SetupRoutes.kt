@@ -6,7 +6,11 @@ import dev.jamesrich.sofaking.backend.catalog.SourceDocument
 import dev.jamesrich.sofaking.backend.setup.SetupService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
-import io.ktor.server.routing.*
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import io.ktor.server.routing.route
 
 /**
  * Setup under the admin route: the source file as written and its replacement, the starter policy, and the TMDB token. A write

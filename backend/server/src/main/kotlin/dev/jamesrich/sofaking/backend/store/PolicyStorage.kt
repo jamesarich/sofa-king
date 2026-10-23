@@ -4,8 +4,10 @@ import dev.jamesrich.sofaking.backend.catalog.StationAvailability
 import java.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.*
+
+import org.jetbrains.exposed.v1.jdbc.batchInsert
+import org.jetbrains.exposed.v1.jdbc.deleteAll
+import org.jetbrains.exposed.v1.jdbc.selectAll
 
 private val availabilityJson = Json { encodeDefaults = false; ignoreUnknownKeys = true }
 

@@ -23,7 +23,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.jamesrich.sofaking.data.Airing
-import dev.jamesrich.sofaking.resources.*
+import dev.jamesrich.sofaking.resources.Res
+import dev.jamesrich.sofaking.resources.guide_airings_back
+import dev.jamesrich.sofaking.resources.guide_airings_title
+import dev.jamesrich.sofaking.resources.guide_today
+import dev.jamesrich.sofaking.resources.guide_tomorrow
 import dev.jamesrich.sofaking.ui.ProgrammeBadges
 import dev.jamesrich.sofaking.ui.TimeFormatter
 import dev.jamesrich.sofaking.ui.label

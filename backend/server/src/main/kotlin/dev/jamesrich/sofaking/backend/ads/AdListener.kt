@@ -102,9 +102,10 @@ class AdListener(
         playing.entries.drop(wanted).forEach { it.value.cancel() }
         val free = wanted - playing.count { it.value.isActive && it.key !in watching }
         if (free <= 0) return
-        for (channel in pick(store.adChannels(), channels(), watching + playing.keys, free)) {
-            val offering = sessions.listenable(channel) ?: continue
-            if (service(offering) in NEVER || cooldown[offering.providerId]?.isAfter(clock.instant()) == true || offering.protocol != "hls") continue
+        // A channel that cannot be listened to gives its turn to the next in line, so a run of them never stalls the rest.
+        val now = clock.instant()
+        val usable = { offering: Offering -> service(offering) !in NEVER && cooldown[offering.providerId]?.isAfter(now) != true && offering.protocol == "hls" }
+        for ((channel, offering) in sessions.listenable(pick(store.adChannels(), channels(), watching + playing.keys, now), free, usable)) {
             playing[channel] = scope.launch(CoroutineName("ad-listener-$channel")) { listen(channel, offering) }
         }
     }
@@ -116,6 +117,7 @@ class AdListener(
                 found.rule, if (found.ended) "ended" else "started", found.lengthMs, found.entry ?: "-", channel, offering.providerId,
             )
         }
+        log.info("ad listener plays channel={} provider={}", channel, offering.providerId)
         val until = clock.instant().plus(LISTEN)
         // The audio reader ends with the turn, rather than idling on after it.
         val reading = CoroutineScope(kotlin.coroutines.coroutineContext + SupervisorJob(kotlin.coroutines.coroutineContext[Job]))
@@ -150,7 +152,7 @@ class AdListener(
             cooldown[offering.providerId] = clock.instant().plus(COOLDOWN)
             log.info("ad listener backs off provider={} status={}", offering.providerId, e.status)
         } catch (e: Exception) {
-            log.debug("ad listener channel={} stopped: {}", channel, e.toString())
+            log.info("ad listener channel={} provider={} stopped: {}", channel, offering.providerId, e.toString())
         } finally {
             reading.cancel()
             withContext(NonCancellable) {
@@ -223,11 +225,11 @@ class AdListener(
         }
 
         /**
-         * Up to [count] of [lineup]'s channels to listen to next, none of [busy]: watched within [RECENT] and never seen
+         * [lineup]'s channels in the order to listen to them, none of [busy]: watched within [RECENT] and never seen
          * marked first, the most recently watched first; then watched within [RECENT] with markers; then never heard;
          * then the least recently heard. Within the first two, a channel heard lately waits behind one that was not.
          */
-        fun pick(known: List<AdChannelRecord>, lineup: List<String>, busy: Set<String>, count: Int, now: Instant = Instant.now()): List<String> {
+        fun pick(known: List<AdChannelRecord>, lineup: List<String>, busy: Set<String>, now: Instant = Instant.now()): List<String> {
             val byChannel = known.associateBy { it.channelId }
             val since = now.minus(RECENT)
             fun recent(id: String) = byChannel[id]?.lastWatchedAt?.isAfter(since) == true
@@ -238,7 +240,7 @@ class AdListener(
             val marked = free.filter { recent(it) && byChannel[it]?.markedAt != null }
                 .sortedWith(compareBy<String> { heard(it) > now.minus(LISTEN) }.thenByDescending { byChannel[it]?.lastWatchedAt })
             val rest = free.filter { !recent(it) }.sortedBy { heard(it) }
-            return (unmarked + marked + rest).take(count)
+            return unmarked + marked + rest
         }
     }
 }

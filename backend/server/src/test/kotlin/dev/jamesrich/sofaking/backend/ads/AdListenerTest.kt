@@ -24,9 +24,9 @@ class AdListenerTest {
         val lineup = known.map { it.channelId } + "never-heard" + "watched-now"
         assertEquals(
             listOf("unmarked-today", "unmarked-yesterday", "unmarked-just-heard", "marked-today", "never-heard", "heard-long-ago", "old-unmarked"),
-            AdListener.pick(known, lineup, busy = setOf("watched-now"), count = 10, now = now),
+            AdListener.pick(known, lineup, busy = setOf("watched-now"), now = now),
         )
-        assertEquals(listOf("unmarked-today", "unmarked-yesterday"), AdListener.pick(known, lineup, emptySet(), count = 2, now = now))
+        assertEquals(listOf("unmarked-today", "unmarked-yesterday"), AdListener.pick(known, lineup, emptySet(), now = now).take(2))
     }
 
     @Test

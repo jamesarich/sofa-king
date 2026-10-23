@@ -265,7 +265,17 @@ class SessionManager(private val catalog: CatalogService, private val store: Bac
     /** The channels sessions are playing now. */
     suspend fun watching(): Set<String> = mutex.withLock { sessions.values.mapTo(HashSet()) { it.request.channelId } }
     /** The source a session opened on [channelId] now would play, for the ad listener; null when none is eligible. */
-    suspend fun listenable(channelId: String): Offering? = catalog.offeringsFor(channelId)?.let { choose(it, store.allHealth()) }
+    /** The first [count] of [channels], in order, whose chosen source [usable] accepts, each with that source. */
+    suspend fun listenable(channels: List<String>, count: Int, usable: (Offering) -> Boolean): Map<String, Offering> {
+        val states = store.allHealth()
+        val found = LinkedHashMap<String, Offering>()
+        for (channel in channels) {
+            if (found.size >= count) break
+            val offering = catalog.offeringsFor(channel)?.let { choose(it, states) } ?: continue
+            if (usable(offering)) found[channel] = offering
+        }
+        return found
+    }
     /** Lineup order within each health rank: a healthy second choice beats an unverified first choice. */
     private suspend fun select(channelId: String): Offering {
         val candidates = catalog.offeringsFor(channelId) ?: throw ApiFailure(404, Wire.ErrorCode.CHANNEL_NOT_FOUND, "Unknown channel")

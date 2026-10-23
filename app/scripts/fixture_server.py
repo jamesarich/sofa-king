@@ -123,6 +123,9 @@ def tune(a, b, seconds):
 def show(library):
     """[EPISODES] episodes of one show, each a cold open and a body of its own around the same theme, which the server
     finds as their intro: about COLD_OPEN to COLD_OPEN + THEME seconds in."""
+    muxers = subprocess.run(['ffmpeg', '-hide_banner', '-muxers'], capture_output=True, text=True, check=True).stdout
+    if ' chromaprint ' not in muxers:
+        raise SystemExit('--shows needs an FFmpeg built with Chromaprint (--enable-chromaprint), which finds the intros')
     season = library / 'Fixture Show' / 'Season 01'
     season.mkdir(parents=True)
     body = EPISODE - COLD_OPEN - THEME

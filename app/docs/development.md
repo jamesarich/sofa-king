@@ -51,7 +51,7 @@ To look at the TV layout without a TV, run the desktop app with `./gradlew :ui:r
 SOFAKING_MONKEY_SEED=1234 python3 scripts/tv-monkey.py --apk androidApp/build/outputs/apk/debug/androidApp-debug.apk --out build/tv-monkey
 ```
 
-For a check by hand in an emulator or simulator, run `scripts/fixture_server.py --out build/fixture` and connect the app to the address and token it writes to `server.env` (from an Android emulator, use `10.0.2.2` for the host). With `--shows` it also serves a TV shows library of four episodes that share a theme, about 10 to 55 seconds in, and waits until the server has found their intros, for Skip intro. `--quiet` silences the channels' tone, for a simulator that plays through the Mac's speakers.
+For a check by hand in an emulator or simulator, run `scripts/fixture_server.py --out build/fixture` and connect the app to the address and token it writes to `server.env` (from an Android emulator, use `10.0.2.2` for the host). With `--shows` it also serves a TV shows library of four episodes that share a theme, about 10 to 55 seconds in, and waits until the server has found their intros, for Skip intro; that needs an FFmpeg built with Chromaprint, which the script checks for. `--quiet` silences the channels' tone, for a simulator that plays through the Mac's speakers.
 
 ### Desktop monkey
 

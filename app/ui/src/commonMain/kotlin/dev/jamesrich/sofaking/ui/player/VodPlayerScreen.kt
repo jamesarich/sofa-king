@@ -250,7 +250,9 @@ fun VodPlayerScreen(
         val s = stream ?: return@LaunchedEffect
         lifecycle.withStateAtLeast(Lifecycle.State.STARTED) {
             if (player.currentStreamUrl == s.url) return@withStateAtLeast
-            val wasPaused = !player.playWhenReady && player.hasItem && player.currentChannelId.isNullOrEmpty()
+            // A new URL for this page's item (a restart, a reopen) keeps it paused; a page's first item plays, even
+            // after another item was left paused.
+            val wasPaused = loadedUrl != null && !player.playWhenReady && player.hasItem && player.currentChannelId.isNullOrEmpty()
             player.stop()
             player.setStream(s, NowPlaying(currentTitle.title, currentTitle.subtitle.orEmpty(), currentTitle.artworkUrl))
             loadedUrl = s.url

@@ -667,8 +667,8 @@ fun SettingsScreen(
             val version = BuildInfo.VERSION + suffix.orEmpty()
             // The suffix file is read before the check, so a snapshot compares as one.
             LaunchedEffect(suffix) { if (suffix != null) actions.onCheckForUpdate(version, false) }
-            // The last buttons on the page sit above the TMDB notice, and a TV scrolls only as far as the focused
-            // button, so focus anywhere in About brings the whole block, down to the page's last line, into view.
+            // A TV scrolls only as far as the focused button, so the TMDB notice sits above the update check's
+            // buttons, which end the page, and focus anywhere in About brings the whole block into view.
             val about = remember { BringIntoViewRequester() }
             val scope = rememberCoroutineScope()
             Column(
@@ -687,13 +687,13 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                UpdateRow(update = update, onCheckAgain = { actions.onCheckForUpdate(version, true) }, keepInView = about)
                 // TMDB's terms ask apps that show its data to say so.
                 Text(
                     stringResource(Res.string.settings_tmdb_notice),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                UpdateRow(update = update, onCheckAgain = { actions.onCheckForUpdate(version, true) }, keepInView = about)
             }
         }
     }
